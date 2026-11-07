@@ -645,7 +645,24 @@ internal sealed partial class LegendBuilder
             case "stroke":
                 top = bottom = 0;
                 break;
+            case "circle" or "square" or "cross" or "diamond":
+                break;
             default:
+                if (SymbolPathParser.TryGet(symbol.Shape) is { } custom && symbol.Size > 0)
+                {
+                    // A custom path has the bounds of its drawing (vega's bound context), not a square around the center
+                    custom.Render(symbol.Size, out var box);
+                    if (box.IsEmpty)
+                    {
+                        return SceneBounds.Empty;
+                    }
+
+                    left = -box.X1;
+                    top = -box.Y1;
+                    right = box.X2;
+                    bottom = box.Y2;
+                }
+
                 break;
         }
 

@@ -9,7 +9,7 @@
       "title": "Supported",
       "items": [
         { "text": "Pages: --page N (from 1) or --all-pages; the page rotation is applied." },
-        { "text": "Embedding: <image href=\"report.pdf#page=3\" .../> in an SVG file draws page 3 (page 1 without the fragment); a page that does not exist is image-page-out-of-range. See 'canvasnet help svg'." },
+        { "text": "Embedding: <image href=\"report.pdf#page=3\" .../> in an SVG file draws page 3 (page 1 without the fragment); a page that does not exist is image-page-out-of-range. See 'canvasnet help svg'. On the command line the same fragment on the input chooses the page: canvasnet render \"report.pdf#page=3\" -o p3.png (it overrides --page; a page that does not exist is page-out-of-range)." },
         { "text": "Resolution: --dpi, default 96, at most {{maxDpi}}." },
         { "text": "Paths, fills, strokes, clipping, and images (resampled once to the size they cover)." },
         { "text": "Color spaces Device, Cal, Lab, ICCBased (chosen by component count; the profile is not applied), Indexed, Separation, DeviceN, and Pattern." },

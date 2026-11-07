@@ -345,7 +345,10 @@ sections:
                   and for sort null, descending for sort descending, the values of a sort array first in the
                   order of the array (a date-time object of a temporal field matching a date) and then the
                   unlisted values in order of first appearance (none dropped), and
-                  ascending for a sort by an aggregate, which the unit does not support - shall make the grid of
+                  for a sort by an aggregate (a field and an operation, the operation min by default, count
+                  without a field, the descending order for an order of descending, ties in first-appearance
+                  order) by the aggregated value of each cell - and, for a facet field with a time unit that has
+                  parts, with the cells being the start of the unit - shall make the grid of
                   every combination of a row value and a column value in row-major order (one column for a
                   facet without a column field, one row for one without a row field, the combinations that no
                   row has as cells without rows) or, for a wrapped facet, one cell for each value, and shall build
@@ -358,7 +361,10 @@ sections:
                   - EncodingTransforms_FacetDomain_DistinctValuesAreSortedAscendingByDefault
                   - EncodingTransforms_FacetDomain_DescendingNullAndArraySort
                   - EncodingTransforms_FacetDomain_SortArrayOfDateTimeObjectsOrdersTemporalValues
-                  - EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder
+                  - EncodingTransforms_FacetDomain_SortByAggregateOrdersTheCells
+                  - EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition
+                  - EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell
+                  - EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied
                   - EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell
                   - EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations
                   - EncodingTransforms_Facet_RowOnlyHasOneColumnAndColumnOnlyOneRow

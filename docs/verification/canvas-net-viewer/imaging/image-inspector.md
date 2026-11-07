@@ -54,3 +54,6 @@ error, so they are checked before the source is loaded (an undefined kind is no 
 
 **ImageInspector_Execute_InvalidOperationValue_ThrowsUsageError**: a resize to 0x0 is a `usage-error` naming the
 operation even though the probed file was deleted, so the check happens before the source is decoded.
+
+**Operations_InputWithPageFragment_UseThePageAndTheLabel** (`InputSelectionTests.cs`): for `source.pdf#page=2` the
+inspection reports page 2 and the size of the same page inspected with `Page = 2` of the options.

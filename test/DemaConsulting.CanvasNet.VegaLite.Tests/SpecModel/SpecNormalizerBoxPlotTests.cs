@@ -414,11 +414,12 @@ public class SpecNormalizerBoxPlotTests
     }
 
     /// <summary>
-    ///     Validates that a bin, a time unit or an aggregate on a grouping channel is not applied: the raw field groups the rows and the bin or time unit is not in the
-    ///     encoding of the parts, and a channel that aggregates is left out.
+    ///     Validates that a bin or an aggregate on a grouping channel is not applied (the raw field groups the rows, the bin is not in the encoding of the parts and a channel that
+    ///     aggregates is left out), and that a time unit is applied (Vega-Lite's <c>extractTransformsFromEncoding</c>): a <c>timeUnit</c> transform runs before the aggregate, the unit's field
+    ///     groups the rows and the channel reads it with the default title.
     /// </summary>
     [Fact]
-    public void SpecNormalizer_Expand_GroupingChannelsDropBinTimeUnitAndAggregate()
+    public void SpecNormalizer_Expand_GroupingChannelsDropBinAndAggregateAndApplyTimeUnit()
     {
         // Arrange / Act
         var expanded = Expand("""
@@ -427,14 +428,48 @@ public class SpecNormalizerBoxPlotTests
                             "color": { "field": "t", "type": "temporal", "timeUnit": "year" }, "size": { "field": "z", "aggregate": "mean", "type": "quantitative" } } }
             """);
         var box = expanded.Layers.Units.Single(u => MarkOf(u.Unit!)["type"]!.StringValue == "bar").Unit!["encoding"]!;
+        var boxTransform = expanded.Layers.Root.Children[1].Transform!.Items;
+        var quartileTransform = expanded.Layers.Root.Children[0].Transform!.Items;
 
-        // Assert
-        Assert.Equal(["g", "t"], expanded.Layers.Root.Children[1].Transform!.Items[0]["groupby"]!.Items.Select(g => g.StringValue));
+        // Assert: the time unit transform comes first in both views, then the aggregate groups by the unit's field
+        Assert.Equal("year", boxTransform[0]["timeUnit"]!.StringValue);
+        Assert.Equal("t", boxTransform[0]["field"]!.StringValue);
+        Assert.Equal("year_t", boxTransform[0]["as"]!.StringValue);
+        Assert.Equal("year", quartileTransform[0]["timeUnit"]!.StringValue);
+        Assert.Equal(["g", "year_t"], boxTransform[1]["groupby"]!.Items.Select(g => g.StringValue));
         Assert.Null(box["x"]!["bin"]);
         Assert.Equal("g", box["x"]!["field"]!.StringValue);
-        Assert.Null(box["color"]!["timeUnit"]);
         Assert.Equal("ordinal", box["x"]!["type"]!.StringValue);
+
+        // Assert: the channel reads the derived field, has no time unit and keeps a default title; the aggregated channel is left out
+        Assert.Null(box["color"]!["timeUnit"]);
+        Assert.Equal("year_t", box["color"]!["field"]!.StringValue);
+        Assert.Equal("t (year)", box["color"]!["title"]!.StringValue);
         Assert.Null(box["size"]);
+    }
+
+    /// <summary>
+    ///     Validates that a time unit on a channel that is not temporal gets the format type <c>time</c> for its axis (a position channel), its legend or its text, keeping the properties
+    ///     and the title that the definition has, and that a binned time unit is left as it was.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_Expand_TimeUnitOfAnOrdinalGroupingChannelFormatsAsTime()
+    {
+        // Arrange / Act
+        var expanded = Expand("""
+            { "mark": "boxplot",
+              "encoding": { "x": { "field": "d", "type": "ordinal", "timeUnit": "month", "axis": { "labelAngle": 0 } }, "y": { "field": "v", "type": "quantitative" },
+                            "color": { "field": "d", "type": "nominal", "timeUnit": "year", "title": "Own" } } }
+            """);
+        var box = expanded.Layers.Units.Single(u => MarkOf(u.Unit!)["type"]!.StringValue == "bar").Unit!["encoding"]!;
+
+        // Assert: the axis has the format type first and keeps its angle; the legend is created for the color; a written title wins over the default
+        Assert.Equal("month_d", box["x"]!["field"]!.StringValue);
+        Assert.Equal("time", box["x"]!["axis"]!["formatType"]!.StringValue);
+        Assert.Equal(0, box["x"]!["axis"]!["labelAngle"]!.NumberValue);
+        Assert.Equal("d (month)", box["x"]!["title"]!.StringValue);
+        Assert.Equal("time", box["color"]!["legend"]!["formatType"]!.StringValue);
+        Assert.Equal("Own", box["color"]!["title"]!.StringValue);
     }
 
     /// <summary>

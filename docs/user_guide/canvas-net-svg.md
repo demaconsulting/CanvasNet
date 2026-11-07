@@ -177,12 +177,17 @@ the cycles, the number of images, and the pixels they may use in total (a pictur
 it is decoded, with the warning `svg-image-too-large`). A query after a file name (`logo.png?v=2`) is
 ignored, and a fragment (`report.pdf#page=3`) is read as `name=value` parameters: `#page=N` chooses the page of a
 PDF or VSDX document, `#slide=N` (or `#page=N`) the slide of a presentation, and `#view=front` the view of a model
-(viewer package); without a fragment page 1 is drawn. A parameter the linked file does not use is the warning
+(viewer package); `#def.width=20` sets a variable of a linked model (like `-D width=20`) and `#param.threshold=5` a
+parameter of a
+linked chart (like `--param threshold=5`; the warning `vl-param-unknown` for a name the chart does not declare); without
+a fragment
+page 1 is drawn. A parameter the linked file does not use is the warning
 `image-fragment-unknown-parameter` (the picture is still drawn - this includes `logo.png#anything`, which used to be
 ignored silently), a value that is not allowed or a page that does not exist is `image-fragment-invalid` or
 `image-page-out-of-range` (nothing is drawn), and the same parameter with two values is
 `image-fragment-duplicate-parameter` (the last wins). Inside an XML attribute write `&amp;` between parameters. The
-Viewer user guide has the grammar and the table of parameters. The core package has a raster source; the `Svg` package has
+Viewer user guide has the grammar and the table of parameters. The core package has a raster source; the `Svg` package
+has
 `SvgImageSource` for `.svg` files; and the `Scad`, `VegaLite`, `Pdf`, `Pptx` and `Vsdx` packages have
 one each. The `DemaConsulting.CanvasNet.Viewer` package lists them all.
 

@@ -289,6 +289,19 @@ public sealed record SourceInfo(
     ///     or <see langword="null"/> for every other kind.
     /// </summary>
     public ChartFacts? Chart { get; init; }
+
+    /// <summary>
+    ///     Gets what the fragment of the input chose (<c>part.scad#def.width=20</c>), or <see langword="null"/> when the input
+    ///     had none; set by <see cref="SourceLoader.Probe(InputReference)"/>. Every operation that loads the source applies it
+    ///     over its options (see <see cref="InputSelection.ApplyTo(SourceOptions)"/>), and <see cref="Path"/> is still the file.
+    /// </summary>
+    public InputSelection? Selection { get; init; }
+
+    /// <summary>
+    ///     Gets the input as the user wrote it: the <see cref="Path"/>, and <c>#</c> and the fragment when the input had one.
+    ///     It is what a label or a message uses to tell two inputs of one file apart.
+    /// </summary>
+    public string Specifier => Selection is null ? Path : $"{Path}#{Selection.Fragment}";
 }
 
 /// <summary>
@@ -397,7 +410,8 @@ public sealed record ScadViewOptions
 
     /// <summary>
     ///     Gets the variables that replace the assignments of the same name in the model: each value is a
-    ///     <see cref="double"/>, a <see cref="bool"/>, or a <see cref="string"/>.
+    ///     <see cref="double"/>, a <see cref="bool"/>, a <see cref="string"/>, or a vector (a list of these and of further
+    ///     lists; for example <c>$vpt</c> and <c>$vpr</c> are vectors).
     /// </summary>
     /// <remarks>
     ///     The default is one shared empty dictionary that cannot be changed, not even through a cast, so sharing it
@@ -531,6 +545,47 @@ public sealed record SourceOptions
     ///     <see cref="ScadViewOptions"/>. The other kinds ignore it.
     /// </summary>
     public ScadViewOptions? Scad { get; init; }
+
+    /// <summary>
+    ///     Gets how a Vega-Lite chart is parameterized (the values of its <c>params</c>), or <see langword="null"/> for the
+    ///     defaults of the specification. The other kinds ignore it.
+    /// </summary>
+    public ChartOptions? VegaLite { get; init; }
+}
+
+/// <summary>
+///     How a Vega-Lite chart is parameterized: the values that replace the defaults of its named parameters.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The parameters are the ones <c>VegaLiteRenderOptions.Parameters</c> takes (<c>--param name=value</c> of the tool, the
+///         <c>param.&lt;name&gt;=&lt;value&gt;</c> fragment of an embedding link): a <see langword="null"/>, a
+///         <see cref="bool"/>, a number, a <see cref="string"/>, a list of values or a string-keyed dictionary of values, and for a
+///         selection parameter the shapes of its initial state (<c>{"x": [2, 6]}</c> for an interval selection).
+///     </para>
+///     <para>
+///         A parameter the chart does not declare is, by default, a <c>vega-lite-error</c> that lists the declared names (the
+///         mistake of a command line); with <see cref="WarnOnUnknownParameters"/> it is the warning <c>vl-param-unknown</c> and the
+///         chart is drawn without it (what an embedding link does).
+///     </para>
+/// </remarks>
+public sealed record ChartOptions
+{
+    /// <summary>
+    ///     The default of <see cref="Parameters"/>: an empty dictionary that cannot be changed.
+    /// </summary>
+    private static readonly ReadOnlyDictionary<string, object?> NoParameters = new(new Dictionary<string, object?>());
+
+    /// <summary>
+    ///     Gets the values of the parameters by name; the default is one shared empty dictionary that cannot be changed.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?> Parameters { get; init; } = NoParameters;
+
+    /// <summary>
+    ///     Gets a value indicating whether a parameter the chart does not declare is a warning (<c>vl-param-unknown</c>, the
+    ///     value is ignored) instead of an error (<c>vega-lite-error</c>). The default is <see langword="false"/>.
+    /// </summary>
+    public bool WarnOnUnknownParameters { get; init; }
 }
 
 /// <summary>

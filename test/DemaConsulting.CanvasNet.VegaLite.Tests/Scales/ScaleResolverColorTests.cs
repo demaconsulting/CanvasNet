@@ -332,7 +332,7 @@ public class ScaleResolverColorTests
 
     /// <summary>
     ///     Validates <c>interpolate</c>: the color space of a list of colors (a name, or an object with a type and a gamma) changes the middle color, matching the
-    ///     interpolators of <see cref="ColorInterpolator"/> (within one in each channel); a named scheme ignores it; cubehelix, which is not drawn, interpolates in sRGB.
+    ///     interpolators of <see cref="ColorInterpolator"/> (within one in each channel); a named scheme ignores it; cubehelix and cubehelix-long are drawn, with the gamma of the lightness.
     /// </summary>
     [Fact]
     public void ScaleResolverColor_Interpolate_ChoosesTheColorSpaceOfAList()
@@ -356,8 +356,12 @@ public class ScaleResolverColorTests
         Assert.NotEqual(Middle(string.Empty), Middle(",\"interpolate\":\"lab\""));
         Assert.NotEqual(Middle(string.Empty), Middle(",\"interpolate\":{\"type\":\"rgb\",\"gamma\":2}"));
 
-        // Assert: cubehelix is accepted but interpolates in sRGB (the feature catalog reports it)
-        Assert.Equal("#800080", Middle(",\"interpolate\":\"cubehelix\""));
+        // Assert: cubehelix and cubehelix-long are drawn (d3's interpolateCubehelix; red to blue at the middle is 238, 0, 209), and the gamma moves the lightness
+        AssertNear(ColorInterpolator.Interpolate(InterpolationSpace.Cubehelix, red, blue, 0.5), Middle(",\"interpolate\":\"cubehelix\""));
+        Assert.Equal("#ee00d1", Middle(",\"interpolate\":\"cubehelix\""));
+        Assert.Equal("#ee00d1", Middle(",\"interpolate\":\"cubehelix-long\""));
+        Assert.Equal("#ff00f6", Middle(",\"interpolate\":{\"type\":\"cubehelix\",\"gamma\":2}"));
+        AssertNear(ColorInterpolator.Interpolate(InterpolationSpace.CubehelixLong, red, blue, 0.5, 0.5), Middle(",\"interpolate\":{\"type\":\"cubehelix-long\",\"gamma\":0.5}"));
 
         // Assert: a named scheme ignores interpolate, as Vega does
         var plain = Scale("color", "point", Enc("color", "quantitative", """{"domain":[0,10],"scheme":"viridis"}""")).CreateModel(0);

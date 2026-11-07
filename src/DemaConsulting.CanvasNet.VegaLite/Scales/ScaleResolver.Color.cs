@@ -365,8 +365,8 @@ internal static partial class ScaleResolver
     ///     Reads <c>scale.interpolate</c>: a space name, or an object with a <c>type</c> and a <c>gamma</c>.
     /// </summary>
     /// <remarks>
-    ///     The parser has checked the names; <c>cubehelix</c> and <c>cubehelix-long</c> are known but not drawn (the feature catalog reports
-    ///     them) and interpolate in sRGB.
+    ///     The parser has checked the names; every name of Vega-Lite (rgb, hsl, hsl-long, lab, hcl, hcl-long, cubehelix and cubehelix-long) is drawn, and the
+    ///     gamma applies to sRGB and the two cubehelix spaces (vega-scale's <c>interpolate</c>).
     /// </remarks>
     /// <param name="scaleDef">The scale object, or null.</param>
     /// <returns>The space (sRGB by default) and the gamma (1 by default).</returns>

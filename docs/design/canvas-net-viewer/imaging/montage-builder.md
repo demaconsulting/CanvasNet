@@ -35,6 +35,13 @@ at the cell size (a vector input rendered at that size, a raster input fitted), 
 file name, and `p` and the page number for a document page, when labels are on), and disposes it before the next, so the
 memory in use is the sheet and one input. The finished sheet is staged and published with `ImageWriter`.
 
+**Input fragment.** `PlanCells` makes a page that the `SourceInfo.Selection` of an input names the one cell of that
+input, whatever `Page` and `AllPages` of the request say (the page is checked there); the other parts of the selection
+(variables, view, chart parameters) are applied by `SourceLoader.OpenPages` when the input is opened, so one file named
+several times is several cells. `CreateLabel` writes the file name, `#` and the fragment of the selection, and the
+`p<page>` suffix only for a page of a document that the fragment does not name, so the cells of one file are
+told apart on the sheet (the label strip cuts a text that is wider than the cell, with an ellipsis).
+
 #### Error Handling
 
 `ViewerException` with `page-out-of-range`, `size-limit`, `usage-error` (the output format), `same-input-output`,

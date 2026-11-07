@@ -425,7 +425,8 @@ model with `ScadDocument.Open(request.OpenContent(), new ScadOpenOptions { BaseD
 = request.FileName })`, so the `include` and `use` directives resolve in the folder of the file and are confined there
 by the library; draws it with `ScadDocument.Render` at the size `request.SizeFor(800, 800)` gives (a model has no
 natural size, so 800 by 800 pixels, the `NaturalSize` constant, when none is requested), checking that size first with
-`request.EnsureWithinBudget(width, height)` (a size that does not fit in the budget of the request is refused with `ImageSourceBudgetException`
+`request.EnsureWithinBudget(width, height)` (a size that does not fit in the budget of the request is refused with
+`ImageSourceBudgetException`
 before the model is parsed or any surface is allocated), with the view the library chooses for the model (it sets no
 azimuth or elevation: the fitted isometric view for a model with 3D objects, the flat top-down view for a model that
 is entirely 2D, or the view of the model's own `$vpr`, `$vpt`, `$vpd`, and `$vpf` assignments) and an orthographic
@@ -437,7 +438,27 @@ note, not an error, and a request without a folder fails a model that uses `incl
 class is stateless, thread-safe, and claims no URI scheme; it references only the core package (and the Render3D types
 the package already uses).
 
-The behavior of the class is specified by the `CanvasNetScad-ScadDocument-ImageSource` requirement and verified by
-`ScadImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
+**Defines in the link.** The class also implements `IFragmentImageSource` with no parameter name and the prefix
+`ScadImageSource.DefinePrefix` (`def.`). Before it charges anything, `Render` reads every `def.<name>=<value>` of
+`request.Fragment` with `ImageParameterValues.ReadVariables` (the grammar of `-D`: a number, `true`, `false`, text
+with one
+pair of quotes removed, or a vector as a JSON array such as `[0,0,20]` (so the viewport variables `$vpt` and `$vpr`
+can be set; an object inside it is refused); the value is percent-decoded by `ImageFragment` after the split, so
+`%22A%22` is the
+text `A`), checks the names by constructing `ScadEvaluationOptions { Variables = ... }` (the evaluator says which names
+it
+accepts) and passes them as `ScadEvaluationOptions.Variables`, so they replace the top-level assignments and create the
+variable when the model has none, exactly as the definitions of the command line do. A value or a name that is not
+usable is an
+`ImageSourceRefusedException` with the code `image-fragment-invalid` (the library's own `(Parameter ...)` suffix is cut
+off).
+Names are case-sensitive; there is no "unknown name" for a model (as for `-D`, an unused definition is not an error).
+Any other
+fragment parameter is unknown to the resolver.
+
+The behavior of the class is specified by the `CanvasNetScad-ScadDocument-ImageSource` and
+`CanvasNetScad-ScadDocument-ImageSourceDefines` requirements and verified by
+`ScadImageSourceTests.cs` and `ScadImageSourceDefineTests.cs`. Its **callers** are the shared `FolderImageResolver` of
+the core package (through
 `IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
 unit depends on the core package only through the `ImageSources` contract types.

@@ -13,9 +13,11 @@ the `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: `ExpressionReferenc
 
 Vega-Lite compiles an `ExprRef` (an `{"expr": ...}` object where the schema allows a value) to a Vega signal, so in a
 chart that never changes the property has the value the expression gives with the parameters at their initial state.
-`ExpressionReferenceFolder` evaluates each such reference once per call and rewrites the specification tree so that every
+`ExpressionReferenceFolder` evaluates each such reference once per call and rewrites the specification tree so that
+every
 later stage (the configuration resolver, the normalizer, the scales, the guides, the marks, the title, and the layout)
-reads the value where the author wrote the reference, and none of them needs to know that expressions exist. It exists so
+reads the value where the author wrote the reference, and none of them needs to know that expressions exist. It exists
+so
 that the support for parameter-driven properties is one unit and not a change in every stage.
 
 `ExpressionReferenceSites` is the schema-derived table of the properties that take a reference, owner by owner (title,
@@ -29,7 +31,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-SpecModel-ExpressionR
 
 **`ExpressionReferenceSites.Site`** (readonly record struct) is one reference found by the walk: `Reference` (the
 `{"expr": ...}` object), `Text` (the string node that holds the expression, which keys the compiled expression), and
-`Kind` (a `StaticSiteKind`). **`ExpressionReferenceSites.Owner`** names the kinds of object that carry references: `View`,
+`Kind` (a `StaticSiteKind`). **`ExpressionReferenceSites.Owner`** names the kinds of object that carry references:
+`View`,
 `RootView`, `Title`, `Mark`, `Encoding`, `ChannelDef`, `Condition`, `Axis`, `Legend`, `Header`, `Scale`, `ScaleConfig`,
 `ViewBackground`, and `Config`. The property names of each owner are sets taken from the published Vega-Lite 6 schema
 (names only); `PropertiesOf(owner)` returns them.
@@ -47,7 +50,8 @@ The class is stateless and thread-safe; one call belongs to one evaluator, which
 #### Key Methods
 
 - `ExpressionReferenceSites.Find(root)` - walks the specification from the root with an explicit stack, along the
-  properties that lead to an owner (`title`, `mark` and its overlays and composite parts, `encoding` and its channels, the
+  properties that lead to an owner (`title`, `mark` and its overlays and composite parts, `encoding` and its channels,
+  the
   `axis`, `legend`, `scale`, `header`, and `condition` of a channel, `view`, `facet`, `spec`, `layer`, `concat`,
   `hconcat`, `vconcat`, and, for the root only, `config`), and records each reference found at a property of the
   owner's table; `domain` and `range` of a scale also take a reference for each entry. It never enters `data`,
@@ -62,7 +66,8 @@ The class is stateless and thread-safe; one call belongs to one evaluator, which
   otherwise the expression is evaluated with the evaluator (which charges every step to the budget of the call),
   a result text longer than the evaluator's string limit is a located `VegaLiteRenderException`, and the value is
   converted to a node. A null, boolean, number, string, array, or object converts to the node of its kind (a number that
-  is not finite converts to null; a number or a boolean at a `Text` site converts to a string node holding the JavaScript
+  is not finite converts to null; a number or a boolean at a `Text` site converts to a string node holding the
+  JavaScript
   text; the members of an object are plain values). A date converts to a number of milliseconds only at a `Domain`
   site; a
   date elsewhere, a regular expression, or a composite holding one converts to nothing, and the reference stays with a
@@ -71,7 +76,10 @@ The class is stateless and thread-safe; one call belongs to one evaluator, which
   (`SpecNode.Overlay` for an object, `SpecNode.Synthetic` for an array and for the values) and every other subtree is
   shared, so the compiled expressions and the parameter indexes, which are keyed by node, remain valid. The values are
   located at the reference they replace. The new `SpecTree` keeps the source name, the parse warnings, and the
-  expressions of the old one.
+  expressions of the old one. A reference whose expression reads the parameter of an `extent` transform
+  (`SpecParser.ExtentParameterNames`; the data stage computes it, after this fold) is folded like any other, with the
+  parameter at null, and additionally delivers a `vl-param-extent-static` warning (kind `Warning`) located at the
+  reference that names the parameter.
 
 **Preconditions and postconditions**: the tree is the one the parser produced (the ancestors of a reference are found
 through the parent links), and the evaluator holds the parameter values of the call, so the caller evaluates the
@@ -81,10 +89,13 @@ references.
 #### Error Handling
 
 An expression that cannot be compiled, or that reads an undeclared parameter, is a `VegaLiteSpecException` raised when
-the document is opened (by the parser, which compiles the references), so no malformed reference reaches the fold. The fold
-raises a `VegaLiteRenderException` located at the reference for an expression that exceeds the step budget or another limit
+the document is opened (by the parser, which compiles the references), so no malformed reference reaches the fold. The
+fold
+raises a `VegaLiteRenderException` located at the reference for an expression that exceeds the step budget or another
+limit
 of the evaluation, and for a value that holds a text longer than `VegaLiteLimits.MaxStringLength`; it throws
-`OperationCanceledException` when the token of the evaluator is canceled and `ArgumentNullException` for a null argument.
+`OperationCanceledException` when the token of the evaluator is canceled and `ArgumentNullException` for a null
+argument.
 A value that no property can hold is not an error: the reference stays and a warning is returned, because the chart can
 still be drawn. The unit does no file or network access.
 

@@ -146,7 +146,7 @@ public sealed record InspectResult(
 ///         finally analyzes the pixels with <see cref="Surface.Analyze"/> or <see cref="Surface.Sample"/>.
 ///     </para>
 ///     <para>
-///         The source is probed by the caller (<see cref="SourceLoader.Probe"/>). The operation does file I/O, holds no
+///         The source is probed by the caller (<see cref="SourceLoader.Probe(string)"/>, or <see cref="SourceLoader.Probe(InputReference)"/> for an input with a fragment). The operation does file I/O, holds no
 ///         state, and is safe to call from several threads.
 ///     </para>
 /// </remarks>
@@ -159,7 +159,7 @@ public static class ImageInspector
     /// <summary>
     ///     Inspects a source.
     /// </summary>
-    /// <param name="info">The facts about the source, from <see cref="SourceLoader.Probe"/>.</param>
+    /// <param name="info">The facts about the source, from <see cref="SourceLoader.Probe(string)"/> or <see cref="SourceLoader.Probe(InputReference)"/>; a page the fragment of the input names replaces <see cref="SourceOptions.Page"/>.</param>
     /// <param name="request">What to inspect.</param>
     /// <returns>What was found; <see cref="InspectResult.Colors"/> or <see cref="InspectResult.Pixel"/> is set, by the kind.</returns>
     /// <exception cref="ArgumentNullException">
@@ -210,7 +210,7 @@ public static class ImageInspector
             throw new ArgumentException("A pixel inspection needs a point.", nameof(request));
         }
 
-        SourceLoader.CheckPage(info, request.Source.Page);
+        SourceLoader.CheckPage(info, info.Selection?.Page ?? request.Source.Page);
 
         using var loaded = SourceLoader.Load(info, request.Source);
         Surface? transformed = null;

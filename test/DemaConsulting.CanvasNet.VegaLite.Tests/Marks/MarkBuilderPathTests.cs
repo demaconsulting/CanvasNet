@@ -493,12 +493,14 @@ public class MarkBuilderPathTests
     }
 
     /// <summary>
-    ///     Validates that <c>invalid: "show"</c> (and null) behaves as the default mode and that the feature catalog reports it as unsupported at the value.
+    ///     Validates that <c>invalid: "show"</c> (and null) draws the rows that have no number at the position of Vega-Lite's <c>zeroOrMin</c> (the scale of zero when the domain has it, else its
+    ///     first value), so a line passes through the point instead of breaking, a point is drawn there, and the mode is not reported; a configured mode that the renderer does not know is ignored
+    ///     (the default applies).
     /// </summary>
     [Fact]
-    public void MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported()
+    public void MarkBuilder_Build_InvalidShowDrawsTheInvalidRowAtZeroOrMin()
     {
-        // Arrange
+        // Arrange: x is 0 to 4 over 300 pixels (75 each); y is 1, 2, null, 3, 4 on the domain 0 to 4 over 200 pixels (50 each), so zero is at 200
         const string rows = """[ { "x": 0, "y": 1 }, { "x": 1, "y": 2 }, { "x": 2, "y": null }, { "x": 3, "y": 3 }, { "x": 4, "y": 4 } ]""";
 
         foreach (var invalid in new[] { "\"show\"", "null" })
@@ -509,15 +511,41 @@ public class MarkBuilderPathTests
             var line = OnlyPath(ChartTestHelpers.Marks(json, 300, 200), "mark-line");
             var reports = FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id.StartsWith("vl-mark-", StringComparison.Ordinal)).ToList();
 
-            // Assert: the path is broken as in the default mode, and the mode is reported at the value
-            Assert.Equal("M0,150 L75,100 M225,50 L300,0", PathText.Of(line));
-            var report = Assert.Single(reports);
-            Assert.Equal(("vl-mark-invalid-show", "/mark/invalid", FeatureReportKind.UnsupportedFeature), (report.Id, report.Location.Pointer, report.Kind));
+            // Assert: the path goes through the invalid row at zero, and nothing is reported
+            Assert.Equal("M0,150 L75,100 L150,200 L225,50 L300,0", PathText.Of(line));
+            Assert.Empty(reports);
         }
+
+        // Assert: a point is drawn at the position of zero, with every other row; the default mode drops the row
+        var points = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("{ \"type\": \"point\", \"invalid\": \"show\" }", XY, rows), 300, 200), "mark-point");
+        Assert.Equal([(0.0, 150.0), (75.0, 100.0), (150.0, 200.0), (225.0, 50.0), (300.0, 0.0)], points.Select(p => (p.X, p.Y)));
+        Assert.Equal(4, ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("\"point\"", XY, rows), 300, 200), "mark-point").Count);
+
+        // Assert: a bar of an invalid value has no height at the zero line; an area passes through zero
+        var area = OnlyPath(ChartTestHelpers.Marks(Chart("""{ "type": "area", "invalid": "show" }""", Unstacked, rows), 300, 200), "mark-area");
+        Assert.Equal("M0,150 L75,100 L150,200 L225,50 L300,0 L300,200 L225,200 L150,200 L75,200 L0,200 Z", PathText.Of(area));
 
         // Assert: a configured mode that the renderer does not know is ignored (the default applies)
         var ignored = OnlyPath(ChartTestHelpers.Marks(Chart("\"line\"", XY, rows, """{ "line": { "invalid": "bogus" } }"""), 300, 200), "mark-line");
         Assert.Equal("M0,150 L75,100 M225,50 L300,0", PathText.Of(ignored));
+    }
+
+    /// <summary>
+    ///     Validates that a domain that does not have zero puts the invalid row at the first value of the domain: y values 10, 20, null on the explicit domain 10 to 30 draw the null at the bottom,
+    ///     and a time or log scale never has zero.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_InvalidShowUsesTheFirstDomainValueWhenZeroIsNotInTheDomain()
+    {
+        // Arrange: y on the domain 10 to 30 over 200 pixels (10 per pixel unit step: 10 at 200, 20 at 100, 30 at 0); the null is drawn where 10 is
+        const string rows = """[ { "x": 0, "y": 10 }, { "x": 1, "y": 20 }, { "x": 2, "y": null } ]""";
+        const string encoding = """{ "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative", "scale": { "domain": [10, 30] } } }""";
+
+        // Act
+        var points = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("{ \"type\": \"point\", \"invalid\": \"show\" }", encoding, rows), 200, 200), "mark-point");
+
+        // Assert
+        Assert.Equal([200.0, 100.0, 200.0], points.Select(p => p.Y));
     }
 
     /// <summary>

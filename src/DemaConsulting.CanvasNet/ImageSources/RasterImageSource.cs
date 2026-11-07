@@ -123,7 +123,7 @@ public sealed class RasterImageSource : IImageSource
             }
         }
 
-        return new ImageSourceResult(surface) { Format = format.ToString().ToLowerInvariant() };
+        return new ImageSourceResult(surface) { Format = format.ToString().ToLowerInvariant(), IsNaturalSize = true };
     }
 
     /// <summary>

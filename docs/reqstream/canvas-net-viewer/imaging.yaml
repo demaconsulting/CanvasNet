@@ -58,6 +58,8 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-BoxFit
           - CanvasNetViewer-Imaging-SourceLoader-InMemoryInput
           - CanvasNetViewer-Imaging-SourceLoader-OptionValidation
+          - CanvasNetViewer-Imaging-SourceLoader-ChartParameters
+          - CanvasNetViewer-Imaging-SourceLoader-InputFragments
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_RequestedSize_WritesThatSize
@@ -98,6 +100,7 @@ sections:
           - CanvasNetViewer-Imaging-ImageRenderer-Pages
           - CanvasNetViewer-Imaging-ImageRenderer-Checks
           - CanvasNetViewer-Imaging-ImageRenderer-AllOrNothing
+          - CanvasNetViewer-Imaging-ImageRenderer-InputFragment
         tests:
           - Imaging_Render_DocumentPages_AreLoadedTransformedAndWritten
 
@@ -112,6 +115,7 @@ sections:
         children:
           - CanvasNetViewer-Imaging-ImageInspector-Analyze
           - CanvasNetViewer-Imaging-ImageInspector-Arguments
+          - CanvasNetViewer-Imaging-ImageInspector-InputFragment
         tests:
           - Imaging_Inspect_LoadedSource_ReportsColorsAndPixel
 
@@ -160,6 +164,7 @@ sections:
           - CanvasNetViewer-Imaging-ImageComparer-Checks
           - CanvasNetViewer-Imaging-ImageComparer-OutputFormat
           - CanvasNetViewer-Imaging-ImageComparer-ResultShape
+          - CanvasNetViewer-Imaging-ImageComparer-InputFragment
         tests:
           - Imaging_Compare_LoadedSourcesAreComparedAndVisualized
           - Imaging_Compare_ComparerLoadsAndMeasuresTwoKinds_AndWritesThePicture
@@ -185,6 +190,7 @@ sections:
           - CanvasNetViewer-Imaging-MontageBuilder-Compose
           - CanvasNetViewer-Imaging-MontageBuilder-Checks
           - CanvasNetViewer-Imaging-MontageBuilder-OutputFormat
+          - CanvasNetViewer-Imaging-MontageBuilder-InputFragment
         tests:
           - Imaging_Montage_LoadedSourcesAreComposedAndWritten
           - Imaging_Montage_BuilderComposesSeveralKinds_AndWritesOneSheet
@@ -296,3 +302,16 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-DiagnosticDetail
         tests:
           - Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries
+
+      - id: CanvasNetViewer-Imaging-ChartImages
+        title: >-
+          The Imaging subsystem shall show the pictures that the image marks of a Vega-Lite chart name through the
+          same sandboxed resolver, notes, operations, and strict policy as the pictures of an SVG file.
+        justification: |
+          One rule for what a document may link keeps the tool from reading files that the user did not mean to
+          expose.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-ChartImages
+        tests:
+          - SourceLoader_Load_VegaLiteImagePngAndScad_DrawsBothAndListsEmbedOperations
+          - SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError

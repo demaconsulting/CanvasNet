@@ -105,7 +105,7 @@ internal sealed record LegendResult(
 ///         legend of a temporal color or of a size or an opacity over dates has the time ticks of its domain (see <c>LegendBuilder.Time.cs</c>).
 ///     </para>
 ///     <para>
-///         <b>Not drawn.</b> <c>titleOrient</c> other than <c>top</c>, <c>clipHeight</c>, <c>encode</c> and custom format types
+///         <b>Not drawn.</b> <c>clipHeight</c>, <c>encode</c> and custom format types
 ///         (the feature catalog reports them); the symbols of the <c>arrow</c>, <c>wedge</c> and <c>triangle</c> shapes use the box of their path.
 ///     </para>
 ///     <para>
@@ -191,41 +191,14 @@ internal sealed partial class LegendBuilder
             _ => BuildSymbols(context),
         };
 
-        // Vega's legendGroupLayout: the entries sit inside the padding, below the title
+        // Vega's legendGroupLayout: the entries sit inside the padding, beside the title (below it for the default orient top)
         double entryX = padding;
         double entryY = padding;
         SceneText? title = null;
         var titleBounds = SceneBounds.Empty;
         if (titleLines is not null)
         {
-            var anchor = s.Text("titleAnchor") ?? "start";
-            var probe = MakeTitle(context, titleLines, 0, 0, anchor);
-            var probeBounds = _measurer.GetBounds(probe);
-            entryY += probeBounds.Height + (s.Number("titlePadding") ?? 0);
-
-            // A centered or end-anchored title is positioned against the width of the entries (the bar alone for a horizontal gradient)
-            var reference = spec.Kind != LegendKind.Symbol && !spec.Vertical ? content.MarkBounds : content.Bounds;
-            var width = (reference.IsEmpty ? 0 : reference.X2) + entryX - padding;
-            var shift = anchor switch
-            {
-                "end" => TextMeasurer.RoundHalfUp(width),
-                "middle" => TextMeasurer.RoundHalfUp(0.5 * width),
-                _ => 0.0,
-            };
-            var titleX = padding + shift;
-            var placed = probeBounds.Translate(titleX, padding);
-
-            // A title that reaches past the left padding pushes everything to the right
-            var overhang = TextMeasurer.RoundHalfUp(placed.X1 - padding);
-            if (overhang < 0)
-            {
-                entryX -= overhang;
-                titleX -= overhang;
-                placed = placed.Translate(-overhang, 0);
-            }
-
-            title = MakeTitle(context, titleLines, titleX, padding, anchor);
-            titleBounds = placed;
+            (entryX, entryY, title, titleBounds) = LayoutTitle(context, titleLines, content, padding);
         }
 
         var entryBounds = content.Bounds.IsEmpty ? SceneBounds.Empty : content.Bounds.Translate(entryX, entryY);
@@ -269,23 +242,175 @@ internal sealed partial class LegendBuilder
     }
 
     /// <summary>
+    ///     Lays out the title of a legend and the entries beside it: Vega's <c>legendGroupLayout</c> and <c>legendTitleOffset</c> for every <c>titleOrient</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Source: <c>vega-view-transforms/src/layout/legend.js</c> and <c>vega-parser/src/parsers/guides/legend-title.js</c>. The entries move right by the width of a <c>left</c> title (plus the
+    ///     title padding) and down by the height of a <c>top</c> title; the title is then moved along the entries by its anchor (<c>start</c>, <c>middle</c>, <c>end</c>; the default is <c>middle</c> for
+    ///     <c>left</c> and <c>right</c> and <c>start</c> for the others) against the edge of the entries (the gradient bar alone when the bar is what the title lines up with), a <c>right</c> title
+    ///     goes past the entries and a <c>bottom</c> title below them, and everything is pushed right when the title reaches past the left padding.
+    /// </remarks>
+    /// <param name="c">The build state.</param>
+    /// <param name="lines">The title lines.</param>
+    /// <param name="content">The entries.</param>
+    /// <param name="padding">The padding of the legend.</param>
+    /// <returns>The origin of the entry group, the title and the bounds of the title.</returns>
+    private (double EntryX, double EntryY, SceneText Title, SceneBounds Bounds) LayoutTitle(Context c, IReadOnlyList<string> lines, EntryContent content, double padding)
+    {
+        var s = c.S;
+        var requested = s.Text("titleOrient");
+        var orient = requested is "left" or "right" or "bottom" ? requested : "top";
+        var isSide = orient is "left" or "right";
+        var vgrad = c.Spec.Kind != LegendKind.Symbol && c.Spec.Vertical;
+        var anchor = s.Text("titleAnchor") ?? (isSide ? "middle" : "start");
+        var probe = MakeTitle(c, lines, 0, 0, anchor, orient, vgrad);
+        var initial = _measurer.GetBounds(probe).Translate(padding, padding);
+        var titlePadding = s.Number("titlePadding") ?? 0;
+        var lineOffset = (lines.Count - 1) * TextMeasurer.LineHeight(probe.FontSize, probe.LineHeight);
+        var isGradient = c.Spec.Kind != LegendKind.Symbol;
+
+        var entryX = padding;
+        var entryY = padding;
+        switch (orient)
+        {
+            case "left":
+                entryX += Math.Ceiling(initial.Width) + titlePadding;
+                break;
+            case "right" or "bottom":
+                break;
+            default:
+                entryY += initial.Height + titlePadding;
+                break;
+        }
+
+        var entry = content.Bounds.IsEmpty ? SceneBounds.Empty : content.Bounds.Translate(entryX, entryY);
+        var bar = content.MarkBounds.IsEmpty ? SceneBounds.Empty : content.MarkBounds.Translate(entryX, entryY);
+
+        // legendTitleOffset: where the title lies along (or beyond) the entries; y is 1 for the offset along y, -1 for the one below the entries (no multi-line allowance), 0 along x
+        double Offset(string at, int y, bool toSide, bool noBar = false)
+        {
+            var e = isGradient && (toSide || !vgrad) && !noBar ? bar : entry;
+            double edge;
+            if (y != 0)
+            {
+                edge = e.IsEmpty ? entryY : e.Y2;
+            }
+            else
+            {
+                edge = e.IsEmpty ? entryX : e.X2;
+            }
+
+            var extent = edge - padding;
+            var alongSide = vgrad && toSide;
+            var start = alongSide ? extent : 0;
+            var end = alongSide ? 0 : extent;
+            var allowance = y <= 0 ? 0 : lineOffset;
+            return TextMeasurer.RoundHalfUp(at switch
+            {
+                "start" => start,
+                "end" => end - allowance,
+                _ => 0.5 * (extent - allowance),
+            });
+        }
+
+        double dx = 0;
+        double dy = 0;
+        switch (orient)
+        {
+            case "left":
+                dy += Offset(anchor, 1, true);
+                break;
+            case "right":
+                dx += Offset("end", 0, false) + titlePadding;
+                dy += Offset(anchor, 1, true);
+                break;
+            case "bottom":
+                dx += Offset(anchor, 0, false);
+                dy += Offset("end", -1, false, noBar: true) + titlePadding;
+                break;
+            default:
+                dx += Offset(anchor, 0, false);
+                break;
+        }
+
+        var placed = initial.Translate(dx, dy);
+        var titleX = padding + dx;
+        var titleY = padding + dy;
+
+        // A title that reaches past the left padding pushes everything to the right
+        var overhang = TextMeasurer.RoundHalfUp(placed.X1 - padding);
+        if (overhang < 0)
+        {
+            entryX -= overhang;
+            titleX -= overhang;
+            placed = placed.Translate(-overhang, 0);
+        }
+
+        return (entryX, entryY, MakeTitle(c, lines, titleX, titleY, anchor, orient, vgrad), placed);
+    }
+
+    /// <summary>
     ///     Builds the title text of a legend.
     /// </summary>
+    /// <remarks>
+    ///     The angle, alignment and baseline follow <c>legend-title.js</c>: a title at the side of a vertical gradient is turned (-90 degrees on the left, 90 on the right), and the alignment and
+    ///     baseline depend on the orient and the anchor; <c>titleAlign</c> and <c>titleBaseline</c> win.
+    /// </remarks>
     /// <param name="c">The build state.</param>
     /// <param name="lines">The title lines.</param>
     /// <param name="x">The x position.</param>
     /// <param name="y">The y position.</param>
     /// <param name="anchor">The anchor: <c>start</c>, <c>middle</c> or <c>end</c>.</param>
+    /// <param name="orient">The side of the entries the title is on: <c>top</c>, <c>left</c>, <c>right</c> or <c>bottom</c>.</param>
+    /// <param name="vgrad">Whether the legend is a vertical gradient.</param>
     /// <returns>The title (role <c>legend-title</c>).</returns>
-    private static SceneText MakeTitle(Context c, IReadOnlyList<string> lines, double x, double y, string anchor)
+    private static SceneText MakeTitle(Context c, IReadOnlyList<string> lines, double x, double y, string anchor, string orient = "top", bool vgrad = false)
     {
         var s = c.S;
-        var align = anchor switch
+        var isLeft = orient == "left";
+        var isRight = orient == "right";
+        var isSide = isLeft || isRight;
+        var plain = anchor switch
         {
             "end" => "right",
             "middle" => "center",
             _ => "left",
         };
+        var flipped = anchor switch
+        {
+            "end" => "left",
+            "middle" => "center",
+            _ => "right",
+        };
+        string align;
+        if (vgrad && isRight)
+        {
+            align = flipped;
+        }
+        else
+        {
+            align = isSide && !(vgrad && isLeft) ? "left" : plain;
+        }
+
+        string baseline;
+        if (!isSide)
+        {
+            baseline = "top";
+        }
+        else if (vgrad)
+        {
+            baseline = isRight ? "bottom" : "top";
+        }
+        else
+        {
+            baseline = anchor switch
+            {
+                "end" => "bottom",
+                "middle" => "middle",
+                _ => "top",
+            };
+        }
+
         return new SceneText("legend-title", x, y, lines)
         {
             Fill = s.Text("titleColor") ?? s.StyleText("guide-title", "fill"),
@@ -296,8 +421,30 @@ internal sealed partial class LegendBuilder
             FontStyle = s.Text("titleFontStyle") ?? s.StyleText("guide-title", "fontStyle"),
             LineHeight = s.Number("titleLineHeight"),
             Limit = s.Number("titleLimit") ?? 0,
+            Angle = RotationOf(vgrad, orient),
             Align = s.Text("titleAlign") ?? align,
-            Baseline = s.Text("titleBaseline") ?? "top",
+            Baseline = s.Text("titleBaseline") ?? baseline,
+        };
+    }
+
+    /// <summary>
+    ///     Gets the angle of a legend title: a title at the side of a vertical gradient is turned (<c>exprAngle</c> of <c>legend-title.js</c>).
+    /// </summary>
+    /// <param name="vgrad">Whether the legend is a vertical gradient.</param>
+    /// <param name="orient">The side of the entries the title is on.</param>
+    /// <returns>-90 on the left, 90 on the right, otherwise 0.</returns>
+    private static double RotationOf(bool vgrad, string orient)
+    {
+        if (!vgrad)
+        {
+            return 0;
+        }
+
+        return orient switch
+        {
+            "left" => -90,
+            "right" => 90,
+            _ => 0,
         };
     }
 

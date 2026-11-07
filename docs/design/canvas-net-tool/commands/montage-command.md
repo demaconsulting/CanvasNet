@@ -76,6 +76,14 @@ top-left corner of its image area -, `input`, `format`, for a document `page` an
 `severity`, `code`, and `message`); and `echo`. Without `--json` the same notes and the echo are written to standard
 error by `context.WriteDiagnostics`, each note ending with its input and, for a document, its page.
 
+**Input fragments.** Each input is probed with `SourceLoader.Probe(InputReference.Parse(path))`, so `montage
+"part.scad#def.explode=0" "part.scad#def.explode=1" --labels -o m.png` draws two cells of one file, each with the
+variables, view, page, or chart parameters of its own fragment over the shared options; the fragment is in the label
+and in the `fragment` member of the cell of the JSON result (`input` is the file), and the warnings of a fragment are
+written with the input as its origin (`part.scad#...`). The cells share a scale only when a camera is fixed
+(`-D '$vpd=300'` for all, or `def.$vpd=300` in each fragment, with `$vpt` to centre it); without it each cell is fitted
+to its own geometry, which the help topic and the user guide say.
+
 #### Error Handling
 
 Command-line mistakes (no input, no output, an unknown option, a malformed or out-of-range value, a cell side below 16,

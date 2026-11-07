@@ -1,3 +1,4 @@
+// Portions derived from Vega (BSD-3-Clause): the cells of the pivot transform of vega-transforms; see third-party/README.md
 using System.Globalization;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
@@ -176,7 +177,6 @@ internal sealed partial class RowTransforms
     {
         var location = Locate(entry);
         var pivotPath = operation.StringValue!;
-        var counting = entry["op"]?.AsString() == "count";
         var limit = entry["limit"] is { IsNumber: true } limitNode ? (long)Math.Floor(limitNode.NumberValue) : 0;
         var pivotReader = new FieldReader(input, pivotPath);
         var valueReader = new FieldReader(input, entry["value"]!.StringValue);
@@ -284,6 +284,17 @@ internal sealed partial class RowTransforms
             Warn("vl-transform-runtime", $"The pivot value '{collision}' has the name of a group field and replaces it.", location);
         }
 
+        // Every operation of Vega's aggregate engine is available; the states of the cells are bounded before anything is allocated
+        var op = entry["op"]?.AsString() is { } opName && AggregateMeasures.TryParse(opName, out var parsed) ? parsed : AggregateOp.Sum;
+        var cellRows = (long)groupValues.Count * columns.Count;
+        if (cellRows * MeasureCell.StateCells > TableLayout.MaxCells
+            || ((op is AggregateOp.Distinct or AggregateOp.Values) && (long)input.RowCount * columns.Count > TableLayout.MaxCells))
+        {
+            throw new VegaLiteRenderException(
+                $"The pivot would hold {cellRows} cells of {groupValues.Count} groups and {columns.Count} columns, more than the limit of {TableLayout.MaxCells} cells (TableLayout.MaxCells).",
+                location);
+        }
+
         var layout = new TableLayout(input, [.. groupNames, .. columnNames], keepInput: false, _context.Limits, location);
         var cells = layout.Allocate(groupValues.Count);
         var width = layout.Fields.Length;
@@ -293,42 +304,116 @@ internal sealed partial class RowTransforms
             columnIndex[columns[c]] = c;
         }
 
-        // Second pass: sums (or counts); a combination without rows is zero
-        var sums = new double[(long)groupValues.Count * Math.Max(columns.Count, 1)];
-        for (var row = 0; row < input.RowCount; row++)
+        // Second pass: the cells. A cell holds the rows of its group whose pivot value is the column (the other rows of the group are the NaN that Vega's
+        // aggregator ignores), and a combination without such rows has the empty result of the operation (null for a sum, 0 for a count)
+        var states = new MeasureCell[cellRows];
+        var environment = new MeasureEnvironment(_context.Evaluator.Context, meter);
+        var whole = op is AggregateOp.ArgMin or AggregateOp.ArgMax or AggregateOp.Values ? new FieldReader(input, string.Empty) : null;
+        var evaluation = _context.Evaluator.Context;
+        Func<int, DataValue>? rowOf = whole is null ? null : r => whole.Read(r, evaluation);
+        try
         {
-            Tick(row);
-            if (groupOf[row] < 0 || !columnIndex.TryGetValue(textOf[row]!, out var column))
+            FeedPivotCells(input, op, valueReader, groupOf, textOf, columnIndex, columns.Count, states, rowOf, environment);
+            var seed = RowSampler.Seed(entry.Pointer);
+            for (var g = 0; g < groupValues.Count; g++)
             {
-                continue;
-            }
+                Tick(g);
+                for (var f = 0; f < groupNames.Length; f++)
+                {
+                    cells[((long)g * width) + layout.Added[f]] = groupValues[g][f];
+                }
 
-            if (counting)
-            {
-                sums[((long)groupOf[row] * columns.Count) + column]++;
-            }
-            else if (valueReader.Read(row).TryGetQuantitative(out var number))
-            {
-                sums[((long)groupOf[row] * columns.Count) + column] += number;
+                for (var c = 0; c < columns.Count; c++)
+                {
+                    var at = ((long)g * columns.Count) + c;
+
+                    // Vega's pivot gives the exponential operations no weighting parameter, so their result is NaN
+                    cells[((long)g * width) + layout.Added[groupNames.Length + c]] = states[at].Result(op, double.NaN, MeasureCell.GroupSeed(seed, at), environment, rowOf);
+                }
             }
         }
-
-        for (var g = 0; g < groupValues.Count; g++)
+        catch (ExpressionRuntimeException ex)
         {
-            Tick(g);
-            for (var f = 0; f < groupNames.Length; f++)
-            {
-                cells[((long)g * width) + layout.Added[f]] = groupValues[g][f];
-            }
-
-            for (var c = 0; c < columns.Count; c++)
-            {
-                cells[((long)g * width) + layout.Added[groupNames.Length + c]] = DataValue.FromNumber(sums[((long)g * columns.Count) + c]);
-            }
+            throw new VegaLiteRenderException(ex.Message, location);
         }
 
         _context.Loader.ReleaseRows(input.RowCount - groupValues.Count);
         return layout.Build(cells, groupValues.Count);
+    }
+
+    /// <summary>
+    ///     Feeds the rows of a pivot to the aggregate cells of their group and column.
+    /// </summary>
+    /// <remarks>
+    ///     Vega turns a pivot into an aggregate with one measure per column over <c>key(d) === k ? value(d) : NaN</c>. A measure ignores NaN, so a
+    ///     row reaches only the cell of its own column; the exceptions are the operations that read every row of the group through the
+    ///     cell's tuple store: <c>distinct</c> sees the NaN of the other columns (so a group with a row of another column counts one more distinct
+    ///     text, "NaN"), and <c>values</c> is the array of all the rows of the group. The count is Vega's <c>__count__</c>, the rows with a value that
+    ///     is not NaN (null and the empty text included).
+    /// </remarks>
+    /// <param name="input">The input table.</param>
+    /// <param name="op">The operation.</param>
+    /// <param name="valueReader">The reader of the value field.</param>
+    /// <param name="groupOf">The group of every row, or -1 for a row that is skipped.</param>
+    /// <param name="textOf">The pivot text of every row.</param>
+    /// <param name="columnIndex">The column of every pivot text that is kept.</param>
+    /// <param name="columns">The number of columns.</param>
+    /// <param name="states">The cells (<c>group * columns + column</c>).</param>
+    /// <param name="rowOf">Reads a whole row as an object, for <c>argmin</c>, <c>argmax</c> and <c>values</c>; null otherwise.</param>
+    /// <param name="environment">The evaluation and the meter to charge.</param>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the step budget or the string limit is exceeded.</exception>
+    private void FeedPivotCells(
+        DataTable input,
+        AggregateOp op,
+        FieldReader valueReader,
+        int[] groupOf,
+        string?[] textOf,
+        Dictionary<string, int> columnIndex,
+        int columns,
+        MeasureCell[] states,
+        Func<int, DataValue>? rowOf,
+        MeasureEnvironment environment)
+    {
+        var allRows = op is AggregateOp.Distinct or AggregateOp.Values;
+        for (var row = 0; row < input.RowCount; row++)
+        {
+            Tick(row);
+            if (groupOf[row] < 0)
+            {
+                continue;
+            }
+
+            var own = columnIndex.TryGetValue(textOf[row]!, out var column) ? column : -1;
+            var value = valueReader.Read(row, environment.Context);
+            var first = (long)groupOf[row] * columns;
+            if (allRows)
+            {
+                // The operations that keep the tuples of the group see the row in every column of the group
+                environment.Meter.Add(columns);
+                var tuple = op == AggregateOp.Values ? rowOf!(row) : default;
+                for (var c = 0; c < columns; c++)
+                {
+                    var seen = c == own ? value : DataValue.FromNumber(double.NaN);
+                    states[first + c].Add(op, double.NaN, op == AggregateOp.Values ? tuple : seen, row, environment);
+                }
+
+                continue;
+            }
+
+            if (own < 0)
+            {
+                continue;
+            }
+
+            // The count is the number of values that are not NaN
+            if (op == AggregateOp.Count && value.IsNumber && double.IsNaN(value.Number))
+            {
+                continue;
+            }
+
+            environment.Meter.Add(1);
+            states[first + own].Add(op, double.NaN, value, row, environment);
+        }
     }
 
     /// <summary>

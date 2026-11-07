@@ -117,3 +117,6 @@ and with a transparent background, and one green color with `--background #00FF0
 channel on a line mark gives exit code 0, no note on standard output, and one `Unsupported: vl-channel-shape: ...` line
 on standard error that ends with `(<input>)`; with `--json` or `--silent` standard error is empty (and with `--silent`
 standard output too); a model that echoes `"hello"` gives the line `ECHO: "hello"`.
+
+**InputFragment_Inspect_ReadsThePage** (`InputFragmentTests.cs`): `inspect colors source.pdf#page=2` reports the same
+colors and image width as `--page 2`, and its `input` object has `page` 2 and `fragment` `page=2`.

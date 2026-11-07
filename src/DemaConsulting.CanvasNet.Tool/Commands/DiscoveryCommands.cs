@@ -112,7 +112,9 @@ internal static class DiscoveryCommands
             + "rotation of a PDF page, and the name of a VSDX page. An OpenSCAD model is parsed (not evaluated) and" + Environment.NewLine
             + "reports the modules and functions it defines and its include and use directives. A Vega-Lite chart" + Environment.NewLine
             + "(.vl.json or .vl) is parsed and measured (not drawn) and reports the size it is laid out at, and the" + Environment.NewLine
-            + "marks, data references, parameters, title, and schema version of its specification." + Environment.NewLine
+            + "marks, data references, parameters, title, and schema version of its specification. The input may end in a" + Environment.NewLine
+            + "fragment (report.pdf#page=2) as for 'render'; only the page is used here (the other parameters are checked" + Environment.NewLine
+            + "and ignored), and a warning about the fragment is written to standard error." + Environment.NewLine
             + Environment.NewLine
             + "Examples:" + Environment.NewLine
             + "  canvasnet info photo.jpg" + Environment.NewLine
@@ -137,11 +139,15 @@ internal static class DiscoveryCommands
                     "Use --page N for one page, or --all-pages for every page.");
             }
 
-            var info = SourceLoader.Probe(reader.Positionals[0]);
-            var page = reader.Get("--page") is { } pageText ? ArgumentReader.ParsePage(pageText, "--page") : 1;
+            var info = SourceLoader.Probe(InputReference.Parse(reader.Positionals[0]));
+
+            // A page that the fragment of the input names (report.pdf#page=3) replaces --page and --all-pages
+            var named = info.Selection?.Page;
+            var allPages = reader.Has("--all-pages") && named is null;
+            var page = named ?? (reader.Get("--page") is { } pageText ? ArgumentReader.ParsePage(pageText, "--page") : 1);
             SourceLoader.CheckPage(info, page);
             var pages = info.Pages;
-            if (info.Format.IsDocument() && !reader.Has("--all-pages"))
+            if (info.Format.IsDocument() && !allPages)
             {
                 pages = [info.Pages[page - 1]];
             }
@@ -149,6 +155,7 @@ internal static class DiscoveryCommands
             context.WriteLine(context.Json
                 ? ResultWriter.Success(Name, writer => WriteJsonFields(writer, info, pages))
                 : RenderText(info, pages));
+            context.WriteDiagnostics((info.Selection?.Diagnostics ?? []).Select(d => ((string?)info.Specifier, d)), []);
         }
 
         /// <summary>
@@ -161,6 +168,11 @@ internal static class DiscoveryCommands
         {
             writer.WriteStartObject("input");
             writer.WriteString("path", info.Path);
+            if (info.Selection is { } selection)
+            {
+                writer.WriteString("fragment", selection.Fragment);
+            }
+
             writer.WriteString("format", info.Format.ToFormatName());
             writer.WriteNumber("bytes", info.Bytes);
             writer.WriteEndObject();

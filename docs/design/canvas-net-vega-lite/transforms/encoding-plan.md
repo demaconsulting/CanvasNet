@@ -11,7 +11,8 @@ in the `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, all `internal`:
 - `EncodingTransforms.cs` - `EncodingTransforms` (sealed partial class: the execution of a plan on a table) and
   `EncodingData` (the Raw and Main tables and the bins)
 - `EncodingTransforms.Facet.cs` - the facet part of `EncodingTransforms` (phase 11): the ordered values of the fields of
-  a facet, the grid of cells and the partition of the rows into one table per cell, with the records `FacetDomains`,
+  a facet (sorted by an aggregate, and with the start of a time unit as the value, since phase 13), the grid of cells
+  and the partition of the rows into one table per cell, with the records `FacetDomains`,
   `FacetCellData`, and `FacetPartition`
 
 #### Purpose
@@ -268,10 +269,21 @@ its facet fields; the document asks this part for the cells once the table of th
   and then every value the array does not list in order of first appearance - nothing is dropped (Vega-Lite's
   `sort_index` is the position in the array or its length for an unlisted value; a date-time object of the array of a
   temporal field is the date it names in the
-  active calendar and matches the date values of the rows); a sort by an aggregate (`{field, op}`)
-  is not supported and the ascending order of the field is used (the feature catalog reports `vl-facet-sort`). A `bin`,
-  `timeUnit` or `aggregate` of the definition is not applied: the raw value of the field is the value of the cell
-  (reported as `vl-facet-field-transform`). A sort array longer than `MaxScaleDomainSize` is a located
+  active calendar and matches the date values of the rows); a **sort by an aggregate** (`{field, op, order}`, Phase 13;
+  Vega-Lite's `facetSortFields` and `facetSortOrder` of `compile/facet.ts`, `isSortField` of `sort.ts`) orders the
+  values by the operation over the rows of each value: `SortAggregate` keeps one `MeasureCell` for each value (the
+  accumulator of the aggregate measures of `AggregateTransforms`), the operation is `min` by default and `count`
+  without a field (a sort object that has neither a `field` nor the operation `count`, and `argmin` and `argmax`, are
+  ignored and the default order applies), the results are compared by `DataValue.Compare` (a null result first), the
+  sort is **stable** (equal results keep the order of first appearance of the values), and `order: "descending"`
+  reverses the comparison. The states are bounded by `TableLayout.MaxCells` (a located `VegaLiteRenderException`).
+  A **`timeUnit`** of the definition that has parts (Phase 13) is applied before the values are collected: `WithTimeUnits`
+  runs the `TimeUnitTransform` into a derived field named as Vega-Lite names it (`month_date`, for example) and the
+  cell value is the **start date of the unit**; the header label is then formatted with the time format of the unit (see
+  _VegaLiteDocument_). A binned unit and the `maxbins` form (a unit with no parts) are not applied, and neither are a
+  `bin` or an `aggregate` of the definition: the raw value of the field is the value of the cell (reported as
+  `vl-facet-field-transform`, whose message is narrowed to those cases; `vl-facet-sort` is retired). A sort array longer
+  than `MaxScaleDomainSize` is a located
   `VegaLiteRenderException`; an item that is not a string, a number, a boolean, or `null` matches no value.
 - `EncodingTransforms.Facet(facet, table, viewsPerCell, viewsOutside, context)` (static) - computes the domains,
   then the grid:

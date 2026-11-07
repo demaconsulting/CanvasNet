@@ -337,7 +337,8 @@ mark for every part, then the part's own object).
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_HorizontalBoxPlotUsesXAndX2`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_TitleOfTheMeasureDefaultsToTheField`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_SharedChannelsFollowVegaLite`,
-`SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_GroupingChannelsDropBinTimeUnitAndAggregate`,
+`SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_GroupingChannelsDropBinAndAggregateAndApplyTimeUnit`,
+`SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_TimeUnitOfAnOrdinalGroupingChannelFormatsAsTime`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_SingleBoxHasNoGroupBy`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_UndecidableBoxPlotIsASpecificationError`
 
@@ -348,9 +349,15 @@ measure is the
 field when none is written, on every part; that the color and the size go to the box (the median takes the size and a
 conditional color), the outliers get the color, the whiskers neither, a grouping channel is added to the group fields
 and the
-tooltip is left out; that a bin, a time unit, or an aggregate on a grouping channel is not applied (the raw field groups
+tooltip is left out; that a bin or an aggregate on a grouping channel is not applied (the raw field groups
 the
-rows and an aggregating channel is left out); that a box plot without a grouping channel groups by nothing; and the
+rows, the bin is not in the encoding of the parts, and an aggregating channel is left out) while a `year` time unit on
+a temporal `color` channel is applied: the box plot has a `timeUnit` transform of `year` on `t` as `year_t` as the first
+transform of both the quartile and the box view, before the aggregate, the aggregate groups by `g` and `year_t`, and the
+channel reads `year_t` with no time unit and the default title `t (year)`; and for an ordinal `x` with a `month` unit
+the derived field is `month_d`, its axis gets the `formatType` `time` while keeping `labelAngle` 0, the title is
+`d (month)`, a nominal `color` with a `year` unit gets the legend `formatType` `time`, and a written title (`Own`) wins
+over the default; that a box plot without a grouping channel groups by nothing; and the
 specification errors of no continuous channel, one channel that is not continuous, and a measure that is not a field.
 
 ##### Error Bar: Inputs, Extents, And Parts

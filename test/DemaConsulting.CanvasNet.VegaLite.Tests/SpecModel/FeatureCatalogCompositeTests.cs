@@ -4,8 +4,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.SpecModel;
 
 /// <summary>
 ///     Unit tests of <see cref="FeatureCatalog"/> for the composite marks <c>boxplot</c>, <c>errorbar</c> and <c>errorband</c> (Phase 10): the marks are drawn (the identifiers
-///     <c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> are retired), a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> on a channel that groups the rows
-///     is reported as <c>vl-composite-grouping</c>, the error channels are reported on the marks that do not use them; and of the configuration defaults of the composite marks
+///     <c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> are retired), a <c>bin</c>, a binned or maxbins <c>timeUnit</c> or an <c>aggregate</c> on a channel that groups the rows
+///     is reported as <c>vl-composite-grouping</c> (a <c>timeUnit</c> with a unit is applied, Phase 13), the error channels are reported on the marks that do not use them; and of the configuration defaults of the composite marks
 ///     (<see cref="ConfigResolver"/>) that the expansion reads.
 /// </summary>
 public class FeatureCatalogCompositeTests
@@ -35,13 +35,13 @@ public class FeatureCatalogCompositeTests
     }
 
     /// <summary>
-    ///     Validates the grouping report for a bin, a time unit and an aggregate on a grouping channel, at that channel.
+    ///     Validates the grouping report for a bin and a time unit that is not applied (the maxbins form) on a grouping channel, at that channel; a time unit with a unit is applied and not reported.
     /// </summary>
     /// <param name="channel">The grouping channel definition.</param>
     /// <param name="pointer">The pointer of the report.</param>
     [Theory]
     [InlineData("""{ "field": "g", "type": "quantitative", "bin": true }""", "/encoding/x")]
-    [InlineData("""{ "field": "g", "type": "temporal", "timeUnit": "year" }""", "/encoding/x")]
+    [InlineData("""{ "field": "g", "type": "temporal", "timeUnit": { "maxbins": 4 } }""", "/encoding/x")]
     [InlineData("""{ "field": "g", "type": "ordinal", "bin": { "maxbins": 5 } }""", "/encoding/x")]
     public void FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported(string channel, string pointer)
     {
@@ -50,6 +50,23 @@ public class FeatureCatalogCompositeTests
 
         // Assert
         Assert.Equal([("vl-composite-grouping", pointer)], reports);
+    }
+
+    /// <summary>
+    ///     Validates that a time unit on a grouping channel is applied (the expansion derives the unit's field) and is not reported, for each of the composite marks.
+    /// </summary>
+    /// <param name="mark">The composite mark.</param>
+    [Theory]
+    [InlineData("boxplot")]
+    [InlineData("errorbar")]
+    [InlineData("errorband")]
+    public void FeatureCatalog_Visit_TimeUnitOfAGroupingChannelIsNotReported(string mark)
+    {
+        // Arrange / Act
+        var reports = Visit($$"""{ "mark": "{{mark}}", "encoding": { "x": { "field": "d", "type": "temporal", "timeUnit": "year" }, "y": { "field": "v", "type": "quantitative" } } }""");
+
+        // Assert
+        Assert.DoesNotContain(reports, r => r.Id == "vl-composite-grouping");
     }
 
     /// <summary>
@@ -176,7 +193,7 @@ public class FeatureCatalogCompositeTests
     {
         // Arrange / Act
         var raw = Visit("""{ "mark": "errorbar", "encoding": { "x": { "field": "g", "type": "ordinal", "bin": true }, "y": { "field": "v", "type": "quantitative" } } }""");
-        var band = Visit("""{ "mark": "errorband", "encoding": { "x": { "field": "t", "type": "temporal", "timeUnit": "year" }, "y": { "field": "v", "type": "quantitative" } } }""");
+        var band = Visit("""{ "mark": "errorband", "encoding": { "x": { "field": "t", "type": "temporal", "timeUnit": { "maxbins": 4 } }, "y": { "field": "v", "type": "quantitative" } } }""");
         var ranged = Visit("""{ "mark": "errorbar", "encoding": { "y": { "field": "g", "type": "ordinal", "bin": true }, "x": { "field": "lo", "type": "quantitative" }, "x2": { "field": "hi" } } }""");
 
         // Assert

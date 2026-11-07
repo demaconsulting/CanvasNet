@@ -920,9 +920,11 @@ reviews:
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageDiagnosticLocation.cs"  # unit source (note position)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageFragment.cs"           # unit source (fragment of a link)
       - "src/DemaConsulting.CanvasNet/ImageSources/IFragmentImageSource.cs"    # unit source (fragment parameters)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageParameterValues.cs"    # unit source (value grammars)
       - "src/DemaConsulting.CanvasNet/ImageSources/IImageSourceOptions.cs"     # unit source (direct render options)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceRefusedException.cs"  # unit source (refusal)
       - "src/DemaConsulting.CanvasNet/ImageSources/IImageResolver.cs"          # unit source (resolver contract)
+      - "src/DemaConsulting.CanvasNet/ImageSources/IImageNaturalSizeResolver.cs"  # unit source (natural size)
       - "src/DemaConsulting.CanvasNet/ImageSources/EmbeddedImage.cs"           # unit source (embedded image)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceException.cs"    # unit source (failure)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceBudgetException.cs"  # unit source (budget refusal)
@@ -930,6 +932,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceSetTests.cs"       # unit tests (set)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceContractTests.cs"  # unit tests (request, result)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageFragmentTests.cs"        # unit tests (fragment)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageFragmentPrefixTests.cs"  # unit tests (prefixes)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
 
   # CanvasNet-ImageSources-FolderImageResolver Review (one per unit)
@@ -950,6 +953,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverHrefTests.cs"    # unit tests (links)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverFragmentTests.cs"  # unit tests (fragment)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverNaturalSizeTests.cs"  # unit tests (kind)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageFragmentPrefixTests.cs"  # unit tests (prefixes)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/PngHeaderFixtures.cs"  # test support (header-only PNG)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
 
@@ -1584,6 +1589,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/NamespaceDoc.cs"         # namespace documentation
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerFragmentTests.cs"  # unit tests (fragments)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerParameterFragmentTests.cs"  # unit tests (parameters)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerRenderOptionsTests.cs"  # unit tests (render options)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerSingleParseTests.cs"  # unit tests (single parse)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/ViewerFixtures.cs"  # unit test fixtures
@@ -1631,7 +1637,10 @@ reviews:
       - "docs/sysml2/model/canvas-net-viewer/imaging/source-loader.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SourceLoader*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SourceModels.cs"   # unit source (model types)
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/InputReference.cs"  # unit source (an input path with a fragment)
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/InputSelection.cs"  # unit source (what the fragment chose)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
 
   # CanvasNetViewer-Imaging-ImageWriter Review (one per unit)
   - id: CanvasNetViewer-Imaging-ImageWriter
@@ -1778,6 +1787,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-viewer/imaging/montage-builder.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/MontageBuilder.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/MontageBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
 
   # CanvasNetRender3D-Architecture Review (one per system)
   - id: CanvasNetRender3D-Architecture
@@ -2251,6 +2261,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadImageSource.cs"        # unit source (image source)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadImageSourceTests.cs"  # unit tests (image source)
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadImageSourceDefineTests.cs"  # unit tests (def. fragment)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSyntaxExceptionTests.cs"  # unit tests
@@ -2575,6 +2586,8 @@ reviews:
       - "docs/verification/introduction.md"                           # verification introduction
       - "docs/verification/canvas-net-vega-lite.md"                   # system verification
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteStatTransformsIntegrationTests.cs"  # stat transform tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteImageMarkIntegrationTests.cs"  # image mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteChartIntegrationTests.cs"  # chart integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteAggregationIntegrationTests.cs"  # aggregation tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLegendIntegrationTests.cs"  # legend integration tests
@@ -2671,6 +2684,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteImageSource.cs"  # unit source (image source)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteDocumentLayoutTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteImageSourceTests.cs"  # unit tests (image source)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteImageSourceParameterTests.cs"  # unit tests (param.)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteImageMarkIntegrationTests.cs"  # image mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRefactorSnapshotTests.cs"  # unit tests (scene snapshots)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/VegaLiteDocumentSpecModelTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteOpenOptionsTests.cs"  # unit tests
@@ -2723,6 +2738,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserResolveTests.cs"  # unit tests (layers)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserCompositionTests.cs"  # unit tests (views)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserSelectionTests.cs"  # unit tests (selections)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserStatTransformTests.cs"  # tests (statistics)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogLabelExprAndOffsetTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTimeTests.cs"  # unit tests (time)
@@ -2748,6 +2764,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogCompositionTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogCompositeTests.cs"  # unit tests (marks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogLabelExprAndOffsetTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogImageTests.cs"  # unit tests (image mark)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (gating)
 
   # CanvasNetVegaLite-SpecModel-ConfigResolver Review (one per unit)
@@ -3034,6 +3051,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/TransformContext.cs"  # unit source (call context)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTimeTests.cs"  # unit tests (time)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsPivotOpTests.cs"  # unit tests (pivot ops)
 
   # CanvasNetVegaLite-Transforms-SelectionModel Review (one per unit)
   - id: CanvasNetVegaLite-Transforms-SelectionModel
@@ -3132,6 +3150,38 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeUnitTransformTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TemporalFieldsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerTests.cs"  # unit tests (CollectAll)
+
+  # CanvasNetVegaLite-Transforms-StatTransforms Review (one per unit)
+  - id: CanvasNetVegaLite-Transforms-StatTransforms
+    title: Review that CanvasNetVegaLite Transforms StatTransforms Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/transforms.md"
+      - "docs/reqstream/canvas-net-vega-lite/transforms.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/transforms/stat-transforms.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/transforms/stat-transforms.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/transforms/stat-transforms.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/transforms/stat-transforms.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatTransforms*.cs"  # unit source (dispatcher, transforms)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/RegressionFit.cs"  # unit source (regression models)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/CurveSampler.cs"  # unit source (adaptive curve sampling)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/LoessFit.cs"  # unit source (locally weighted regression)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/KernelDensity.cs"  # unit source (kernel density)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/StatisticsPrimitives.cs"  # unit source (JavaScript rules)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported algorithms
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-d3-regression.txt"  # d3-regression notice (shipped)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-science.txt"  # science.js notice (shipped)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/LICENSE-regression-js.txt"  # regression-js notice (shipped)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTestSupport.cs"  # unit test support
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatisticsPrimitivesTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RegressionFitTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/CurveSamplerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/LoessFitTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/KernelDensityTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/StatTransforms*Tests.cs"  # unit tests (transforms)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteStatTransformsIntegrationTests.cs"  # integration tests
 
   # CanvasNetVegaLite-Scales Review (one per subsystem)
   - id: CanvasNetVegaLite-Scales
@@ -3261,6 +3311,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/scales/color-interpolator.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Scales/ColorInterpolator.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ColorInterpolatorTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ColorInterpolatorCubehelixTests.cs"  # tests (cubehelix)
 
   # CanvasNetVegaLite-Guides Review (one per subsystem)
   - id: CanvasNetVegaLite-Guides
@@ -3330,6 +3381,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTimeTests.cs"  # unit tests (time axes)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderHeaderTests.cs"  # unit tests (header axes)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderLabelExprTests.cs"  # unit tests (labelExpr)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderStaticPropertiesTests.cs"  # tests (axis props)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-LabelOverlap Review (one per unit)
@@ -3376,6 +3428,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderPathMarkTests.cs"  # unit tests (path marks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderLabelExprTests.cs"  # unit tests (labelExpr)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTitleOrientTests.cs"  # tests (title orient)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderSelectionTests.cs"  # unit tests (legend bind)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
@@ -3507,12 +3560,14 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTimeTests.cs"  # unit tests (time units)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderPathTests.cs"  # unit tests (line, area, trail)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderInvalidShowTests.cs"  # unit tests (invalid show)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOrderTests.cs"  # unit tests (draw order)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOverlayTests.cs"  # unit tests (overlays)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTextTests.cs"  # unit tests (text)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderArcTests.cs"  # unit tests (arcs)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderPolarTextTests.cs"  # unit tests (polar text)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOffsetTests.cs"  # unit tests (offset channels)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderImageTests.cs"  # unit tests (image mark)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBrushIntegrationTests.cs"  # brush mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/PathText.cs"  # unit test support (path text)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
@@ -3567,6 +3622,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneBudget.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneBudgetTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterImageTests.cs"  # unit tests (SceneImage)
 
   # CanvasNetVegaLite-Scenegraph-ScenePainter Review (one per unit)
   - id: CanvasNetVegaLite-Scenegraph-ScenePainter
@@ -3582,8 +3638,10 @@ reviews:
       - "docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/scene-painter.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ScenePainter*.cs"  # unit source (partial files)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SceneImageSource.cs"  # unit source (picture loader)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterPathTests.cs"  # unit tests (paths)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterImageTests.cs"  # unit tests (pictures)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Scenegraph-ArcGeometry Review (one per unit)
@@ -3602,6 +3660,23 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ArcGeometry.cs"  # unit source (arc and d3-path emulation)
       - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported d3-shape arc
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ArcGeometryTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Scenegraph-SymbolPathParser Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser
+    title: Review that CanvasNetVegaLite Scenegraph SymbolPathParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/symbol-path-parser.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/symbol-path-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/symbol-path-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/SymbolPathParser.cs"  # unit source (path parser)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance (vega-scenegraph paths)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SymbolPathParserTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Scenegraph-CssPaint Review (one per unit)
   - id: CanvasNetVegaLite-Scenegraph-CssPaint
@@ -3712,6 +3787,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/argument-reader.sysml"     # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/ArgumentReader*.cs"        # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ArgumentReaderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/ArgumentReaderParamsTests.cs"  # unit tests (chart parameters)
 
   # CanvasNetTool-ResultWriter Review (one per direct unit)
   - id: CanvasNetTool-ResultWriter
@@ -3801,6 +3877,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/HelpTopics*.cs"   # unit source
       - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*"        # shipped topic content and examples
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/HelpTopicsTests*.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # CanvasNetTool-Commands-DiscoveryCommands Review (one per unit)
   - id: CanvasNetTool-Commands-DiscoveryCommands
@@ -3817,6 +3894,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/discovery-commands.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/DiscoveryCommands.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/DiscoveryCommands*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # CanvasNetTool-Commands-RenderCommand Review (one per unit)
   - id: CanvasNetTool-Commands-RenderCommand
@@ -3834,6 +3912,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/RenderCommand*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Tool/Commands/ImagePipelineParser.cs"  # unit source (pipeline operation parser)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommand*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # CanvasNetTool-Commands-CompareCommand Review (one per unit)
   - id: CanvasNetTool-Commands-CompareCommand
@@ -3850,6 +3929,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/compare-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/CompareCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CompareCommand*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # CanvasNetTool-Commands-MontageCommand Review (one per unit)
   - id: CanvasNetTool-Commands-MontageCommand
@@ -3866,6 +3946,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/montage-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/MontageCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/MontageCommand*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # CanvasNetTool-Commands-InspectCommand Review (one per unit)
   - id: CanvasNetTool-Commands-InspectCommand
@@ -3882,6 +3963,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/inspect-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

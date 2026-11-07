@@ -79,4 +79,14 @@ public sealed record ImageSourceResult
     ///     <see cref="FolderImageResolver"/> reports it as <see cref="EmbeddedImage.Format"/>.
     /// </summary>
     public string? Format { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="Surface"/> is the picture at its own pixel size (a raster image:
+    ///     <see langword="true"/>) or was drawn for the size of the request (a vector source such as an SVG file, a model,
+    ///     a document page or a chart: <see langword="false"/>, the default). A renderer that needs the natural size of a
+    ///     picture, such as the <c>image</c> mark of Vega-Lite, reads it through
+    ///     <see cref="IImageNaturalSizeResolver"/> instead of guessing from the size of the surface; a source that returns
+    ///     a picture at its own size must set it.
+    /// </summary>
+    public bool IsNaturalSize { get; init; }
 }

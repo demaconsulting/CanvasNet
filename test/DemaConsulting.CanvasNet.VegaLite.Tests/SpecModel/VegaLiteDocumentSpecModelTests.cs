@@ -19,14 +19,14 @@ public class VegaLiteDocumentSpecModelTests
     [Fact]
     public void VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder()
     {
-        // Arrange: a duplicate key, an unknown property, an unsupported mark and a deferred transform, in text order
+        // Arrange: a duplicate key, an unknown property, an unsupported mark and an unsupported projection, in text order
         const string json = """
             {
               "name": "a",
               "name": "b",
               "bogus": 1,
               "mark": "geoshape",
-              "transform": [ { "regression": "x", "on": "y" } ]
+             "projection": { "type": "mercator" }
             }
             """;
         var document = VegaLiteDocument.Parse(json, new VegaLiteOpenOptions { SourceName = "w.vl.json" });
@@ -41,7 +41,7 @@ public class VegaLiteDocumentSpecModelTests
                 "W vl-duplicate-key /name 3:3",
                 "W vl-unknown-property /bogus 4:3",
                 "U vl-mark-geoshape /mark 5:11",
-                "U vl-transform-regression /transform/0 6:18",
+                "U vl-projection /projection 6:16",
             ],
             renderEvents);
         Assert.Equal(renderEvents, measureEvents);

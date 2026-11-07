@@ -140,6 +140,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/transforms/aggregate-transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/encoding-plan.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/time-unit-transform.yaml
+  - docs/reqstream/canvas-net-vega-lite/transforms/stat-transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/scales.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/scale-model.yaml
   - docs/reqstream/canvas-net-vega-lite/scales/scale-resolver.yaml
@@ -166,6 +167,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-model.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml

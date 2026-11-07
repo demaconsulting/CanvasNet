@@ -114,10 +114,22 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   ordinal field with a time unit are planned as **symbol** legends, and the merge key already uses the derived field
   name of the plan (a different time unit of the same field is a different key).
 - `LegendBuilder.Build(spec, dataWidth, dataHeight, budget, cancellationToken)` - charges the legend group, the title
-  and the entry group, builds the content, then performs Vega's `legendGroupLayout`: the entries sit at the padding,
-  below the title by its height plus the title padding; a middle or end anchored title is positioned against the width
-  of the entries (the bar alone for a horizontal gradient); a title that reaches left of the padding pushes everything
-  right; the box is `ceil(right + padding)` by `ceil(bottom + padding)`.
+  and the entry group, builds the content, then lays out the title and the entries with `LayoutTitle`, a port of Vega's
+  `legendGroupLayout` and `legendTitleOffset` (`vega-view-transforms` `layout/legend.js`) and of `legend-title.js`
+  (`vega-parser`) for every `titleOrient` (Phase 13): the entries sit at the padding, **right of a `left` title** by its
+  width (rounded up) plus the title padding and **below a `top` title** by its height plus the title padding (a
+  `right` or
+  `bottom` title does not move them); the title is then moved along the entries by its anchor (`start`, `middle`, `end`;
+  the default anchor is `middle` for `left` and `right` and `start` for the others) against the edge of the entries (the
+  gradient bar alone when the bar is what the title lines up with, along x for a horizontal gradient and along y at the
+  sides), rounded half up and with the height of the extra lines of a multi-line title kept free at the end; a `right`
+  title goes past the entries (`dx` is the end of the entries plus the title padding), a `bottom` title below them, and
+  a title that reaches left of the padding pushes everything right. The angle, the alignment, and the baseline follow
+  `legend-title.js`: a title at the side of a vertical gradient is turned (-90 degrees on the left, 90 on the right) with
+  the alignment and baseline of the turned text, the other titles are horizontal with the alignment of the anchor
+  (`left` for a title at the side of the entries) and the baseline `top` (at the side of symbols it follows the anchor:
+  `top`, `middle`, or `bottom`), and `titleAlign` and `titleBaseline` win. The box is `ceil(right + padding)` by
+  `ceil(bottom + padding)`.
 - Symbol legends - the values are the explicit `values`, the domain of a discrete scale, the d3 ticks of a continuous
   scale (the tick count is `tickCount` or 5, reduced by `tickMinStep`; for a log scale only the log ticks that d3's log
   rule labels, all labeled with `NumberFormat.FormatFloat`), or for a discretizing scale minus infinity and
@@ -279,9 +291,12 @@ stop its position along the transformed domain (Vega's `scaleFraction`; the file
 read, so the
 log, pow, and symlog fractions are derived from the d3 transforms). The canonical scale of a merged continuous
 legend is the first channel in Vega-Lite's order
-(Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, and custom format
+(Vega picks by its own order of scale names). Every `titleOrient` is drawn since Phase 13, while `clipHeight`,
+`encode`, and custom format
 types (a `formatType` other than `number`, `time`, and `utc`) are not drawn and are reported by the
-feature catalog. The `datum.size` and `datum.offset` of a symbol legend that a `labelExpr` can read are null, and
+feature catalog. A `symbolType` that is SVG path data is drawn by the `SymbolPathParser` and has the bounds of its
+drawing (`SymbolBounds`), not a square around the center. The `datum.size` and `datum.offset` of a symbol legend that
+a `labelExpr` can read are null, and
 `config.legend.labelExpr` is not read (Vega-Lite 6 has no such property). A discrete legend over the dates of a nominal
 field without a time unit is not temporal (its values are
 not date-parsed) and keeps the text labels. A temporal color scale that asks for a discretizing type (quantile,

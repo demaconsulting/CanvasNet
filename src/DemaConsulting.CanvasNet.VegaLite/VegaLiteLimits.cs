@@ -84,6 +84,9 @@ public sealed class VegaLiteLimits
     /// <summary>The backing field of <see cref="MaxDiagnostics"/>.</summary>
     private readonly int _maxDiagnostics = 1_000;
 
+    /// <summary>The backing field of <see cref="MaxImages"/>.</summary>
+    private readonly int _maxImages = 256;
+
     /// <summary>
     ///     Gets the shared instance that holds the default limits.
     /// </summary>
@@ -294,6 +297,25 @@ public sealed class VegaLiteLimits
     {
         get => _maxDiagnostics;
         init => _maxDiagnostics = (int)RequireAtLeastOne(value);
+    }
+
+    /// <summary>
+    ///     Gets the maximum number of pictures that one rendering may load through <see cref="VegaLiteRenderOptions.ImageResolver"/>; 256 by default.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Counted per <c>Render</c> call: every call of the resolver counts once, however the picture turns out (a resolver that returns nothing counts too). Within one call the
+    ///         result for a link at a device size is kept and shared by every <c>image</c> mark item that draws it, so a chart that shows one icon for every point asks once, not once per point. The call that
+    ///         would exceed the limit is not made: the render fails with a <see cref="VegaLiteRenderException"/> located at the mark, so a specification cannot make the host load pictures without
+    ///         bound. <see cref="VegaLiteDocument.Measure"/> loads nothing. The size of each picture is bounded by the resolver (<see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolver"/>
+    ///         has a pixel budget) and by <see cref="DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension"/>.
+    ///     </para>
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
+    public int MaxImages
+    {
+        get => _maxImages;
+        init => _maxImages = (int)RequireAtLeastOne(value);
     }
 
     /// <summary>

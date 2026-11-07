@@ -3,15 +3,18 @@
 #
 # These requirements decompose the CanvasNetVegaLite system's responsibility for row transformation into the
 # Transforms subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the RowTransforms unit
-# that runs the transforms calculate, filter, fold, flatten, sample, pivot, and lookup eagerly after the data
+# that runs the transforms calculate, filter, fold, flatten, sample, pivot (with every aggregate operation), and
+# lookup eagerly after the data
 # loader and before the scales, and the static parameter environment that its expressions read; the
 # AggregateTransforms unit that runs aggregate, joinaggregate, window, bin, stack, and impute (with the bin
-# algorithm, the aggregate and window operations, and the stack rules, polar stacks included); and the EncodingPlan
+# algorithm, the aggregate and window operations, and the stack rules, polar stacks included); the StatTransforms
+# unit that runs regression, loess, density, quantile, and extent (with the regression models, the loess fit, the
+# kernel density estimate, and the curve sampler of Vega); and the EncodingPlan
 # unit that derives the implicit bin, time unit, aggregate, stack, impute, path grouping, and order of the encoding
 # and runs them after the transforms; and the
 # TimeUnitTransform unit that adds the start and end fields of a time unit (the timeUnit transform and the time
-# unit of an encoding) and collects the fields that are implicitly parsed as dates. Statistical transforms are
-# deferred to later phases and are reported by the FeatureCatalog; the initial state of the selection parameters (the
+# unit of an encoding) and collects the fields that are implicitly parsed as dates. Every transform of Vega-Lite is
+# computed; the initial state of the selection parameters (the
 # SelectionModel unit) is built before the parameters, and the conditions and filters on a parameter are evaluated.
 # Each requirement
 # here links down to the unit requirements that implement it. See docs/verification/canvas-net-vega-lite/transforms.md
@@ -26,20 +29,21 @@ sections:
             title: >-
               The Transforms subsystem shall run the supported transforms of the drawn view (calculate,
               filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, timeUnit,
-              stack, and impute) in their written order on the table that the Data subsystem loaded, before any
-              scale is resolved, each reading an immutable table and producing a new one, shall skip a transform
-              of a later phase without approximating it, and shall expose the recoverable problems of a transform
-              as located warnings.
+              stack, impute, regression, loess, density, quantile, and extent) in their written order on the
+              table that the Data subsystem loaded, before any
+              scale is resolved, each reading an immutable table and producing a new one, and shall expose
+              the recoverable problems of a transform as located warnings.
             justification: |
-              Where transforms sit in the pipeline decides what the scales and marks see, and a transform that
-              is not implemented must be reported rather than half done.
+              Where transforms sit in the pipeline decides what the scales and marks see, and every
+              transform of Vega-Lite must reach the unit that implements it.
             children:
               - CanvasNetVegaLite-Transforms-RowTransforms-Pipeline
               - CanvasNetVegaLite-Transforms-RowTransforms-Warnings
               - CanvasNetVegaLite-Transforms-AggregateTransforms-Pipeline
+              - CanvasNetVegaLite-Transforms-StatTransforms-Dispatch
             tests:
               - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
-              - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
+              - RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns
               - AggregateTransforms_Window_ComposesWithFilter
               - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
 
@@ -61,8 +65,8 @@ sections:
           - id: CanvasNetVegaLite-Transforms-Reshaping
             title: >-
               The Transforms subsystem shall reshape a table with fold (one row per folded field), flatten
-              (one row per array element), and pivot (one column per distinct pivot value, summed or
-              counted per group), each with a defined output order and field naming.
+              (one row per array element), and pivot (one column per distinct pivot value, with the result of
+              an aggregate operation per group), each with a defined output order and field naming.
             justification: |
               Wide, nested, and long data have to be reshaped into the form that the encodings read.
             children:
@@ -73,8 +77,41 @@ sections:
               - RowTransforms_Apply_FoldProducesKeyAndValueRows
               - RowTransforms_Apply_FlattenExpandsArraysAndScalars
               - RowTransforms_Apply_PivotSumsValuesPerGroup
+              - RowTransforms_Apply_PivotComputesTheOperation
               - CanvasNetVegaLite_SystemIntegration_Transforms_FoldAndFlattenReshapeTheRows
               - CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields
+
+          - id: CanvasNetVegaLite-Transforms-StatisticalTransforms
+            title: >-
+              The Transforms subsystem shall compute the statistical transforms regression, loess, density,
+              quantile, and extent with the semantics of the Vega operators that Vega-Lite compiles them to:
+              the generated rows replace the table (a regression, a loess, a density, and a quantile) with
+              the group fields and the output fields of Vega-Lite's defaults, the groups are those of Vega's
+              partition, the models and the sampling follow the reference numerically, and the extent of a
+              field is a parameter that the transforms that follow it, bin.extent, and scale.domain read;
+              all within the row, field, cell, and step budgets and the cancellation of the call.
+            justification: |
+              Statistical transforms are computed from the data and generate rows, so their numbers must be
+              those of the reference, and a hostile specification must not make them exhaust time or memory.
+            children:
+              - CanvasNetVegaLite-Transforms-StatTransforms-Dispatch
+              - CanvasNetVegaLite-Transforms-StatTransforms-Groups
+              - CanvasNetVegaLite-Transforms-StatTransforms-Regression
+              - CanvasNetVegaLite-Transforms-StatTransforms-Loess
+              - CanvasNetVegaLite-Transforms-StatTransforms-Density
+              - CanvasNetVegaLite-Transforms-StatTransforms-Quantile
+              - CanvasNetVegaLite-Transforms-StatTransforms-Extent
+              - CanvasNetVegaLite-Transforms-StatTransforms-Budgets
+            tests:
+              - StatTransforms_Regression_LinearGivesTheEndPointsOfTheLine
+              - StatTransforms_Regression_GroupbyFitsEveryGroupInOrderOfFirstAppearance
+              - StatTransforms_Loess_OfALineIsTheLine
+              - StatTransforms_Density_SharedGridHasTheClosedFormDensities
+              - StatTransforms_Quantile_DefaultStepGivesOneHundredProbabilities
+              - StatTransforms_Extent_StoresTheMinimumAndMaximumInTheParameter
+              - StatTransforms_Extent_IsReadByTheFollowingTransforms
+              - CanvasNetVegaLite_SystemIntegration_StatTransforms_RegressionLineIsDrawnAtTheScaledEndPoints
+              - CanvasNetVegaLite_SystemIntegration_StatTransforms_ExtentParameterSetsAScaleDomain
 
           - id: CanvasNetVegaLite-Transforms-Lookup
             title: >-

@@ -52,12 +52,24 @@ internal static class ExpressionReferenceFolder
         ArgumentNullException.ThrowIfNull(evaluator);
         var replaced = new Dictionary<SpecNode, SpecNode>(ReferenceEqualityComparer.Instance);
         var warnings = new List<FeatureReport>();
+
+        // The parameters that an extent transform computes have no value yet: the data is read after this fold
+        var extentParameters = tree.Expressions.StaticReferences.Count > 0 ? SpecParser.ExtentParameterNames(tree.Root) : [];
         foreach (var reference in tree.Expressions.StaticReferences)
         {
             // Without a row there is no datum: the reference stays, and the catalog reports it
             if (reference.Expression.ReferencesDatum)
             {
                 continue;
+            }
+
+            if (extentParameters.Count > 0 && reference.Expression.ParameterReferences.FirstOrDefault(r => extentParameters.Contains(r.Name)).Name is { } computed)
+            {
+                warnings.Add(new FeatureReport(
+                    "vl-param-extent-static",
+                    $"The expression reads '{computed}', which an extent transform computes from the data; the properties of this site are fixed before the data is read, so the parameter is null here.",
+                    tree.Locate(reference.Reference),
+                    FeatureReportKind.Warning));
             }
 
             var value = evaluator.Evaluate(reference.Expression);

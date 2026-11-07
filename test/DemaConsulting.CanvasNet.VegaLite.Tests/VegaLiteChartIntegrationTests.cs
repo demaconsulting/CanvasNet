@@ -188,7 +188,7 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that an unsupported mark, transform and aggregate are each reported once with the pointer, line and
+    ///     Validates that an unsupported mark, a lookup in a parameter and a band position are each reported once with the pointer, line and
     ///     column of the construct, in document order, and that the chart is still rendered without them.
     /// </summary>
     [Fact]
@@ -205,7 +205,7 @@ public class VegaLiteChartIntegrationTests
         // Assert: exactly one report per construct with its stable identifier, pointer and one-based line and column of its value
         Assert.Equal(
             [
-                ("vl-transform-regression", "/transform/0", 12, 5),
+                ("vl-transform-lookup-param", "/transform/0/from/param", 12, 44),
                 ("vl-mark-geoshape", "/mark", 14, 11),
                 ("vl-encoding-bandposition", "/encoding/y/bandPosition", 17, 71),
             ],
@@ -704,13 +704,13 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
-    ///     Validates pivot (the columns of the pivoted values, zero for a missing combination) and lookup (the fields of the
+    ///     Validates pivot (the columns of the pivoted values, no value for a missing combination, as Vega's sum of nothing) and lookup (the fields of the
     ///     first matching row of a second inline source) as the source of the scaled fields.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields()
     {
-        // Arrange: u has s = 2 and t = 4, w has s = 6 and no t, which pivots to 0
+        // Arrange: u has s = 2 and t = 4, w has s = 6 and no t, which pivots to no value (the point of w is not drawn)
         var pivot = Dots(
             "[{\"g\":\"u\",\"k\":\"s\",\"v\":2},{\"g\":\"u\",\"k\":\"t\",\"v\":4},{\"g\":\"w\",\"k\":\"s\",\"v\":6}]",
             "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"]}]",
@@ -724,9 +724,9 @@ public class VegaLiteChartIntegrationTests
         using var pivoted = RenderDots(pivot);
         using var looked = RenderDots(lookup);
 
-        // Assert: (2, 4) -> (20, 60), and (6, 0) -> (60, 100), of which the upper half is inside the chart
+        // Assert: (2, 4) -> (20, 60); (6, none) is not drawn, where a zero would have drawn the point at (60, 100), of which the upper half is inside the chart
         Assert.Equal(Blue, pivoted[20, 60]);
-        Assert.Equal(Blue, pivoted[60, 94]);
+        Assert.Equal(VegaLiteTestHelpers.White, pivoted[60, 94]);
         Assert.Equal(VegaLiteTestHelpers.White, pivoted[60, 60]);
 
         // Assert: the first match wins, so (2, 8) -> (20, 20) and (5, 3) -> (50, 70); the later row for k = 1 (w = 9) is not used
@@ -881,12 +881,35 @@ public class VegaLiteChartIntegrationTests
 
         // Assert: 6.5 pixels from the center along both axes is inside the square (half side 7.07) and outside the circle (radius 7.98)
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[56, 56]);
-        Assert.Equal(VegaLiteTestHelpers.White, surface[26, 86]);
+    }
+
+    /// <summary>
+    ///     Validates a custom SVG path shape through the whole pipeline, in strict mode: the right triangle with the vertices (-1,-1), (1,-1) and (1,1) is scaled by the radius of the symbol
+    ///     (vega's <c>pathSymbol</c>: 7.07 pixels for the size 200), so the pixel above the diagonal on the right is filled and the mirrored one is not.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_CustomPathShapeIsDrawnAtTheSymbolRadius()
+    {
+        // Arrange: one dot at (5, 5) with a red custom shape
+        const string rows = "[{\"x\":5}]";
+        var encoding = "\"x\":{\"field\":\"x\"," + Measure + "},\"y\":{\"field\":\"x\"," + Measure + "}";
+        const string mark = "{\"type\":\"point\",\"filled\":true,\"opacity\":1,\"size\":200,\"color\":\"#ff0000\",\"shape\":\"M-1,-1L1,-1L1,1Z\"}";
+        var reported = new List<string>();
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
+
+        // Act
+        using var surface = RenderDots(Dots(rows, "[]", encoding, mark), strict);
+
+        // Assert: the triangle covers the upper right half of the square around (50, 50), and not the lower left half or the outside of the square
+        Assert.Empty(reported);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[55, 45]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[45, 55]);
+        Assert.Equal(VegaLiteTestHelpers.White, surface[60, 45]);
     }
 
     /// <summary>
     ///     Validates the diagnostics of the Phase 7 channels: an unknown color scheme is a located specification error, a custom path shape
-    ///     is reported once and drawn as a circle, and a scale type that the field cannot use is a warning that keeps the default scale.
+    ///     that does not parse is reported once as a warning and drawn as a circle, and a scale type that the field cannot use is a warning that keeps the default scale.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Colors_DiagnosticsAreLocated()
@@ -898,7 +921,7 @@ public class VegaLiteChartIntegrationTests
                             "color": { "field": "a", "type": "quantitative", "legend": null, "scale": { "scheme": "no-such-scheme" } } } }
             """;
         const string custom = """
-            { "data": { "values": [ { "a": 1 } ] }, "mark": { "type": "point", "shape": "M0,0L1,1Z" },
+            { "data": { "values": [ { "a": 1 } ] }, "mark": { "type": "point", "shape": "M0,0L" },
               "encoding": { "x": { "field": "a", "type": "quantitative", "scale": { "type": "band" } } } }
             """;
         var unsupported = new List<string>();
@@ -913,10 +936,10 @@ public class VegaLiteChartIntegrationTests
         var error = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(unknown).Render(null, Ct));
         using var surface = VegaLiteDocument.Parse(custom).Render(options, Ct);
 
-        // Assert: the scheme error points at the scheme; the path shape and the ignored scale type are reported at their values
+        // Assert: the scheme error points at the scheme; the invalid path shape and the ignored scale type are reported at their values
         Assert.Equal("/encoding/color/scale/scheme", error.Location.Pointer);
-        Assert.Equal(["vl-shape-path /mark/shape"], unsupported);
-        Assert.Equal(["vl-scale-type-ignored /encoding/x/scale/type"], warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal(["vl-shape-path-invalid /mark/shape", "vl-scale-type-ignored /encoding/x/scale/type"], warnings);
     }
 
     /// <summary>
@@ -962,7 +985,7 @@ public class VegaLiteChartIntegrationTests
 
     /// <summary>
     ///     Validates that the features that Phase 5 does not support are still reported and never silently executed:
-    ///     conditional encodings on channels without conditions, animation selections, the transforms of later phases and the date and format functions.
+    ///     conditional encodings on channels without conditions, animation selections and the date and format functions; the statistical transforms (Phase 13) are computed and not reported.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported()
@@ -991,7 +1014,7 @@ public class VegaLiteChartIntegrationTests
         // Assert: each one is reported once, in document order, and the chart is still drawn
         Assert.Equal(
             [
-                "vl-param-selection-animation", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
+                "vl-param-selection-animation",
                 "vl-expr-function-now", "vl-expr-function-luminance", "vl-encoding-condition",
             ],
             reported);

@@ -120,6 +120,11 @@ the envelope, in this order: `tool` (`name`, `version`); `a` and `b` (`path`, `f
 threshold fails. MAE, RMSE, and PSNR are rounded to four decimals; the normalized RMSE, SSIM, the ratios, and the
 values of the checks to six.
 
+**Input fragments.** Both inputs are probed with `SourceLoader.Probe(InputReference.Parse(path))`; the page of a
+fragment replaces `--a-page`, `--b-page` and `--page` for that input (`PrepareSide`), and the rest of the selection is
+applied by the library over the merged options (so the fragment wins over `--a-view` and `--a-define` as well).
+`Describe` names an input with its fragment, and `WriteSide` writes the `fragment` member.
+
 #### Error Handling
 
 Command-line mistakes (not two inputs, an unknown option, a malformed or out-of-range value, a background that is not

@@ -12,9 +12,17 @@ namespace DemaConsulting.CanvasNet.Scad;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Fragments.</b> The source claims no fragment parameter (it does not implement
-///         <see cref="IFragmentImageSource"/>), so a parameter in the link, such as <c>#page=2</c>, is reported by the
-///         resolver as <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and ignored. (Choosing the viewpoint with <c>#view=front</c> is a feature of the built-in sources of <c>CanvasNetViewer</c>, which draw with the loader of the viewer; this stand-alone source takes none.)
+///         <b>Fragments.</b> The source declares one family of fragment parameters (it implements
+///         <see cref="IFragmentImageSource"/>): every <c>def.&lt;name&gt;=&lt;value&gt;</c> sets the variable <c>name</c> of the
+///         model, exactly like <c>-D name=value</c> of the tool: it replaces every top-level assignment to the name and
+///         creates the variable when the model has none (see <see cref="ScadEvaluationOptions.Variables"/>). The value is a
+///         number, <c>true</c>, <c>false</c> or text (one pair of quotes is removed; see
+///         <see cref="ImageParameterValues.TryParseVariable(string, out object?, out string?)"/>), percent-decoded after the
+///         fragment is split. A value that is not usable, or a name the evaluator does not accept, refuses the link with
+///         <see cref="FolderImageResolver.FragmentInvalidCode"/> and the picture is not drawn. Any other parameter, such as
+///         <c>#page=2</c>, is reported by the resolver as <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and
+///         ignored. (Choosing the viewpoint with <c>#view=front</c> is a feature of the built-in sources of
+///         <c>CanvasNetViewer</c>, which draw with the loader of the viewer; this stand-alone source takes none.)
 ///     </para>
 ///     <para>
 ///         The model is drawn with the view the library itself chooses for it (see
@@ -42,8 +50,13 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         The source is stateless and thread-safe and claims no URI scheme.
 ///     </para>
 /// </remarks>
-public sealed class ScadImageSource : IImageSource
+public sealed class ScadImageSource : IImageSource, IFragmentImageSource
 {
+    /// <summary>
+    ///     The prefix of the fragment parameters that set a variable of the model: <c>def.</c>.
+    /// </summary>
+    public const string DefinePrefix = "def.";
+
     /// <summary>
     ///     The width and height in pixels of a model when no size is requested: a model has no natural size.
     /// </summary>
@@ -58,6 +71,16 @@ public sealed class ScadImageSource : IImageSource
     ///     The schemes this source claims: none. Read-only, so a caller cannot change what is shared.
     /// </summary>
     private static readonly ReadOnlyCollection<string> NoSchemes = new([]);
+
+    /// <summary>
+    ///     The fragment parameter names this source declares: none (its parameters are all prefixed).
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> NoParameters = new([]);
+
+    /// <summary>
+    ///     The fragment parameter prefixes this source declares.
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> Prefixes = new([DefinePrefix]);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ScadImageSource"/> class.
@@ -75,6 +98,12 @@ public sealed class ScadImageSource : IImageSource
     /// <inheritdoc />
     public IReadOnlyList<string> Schemes => NoSchemes;
 
+    /// <inheritdoc />
+    public IReadOnlyList<string> FragmentParameters => NoParameters;
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> FragmentParameterPrefixes => Prefixes;
+
     /// <summary>
     ///     Draws the model of a request.
     /// </summary>
@@ -82,6 +111,7 @@ public sealed class ScadImageSource : IImageSource
     /// <returns>The picture of the model on a transparent background, with the notes and echo lines of the model.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
     /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
+    /// <exception cref="ImageSourceRefusedException">Thrown, with <see cref="FolderImageResolver.FragmentInvalidCode"/>, when a <c>def.</c> fragment parameter is not usable.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
     /// <exception cref="ScadSyntaxException">Thrown when the model has a syntax error.</exception>
     /// <exception cref="ScadEvaluationException">Thrown when the model cannot be evaluated (a failed <c>assert</c>, a limit).</exception>
@@ -92,6 +122,8 @@ public sealed class ScadImageSource : IImageSource
         ArgumentNullException.ThrowIfNull(request);
         request.CancellationToken.ThrowIfCancellationRequested();
 
+        // The overrides come first: a link that cannot be used costs nothing
+        var variables = ReadVariables(request.Fragment);
         var (width, height) = request.SizeFor(NaturalSize, NaturalSize);
         request.EnsureWithinBudget(width, height);
         var diagnostics = new List<ImageSourceDiagnostic>();
@@ -110,6 +142,7 @@ public sealed class ScadImageSource : IImageSource
         {
             Evaluation = new ScadEvaluationOptions
             {
+                Variables = variables.Count > 0 ? variables : null,
                 EchoHandler = echo.Add,
                 WarningHandler = warning => diagnostics.Add(
                     new ImageSourceDiagnostic("scad", ImageDiagnosticSeverity.Warning, "scad-warning", OneLine(warning.ToString()))),
@@ -127,6 +160,38 @@ public sealed class ScadImageSource : IImageSource
 
         var surface = document.Render(width, height, options, request.CancellationToken);
         return new ImageSourceResult(surface) { Diagnostics = diagnostics, Echo = echo };
+    }
+
+    /// <summary>
+    ///     Reads the variables the fragment of a link sets.
+    /// </summary>
+    /// <param name="fragment">The fragment.</param>
+    /// <returns>The values by variable name; empty when the link sets none.</returns>
+    /// <exception cref="ImageSourceRefusedException">Thrown when a value is not usable or the evaluator does not accept a name.</exception>
+    private static IReadOnlyDictionary<string, object?> ReadVariables(ImageFragment fragment)
+    {
+        var variables = ImageParameterValues.ReadVariables(fragment, DefinePrefix);
+        if (variables.Count > 0)
+        {
+            try
+            {
+                // The evaluator says which names it accepts, so it is asked rather than guessed
+                _ = new ScadEvaluationOptions { Variables = variables };
+            }
+            catch (ArgumentException ex)
+            {
+                var message = OneLine(ex.Message);
+
+                // The name of the argument that an ArgumentException appends means nothing to the author of a link
+                var argument = message.LastIndexOf(" (Parameter '", StringComparison.Ordinal);
+                message = argument > 0 ? message[..argument] : message;
+                throw new ImageSourceRefusedException(
+                    FolderImageResolver.FragmentInvalidCode,
+                    $"a '{DefinePrefix}' fragment parameter is not valid: {(message.Length > 160 ? message[..160] + "..." : message)}");
+            }
+        }
+
+        return variables;
     }
 
     /// <summary>

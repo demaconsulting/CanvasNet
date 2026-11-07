@@ -2266,6 +2266,11 @@ registered globally and nothing is discovered: a source is used only when you pa
 ```csharp
 public interface IImageResolver { Surface? Resolve(string href, int pixelWidth, int pixelHeight); }
 
+public interface IImageNaturalSizeResolver : IImageResolver   // optional: is the picture a raster at its own size?
+{
+    Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize);
+}
+
 public interface IImageSource
 {
     string Name { get; }                        // "raster", "svg", "scad", ...
@@ -2277,9 +2282,10 @@ public interface IImageSource
 public interface IFragmentImageSource           // optional: the fragment parameters a source uses
 {
     IReadOnlyList<string> FragmentParameters { get; }   // lower case: ["page"], ["page", "slide"]
+    IReadOnlyList<string> FragmentParameterPrefixes => [];   // lower case: ["def."], ["param."] (default: none)
 }
 
-public sealed class FolderImageResolver : IImageResolver
+public sealed class FolderImageResolver : IImageNaturalSizeResolver
 {
     public FolderImageResolver(string? rootFolder, IEnumerable<IImageSource> sources,
         FolderImageResolverOptions? options = null);
@@ -2345,8 +2351,37 @@ parsed: `Fragment.Problem` says why, and the resolver reports `image-fragment-in
 
 A source that uses parameters implements `IFragmentImageSource` and declares their lower-case names; the built-in ones
 declare `["page"]` (`PdfImageSource`, `VsdxImageSource`), `["page", "slide"]` (`PptxImageSource`, the last of the two
-wins), and none for the others (the viewer's SCAD source adds `view`). With no parameter **page 1 is drawn**. The
-resolver reports, as `Diagnostics` of `Source` `"svg"`:
+wins), and none for the others (the viewer's SCAD source adds `view`). With no parameter **page 1 is drawn**.
+
+A source whose parameters are named by the author of the link (the variables of a model, the parameters of a chart)
+cannot list the
+names, so it declares a **prefix** in `FragmentParameterPrefixes` instead (a default interface member: a source written
+before it
+declares none): every parameter whose name starts with the prefix (ASCII case-insensitive) and has at least one
+character after it is
+understood, and the resolver gives it no unknown-parameter warning. The built-in sources declare `def.`
+(`ScadImageSource`: `part.scad#def.width=20` sets the
+variable `width` like `-D width=20`) and `param.` (`VegaLiteImageSource`: `chart.vl.json#param.threshold=5` sets a chart
+parameter
+like `--param threshold=5`). A source reads them with `request.Fragment.GetPrefixed("def.")` (the parameters with the
+prefix removed, the name
+as written, the last value of a name winning), or with `ImageParameterValues`: `ReadVariables(fragment, "def.")` reads
+the values with the
+grammar of `-D` (a number as a `double`, `true`, `false`, text with one pair of quotes removed, or a vector, a JSON array,
+as a `List<object?>` of such values, for `def.$vpt=[0,0,20]`)
+and
+`ReadParameters(fragment, "param.")` with the grammar of `--param` (also `null`, and a JSON array or object as a
+`List<object?>` or a
+`Dictionary<string, object?>`), and both throw `ImageSourceRefusedException` with the code `image-fragment-invalid` for
+a value that is not
+usable; `TryParseVariable` and `TryParseParameter` read one value and say why it is bad instead of throwing. Two names
+that differ only
+in the case of the part after a prefix (`def.a`, `def.A`) are two parameters.
+`fragment.ReviewParameters("input", href, source)`
+is the check the resolver makes (unknown and duplicate parameters, as `ImageFragmentNote` records of a code and a
+message), for a caller that reads a fragment outside a document, as the `canvasnet` tool does for the fragment of an
+input path. The resolver reports, as `Diagnostics` of
+`Source` `"svg"`:
 
 - `image-fragment-unknown-parameter` (`Warning`): a parameter the source does not declare; the picture is drawn without
   it.
@@ -2357,7 +2392,11 @@ resolver reports, as `Diagnostics` of `Source` `"svg"`:
 - `image-page-out-of-range` (`Unsupported`): the page does not exist; nothing is drawn.
 
 The codes are constants of `FolderImageResolver` (`FragmentUnknownParameterCode`, `FragmentDuplicateParameterCode`,
-`FragmentInvalidCode`, `PageOutOfRangeCode`). **Behavior change:** a source that does not implement
+`FragmentInvalidCode`, `PageOutOfRangeCode`). The `ScadImageSource` and `VegaLiteImageSource` constants name the
+prefixes (`DefinePrefix`,
+`ParameterPrefix`) and the warning for a chart parameter the chart does not declare (`UnknownParameterCode`,
+`vl-param-unknown`).
+**Behavior change:** a source that does not implement
 `IFragmentImageSource` declares nothing, so *any* fragment on a link to a file it draws (`logo.png#anything`) is now the
 warning `image-fragment-unknown-parameter` instead of being ignored silently; the picture is still drawn. A source that
 claims a URI scheme owns its links: without `IFragmentImageSource` it receives the fragment and no warning is made.
@@ -2487,7 +2526,8 @@ The contract, in short (every member is documented in the XML documentation):
   size; the renderer resamples it once.
 - **Fragment and options.** `request.Fragment` is the parsed fragment of the link (empty without one); declare the
   parameters you read with `IFragmentImageSource`, read them with `GetValue`/`GetPositiveInt32`, and throw
-  `ImageSourceRefusedException` for a page you do not have. `request.Options` carries the `IImageSourceOptions` of a direct
+  `ImageSourceRefusedException` for a page you do not have. `request.Options` carries the `IImageSourceOptions` of a
+  direct
   `Render` and is `null` for a link.
 - **Notes.** Return notes in `ImageSourceResult.Diagnostics` (source, severity, code, message, and optionally `Detail`,
   `Location`, `Page`) and printed text in

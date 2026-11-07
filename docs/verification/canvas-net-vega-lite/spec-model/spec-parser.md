@@ -3,19 +3,17 @@
 This document describes the unit-level verification strategy for the `SpecParser` unit in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `SpecParser` class (the `Parse` entry
 points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs` (including the
-properties of the line, area, trail, text, and arc marks and of their overlay objects), the compilation of
-expressions and the validation of transforms and parameters in `SpecParser.Transforms.cs`, the validation of the
-aggregating transforms and of the aggregate, bin, stack, sort, and impute properties of an encoding in
-`SpecParser.Aggregates.cs`,
-the validation of the time constructs and the compilation of the time predicates in `SpecParser.Time.cs`,
-the validation of `resolve`, of the composite mark properties, and of the properties of the compositions (`facet`, `repeat`,
-`columns`, `spacing`, `align`, `center`, `header`, and the repeat references) in `SpecParser.Layers.cs`,
-and `ParseSchemaMajorVersion`), the `PredicateSource` class that writes a predicate as expression source (the plain
+properties of the line, area, trail, text, and arc marks and of their overlay objects), the compilation of expressions
+and the validation of transforms and parameters in `SpecParser.Transforms.cs`, the validation of the aggregating
+transforms and of the aggregate, bin, stack, sort, and impute properties of an encoding in `SpecParser.Aggregates.cs`,
+the validation of the time constructs and the compilation of the time predicates in `SpecParser.Time.cs`, the validation
+of `resolve`, of the composite mark properties, and of the properties of the compositions (`facet`, `repeat`, `columns`,
+`spacing`, `align`, `center`, `header`, and the repeat references) in `SpecParser.Layers.cs`, and
+`ParseSchemaMajorVersion`), the `PredicateSource` class that writes a predicate as expression source (the plain
 comparisons and, since Phase 8, the time predicates), and the types of the sibling files that carry its result —
-`SpecNode`, `SpecNodeKind`,
-`NodePosition`, `SpecTree` (with `EnumerateViews`), `SpecMetadata` (the description of the document read from the
-tree), `SpecExpressions` (the compiled expressions of the tree, found by their string node), and `ParameterGraph` (the
-dependency order of the parameters).
+`SpecNode`, `SpecNodeKind`, `NodePosition`, `SpecTree` (with `EnumerateViews`), `SpecMetadata` (the description of the
+document read from the tree), `SpecExpressions` (the compiled expressions of the tree, found by their string node), and
+`ParameterGraph` (the dependency order of the parameters).
 
 #### Verification Approach
 
@@ -38,26 +36,23 @@ that sum, which pins the rule that columns count UTF-16 code units and not code 
 duplicate-key, depth-limit, and unknown-property expectations are small texts whose lines, columns, and pointers can
 be counted by eye.
 
-Unit tests reside in `SpecParserTests.cs` (which also holds the tests of `SpecTree`, `SpecMetadata`, and `SpecNode`,
-as they are the parser's result types) and `SpecParserAggregatesTests.cs` (the aggregating transforms and encoding
-properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`SpecModel` folder, together with `SpecParserConditionTests.cs` (the conditions of a channel), `PredicateSourceTests.cs`
-(the predicates written as expressions), `SpecParserTimeTests.cs` (the validation of the time constructs),
-`PredicateSourceTimeTests.cs` (the time predicates written as expressions), `SpecParserMarkTests.cs` (the properties of
-the path, text, and arc marks), `SpecParserImputeTests.cs` (the `impute` object of an encoding),
-`SpecParserResolveTests.cs` (the `resolve` and composite
-mark rules of `SpecParser.Layers.cs` and the compilation of the expressions of every view, Phase 10 and 11),
+Unit tests reside in `SpecParserTests.cs` (which also holds the tests of `SpecTree`, `SpecMetadata`, and `SpecNode`, as
+they are the parser's result types) and `SpecParserAggregatesTests.cs` (the aggregating transforms and encoding
+properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder, together with
+`SpecParserConditionTests.cs` (the conditions of a channel), `PredicateSourceTests.cs` (the predicates written as
+expressions), `SpecParserTimeTests.cs` (the validation of the time constructs), `PredicateSourceTimeTests.cs` (the time
+predicates written as expressions), `SpecParserMarkTests.cs` (the properties of the path, text, and arc marks),
+`SpecParserImputeTests.cs` (the `impute` object of an encoding), `SpecParserResolveTests.cs` (the `resolve` and
+composite mark rules of `SpecParser.Layers.cs` and the compilation of the expressions of every view, Phase 10 and 11),
 `SpecParserCompositionTests.cs` (the composition rules of `SpecParser.Layers.cs`, Phase 11),
 `FeatureCatalogLabelExprAndOffsetTests.cs` (the compilation of the `labelExpr` of the guides and the `for` of a step, in
-the scenarios `SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText` and `SpecParser_Parse_StepForMustBePositionOrOffset`),
-and
-`ChannelDefinitionsTests.cs`; the
-large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that
-evaluate the conditions of a `size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time
-scenarios use the
-rules of the `Data` subsystem that the parser calls (`TimeUnitSpec`, `DateTimeObject`; see _Time Calendar Verification_
-and _Time Format Verification_), so a unit name, a date-time key, or an interval is checked here only as far as the
-parser locates the error.
+the scenarios `SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText` and
+`SpecParser_Parse_StepForMustBePositionOrOffset`), and `ChannelDefinitionsTests.cs`; the large-inline-data test is in
+`VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that evaluate the conditions of a
+`size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time scenarios use the rules of the `Data`
+subsystem that the parser calls (`TimeUnitSpec`, `DateTimeObject`; see _Time Calendar Verification_ and _Time Format
+Verification_), so a unit name, a date-time key, or an interval is checked here only as far as the parser locates the
+error.
 
 Expected values of the time scenarios are counted by hand. The local time unit names of Vega-Lite are 11 single units
 (`year`, `quarter`, `month`, `week`, `day`, `dayofyear`, `date`, `hours`, `minutes`, `seconds`, `milliseconds`) and 29
@@ -128,32 +123,30 @@ astral character that counts as two columns), while a valid surrogate pair is ac
 `SpecParserTests.SpecParser_Parse_ValidFormsOfCheckedPropertiesAreAccepted`,
 `SpecParserTests.SpecParser_Parse_Phase4DataFormsAreAccepted`
 
-Asserts that a known property with the wrong type or value (a theory of about one hundred and twenty rows over `$schema`,
-`title`, `description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`, `mark`,
-`layer`, `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
+Asserts that a known property with the wrong type or value (a theory of about one hundred and twenty rows over
+`$schema`, `title`, `description`, `name`, `width`, `height`, `padding`, `autosize`, `background`, `config`, `datasets`,
+`mark`, `layer`, `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
 `/encoding/y/axis/orient`, `/data/sequence/start`, `/data/sequence/step`, `/data/sequence/as`, `/data/format/delimiter`
 (empty, longer than one character, a quote, a line break, or not text), `/data/format/parse` (an unknown word or a
 number), `/data/format/parse/a` (an unknown type, a number, null, and, since Phase 8, a `date:` or `utc:` entry without
 a format in matching quotes: `date:%Y`, `utc:%Y`, `date:'%Y`, `date:'%Y"`, `date:'`, and `date:`), and
-`/data/format/property`) throws a
-`VegaLiteSpecException` whose pointer names the offending value and whose location has a text position and the file;
-that the same holds for the shape of every transform of the supported subset and of its predicates: a `calculate` that
-is not text or has no `as` or an empty one, a filter with no field or no test, a `range` of one value, a `oneOf` that
-is not an array, an `equal` that is an array, an unparsable field path, an `and`, `or`, or `not` of the wrong kind,
-a `param` that names no parameter, a `fold` or `flatten` with a bad field list or too many `as` names, a negative or
-non-numeric `sample`, a `pivot` without `value` or with a bad `limit`, `groupby`, `op`, or field, and a `lookup` without
-`from`, with a `from` that has no `key` or `data`, with more `fields` than `as` names, with an object `default`, or with
-a bad data `url`; that an expression with a syntax error, a reference to a name that is not a parameter, a cycle of
-parameter expressions, a self reference, a repeated parameter name, and a reserved parameter name (`event`) fail at the
-expression or name, and that the expression of a row-bound mark property or channel value with a syntax error or an
-unknown name fails at its `expr`; that when a nested view comes before a bad top-level mark in the text, the first
-problem in document order is
-the one reported; and that an original specification that touches every checked property with a valid but unusual form
-(including expression references) is accepted with no warnings, and that the data forms of the data stage - DSV
-delimiters (a pipe and a tab), `parse` as `"auto"`, `null`, or a map of `number`, `boolean`, `date`, `string`, and custom
-date formats (`date:'...'`, `utc:'...'`), a `property` path, sequences with a negative or a zero step and a field name,
-a named dataset, and top-level datasets given as an array, as text, and as an object - are accepted without a warning
-(a custom date format is valid and is applied by the data stage, not reported).
+`/data/format/property`) throws a `VegaLiteSpecException` whose pointer names the offending value and whose location has
+a text position and the file; that the same holds for the shape of every transform of the supported subset and of its
+predicates: a `calculate` that is not text or has no `as` or an empty one, a filter with no field or no test, a `range`
+of one value, a `oneOf` that is not an array, an `equal` that is an array, an unparsable field path, an `and`, `or`, or
+`not` of the wrong kind, a `param` that names no parameter, a `fold` or `flatten` with a bad field list or too many `as`
+names, a negative or non-numeric `sample`, a `pivot` without `value` or with a bad `limit`, `groupby`, `op`, or field,
+and a `lookup` without `from`, with a `from` that has no `key` or `data`, with more `fields` than `as` names, with an
+object `default`, or with a bad data `url`; that an expression with a syntax error, a reference to a name that is not a
+parameter, a cycle of parameter expressions, a self reference, a repeated parameter name, and a reserved parameter name
+(`event`) fail at the expression or name, and that the expression of a row-bound mark property or channel value with a
+syntax error or an unknown name fails at its `expr`; that when a nested view comes before a bad top-level mark in the
+text, the first problem in document order is the one reported; and that an original specification that touches every
+checked property with a valid but unusual form (including expression references) is accepted with no warnings, and that
+the data forms of the data stage - DSV delimiters (a pipe and a tab), `parse` as `"auto"`, `null`, or a map of `number`,
+`boolean`, `date`, `string`, and custom date formats (`date:'...'`, `utc:'...'`), a `property` path, sequences with a
+negative or a zero step and a field name, a named dataset, and top-level datasets given as an array, as text, and as an
+object - are accepted without a warning (a custom date format is valid and is applied by the data stage, not reported).
 
 ##### Duplicate Keys: Last Wins, First Position, One Warning
 
@@ -199,14 +192,13 @@ undeclared name on line 8 is located at `/params/1/expr`, names `'missing'`, and
 holds the compiled expression of the row-bound and of the static sites — a parameter `expr`, a `calculate`, a string
 `filter`, a string inside a predicate composition, a row-bound mark `fill`, a color channel `value`, a title `text`, a
 bar's `size` (which is not a symbol area), and a position `value` (nine in all, found by their string node, with the
-source `datum.a + p` of the calculate) — and none for a `width`, which Vega-Lite's schema does not allow an expression at,
-and null for a null node. It also asserts that `SpecExpressions.StaticReferences` lists exactly the references of the
-static sites in document order (the title `text`, the bar's `size`, and the position `value`) and not the row-bound
+source `datum.a + p` of the calculate) — and none for a `width`, which Vega-Lite's schema does not allow an expression
+at, and null for a null node. It also asserts that `SpecExpressions.StaticReferences` lists exactly the references of
+the static sites in document order (the title `text`, the bar's `size`, and the position `value`) and not the row-bound
 `fill` and color `value`. The theory `SpecParserTests.SpecMetadata_Read_TitleIsPlainText` asserts that a title whose
-`text` is an
-expression reference (now a valid one, because the reference is compiled at open) has no plain-text title in the
-metadata. A reference at the `gridAlign` of a legend is accepted by the validation, which the folding theory of the
-`ExpressionReferenceFolder` unit pins for every property of the table of sites.
+`text` is an expression reference (now a valid one, because the reference is compiled at open) has no plain-text title
+in the metadata. A reference at the `gridAlign` of a legend is accepted by the validation, which the folding theory of
+the `ExpressionReferenceFolder` unit pins for every property of the table of sites.
 
 ##### Phase 5 Transforms And Parameters Are Accepted Without A Warning
 
@@ -215,17 +207,16 @@ metadata. A reference at the `gridAlign` of a legend is accepted by the validati
 
 Asserts that a specification with a bound value parameter, an expression parameter that reads it, a selection parameter,
 a parameter without a value, and sixteen transforms (calculate with the viewing signal `width`, string, field, `range`,
-`oneOf` with a time unit, date-object, `param`, `empty`, legacy `selection`, and composed filters, a fold, a flatten with
-`as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate) has no
-warning, lists the four parameter names in order, and compiles eight expressions (the calculate, the string filter, the
-string inside the composition, the variable-parameter filter, the two filters on the selection `brush` (`param` with
+`oneOf` with a time unit, date-object, `param`, `empty`, legacy `selection`, and composed filters, a fold, a flatten
+with `as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate) has
+no warning, lists the four parameter names in order, and compiles eight expressions (the calculate, the string filter,
+the string inside the composition, the variable-parameter filter, the two filters on the selection `brush` (`param` with
 `empty: false`, and the legacy `selection`, which since Phase 12 are written as the selection test of Vega-Lite), and,
-since Phase 8, the two time predicates, the `oneOf`
-with a time unit and the date-time `equal`, which are written as expressions with the time functions and compiled
-under their predicate object); and that the
-parameter order puts dependencies first and then declaration order (`[1, 2, 0, 3]` for the dependencies
-`0 -> 2`, `2 -> 1`, and `3 -> 0` listed twice, with none unresolved), leaves a cycle and a self reference unresolved
-with the index of the first unresolved parameter, and is empty for no parameters, with a null list refused.
+since Phase 8, the two time predicates, the `oneOf` with a time unit and the date-time `equal`, which are written as
+expressions with the time functions and compiled under their predicate object); and that the parameter order puts
+dependencies first and then declaration order (`[1, 2, 0, 3]` for the dependencies `0 -> 2`, `2 -> 1`, and `3 -> 0`
+listed twice, with none unresolved), leaves a cycle and a self reference unresolved with the index of the first
+unresolved parameter, and is empty for no parameters, with a null list refused.
 
 ##### Aggregating Transforms And Encoding Properties Are Validated
 
@@ -239,18 +230,41 @@ with the index of the first unresolved parameter, and is empty for no parameters
 
 Asserts, as theories of about two hundred cases, that a wrongly shaped `aggregate`, `joinaggregate`, `window`, `bin`,
 `stack`, or `impute` transform, wrong bin parameters, and a wrongly shaped `aggregate`, `bin`, `stack`, or `sort` of a
-channel definition are located `VegaLiteSpecException` errors at the offending value, with the file, a text position, and
-a message that starts with the file name: for example, an `aggregate` that is not an array (`/transform/0/aggregate`), an
-entry that is not an object or has no `op` or no `field` where one is required, an `op` that is not text or not an
-aggregate operation (`nope`, the upper-case `SUM`, and the window-only `rank`), an `as` that is empty or not text, an
-unparsable `field` or `groupby` path, an exponential `param` of 0, 1.5, or text, and a `groupby` that is not an array of
-paths; a window `ntile` without a `param` or with 0, 1.5, or `"4"`; and, in the same way, the wrong shapes of the other
-transforms and of the encoding properties. Asserts that every valid form, including every operation name, a `sort` of
-a channel shorthand, and the secondary channels, is accepted without a warning; that the sort shorthand helper accepts a
-channel with an optional minus sign and nothing else; that `IsSupportedSort` accepts only the values the renderer applies
-and refuses null arguments; and that `IsSupportedTransform` accepts the six aggregating transform names and `timeUnit`
-(a computed transform since Phase 8) and refuses the names of later phases (`regression`, `loess`, `density`,
-`quantile`, `extent`), the lower-case `timeunit`, and the empty name.
+channel definition are located `VegaLiteSpecException` errors at the offending value, with the file, a text position,
+and a message that starts with the file name: for example, an `aggregate` that is not an array
+(`/transform/0/aggregate`), an entry that is not an object or has no `op` or no `field` where one is required, an `op`
+that is not text or not an aggregate operation (`nope`, the upper-case `SUM`, and the window-only `rank`), an `as` that
+is empty or not text, an unparsable `field` or `groupby` path, an exponential `param` of 0, 1.5, or text, and a
+`groupby` that is not an array of paths; a window `ntile` without a `param` or with 0, 1.5, or `"4"`; and, in the same
+way, the wrong shapes of the other transforms and of the encoding properties. Asserts that every valid form, including
+every operation name, a `sort` of a channel shorthand, and the secondary channels, is accepted without a warning; that
+the sort shorthand helper accepts a channel with an optional minus sign and nothing else; that `IsSupportedSort` accepts
+only the values the renderer applies and refuses null arguments; and that `IsSupportedTransform` accepts the six
+aggregating transform names, `timeUnit` (a computed transform since Phase 8), and `regression`, `loess`, `density`,
+`quantile`, and `extent` (computed since Phase 13), and refuses the lower-case `timeunit`, a wrongly cased or unknown
+name (`Regression`, `kde`), and the empty name.
+
+##### Statistical Transforms Are Validated
+
+**Tests**: `SpecParserStatTransformTests.SpecParser_Parse_StatisticalTransformShapesAreLocatedErrors`,
+`SpecParserStatTransformTests.SpecParser_Parse_AcceptsTheWellFormedStatisticalTransforms`,
+`SpecParserStatTransformTests.SpecParser_FindTransformOperation_AnExtentNextToARegressionOrDensityIsTheirOption`,
+`SpecParserStatTransformTests.SpecParser_Parse_AnExtentParameterIsVisibleToTheExpressionsOfTheViewAndItsDescendants`,
+`SpecParserStatTransformTests.SpecParser_IsExtentParameter_OnlyExtentTransformsOfTheViewOrAncestorsCount`,
+`SpecParserStatTransformTests.SpecParser_Parse_AnExtentParameterCannotRepeatADeclaredParameter`,
+`SpecParserAggregatesTests.SpecParser_IsSupportedTransform_AcceptsEveryTransformOfVegaLite`
+
+Asserts, as a theory, that a wrongly shaped `regression`, `loess`, `density`, `quantile`, or `extent` (a missing or
+unparsable field, an `on` that is not a field, a `method` that is not one of the six, an `order` that is not an integer
+from 0 to 64, a `bandwidth` out of range or negative, negative `steps`, `minsteps`, `maxsteps`, or `step`, an `extent`
+that is not two numbers, a `resolve` that is not `shared` or `independent`, `probs` that are not numbers, an `as` of a
+wrong length, a boolean option that is not boolean, and an extent without a `param`) is a located
+`VegaLiteSpecException` at the offending value; that every well-formed form (every method, every option, and every pivot
+operation) is accepted; that an `extent` property next to a `regression` or a `density` is the option of that transform
+and not a transform of its own (the operation is the `density`, else the `regression`, else the first transform
+property); that the name of an extent parameter is known to the expressions of the transform that follows it and of the
+views below it and unknown in a sibling view, and that `ExtentParameterNames` lists them without repeats in document
+order; and that the name of an extent parameter that a `params` entry also declares is a located error.
 
 ##### The Impute Of An Encoding Is Validated
 
@@ -266,16 +280,16 @@ an array (`/encoding/y/impute`); a `method` that is not one of `value`, `mean`, 
 (`/impute/keyvals`), that hold an array or an object (`/keyvals/0` and `/keyvals/1`), or that are a sequence without a
 `stop` (`/keyvals`), with a `stop` or a `start` that is text, or with a `step` of 0 (`/keyvals/stop`, `/keyvals/start`,
 and `/keyvals/step`); keys that outnumber the limit of two (the array `[1, 2, 3]`, the sequences 0 to 3 and 10 down to 0
-by -3, which have three and four keys, and 1e300 by 1e-300, whose count is computed by arithmetic and refused before
-any key is generated), each at `/keyvals`; a `value` that is an object or an array (`/impute/value`); and a `frame` that
-is a number, an array of one entry, an array with a fraction, or an array with a text (`/impute/frame`, `/frame`,
+by -3, which have three and four keys, and 1e300 by 1e-300, whose count is computed by arithmetic and refused before any
+key is generated), each at `/keyvals`; a `value` that is an object or an array (`/impute/value`); and a `frame` that is
+a number, an array of one entry, an array with a fraction, or an array with a text (`/impute/frame`, `/frame`,
 `/frame/0`, and `/frame/1`). It asserts that 16 valid forms are accepted without a warning and keep the node: `null`,
 the empty object, each method with its constant, a frame of integers and one with nulls, a constant of every scalar
 kind, key arrays with mixed kinds, a sequence with only a `stop`, and sequences with a positive step, with a negative
 step, and with a step that points away (no key); and that the members `groupby` and `key` (which belong to the impute
 transform, not to the encoding) are two `vl-unknown-property` warnings of kind `Warning` at their keys
-(`/encoding/y/impute/groupby` and `/encoding/y/impute/key`), the message naming an impute definition, while the object is
-otherwise accepted.
+(`/encoding/y/impute/groupby` and `/encoding/y/impute/key`), the message naming an impute definition, while the object
+is otherwise accepted.
 
 ##### Mark Properties Of The Path, Text, And Arc Marks Are Validated
 
@@ -294,21 +308,20 @@ numbers `strokeDashOffset`, `strokeMiterLimit`, `padAngle`, `innerRadius`, `oute
 and `theta2`. As a theory of 26 values it asserts that a wrong one is a `VegaLiteSpecException` located at the value
 (`/mark/<name>`) with the file, line, and column: an interpolation that is the Vega-only `catmull-rom-open` or
 `catmull-rom-closed` (neither is a Vega-Lite name), a name in the wrong case, a number, or `null`; a `tension` that is
-text or a boolean; an `invalid` that is not one of the five modes (`hide`, a number, a boolean); a `point` that is a text
-other than `transparent`, a number, or an array; a `line` that is a text or a number; an `order` that is a text or a
-number; and the numeric properties given as text, a boolean, an array, or an object. It asserts that the objects of the
-`point` and `line` overlays are checked like mark definitions (a color that is a number is an error at
+text or a boolean; an `invalid` that is not one of the five modes (`hide`, a number, a boolean); a `point` that is a
+text other than `transparent`, a number, or an array; a `line` that is a text or a number; an `order` that is a text or
+a number; and the numeric properties given as text, a boolean, an array, or an object. It asserts that the objects of
+the `point` and `line` overlays are checked like mark definitions (a color that is a number is an error at
 `/mark/point/color`, an interpolation `nope` at `/mark/line/interpolate`, an invalid mode `hide` at
 `/mark/point/invalid`), that a property that no mark has (`foo`) is the warning `vl-unknown-property` at its key
 (`/mark/point/foo`) and not an error while the overlay properties `filled`, `size`, `strokeWidth`, and `interpolate` are
 silent, and that an expression reference inside an overlay object is a static site that the parser compiles and the fold
 replaces by its value, so the catalog has nothing to report at `/mark/point/color`. For the text mark it asserts that 23
-properties are accepted in each of
-their kinds (a `text` that is a string, a list, or an expression reference; `fontStyle`, `ellipsis`, and `lineBreak` as
-text; `fontWeight` as text, a number, or an expression reference; `limit` and `lineHeight` as numbers; and the
-properties `dx`, `dy`, `angle`, `align`, `baseline`, `font`, `fontSize`, `radius`, and `theta`) and that ten values of the
-wrong kind are errors at the property (`/mark/text` for a number, a boolean, or an object; `fontStyle`, `fontWeight`
-for a boolean or `null`, `limit`, `ellipsis`, `lineBreak`, and `lineHeight`).
+properties are accepted in each of their kinds (a `text` that is a string, a list, or an expression reference;
+`fontStyle`, `ellipsis`, and `lineBreak` as text; `fontWeight` as text, a number, or an expression reference; `limit`
+and `lineHeight` as numbers; and the properties `dx`, `dy`, `angle`, `align`, `baseline`, `font`, `fontSize`, `radius`,
+and `theta`) and that ten values of the wrong kind are errors at the property (`/mark/text` for a number, a boolean, or
+an object; `fontStyle`, `fontWeight` for a boolean or `null`, `limit`, `ellipsis`, `lineBreak`, and `lineHeight`).
 
 ##### Sort Array Items Are Validated And Mixed Or Unknown Parts Are Warned About
 
@@ -338,20 +351,17 @@ the channel a sort refers to is read from the shorthand (`"y"`, `"-y"`) and from
 Asserts, in the rows of the pointer theory, that a `domainMid`, `domainMin`, `domainMax`, `rangeMin`, or `rangeMax` that
 is not a number or an expression reference (for `domainMin` and `domainMax` a date-time object is also accepted since
 Phase 8, so the rows use `true` and the text `"x"`; see the date-time object scenario below), an `interpolate` that is a
-number, an unknown name, an object without a
-string `type` or with an unknown one or a non-numeric `gamma`, a `scheme` that is not a string or an object, an object
-without a string `name` (pointer at the scheme or at the name), a `count` that is 0, -1, 2.5, or a string, an `extent`
-that has one entry, a non-number, or is not an array, and `bins` that is a number are each a located error at the
-offending value, that the `base` of a log scale that is 1, 0, -10, or a string, the `constant` of a symlog scale
-that is 0
-or -1, and the `exponent` of a pow scale that is a string are located errors at the value, and that a base of 2.5, an
-exponent of -0.5, a constant of 0.01, an expression reference, and invalid parameters on a scale of another type (a linear
-scale with base 1, constant 0, and exponent 3, a sqrt scale with base 1 and constant -5) are silent; and,
-in the accepted form, that numbers and
-expression references for the limits, the eight interpolate
-names, an interpolate object with a gamma or an expression reference, a scheme name, object with count and extent, or
-expression reference, and `bins` as an array or an object are silent, while an unknown key of a scheme or interpolate
-object is one `vl-unknown-property` warning at the key.
+number, an unknown name, an object without a string `type` or with an unknown one or a non-numeric `gamma`, a `scheme`
+that is not a string or an object, an object without a string `name` (pointer at the scheme or at the name), a `count`
+that is 0, -1, 2.5, or a string, an `extent` that has one entry, a non-number, or is not an array, and `bins` that is a
+number are each a located error at the offending value, that the `base` of a log scale that is 1, 0, -10, or a string,
+the `constant` of a symlog scale that is 0 or -1, and the `exponent` of a pow scale that is a string are located errors
+at the value, and that a base of 2.5, an exponent of -0.5, a constant of 0.01, an expression reference, and invalid
+parameters on a scale of another type (a linear scale with base 1, constant 0, and exponent 3, a sqrt scale with base 1
+and constant -5) are silent; and, in the accepted form, that numbers and expression references for the limits, the eight
+interpolate names, an interpolate object with a gamma or an expression reference, a scheme name, object with count and
+extent, or expression reference, and `bins` as an array or an object are silent, while an unknown key of a scheme or
+interpolate object is one `vl-unknown-property` warning at the key.
 
 ##### Legend Options Are Validated And Unknown Keys Are Warned About
 
@@ -429,68 +439,64 @@ fails naming `MaxExpressionLength`.
 Assert, for the long-field test (`SpecParser_Conditions_LongFieldTimesLargeOneOfFailsFastWithTheGeneratedBudgetError`),
 that a condition `test` on a 100,000-character field name with a `oneOf` of 100 members (10 million characters as an
 expression, over the 2.4 million of a `MaxSourceLength` of 300,000) is refused at `/encoding/color/condition/test` with
-exactly the over-budget message (the exact length, 8 times the limit, the offset 2,400,000), and that the parse allocated
-less than 16 MB on the calling thread (the text itself would be 20 MB or more, and 42 MB were allocated before the writer
-counted). Assert, for the operand test (`SpecParser_PredicateExpressionOperands_AreBoundByTheUserExpressionLength`),
-that a 5,000-character `{"expr": ...}` as the comparison (`equal`, `gt`, `lte`), as an item of a `oneOf`, as an end of a
-`range` (both ends), in a time-aware filter and inside an `and` is refused with the message of a top-level filter text
-of the same length ("the expression has 5000 characters, more than the limit of 4096 (MaxExpressionLength) at expression
-offset 4096.") located at the `expr` node (for example `/transform/0/filter/oneOf/1/expr` and
-`/encoding/color/condition/test/oneOf/0/expr`), that a text of exactly 4,096 characters is accepted, that a
-`MaxExpressionLength` of 40 refuses a 41-character operand at the `expr` node, and that an operand that names an
-undeclared parameter is refused there.
+exactly the over-budget message (the exact length, 8 times the limit, the offset 2,400,000), and that the parse
+allocated less than 16 MB on the calling thread (the text itself would be 20 MB or more, and 42 MB were allocated before
+the writer counted). Assert, for the operand test
+(`SpecParser_PredicateExpressionOperands_AreBoundByTheUserExpressionLength`), that a 5,000-character `{"expr": ...}` as
+the comparison (`equal`, `gt`, `lte`), as an item of a `oneOf`, as an end of a `range` (both ends), in a time-aware
+filter and inside an `and` is refused with the message of a top-level filter text of the same length ("the expression
+has 5000 characters, more than the limit of 4096 (MaxExpressionLength) at expression offset 4096.") located at the
+`expr` node (for example `/transform/0/filter/oneOf/1/expr` and `/encoding/color/condition/test/oneOf/0/expr`), that a
+text of exactly 4,096 characters is accepted, that a `MaxExpressionLength` of 40 refuses a 41-character operand at the
+`expr` node, and that an operand that names an undeclared parameter is refused there.
 
 Assert, for the `PredicateSource` tests, that `Build` of a 100,000-character field name with 5,000 members and a budget
 of one million reports `TooLong`, no source, the exact length 500,094,998 and allocates less than 16 MB; that a budget
 equal to the length of `(datum["c"] === 1 || datum["c"] === 2)` writes it, one less is `TooLong` with the same length,
-and that a part that cannot be written (a variable parameter whose name is not an identifier) wins over a text that is too
-long; and that
-`IsUnsupported` answers both a supported and an unsupported huge predicate in less than 16 MB. Assert, for the selection
-tests, that an `or` of 100 selection predicates (`param` and the legacy `selection`) is written with a budget equal to its
-length, is `TooLong` with the same length and no text with one less (and with a budget of zero), and is not unsupported;
-and that a legacy `selection` that is an `or` of 2,000 names (about 11 times the document as an expression), as the
-test of a condition, inside an `and`, as a condition on a legacy selection, and as a filter, is refused with the
-over-budget message (8 times the `MaxSourceLength` that equals the document) located at the predicate, and accepted with
-the default limits.
+and that a part that cannot be written (a variable parameter whose name is not an identifier) wins over a text that is
+too long; and that `IsUnsupported` answers both a supported and an unsupported huge predicate in less than 16 MB.
+Assert, for the selection tests, that an `or` of 100 selection predicates (`param` and the legacy `selection`) is
+written with a budget equal to its length, is `TooLong` with the same length and no text with one less (and with a
+budget of zero), and is not unsupported; and that a legacy `selection` that is an `or` of 2,000 names (about 11 times
+the document as an expression), as the test of a condition, inside an `and`, as a condition on a legacy selection, and
+as a filter, is refused with the over-budget message (8 times the `MaxSourceLength` that equals the document) located at
+the predicate, and accepted with the default limits.
 
 Assert, as a theory of ten specifications, that a condition that is not an object, has neither a `test` nor a `param`,
 has a test that does not parse, refers to an undeclared parameter, or is not an expression or a predicate, a predicate
 composition that is not an array, and a `value.expr` that does not compile, are each a `VegaLiteSpecException` at the
 offending value (the pointer of the condition, of the item of an array, of the `test`, of the `and`, or of the `expr`)
-with the file, line, and column; that the tests of the three conditions of a color are compiled to the source
-`datum.q > t` (an expression text as written), `(datum["q"] >= 2 && datum["q"] <= 3)` (the range `[3, 2]` with its
-endpoints put in ascending order) and `(t)` (a variable parameter), and that the `value.expr` is compiled; that the
-predicate objects of a position channel are not compiled, while those of a view in a concatenation are; that the conditions
-`param` and `test: {param}` on a selection are compiled to `(!length(data("sel_store")) || vlSelectionTest("sel_store",
-datum))`, with `empty: false` to `(length(data("sel_store")) && vlSelectionTest("sel_store", datum))`, and a condition
-on a
-variable parameter to `(flag)`; and that a scale option of a field
-condition is validated like that of a channel (`padding: "wide"` is an error at the scale). The predicate theory
-writes out, for twenty-three predicates, the exact expression text of each comparison, range (with open ends), set, validity
-check, negation, composition (an empty `and` is true and an empty `or` false), expression text, and parameter; a
-second test checks the bracket path of a dotted field and an escaped dot, and the escapes of the quote, the newline, and
-the backslash in a text; a fourth, as a theory of twelve predicates, writes out the selection tests of Vega-Lite (with the
-default `empty`, `empty: true` and `false`, a point selection over the identity of the rows, a multi selection with its
-`union` resolve, a store name with the non-word characters replaced, a `not`, an `and` with a field comparison, and the
-legacy `selection` with its composition; a legacy `empty` on the predicate itself is ignored, since Vega-Lite's compatibility
-normalizer takes the emptiness from the declaration only); a further test and a theory of seventeen declarations
-check which function the predicate names for the effective projection: an empty `fields` or `encodings` is a field
-test (the presence decides), the keys of the value and the `config.selection.point.fields` default are honored, a
-scalar value keeps the identity, and a legacy `multi` with an empty `fields`
-is a field test; the third lists the predicates that no expression can say (a parameter whose
-name is not an identifier, alone, in an `and`, and in a `not`) as refused with an empty source, while the former
-refusals of a
-time unit, of a date object and of a selection are gone because those predicates are now written (see _Time Predicates As
-Expressions_ and _Selections_); and a null predicate is refused. The helper tests list the eleven channels that take a
-condition (and the position, secondary, order, and tooltip channels that do not), find the field definition of a channel
-(its own, the first field condition on a test, none for a parameter condition), list the conditions in order with the
-parameter conditions included in their written place (since Phase 12 a `param` or a legacy `selection` is a predicate
-like a `test`), and list the constant values a legend shows (the conditions first, then the
-value; none for a channel that a field drives). The size test puts a condition whose value is an expression that does
-not compile on a `size` channel and asserts that the document is refused with a `VegaLiteSpecException` for the ten marks
-that evaluate their size conditions (the symbols, `bar`, `rect`, `tick`, `rule`, `line`, `trail`, and `text`) and parses
-for `area` and `arc`, which have no size, and that `theta`, `radius`, `theta2`, and `radius2` take no condition (Vega-Lite
-defines none) while `size` and `angle` do.
+with the file, line, and column; that the tests of the three conditions of a color are compiled to the source `datum.q >
+t` (an expression text as written), `(datum["q"] >= 2 && datum["q"] <= 3)` (the range `[3, 2]` with its endpoints put in
+ascending order) and `(t)` (a variable parameter), and that the `value.expr` is compiled; that the predicate objects of
+a position channel are not compiled, while those of a view in a concatenation are; that the conditions `param` and
+`test: {param}` on a selection are compiled to `(!length(data("sel_store")) || vlSelectionTest("sel_store", datum))`,
+with `empty: false` to `(length(data("sel_store")) && vlSelectionTest("sel_store", datum))`, and a condition on a
+variable parameter to `(flag)`; and that a scale option of a field condition is validated like that of a channel
+(`padding: "wide"` is an error at the scale). The predicate theory writes out, for twenty-three predicates, the exact
+expression text of each comparison, range (with open ends), set, validity check, negation, composition (an empty `and`
+is true and an empty `or` false), expression text, and parameter; a second test checks the bracket path of a dotted
+field and an escaped dot, and the escapes of the quote, the newline, and the backslash in a text; a fourth, as a theory
+of twelve predicates, writes out the selection tests of Vega-Lite (with the default `empty`, `empty: true` and `false`,
+a point selection over the identity of the rows, a multi selection with its `union` resolve, a store name with the
+non-word characters replaced, a `not`, an `and` with a field comparison, and the legacy `selection` with its
+composition; a legacy `empty` on the predicate itself is ignored, since Vega-Lite's compatibility normalizer takes the
+emptiness from the declaration only); a further test and a theory of seventeen declarations check which function the
+predicate names for the effective projection: an empty `fields` or `encodings` is a field test (the presence decides),
+the keys of the value and the `config.selection.point.fields` default are honored, a scalar value keeps the identity,
+and a legacy `multi` with an empty `fields` is a field test; the third lists the predicates that no expression can say
+(a parameter whose name is not an identifier, alone, in an `and`, and in a `not`) as refused with an empty source, while
+the former refusals of a time unit, of a date object and of a selection are gone because those predicates are now
+written (see _Time Predicates As Expressions_ and _Selections_); and a null predicate is refused. The helper tests list
+the eleven channels that take a condition (and the position, secondary, order, and tooltip channels that do not), find
+the field definition of a channel (its own, the first field condition on a test, none for a parameter condition), list
+the conditions in order with the parameter conditions included in their written place (since Phase 12 a `param` or a
+legacy `selection` is a predicate like a `test`), and list the constant values a legend shows (the conditions first,
+then the value; none for a channel that a field drives). The size test puts a condition whose value is an expression
+that does not compile on a `size` channel and asserts that the document is refused with a `VegaLiteSpecException` for
+the ten marks that evaluate their size conditions (the symbols, `bar`, `rect`, `tick`, `rule`, `line`, `trail`, and
+`text`) and parses for `area` and `arc`, which have no size, and that `theta`, `radius`, `theta2`, and `radius2` take no
+condition (Vega-Lite defines none) while `size` and `angle` do.
 
 ##### A Field Definition Without A Type Gets The Type Vega-Lite Infers
 
@@ -510,20 +516,19 @@ defines none) while `size` and `angle` do.
 Assert, as a theory of thirty-four definitions, that the type of a definition without one is the type of Vega-Lite's
 `defaultType`: nominal for a plain field on `text`, `color`, `shape`, `x`, `y`, `size`, and `theta`, and for a
 `strokeDash` even with a time unit; ordinal on `order` and for a `sort` array (before a time unit, but not for
-`"descending"`); temporal for a `timeUnit` and for a `time` or `utc` scale type; quantitative for a `bin` (not
-`bin: false`), for an `aggregate` (`count`, `valid`, `missing`, `distinct`, `mean`, `sum`) and for a numeric or
-discretizing scale type; nominal for an `argmax` aggregate and a `band` or `ordinal` scale type; and the written type
-(`ordinal` with a `bin`, `quantitative` on a string field, `temporal` on a color) always. The second test checks that a
-datum is typed by its value on
-every channel, that `latitude` and `longitude` are quantitative, that `x2` and `y2` take the written or inferred type of
-`x` and `y` (and are inferred as their main channel when there is none), and the six main channels. The integration tests
-draw each chart without the types in strict mode, with nothing reported, and require the scene and the pixels of the
-chart with the types that Vega-Lite infers: the user's case (a `text` channel over the string `Successful` shows
-`Successful`, with and without `nominal`), a `text` of a sum, a count, and a `yearmonth` unit (`4`, `2`, `Mar 2024`), a
-color of three categories (the three categorical colors in a symbol legend, no gradient), a shape (three symbol shapes),
-a plain `x` of a bar and a point chart (a band and a point scale), a month unit, a bin with a count, the counting
-aggregates on a string field, a range of dates whose `x2` has no type, and a stacked bar whose dimension and color have
-none.
+`"descending"`); temporal for a `timeUnit` and for a `time` or `utc` scale type; quantitative for a `bin` (not `bin:
+false`), for an `aggregate` (`count`, `valid`, `missing`, `distinct`, `mean`, `sum`) and for a numeric or discretizing
+scale type; nominal for an `argmax` aggregate and a `band` or `ordinal` scale type; and the written type (`ordinal` with
+a `bin`, `quantitative` on a string field, `temporal` on a color) always. The second test checks that a datum is typed
+by its value on every channel, that `latitude` and `longitude` are quantitative, that `x2` and `y2` take the written or
+inferred type of `x` and `y` (and are inferred as their main channel when there is none), and the six main channels. The
+integration tests draw each chart without the types in strict mode, with nothing reported, and require the scene and the
+pixels of the chart with the types that Vega-Lite infers: the user's case (a `text` channel over the string `Successful`
+shows `Successful`, with and without `nominal`), a `text` of a sum, a count, and a `yearmonth` unit (`4`, `2`, `Mar
+2024`), a color of three categories (the three categorical colors in a symbol legend, no gradient), a shape (three
+symbol shapes), a plain `x` of a bar and a point chart (a band and a point scale), a month unit, a bin with a count, the
+counting aggregates on a string field, a range of dates whose `x2` has no type, and a stacked bar whose dimension and
+color have none.
 
 ##### Time Units Are Validated
 
@@ -586,14 +591,14 @@ channel without a time scale is the catalog's concern (see _FeatureCatalog Unit 
 **Tests**: `SpecParserTimeTests.SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors`
 
 Asserts that a `format` of 1,025 characters on the axis of a temporal field is a located error at
-`/encoding/x/axis/format`, as is one of 400 `%c` (5,200 tokens, with a message that names `the limit of 4096 pieces`),
-a `format` text of the legend of a temporal color (`/encoding/color/legend/format`), the `format` of an ordinal field with
+`/encoding/x/axis/format`, as is one of 400 `%c` (5,200 tokens, with a message that names `the limit of 4096 pieces`), a
+`format` text of the legend of a temporal color (`/encoding/color/legend/format`), the `format` of an ordinal field with
 the unit `month`, and the `format` of a quantitative field whose `formatType` is `utc`; that a member of a `format`
-object (`year`) of 1,025 characters is an error at the member (`/encoding/x/axis/format/year`); and that the `date:'...'`
-format of a `parse` entry of 1,025 characters is an error at `/data/format/parse/d`, all naming `the limit of 1024
-characters`. It also asserts that the same texts are accepted where they are not read as time formats - a number format
-(`formatType: "number"`), a custom format type, and the `format` of a quantitative field without a time format type - and
-that a specifier and a parse format of exactly 1,024 characters are accepted without a warning.
+object (`year`) of 1,025 characters is an error at the member (`/encoding/x/axis/format/year`); and that the
+`date:'...'` format of a `parse` entry of 1,025 characters is an error at `/data/format/parse/d`, all naming `the limit
+of 1024 characters`. It also asserts that the same texts are accepted where they are not read as time formats - a number
+format (`formatType: "number"`), a custom format type, and the `format` of a quantitative field without a time format
+type - and that a specifier and a parse format of exactly 1,024 characters are accepted without a warning.
 
 ##### Mark Time Unit Band Settings
 
@@ -692,12 +697,10 @@ keep their point), and a null node is an `ArgumentNullException` for `IsTimeAwar
 
 Asserts that a well-formed `resolve` (a `scale`, an `axis`, and a `legend` object with the values `shared` and
 `independent`, for channels of each kind) is accepted without a warning; that a `resolve` that is not an object, a kind
-that
-is not an object, a channel that the kind does not accept (an axis of `color`, a legend of `x`), and a mode that is neither
-`shared` nor `independent` are each a `VegaLiteSpecException` at the offending value; that an unknown kind is a
+that is not an object, a channel that the kind does not accept (an axis of `color`, a legend of `x`), and a mode that is
+neither `shared` nor `independent` are each a `VegaLiteSpecException` at the offending value; that an unknown kind is a
 `vl-unknown-property` warning and not an error; and, as a theory, which channels each kind accepts (the position,
-offset, and
-non-position channels of a scale; `x` and `y` of an axis; the non-position channels of a legend).
+offset, and non-position channels of a scale; `x` and `y` of an axis; the non-position channels of a legend).
 
 ##### The Properties Of The Composite Marks Are Validated
 
@@ -720,8 +723,8 @@ a `VegaLiteSpecException` at the offending value; and that the composite rules a
 
 Asserts that the expressions of the views of a layered view (the transform of a layer and of the layered view, a
 condition of a layer's encoding, and a `size` condition of the layered view's own encoding) and those of the view of a
-concatenation (a condition of its encoding) are all compiled when the document is opened, and that the predicates that no
-expression can say (a position channel's condition) are still not compiled.
+concatenation (a condition of its encoding) are all compiled when the document is opened, and that the predicates that
+no expression can say (a position channel's condition) are still not compiled.
 
 ##### Selections Are Validated, Found By Name, And Compiled
 
@@ -732,23 +735,22 @@ expression can say (a position channel's condition) are still not compiled.
 `SpecParserSelectionTests.SpecParser_Parse_PredicateOnAnUndeclaredSelectionIsAnError`,
 `SpecParserSelectionTests.SpecParser_FindParameter_SelectionsAreVisibleFromEveryView`
 
-Assert, as a theory of four texts, that a `select` that is a text other than `point` or `interval`, an object whose `type`
-is another text, an object without a `type`, and a number are each a `VegaLiteSpecException` at the `select` (at its `type`
-for an object with one); as a theory of five parameters, that `fields` that is not an array, `fields` or `encodings`
-with an item that is not a text, a `resolve` other than `global`, `union`, and `intersect`, and `views` that is not an array
-are errors at the offending property; that a specification with a bare point selection, an interval selection with
-`encodings`, a function-like `on`, `clear: false`, `translate: false`, a `zoom`, a mark object, a value, and `bind:
-"scales"`, and a point selection with `fields`, `toggle`, `nearest`, `resolve`, a value, a widget `bind`, and `views` is
-accepted
-without a warning and lists the three names in `ParameterNames`; that the legacy `selection` of `single`, `multi`
-(with `fields`), and `interval` is accepted, a legacy `type` of `point` is an error at the `type`, an entry without a `type`
-an error at the entry, and a `selection` that is an array an error at the property; that a filter on a `param` that no
-view declares, a legacy `selection` composition with an undeclared name, and a condition on an undeclared legacy
-`selection` are errors at that name (`/transform/0/filter/param`, `/transform/0/filter/selection/and/1`, and
-`/encoding/color/condition/selection`); and that a selection declared in the first layer of a layered view is found
-from the second layer and from the first layer's own encoding (the same declaration, since the first declaration of a
-name wins) while a name that no view declares is not found, and the condition of the second layer is compiled to the
-selection test of that selection.
+Assert, as a theory of four texts, that a `select` that is a text other than `point` or `interval`, an object whose
+`type` is another text, an object without a `type`, and a number are each a `VegaLiteSpecException` at the `select` (at
+its `type` for an object with one); as a theory of five parameters, that `fields` that is not an array, `fields` or
+`encodings` with an item that is not a text, a `resolve` other than `global`, `union`, and `intersect`, and `views` that
+is not an array are errors at the offending property; that a specification with a bare point selection, an interval
+selection with `encodings`, a function-like `on`, `clear: false`, `translate: false`, a `zoom`, a mark object, a value,
+and `bind: "scales"`, and a point selection with `fields`, `toggle`, `nearest`, `resolve`, a value, a widget `bind`, and
+`views` is accepted without a warning and lists the three names in `ParameterNames`; that the legacy `selection` of
+`single`, `multi` (with `fields`), and `interval` is accepted, a legacy `type` of `point` is an error at the `type`, an
+entry without a `type` an error at the entry, and a `selection` that is an array an error at the property; that a filter
+on a `param` that no view declares, a legacy `selection` composition with an undeclared name, and a condition on an
+undeclared legacy `selection` are errors at that name (`/transform/0/filter/param`,
+`/transform/0/filter/selection/and/1`, and `/encoding/color/condition/selection`); and that a selection declared in the
+first layer of a layered view is found from the second layer and from the first layer's own encoding (the same
+declaration, since the first declaration of a name wins) while a name that no view declares is not found, and the
+condition of the second layer is compiled to the selection test of that selection.
 
 ##### The Properties Of The Compositions Are Validated
 
@@ -767,26 +769,23 @@ selection test of that selection.
 `SpecParserCompositionTests.SpecParser_Parse_FacetWithFieldDefinitionAndLayoutIsAccepted`,
 `SpecParserCompositionTests.SpecParser_Parse_FacetSpecAndLayerChildCannotBeCompositions`
 
-Asserts, with the pointer of each error, that a `facet` and a `repeat` without a `spec` are errors at the `facet` and the
-`repeat`; that a facet mapping entry with no `field`, an empty `facet`, and a `column` that is not an object are
-errors at
-the entry, the `facet`, and the `column`; that a `repeat` with a number, a non-string value (`/repeat/1`,
+Asserts, with the pointer of each error, that a `facet` and a `repeat` without a `spec` are errors at the `facet` and
+the `repeat`; that a facet mapping entry with no `field`, an empty `facet`, and a `column` that is not an object are
+errors at the entry, the `facet`, and the `column`; that a `repeat` with a number, a non-string value (`/repeat/1`,
 `/repeat/row/0`), or a `column` that is not an array is an error while an unknown key (`/repeat/diagonal`) is a
-`vl-unknown-property` warning; that `columns` of `-1`, `1.5`, `"2"`, and `{}` are errors on a view and on a `facet` channel
-definition (`/encoding/facet/columns`) and `0`, `1`, `12` are accepted; that `spacing` is a number or an object of numbers
-(an unknown key a warning, a text or a non-numeric entry an error at `/spacing` and `/spacing/row`); that `align` is `all`,
-`each`, `none` or an object of them and `center` a boolean or an object of booleans, with the errors at the value or the
-entry and a warning for an extra key; that a header with the properties `title`, `labelAngle`, `labelPadding`, `labels`,
-`labelOrient`, `titleFontSize`, `labelAnchor`, and `format` is accepted, `null` is accepted, an unknown key warns and a
-wrong `labelAngle` (`"x"`), `labelOrient` (`"middle"`), or `labels` (`1`) is an error at that member; that`header`,
-`columns`, `spacing`, `align`, `center`, and `bounds` on an `x` channel, a `detail` definition, and a condition are
-`vl-unknown-property` warnings at the key while `row`, `column`, `facet` and the facet operator accept them; that a
-`resolve`
-of a
-concatenation naming `x`, `xOffset`, and `color` scales and the `x` axis is accepted without a warning; that a
-facet field definition is validated like a channel (its `sort`, and the views of its `spec`); and that the `spec` of a
-facet or a view of a `layer` that is a `facet`, `repeat`, or other composition is an error at that view while the `spec`
-of a `repeat` may be a concatenation.
+`vl-unknown-property` warning; that `columns` of `-1`, `1.5`, `"2"`, and `{}` are errors on a view and on a `facet`
+channel definition (`/encoding/facet/columns`) and `0`, `1`, `12` are accepted; that `spacing` is a number or an object
+of numbers (an unknown key a warning, a text or a non-numeric entry an error at `/spacing` and `/spacing/row`); that
+`align` is `all`, `each`, `none` or an object of them and `center` a boolean or an object of booleans, with the errors
+at the value or the entry and a warning for an extra key; that a header with the properties `title`, `labelAngle`,
+`labelPadding`, `labels`, `labelOrient`, `titleFontSize`, `labelAnchor`, and `format` is accepted, `null` is accepted,
+an unknown key warns and a wrong `labelAngle` (`"x"`), `labelOrient` (`"middle"`), or `labels` (`1`) is an error at that
+member; that`header`, `columns`, `spacing`, `align`, `center`, and `bounds` on an `x` channel, a `detail` definition,
+and a condition are `vl-unknown-property` warnings at the key while `row`, `column`, `facet` and the facet operator
+accept them; that a `resolve` of a concatenation naming `x`, `xOffset`, and `color` scales and the `x` axis is accepted
+without a warning; that a facet field definition is validated like a channel (its `sort`, and the views of its `spec`);
+and that the `spec` of a facet or a view of a `layer` that is a `facet`, `repeat`, or other composition is an error at
+that view while the `spec` of a `repeat` may be a concatenation.
 
 ##### The Repeat References Are Validated
 
@@ -802,8 +801,8 @@ channel field, the datum, the sort field, and the condition field.
 **Tests**: `FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText`,
 `FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_StepForMustBePositionOrOffset`
 
-Asserts that a `labelExpr` of an axis, a legend, a facet header, `config.axis`, and `config.headerFacet` that has a syntax
-error (`datum.label +`, `(`, `1 +`), or that names a parameter that no view declares (`unknownParam`), is a
+Asserts that a `labelExpr` of an axis, a legend, a facet header, `config.axis`, and `config.headerFacet` that has a
+syntax error (`datum.label +`, `(`, `1 +`), or that names a parameter that no view declares (`unknownParam`), is a
 `VegaLiteSpecException` located at the pointer of the expression text (`/encoding/x/axis/labelExpr`,
 `/encoding/color/legend/labelExpr`, `/facet/row/header/labelExpr`, `/config/axis/labelExpr`,
 `/config/headerFacet/labelExpr`) when the text is parsed; and that the `for` of the `step` object of a `width` is

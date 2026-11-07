@@ -83,7 +83,8 @@ the assembly are exactly the catalog (no orphan and no missing file).
 upper case, every canonical name resolves to itself, the alias count is the documented one, and an unknown name resolves
 to nothing.
 
-**HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther**: the names and aliases of the topics are unique, and none is
+**HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther**: the names and aliases of the topics are unique, and none
+is
 a name or alias of a command of the default registry, `help`, or `topics`.
 
 **HelpTopics_Text_HasNoUnresolvedTokens**: no string of any topic contains `{{`; the token table holds the live values
@@ -122,8 +123,10 @@ example can be printed.
 
 **HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles**: a theory over the two snippets of the `svg` topic
 (`embed` and `embed-pages`), which are not source examples; each parses as XML, every `image` `href` (without its
-fragment) ends in a supported extension, and after the sibling files are written (from the `scad`, `vega-lite`, and `svg`
-examples, and the PDF, PPTX, and VSDX documents of the shared fixtures), `render <snippet> --strict --json` succeeds with
+fragment) ends in a supported extension, and after the sibling files are written (from the `scad`, `vega-lite`, and
+`svg`
+examples, and the PDF, PPTX, and VSDX documents of the shared fixtures), `render <snippet> --strict --json` succeeds
+with
 no diagnostic, one `embed` operation per link, and the picture written.
 
 **HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` item names the grammar
@@ -133,14 +136,18 @@ printed; the `diagnostics` section has a term for each of the four new codes; an
 `image-fragment-invalid` and `image-page-out-of-range` and says that the warnings stay warnings.
 
 **HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin**: the `pdf`, `pptx`, `vsdx`, and `scad`
-topics show `report.pdf#page=3`, `deck.pptx#slide=3`, `drawing.vsdx#page=2`, and `part.scad#view=front`; the `json` topic
+topics show `report.pdf#page=3`, `deck.pptx#slide=3`, `drawing.vsdx#page=2`, and `part.scad#view=front`; the `json`
+topic
 has the terms `detail`, `location`, and `origin` in its diagnostics section; and the `limits` topic quotes the fragment
 limits (2048 characters and 32 parameters) from `ImageFragment`.
 
-**HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity**: a theory over the four codes: a diagram
-linking the two-page PDF with `#pag=2`, `#page=1&amp;page=2`, `#page=0`, and `#page=9` reports exactly one diagnostic with
+**HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity**: a theory over the four codes: a
+diagram
+linking the two-page PDF with `#pag=2`, `#page=1&amp;page=2`, `#page=0`, and `#page=9` reports exactly one diagnostic
+with
 the code `image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter` (both `warning`),
-`image-fragment-invalid`, and `image-page-out-of-range` (both `unsupported`), and `--strict` fails only for the last two.
+`image-fragment-invalid`, and `image-page-out-of-range` (both `unsupported`), and `--strict` fails only for the last
+two.
 
 **HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender**: the text of the `scad` topic and the
 `vega-lite` topic, the footer of the `formats` listing, and the usage of `render` each contain `<image href` and
@@ -156,7 +163,8 @@ option or alias of `render` or a global option.
 values of the error code constants of the tool.
 
 **HelpTopics_CitedDiagnosticIds_ExistInTheLibraries**: every diagnostic identifier cited anywhere in the topics (found
-with a pattern for the families `scad-`, `vl-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`, and `image-page-`) is an entry
+with a pattern for the families `scad-`, `vl-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`, and `image-page-`) is an
+entry
 of the trigger table, an error
 code, one of the image-link codes (`svg-image-*` and the four fragment codes, which the theory above renders), or a
 placeholder of the naming rule; otherwise the literal part of the identifier (before a `<type>`
@@ -193,3 +201,22 @@ command `help`, for the text and the JSON rendering alike.
 **HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent**: `RenderExample` (with the name in capitals) returns
 exactly the embedded resource, with LF line endings and no trailing newline; the example list has one line per example;
 the JSON list has no content; and the JSON of one example has the content and the file name.
+
+**HelpTopics_ParamOptionAndFragmentPrefixes_AreDocumented**: the `vega-lite` topic lists `--param <name=value>` with an
+example, the `vega-lite-error` for an unknown
+name and the `param.` fragment; the `svg` topic has the item `variable fragment` that names `def.<name>=<value>` (with
+`-D name=value`), `param.<name>=<value>` (with `--param`)
+and the codes `vl-param-unknown`, `image-fragment-unknown-parameter` and `image-fragment-invalid`; the `scad` topic
+shows `part.scad#view=front&amp;def.width=20`; the
+`diagnostics` section of both the `vega-lite` and the `svg` topic has `vl-param-unknown`; and the strict option of the
+`svg` topic says that `vl-param-unknown` stays a warning.
+The drift tests (`HelpTopics_OptionTerms_ExistInTheRenderOptionTable`,
+`HelpTopics_CitedDiagnosticIds_ExistInTheLibraries`, `HelpTopics_Text_HasNoUnresolvedTokens`) cover the new text.
+
+**HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages** (`InputFragmentTests.cs`): the `input fragment` term of
+the `svg` topic has the rule for the number sign (`no file has that exact name`), the quoting, the overrides of
+`--page`, `--view`, `-D`, and `--param`, the codes `image-fragment-invalid`, `page-out-of-range` and `vl-param-unknown`,
+that the warnings stay warnings also with `--strict`, and the labels of montage; the `svg` topic shows `def.$vpd=300`;
+the `scad` topic has the montage and `'$vpd=300'`; the `errors`, `pdf`, `pptx`, `vsdx`, and `vega-lite` topics have
+their lines; and the usage of `render`, `crop`, `inspect`, `compare`, `montage`, and `info` contains `fragment`.
+**HelpTopics_ErrorsTopic_ListsEveryErrorCode** proves that `image-fragment-invalid` is listed.

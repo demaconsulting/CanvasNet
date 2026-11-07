@@ -767,8 +767,8 @@ public class VegaLiteFacetIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the parts of a facet that are not drawn are reported with their identifiers and the rest of the chart is drawn: a binned field, a sort by an aggregate, and the
-    ///     header's side, label expression and custom format type.
+    ///     Validates that the parts of a facet that are not drawn are reported with their identifiers and the rest of the chart is drawn: a binned field, and the
+    ///     header's side, label expression and custom format type (a sort by an aggregate is drawn).
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported()
@@ -785,7 +785,7 @@ public class VegaLiteFacetIntegrationTests
 
         // Assert
         Assert.Equal(
-            ["vl-expr-function-luminance", "vl-facet-field-transform", "vl-facet-sort", "vl-format-type-custom", "vl-header-orient"],
+            ["vl-expr-function-luminance", "vl-facet-field-transform", "vl-format-type-custom", "vl-header-orient"],
             ids);
     }
 

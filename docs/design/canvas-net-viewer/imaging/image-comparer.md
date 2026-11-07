@@ -54,6 +54,10 @@ checks the thresholds with `ImageComparison.Evaluate`, draws the pictures with `
 A threshold that is not met is data (`ThresholdCheck.Passed` is `false`), not an exception: the pictures are written, and
 the caller decides what the miss means (the tool fails with the code `threshold-failed` and still prints the result).
 
+**Input fragment.** The page of the `SourceInfo.Selection` of an input replaces the `Page` of its `CompareInput`
+(the `Side` takes it), and `SourceLoader.OpenPages` applies the rest of the selection to the `Source` options of the
+input, so two inputs of one file, each with its own fragment, are two versions of it.
+
 #### Error Handling
 
 `ViewerException` with `usage-error`, `size-mismatch`, `same-input-output`, `output-exists`, `output-write-failed`, and

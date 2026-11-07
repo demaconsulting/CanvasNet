@@ -128,6 +128,7 @@ input-files:
   - docs/design/canvas-net-vega-lite/transforms/aggregate-transforms.md
   - docs/design/canvas-net-vega-lite/transforms/encoding-plan.md
   - docs/design/canvas-net-vega-lite/transforms/time-unit-transform.md
+  - docs/design/canvas-net-vega-lite/transforms/stat-transforms.md
   - docs/design/canvas-net-vega-lite/scales.md
   - docs/design/canvas-net-vega-lite/scales/scale-model.md
   - docs/design/canvas-net-vega-lite/scales/scale-resolver.md
@@ -155,6 +156,7 @@ input-files:
   - docs/design/canvas-net-vega-lite/scenegraph/scene-painter.md
   - docs/design/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/design/canvas-net-vega-lite/scenegraph/arc-geometry.md
+  - docs/design/canvas-net-vega-lite/scenegraph/symbol-path-parser.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md

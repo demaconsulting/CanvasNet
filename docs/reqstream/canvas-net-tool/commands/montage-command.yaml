@@ -139,3 +139,22 @@ sections:
           bundled font, so the sheet does not depend on the machine's fonts.
         tests:
           - MontageCommand_Run_SameInputsTwice_WriteIdenticalBytes
+
+      - id: CanvasNetTool-Commands-MontageCommand-InputFragments
+        title: >-
+          The montage command shall read the fragment of each input path as the render command does (the page, the view
+          and variables of a model, the parameters of a chart, overriding the shared options for that input only), so
+          that one file named several times is several cells (an assembly at three explode levels), shall let the
+          viewport variables of a model (def.$vpd, def.$vpt, and the same through -D) fix one camera so that the cells
+          share a scale, shall write the fragment of each cell in its label and in the fragment member of the cell in
+          the JSON result, and shall report the warnings of a fragment with the input and fail on its errors before
+          anything is written.
+        justification: |
+          A sheet of the versions of one model is the main use of a fragment on a list of inputs; a camera fixed by
+          the user keeps the versions comparable, where the automatic fit would scale each to its own extent.
+        tests:
+          - InputFragment_Montage_ExplodeLevelsWithFixedCamera_DifferButShareScale
+          - InputFragment_Montage_WithoutFixedCamera_FitsEachCell
+          - InputFragment_Montage_CameraByCommandOrByFragment_DrawTheSameCells
+          - InputFragment_Montage_Labels_ShowTheFragment
+          - InputFragment_Montage_DocumentPage_LabelHasNoRedundantPageNumber

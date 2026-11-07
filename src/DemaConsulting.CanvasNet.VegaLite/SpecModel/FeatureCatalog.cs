@@ -57,16 +57,17 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
-///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, boxplot, errorbar and errorband (<c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> were retired in Phase 10 and are never produced).</description></item>
-///         <item><term><c>vl-composite-grouping</c></term><description>a channel of a <c>boxplot</c>, <c>errorbar</c> or <c>errorband</c> that groups the rows (every channel but the measure axis, the second ends and errors, and the tooltip) and has a <c>bin</c>, a <c>timeUnit</c> or an <c>aggregate</c>: the rows are grouped by the raw field (a bin or a time unit is not applied) and a channel that aggregates is left out of the layers.</description></item>
+///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, image, boxplot, errorbar and errorband (<c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> were retired in Phase 10 and are never produced).</description></item>
+///         <item><term><c>vl-mark-image</c></term><description>the <c>image</c> mark when the caller supplied no <see cref="VegaLiteRenderOptions.ImageResolver"/> (<see cref="Visit"/> takes <c>hasImageResolver</c>). The mark is laid out as usual but draws no picture, because the library never reads a file or a network resource on its own; with a resolver the mark is drawn and nothing is reported. A picture that the resolver does not resolve is the warning <c>vl-mark-image-unresolved</c>, produced by the painter, not by the catalog (it needs the resolver's answer).</description></item>
+///         <item><term><c>vl-channel-url</c></term><description>the <c>url</c> channel of a mark other than <c>image</c> (the channel is ignored, as Vega-Lite ignores it).</description></item>
+///         <item><term><c>vl-composite-grouping</c></term><description>a channel of a <c>boxplot</c>, <c>errorbar</c> or <c>errorband</c> that groups the rows (every channel but the measure axis, the second ends and errors, and the tooltip) and has a <c>bin</c>, an <c>aggregate</c> or a binned or <c>maxbins</c> <c>timeUnit</c>: the rows are grouped by the raw field and a channel that aggregates is left out of the layers. A <c>timeUnit</c> with parts is applied (Phase 13: a <c>timeUnit</c> transform and a derived field) and is not reported.</description></item>
 ///         <item><term><c>vl-channel-xerror</c>, <c>-xerror2</c>, <c>-yerror</c>, <c>-yerror2</c></term><description>an error channel on a mark other than <c>errorbar</c> and <c>errorband</c>, which use them (the channels are ignored). The <c>x2</c> and <c>y2</c> channels of those two marks are the ends of the range and are not reported; the <c>size</c> channel of an <c>errorbar</c> reports <c>vl-channel-size</c> (Vega-Lite drops it).</description></item>
-///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c>, <c>vl-mark-interpolate-unknown</c></term><description>the <c>invalid</c> of a mark: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation); and an <c>interpolate</c> name of a line or area that is not one of Vega-Lite's 15 (the parser rejects it in a mark definition, so it can only come from the configuration; the line is drawn with the linear interpolation). The value is read as the mark builder reads it: from the mark definition, else from the <c>config.style</c> entries of the mark, <c>config.&lt;mark&gt;</c> or <c>config.mark</c> of the specification; a value from the configuration is reported at the configuration (once, however many marks use it).</description></item>
+///         <item><term><c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c>, <c>vl-mark-interpolate-unknown</c></term><description>the <c>invalid</c> of a mark: <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows (<c>vl-mark-invalid-show</c> was retired in Phase 13: <c>show</c> and null draw the invalid row at zero or at the first value of the domain, and are not reported); the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation); and an <c>interpolate</c> name of a line or area that is not one of Vega-Lite's 15 (the parser rejects it in a mark definition, so it can only come from the configuration; the line is drawn with the linear interpolation). The value is read as the mark builder reads it: from the mark definition, else from the <c>config.style</c> entries of the mark, <c>config.&lt;mark&gt;</c> or <c>config.mark</c> of the specification; a value from the configuration is reported at the configuration (once, however many marks use it).</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, xOffset, yOffset, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
-///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
-///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
+///         <item><term><c>vl-shape-path-invalid</c> (warning)</term><description>a shape that is neither a symbol name nor SVG path data that parses: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (Phase 13: custom SVG path shapes are drawn, scaled by the symbol size as vega's <c>pathSymbol</c>; a path that does not parse is drawn as a circle, a path without a command draws nothing). <c>vl-shape-path</c> and <c>vl-scale-interpolate-cubehelix</c> were retired in Phase 13 and are never produced again: the <c>cubehelix</c> and <c>cubehelix-long</c> interpolations are drawn.</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
-///         <item><term><c>vl-encoding-impute</c>, <c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c></term><description>that property of a supported channel (<c>vl-encoding-impute</c> is the <c>impute</c> of a channel other than <c>x</c> and <c>y</c>: the impute of a position channel is run by the pipeline, the impute of any other channel is ignored). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin; not the one of a stacked <c>theta</c> or <c>radius</c> of a text mark, which places the label in its slice); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
+///         <item><term><c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c> (<c>vl-encoding-...</c>)</term><description>that property of a supported channel (<c>vl-encoding-impute</c> was retired in Phase 13: the impute of a position channel is run by the pipeline and the impute of any other channel is ignored, as Vega-Lite does, without a report). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin; not the one of a stacked <c>theta</c> or <c>radius</c> of a text mark, which places the label in its slice); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
 ///         <item><term><c>vl-encoding-stack-impute-bin</c> (warning)</term><description>the dimension channel of a stacked <c>line</c>, <c>area</c> or <c>trail</c> that is binned and has stack-by fields (and whose stacked channel does not say <c>impute: null</c>): Vega-Lite fills the layers with zeros for the bins they lack, this renderer does not impute a binned dimension.</description></item>
 ///         <item><term><c>vl-timeunit-binned</c>, <c>vl-timeunit-maxbins</c></term><description>a <c>timeUnit</c> that is not applied: a <c>binned</c> unit (a name that starts with <c>binned</c>, or <c>binned: true</c>) in an encoding, a condition, a predicate or the <c>timeUnit</c> transform (the unit is ignored and the field is used as it is), and the <c>{"maxbins": n}</c> form without a unit in a predicate (ignored). The encoding and the transform apply <c>maxbins</c>.</description></item>
 ///         <item><term><c>vl-predicate-timeunit-part</c> (warning)</term><description>the <c>timeUnit</c> of a predicate (a filter or a condition test) whose unit has a <c>week</c> or <c>dayofyear</c> part; like Vega-Lite a predicate does not apply those parts.</description></item>
@@ -82,17 +83,18 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold and bin-ordinal.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, domainRaw, rangeMin, rangeMax, interpolate, base, exponent and constant (<c>vl-scale-property-domainRaw</c> was retired in Phase 12 and is never produced again). An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
 ///         <item><term><c>vl-offset-position</c>, <c>vl-offset-ranged</c></term><description>an <c>xOffset</c> or <c>yOffset</c> that is not drawn (the marks are drawn at the position of their <c>x</c> or <c>y</c> channel): <c>vl-offset-position</c> when the position channel is missing, is quantitative, is temporal without a time unit (Vega-Lite rejects it), has a time unit that cannot hold an offset (a unit whose smallest part is the day of the week, a binned unit, the <c>maxbins</c> form, a <c>rect</c> mark) on a position that is not discrete; a temporal position with a time unit is nested in the duration of its unit and drawn; <c>vl-offset-ranged</c> for a continuous (quantitative or temporal) offset of a bar or area, which Vega-Lite draws as a range from the start of the band. The offsets of the other marks are drawn: a discrete one by a band or point scale, a continuous one by a linear or time scale (a strip of points).</description></item>
-///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
+///         <item><term><c>vl-guide-legend-clipheight</c></term><description>the <c>clipHeight</c> of a legend (not drawn); legends themselves are drawn and are not reported. <c>vl-guide-legend-titleorient</c> was retired in Phase 13: every <c>titleOrient</c> is drawn.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
-///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
+///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>retired in Phase 13 and never produced again: <c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c> and <c>titleY</c> are drawn.</description></item>
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>, <c>legend.formatType</c>, the <c>header.formatType</c> of a facet field and the <c>formatType</c> of a <c>text</c> channel other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
 ///         <item><term><c>vl-expr-ref</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate: at a property that Vega-Lite's schema does not allow one at (a width or height, a facet's field definitions), at a static site that reads <c>datum</c> (a static site is evaluated once, without a row), or in the <c>Config</c> of the render options (<see cref="VisitCallerConfig"/>). The static sites (<see cref="ExpressionReferenceSites"/>: title, padding, background, mark, axis, legend, header, scale and view properties, the <c>value</c> and <c>datum</c> of the other channels, and the root <c>config</c>), the row-bound sites and the <c>labelExpr</c> of axes, legends and headers are evaluated and are reported only for what their expression cannot do; a date result at a static site that takes none is the warning <c>vl-expr-ref</c> that the fold delivers (<see cref="ExpressionReferenceFolder"/>). <c>vl-expr-label</c> (the <c>axis.labelExpr</c>, <c>legend.labelExpr</c> and <c>header.labelExpr</c> that were not evaluated) was retired when label expressions were implemented and is never produced again.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
-///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>; "not supported yet"). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of any view (the single view, a layered view and its layers, and the views of a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c>) are computed and not reported. The Phase 10 message "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet." was retired in Phase 11: every composition is drawn, so no transform is left unapplied by one.</description></item>
-///         <item><term><c>vl-transform-pivot-op</c>, <c>-lookup-param</c></term><description>the parts of a computed transform that are not supported: a pivot <c>op</c> other than sum and count (sum is used) and a lookup in the data of a parameter (not applied; it needs the final table of another view filtered by the selection). <c>vl-transform-filter-param</c> (a filter predicate on a selection parameter) and <c>vl-transform-bin-extent-param</c> (a <c>bin</c> whose <c>extent</c> is a parameter) were retired in Phase 12 and are never produced again: the filter evaluates the selection, and the extent sets the span that chooses the bin step.</description></item>
+///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>retired in Phase 13 and never produced again: every transform of Vega-Lite is computed. <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c>, <c>timeUnit</c>, <c>regression</c>, <c>loess</c>, <c>density</c>, <c>quantile</c> and <c>extent</c> of any view (the single view, a layered view and its layers, and the views of a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c>) are computed and not reported. The Phase 10 message "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet." was retired in Phase 11: every composition is drawn, so no transform is left unapplied by one.</description></item>
+///         <item><term><c>vl-transform-lookup-param</c></term><description>the part of a computed transform that is not supported: a lookup in the data of a parameter (not applied; it needs the final table of another view filtered by the selection). <c>vl-transform-pivot-op</c> (a pivot <c>op</c> other than sum and count) was retired in Phase 13 and is never produced again: a pivot computes every aggregate operation. <c>vl-transform-filter-param</c> (a filter predicate on a selection parameter) and <c>vl-transform-bin-extent-param</c> (a <c>bin</c> whose <c>extent</c> is a parameter) were retired in Phase 12 and are never produced again: the filter evaluates the selection, and the extent sets the span that chooses the bin step.</description></item>
+///         <item><term><c>vl-param-extent-static</c> (warning)</term><description>an <c>{"expr": ...}</c> at a static site (a title, a configuration value, an axis or legend property, ...) that reads a parameter that an <c>extent</c> transform computes: the static sites are evaluated before the data is read, so the parameter is null there (the transforms that follow the <c>extent</c>, <c>bin.extent</c> and <c>scale.domain</c> see its value).</description></item>
 ///         <item><term><c>vl-composition-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c> or <c>autosize</c> (other than <c>pad</c>) of a concatenation, a facet or a repeat of rows or columns (only the views inside have a size), the <c>"container"</c> size of a view inside one, and the <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>autosize</c> of a view inside one: Vega-Lite ignores them and only the top-level view decides them. The composition is drawn padded (<c>autosize: pad</c>). A <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>repeat</c> and <c>facet</c> are drawn and not reported: <c>vl-composition-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-repeat</c> and <c>-facet</c> were retired in Phase 11 and are never produced (<c>vl-composition-layer</c> was retired in Phase 10); the views nested in a composition are examined too.</description></item>
 ///         <item><term><c>vl-channel-row</c>, <c>-column</c>, <c>-facet</c></term><description>a <c>row</c>, <c>column</c> or <c>facet</c> channel of a unit view that cannot be faceted: a layer of a layered view, a layered view whose encoding holds the channel, or the <c>spec</c> of a <c>facet</c> (Vega-Lite facets only a unit view that is the root, a child of a concatenation or a copy of a repeat; the channel is ignored there, use the <c>facet</c> operator). The channels of a unit view that is faceted are drawn and not reported.</description></item>
-///         <item><term><c>vl-facet-field-transform</c>, <c>vl-facet-sort</c>, <c>vl-header-orient</c></term><description>the parts of the definition of a facet field (a <c>facet</c> operator's field or <c>row</c> and <c>column</c> fields, or the <c>row</c>, <c>column</c> and <c>facet</c> channel of a unit view) that are not drawn: a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value of the field is the cell; <c>vl-facet-field-transform</c>, at the property); a <c>sort</c> by a field and an operation (an object) orders the cells by the facet field in ascending order (<c>vl-facet-sort</c>); a <c>header.labelOrient</c> or <c>header.titleOrient</c> on a side that the header does not draw on (the default side is used; <c>vl-header-orient</c>): a row honors <c>left</c> and <c>right</c>, a column <c>top</c> and <c>bottom</c>, the label of a wrapped facet (the title of its cells) any side and its title <c>top</c> and <c>bottom</c>. A custom <c>header.formatType</c> reports <c>vl-format-type-custom</c>; <c>header.labelExpr</c> is evaluated.</description></item>
+///         <item><term><c>vl-facet-field-transform</c>, <c>vl-header-orient</c></term><description>the parts of the definition of a facet field (a <c>facet</c> operator's field or <c>row</c> and <c>column</c> fields, or the <c>row</c>, <c>column</c> and <c>facet</c> channel of a unit view) that are not drawn: a <c>bin</c> or <c>aggregate</c> of the field, and a binned or <c>maxbins</c> <c>timeUnit</c>, are not applied (the raw value of the field is the cell; <c>vl-facet-field-transform</c>, at the property); a <c>timeUnit</c> with parts is applied (Phase 13), and a <c>sort</c> by a field and an operation orders the cells by that aggregate (Phase 13; <c>vl-facet-sort</c> was retired); a <c>header.labelOrient</c> or <c>header.titleOrient</c> on a side that the header does not draw on (the default side is used; <c>vl-header-orient</c>): a row honors <c>left</c> and <c>right</c>, a column <c>top</c> and <c>bottom</c>, the label of a wrapped facet (the title of its cells) any side and its title <c>top</c> and <c>bottom</c>. A custom <c>header.formatType</c> reports <c>vl-format-type-custom</c>; <c>header.labelExpr</c> is evaluated.</description></item>
 ///         <item><term><c>vl-concat-axis-shared</c>, <c>vl-composition-columns-ignored</c>, <c>vl-repeat-ref-unresolved</c> (warnings)</term><description>produced by the renderer from the view tree, not by the catalog (so each is reported once, from the tree that is drawn): <c>resolve.axis.x</c> or <c>y</c> set to <c>shared</c> on a concatenation (the children keep their own axes, as Vega-Lite does), <c>columns</c> together with a <c>row</c> or <c>column</c> mapping of a facet or repeat (ignored), and a <c>{"repeat": ...}</c> reference that the enclosing repeat does not define (the channel is dropped).</description></item>
 ///         <item><term><c>vl-layer-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c>, <c>autosize</c>, <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>title</c> of a view inside a layered view (a layer or a nested layered view): only the top-level view decides them.</description></item>
 ///         <item><term><c>vl-layer-scale-conflict</c> (warning)</term><description>produced by the renderer, not by the catalog: views (the layers of a layered view, the children of a concatenation) whose scales of a shared channel cannot be merged (a continuous with a discrete scale, a linear with a logarithmic or a time scale) keep scales of their own; reported at the channel of the view that was left out.</description></item>
@@ -110,12 +112,12 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 internal static class FeatureCatalog
 {
     /// <summary>The mark types that the renderer draws; any other mark type is reported.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc", "boxplot", "errorbar", "errorband"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc", "image", "boxplot", "errorbar", "errorband"];
 
     /// <summary>The channels that the renderer draws; any other channel is reported unless it is ignored.</summary>
     private static readonly HashSet<string> SupportedChannels =
     [
-        "x", "y", "xOffset", "yOffset", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle", "text", "theta", "radius", "theta2", "radius2",
+        "x", "y", "xOffset", "yOffset", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle", "text", "url", "theta", "radius", "theta2", "radius2",
     ];
 
     /// <summary>The channels that are accepted and ignored without a report (interaction, accessibility and linking).</summary>
@@ -128,7 +130,7 @@ internal static class FeatureCatalog
     private static readonly HashSet<string> LegendChannels = ["color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash"];
 
     /// <summary>The marks that draw a range between a position and its secondary channel (<c>x2</c> and <c>y2</c>).</summary>
-    private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule", "area"];
+    private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule", "area", "image"];
 
     /// <summary>The channels on which <c>bin</c> is applied: the position channels and every channel that has a scale (a <c>bin: "binned"</c> is read on the position channels only).</summary>
     private static readonly HashSet<string> BinnedChannels =
@@ -142,17 +144,11 @@ internal static class FeatureCatalog
     /// <summary>The scale types that order categories (a quantitative field with one of them is not on a continuous scale).</summary>
     private static readonly HashSet<string> DiscreteScaleTypes = ["band", "point", "ordinal", "bin-ordinal", "quantile", "quantize", "threshold"];
 
-    /// <summary>The scale properties that the renderer implements (<c>interpolate</c> except for the cubehelix types, see the scale visit).</summary>
+    /// <summary>The scale properties that the renderer implements.</summary>
     private static readonly HashSet<string> SupportedScaleProperties =
     [
         "type", "domain", "range", "zero", "nice", "padding", "reverse", "paddingInner", "paddingOuter", "align", "round", "clamp", "scheme",
         "domainMid", "domainMin", "domainMax", "domainRaw", "rangeMin", "rangeMax", "interpolate", "base", "exponent", "constant",
-    ];
-
-    /// <summary>The axis properties that the renderer does not implement; each reports <c>vl-guide-axis-&lt;name&gt;</c>.</summary>
-    private static readonly HashSet<string> UnsupportedAxisProperties =
-    [
-        "labelBound", "tickBand", "tickExtra", "position", "translate", "bandPosition", "titleX", "titleY",
     ];
 
     /// <summary>The properties of a view in which an <c>{"expr": ...}</c> value is looked for.</summary>
@@ -182,12 +178,15 @@ internal static class FeatureCatalog
     ///     the configuration of the renderer (whether a path mark has a point overlay, which says whether a <c>shape</c> is drawn) use it, so a rendering with a caller's configuration
     ///     reports what it draws.
     /// </param>
+    /// <param name="hasImageResolver">
+    ///     Whether the caller supplied a <see cref="VegaLiteRenderOptions.ImageResolver"/>. The <c>image</c> mark draws a picture only through one, so without it the mark is reported as <c>vl-mark-image</c>.
+    /// </param>
     /// <returns>The reports in document order; empty when the specification uses only supported constructs.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="tree"/> is null.</exception>
-    public static IReadOnlyList<FeatureReport> Visit(SpecTree tree, ResolvedConfig? config = null)
+    public static IReadOnlyList<FeatureReport> Visit(SpecTree tree, ResolvedConfig? config = null, bool hasImageResolver = false)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        var walker = new Walker(tree, config);
+        var walker = new Walker(tree, config, hasImageResolver);
         walker.Run();
 
         // LINQ's ordering is stable, so reports at one position keep the order in which they were found; a finding that several layers share (a channel of the encoding that
@@ -339,15 +338,20 @@ internal static class FeatureCatalog
         /// <summary>The declarations of the selections that two or more layers receive, found on first use.</summary>
         private HashSet<SpecNode>? _duplicateSelections;
 
+        /// <summary>Whether the caller supplied an image resolver, which the <c>image</c> mark needs to draw anything.</summary>
+        private readonly bool _hasImageResolver;
+
         /// <summary>
         ///     Initializes a walker.
         /// </summary>
         /// <param name="tree">The specification.</param>
         /// <param name="config">The effective configuration, or null.</param>
-        public Walker(SpecTree tree, ResolvedConfig? config)
+        /// <param name="hasImageResolver">Whether the caller supplied an image resolver.</param>
+        public Walker(SpecTree tree, ResolvedConfig? config, bool hasImageResolver)
         {
             _tree = tree;
             _config = config;
+            _hasImageResolver = hasImageResolver;
             _staticTexts = new HashSet<SpecNode>(tree.Expressions.StaticReferences.Select(r => r.Text), ReferenceEqualityComparer.Instance);
         }
 
@@ -872,6 +876,14 @@ internal static class FeatureCatalog
             }
             else
             {
+                if (type == "image" && !_hasImageResolver)
+                {
+                    Unsupported(
+                        "vl-mark-image",
+                        "The 'image' mark draws no picture: no image resolver was supplied (VegaLiteRenderOptions.ImageResolver), and the library never reads a file or a network resource on its own.",
+                        mark);
+                }
+
                 if (mark["shape"] is { IsString: true } shape)
                 {
                     VisitShapeName(shape);
@@ -981,21 +993,12 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Visits the <c>invalid</c> property of a mark: <c>show</c> (and null) are not drawn, and the modes that filter the scale domains keep the rows in the domains.
+        ///     Visits the <c>invalid</c> property of a mark: the modes that filter the scale domains keep the rows in the domains (<c>show</c> and null are drawn, <c>vl-mark-invalid-show</c> is retired).
         /// </summary>
         /// <param name="invalid">The value of the property (from the mark or from the configuration), or null when there is none.</param>
         private void VisitMarkInvalid(SpecNode? invalid)
         {
-            if (invalid is null)
-            {
-                return;
-            }
-
-            if (invalid.IsNull || invalid is { IsString: true, StringValue: "show" })
-            {
-                ReportOnce("vl-mark-invalid-show", "The 'show' invalid mode (and null) is not supported: invalid values are not drawn at a fallback position; the default mode applies.", invalid, FeatureReportKind.UnsupportedFeature);
-            }
-            else if (invalid is { IsString: true, StringValue: "filter" or "break-paths-filter-domains" })
+            if (invalid is { IsString: true, StringValue: "filter" or "break-paths-filter-domains" })
             {
                 ReportOnce("vl-mark-invalid-domains", $"The invalid mode '{invalid.StringValue}' should leave the invalid rows out of the scale domains; the domains of this renderer always include them.", invalid, FeatureReportKind.Warning);
             }
@@ -1105,7 +1108,7 @@ internal static class FeatureCatalog
                         Unsupported(Id("channel", name), $"The '{name}' channel is not supported yet.", channel);
                     }
                 }
-                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, drawnAs)
+                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "url" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, drawnAs)
                     && !(name == "shape" && pointOverlay))
                 {
                     // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one, a text a text mark,
@@ -1138,7 +1141,7 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports the channels of a composite mark that group its rows and have a <c>bin</c>, a <c>timeUnit</c> or an <c>aggregate</c>, which the expansion does not apply.
+        ///     Reports the channels of a composite mark that group its rows and have a <c>bin</c>, a binned or maxbins <c>timeUnit</c> or an <c>aggregate</c>, which the expansion does not apply (a <c>timeUnit</c> is applied).
         /// </summary>
         /// <param name="type">The composite mark type: <c>boxplot</c>, <c>errorbar</c> or <c>errorband</c>.</param>
         /// <param name="mark">The mark of the view: a string or a mark definition.</param>
@@ -1158,9 +1161,13 @@ internal static class FeatureCatalog
                 {
                     Unsupported("vl-composite-grouping", $"The '{channel.Name}' channel of the {type} has an aggregate, which a grouping channel cannot have; the channel is left out.", channel);
                 }
-                else if ((channel["bin"] is { } bin && IsEnabled(bin)) || channel["timeUnit"] is { IsNull: false })
+                else if (channel["bin"] is { } bin && IsEnabled(bin))
                 {
-                    Unsupported("vl-composite-grouping", $"The bin or time unit of the '{channel.Name}' channel of the {type} is not applied: the rows are grouped by the field as it is.", channel);
+                    Unsupported("vl-composite-grouping", $"The bin of the '{channel.Name}' channel of the {type} is not applied: the rows are grouped by the field as it is.", channel);
+                }
+                else if (channel["timeUnit"] is { IsNull: false } unitNode && (channel["field"] is not { IsString: true } || !TimeUnitSpec.TryRead(unitNode, out var unit) || unit.IsBinned || unit.Parts.Count == 0))
+                {
+                    Unsupported("vl-composite-grouping", $"The binned time unit, or the time unit given as maxbins, of the '{channel.Name}' channel of the {type} is not applied: the rows are grouped by the field as it is.", channel);
                 }
             }
         }
@@ -1229,11 +1236,8 @@ internal static class FeatureCatalog
                 VisitOffset(name, definition);
             }
 
-            if (name is not ("x" or "y"))
-            {
-                // The impute of a position channel is run by the pipeline (EncodingPlan.Impute); on any other channel it is not
-                ReportProperty(definition, "impute", n => !n.IsNull, $"Imputation is only supported on the 'x' and 'y' channels, not on '{name}'; the impute is ignored.");
-            }
+            // The impute of a position channel is run by the pipeline (EncodingPlan.Impute); Vega-Lite reads it from x and y only
+            // (compile/data/impute.ts makeFromEncoding), so on any other channel it is ignored without a report (vl-encoding-impute is retired)
             VisitBandPosition(name, definition);
             if (definition["datum"] is { IsObject: true } datum && SpecParser.IsDateTimeShaped(datum))
             {
@@ -1666,21 +1670,6 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports a property of a channel definition when a condition on its value holds.
-        /// </summary>
-        /// <param name="definition">The channel definition object.</param>
-        /// <param name="property">The property name; the identifier is <c>vl-encoding-&lt;name&gt;</c>.</param>
-        /// <param name="isUsed">Decides whether the value is a use of the unsupported feature.</param>
-        /// <param name="message">The description.</param>
-        private void ReportProperty(SpecNode definition, string property, Func<SpecNode, bool> isUsed, string message)
-        {
-            if (definition[property] is { } node && isUsed(node))
-            {
-                Unsupported(Id("encoding", property), message, node);
-            }
-        }
-
-        /// <summary>
         ///     Determines whether a feature switch is on: anything except null and false (an object or a string
         ///     such as <c>"binned"</c> or <c>"zero"</c> switches the feature on).
         /// </summary>
@@ -1705,15 +1694,6 @@ internal static class FeatureCatalog
                         Unsupported(Id("scale", property.StringValue!), $"The '{property.StringValue}' scale type is not supported yet.", property);
                     }
                 }
-                else if (name == "interpolate")
-                {
-                    // Cubehelix is recognized and interpolates in RGB instead; the other interpolation types are implemented
-                    var type = property.IsString ? property.StringValue : property["type"]?.AsString();
-                    if (type is "cubehelix" or "cubehelix-long")
-                    {
-                        Unsupported("vl-scale-interpolate-cubehelix", $"The '{type}' color interpolation is not supported; RGB interpolation is used.", property);
-                    }
-                }
                 else if (name == "range" && channel == "shape" && property.IsArray)
                 {
                     foreach (var item in property.Items)
@@ -1729,14 +1709,25 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports a shape that is a custom SVG path instead of one of the symbol names; the painter draws a circle for it.
+        ///     Reports a shape that is neither a symbol name nor SVG path data that vega can parse (the painter draws a circle for it), or path
+        ///     data without a command (vega draws nothing for it).
         /// </summary>
         /// <param name="shape">The value: a shape name or a path.</param>
         private void VisitShapeName(SpecNode shape)
         {
-            if (shape.IsString && !ScaleResolver.IsKnownShape(shape.StringValue!))
+            if (!shape.IsString || Scenegraph.ScenePainter.IsSymbolShape(shape.StringValue!))
             {
-                Unsupported("vl-shape-path", $"The shape '{shape.StringValue}' is not a symbol name; custom SVG path shapes are not supported, and a circle is drawn.", shape);
+                return;
+            }
+
+            var parsed = Scenegraph.SymbolPathParser.TryParse(shape.StringValue!, out var error);
+            if (parsed is null)
+            {
+                Warn("vl-shape-path-invalid", $"The shape '{shape.StringValue}' is neither a symbol name nor SVG path data that parses ({error}); a circle is drawn.", shape);
+            }
+            else if (parsed.CommandCount == 0)
+            {
+                Warn("vl-shape-path-invalid", $"The shape '{shape.StringValue}' is neither a symbol name nor SVG path data with a command; nothing is drawn.", shape);
             }
         }
 
@@ -1823,8 +1814,9 @@ internal static class FeatureCatalog
         ///     Reports the parts of the definition of a facet field that the renderer does not draw.
         /// </summary>
         /// <remarks>
-        ///     The facet itself is drawn: the distinct values of the field are its cells. A <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value is the
-        ///     cell), a <c>sort</c> by a field and operation orders the cells by the field itself, and the <c>header</c> reports the same constructs as an axis does (a
+        ///     The facet itself is drawn: the distinct values of the field are its cells. A <c>timeUnit</c> of the field is applied (the start of the unit is the cell) except for a binned unit and the maxbins form;
+        ///     a <c>bin</c> or <c>aggregate</c> of the field is not applied (the raw value is the
+        ///     cell), a <c>sort</c> by a field and operation orders the cells by that aggregate, and the <c>header</c> reports the same constructs as an axis does (a
         ///     custom <c>formatType</c>; the <c>labelExpr</c> is evaluated and reports only what its expression cannot do) and the sides that the header does not draw on (<c>labelOrient</c> and <c>titleOrient</c>; see <see cref="Guides.HeaderSettings.IsHonoredOrient"/>).
         /// </remarks>
         /// <param name="channel">The facet channel: <c>row</c>, <c>column</c> or <c>facet</c>.</param>
@@ -1836,19 +1828,14 @@ internal static class FeatureCatalog
                 Unsupported("vl-facet-field-transform", "The bin of a facet field is not applied; the value of the field is the value of the cell.", bin);
             }
 
-            if (definition["timeUnit"] is { IsNull: false } timeUnit)
+            if (definition["timeUnit"] is { IsNull: false } timeUnit && (!TimeUnitSpec.TryRead(timeUnit, out var unit) || unit.IsBinned || unit.Parts.Count == 0))
             {
-                Unsupported("vl-facet-field-transform", "The time unit of a facet field is not applied; the value of the field is the value of the cell.", timeUnit);
+                Unsupported("vl-facet-field-transform", "A binned time unit, or a time unit given as maxbins, of a facet field is not applied; the value of the field is the value of the cell.", timeUnit);
             }
 
             if (definition["aggregate"] is { IsNull: false } aggregate)
             {
                 Unsupported("vl-facet-field-transform", "The aggregate of a facet field is not applied; the value of the field is the value of the cell.", aggregate);
-            }
-
-            if (definition["sort"] is { IsObject: true } sort)
-            {
-                Unsupported("vl-facet-sort", "A facet sort by a field and an operation is not supported; the cells are in ascending order of the facet field.", sort);
             }
 
             if (definition["header"] is not { IsObject: true } header)
@@ -1922,11 +1909,6 @@ internal static class FeatureCatalog
                         Unsupported("vl-format-type-custom", "Custom format types (axis.formatType) are not supported; the format type must be number, time or utc.", property);
                         break;
                     default:
-                        if (UnsupportedAxisProperties.Contains(name))
-                        {
-                            Unsupported(Id("guide-axis", name), $"The axis property '{name}' is not supported yet.", property);
-                        }
-
                         break;
                 }
             }
@@ -1936,9 +1918,9 @@ internal static class FeatureCatalog
         ///     Reports the parts of a legend definition that the renderer does not draw.
         /// </summary>
         /// <remarks>
-        ///     Legends themselves are drawn (by the <c>LegendPlan</c> and <c>LegendBuilder</c> units) and are not reported. A <c>titleOrient</c> other than <c>top</c> and a
-        ///     <c>clipHeight</c> are not drawn, <c>encode</c> and <c>formatType</c> are not evaluated (the <c>labelExpr</c> is evaluated and reports only what its expression cannot do), and a
-        ///     <c>symbolType</c> that is not a symbol name is a custom shape path (a circle is drawn).
+        ///     Legends themselves are drawn (by the <c>LegendPlan</c> and <c>LegendBuilder</c> units) and are not reported. A <c>clipHeight</c> is not drawn (and Phase 13 draws every
+        ///     <c>titleOrient</c>), <c>encode</c> and <c>formatType</c> are not evaluated (the <c>labelExpr</c> is evaluated and reports only what its expression cannot do), and a
+        ///     <c>symbolType</c> that is not a symbol name nor SVG path data that parses is reported by <c>vl-shape-path-invalid</c> (a circle is drawn).
         /// </remarks>
         /// <param name="channel">The channel name.</param>
         /// <param name="definition">The channel definition object.</param>
@@ -1962,12 +1944,6 @@ internal static class FeatureCatalog
                     case "formatType" when !IsEvaluatedFormatType(property.AsString()):
                         Unsupported("vl-format-type-custom", "Custom format types (legend.formatType) are not supported; the format type must be number, time or utc.", property);
                         break;
-                    case "titleOrient" when property.IsString && property.StringValue != "top":
-                        Unsupported(
-                            "vl-guide-legend-titleorient",
-                            $"The legend title orient '{property.StringValue}' is not supported; the title is drawn above the legend.",
-                            property);
-                        break;
                     case "clipHeight":
                         Unsupported("vl-guide-legend-clipheight", "The legend property 'clipHeight' is not supported yet.", property);
                         break;
@@ -1984,11 +1960,10 @@ internal static class FeatureCatalog
         ///     Visits the entries of <c>transform</c>.
         /// </summary>
         /// <remarks>
-        ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
-        ///     window, bin, stack, impute, timeUnit) are reported only for the parts they do not support: expression constructs, a
-        ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), the selection parameters that are not modeled (see <c>vl-param-selection-layer</c>), a pivot operation other than sum and count, a lookup
-        ///     in the data of a parameter. Every view is drawn (a view in a concatenation, a facet or a repeat too), so its transforms are applied; a transform of
-        ///     a later phase is reported as not supported yet.
+        ///     Every transform of Vega-Lite is computed (calculate, filter, fold, flatten, sample, pivot with any aggregate operation, lookup, aggregate, joinaggregate,
+        ///     window, bin, stack, impute, timeUnit, regression, loess, density, quantile and extent), so an entry is reported only for the parts it does not support: expression constructs, a
+        ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), the selection parameters that are not modeled (see <c>vl-param-selection-layer</c>), a lookup
+        ///     in the data of a parameter. Every view is drawn (a view in a concatenation, a facet or a repeat too), so its transforms are applied.
         /// </remarks>
         /// <param name="transforms">The array.</param>
         private void VisitTransforms(SpecNode transforms)
@@ -2001,14 +1976,7 @@ internal static class FeatureCatalog
                     continue;
                 }
 
-                var name = operation.Name!;
-                if (!SpecParser.IsSupportedTransform(name))
-                {
-                    Unsupported(Id("transform", name), $"The '{name}' transform is not supported yet.", entry);
-                    continue;
-                }
-
-                switch (name)
+                switch (operation.Name)
                 {
                     case "calculate":
                         ReportConstructs(operation);
@@ -2018,13 +1986,6 @@ internal static class FeatureCatalog
                         break;
                     case "timeUnit":
                         VisitTimeUnit(operation, maxBinsUnsupported: false);
-                        break;
-                    case "pivot":
-                        if (entry["op"] is { IsString: true } op && op.StringValue is not ("sum" or "count"))
-                        {
-                            Unsupported("vl-transform-pivot-op", $"The pivot operation '{op.StringValue}' is not supported yet; sum is used.", op);
-                        }
-
                         break;
                     case "lookup":
                         VisitLookupSource(entry["from"]!);

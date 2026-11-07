@@ -11,7 +11,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     <c>canvasnet compare</c> command uses when the input has no options (page 1, default load options).
 /// </remarks>
 /// <param name="Label">The name of the side, <c>a</c> or <c>b</c>, used in messages and results.</param>
-/// <param name="Info">The facts about the file, from <see cref="SourceLoader.Probe"/>.</param>
+/// <param name="Info">The facts about the file, from <see cref="SourceLoader.Probe(string)"/> or <see cref="SourceLoader.Probe(InputReference)"/>.</param>
 public sealed record CompareInput(string Label, SourceInfo Info)
 {
     /// <summary>
@@ -418,7 +418,9 @@ public static class ImageComparer
         {
             Label = label;
             Info = info;
-            Page = page;
+
+            // The page that the fragment of the input names replaces the page of the request
+            Page = info.Selection?.Page ?? page;
         }
 
         /// <summary>Gets the name of the side: <c>a</c> or <c>b</c>.</summary>

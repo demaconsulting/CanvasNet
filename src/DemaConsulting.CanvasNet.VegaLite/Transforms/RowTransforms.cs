@@ -8,14 +8,15 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 /// <summary>
 ///     Applies the row transforms of a specification to the rows of a chart: <c>calculate</c>, <c>filter</c>, <c>fold</c>,
 ///     <c>flatten</c>, <c>sample</c>, <c>pivot</c> and <c>lookup</c>, and hands the aggregating transforms (<c>aggregate</c>,
-///     <c>bin</c>, ...) to <see cref="AggregateTransforms"/>.
+///     <c>bin</c>, ...) to <see cref="AggregateTransforms"/> and the statistical transforms (<c>regression</c>, <c>loess</c>,
+///     <c>density</c>, <c>quantile</c> and <c>extent</c>) to <see cref="StatTransforms"/>.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Execution.</b> The transforms of the <c>transform</c> array run in the order of the text, each on the table that
 ///         the previous one produced, after the data loader and before the scales. Every transform is eager and immutable: it
 ///         reads a <see cref="DataTable"/> and builds a new one (a transform that keeps every row may return its input).
-///         Entries that name a transform that is not supported are skipped here; the feature catalog reports them. The
+///         Entries that name no transform are skipped here. The
 ///         expressions were compiled when the specification was parsed, so no text is parsed here.
 ///     </para>
 ///     <list type="bullet">
@@ -46,8 +47,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///             <b>sample</b> keeps at most <c>sample</c> rows (<see cref="RowSampler"/>: reservoir sampling seeded from the JSON
 ///             pointer of the transform, deterministic and in source order). <b>pivot</b> groups the rows by <c>groupby</c> and
 ///             turns the values of the <c>pivot</c> field into columns (named by their text, in ordinal order, at most
-///             <c>limit</c> of them when given, applied before the field bound, which only checks the columns kept) holding the sum of <c>value</c> per group (<c>op</c> sum, the default) or the
-///             number of rows (<c>count</c>); a combination without rows is 0; rows whose pivot value is null are skipped with the
+///             <c>limit</c> of them when given, applied before the field bound, which only checks the columns kept) holding the
+///             aggregate operation <c>op</c> (default <c>sum</c>; every operation of <see cref="AggregateMeasures"/>, computed with Vega's pivot
+///             semantics: a combination without rows has no value, or 0 for the counts) of <c>value</c> over the rows of the group that have the pivot value; rows whose pivot value is null are skipped with the
 ///             warning <c>vl-transform-runtime</c>; the result has the group fields and the pivot columns only.
 ///         </description></item>
 ///         <item><description>
@@ -142,6 +144,8 @@ internal sealed partial class RowTransforms
                 "lookup" => Lookup(table, entry, operation),
                 "timeUnit" => TimeUnit(table, entry, operation),
 
+                // The statistical transforms (regression, loess, density, quantile, extent) are the statistical transform unit's
+                "regression" or "loess" or "density" or "quantile" or "extent" => StatTransforms.Apply(table, entry, operation, _context),
                 // The aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) are the aggregate transform unit's
                 _ => AggregateTransforms.Apply(table, entry, operation, _context),
             };

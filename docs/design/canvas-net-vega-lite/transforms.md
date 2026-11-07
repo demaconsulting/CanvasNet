@@ -7,25 +7,29 @@
 The `Transforms` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Transforms`, folder
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/`) turns the rows a chart loads into the rows it draws. It runs the
 **row transforms** of the specification (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and
-`timeUnit`) and the
+`timeUnit`), the **statistical transforms** (`regression`, `loess`, `density`, `quantile`, and `extent`) and the
 **aggregating transforms** (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`), runs the
 **implicit pipeline** that the encoding of the view asks for (its bins, its time units, its aggregate, its imputes, and
 its
 stack, on the Cartesian and on the polar channels), and
 computes the
-**static parameter environment** that expressions read, after the `DataLoader` has produced its table and before any scale
-exists. It is **internal**: its types are visible only to the `VegaLiteDocument` unit and the other subsystems and, through
-`InternalsVisibleTo`, to the test assembly. It contains five units:
+**static parameter environment** that expressions read, after the `DataLoader` has produced its table and before any
+scale
+exists. It is **internal**: its types are visible only to the `VegaLiteDocument` unit and the other subsystems and,
+through
+`InternalsVisibleTo`, to the test assembly. It contains six units:
 
 - **RowTransforms** - the internal `RowTransforms` (with its predicates, shape, and lookup parts), `RowSampler`,
-  `TableLayout` and `FieldReader`, `ParameterEnvironment` and `SpecValues`, `TransformContext`, and `RowExpressions`; see
+  `TableLayout` and `FieldReader`, `ParameterEnvironment` and `SpecValues`, `TransformContext`, and `RowExpressions`;
+  see
   _RowTransforms Unit Design_ (`transforms/row-transforms.md`)
 - **SelectionModel** - the internal `SelectionModel`, `SelectionComponent`, and `SelectionBind` (the stores and the
   resolved values of the selection parameters in their initial state, with the projection of Vega-Lite, the selections a
   view sees, the extent that a selection gives a scale or a bin, and the time units that a predicate on a selection
   needs: `SelectionTimeUnits`); see
   _SelectionModel Unit Design_ (`transforms/selection-model.md`)
-- **AggregateTransforms** - the internal `AggregateTransforms` (with its aggregate, bin, window, stack, and impute parts,
+- **AggregateTransforms** - the internal `AggregateTransforms` (with its aggregate, bin, window, stack, and impute
+  parts,
   the impute also behind a typed entry), `AggregateMeasures` and `MeasureCell` (the operations), `BinAlgorithm`,
   `StackRules` (the stack decision on the Cartesian and the polar channels), `WorkMeter`, and `StableSorter`;
   see
@@ -39,42 +43,57 @@ exists. It is **internal**: its types are visible only to the `VegaLiteDocument`
   read as dates); see _TimeUnitTransform Unit Design_ (`transforms/time-unit-transform.md`). The time model it uses
   (the calendar and `TimeUnitSpec`) lives in the `Data` subsystem, not here (a deviation from the master plan, plan
   decision P8-D1; see _Data_)
+- **StatTransforms** - the internal `StatTransforms` (the dispatcher, the groups of Vega's `partition`, and the output
+  table, with the regression, loess, density, quantile, and extent parts), `RegressionFit`, `CurveSampler`, `LoessFit`,
+  `KernelDensity`, and `StatisticsPrimitives` (the models, the sampling, the smoothing, and the density of the reference
+  numerics, and the JavaScript rules for numbers, quantiles, deviation, and extent); see _StatTransforms Unit Design_
+  (`transforms/stat-transforms.md`)
 
 The subsystem's namespace documentation is in `Transforms/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Transforms-*` requirements in `docs/reqstream/canvas-net-vega-lite/transforms.yaml`.
 
 ### Interfaces
 
-**Exposed** (internal only): `RowTransforms.Apply(DataTable, SpecNode?, TransformContext)`, which returns the transformed
-table (the input itself when nothing changes) and dispatches the aggregating transforms to
-`AggregateTransforms.Apply(DataTable, SpecNode, SpecNode, TransformContext)`;
+**Exposed** (internal only): `RowTransforms.Apply(DataTable, SpecNode?, TransformContext)`, which returns the
+transformed
+table (the input itself when nothing changes), dispatches the aggregating transforms to
+`AggregateTransforms.Apply(DataTable, SpecNode, SpecNode, TransformContext)` and the statistical transforms to
+`StatTransforms.Apply(DataTable, SpecNode, SpecNode, TransformContext)`;
 `ParameterEnvironment.Populate(SpecTree, overrides, values, evaluator, selectionValues)`, which
-fills the dictionary of parameter values that the evaluator reads (a value of the caller can be a scalar, an array, or an
-object; `VegaLiteDocument` calls it first in every call, before the expression references are folded and the data is read);
-`RowSampler.Select(count, size, pointer, token)`; `EncodingPlan.Create(SpecNode, ResolvedConfig)`, which plans the implicit
+fills the dictionary of parameter values that the evaluator reads (a value of the caller can be a scalar, an array, or
+an
+object; `VegaLiteDocument` calls it first in every call, before the expression references are folded and the data is
+read);
+`RowSampler.Select(count, size, pointer, token)`; `EncodingPlan.Create(SpecNode, ResolvedConfig)`, which plans the
+implicit
 pipeline of a view, and `EncodingTransforms.Apply(EncodingPlan, DataTable, TransformContext)`, which runs it and
 returns the
 `EncodingData` (the Raw and Main tables, the bins, and the resolved time units), and `EncodingPlan.PathGroupFields` and
 `EncodingPlan.OrderFields`, which tell a path mark how to split its rows into paths and in which order to draw them;
-`TimeUnitTransform.Apply(DataTable, requests, TransformContext, VegaLiteLocation, resolved)`, which adds the start and the
+`TimeUnitTransform.Apply(DataTable, requests, TransformContext, VegaLiteLocation, resolved)`, which adds the start and
+the
 end of time units to every row (`RowTransforms.Apply` dispatches the `timeUnit` transform to it), and
 `TemporalFields.Collect(SpecNode)` and `TemporalFields.CollectAll(IEnumerable<SpecNode>)` (the union over several views,
 for
 a table that several layers read), which name the fields that the loader parses as dates; the accumulators and
 engines that other subsystems reuse
-(`MeasureCell`, `WorkMeter`, `BinAlgorithm`, `StackRules`, and the aggregate and stack engines of `AggregateTransforms`);
+(`MeasureCell`, `WorkMeter`, `BinAlgorithm`, `StackRules`, and the aggregate and stack engines of
+`AggregateTransforms`);
 and the `TransformContext` and `RowExpressions` records that carry what the stages share.
 
 **Consumed**: `DataTable`, `DataValue`, `DataLoader` (the row budget, the sandbox, and the
-loading of a lookup source), `FieldPath`, and the time model (`TimeCalendar`, `TimeUnitSpec`, and `DateTimeObject`) of the
+loading of a lookup source), `FieldPath`, and the time model (`TimeCalendar`, `TimeUnitSpec`, and `DateTimeObject`) of
+the
 `Data` subsystem; `ExpressionEvaluator` and `CompiledExpression` of the `Expressions` subsystem (whose
 `ExpressionFunctionContext` carries the calendar of the render);
 `SpecTree`, `SpecNode`, `SpecParser` (the transform and parameter helpers), `ResolvedConfig`, and `FeatureReport` of the
 `SpecModel` subsystem; `ScaleResolver.InferOrient` and `NumberFormat` of the `Scales` subsystem (the plan reuses the
 orientation rule and formats the text of a bin); and the public `VegaLiteLimits`, `VegaLiteLocation`,
-`VegaLiteRenderOptions` (the `Parameters` overrides), and `VegaLiteRenderException` types of the `VegaLiteDocument` unit.
+`VegaLiteRenderOptions` (the `Parameters` overrides), and `VegaLiteRenderException` types of the `VegaLiteDocument`
+unit.
 
-**Consumers**: `VegaLiteDocument` (which builds the `TransformContext` once per `Measure` or `Render` call, populates the
+**Consumers**: `VegaLiteDocument` (which builds the `TransformContext` once per `Measure` or `Render` call, populates
+the
 parameters, applies the transforms to the loaded table, plans and runs the implicit pipeline, and delivers the transform
 warnings after the loader warnings), the `Scales` subsystem (`ScaleResolver` reads the plan and the Raw and Main
 tables, and
@@ -91,8 +110,10 @@ implicit stack -> **Main** -> scales -> marks. The imputes are the `impute` prop
 for a
 stacked line, area, or trail, the zeros that give every layer of the stack a point at every key; they run between the
 aggregate and the stack, as in Vega-Lite.
-Every view that is drawn runs its own `transform` array in the written order on the table that it inherits - the root view,
-a layered view (its transform applies before the layers below it read the table, so a top-level `calculate` runs once and
+Every view that is drawn runs its own `transform` array in the written order on the table that it inherits - the root
+view,
+a layered view (its transform applies before the layers below it read the table, so a top-level `calculate` runs once
+and
 every layer sees the calculated field), each layer, and each view of a concatenation, facet, or repeat (the transform of
 the composition applies first and every chart inherits the result; a facet cell runs its transforms on the rows of the
 cell; the Phase 10 report 'not applied: the view is a composition' is retired). Because the scales are resolved over the
@@ -100,45 +121,66 @@ transformed tables, a domain and every
 mark see the rows that the transforms produced, never the loaded ones; a sort of a discrete domain by an aggregate and a
 `scale.domain` of `unaggregated` read the **Raw** table, as Vega-Lite does, and everything else reads **Main**.
 
-**Eager and immutable.** Every transform reads an immutable `DataTable` and builds a new one; a transform that keeps every
-row in order may return its input. Nothing in the pipeline ever sees a table change. A transform that the renderer does
-not
-compute (`regression`, `loess`, `density`, `quantile`, `extent`) is **skipped, not approximated**, and the
-`FeatureCatalog` reports it. The `timeUnit` transform is computed (see _TimeUnitTransform_): its start and end
-fields are dates in the calendar of the chart, whose zone is the `TimeZone` render option.
+**Eager and immutable.** Every transform reads an immutable `DataTable` and builds a new one; a transform that keeps
+every
+row in order may return its input. Nothing in the pipeline ever sees a table change. Every transform of Vega-Lite is
+computed: the statistical transforms (see _StatTransforms_) replace the table with the rows they generate (`extent`
+keeps
+it and writes a parameter), and the `timeUnit` transform (see _TimeUnitTransform_) adds start and end
+fields that are dates in the calendar of the chart, whose zone is the `TimeZone` render option.
+**Statistics are budgeted like every other generator:** the rows of a regression curve, a density grid, or a quantile
+list depend on the options and not on the specification size, so they are reserved in the row budget before they are
+produced and their work is charged to the step budget.
 
 **One row budget, shared with the loader.** The loader of the call is the single owner of the
 `MaxDataRows` total. Fold and
-flatten reserve their output rows (`ReserveDerivedRows`) before they allocate anything, while the input table still counts,
-so the peak of an input and an output table is what is bounded; the rows of an input are released (`ReleaseRows`) once the
-output is complete; filter, sample, and pivot give back the rows they drop; a lookup source is loaded through the same loader
+flatten reserve their output rows (`ReserveDerivedRows`) before they allocate anything, while the input table still
+counts,
+so the peak of an input and an output table is what is bounded; the rows of an input are released (`ReleaseRows`) once
+the
+output is complete; filter, sample, and pivot give back the rows they drop; a lookup source is loaded through the same
+loader
 instance, so it has the same sandbox, file cache, file and byte limits, and row total as the
-main data. `aggregate` reserves one row per group as the group appears, `impute` reserves its result (the combinations of
-groups and keys first) before it allocates anything, the transforms that keep every row (`joinaggregate`, `window`, `bin`,
-and `stack`) change nothing, and the implicit aggregate keeps the Raw rows counted while a scale needs them; the implicit
+main data. `aggregate` reserves one row per group as the group appears, `impute` reserves its result (the combinations
+of
+groups and keys first) before it allocates anything, the transforms that keep every row (`joinaggregate`, `window`,
+`bin`,
+and `stack`) change nothing, and the implicit aggregate keeps the Raw rows counted while a scale needs them; the
+implicit
 impute of an encoding reserves its result through the same engine and keeps the Raw rows counted when the imputed table
 is the Raw table that a scale still reads (see
 _AggregateTransforms_ and _EncodingPlan_ for the accounting of each). The field count of
-every derived table is bounded by `MaxFieldCount` and its size by a bound of 2^25 cells (33,554,432), which keeps the memory
+every derived table is bounded by `MaxFieldCount` and its size by a bound of 2^25 cells (33,554,432), which keeps the
+memory
 of one table to a few hundred megabytes whatever the other limits allow; the state of the groups and the values that an
-operation keeps are counted in the same cells and checked up front. Strings are bounded by `MaxStringLength`. All the work
+operation keeps are counted in the same cells and checked up front. Strings are bounded by `MaxStringLength`. All the
+work
 that is proportional to rows, to sorts, to window frames, to the bootstrap of a confidence interval, and to the time
 units of the rows (2 elements per row for UTC and 8 for a zone) is charged to the
 **evaluation-step budget** (`WorkMeter`, one step per 64 elements), so a hostile specification fails closed and located
 instead of running for minutes.
 
-**Parameters are static values.** A variable parameter of the drawn view has a `value` or an `expr` (the expression wins);
-an expression is evaluated once per call, in the dependency order that the `SpecParser` fixed (cycles and unknown references
-were rejected when the document was opened), and a value in `VegaLiteRenderOptions.Parameters` replaces the whole definition
+**Parameters are static values.** A variable parameter of the drawn view has a `value` or an `expr` (the expression
+wins);
+an expression is evaluated once per call, in the dependency order that the `SpecParser` fixed (cycles and unknown
+references
+were rejected when the document was opened), and a value in `VegaLiteRenderOptions.Parameters` replaces the whole
+definition
 of that parameter (the expression is not evaluated). The environment is a dictionary of `DataValue` by name that the
-evaluator reads. Selection parameters are not values of this environment: the `SelectionModel` (see _SelectionModel_)
+evaluator reads. An `extent` transform adds a parameter after the data is read: it writes `[min, max]` into the same
+dictionary (`TransformContext.SetParameter`) when it runs, so the transforms that follow it, `bin.extent`, and
+`scale.domain` read it, and the expressions of its view are checked against its name
+(`SpecParser.IsExtentParameter`); the properties that are folded before the data is read see it as null (the warning
+`vl-param-extent-static`). Selection parameters are not values of this environment: the `SelectionModel` (see
+_SelectionModel_)
 computes the initial state of each selection (its tuples as a store and the resolved value) once per call, the
 predicates of the conditions and filters read the stores through the selection functions of the expression engine, and
 the resolved value is the value of the name of the selection in the environment (so an expression can read it). A `bin`
 whose `extent` is `{"param": name}` (in an encoding or in a `bin` transform) keeps the bins over the extent of the data
 and
 takes only the **span** of the parameter's range as the `span` of the bin algorithm (`BinSettings.Span`, Vega's
-`span || (max - min) || abs(min) || 1`): `TransformContext.BinSpanOf` reads the span from the selection (through the view
+`span || (max - min) || abs(min) || 1`): `TransformContext.BinSpanOf` reads the span from the selection (through the
+view
 that runs, `TransformContext.View`) or the variable parameter, and `BinAlgorithm.SpanOf` is Vega's `span` of an array.
 
 **Time in predicates.** A `filter` predicate that has a `timeUnit` or compares with a date-time object is written as
@@ -151,7 +193,9 @@ parts `week` and `dayofyear` are not applied by a predicate, as in Vega-Lite, an
 expression (which cannot be stored in a
 field) stores null and warns `vl-expr-runtime`; a pivot that skips rows with a null pivot
 value, cuts columns at `limit`, or
-meets a pivot value that equals a group field name warns `vl-transform-runtime`. The aggregating transforms and the implicit
+meets a pivot value that equals a group field name warns `vl-transform-runtime`, and so does a statistical transform
+that
+skips a group or ignores an extent (see _StatTransforms_). The aggregating transforms and the implicit
 pipeline have no warnings: a value that cannot be used is null or NaN in the output and is invalid for the marks. The
 warnings are collected in the order they are found and delivered after the loader's warnings, also when a later stage
 fails. Everything that exceeds a limit is a located `VegaLiteRenderException` instead.
@@ -159,12 +203,14 @@ fails. Everything that exceeds a limit is a located `VegaLiteRenderException` in
 **Deterministic by construction.** The subsystem uses no clock, no host time zone, no random source, no culture, and no
 unordered iteration:
 `sample` is seeded from the JSON pointer of its transform and so is the bootstrap of `ci0` and `ci1` (FNV-1a and
-SplitMix64), the fields of a derived table are in ordinal order, and groups (structural keys), pivot columns, impute keys,
+SplitMix64), the fields of a derived table are in ordinal order, and groups (structural keys), pivot columns, impute
+keys,
 and lookup keys are ordered by first appearance or ordinal text; sorts are stable. The same
 specification and data give the same rows
 on every call, thread, machine, and platform.
 
-**Cancellation.** The token is checked at the start of every transform, at least every 1,024 rows inside one (also inside
+**Cancellation.** The token is checked at the start of every transform, at least every 1,024 rows inside one (also
+inside
 the sorts, the bootstrap, and the stages of the implicit pipeline), and by every expression evaluation;
 cancellation is an
 `OperationCanceledException`, never wrapped, and no report is delivered.

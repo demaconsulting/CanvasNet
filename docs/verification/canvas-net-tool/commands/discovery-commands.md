@@ -143,3 +143,7 @@ with the size, the counts, the title, the schema version, and the byte count.
 `schemaMajorVersion` key, empty data and parameter lists, and zero counts in the text; a malformed chart is a
 `vega-lite-error`
 and page 2 of a chart is `page-out-of-range`; the usage text names Vega-Lite charts and has a chart example.
+
+**InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
+--json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the
+`fragment` `page=2`.

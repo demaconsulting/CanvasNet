@@ -217,3 +217,15 @@ sections:
           repeated comparison must be reproducible; scripts can then detect a real change.
         tests:
           - CompareCommand_Run_SameInputsTwice_WriteIdenticalJsonAndBytes
+
+      - id: CanvasNetTool-Commands-CompareCommand-InputFragments
+        title: >-
+          The compare command shall read the fragment of each of its two input paths as the render command does, let it
+          override the shared and the per-input options (--page, --a-page, --a-view, --a-define and the rest) for that
+          input, so that two versions of one file are compared by naming it twice, name each input with its fragment in
+          the text result, and report the fragment member of each input object in the JSON result.
+        justification: |
+          Comparing two views of a model or two parameter sets of a chart needs only the name of the file twice.
+        tests:
+          - InputFragment_Compare_ComparesTheViewsOfAModel
+          - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode

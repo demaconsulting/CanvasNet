@@ -12,7 +12,8 @@ subsystem is the third part of the system).
 The unit is verified through its public API with the real format packages, from `CanvasNetViewerTests.cs`: the list of
 sources, the creation of resolvers, and rendering a file by path or from a stream with its sizes, notes, text, embedded
 images, failures, and options. The files are generated in memory by `ViewerFixtures` (a solid-color picture in any
-raster format, a PDF, a model, a chart, and SVG documents) and written to per-test temporary folders (`ViewerTestFolder`).
+raster format, a PDF, a model, a chart, and SVG documents) and written to per-test temporary folders
+(`ViewerTestFolder`).
 The custom sources used for the extra-source requirement are real implementations of `IImageSource` that record every
 request. Tests assert on picture sizes and pixels, the notes and their codes, the exception types (with the inner
 exception), and the embedded image list - never on "no exception thrown" alone.
@@ -56,15 +57,19 @@ null extra sources are rejected.
 #### CanvasNetViewer-CanvasNetViewer-RenderPath: Render By Path
 
 **Tests**: `CanvasNetViewer_Render_PathNatural_ReturnsNaturalSizeAndFormat`,
-`CanvasNetViewer_Render_PathSized_ReturnsRequestedSize`, `CanvasNetViewer_Render_MaxDecodedPixels_IsPassedToTheResolver`,
+`CanvasNetViewer_Render_PathSized_ReturnsRequestedSize`,
+`CanvasNetViewer_Render_MaxDecodedPixels_IsPassedToTheResolver`,
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`,
 `CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget`,
 `CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded`,
-`CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings`, `CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions`,
-`CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote`, `CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException`,
+`CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings`,
+`CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions`,
+`CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote`,
+`CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException`,
 `CanvasNetViewer_Render_PathThroughSymbolicLink_ThrowsSandboxException`
 
-Asserts the natural size and format name, that disposing the result disposes the surface, a vector drawn at the requested
+Asserts the natural size and format name, that disposing the result disposes the surface, a vector drawn at the
+requested
 size and a raster fitted into the box (or scaled for one dimension), that `MaxDecodedPixels` reaches the resolver (null
 keeps the default, a cap that fits renders, a smaller cap throws `ImageSourceBudgetException`, a negative one is
 rejected), that a width or height of 0, -1, or `Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException`
@@ -78,7 +83,8 @@ null path, the strict switch, a canceled token, and a symbolic link.
 
 #### CanvasNetViewer-CanvasNetViewer-RenderStream: Render From A Stream
 
-**Tests**: `CanvasNetViewer_Render_Stream_UsesFileNameAndOptionalFolder`, `CanvasNetViewer_Render_StreamInvalidArguments_Throw`,
+**Tests**: `CanvasNetViewer_Render_Stream_UsesFileNameAndOptionalFolder`,
+`CanvasNetViewer_Render_StreamInvalidArguments_Throw`,
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`
 
 Asserts that a stream is rendered by the extension of its file name, that the files the document names are resolved
@@ -93,11 +99,14 @@ outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without
 `CanvasNetViewer_Render_InvalidPageValue_IsInvalidFragmentNote`,
 `CanvasNetViewer_Render_UnknownParameter_IsWarningAndStillDrawn`,
 `CanvasNetViewer_Render_DuplicatePage_LastWinsAndWarnsOnlyWhenDifferent`,
-`CanvasNetViewer_Render_QueryAndEncodedFragment_AreHandled`, `CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid`,
+`CanvasNetViewer_Render_QueryAndEncodedFragment_AreHandled`,
+`CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid`,
 `CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment`,
 `CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment`,
-`CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver`, `CanvasNetViewer_Render_HostileFragment_IsRefusedAndShortInTheMessage`,
-`SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks`, `SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument`
+`CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver`,
+`CanvasNetViewer_Render_HostileFragment_IsRefusedAndShortInTheMessage`,
+`SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks`,
+`SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument`
 (`CanvasNetViewerFragmentTests.cs`)
 
 Writes the two-page PDF, the two-slide presentation and the two-page drawing of the shared fixtures next to an SVG that
@@ -105,20 +114,58 @@ links their pages with `#page=N` and `#slide=N`, and asserts by the color of the
 drawn (page 1 without a fragment); that a page beyond the last is one unsupported note with the code
 `image-page-out-of-range` (the message names the number of pages, the origin the embedding file), nothing is drawn, the
 image is not listed as embedded, and the rest of the document is drawn; that `page=0` and `page=abc` are
-`image-fragment-invalid`; that an unknown parameter is a warning and the picture is drawn, a duplicate with another value
+`image-fragment-invalid`; that an unknown parameter is a warning and the picture is drawn, a duplicate with another
+value
 a warning with the last value used, and the same value twice silent; that a `?query` and `%`-encoded values work; that
 `#view=front` chooses the view of a model and an unknown view is invalid; that a scheme source receives the raw link and
-the parsed fragment, and that an extra source for a built-in extension wins and gets the fragment; that a nested SVG file
+the parsed fragment, and that an extra source for a built-in extension wins and gets the fragment; that a nested SVG
+file
 draws its pages through the scoped resolver; that a fragment of thousands of characters is refused with a short message;
 and that `Strict` fails for the two refused codes only.
 
+#### CanvasNetViewer-CanvasNetViewer-Parameters: Variables And Parameters Set From The Link And The Options
+
+**Tests**: the `CanvasNetViewer_Render_*` tests of `CanvasNetViewerParameterFragmentTests.cs` named in the requirement,
+and
+`CanvasNetViewer_CreateImageResolver_SourcesDeclareTheirPrefixes`
+
+Each override is proved by drawing the same diagram from files that have the value in their text and comparing the
+pixels of the cells. Asserts that
+`part.scad#view=front&def.width=20` is the picture of the model written with `width = 20`, with the prefix in any case,
+`def.WIDTH` another variable, no `view=`
+needed, the last of a repeated name used with the duplicate warning only for different values, the text `A` the same
+from `%22A%22`, `A` and `%27A%27`, a boolean
+from `true`, and an encoded `%26` and `%3D` kept inside a value; that `def.width=[1,2` (a vector cut short), `def.1x=3`
+and `def.a%20b=3`
+are `image-fragment-invalid` notes with
+nothing drawn or listed; that `chart.vl.json#param.cutoff=4` is the picture of the chart whose default is 4 (a narrower
+chart), a selection takes the object
+`{"y":[2,4]}` encoded or raw, a name the chart does not declare is the warning `vl-param-unknown` that lists the
+declared names (also with `Strict`, which keeps it
+a warning) while the declared one applies, and `{x`, `[1,` and `%22abc` are `image-fragment-invalid`; that `def.` on a
+chart or a PNG, `param.` on a model and a bare `def.`
+are the unknown-parameter warning with the picture drawn; that a link in a nested SVG file sets its model and chart
+through the scoped resolver (the same pixels as a
+nested file that has the values); and that `ViewerRenderOptions.VegaLite` renders the chart of the path with the same
+pixels and the narrower size as the file with the
+value, takes a selection value, throws `vega-lite-error` listing the declared names for an unknown name (a warning with
+`WarnOnUnknownParameters`), throws
+`ArgumentOutOfRangeException` for an empty name, and is ignored by a model and by a chart embedded in the rendered file.
+Resolving `part.scad#view=front&def.width=20` and
+`chart.vl.json#param.cutoff=4` through `CreateImageResolver` draws both with no unknown-parameter warning.
+
 #### CanvasNetViewer-CanvasNetViewer-RenderOptions: Page, Resolution, Background, And Model Options
 
-**Tests**: `ViewerRenderOptions_Defaults_PageOneAndNoDpiBackgroundOrScad`, `CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution`,
-`CanvasNetViewer_Render_StreamWithPage_DrawsThePage`, `CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange`,
-`CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent`, `CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError`,
-`CanvasNetViewer_Render_Background_FlattensTransparentAreas`, `CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn`,
-`CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail`, `CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes`,
+**Tests**: `ViewerRenderOptions_Defaults_PageOneAndNoDpiBackgroundOrScad`,
+`CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution`,
+`CanvasNetViewer_Render_StreamWithPage_DrawsThePage`,
+`CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange`,
+`CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent`,
+`CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError`,
+`CanvasNetViewer_Render_Background_FlattensTransparentAreas`,
+`CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn`,
+`CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail`,
+`CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes`,
 `CanvasNetViewer_Render_MatchesTheLoaderOfTheTool`, `CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged`,
 `CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled` (`CanvasNetViewerRenderOptionsTests.cs`)
 

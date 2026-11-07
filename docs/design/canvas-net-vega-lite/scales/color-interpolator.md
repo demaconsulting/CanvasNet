@@ -25,9 +25,10 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ColorInterpola
 fractions) and the opacity (0 to 1); `FromBytes`, `FromRgba32`, and `TryParseHex` (six hexadecimal digits with an
 optional `#`) create one, and `ToRgba32` and `ToCss` convert it back (each channel is rounded half away from zero after
 clamping to 0 to 255, NaN is 0, and the CSS text is `#rrggbb`, or `#rrggbbaa` when the opacity is not 1).
-`InterpolationSpace` names the spaces: `Rgb`, `Hsl`, `HslLong`, `Lab`, `Hcl`, and `HclLong` (`TryParseSpace` maps the
-Vega-Lite `scale.interpolate` names `rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, and `hcl-long`; `cubehelix` and
-`cubehelix-long` are not supported and are not recognized). A `ColorRamp` is an immutable, thread-safe piecewise
+`InterpolationSpace` names the spaces: `Rgb`, `Hsl`, `HslLong`, `Lab`, `Hcl`, `HclLong`, `Cubehelix`, and
+`CubehelixLong` (`TryParseSpace` maps the Vega-Lite `scale.interpolate` names `rgb`, `hsl`, `hsl-long`, `lab`, `hcl`,
+`hcl-long`, `cubehelix`, and `cubehelix-long`, which is every name of Vega-Lite; a name outside the list is not
+recognized). A `ColorRamp` is an immutable, thread-safe piecewise
 interpolator: it converts its stops to the channels of the space once and, for a position, picks the segment and
 interpolates inside it.
 
@@ -36,7 +37,23 @@ white), sRGB to CIELAB with the D50 white point (`Xn = 0.96422`, `Yn = 1`, `Zn =
 to its polar form HCL (hue NaN when `a` and `b` are 0). The channel rules are those of d3-interpolate: a hue takes the
 shorter way round the circle (the long variants and CIELAB interpolate the number linearly), a hue or channel that is
 not a number takes the other color's value, the opacity is linear in every space, and the gamma applies to the sRGB
-channels only (`pow(a, gamma)`, linear, `pow(x, 1 / gamma)`).
+channels (`pow(a, gamma)`, linear, `pow(x, 1 / gamma)`) and, as `t^gamma`, to the lightness of the two cubehelix spaces
+(`Interpolate` ignores it for the other spaces; `HasGamma` tells which have one).
+
+**Cubehelix** (Phase 13; d3-color `cubehelix` and d3-interpolate `cubehelix` and `cubehelixLong`, as Vega's
+`interpolate` of `vega-scale` maps `cubehelix` and `cubehelix-long`). The conversion from sRGB with `r`, `g`, `b` in 0
+to 1 uses the constants `A = -0.14861`, `B = 1.78277`, `C = -0.29227`, `D = -0.90649`, and `E = 1.97294` of d3-color
+(and the products `E D`, `E B`, and `B C - D A`): the lightness is
+`l = ((B C - D A) b + E D r - E B g) / (B C - D A + E D - E B)`, with `bl = b - l` and
+`k = (E (g - l) - C bl) / D`, the saturation is `s = sqrt(k^2 + bl^2) / (E l (1 - l))` (NaN for black and white) and the
+hue is `atan2(k, bl)` in degrees minus 120, moved into 0 to 360 and NaN for a grey (`s` is 0 or NaN). The way back
+(`Cubehelix.rgb` of d3-color) takes `h = (hue + 120)` in radians (a NaN hue or saturation counting as 0), `a = s l (1 -
+l)`, and gives each channel `255 (l + a (c1 cos h + c2 sin h))` with the pairs `(A, B)`, `(C, D)`, and `(E, 0)`. The
+interpolation takes the hue the short way (the long way for `cubehelix-long`), a NaN hue or saturation from the other
+color (so a grey takes the hue of the other color), the saturation and the opacity linearly, and the lightness at
+`t^gamma` (the gamma of d3's `cubehelix.gamma`, 1 by default, a gamma that is not a number counting as 1); the colors
+are clamped and rounded after the conversion like those of the other spaces. The oracle values of d3 (red to blue with
+gamma 1: `#ee00d1` at the midpoint, gamma 2: `#ff00f6`) are asserted by the tests.
 
 #### Key Methods
 
@@ -65,7 +82,7 @@ size the caller bounds (the `ColorSchemes` unit checks the count against the sca
 unit performs no I/O.
 
 **Determinism.** The sRGB space uses only `+ - * /` and the rounding, so its results are bit-exact on every platform.
-HSL, CIELAB, and HCL use `Math.Pow`, `Math.Atan2`, `Math.Sin`, and `Math.Cos`, whose last bit can differ between
+HSL, CIELAB, HCL, and cubehelix use `Math.Pow`, `Math.Atan2`, `Math.Sin`, and `Math.Cos`, whose last bit can differ between
 platforms, so a color can differ by one in a channel between machines; no scheme table, no default space, and no test
 that pins exact bytes depends on that (the tests allow a tolerance of one step for those spaces).
 

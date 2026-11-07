@@ -85,6 +85,44 @@ public sealed record ViewerRenderOptions
     public Imaging.ScadViewOptions? Scad { get; init; }
 
     /// <summary>
+    ///     Gets the values of the parameters (<c>params</c>) of a Vega-Lite chart, or <see langword="null"/> for the defaults of
+    ///     its specification. Every other kind ignores it.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <see cref="Imaging.ChartOptions.Parameters"/> takes what <c>VegaLiteRenderOptions.Parameters</c> takes: a
+    ///         number, a string, a boolean, <see langword="null"/>, a list or a dictionary of values, and for a selection
+    ///         parameter the shapes of its initial state (<c>{"x": [2, 6]}</c> for an interval selection). It is the option
+    ///         behind <c>--param name=value</c> of the tool and behind the <c>param.&lt;name&gt;=&lt;value&gt;</c>
+    ///         fragment of an SVG link, so the command line, the library and an embedded chart behave the same way. The
+    ///         values are checked before the file is read: one that the library rejects (an empty name, a value nested too deeply)
+    ///         throws <see cref="ArgumentOutOfRangeException"/>. A name the chart does not declare is a
+    ///         <see cref="ViewerException"/> with the code <c>vega-lite-error</c> that lists the declared names (see
+    ///         <see cref="Imaging.ChartOptions.WarnOnUnknownParameters"/> for the warning instead). A chart embedded in the
+    ///         rendered file chooses its own parameters with the fragment of its link
+    ///         (<c>chart.vl.json#param.threshold=5</c>) and never inherits this value; a chart that is parameterized changes
+    ///         its natural size when its layout depends on the parameter, and the picture is sized from the parameterized layout.
+    ///     </para>
+    ///     <example>
+    ///         <code language="csharp">
+    ///         var options = new ViewerRenderOptions
+    ///         {
+    ///             VegaLite = new ChartOptions
+    ///             {
+    ///                 Parameters = new Dictionary&lt;string, object?&gt;
+    ///                 {
+    ///                     ["threshold"] = 5.0,
+    ///                     ["brush"] = new Dictionary&lt;string, object?&gt; { ["x"] = new object[] { 2, 6 } },
+    ///                 },
+    ///             },
+    ///         };
+    ///         using var image = CanvasNetViewer.Render("chart.vl.json", options);
+    ///         </code>
+    ///     </example>
+    /// </remarks>
+    public Imaging.ChartOptions? VegaLite { get; init; }
+
+    /// <summary>
     ///     Gets the folder that confines the files the rendered file itself includes or embeds (a model's
     ///     <c>include</c>, a chart's data, the pictures of an SVG file), or <see langword="null"/>. For a render by path the
     ///     default is the folder of the file, and the file must be inside the folder; for a render of a stream the default

@@ -144,7 +144,7 @@ internal static partial class SpecNormalizer
         }
 
         var axis = b.ContinuousAxis(encoding, orient);
-        var (shared, groupBy) = b.Grouping(encoding!, axis);
+        var (shared, groupBy, timeUnits) = b.Grouping(encoding!, axis);
         if (b.Type == "errorbar")
         {
             // Vega-Lite drops the size channel from the parts of an errorbar (its ticks and rule have the size of the mark definition)
@@ -152,7 +152,7 @@ internal static partial class SpecNormalizer
         }
 
         var is2D = encoding!["x"] is { IsNull: false } && encoding["y"] is { IsNull: false };
-        return new ErrorLayers(b, encoding, axis, orient, input, shared, groupBy, is2D).Create();
+        return new ErrorLayers(b, encoding, axis, orient, input, shared, groupBy, timeUnits, is2D).Create();
     }
 
     /// <summary>
@@ -181,6 +181,9 @@ internal static partial class SpecNormalizer
         /// <summary>The fields that group the rows.</summary>
         private readonly List<string> _groupBy;
 
+        /// <summary>The <c>timeUnit</c> transforms of the grouping channels, which run before the aggregate.</summary>
+        private readonly List<SpecNode> _timeUnits;
+
         /// <summary>Whether both <c>x</c> and <c>y</c> are given (an errorband then draws an area and lines).</summary>
         private readonly bool _is2D;
 
@@ -194,8 +197,9 @@ internal static partial class SpecNormalizer
         /// <param name="input">The kind of input.</param>
         /// <param name="shared">The channels the parts share.</param>
         /// <param name="groupBy">The fields that group the rows.</param>
+        /// <param name="timeUnits">The <c>timeUnit</c> transforms of the grouping channels.</param>
         /// <param name="is2D">Whether both <c>x</c> and <c>y</c> are given.</param>
-        public ErrorLayers(CompositeBuilder b, SpecNode? encoding, CompositeAxis axis, string orient, ErrorInput input, List<SpecNode> shared, List<string> groupBy, bool is2D)
+        public ErrorLayers(CompositeBuilder b, SpecNode? encoding, CompositeAxis axis, string orient, ErrorInput input, List<SpecNode> shared, List<string> groupBy, List<SpecNode> timeUnits, bool is2D)
         {
             _b = b;
             _encoding = encoding!;
@@ -204,6 +208,7 @@ internal static partial class SpecNormalizer
             _input = input;
             _shared = shared;
             _groupBy = groupBy;
+            _timeUnits = timeUnits;
             _is2D = is2D;
         }
 
@@ -269,7 +274,8 @@ internal static partial class SpecNormalizer
         /// <returns>The transform entries.</returns>
         private List<SpecNode> Transforms()
         {
-            var transforms = new List<SpecNode>(3);
+            var transforms = new List<SpecNode>(_timeUnits.Count + 3);
+            transforms.AddRange(_timeUnits);
             var own = Access(_axis.Alias);
             switch (_input)
             {

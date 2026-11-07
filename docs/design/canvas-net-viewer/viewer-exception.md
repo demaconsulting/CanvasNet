@@ -20,10 +20,12 @@ the fields of a result, and reports the code, the message, and the hint of every
 `ViewerException(code, message, hint = null, inner = null)`.
 
 **ErrorCodes** (static): the constants `UsageError`, `OperationFailed`, `InputNotFound`, `InputUnreadable`,
-`UnsupportedFormat`, `CorruptInput`, `UnsupportedFeature`, `PageOutOfRange`, `SizeLimit`, `SameInputOutput`,
+`UnsupportedFormat`, `CorruptInput`, `UnsupportedFeature`, `PageOutOfRange`, `ImageFragmentInvalid`, `SizeLimit`,
+`SameInputOutput`,
 `OutputExists`, `OutputWriteFailed`, `ScadError`, `VegaLiteError`, `BudgetExceeded`, `SizeMismatch`, and
 `ThresholdFailed`, with the strings `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
-`unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
+`unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
+`size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`, and
 `threshold-failed`. The strings are the contract: they are not changed between releases, and the `errors` help topic of
 the tool lists them.

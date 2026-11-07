@@ -79,6 +79,20 @@ sections:
                   - ExpressionReferenceFolder_Fold_ADateIsFoldedOnlyInADomain
                   - ExpressionReferenceFolder_Fold_AValueWithNoFormStaysAReference
 
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-ExtentParameters
+                title: >-
+                  The ExpressionReferenceFolder unit shall, for a reference that reads the parameter of an
+                  extent transform (a parameter that the data stage computes after this fold), fold it with
+                  the parameter at null as for any parameter without a value, and deliver a
+                  vl-param-extent-static warning located at the reference that names the parameter.
+                justification: |
+                  A static site is fixed before the data is read, so it cannot see the extent that the data
+                  gives; a chart must be told that the title it reads is computed from null rather than
+                  silently show a wrong value.
+                tests:
+                  - ExpressionReferenceFolder_Fold_AnExtentParameterIsNullAtAStaticSiteAndReported
+                  - CanvasNetVegaLite_SystemIntegration_StatTransforms_StaticSitesSeeNoExtentAndAreReported
+
               - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-RowBoundSites
                 title: >-
                   The ExpressionReferenceFolder unit shall leave the sites that the marks evaluate for every row

@@ -635,6 +635,78 @@ internal sealed record SceneSymbol : SceneItem
 }
 
 /// <summary>
+///     A picture: the <c>image</c> mark of Vega-Lite, one per row.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The item holds what Vega's image item holds (<c>vega-scenegraph/src/marks/image.js</c>): the link <see cref="Url"/>, the position
+///         (<see cref="X"/>, <see cref="Y"/>), the optional <see cref="Width"/> and <see cref="Height"/>, <see cref="Aspect"/>, <see cref="Align"/>,
+///         <see cref="Baseline"/> and <see cref="Smooth"/>. The picture itself is not part of the scene: it is loaded by the painter when the scene is
+///         painted (the scale of the placement is known only then), through the <see cref="Scenegraph.SceneImageSource"/> of the painter, so building a scene (and so
+///         measuring a chart) never reads a picture. The opacity is <see cref="SceneItem.Opacity"/>; the fills and strokes of the item are not used.
+///     </para>
+///     <para>
+///         A <see langword="null"/> <see cref="Width"/> or <see cref="Height"/> is Vega's missing <c>width</c> or <c>height</c>: the painter takes the natural size of the picture
+///         (or, with <see cref="Aspect"/> and the other dimension given, the size that keeps the aspect ratio of the picture). The position is the anchor of the picture: its
+///         left edge for <c>left</c> (and any unknown <see cref="Align"/>), its middle for <c>center</c>, its right edge for <c>right</c>, and likewise its top for
+///         <c>top</c> (and every unknown <see cref="Baseline"/>), middle for <c>middle</c> and bottom for <c>bottom</c>.
+///     </para>
+/// </remarks>
+internal sealed record SceneImage : SceneItem
+{
+    /// <summary>
+    ///     Initializes a picture.
+    /// </summary>
+    /// <param name="role">The role.</param>
+    /// <param name="url">The link of the picture; it is untrusted text for the resolver of the host.</param>
+    /// <param name="x">The x coordinate of the anchor.</param>
+    /// <param name="y">The y coordinate of the anchor.</param>
+    public SceneImage(string role, string url, double x, double y)
+        : base(role)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+        Url = url;
+        X = x;
+        Y = y;
+    }
+
+    /// <summary>Gets the link of the picture.</summary>
+    public string Url { get; }
+
+    /// <summary>Gets the x coordinate of the anchor.</summary>
+    public double X { get; }
+
+    /// <summary>Gets the y coordinate of the anchor.</summary>
+    public double Y { get; }
+
+    /// <summary>Gets the width of the box the picture is drawn in, or <see langword="null"/> for the width that the natural size of the picture (and <see cref="Aspect"/>) gives.</summary>
+    public double? Width { get; init; }
+
+    /// <summary>Gets the height of the box the picture is drawn in, or <see langword="null"/> for the height that the natural size of the picture (and <see cref="Aspect"/>) gives.</summary>
+    public double? Height { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the aspect ratio of the picture is kept; <see langword="true"/> by default (Vega's <c>aspect !== false</c>). The picture is then fitted
+    ///     inside the box and centered; otherwise it fills the box.
+    /// </summary>
+    public bool Aspect { get; init; } = true;
+
+    /// <summary>Gets the horizontal anchor: <c>left</c> (default), <c>center</c> or <c>right</c>.</summary>
+    public string Align { get; init; } = "left";
+
+    /// <summary>Gets the vertical anchor: <c>top</c> (default), <c>middle</c> or <c>bottom</c>.</summary>
+    public string Baseline { get; init; } = "top";
+
+    /// <summary>Gets a value indicating whether the picture is smoothed when it is scaled; <see langword="true"/> by default (Vega's <c>smooth !== false</c>).</summary>
+    public bool Smooth { get; init; } = true;
+
+    /// <summary>
+    ///     Gets where in the specification the picture comes from (the mark), which a diagnostic about the picture points at.
+    /// </summary>
+    public VegaLiteLocation Source { get; init; }
+}
+
+/// <summary>
 ///     A text run of one or more lines.
 /// </summary>
 /// <remarks>

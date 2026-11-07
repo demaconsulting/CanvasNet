@@ -39,6 +39,9 @@ and no pixel is composited twice), or `Surface.Sample` at the point. A point out
 `usage-error` that names the image size. The reported background is the background that was given, opaque, or a
 translucent one flattened over white; white when none was given.
 
+**Input fragment.** The page of a `SourceInfo.Selection` replaces `request.Source.Page` (checked before the load), and
+`SourceLoader.Load` applies the rest of the selection (variables, view, chart parameters) to the options.
+
 #### Error Handling
 
 `ViewerException` with `page-out-of-range`, `usage-error` (the point outside the image, an operation value out of range,

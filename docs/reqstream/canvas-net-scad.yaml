@@ -767,5 +767,6 @@ sections:
           the pluggable sources of the shared image resolver.
         children:
           - CanvasNetScad-ScadDocument-ImageSource
+          - CanvasNetScad-ScadDocument-ImageSourceDefines
         tests:
           - ScadImageSource_Render_RequestedSize_DrawsAtThatSize

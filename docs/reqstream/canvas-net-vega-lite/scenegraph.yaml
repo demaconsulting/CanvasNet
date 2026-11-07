@@ -4,7 +4,8 @@
 # These requirements decompose the CanvasNetVegaLite system's output responsibility into the Scenegraph
 # subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene model that
 # is the assertion surface for analytic tests (SceneModel), the painter that draws a scene onto a CanvasNet
-# Surface with only the public CanvasNet APIs (ScenePainter), the geometry of the arc mark (ArcGeometry), and the
+# Surface with only the public CanvasNet APIs (ScenePainter), the geometry of the arc mark (ArcGeometry), the custom
+# SVG-path shape of a symbol (SymbolPathParser), and the
 # chart paint rules on top of the core CssColor parser (CssPaint). Each
 # requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/scenegraph.md for the test-evidence mapping.
@@ -94,6 +95,28 @@ sections:
               - ArcGeometry_Build_CornerRadiusRoundsTheCornersAndClampsToHalfTheRing
               - ArcGeometry_Build_DegenerateAndNonFiniteInputsGiveEmptyOrPointPaths
 
+          - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser
+            title: >-
+              The Scenegraph subsystem shall draw a custom SVG-path shape of a symbol - a mark's shape, a
+              shape channel value or range entry, or a legend symbol type - from the path data as
+              vega-scenegraph parses, renders, and bounds it, scaled by the size of the symbol, and shall
+              reject a path that does not parse with a reason instead of throwing.
+            justification: |
+              Vega-Lite allows an SVG path as a shape; the chart must draw it as Vega does and report a path
+              it cannot read.
+            children:
+              - CanvasNetVegaLite-Scenegraph-SymbolPathParser-Parse
+              - CanvasNetVegaLite-Scenegraph-SymbolPathParser-RenderCanvasRules
+              - CanvasNetVegaLite-Scenegraph-SymbolPathParser-Bounds
+              - CanvasNetVegaLite-Scenegraph-SymbolPathParser-Cache
+              - CanvasNetVegaLite-Scenegraph-SymbolPathParser-Scaling
+            tests:
+              - SymbolPathParser_TryParse_ReadsTheNumbersOfVega
+              - SymbolPathParser_TryParse_RejectsWhatVegaThrowsFor
+              - SymbolPathParser_Render_FollowsTheCanvasRules
+              - SymbolPathParser_Render_ScalesTheCoordinatesByTheRadius
+              - ScenePainter_SymbolPath_DrawsCustomPathsAndFallsBackToACircle
+
           - id: CanvasNetVegaLite-Scenegraph-Colors
             title: >-
               The Scenegraph subsystem shall convert the CSS colors of a specification to CanvasNet
@@ -111,3 +134,22 @@ sections:
             tests:
               - CssPaint_TryResolvePaint_ColorText_UsesTheSharedCssGrammar
               - CssPaint_TryResolvePaint_Opacity_MultipliesTheAlphaAndRoundsHalfAwayFromZero
+
+          - id: CanvasNetVegaLite-Scenegraph-Images
+            title: >-
+              The Scenegraph subsystem shall carry the pictures of the image mark in the scene as data, draw them
+              at paint time with the rules of Vega's image mark through the image resolver of the host (at the size of
+              the box in device pixels, once for each link and size in a painting, within a limit of pictures, with
+              the opacity and clip of the item, and releasing every surface), and report a picture the resolver did
+              not give.
+            justification: |
+              The paint scale is known only when the scene is painted, and the host, not the library, decides
+              what a link may refer to.
+            children:
+              - CanvasNetVegaLite-Scenegraph-SceneModel-Image
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Images
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-ImageLoading
+            tests:
+              - ScenePainter_Paint_ImageWithoutSize_DrawsNaturalSizeAtLeftTop
+              - SceneImageSource_Get_CachesWithinOnePaintingAndDisposesEverySurface
+              - SceneImageSource_Get_BeyondTheLimit_FailsAtTheMark

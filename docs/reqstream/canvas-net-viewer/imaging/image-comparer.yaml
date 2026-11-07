@@ -75,3 +75,14 @@ sections:
           - ImageComparer_Execute_PictureIsAnInput_ThrowsSameInputOutput
           - ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException
           - ImageComparer_Execute_InvalidValue_ThrowsBeforeLoading
+
+      - id: CanvasNetViewer-Imaging-ImageComparer-InputFragment
+        title: >-
+          The ImageComparer class shall compare the page that the fragment of an input names instead of the page of its
+          CompareInput, and shall load each input with the model variables, view and chart parameters of its own
+          fragment, so two inputs of one file can be two versions of it.
+        justification: |
+          Comparing two views or two parameter sets of one model or chart needs only one file and two names.
+        tests:
+          - ImageComparer_Execute_InputWithPageFragment_ComparesThatPage
+          - InputFragment_Compare_ComparesTheViewsOfAModel

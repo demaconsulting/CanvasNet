@@ -63,7 +63,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         <b>One resolver, one render; nothing is cached.</b> The resolver counts the images it loads, accumulates
 ///         <see cref="Diagnostics"/>, <see cref="Echo"/> and <see cref="Embedded"/>, and reads each file from disk once;
 ///         so create a new resolver for every top-level render (it is cheap), and do not reuse one across renders or
-///         threads: it is <b>not thread-safe</b>. It never caches rendered pictures: every <see cref="Resolve"/> call
+///         threads: it is <b>not thread-safe</b>. It never caches rendered pictures: every <see cref="Resolve(string, int, int)"/> call
 ///         invokes the source again, so a live source (a video frame) yields a fresh picture each time.
 ///     </para>
 ///     <para>
@@ -71,7 +71,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         other resources between calls (each file is read completely and closed), so it needs no <c>using</c> and
 ///         nothing to clean up after a render but reading <see cref="Diagnostics"/>, <see cref="Echo"/>, and
 ///         <see cref="Embedded"/>. The only disposable objects that pass through it are the <see cref="Surface"/>
-///         objects it returns from <see cref="Resolve"/> (the renderer disposes them) and from <c>Render</c> (the caller
+///         objects it returns from <see cref="Resolve(string, int, int)"/> (the renderer disposes them) and from <c>Render</c> (the caller
 ///         disposes <c>result.Surface</c>).
 ///     </para>
 ///     <para>
@@ -80,7 +80,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         <see cref="Exception.InnerException"/>), except <see cref="OperationCanceledException"/>, which passes through.
 ///     </para>
 /// </remarks>
-public sealed partial class FolderImageResolver : IImageResolver
+public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
 {
     /// <summary>
     ///     The code of the warning <see cref="Diagnostics"/> holds for a link that was not drawn (the name says "svg"
@@ -141,6 +141,12 @@ public sealed partial class FolderImageResolver : IImageResolver
     ///     never created when there is no folder.
     /// </summary>
     private SandboxedFileResolver? _sandbox;
+
+    /// <summary>
+    ///     Whether the picture of the latest source call was at its own pixel size (<see cref="ImageSourceResult.IsNaturalSize"/>);
+    ///     read by <see cref="Resolve(string, int, int, out bool)"/> right after the call, which is safe because the resolver is not thread-safe.
+    /// </summary>
+    private bool _lastNaturalSize;
 
     /// <summary>
     ///     The notes of this render, in order.
@@ -298,6 +304,12 @@ public sealed partial class FolderImageResolver : IImageResolver
     public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
     {
         return ResolveIn(_rootScope, href, pixelWidth, pixelHeight);
+    }
+
+    /// <inheritdoc />
+    public Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize)
+    {
+        return ResolveIn(_rootScope, href, pixelWidth, pixelHeight, out isNaturalSize);
     }
 
     /// <summary>
@@ -461,6 +473,25 @@ public sealed partial class FolderImageResolver : IImageResolver
             CancellationToken = _options.CancellationToken
         };
         return RenderDirect(source, request);
+    }
+
+    /// <summary>
+    ///     Resolves a link inside a scope and tells whether the picture is at its own pixel size.
+    /// </summary>
+    /// <param name="scope">The scope that contains the link.</param>
+    /// <param name="href">The link as written.</param>
+    /// <param name="pixelWidth">The device-pixel width of the placement.</param>
+    /// <param name="pixelHeight">The device-pixel height of the placement.</param>
+    /// <param name="isNaturalSize">Receives <see cref="ImageSourceResult.IsNaturalSize"/> of the picture that was returned; <see langword="false"/> when none.</param>
+    /// <returns>The picture, or <see langword="null"/> when the link was not drawn.</returns>
+    private Surface? ResolveIn(Scope scope, string href, int pixelWidth, int pixelHeight, out bool isNaturalSize)
+    {
+        // The flag is set by the call of the source that drew the picture (the last one when files embed files), so it is read
+        // right after; the resolver is not thread-safe, which is what makes this field safe
+        _lastNaturalSize = false;
+        var surface = ResolveIn(scope, href, pixelWidth, pixelHeight);
+        isNaturalSize = surface is not null && _lastNaturalSize;
+        return surface;
     }
 
     /// <summary>
@@ -762,6 +793,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         }
 
         _echo.AddRange(result.Echo);
+        _lastNaturalSize = result.IsNaturalSize;
         _embedded.Add(new EmbeddedImage(request.Href, result.Format ?? source.Name, result.Surface.Width, result.Surface.Height)
         {
             Depth = scope.Depth
@@ -916,33 +948,13 @@ public sealed partial class FolderImageResolver : IImageResolver
             return;
         }
 
-        var names = declared?.FragmentParameters ?? [];
-        foreach (var group in parameters.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var note in request.Fragment.ReviewParameters("image", request.Href, source))
         {
-            if (!names.Any(n => n is not null && string.Equals(n, group.Key, StringComparison.OrdinalIgnoreCase)))
-            {
-                _diagnostics.Add(
-                    new ImageSourceDiagnostic(
-                        "svg",
-                        ImageDiagnosticSeverity.Warning,
-                        FragmentUnknownParameterCode,
-                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is not used by the '{source.Name}' source and is ignored")
-                    {
-                        Origin = scope.Origin
-                    });
-            }
-            else if (group.Select(p => p.Value).Distinct(StringComparer.Ordinal).Count() > 1)
-            {
-                _diagnostics.Add(
-                    new ImageSourceDiagnostic(
-                        "svg",
-                        ImageDiagnosticSeverity.Warning,
-                        FragmentDuplicateParameterCode,
-                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is given more than once with different values; the last one, {ImageFragment.Quote(group.Last().Value)}, is used")
-                    {
-                        Origin = scope.Origin
-                    });
-            }
+            _diagnostics.Add(
+                new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Warning, note.Code, note.Message)
+                {
+                    Origin = scope.Origin
+                });
         }
     }
 
@@ -1029,7 +1041,7 @@ public sealed partial class FolderImageResolver : IImageResolver
     ///     chain of files for the cycle and depth checks); the budget and the lists are shared through the owner, so
     ///     recursion is bounded without any state in the sources.
     /// </remarks>
-    private sealed class Scope : IImageResolver
+    private sealed class Scope : IImageNaturalSizeResolver
     {
         /// <summary>
         ///     The resolver that owns the shared state.
@@ -1087,6 +1099,12 @@ public sealed partial class FolderImageResolver : IImageResolver
         public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
         {
             return _owner.ResolveIn(this, href, pixelWidth, pixelHeight);
+        }
+
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize)
+        {
+            return _owner.ResolveIn(this, href, pixelWidth, pixelHeight, out isNaturalSize);
         }
     }
 }

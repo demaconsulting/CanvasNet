@@ -530,7 +530,10 @@ Verification Design_.
 **Tests**: `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_DistinctValuesAreSortedAscendingByDefault`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_DescendingNullAndArraySort`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortArrayOfDateTimeObjectsOrdersTemporalValues`,
-`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder`,
+`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortByAggregateOrdersTheCells`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_RowOnlyHasOneColumnAndColumnOnlyOneRow`,
@@ -548,8 +551,22 @@ Asserts that the distinct values are ascending with the null first (`null, a, b,
 are 9, 10, 100 (by value, not the text order 10, 100, 9); that `sort: "descending"` gives `z, d, b, a, null`, that
 **`sort: null` is still ascending** (not the data order), and that the array `["z", "a", "q"]` puts z and a first as listed
 and then the unlisted values b, null, and d in the order they appear in the data, none dropped (`q`, which no row has, adds
-nothing); that a sort by the mean of `v` in descending order (`{field, op, order}`) is not supported and the ascending
-order of the field is used; that a missing value and a null are one null cell, first, holding the rows with v = 2 and 3,
+nothing); that a sort by an aggregate (`{field, op, order}`, Phase 13) orders the cells by the operation over the rows of
+each value, derived by hand from the rows above: the mean of `v` by `c` is b 1, a 3.5 (the rows 2 and 5), null 3, z 4,
+and d 6, so the descending order is `d, z, a, null, b`; the sum is b 1, a 7, null 3, z 4, d 6, so the ascending order is
+`b, null, z, d, a`; the default operation is `min` (b 1, a 2, null 3, z 4, d 6, which is the order of first appearance);
+`{"op": "count", "order": "descending"}` has the counts a 2 and the others 1, so `a` is first and the ties stay in the
+order of first appearance (`b, null, z, d`, a stable sort); and in the partition the maximum of `v` (b 1, a 5, null 3, z
+4, d 6) with the descending order gives the cells `d, a, z, null, b` with the rows [6], [2, 5], [4], [3], [1], while a
+sort object that has neither a `field` nor the operation `count` is not an aggregate and the ascending order applies
+(`EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition`); that a `timeUnit` of `yearmonth` on a temporal
+facet field makes the start of the unit the cell: the rows of 2024-01-15, 2024-02-20, and 2024-01-30 (the millisecond
+values 1705276800000, 1708387200000, and 1706572800000) give the two cells 2024-01-01 (1704067200000) with the rows
+v = 1 and 3 and 2024-02-01 (1706745600000) with v = 2, as dates in ascending order, and the cell tables hold the derived
+field `yearmonth_t` (`EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`); and that a `maxbins` unit and a binned
+`month` unit are not applied, so the two distinct raw values 1705276800000 and 1708387200000 are the cells
+(`EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied`); that a missing value and a null are one null cell,
+first, holding the rows with v = 2 and 3,
 and that a field no row has is one cell of nulls with all six rows; that the sort array of a temporal field (rows of
 2022, 2020, 2021, and 2019) that lists the date-time objects 2021 (UTC) and 2022 gives the cells 2021, 2022, 2020,
 2019.

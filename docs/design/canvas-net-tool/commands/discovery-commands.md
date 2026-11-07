@@ -112,6 +112,12 @@ references are the text of the specification), but the library lays the chart ou
 the data the chart names inline. The `chart` object keeps the style of the `model` object: arrays are always present
 (empty when the chart declares nothing) and the optional scalars are omitted when absent.
 
+**Input fragment (info).** `info` probes its input with `SourceLoader.Probe(InputReference.Parse(input))`: the page of
+the fragment replaces `--page` and `--all-pages`, the `input` object of the JSON result has the `fragment` member, and
+the warnings about the fragment are written to standard error in text mode (the JSON document of `info` has no
+`diagnostics`; a script that needs them uses `render --json`). The other parameters of the fragment are checked and
+ignored, because `info` only reads headers.
+
 #### Error Handling
 
 An argument or option on the `formats` command line throws a `ToolException` with the code `usage-error` (from

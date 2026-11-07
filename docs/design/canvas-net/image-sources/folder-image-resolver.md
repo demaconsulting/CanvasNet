@@ -86,18 +86,36 @@ slashes), the folder, the parsed `Fragment`, the clamped size, the shared budget
 token, and the link
 **as written** in `Href`; call the source.
 
+**Natural size** (`IImageNaturalSizeResolver`): a renderer that places a picture by its own pixel size (the `image` mark
+of Vega-Lite) cannot tell from a surface whether it is a raster at its own size or a picture drawn for the request, as
+a raster can have exactly the size of the request. `ImageSourceResult.IsNaturalSize` (`false` by default; the raster
+source sets it) says it, and `Resolve(href, pixelWidth, pixelHeight, out isNaturalSize)` of the resolver and of every
+scope it gives to a source returns it for the picture that the call returned: `Draw` stores the value of the source
+call in a field that the overload reads right after the call (the resolver is not thread-safe, and when files embed
+files the last write is that of the outermost call, which is the one that returns), and a call that draws nothing
+reports `false`. The plain `Resolve` is unchanged.
+
 **Fragment** (`ResolveFile`, `ResolveScheme`, `Draw`): the text after the first `#` of the link is parsed with
 `ImageFragment.Parse`. A fragment with a `Problem` (over 2048 characters or 32 parameters) is refused right after the
 source is chosen and before anything is counted or read: the note has the code `image-fragment-invalid` and the
 severity unsupported, the source is not called and the file is not counted as an image. Otherwise `Draw`, before it
 calls the source, reports for each parameter name that the source does not declare in `IFragmentImageSource`
 (case-insensitively) one `image-fragment-unknown-parameter` warning - a source without the interface declares nothing,
-so every parameter of a file link is unknown, while a scheme-claimed source without the interface owns its links and gets
+so every parameter of a file link is unknown, while a scheme-claimed source without the interface owns its links and
+gets
 no warning - and for each name given twice with different values one `image-fragment-duplicate-parameter` warning (the
 last value wins in the source; the same value twice is silent, and parameters a source treats as aliases are compared by
 `GetValue` and not reported as duplicates). The message names the href and the parameter through
 `ImageFragment.Quote`, which replaces control characters and cuts the text, so a hostile link cannot flood a report.
-The picture is still drawn after a warning.
+The picture is still drawn after a warning. A name that starts with a prefix the source declares in
+`IFragmentImageSource.FragmentParameterPrefixes` (ASCII case-insensitive, at least one more character) is understood, so
+it gets no unknown-parameter warning; a bare prefix is still unknown, and so is a prefixed name for a source that
+declares
+no prefix (none, a null list, a null or empty entry). Two names are the same parameter when they are equal ignoring
+case,
+except that the part after a declared prefix is compared as written (`GroupKey`), so `def.a` and `def.A` are two
+variables
+and `def.b` and `DEF.b` are one.
 
 **Refusal** (`Draw`, `Invoke`): an `ImageSourceRefusedException` of a source (a page that does not exist, a value it
 cannot use) passes `Invoke` unwrapped; `Draw` adds an unsupported note with the code of the exception and the message
@@ -137,7 +155,8 @@ its own after a render (the viewer's resized final picture) compares its size wi
 **Calling a source** (`Invoke`/`Run`/`Draw`): check the token; call `Render`; on any exception other than
 `OperationCanceledException`, `ImageSourceException`, and `ImageSourceBudgetException` throw `ImageSourceException`
 with the link, the embedder, and the original exception inside; settle the pixel budget as above; add each note with
-the message `"{href}: {message}"` (the origin of the note becomes the origin of the child scope followed by the origin the
+the message `"{href}: {message}"` (the origin of the note becomes the origin of the child scope followed by the origin
+the
 source set on the note); add the printed text; add an `EmbeddedImage` with the format the source reported (or
 its name), the size of the returned surface, and the depth; return the surface, which the caller now owns. Nothing is
 cached.
@@ -162,7 +181,8 @@ with the code `image-fragment-invalid` or the code of the `ImageSourceRefusedExc
 and an unknown or duplicate parameter is a warning; none of them is an exception, and none stops the render.
 A picture that does not fit in the pixel budget is the warning
 `svg-image-too-large` with the message `image '{href}' was not drawn: it needs {n} pixels but only {m} of the budget of
-{budget} pixels remain`. Both carry the origin of the scope that contains the link (the file that holds it). A found file
+{budget} pixels remain`. Both carry the origin of the scope that contains the link (the file that holds it). A found
+file
 that its source cannot draw is `ImageSourceException`.
 Cancellation
 (from the resolver's own checks, the sandbox, or a source) passes through as `OperationCanceledException`. A direct

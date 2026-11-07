@@ -91,7 +91,13 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
 ///         <b>Fonts.</b> Text uses the font that the <see cref="TextMeasurer"/> resolves (bundled Liberation fonts unless
 ///         the font options say otherwise), draws the lines the measurer produced (trimmed and truncated to the limit) at
 ///         the baseline offsets of Vega's text mark. The result is deterministic: the same scene, size and placement
-///         always give the same bytes. The painter holds no state and is safe for concurrent use.
+///         always give the same bytes. The painter holds no state apart from the picture loader it was given (see
+///         <see cref="SceneImageSource"/>, one painting's cache) and is safe for concurrent use when it has none.
+///     </para>
+///     <para>
+///         <b>Pictures.</b> A <see cref="SceneImage"/> is drawn as Vega's image mark draws it (see <c>ScenePainter.Images.cs</c>): the picture comes from the loader at paint time, in the
+///         size of its box in device pixels, and is drawn into its box with the aspect rule and the anchor of the item, anti-aliased at the edges, with the opacity of the item. A painter
+///         without a loader draws no picture.
 ///     </para>
 /// </remarks>
 internal sealed partial class ScenePainter
@@ -134,15 +140,20 @@ internal sealed partial class ScenePainter
     /// <summary>The text measurer.</summary>
     private readonly TextMeasurer _measurer;
 
+    /// <summary>The loader of the pictures of <see cref="SceneImage"/> items, or null when the painter draws no pictures.</summary>
+    private readonly SceneImageSource? _images;
+
     /// <summary>
     ///     Initializes a painter.
     /// </summary>
     /// <param name="measurer">The measurer that resolves the fonts and measures the text.</param>
+    /// <param name="images">The loader of the pictures of the <see cref="SceneImage"/> items, which the caller disposes after the painting; null draws no pictures (the items are skipped).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> is null.</exception>
-    public ScenePainter(TextMeasurer measurer)
+    public ScenePainter(TextMeasurer measurer, SceneImageSource? images = null)
     {
         ArgumentNullException.ThrowIfNull(measurer);
         _measurer = measurer;
+        _images = images;
     }
 
     /// <summary>
@@ -205,13 +216,20 @@ internal sealed partial class ScenePainter
     ///     Finds out whether a name is one of the symbol shapes that the painter draws.
     /// </summary>
     /// <param name="shape">The shape name.</param>
-    /// <returns><see langword="true"/> for a known shape name; <see langword="false"/> for any other text (a custom SVG path, for example), which is drawn as a circle.</returns>
+    /// <returns><see langword="true"/> for a known shape name; <see langword="false"/> for any other text (a custom SVG path, for example).</returns>
     internal static bool IsSymbolShape(string shape) => SymbolShapes.Contains(shape);
+
+    /// <summary>
+    ///     Finds out whether a shape is drawn as itself: a symbol name or SVG path data that parses (<see cref="SymbolPathParser"/>).
+    /// </summary>
+    /// <param name="shape">The shape name or path.</param>
+    /// <returns><see langword="false"/> for a text that is neither (a circle is drawn for it).</returns>
+    internal static bool IsDrawableShape(string shape) => IsSymbolShape(shape) || SymbolPathParser.IsValid(shape);
 
     /// <summary>
     ///     Gets the path of a symbol shape centered at the origin.
     /// </summary>
-    /// <param name="shape">The shape name; an unknown name is a circle.</param>
+    /// <param name="shape">The shape name or SVG path data; a text that is not a name and does not parse as a path is a circle.</param>
     /// <param name="size">The area of the symbol's bounding box in square pixels.</param>
     /// <returns>The path; empty for a size that is not positive.</returns>
     internal static Path SymbolPath(string shape, double size)
@@ -258,7 +276,8 @@ internal sealed partial class ScenePainter
             case "stroke":
                 return builder.MoveTo(new Vector2((float)-r, 0)).LineTo(new Vector2((float)r, 0)).Build();
             default:
-                return Path.Circle(0, 0, (float)r);
+                // Any other text is SVG path data scaled to the radius (vega's customSymbol); a path that does not parse is a circle
+                return SymbolPathParser.TryGet(shape) is { } custom ? custom.Render(size, out _) : Path.Circle(0, 0, (float)r);
         }
     }
 
@@ -354,6 +373,10 @@ internal sealed partial class ScenePainter
                 case SceneText text:
                     cancellationToken.ThrowIfCancellationRequested();
                     PaintText(text, local);
+                    break;
+                case SceneImage image:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PaintImage(image, local);
                     break;
             }
         }

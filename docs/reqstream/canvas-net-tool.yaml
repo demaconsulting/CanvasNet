@@ -301,6 +301,7 @@ sections:
           - CanvasNetTool-ArgumentReader-Color
           - CanvasNetTool-ArgumentReader-Transforms
           - CanvasNetTool-ArgumentReader-Defines
+          - CanvasNetTool-ArgumentReader-Params
         tests:
           - CanvasNetTool_CommandLineGrammar_OptionForms_ReadByCommand
           - CanvasNetTool_CommandLineGrammar_UnknownOption_ReportsUsageError

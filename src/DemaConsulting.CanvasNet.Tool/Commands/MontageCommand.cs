@@ -52,10 +52,15 @@ internal sealed partial class MontageCommand : ICommand
         + "Reads images, drawings, or document pages like 'render' and writes one contact sheet with a cell for each," + Environment.NewLine
         + "in the order given, row by row. A document contributes its --page (the first by default), or every page" + Environment.NewLine
         + "with --all-pages. Each image is fitted into a --cell (256x256 by default; a vector input is rendered at the" + Environment.NewLine
-        + "cell size) and --labels writes its file name below it. The sheet is at most 8192 pixels on a side." + Environment.NewLine
+        + "cell size) and --labels writes its file name below it (with its fragment, so cells of one file differ). The" + Environment.NewLine
+        + "sheet is at most 8192 pixels on a side." + Environment.NewLine
+        + "An input may end in a fragment that overrides the shared options for that input: part.scad#def.explode=0.5," + Environment.NewLine
+        + "report.pdf#page=3, chart.vl.json#param.t=5 (quote it in a shell; add def.$vpd=200 to a model so that every" + Environment.NewLine
+        + "cell keeps one scale). A '#' is a fragment only when no file has that exact name." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet montage a.png b.png c.png -o sheet.png" + Environment.NewLine
+        + "  canvasnet montage \"part.scad#def.explode=0\" \"part.scad#def.explode=1\" --labels -o explode.png" + Environment.NewLine
         + "  canvasnet montage deck.pptx --all-pages --labels -o deck-sheet.png" + Environment.NewLine
         + "  canvasnet montage *.png --columns 4 --cell 200x150 --background #333333 --labels -o gallery.png" + Environment.NewLine
         + "  canvasnet montage report.pdf part.scad logo.svg --labels -o overview.jpg --json";
@@ -77,7 +82,7 @@ internal sealed partial class MontageCommand : ICommand
         }
 
         // Report every mistake about the inputs, the pages, and the output before any pixels are decoded
-        var infos = settings.Inputs.Select(SourceLoader.Probe).ToList();
+        var infos = settings.Inputs.Select(text => SourceLoader.Probe(InputReference.Parse(text))).ToList();
         if (settings.Scad != null && !infos.Any(info => info.Format.IsModel()))
         {
             throw new ToolException(
@@ -114,7 +119,7 @@ internal sealed partial class MontageCommand : ICommand
             context.WriteLine(RenderText(layout, written));
             context.WriteDiagnostics(
                 placed.SelectMany(cell => cell.Diagnostics.Select(d => (
-                    (string?)cell.Info.Path,
+                    (string?)cell.Info.Specifier,
                     cell.Info.Format.IsDocument() ? d with { Page = d.Page ?? cell.Page } : d))),
                 placed.SelectMany(cell => cell.Echo));
         }
@@ -180,6 +185,11 @@ internal sealed partial class MontageCommand : ICommand
             writer.WriteNumber("x", cell.X);
             writer.WriteNumber("y", cell.Y);
             writer.WriteString("input", cell.Info.Path);
+            if (cell.Info.Selection is { } selection)
+            {
+                writer.WriteString("fragment", selection.Fragment);
+            }
+
             writer.WriteString("format", cell.Info.Format.ToFormatName());
             if (cell.Info.Format.IsDocument())
             {
@@ -216,6 +226,10 @@ internal sealed partial class MontageCommand : ICommand
             {
                 writer.WriteStartObject();
                 writer.WriteString("input", cell.Info.Path);
+                if (cell.Info.Selection is { } fragmentSelection)
+                {
+                    writer.WriteString("fragment", fragmentSelection.Fragment);
+                }
                 if (cell.Info.Format.IsDocument())
                 {
                     writer.WriteNumber("page", diagnostic.Page ?? cell.Page);

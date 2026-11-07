@@ -1,0 +1,94 @@
+---
+# Software Unit Requirements for SymbolPathParser
+#
+# These requirements describe the design-level behavior of the SymbolPathParser unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the custom SVG-path shape of a symbol
+# (SymbolPathParser.cs) - the port of the path parser of vega-scenegraph (the command table, the number grammar and
+# the repetition of a command), of its canvas path rendering (the arc to Bezier conversion and the reflected control
+# points) and of its bounds context (the extrema of the curves), producing a core Path scaled by the size of the
+# symbol and its bounds. The behavior follows vega-scenegraph (BSD-3-Clause) and Vega-Lite and is attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
+# docs/verification/canvas-net-vega-lite/scenegraph/symbol-path-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: SymbolPathParser Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser-Parse
+                title: >-
+                  The SymbolPathParser unit shall parse SVG path data with the grammar of vega-scenegraph (the
+                  command letters with their parameter counts, numbers with a sign, a fraction, and an exponent,
+                  the repetition of a command for extra parameter groups, text before the first command skipped)
+                  and shall reject, with a reason and without throwing, a parameter that is not a number, a
+                  command without parameters, an arc flag that is not 0 or 1, a smooth quadratic curve as the
+                  first command, and a path of more than the limit of commands.
+                justification: |
+                  A custom shape is text from the specification; it must be read as Vega reads it, and a path that
+                  Vega rejects must be reported instead of drawn wrongly.
+                tests:
+                  - SymbolPathParser_TryParse_ReadsTheNumbersOfVega
+                  - SymbolPathParser_TryParse_ExtendedParameterListsRepeatTheCommand
+                  - SymbolPathParser_TryParse_RejectsWhatVegaThrowsFor
+                  - SymbolPathParser_TryParse_SkipsTextBeforeTheFirstCommandAndAcceptsNoCommand
+                  - SymbolPathParser_TryParse_RejectsMoreCommandsThanTheLimit
+
+              - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser-RenderCanvasRules
+                title: >-
+                  The SymbolPathParser unit shall render a parsed path as the canvas path calls of vega-scenegraph
+                  do - relative and absolute commands, the horizontal and vertical lines, the cubic and
+                  quadratic curves with the reflection of the last control point for the smooth forms (including
+                  the quirk that a scaled smooth quadratic curve sees itself as the previous command), arcs
+                  converted to Bezier curves of at most a quarter turn, and a close - and shall skip a draw call
+                  whose numbers are not finite.
+                justification: |
+                  The shapes must look as Vega draws them, including the corner cases of its path renderer.
+                tests:
+                  - SymbolPathParser_Render_FollowsTheCanvasRules
+                  - SymbolPathParser_Render_CurvesHaveTheirExtremaAndSmoothCurvesReflectTheLastControl
+                  - SymbolPathParser_Render_ScaledSmoothQuadraticSeesItselfAsThePreviousCommand
+                  - SymbolPathParser_Render_ArcsAreBezierCurvesOfAtMostAQuarterTurn
+
+              - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser-Bounds
+                title: >-
+                  The SymbolPathParser unit shall give the bounds of the drawing as the bounds context of
+                  vega-scenegraph does, including the extrema of the curves and not only their end points, so that
+                  the legend and the layout size a custom symbol by what is drawn, and a path that draws nothing
+                  shall have empty bounds.
+                justification: |
+                  A custom symbol is not centered or square; a legend that sized it as a square around the center
+                  would misplace the entries.
+                tests:
+                  - SymbolPathParser_Render_CurvesHaveTheirExtremaAndSmoothCurvesReflectTheLastControl
+                  - ScenePainter_SymbolPath_DrawsCustomPathsAndFallsBackToACircle
+
+              - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser-Cache
+                title: >-
+                  The SymbolPathParser unit shall share the parsed path of a text and the drawing of a size between
+                  calls (a cache of parsed paths bounded by the number of entries and by the total characters of
+                  path text, which keeps a path of modest length whether or not it parses, and a memo of the last
+                  drawing), so that a shape that many marks use, or one malformed path that many rows repeat, is
+                  parsed once, shall not retain a very long text, shall be safe to call from several threads, and
+                  shall return the same result for the same text and size.
+                justification: |
+                  A scatter plot of thousands of points with a custom shape would otherwise parse and render the
+                  path once per point, while a long-lived process that renders many different specifications must
+                  not retain an unbounded amount of path text.
+                tests:
+                  - SymbolPathParser_TryGet_SharesParsedPathsAndDrawings
+                  - SymbolPathParser_TryGet_CachesInvalidPathsOnceAndDoesNotCacheVeryLongPaths
+                  - SymbolPathParser_TryGet_BoundsTheRetainedTextAndIsThreadSafe
+
+              - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser-Scaling
+                title: >-
+                  The SymbolPathParser unit shall scale a path by the radius of the symbol, the square root of the
+                  size divided by two, as the path symbol of vega-scenegraph does, so that a coordinate of 1 is
+                  the radius, and the painter shall draw a path that does not parse as a circle of the same size.
+                justification: |
+                  The size channel and the size property must mean the same area for a custom shape as for the
+                  named shapes.
+                tests:
+                  - SymbolPathParser_Render_ScalesTheCoordinatesByTheRadius
+                  - ScenePainter_SymbolPath_DrawsCustomPathsAndFallsBackToACircle

@@ -167,7 +167,7 @@ public sealed record RenderResult(SourceInfo Info, IReadOnlyList<RenderedPage> P
 ///         reported.
 ///     </para>
 ///     <para>
-///         The source is probed by the caller (<see cref="SourceLoader.Probe"/>) so that the caller can check the
+///         The source is probed by the caller (<see cref="SourceLoader.Probe(string)"/>, or <see cref="SourceLoader.Probe(InputReference)"/> for an input with a fragment) so that the caller can check the
 ///         request against the kind of the source before any work is done. The operation does file I/O, holds no state,
 ///         and is safe to call from several threads for different outputs.
 ///     </para>
@@ -182,7 +182,7 @@ public static class ImageRenderer
     /// <summary>
     ///     Renders a source.
     /// </summary>
-    /// <param name="info">The facts about the source, from <see cref="SourceLoader.Probe"/>.</param>
+    /// <param name="info">The facts about the source, from <see cref="SourceLoader.Probe(string)"/> or <see cref="SourceLoader.Probe(InputReference)"/>; a page the fragment of the input names replaces <see cref="SourceOptions.Page"/> and <see cref="RenderRequest.AllPages"/>.</param>
     /// <param name="request">What to render.</param>
     /// <returns>What was written, page by page.</returns>
     /// <exception cref="ArgumentNullException">
@@ -211,6 +211,13 @@ public static class ImageRenderer
         ArgumentNullException.ThrowIfNull(request.Write);
         ArgumentNullException.ThrowIfNull(request.Operations);
         ImagePipeline.Validate(request.Operations);
+
+        // A page that the fragment of the input names replaces --page, and makes the render a single page whatever --all-pages says
+        var named = info.Selection?.Page;
+        if (named is { } namedPage)
+        {
+            request = request with { AllPages = false, Source = request.Source with { Page = namedPage } };
+        }
 
         // Report every mistake about the pages and the outputs before any pixels are decoded
         var pages = request.AllPages ? Enumerable.Range(1, info.PageCount).ToList() : [request.Source.Page];

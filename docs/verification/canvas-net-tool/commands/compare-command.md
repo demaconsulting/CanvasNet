@@ -152,3 +152,7 @@ it is overwritten and no temporary file remains; a path inside a file fails befo
 
 **CompareCommand_Run_InvalidOptionValues_ThrowUsageError**: `--quality 0`, `--tolerance 256` and `-1`, `--gain 0` and
 `300`, `--overlay-weight 2`, `--diff-style glow`, and `--filter sharp` are usage errors.
+
+**InputFragment_Compare_ComparesTheViewsOfAModel** (`InputFragmentTests.cs`): `part.scad#view=top` against
+`part.scad#view=front` (resized to 64 by 64) is not identical and the result lists the `fragment` of each side
+(`view=top`, `view=front`), while `part.scad#view=top` against `part.scad#view=top&def.unused=1` is identical.

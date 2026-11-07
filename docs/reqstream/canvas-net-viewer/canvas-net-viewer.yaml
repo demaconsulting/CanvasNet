@@ -154,6 +154,42 @@ sections:
               - CanvasNetViewer_Render_UndrawnLinkWithStrict_ThrowsUnsupportedFeature
               - CanvasNetViewer_Render_StrictWithOnlyWarnings_Succeeds
               - CanvasNetViewer_Render_UndrawnLinkInNestedSvgWithStrict_NamesTheNestedFile
+
+          - id: CanvasNetViewer-CanvasNetViewer-Parameters
+            title: >-
+              The built-in sources of CanvasNetViewer shall declare the prefix def. for a model and param. for a chart
+              (and none for any other source), set from a link the variables of a model (def.name=value, like the
+              definitions of the command line, together with view= or alone) and the parameters of a chart
+              (param.name=value, like --param, a name the chart does not declare being the warning vl-param-unknown and
+              the chart drawn without it), by the grammars of ImageParameterValues and percent-decoded after the split,
+              report an unusable value or a name the library rejects as image-fragment-invalid without drawing the
+              image,
+              report def. on a source that is not a model and param. on one that is not a chart as
+              image-fragment-unknown-parameter, apply the overrides of a nested file through the resolver of its own
+              scope, and never inherit them from the embedding file; and ViewerRenderOptions.VegaLite (a ChartOptions)
+              shall set the same parameters of a chart that Render draws directly, validated before the file is read
+              (ArgumentOutOfRangeException for what the library rejects), with a name the chart does not declare a
+              ViewerException with the code vega-lite-error that lists the declared names, laid out from the
+              parameterized chart, and ignored by every other kind.
+            justification: |
+              The command line, the library and an embedded file must draw a parameterized model or chart the same
+              way, so a diagram can show a variant of a part or a chart in a chosen state with nothing but its link.
+            tests:
+              - CanvasNetViewer_Render_ScadDefineFragment_OverridesTheVariable
+              - CanvasNetViewer_Render_ScadDefineFragment_WithoutViewAndDuplicates_LastWins
+              - CanvasNetViewer_Render_ScadDefineFragment_TextAndBooleanValues
+              - CanvasNetViewer_Render_ScadDefineFragment_EncodedSeparators_StayInTheValue
+              - CanvasNetViewer_Render_ScadDefineFragment_Invalid_IsAnInvalidFragmentNote
+              - CanvasNetViewer_Render_ChartParamFragment_SetsTheParameter
+              - CanvasNetViewer_Render_ChartParamFragment_SelectionInterval_TakesAJsonObject
+              - CanvasNetViewer_Render_ChartParamFragment_UnknownName_IsAWarningAndTheChartIsDrawn
+              - CanvasNetViewer_Render_ChartParamFragment_InvalidJson_IsAnInvalidFragmentNote
+              - CanvasNetViewer_Render_PrefixOnTheWrongSource_IsAnUnknownParameterWarning
+              - CanvasNetViewer_Render_NestedSvgWithDefineAndParamFragments_UsesTheScopedResolver
+              - CanvasNetViewer_Render_VegaLiteOptions_SetTheParametersAndTheLayout
+              - CanvasNetViewer_Render_VegaLiteOptions_UnknownAndInvalid_AreRefused
+              - CanvasNetViewer_Render_VegaLiteOptionsOnOtherKindsAndEmbeddedCharts_AreIgnored
+              - CanvasNetViewer_CreateImageResolver_SourcesDeclareTheirPrefixes
               - SourceLoader_Load_UndrawnLinkWithStrict_StillThrowsUnsupportedFeature
               - CanvasNetViewer_Render_FitIntoBox_MarginHasTheBackground
               - CanvasNetViewer_Render_PdfFitIntoBox_MarginHasTheBackground

@@ -61,6 +61,10 @@ named `out` is written as a JPEG (it starts with FF D8) and reported as one.
 options, the write options, or the operations throws `ArgumentNullException` that names the member, and so does a null
 operation in the list (for `operations`); the folder holds nothing but the input.
 
+**Operations_InputWithPageFragment_UseThePageAndTheLabel** (`InputSelectionTests.cs`, with the montage and inspector
+scenarios): for a two-page PDF probed as `source.pdf#page=2`, `Execute` with `AllPages` renders exactly one page, the
+second, to the one output.
+
 **ImageRenderer_Execute_InvalidOperationValue_ThrowsUsageErrorBeforeDecodeOrWrite**: a resize to 0x0 is a `usage-error`
 naming the operation even though the probed file was deleted (so decoding would fail with another code), and nothing is
 written.

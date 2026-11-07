@@ -4,7 +4,8 @@ This document describes the unit-level verification strategy for the `Expression
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `ExpressionReferenceFolder` class (`Fold`,
 which evaluates the static `{"expr": ...}` references of a specification once and rewrites the tree), its `FoldResult`
 record, and the internal static `ExpressionReferenceSites` class (the table of the properties that take an expression
-reference, owner by owner, and the walk `Find` that finds the references). The unit takes the `StaticReference` list that
+reference, owner by owner, and the walk `Find` that finds the references). The unit takes the `StaticReference` list
+that
 the `SpecParser` unit compiled and the `ExpressionEvaluator` of a call, and gives the tree that every later stage reads.
 
 #### Verification Approach
@@ -14,7 +15,8 @@ are evaluated by the real `ParameterEnvironment` into a real `ExpressionEvaluato
 render pipeline does: parse, populate the parameters, fold), and with assertions on the folded tree: the value at a
 pointer, the kind of the node, its location, and the identity of the subtrees. No mocking is used; every expected value
 is derived by hand
-from the expressions and the parameters of the specification text (for example 6 is 3 doubled, the font size 16 is 6 plus
+from the expressions and the parameters of the specification text (for example 6 is 3 doubled, the font size 16 is 6
+plus
 10, and 2020-01-01 is 1,577,836,800,000 milliseconds). The folding of every property of the table of sites is checked
 with one theory that, for each pair of an owner and a property, writes a specification that holds a reference to `7` at
 that property, parses and folds it, and asserts that the reference is a static site, that the value 7 is in its place at
@@ -22,7 +24,8 @@ the same pointer, and (for the properties that take a text) that it is the text 
 number of properties of each owner in the version 6 schema, so that a change of the table is a deliberate decision.
 The limits are verified with a small step budget and a small string limit given to the evaluator.
 
-Unit tests reside in `ExpressionReferenceFolderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in
+Unit tests reside in `ExpressionReferenceFolderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project,
+in
 the `SpecModel` folder. The internal types are reached through the test assembly's `InternalsVisibleTo` access. The
 integration of the fold with the later stages (the title, the padding, the axes, the scales, the configuration, and
 the marks reading values) is verified by the system tests `CanvasNetVegaLite_SystemIntegration_Params_*` and is not
@@ -79,8 +82,10 @@ mark, an axis, a legend, a header, a scale, the scale configuration, and a view 
 `ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_FoldsTheConfiguration`,
 `ExpressionReferenceFolderTests.ExpressionReferenceSites_Find_ReadsTheConfiguration`
 
-Asserts that the layers, the views of a concatenation, and the template of a facet fold their own title, mark, guide, and
-scale properties while only the top-level view folds a padding, a background, and a configuration (the padding of a nested
+Asserts that the layers, the views of a concatenation, and the template of a facet fold their own title, mark, guide,
+and
+scale properties while only the top-level view folds a padding, a background, and a configuration (the padding of a
+nested
 view stays a reference); and that the top-level properties, the title, the axes (every `axis*` key), the legend, the
 headers, the view, the scale configuration, the mark configurations (a mark type, `mark`, and a named style), and the
 parts of a composite mark
@@ -133,6 +138,18 @@ reports it), while another reference of the same specification is folded.
 Asserts that a date result is folded to its milliseconds in the whole domain and in an entry of the domain of a time
 scale, that a date as a font size stays a reference with a `vl-expr-ref` warning located at it, and that a regular
 expression (also inside an array) stays a reference with a warning.
+
+##### An Extent Parameter Is Null At A Static Site And Reported
+
+**Tests**:
+`ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_AnExtentParameterIsNullAtAStaticSiteAndReported`,
+`VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_StaticSitesSeeNoExtentAndAreReported`
+
+Asserts that a title property that is an expression reference reading the parameter of an `extent` transform is folded
+before the data is read and delivers exactly one `vl-param-extent-static` warning (a warning, not an unsupported
+feature)
+located at the reference (`/title/fontSize`), that the message names the parameter, and, through a render, that the
+title sees null and strict mode does not stop.
 
 ##### Kinds Of Values
 

@@ -1050,7 +1050,8 @@ public class SourceLoaderTests
     {
         // Arrange / Act / Assert: each null argument throws
         Assert.Throws<ArgumentNullException>(() => SourceLoader.Detect(null!));
-        Assert.Throws<ArgumentNullException>(() => SourceLoader.Probe(null!));
+        Assert.Throws<ArgumentNullException>(() => SourceLoader.Probe((string)null!));
+        Assert.Throws<ArgumentNullException>(() => SourceLoader.Probe((InputReference)null!));
         Assert.Throws<ArgumentNullException>(() => SourceLoader.Load((string)null!, new SourceOptions()));
         Assert.Throws<ArgumentNullException>(() => SourceLoader.Load("x.png", null!));
         Assert.Throws<ArgumentNullException>(() => SourceLoader.Load((SourceInfo)null!, new SourceOptions()));

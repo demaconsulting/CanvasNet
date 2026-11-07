@@ -87,6 +87,18 @@ public static class CanvasNetViewer
     private static readonly IReadOnlyList<string> BuiltInExtensions = new ImageSourceSet(BuiltInSources).Extensions;
 
     /// <summary>
+    ///     Finds the built-in source that draws a kind of file.
+    /// </summary>
+    /// <param name="kind">The kind of the file.</param>
+    /// <returns>The source; its fragment declaration says which parameters the kind understands.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no built-in source draws the kind (a defect: every kind has one).</exception>
+    internal static LoaderImageSource FindBuiltIn(SourceKind kind)
+    {
+        return BuiltInSources.OfType<LoaderImageSource>().FirstOrDefault(source => source.Draws(kind))
+               ?? throw new InvalidOperationException($"No built-in image source draws the kind {kind}.");
+    }
+
+    /// <summary>
     ///     Gets the built-in image sources: raster, SVG, PDF, PPTX, VSDX, OpenSCAD and Vega-Lite. The instances are shared,
     ///     stateless and thread-safe; the list cannot be changed. To add your own, compose a new sequence:
     ///     <c>new ImageSourceSet(CanvasNetViewer.ImageSources).Add(mySource)</c> (later sources win).
@@ -173,7 +185,8 @@ public static class CanvasNetViewer
     ///     <see cref="ViewerRenderOptions.Page"/> is less than 1, when <see cref="ViewerRenderOptions.Dpi"/> is not a
     ///     finite number greater than 0 and at most <see cref="SourceLoader.MaxDpi"/>, or when
     ///     <see cref="ViewerRenderOptions.Scad"/> is not usable (an unknown view, an elevation outside -90 to 90, a time
-    ///     outside the limit, a triangle limit below 1, a definition the library rejects).
+    ///     outside the limit, a triangle limit below 1, a definition the library rejects), or when
+    ///     <see cref="ViewerRenderOptions.VegaLite"/> is not usable (a parameter value that the library rejects).
     /// </exception>
     /// <exception cref="ArgumentException">Thrown when the file is not inside <see cref="ViewerRenderOptions.Folder"/>.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
@@ -270,7 +283,8 @@ public static class CanvasNetViewer
             Page = settings.Page,
             Dpi = settings.Dpi,
             Background = settings.Background,
-            Scad = settings.Scad
+            Scad = settings.Scad,
+            VegaLite = settings.VegaLite
         };
     }
 
@@ -462,7 +476,7 @@ public static class CanvasNetViewer
         }
 
         // The loader owns the ranges of the resolution and of the model options, so every route gives the same answer
-        if (SourceLoader.FindOptionProblem(new SourceOptions { Dpi = options.Dpi, Scad = options.Scad }) is { } problem)
+        if (SourceLoader.FindOptionProblem(new SourceOptions { Dpi = options.Dpi, Scad = options.Scad, VegaLite = options.VegaLite }) is { } problem)
         {
             throw new ArgumentOutOfRangeException(nameof(options), options, problem.Message);
         }

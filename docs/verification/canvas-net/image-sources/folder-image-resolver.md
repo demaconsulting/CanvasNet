@@ -85,7 +85,8 @@ control character is a warning, and that a source that claims another scheme nev
 `FolderImageResolver_Resolve_QuestionMarkAfterHash_BelongsToFragment`,
 `FolderImageResolver_Render_PathWithHash_IsNotInterpretedAsFragment`
 
-These tests are in `FolderImageResolverHrefTests.cs` and `FolderImageResolverFragmentTests.cs`. They assert, as a theory,
+These tests are in `FolderImageResolverHrefTests.cs` and `FolderImageResolverFragmentTests.cs`. They assert, as a
+theory,
 that `a.stub?cache=1`, `a.stub#view`,
 `a.stub?x=1#frag`, `a.stub#frag?not-a-query`, `sub/b.STUB?v=2`, an encoded name with a query and a fragment, and
 `a.stub#/../../outside` all draw the named file (the stub source declares no fragment parameter, so the only notes are
@@ -135,6 +136,20 @@ Asserts that a parameter the source does not declare is one warning and the pict
 unknown for a source without the interface, that two values for one name warn once and the same value twice does not,
 that aliases are not duplicates, that a repeated unknown parameter is reported as unknown only, and that a hostile name
 with control characters and a long text is shown quoted, cleaned, and cut.
+
+##### CanvasNet-ImageSources-FolderImageResolver-FragmentPrefixes: Prefixed Parameters Are Understood
+
+**Tests**: `FolderImageResolver_Resolve_DeclaredPrefix_UnderstandsEveryParameterWithIt`,
+`FolderImageResolver_Resolve_DeclaredPrefix_DuplicatesCompareTheNameAsWritten`,
+`FolderImageResolver_Resolve_NoDeclaredPrefix_PrefixedParameterIsUnknown`
+
+These tests are in `ImageFragmentPrefixTests.cs`. A stub source that declares `page` and the prefix `def.` is given
+`a.stub#def.width=20&DEF.Label=x&page=2&pag=3&def.`: the picture is drawn and exactly two unknown-parameter warnings are
+reported, for `pag` and for the bare `def.`, while the source receives all five parameters. Given
+`def.a=1&def.A=2&def.b=1&DEF.b=2&def.c=3&DEF.c=3`
+only `def.b` is reported, as a duplicate whose last value is `2`. A source that declares no prefix (no interface, a null
+list, a null
+entry, an empty entry) gets the unknown-parameter warning for `def.width` and the picture is drawn.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-PageRefusal: A Source Declines A Page
 
@@ -198,6 +213,17 @@ with its name in the message.
 Asserts that a link inside `sub/outer.stub` resolves from `sub`, that a link inside a scheme-claimed picture resolves
 from the
 root folder, and the depths of the embedded images.
+
+##### CanvasNet-ImageSources-FolderImageResolver-NaturalSize: The Kind Of A Picture
+
+**Tests**: `ImageSourceResult_IsNaturalSize_IsSetByTheRasterSourceAndFalseByDefault`,
+`FolderImageResolver_Resolve_ReportsTheKindOfThePictureNotItsSize`,
+`FolderImageResolver_ScopedResolver_ReportsTheKindOfThePicture` (in `FolderImageResolverNaturalSizeTests.cs`)
+
+Asserts that the raster source sets `IsNaturalSize` and a result does not by default; that a 40 by 40 PNG asked for at
+exactly 40 by 40 is reported as natural size while a stub that draws for the request at the same size is not, and a
+missing file reports `false` with no picture; and that the resolver that a source receives reports the same through
+`IImageNaturalSizeResolver` for a PNG and for a drawn picture embedded by a file, while the outer call reports `false`.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Limits: Cycle, Depth, And Count
 
