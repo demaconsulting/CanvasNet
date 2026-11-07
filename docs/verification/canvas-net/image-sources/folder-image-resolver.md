@@ -214,6 +214,17 @@ Asserts that a link inside `sub/outer.stub` resolves from `sub`, that a link ins
 from the
 root folder, and the depths of the embedded images.
 
+##### CanvasNet-ImageSources-FolderImageResolver-NaturalSize: The Kind Of A Picture
+
+**Tests**: `ImageSourceResult_IsNaturalSize_IsSetByTheRasterSourceAndFalseByDefault`,
+`FolderImageResolver_Resolve_ReportsTheKindOfThePictureNotItsSize`,
+`FolderImageResolver_ScopedResolver_ReportsTheKindOfThePicture` (in `FolderImageResolverNaturalSizeTests.cs`)
+
+Asserts that the raster source sets `IsNaturalSize` and a result does not by default; that a 40 by 40 PNG asked for at
+exactly 40 by 40 is reported as natural size while a stub that draws for the request at the same size is not, and a
+missing file reports `false` with no picture; and that the resolver that a source receives reports the same through
+`IImageNaturalSizeResolver` for a PNG and for a drawn picture embedded by a file, while the outer call reports `false`.
+
 ##### CanvasNet-ImageSources-FolderImageResolver-Limits: Cycle, Depth, And Count
 
 **Tests**: `FolderImageResolver_Resolve_Cycles_TerminateWithWarning`,

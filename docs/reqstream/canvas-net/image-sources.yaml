@@ -82,6 +82,20 @@ sections:
               - FolderImageResolver_Resolve_HttpAndHttps_UnresolvedByDefaultButClaimable
               - FolderImageResolver_Resolve_NestedRelativeLink_ResolvesFromFolderOfEmbeddingFile
 
+          - id: CanvasNet-ImageSources-NaturalSize
+            title: >-
+              The ImageSources subsystem shall tell a renderer whether a picture it resolved is a raster at its own
+              pixel size or was drawn for the requested size, through IImageNaturalSizeResolver (implemented by the
+              folder resolver and by the resolver of each source) and ImageSourceResult.IsNaturalSize (set by the
+              raster source), so that no renderer has to infer the kind of a picture from the size of its surface.
+            justification: |
+              A raster whose size equals the requested size looks like a vector drawing to a renderer that compares
+              sizes, which would draw it at the wrong size.
+            children:
+              - CanvasNet-ImageSources-FolderImageResolver-NaturalSize
+            tests:
+              - FolderImageResolver_Resolve_ReportsTheKindOfThePictureNotItsSize
+
           - id: CanvasNet-ImageSources-Limits
             title: >-
               The ImageSources subsystem shall bound the work one render can cause: it shall stop a file that embeds

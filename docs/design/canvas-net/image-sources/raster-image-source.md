@@ -32,7 +32,8 @@ header and charge it to the budget of the request with `EnsureWithinBudget` (onc
 than 1,
 replace the surface with `Surface.ApplyExifOrientation` (disposing the first); return the surface at its natural size
 with
-`Format` set to the lower-case name of the detected format. The size of the request is deliberately ignored: a raster
+`Format` set to the lower-case name of the detected format and `IsNaturalSize` set to true (the picture is a raster at
+its own pixel size, even when that size equals the request). The size of the request is deliberately ignored: a raster
 has no
 sharper rendering at another size, and the renderer that draws it resamples once.
 

@@ -2151,7 +2151,11 @@ is ignored, as Vega-Lite does, and reported (`vl-channel-url`); a `condition` of
 **The natural size.** A raster (PNG, JPEG, and so on) is as large as its pixels, in the units of the chart. A vector
 picture (SVG, an OpenSCAD model, a page, a chart) has no pixels: the resolver is asked for the box in device pixels
 (the box times `Scale`; one given dimension is used for both, and a picture without a size asks for 256 pixels), and the
-answer is drawn in that box. A vector picture without width and height therefore draws as 256 by 256 units.
+answer is drawn in that box. A vector picture without width and height therefore draws as 256 by 256 units. Which kind a
+picture is comes from the source (a raster source says its picture is at its own size) and reaches the chart through
+`IImageNaturalSizeResolver`, which `FolderImageResolver` implements, never from the size of the answer: a raster whose
+pixel size equals the requested size is still a raster. A resolver of your own that only implements `IImageResolver`
+says nothing, and a picture that comes back at exactly the requested size is then taken as drawn for the request.
 
 **Resolvers.** `FolderImageResolver` of the core package confines a link to a folder and understands every format of the
 CanvasNet libraries, so a chart can show a PNG or JPEG, an SVG, an OpenSCAD model (`"url": "part.scad"`), a page of a

@@ -454,7 +454,17 @@ and the dash offset of 2 at the derived pixels and with the miter, bevel, and ro
 `ScenePainterImageTests.ScenePainter_Paint_ImageInClippedGroup_IsCut`,
 `ScenePainterImageTests.ScenePainter_Paint_ImageWithoutSmoothing_KeepsHardEdges`,
 `ScenePainterImageTests.ScenePainter_Paint_EmptyImage_IsNotAskedFor`,
-`ScenePainterImageTests.ScenePainter_Paint_WithoutLoader_SkipsPictures`
+`ScenePainterImageTests.ScenePainter_Paint_WithoutLoader_SkipsPictures`,
+`ScenePainterImageTests.ScenePainter_Paint_RasterThatEqualsTheRequestAtScaleTwo_IsDrawnAtItsNaturalSize`,
+`ScenePainterImageTests.ScenePainter_Paint_VectorDrawnForTheRequestAtScaleTwo_CoversTheRequestedDevicePixels`,
+`ScenePainterImageTests.ScenePainter_Paint_RasterThatEqualsTheRequestInOneDimension_KeepsItsOwnAspect`,
+`ScenePainterImageTests.SceneImageSource_Get_ResolverThatDoesNotSay_GivesNoKindAndCachesTheKindOfOneThatDoes`
+
+Asserts, with a resolver that reports its kind, that a 512 by 512 raster that is exactly the size asked for at a scale of
+2 (no size on the mark) covers 1024 device pixels (512 units), not the 256 units of a picture drawn for the request;
+that a picture drawn for the request covers the 512 device pixels it was drawn for; that a 40 by 20 raster asked for as
+40 by 40 keeps its own aspect ratio (a 20 by 10 unit box for a width of 20); and that the resolver's answer about the
+kind is cached with the picture while a resolver that does not say gives no kind.
 
 Asserts, with a fake resolver that returns generated pictures (a red and blue halved raster, a solid color of the
 requested

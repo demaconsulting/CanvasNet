@@ -609,4 +609,115 @@ public class ScenePainterImageTests
         Assert.Equal(2, resolver.Calls.Count);
         Assert.Empty(warnings);
     }
+
+    /// <summary>
+    ///     A resolver that says what kind of picture it returns (<see cref="IImageNaturalSizeResolver"/>).
+    /// </summary>
+    private sealed class KindResolver : IImageNaturalSizeResolver
+    {
+        /// <summary>The calls: the link and the requested size.</summary>
+        public List<(string Href, int Width, int Height)> Calls { get; } = [];
+
+        /// <summary>Makes the picture for a request.</summary>
+        public Func<int, int, Surface> Make { get; init; } = (w, h) => new Surface(w, h);
+
+        /// <summary>The kind the resolver reports: <see langword="true"/> for a raster at its own size.</summary>
+        public bool Natural { get; init; }
+
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight) => Resolve(href, pixelWidth, pixelHeight, out _);
+
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize)
+        {
+            Calls.Add((href, pixelWidth, pixelHeight));
+            isNaturalSize = Natural;
+            return Make(pixelWidth, pixelHeight);
+        }
+    }
+
+    /// <summary>
+    ///     Test that a raster whose pixel size is exactly the size of the request is still a raster when the resolver says so: with no size on the mark the request at a scale of two
+    ///     is 512 device pixels, and a 512 by 512 raster is drawn at its natural 512 scene units (1024 device pixels), not at the 256 units of a picture drawn for the request.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RasterThatEqualsTheRequestAtScaleTwo_IsDrawnAtItsNaturalSize()
+    {
+        // Arrange: the resolver reports a raster of 512 by 512 pixels, the size it is asked for (256 scene units at a scale of two)
+        var resolver = new KindResolver { Natural = true, Make = (_, _) => Solid(512, 512, Red) };
+
+        // Act: the surface is 1100 device pixels, the anchor (0, 0)
+        using var surface = Paint(resolver, 1100, 1100, 2, [], 256, new SceneImage("mark-image", "icon.png", 0, 0));
+
+        // Assert: it is asked for 512 and covers 512 scene units, that is 1024 device pixels
+        Assert.Equal(("icon.png", 512, 512), Assert.Single(resolver.Calls));
+        Assert.Equal(Red, surface[0, 0]);
+        Assert.Equal(Red, surface[1023, 1023]);
+        Assert.Equal(White, surface[1024, 10]);
+        Assert.Equal(White, surface[10, 1024]);
+    }
+
+    /// <summary>
+    ///     Test that a picture drawn for the request (a vector source) is crisp at the requested size: at a scale of two it covers the 512 device pixels it was drawn for, which is
+    ///     256 scene units, and the box does not grow with the size of the picture.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_VectorDrawnForTheRequestAtScaleTwo_CoversTheRequestedDevicePixels()
+    {
+        // Arrange: the resolver reports a picture drawn for the request
+        var resolver = new KindResolver { Natural = false, Make = (w, h) => Solid(w, h, Red) };
+
+        // Act
+        using var surface = Paint(resolver, 1100, 1100, 2, [], 256, new SceneImage("mark-image", "part.scad", 0, 0));
+
+        // Assert: 256 scene units are 512 device pixels
+        Assert.Equal(Red, surface[0, 0]);
+        Assert.Equal(Red, surface[511, 511]);
+        Assert.Equal(White, surface[512, 10]);
+        Assert.Equal(White, surface[10, 512]);
+    }
+
+    /// <summary>
+    ///     Test that the aspect ratio of a raster that equals the request is its own, not the ratio of the box it was asked for: a 40 by 20 raster with a width of 20 scene units at a scale
+    ///     of two (a request of 40 by 40) gets a height of 10 units.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RasterThatEqualsTheRequestInOneDimension_KeepsItsOwnAspect()
+    {
+        // Arrange: the request is 40 by 40 device pixels (a width of 20 units, the height taken from the width); the raster is 40 by 20
+        var resolver = new KindResolver { Natural = true, Make = (_, _) => Solid(40, 20, Red) };
+
+        // Act
+        using var surface = Paint(resolver, 100, 100, 2, [], 256, new SceneImage("mark-image", "wide.png", 0, 0) { Width = 20 });
+
+        // Assert: the box is 20 by 10 units, that is 40 by 20 device pixels
+        Assert.Equal(Red, surface[39, 19]);
+        Assert.Equal(White, surface[39, 20]);
+        Assert.Equal(White, surface[40, 5]);
+    }
+
+    /// <summary>
+    ///     Test that a resolver that does not say what it returns keeps the earlier judgment by size (a picture that has the size of the request is drawn for it) and that the answer is
+    ///     cached with the picture.
+    /// </summary>
+    [Fact]
+    public void SceneImageSource_Get_ResolverThatDoesNotSay_GivesNoKindAndCachesTheKindOfOneThatDoes()
+    {
+        // Arrange
+        var plain = new FakeResolver { Make = (_, w, h) => Solid(w, h, Red) };
+        var aware = new KindResolver { Natural = true, Make = (w, h) => Solid(w, h, Red) };
+        using var plainSource = new SceneImageSource(plain, 10, (_, _, _) => { });
+        using var awareSource = new SceneImageSource(aware, 10, (_, _, _) => { });
+
+        // Act
+        plainSource.Get("a.png", 4, 4, default, out var plainKind);
+        awareSource.Get("a.png", 4, 4, default, out var firstKind);
+        awareSource.Get("a.png", 4, 4, default, out var cachedKind);
+
+        // Assert: no kind from the plain resolver, the reported kind from the aware one and again from its cache (one call)
+        Assert.Null(plainKind);
+        Assert.True(firstKind);
+        Assert.True(cachedKind);
+        Assert.Single(aware.Calls);
+    }
 }

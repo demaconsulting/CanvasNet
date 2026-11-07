@@ -2,6 +2,7 @@
 using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.ImageSources;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
@@ -20,10 +21,12 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///     </para>
 ///     <para>
 ///         <b>Loading.</b> The picture is requested from the <see cref="SceneImageSource"/> at the size of its box in device pixels (the box that is known: the width and the height; one given
-///         dimension is used for both when the other is unknown, and <see cref="NaturalDevicePixels"/> when neither is, a deliberate decision: a vector picture has no natural size). A raster
-///         comes back at its own size and is drawn at that size in scene units (a pixel is a unit at a scale of one, so the chart scales as a whole); a picture that comes back at the requested size (a
-///         vector picture, drawn sharp for the request) has the requested size divided by the scale as its natural size. The size that is returned decides the aspect ratio of the picture. A
-///         picture that comes back at exactly the size of the request counts as filling the box.
+///         dimension is used for both when the other is unknown, and <see cref="NaturalDevicePixels"/> when neither is, a deliberate decision: a vector picture has no natural size). The
+///         resolver says what kind of picture it returned (<see cref="IImageNaturalSizeResolver"/>, from <see cref="ImageSourceResult.IsNaturalSize"/>): a raster comes back at its own size and is drawn
+///         at that size in scene units (a pixel is a unit at a scale of one, so the chart scales as a whole), even when that size happens to be the size of the request; a picture that was drawn
+///         for the request (a vector picture, drawn sharp) has the requested size divided by the scale as its natural size. Only a resolver that does not say (a host's own
+///         <see cref="IImageResolver"/>) leaves it to the size of the surface: one that comes back at exactly the size of the request is taken as drawn for it. The size that is returned decides
+///         the aspect ratio of the picture, and a picture drawn to fill the request counts as filling the box.
 ///     </para>
 ///     <para>
 ///         <b>Drawing.</b> The box is filled with the picture as a tile that is not repeated, so the edges of a box on fractional pixels are anti-aliased, a reduced picture is area-averaged and an
@@ -60,13 +63,13 @@ internal sealed partial class ScenePainter
         var requestHeight = given.Height ?? given.Width ?? NaturalDevicePixels;
         var pixelWidth = ToDevicePixels(requestWidth * local.Scale);
         var pixelHeight = ToDevicePixels(requestHeight * local.Scale);
-        var surface = _images.Get(image.Url, pixelWidth, pixelHeight, image.Source);
+        var surface = _images.Get(image.Url, pixelWidth, pixelHeight, image.Source, out var naturalSize);
         if (surface is null)
         {
             return;
         }
 
-        if (!TryPlace(image, given, surface, (pixelWidth, pixelHeight), local.Scale, out var box))
+        if (!TryPlace(image, given, surface, (pixelWidth, pixelHeight), local.Scale, naturalSize, out var box))
         {
             return;
         }
@@ -82,21 +85,27 @@ internal sealed partial class ScenePainter
     /// <param name="surface">The picture.</param>
     /// <param name="requested">The size in device pixels the picture was asked for.</param>
     /// <param name="scale">The uniform scale of the placement.</param>
+    /// <param name="naturalSize">
+    ///     <see langword="true"/> when the resolver says the picture is a raster at its own pixel size, <see langword="false"/> when it says the picture was drawn for the request, and
+    ///     <see langword="null"/> when the resolver does not say (the size of the surface is compared with the request then).
+    /// </param>
     /// <param name="box">Receives the rectangle: the left, top, width and height.</param>
     /// <returns><see langword="false"/> when nothing is drawn (a box without area, or one that cannot be drawn).</returns>
-    private static bool TryPlace(SceneImage image, (double? Width, double? Height) given, Surface surface, (int Width, int Height) requested, float scale, out (double X, double Y, double Width, double Height) box)
+    internal static bool TryPlace(SceneImage image, (double? Width, double? Height) given, Surface surface, (int Width, int Height) requested, float scale, bool? naturalSize, out (double X, double Y, double Width, double Height) box)
     {
         box = default;
         var pictureWidth = (double)surface.Width;
         var pictureHeight = (double)surface.Height;
 
-        // A picture that has the size of the request was drawn for it: its natural size is that size in units; a raster has its pixels as units
-        var drawnForRequest = (surface.Width == requested.Width && surface.Height <= requested.Height) || (surface.Height == requested.Height && surface.Width <= requested.Width);
-        var naturalWidth = drawnForRequest ? pictureWidth / scale : pictureWidth;
-        var naturalHeight = drawnForRequest ? pictureHeight / scale : pictureHeight;
+        // The kind of the picture is what the resolver says. A picture drawn for the request has that size in units (its pixels over the scale); a raster has its pixels as units.
+        // Only a resolver that says nothing leaves the size of the surface to decide: a picture that has the size of the request counts as drawn for it
+        var guessedForRequest = (surface.Width == requested.Width && surface.Height <= requested.Height) || (surface.Height == requested.Height && surface.Width <= requested.Width);
+        var raster = naturalSize ?? !guessedForRequest;
+        var naturalWidth = raster ? pictureWidth : pictureWidth / scale;
+        var naturalHeight = raster ? pictureHeight : pictureHeight / scale;
 
-        // The aspect ratio of the picture; one that fills the request is the aspect ratio of the box it was drawn for
-        var fillsBox = surface.Width == requested.Width && surface.Height == requested.Height && given.Width is not null && given.Height is not null;
+        // The aspect ratio of the picture; a picture drawn to fill the request is the aspect ratio of the box it was drawn for
+        var fillsBox = !raster && surface.Width == requested.Width && surface.Height == requested.Height && given.Width is not null && given.Height is not null;
         var ratio = fillsBox ? given.Width!.Value / given.Height!.Value : pictureWidth / pictureHeight;
 
         // imageWidth and imageHeight: the given size, else the size that keeps the aspect ratio of the picture from the other, else the natural size

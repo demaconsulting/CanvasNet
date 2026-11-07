@@ -42,7 +42,7 @@ internal sealed class SceneImageSource : IDisposable
     private readonly Action<string, VegaLiteLocation, string?> _warn;
 
     /// <summary>What the resolver returned for each link and device size (null for a link it did not resolve).</summary>
-    private readonly Dictionary<(string Url, int Width, int Height), Surface?> _cache = [];
+    private readonly Dictionary<(string Url, int Width, int Height), (Surface? Surface, bool? Natural)> _cache = [];
 
     /// <summary>The number of resolver calls made so far.</summary>
     private int _calls;
@@ -76,8 +76,26 @@ internal sealed class SceneImageSource : IDisposable
     /// <param name="location">The location of the mark, for the report and the failure.</param>
     /// <returns>The surface, which belongs to this instance (the caller must not dispose or change it); null when there is no resolver or the resolver gave nothing.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown, located at the mark, when the call would be more than <see cref="VegaLiteLimits.MaxImages"/>.</exception>
-    public Surface? Get(string url, int pixelWidth, int pixelHeight, VegaLiteLocation location)
+    public Surface? Get(string url, int pixelWidth, int pixelHeight, VegaLiteLocation location) =>
+        Get(url, pixelWidth, pixelHeight, location, out _);
+
+    /// <summary>
+    ///     Gets the picture of a link at a device size, and whether it is at its own pixel size.
+    /// </summary>
+    /// <param name="url">The link, as the chart gives it.</param>
+    /// <param name="pixelWidth">The width in device pixels of the rectangle the picture is drawn in, from 1 to <see cref="Surface.MaxDimension"/>.</param>
+    /// <param name="pixelHeight">The height in device pixels of the rectangle, from 1 to <see cref="Surface.MaxDimension"/>.</param>
+    /// <param name="location">The location of the mark, for the report and the failure.</param>
+    /// <param name="isNaturalSize">
+    ///     Receives <see langword="true"/> for a raster at its own pixel size and <see langword="false"/> for a picture drawn for the request, as the resolver says
+    ///     (<see cref="IImageNaturalSizeResolver"/>); <see langword="null"/> when the resolver does not say (a resolver of the host that only implements <see cref="IImageResolver"/>)
+    ///     or nothing was returned.
+    /// </param>
+    /// <returns>The surface, which belongs to this instance (the caller must not dispose or change it); null when there is no resolver or the resolver gave nothing.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown, located at the mark, when the call would be more than <see cref="VegaLiteLimits.MaxImages"/>.</exception>
+    public Surface? Get(string url, int pixelWidth, int pixelHeight, VegaLiteLocation location, out bool? isNaturalSize)
     {
+        isNaturalSize = null;
         if (_resolver is null)
         {
             return null;
@@ -86,7 +104,8 @@ internal sealed class SceneImageSource : IDisposable
         var key = (url, pixelWidth, pixelHeight);
         if (_cache.TryGetValue(key, out var known))
         {
-            return known;
+            isNaturalSize = known.Natural;
+            return known.Surface;
         }
 
         if (_calls >= _maxImages)
@@ -97,8 +116,19 @@ internal sealed class SceneImageSource : IDisposable
         }
 
         _calls++;
-        var surface = _resolver.Resolve(url, pixelWidth, pixelHeight);
-        _cache[key] = surface;
+        Surface? surface;
+        bool? natural = null;
+        if (_resolver is IImageNaturalSizeResolver aware)
+        {
+            surface = aware.Resolve(url, pixelWidth, pixelHeight, out var flag);
+            natural = surface is null ? null : flag;
+        }
+        else
+        {
+            surface = _resolver.Resolve(url, pixelWidth, pixelHeight);
+        }
+
+        _cache[key] = (surface, natural);
         if (surface is null)
         {
             _warn(
@@ -107,6 +137,7 @@ internal sealed class SceneImageSource : IDisposable
                 url);
         }
 
+        isNaturalSize = natural;
         return surface;
     }
 
@@ -115,9 +146,9 @@ internal sealed class SceneImageSource : IDisposable
     /// </summary>
     public void Dispose()
     {
-        foreach (var surface in _cache.Values)
+        foreach (var entry in _cache.Values)
         {
-            surface?.Dispose();
+            entry.Surface?.Dispose();
         }
 
         _cache.Clear();

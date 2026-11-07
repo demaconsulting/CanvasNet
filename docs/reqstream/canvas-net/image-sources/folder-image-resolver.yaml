@@ -212,6 +212,21 @@ sections:
                   - FolderImageResolver_Resolve_NestedRelativeLink_ResolvesFromFolderOfEmbeddingFile
                   - FolderImageResolver_Resolve_ClaimedSchemeNestedRelativeLink_ResolvesFromRootFolder
 
+              - id: CanvasNet-ImageSources-FolderImageResolver-NaturalSize
+                title: >-
+                  The FolderImageResolver class, and the resolver it gives to each source, shall implement
+                  IImageNaturalSizeResolver, reporting for the picture a call returned the IsNaturalSize that its
+                  source set (true for a raster at its own pixel size, also when that size equals the request;
+                  false for a picture drawn for the request and for a call that returns nothing), and the raster
+                  source shall set it, so that a renderer never infers the kind of a picture from its size.
+                justification: |
+                  A raster whose pixel size equals the requested size looks like a vector drawing to a renderer that
+                  compares sizes, and the Vega-Lite image mark would draw it at the wrong size.
+                tests:
+                  - ImageSourceResult_IsNaturalSize_IsSetByTheRasterSourceAndFalseByDefault
+                  - FolderImageResolver_Resolve_ReportsTheKindOfThePictureNotItsSize
+                  - FolderImageResolver_ScopedResolver_ReportsTheKindOfThePicture
+
               - id: CanvasNet-ImageSources-FolderImageResolver-Limits
                 title: >-
                   The FolderImageResolver class shall stop a file that embeds itself directly or through other files

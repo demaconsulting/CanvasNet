@@ -86,6 +86,15 @@ slashes), the folder, the parsed `Fragment`, the clamped size, the shared budget
 token, and the link
 **as written** in `Href`; call the source.
 
+**Natural size** (`IImageNaturalSizeResolver`): a renderer that places a picture by its own pixel size (the `image` mark
+of Vega-Lite) cannot tell from a surface whether it is a raster at its own size or a picture drawn for the request, as
+a raster can have exactly the size of the request. `ImageSourceResult.IsNaturalSize` (`false` by default; the raster
+source sets it) says it, and `Resolve(href, pixelWidth, pixelHeight, out isNaturalSize)` of the resolver and of every
+scope it gives to a source returns it for the picture that the call returned: `Draw` stores the value of the source
+call in a field that the overload reads right after the call (the resolver is not thread-safe, and when files embed
+files the last write is that of the outermost call, which is the one that returns), and a call that draws nothing
+reports `false`. The plain `Resolve` is unchanged.
+
 **Fragment** (`ResolveFile`, `ResolveScheme`, `Draw`): the text after the first `#` of the link is parsed with
 `ImageFragment.Parse`. A fragment with a `Problem` (over 2048 characters or 32 parameters) is refused right after the
 source is chosen and before anything is counted or read: the note has the code `image-fragment-invalid` and the

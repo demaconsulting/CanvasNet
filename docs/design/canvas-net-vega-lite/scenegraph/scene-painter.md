@@ -215,13 +215,14 @@ the height becomes `w / ar0` and `y` moves by half the difference, else the widt
 *Loading*: the picture is requested from the `SceneImageSource` at the size of its box in **device** pixels, rounded up
 (`ceil(length * scale - 0.001)`, clamped to 1 to `Surface.MaxDimension`; a given dimension is used for both when the
 other is
-unknown, and `NaturalDevicePixels` (256 at a scale of one) when neither is). A raster comes back at its own size and its
-pixels
-are scene units (the chart scales as a whole); a picture whose size is the size of the request (one side equal and the
-other
-not larger, as a vector source draws it) has that size divided by the scale as its natural size, and one that has both
-sides of
-a box that was given counts as filling the box (so rounding up never makes a margin). *Drawing*: the box is filled
+unknown, and `NaturalDevicePixels` (256 at a scale of one) when neither is). The kind of the picture is what the
+resolver says (`IImageNaturalSizeResolver.Resolve(..., out isNaturalSize)`, from `ImageSourceResult.IsNaturalSize`): a
+raster comes back at its own size and its pixels are scene units (the chart scales as a whole), even when its size is
+exactly the size of the request; a picture drawn for the request (a vector source) has its size divided by the scale as
+its natural size. Only a resolver that does not say (a host's own `IImageResolver`) leaves it to the size of the
+surface: one that has the size of the request (one side equal and the other not larger) is then taken as drawn for it.
+A picture drawn for the request with both sides of a box that was given counts as filling the box (so rounding up never
+makes a margin). *Drawing*: the box is filled
 through
 the core `PathFiller` with a `TilePaint` of the picture (not repeated), so the edges of a box on fractional pixels are
 anti-aliased, a reduced picture is area-averaged and an enlarged one interpolated by the core tile evaluator; the

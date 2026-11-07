@@ -224,8 +224,9 @@ sections:
                   picture that is not smoothed keeps hard edges, the picture is clipped by the clip of its group, and
                   an item that is not finite, is beyond the magnitude bound, has a negative size or no opacity or
                   has no link is neither drawn nor asked for - and shall ask for a picture at the size of its box in
-                  device pixels at every scale, a raster keeping its own pixels as scene units and a picture that comes
-                  back at the requested size having the default natural size of 256 units.
+                  device pixels at every scale, a raster (as the resolver says, never as the size of the answer
+                  suggests) keeping its own pixels as scene units, also when its size equals the request, and a
+                  picture drawn for the request having the default natural size of 256 units.
                 justification: |
                   A picture is only readable where Vega-Lite would put it, at the size it asks for, and a picture
                   must never be loaded for an item that cannot be drawn.
@@ -235,6 +236,10 @@ sections:
                   - ScenePainter_Paint_ImageWithSize_AsksForTheBoxInDevicePixels
                   - ScenePainter_Paint_RasterWithoutSize_ScalesWithThePlacement
                   - ScenePainter_Paint_VectorWithoutSize_HasTheDefaultNaturalSize
+                  - ScenePainter_Paint_RasterThatEqualsTheRequestAtScaleTwo_IsDrawnAtItsNaturalSize
+                  - ScenePainter_Paint_VectorDrawnForTheRequestAtScaleTwo_CoversTheRequestedDevicePixels
+                  - ScenePainter_Paint_RasterThatEqualsTheRequestInOneDimension_KeepsItsOwnAspect
+                  - SceneImageSource_Get_ResolverThatDoesNotSay_GivesNoKindAndCachesTheKindOfOneThatDoes
                   - ScenePainter_Paint_ImageWithOneDimension_FollowsTheAspectRule
                   - ScenePainter_Paint_ImageInBoxOfOtherAspect_IsFittedAndCentered
                   - ScenePainter_Paint_PictureOfTheRequestedSize_FillsTheBox

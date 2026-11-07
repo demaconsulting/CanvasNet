@@ -1816,16 +1816,15 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     nothing and the feature catalog reports `vl-mark-image`; `Measure` never asks the resolver, so the size of a chart
     never depends on a picture (Vega's own layout does not either: a picture is drawn when it is loaded).
 86. **The size of a vector picture and the units of a raster (Phase 13)**: Vega draws a raster at its natural pixel size
-    in
-    scene units, which this renderer does (so at `scale` 2 it covers twice the pixels). A model, an SVG file, a PDF
-    page, or a
-    chart has no natural pixel size: with no `width` and `height` of the mark it is drawn 256 units wide and high (the
-    resolver is asked for 256 device pixels at a scale of one and the result is divided by the scale), with one
-    dimension the
-    other follows the aspect ratio of what the resolver returned. A picture that comes back at the exact size of the
-    request is
-    taken as a vector picture (a raster that has exactly the device size of the request at a scale other than one is
-    mistaken for one: its natural size is divided by the scale).
+    in scene units, which this renderer does (so at `scale` 2 it covers twice the pixels). A model, an SVG file, a PDF
+    page, or a chart has no natural pixel size: with no `width` and `height` of the mark it is drawn 256 units wide and
+    high (the resolver is asked for 256 device pixels at a scale of one and the result is divided by the scale), with
+    one dimension the other follows the aspect ratio of what the resolver returned. The kind of a picture is not
+    inferred from the size of the answer: `ImageSourceResult.IsNaturalSize` (set by `RasterImageSource`) is carried by
+    `IImageNaturalSizeResolver`, which `FolderImageResolver` and the resolver it gives to embedded files implement, so a
+    raster that has exactly the device size of the request is still drawn at its natural size. Only a host resolver that
+    implements just `IImageResolver` leaves the judgment to the size of the answer (a picture that has exactly the size
+    of the request is taken as drawn for it).
 87. **One answer for a link and a size in a render (Phase 13)**: the resolver contract allows no cache, but a chart that
     shows
     the same icon for every point must not ask once for each point, so the answer for a link at a device size is kept

@@ -2266,6 +2266,11 @@ registered globally and nothing is discovered: a source is used only when you pa
 ```csharp
 public interface IImageResolver { Surface? Resolve(string href, int pixelWidth, int pixelHeight); }
 
+public interface IImageNaturalSizeResolver : IImageResolver   // optional: is the picture a raster at its own size?
+{
+    Surface? Resolve(string href, int pixelWidth, int pixelHeight, out bool isNaturalSize);
+}
+
 public interface IImageSource
 {
     string Name { get; }                        // "raster", "svg", "scad", ...
@@ -2280,7 +2285,7 @@ public interface IFragmentImageSource           // optional: the fragment parame
     IReadOnlyList<string> FragmentParameterPrefixes => [];   // lower case: ["def."], ["param."] (default: none)
 }
 
-public sealed class FolderImageResolver : IImageResolver
+public sealed class FolderImageResolver : IImageNaturalSizeResolver
 {
     public FolderImageResolver(string? rootFolder, IEnumerable<IImageSource> sources,
         FolderImageResolverOptions? options = null);

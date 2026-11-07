@@ -25,6 +25,8 @@ files, all `public`:
 - `IImageSourceOptions.cs` - `IImageSourceOptions` (marker interface): caller-defined options of a direct render
 - `ImageSourceRefusedException.cs` - `ImageSourceRefusedException` (sealed class): a source declining a picture
 - `IImageResolver.cs` - `IImageResolver` (interface): what a renderer calls
+- `IImageNaturalSizeResolver.cs` - `IImageNaturalSizeResolver` (interface): an `IImageResolver` that also says whether
+  the picture is a raster at its own pixel size (`ImageSourceResult.IsNaturalSize`)
 - `EmbeddedImage.cs` - `EmbeddedImage` (sealed record): one loaded image
 - `ImageSourceException.cs` - `ImageSourceException` (sealed class): the failure of a source
 - `ImageSourceBudgetException.cs` - `ImageSourceBudgetException` (sealed class): the refusal of a source for a picture
