@@ -166,8 +166,11 @@ text that an expression builds. The fields and rows that the row transforms deri
 `MaxSceneItems` counts items, not the area they cover, and the cost of painting an item grows with its area: a few
 thousand rectangles that cover the whole image, symbols of a million square pixels, strokes thousands of pixels wide
 and pictures without a size are cheap to write and slow to paint. `MaxPaintedPixels` bounds that work. Before the
-painter paints an item it counts the pixels of the item's box on the image (a fill and a stroke count once each, the
-stroke grown by half its width; the text is estimated from its characters and font size; a picture counts its box; the
+painter paints an item it counts the pixels of the item's box on the image, where the item is drawn (a fill and a
+stroke count once each, the stroke grown by half its width, the box widened to whole pixels; every line of text counts
+its own estimated box, from its characters, the font size, its alignment and its baseline, cut by the `limit` of the
+text, so text that is cut off, off the image or not drawn at all (no fill, an opacity of zero, a font size of zero)
+counts nothing or only the part that is on the image; a picture counts its box; the
 layer of a clipped group and the layers of a translucent trail count their size), never more than the image itself, and
 nothing for an item outside it, and it fails when the total would pass the limit. The failure is a
 `VegaLiteRenderException` whose message names `VegaLiteLimits.MaxPaintedPixels`, located at the mark (the `/mark` of a
@@ -196,7 +199,7 @@ opening a document never reads a data file.
 | Inline rows | `"data": {"values": [{...}, ...]}` | An array of objects (one row each) or of primitives (one row `{"data": value}`); nested objects and arrays are flattened to fields named by their path (`a.b`, `p.r.0`) |
 | A local file | `"data": {"url": "rows.csv"}` | A **relative** path only; see *Data files* and *The sandbox* below |
 | A named dataset | `"data": {"name": "rows"}` | The caller's `VegaLiteRenderOptions.Datasets` first, then the top-level `datasets` of the specification; the caller wins. A name that nobody defines is an error |
-| A sequence | `"data": {"sequence": {"start": 0, "stop": 5, "step": 1, "as": "x"}}` | The numbers from `start` up to, **not including**, `stop` in steps of `step` (1 by default; negative counts down) in the field `as` (`data` by default). `start` and `stop` must be finite numbers; a step that is present must be a finite number other than zero (an absent step is 1), and a step that points away from `stop` gives no rows. A missing, non-finite, or zero value fails the render, and so does a sequence longer than `MaxDataRows` |
+| A sequence | `"data": {"sequence": {"start": 0, "stop": 5, "step": 1, "as": "x"}}` | The numbers from `start` up to, **not including**, `stop` in steps of `step` (1 by default; negative counts down) in the field `as` (`data` by default). `start` and `stop` must be finite numbers; a step that is present must be a finite number other than zero (an absent step is 1), and a step that points away from `stop` gives no rows. A missing, non-finite, or zero value fails the render, and so does a sequence longer than `MaxDataRows` or than the 2^25 (33,554,432) values that one table may hold |
 <!-- markdownlint-enable MD013 -->
 
 **Data files.** The format is `format.type` (`json`, `csv`, `tsv`, or `dsv`) when it is given; otherwise a path ending
@@ -955,7 +958,9 @@ change between renders. A size of at least the number of rows keeps every row. T
 derives count against `MaxDataRows` (a `fold` or `flatten` needs room for the input and the output together, and a
 `filter`, `sample`, or `pivot` gives the rows it drops back), the lookup source counts like any data source (and a
 local file in it is read under the same sandbox, file count, and size limits), the fields against `MaxFieldCount`, and a
-derived table may hold at most 2^25 (33,554,432) cells, rows times fields. The counts are checked **before** the memory
+derived table may hold at most 2^25 (33,554,432) cells, rows times fields (the same bound holds for the values of a
+generated `sequence`, the points of a sampled curve of a `density` or a `regression`, and the probabilities of a
+`quantile`, whatever `MaxDataRows` is). The counts are checked **before** the memory
 is allocated, and a failure is a `VegaLiteRenderException` located at the transform. A `pivot` that would output more
 than `MaxFieldCount` fields fails the same way; the check counts the columns **after** `limit` keeps the first `limit`
 distinct values in ordinal order, so a pivot with many distinct values and a small `limit` succeeds, and only a pivot
@@ -2183,7 +2188,7 @@ the size scale (1 to 4 by default), so a thick part of the trail has a thick sym
 | `MaxSceneItems` (2,000,000) | The scene items: each path counts one item and **an upper bound of its segments** (so a curve through a million points fails before its segments are made), each trail point, each text line, and each arc |
 | `MaxStringLength` (1,048,576) | A label, and **the labels of one text mark together** (16 times the limit); the formatter stops as soon as a label would exceed it |
 | `MaxEvaluationSteps` (50,000,000) | The rows of every path, text, and arc (one step per row), the grouping and sorting of the rows of a path (`n` log `n`), the points of the curves, the characters of a label, and an `{"expr": ...}` size |
-| `MaxDataRows`, `MaxFieldCount`, and the cell limit | The rows and fields of the table, which the rows that an impute adds count against, and the number of `keyvals` of an `impute` (at most `MaxScaleDomainSize`) |
+| `MaxDataRows`, `MaxFieldCount`, and the cell limit | The rows and fields of the table, which the rows that an impute adds count against, and the number of `keyvals` of the `impute` of a channel (at most `MaxScaleDomainSize`; the `keyvals` of an `impute` transform are bounded by `MaxDataRows` and the cell limit) |
 <!-- markdownlint-enable MD013 -->
 
 The cancellation token is checked every 1,024 rows, per group, while the points of a curve are made, for every item
@@ -2748,7 +2753,9 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   levels apart) and never compare the bytes of an encoded PNG.
 - **Hardening.** The renderer is exercised by a seeded fuzz suite (generated specifications and mutations of the test
   fixtures, 300 cases in every build) that requires every case to succeed or to fail with a documented, located
-  exception, to finish within its limits and to give the same result twice. To run a larger campaign yourself, set the
+  exception, to finish within its limits and to give the same result twice. The tests assert outcomes, never speed; the
+  only wall-clock check is a generous hang guard of 120 seconds per case (set `CANVASNET_VL_HANG_GUARD_SECONDS` to
+  change it on a very slow machine). To run a larger campaign yourself, set the
   environment variables `CANVASNET_VL_FUZZ_CASES` (the number of cases, for example `5000`), `CANVASNET_VL_FUZZ_SEED`
   and `CANVASNET_VL_FUZZ_DUMP_DIR` (a folder that receives each failing specification) and run
   `dotnet test test/DemaConsulting.CanvasNet.VegaLite.Tests`. Report a failing specification together with its seed and

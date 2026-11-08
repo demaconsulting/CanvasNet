@@ -54,11 +54,18 @@ still paints a pixel), grows the box by half
 the stroke width in surface pixels for a stroke (`StrokeOnly` charges after the width test, before the outline is
 made), and charges the part of it that lies on the target (the surface, or the clip layer when the item is inside a
 clipped group, so a huge rectangle in a small clip costs the clip); a fill and a stroke are two charges, a box with a
-NaN is the whole target and a box outside it is nothing. `ChargeText` estimates the box of a text item from its longest
-line (0.6 of the font size a character), its lines times the line height (the absolute value, and at least the font
-size: Vega steps baselines by a negative line height upward and by zero not at all, yet every line paints a row of
-glyphs) and its limit, cut to the target (measuring the
-text would be the work being charged). The layer of a clipped group, the layers of a translucent trail, the box of a
+NaN is the whole target and a box outside it is nothing. `ChargeText` estimates one box for each non-empty line of a text
+item where the painter places it: the line's characters times 0.6 of the font size (at most the `limit` of the item,
+which is what truncation leaves), by a font size plus a third (the ascent above the baseline and the descent
+below), from the
+baseline (the vertical offset, the baseline offset and the line number times the line height) and the alignment, moved
+to the anchor of the item in surface pixels, and cuts each to the target (a rotated item is one square around its
+anchor that holds the lines in any rotation). Text that `PaintText` does not draw (a font size that is not positive, a
+fill that is not visible, a position beyond the magnitude bound) returns before the charge and costs nothing, and a line
+that is off the target or clipped away costs nothing; a line height that is zero or negative (Vega steps baselines
+upward or not at all) still charges every line that is drawn, each at its own position. Measuring the text would be the
+work being charged, so the widths are estimates. The layer of a clipped group, the layers of a translucent trail (whose
+fill chunks are charged in the coordinates of the layer, as its stroke chunks are), the box of a
 picture and the pixels of every resampled copy (`SceneImageSource.GetTile` reports the work through a callback before
 it allocates) are charged the same way. The failure is located at the `SceneItem.Source` of the item (text and
 pictures carry their mark) or at the nearest enclosing group that has one: `MarkBuilder` gives the `marks` group of a

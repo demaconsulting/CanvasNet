@@ -19,7 +19,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///     </para>
 ///     <para>
 ///         <b>What is charged.</b> For a fill, the bounding box of the path in surface pixels cut to the surface (or, inside a clipped group, to the clip layer, which is the surface
-///         that the children are drawn on); for a stroke, the same box grown by half the stroke width on each side; for text, the estimated box of its lines; for a picture, its box in the
+///         that the children are drawn on); for a stroke, the same box grown by half the stroke width on each side; for text, the estimated box of each line where the painter places it (cut to the surface, so a line that is off it or clipped away costs nothing, and text that is not drawn is not charged); for a picture, its box in the
 ///         surface; for the layer of a clipped group and the layers of a translucent trail, the pixels of the layer. A fill and a stroke of one item are two charges (two passes over its
 ///         pixels). The box of a path is taken from its control points (a curve lies inside the hull of its control points, and an arc is converted to the curves of its ellipse first, so a circle near the edge is charged for the part of it that is on the surface), so the charge is an upper bound of the pixels that the filler
 ///         visits, and an item that lies outside the surface is charged nothing. A box that cannot be computed (a coordinate that is NaN or overflows) is charged as the whole target.
@@ -33,6 +33,12 @@ internal sealed partial class ScenePainter
 {
     /// <summary>The estimated width of a character of text as a fraction of the font size, for the charge of a text item.</summary>
     private const double TextCharacterWidthFactor = 0.6;
+
+    /// <summary>The estimated height of the glyphs above the baseline as a fraction of the font size, for the charge of a text item.</summary>
+    private const double TextAscent = 1.0;
+
+    /// <summary>The estimated depth of the glyphs below the baseline as a fraction of the font size, for the charge of a text item.</summary>
+    private const double TextDescent = 0.3;
 
     /// <summary>
     ///     Creates the meter of one painting.
@@ -89,11 +95,21 @@ internal sealed partial class ScenePainter
         ((matrix.M11 * x) + (matrix.M21 * y) + matrix.M31, (matrix.M12 * x) + (matrix.M22 * y) + matrix.M32);
 
     /// <summary>
-    ///     Charges the estimated box of a text item to the paint budget.
+    ///     Charges the estimated boxes of the lines of a text item to the paint budget, where the painter draws them.
     /// </summary>
     /// <remarks>
-    ///     The box is estimated from the text, not measured (measuring is the work of painting): the longest line is its characters times 0.6 of the font size (at most the limit of the
-    ///     item when it has one) wide, and each line is the line height tall (the absolute value of it, and at least the font size: a line paints a row of glyphs even when the line height is zero or negative). The estimate is cut to the size of the target, which is also what the glyphs are cut to.
+    ///     <para>
+    ///         The boxes are estimated from the text, not measured (measuring is the work of painting), but placed as the painter places the lines: each line is its own box, anchored at the
+    ///         anchor of the item in surface pixels, moved by the horizontal offset, aligned left, centered or right, with its baseline at the vertical offset plus the baseline offset plus the line
+    ///         number times the line height (the line height may be zero or negative: Vega steps the baselines upward or not at all, and the lines then overlap, each still painting its own row of glyphs). A line is its
+    ///         characters times 0.6 of the font size wide (at most the limit of the item when it has one, which is what truncation with an ellipsis leaves) and a font size plus a third tall (the ascent
+    ///         above the baseline, the descent below). An empty line paints nothing and is not charged.
+    ///     </para>
+    ///     <para>
+    ///         Each box is cut to the target (the surface, or the clip layer inside a clipped group), so a line outside what is drawn costs nothing. Text that the painter does not draw (a font size
+    ///         that is not positive, a fill that is not visible, a coordinate that is not bounded) is never charged: <see cref="PaintText"/> returns before it gets here. The lines of a rotated
+    ///         item are charged as one square around the anchor that holds all of them in any rotation, cut to the target, so that the rotation needs no sign convention.
+    ///     </para>
     /// </remarks>
     /// <param name="context">The context of the painting.</param>
     /// <param name="text">The text item.</param>
@@ -105,25 +121,50 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        var size = text.FontSize * context.Scale;
-        var longest = 0;
-        foreach (var line in text.Lines)
+        var scale = context.Scale;
+        var size = text.FontSize * scale;
+        var anchor = Vector2.Transform(new Vector2((float)text.X, (float)text.Y), context.Transform);
+        var step = TextMeasurer.LineHeight(text.FontSize, text.LineHeight);
+        var baseline = text.Dy + TextMeasurer.BaselineOffset(text.Baseline, text.FontSize, text.LineHeight);
+        var limit = text.Limit > 0 ? text.Limit * scale : double.PositiveInfinity;
+        var rotated = text.Angle != 0;
+
+        // For a rotated item the reach from the anchor of every line box, over all the lines
+        double reachX = 0, reachY = 0;
+        for (var i = 0; i < text.Lines.Count; i++)
         {
-            longest = Math.Max(longest, line.Length);
+            var length = text.Lines[i].Length;
+            if (length == 0)
+            {
+                continue;
+            }
+
+            var width = Math.Min(length * size * TextCharacterWidthFactor, limit);
+            var offset = text.Dx * scale;
+            var left = text.Align switch
+            {
+                "center" => offset - (width / 2),
+                "right" => offset - width,
+                _ => offset,
+            };
+            var top = (((baseline + (i * step)) * scale) - (size * TextAscent));
+            var bottom = (((baseline + (i * step)) * scale) + (size * TextDescent));
+            if (rotated)
+            {
+                reachX = Math.Max(reachX, Math.Max(Math.Abs(left), Math.Abs(left + width)));
+                reachY = Math.Max(reachY, Math.Max(Math.Abs(top), Math.Abs(bottom)));
+            }
+            else
+            {
+                ChargeBox(context, anchor.X + left, anchor.Y + top, anchor.X + left + width, anchor.Y + bottom, text.Role, text.Source);
+            }
         }
 
-        var width = longest * size * TextCharacterWidthFactor;
-        if (text.Limit > 0)
+        if (rotated)
         {
-            width = Math.Min(width, text.Limit * context.Scale);
+            var reach = Math.Sqrt((reachX * reachX) + (reachY * reachY));
+            ChargeBox(context, anchor.X - reach, anchor.Y - reach, anchor.X + reach, anchor.Y + reach, text.Role, text.Source);
         }
-
-        // Every line paints its own row of glyphs, so a line is at least a font size tall, whatever the line height: Vega steps the baselines by a negative line height upward and by a
-        // zero one not at all (the lines then overlap), and a negative or small height must not make the charge negative or smaller than the painting
-        var step = Math.Max(Math.Abs(TextMeasurer.LineHeight(text.FontSize, text.LineHeight)) * context.Scale, size);
-        var height = text.Lines.Count * step;
-        var area = Math.Min(width, context.Target.Width) * Math.Min(height, context.Target.Height);
-        ChargePixels(context, area, text.Role, text.Source);
     }
 
     /// <summary>

@@ -516,6 +516,10 @@ includes the device size.
 `ScenePainterBudgetTests.ScenePainter_Paint_ClipLayerAndItsContentAreCharged`,
 `ScenePainterBudgetTests.ScenePainter_Paint_TextIsChargedAnEstimatedBox`,
 `ScenePainterBudgetTests.ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextBeyondTheSurfaceIsNotChargedAndTextAtTheEdgeIsChargedThePartThatIsOnIt`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextTruncatedByItsLimitIsChargedTheWidthItKeeps`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextThatIsNotDrawnIsNotCharged`,
+`ScenePainterBudgetTests.ScenePainter_Paint_RotatedTextIsChargedTheSquareAroundItsAnchorCutToTheSurface`,
 `ScenePainterBudgetTests.ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea`,
 `ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer`,
 `ScenePainterBudgetTests.ScenePainter_Paint_WithoutALimit_CountsNothing`,
@@ -533,9 +537,16 @@ surface from far outside is charged exactly the surface, and that nothing is cha
 pixels wide across the surface costs exactly 1,000 pixels (the box grown by half the width) and fails with 999; that a
 50 by 50 rectangle with a fill and a 2 pixel stroke costs 2,500 plus 2,704 (the stroke box is 52 by 52); that a group
 clipped to 50 by 50 pixels costs its 2,500 pixel layer plus the 2,500 pixels of the rectangle in it that is cut to the
-layer; that text of eleven characters at a font size of 20 costs the estimated 100 by 22 pixels, and three lines of it with
-a zero or negative line height (which Vega steps upward or not at all) cost 3 lines of at least a font size each (6,000
-pixels, or 10,000 when the step is taller than the surface), never a negative or smaller charge; that arcs (pies,
+layer; that text of eleven characters at a font size of 20 on a baseline of 50 costs the estimated 100 by 26 pixels (132
+wide, cut to the surface; a font size and a third tall), that three lines of it with a zero or negative line height
+(which Vega steps upward or not at all) are charged line by line where each is (3 x 2,600 pixels for a step of -5 or 0,
+and 2,600 for a step of -200, where the other two lines are above the surface), never a negative or smaller charge;
+that text is not over-charged: text beyond the surface, or to the left of a right-aligned anchor, or above it costs
+nothing (the smallest limit accepts it), an anchor at 90 costs the 10 by 26 pixels that are on the surface, a centered
+anchor at 0 the half of the width (66 by 26), an empty line costs nothing, a text limited to 30 pixels costs 30 by 26,
+and text with no fill, a fully transparent fill, an opacity of zero or a font size of zero costs nothing (a hundred of
+each under the limit of 1); that a rotated text item is charged the square around its anchor, cut to the surface, and
+nothing when it is far outside; that arcs (pies,
 donuts, rounded corners, a full circle, a sliver) centered on and beyond the edges and corners of the surface are each
 charged at least the pixels that they paint (a limit of one pixel less refuses them), which the box of the end point of
 an arc grown by its radius did not guarantee, and that the box is widened to whole pixels; that the fill chunks of a

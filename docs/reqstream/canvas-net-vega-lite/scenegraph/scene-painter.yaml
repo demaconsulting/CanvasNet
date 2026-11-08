@@ -274,8 +274,10 @@ sections:
                 title: >-
                   The ScenePainter unit shall count the device pixels that a painting fills, strokes and draws against
                   the paint limit it was given (VegaLiteLimits.MaxPaintedPixels) before it does the work of each item -
-                  the box of a fill cut to the surface (or to the clip layer that the item is drawn on), the box of a
-                  stroke grown by half its width, the estimated box of text, the box of a picture and the pixels of
+                  the box of a fill (the bounds of the path, arcs included, widened to whole pixels) cut to the
+                  surface (or to the clip layer that the item is drawn on), the box of a
+                  stroke grown by half its width, the estimated box of each line of text where it is drawn (nothing
+                  for text that is not drawn, cut off or off the surface), the box of a picture and the pixels of
                   each resampled copy that is made, and the pixels of a clip layer and of the layers of a translucent
                   trail - charging nothing for an item outside the surface, accepting a total exactly at the limit,
                   and failing the painting with a VegaLiteRenderException that names VegaLiteLimits.MaxPaintedPixels
@@ -298,6 +300,10 @@ sections:
                   - ScenePainter_Paint_ClipLayerAndItsContentAreCharged
                   - ScenePainter_Paint_TextIsChargedAnEstimatedBox
                   - ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine
+                  - ScenePainter_Paint_TextBeyondTheSurfaceIsNotChargedAndTextAtTheEdgeIsChargedThePartThatIsOnIt
+                  - ScenePainter_Paint_TextTruncatedByItsLimitIsChargedTheWidthItKeeps
+                  - ScenePainter_Paint_TextThatIsNotDrawnIsNotCharged
+                  - ScenePainter_Paint_RotatedTextIsChargedTheSquareAroundItsAnchorCutToTheSurface
                   - ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea
                   - ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer
                   - ScenePainter_Paint_WithoutALimit_CountsNothing

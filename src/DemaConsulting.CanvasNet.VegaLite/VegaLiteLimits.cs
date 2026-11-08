@@ -162,7 +162,10 @@ public sealed class VegaLiteLimits
     ///     Counted per measure or render call across inline values, files, named datasets, sequences and lookup sources; the
     ///     rows are counted before they are allocated. The rows of a table that a transform derives count as well: a transform
     ///     that can produce more rows than it reads (<c>fold</c>, <c>flatten</c>) reserves its output in this budget while its
-    ///     input still counts, and the rows a filter, sample or pivot drops are given back.
+    ///     input still counts, and the rows a filter, sample or pivot drops are given back. A derived or generated table is also
+    ///     bounded by the 2^25 (33,554,432) cells that one table may hold, whatever this limit is: a generated sequence, the points of a sampled
+    ///     curve and the key values of an impute are refused when they would exceed it, before they are allocated. A count that no 64-bit integer
+    ///     holds is refused whatever the limit is.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxDataRows
@@ -277,7 +280,8 @@ public sealed class VegaLiteLimits
     /// </summary>
     /// <remarks>
     ///     One step is one executed instruction of a compiled expression (plus a step per 64 characters or elements of the
-    ///     work of a function). The budget is shared by the parameters, the transforms and the row-bound mark values of one
+    ///     work of a function). The work of the transforms that loop over many elements (a loess, a density, a polynomial regression, a bootstrap, a window frame) is charged in
+    ///     elements that are weighted to about three nanoseconds each, so that the default stops each of them in about ten seconds on a current desktop processor. The budget is shared by the parameters, the transforms and the row-bound mark values of one
     ///     measure or render call; exhausting it is a <see cref="VegaLiteRenderException"/> located at the expression.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
@@ -335,7 +339,7 @@ public sealed class VegaLiteLimits
     ///         <see cref="MaxSceneItems"/> counts items, not the area they cover, and the cost of painting an item is proportional to its area: a few thousand rectangles that each cover the whole
     ///         image, symbols with a size of a million square pixels, strokes that are thousands of pixels wide or pictures without a size are cheap to describe and take minutes to paint. This
     ///         limit bounds that work. The painter counts, before it paints an item, the pixels of its box on the image (a fill, and a stroke grown by half its width, are one count each; text is
-    ///         estimated from its characters and font size; a picture counts its box; the layer of a clipped group and the layers of a translucent trail count their size) and fails when the total would
+    ///         estimated from its characters and font size where each line is drawn, and so is not charged when it is cut off, off the image, or not drawn at all; a picture counts its box; the layer of a clipped group and the layers of a translucent trail count their size) and fails when the total would
     ///         pass the limit. An item that lies outside the image counts nothing, and a box is never counted beyond the image (or the clip layer it is drawn on), so a chart on a large image is
     ///         charged for the pixels it can have.
     ///     </para>

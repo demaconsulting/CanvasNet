@@ -1106,7 +1106,7 @@ run more cases (every failing case is written to the dump folder).
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheCellLimitAreRefusedWhateverTheRowLimit`,
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_InfinitePaddingOfAChartWithoutDataIsLocated`
 
-Asserts, for each of 38 rows of the inventory of the design document (_Resource Limits And Hardening_), that the hostile
+Asserts, for each of 41 rows of the inventory of the design document (_Resource Limits And Hardening_), that the hostile
 specification is refused with the exception type of the row, located under the JSON pointer of the row, with a message
 that contains the limit, and with less than 96 MiB allocated on the thread (the cost is charged before the allocation);
 that the costs that are bounded without a refusal (a format width of a billion, a dash period of 1e-30, a flood of

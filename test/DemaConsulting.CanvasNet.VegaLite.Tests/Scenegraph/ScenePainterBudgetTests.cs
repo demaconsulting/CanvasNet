@@ -190,8 +190,8 @@ public class ScenePainterBudgetTests
     }
 
     /// <summary>
-    ///     Test that text is charged an estimated box (a character is 0.6 of the font size wide and a line is the line height tall): eleven characters at a font size of 20 are 132 by 22 pixels, so a small limit refuses it and an
-    ///     ample one does not.
+    ///     Test that text is charged an estimated box where the painter draws it (a character is 0.6 of the font size wide and a line is a font size and a third tall, from the ascent above the baseline
+    ///     to the descent below it): eleven characters at a font size of 20 on a baseline of 50 are 132 pixels wide, cut to the surface 100 by 26 pixels, so exactly that is accepted and one pixel less is refused.
     /// </summary>
     [Fact]
     public void ScenePainter_Paint_TextIsChargedAnEstimatedBox()
@@ -200,8 +200,8 @@ public class ScenePainterBudgetTests
         var text = new SceneText("label", 0, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20 };
 
         // Act
-        using var surface = Paint(100 * 22, Root(text));
-        var error = Assert.Throws<VegaLiteRenderException>(() => Paint(1_000, Root(text)));
+        using var surface = Paint(100 * 26, Root(text));
+        var error = Assert.Throws<VegaLiteRenderException>(() => Paint((100 * 26) - 1, Root(text)));
 
         // Assert
         Assert.Equal(White, surface[99, 0]);
@@ -209,29 +209,128 @@ public class ScenePainterBudgetTests
     }
 
     /// <summary>
-    ///     Test that a negative or zero line height (Vega steps the baselines upward or not at all) is charged like a line height of a font size: every line paints a row of glyphs, so the
-    ///     charge is never negative and never below the painting. Three lines of eleven characters at a font size of 20 on a surface 100 pixels wide are 3 x 20 x 100 pixels (a step of 200
-    ///     pixels makes the box taller than the surface, which cuts it to 100 x 100).
+    ///     Test that a zero or negative line height (Vega steps the baselines upward or not at all) is charged for every line that is drawn: every line paints its own row of glyphs, so the charge is never negative
+    ///     and never below the painting. Three lines of eleven characters at a font size of 20 on a baseline of 50: with a step of -5 or 0 the three boxes of 100 by 26 pixels are on the surface (3 x 2,600), and
+    ///     with a step of -200 only the first one is (the others are above the surface and cost nothing).
     /// </summary>
     /// <param name="lineHeight">The line height of the text.</param>
+    /// <param name="expected">The expected charge.</param>
     [Theory]
-    [InlineData(-5.0)]
-    [InlineData(-200.0)]
-    [InlineData(0.0)]
-    public void ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine(double lineHeight)
+    [InlineData(-5.0, 7_800)]
+    [InlineData(-200.0, 2_600)]
+    [InlineData(0.0, 7_800)]
+    public void ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine(double lineHeight, int expected)
     {
         // Arrange
         var lines = new[] { "Hello world", "Hello world", "Hello world" };
         var text = new SceneText("label", 0, 50, lines) { Fill = "#000000", FontSize = 20, LineHeight = lineHeight };
-        var expected = lineHeight < -20 ? 100 * 100 : 3 * 20 * 100;
 
         // Act
-        using var surface = Paint(100_000, Root(text));
+        using var surface = Paint(expected, Root(text));
         var error = Assert.Throws<VegaLiteRenderException>(() => Paint(expected - 1, Root(text)));
 
         // Assert: the limit of exactly the estimate is accepted and one below it fails
         Assert.Equal(White, surface[99, 0]);
         Assert.Contains("MaxPaintedPixels", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that text is not charged for what is not drawn: text beyond the surface (to the right, or to the left of a right-aligned anchor) costs nothing, text that is partly on it is charged
+    ///     the part that is (an anchor at 90 leaves 10 by 26 pixels; a centered anchor at 0 leaves half of the 132 pixels), and an empty line is not charged.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TextBeyondTheSurfaceIsNotChargedAndTextAtTheEdgeIsChargedThePartThatIsOnIt()
+    {
+        // Arrange
+        var beyond = new SceneText("beyond", 500, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20 };
+        var left = new SceneText("left", 0, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20, Align = "right" };
+        var above = new SceneText("above", 0, -100, ["Hello world"]) { Fill = "#000000", FontSize = 20 };
+        var edge = new SceneText("edge", 90, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20 };
+        var centered = new SceneText("centered", 0, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20, Align = "center" };
+        var gap = new SceneText("gap", 0, 50, ["", "Hello world"]) { Fill = "#000000", FontSize = 20 };
+
+        // Act: the smallest limit accepts the text that is not drawn on the surface
+        using var first = Paint(1, Root(beyond, left, above));
+        using var atEdge = Paint(10 * 26, Root(edge));
+        var edgeError = Assert.Throws<VegaLiteRenderException>(() => Paint((10 * 26) - 1, Root(edge)));
+        using var atCentre = Paint(66 * 26, Root(centered));
+        var centeredError = Assert.Throws<VegaLiteRenderException>(() => Paint((66 * 26) - 1, Root(centered)));
+        using var withGap = Paint(100 * 26, Root(gap));
+        var gapError = Assert.Throws<VegaLiteRenderException>(() => Paint((100 * 26) - 1, Root(gap)));
+
+        // Assert
+        Assert.Equal(White, first[50, 50]);
+        Assert.Contains("'edge'", edgeError.Message, StringComparison.Ordinal);
+        Assert.Contains("'centered'", centeredError.Message, StringComparison.Ordinal);
+        Assert.Contains("'gap'", gapError.Message, StringComparison.Ordinal);
+        Assert.NotNull(atEdge);
+        Assert.NotNull(atCentre);
+        Assert.NotNull(withGap);
+    }
+
+    /// <summary>
+    ///     Test that text that is truncated by its limit is charged the width that it keeps, not the width that it would have: eleven characters at a font size of 20 limited to 30 pixels (the ellipsis
+    ///     included) are charged 30 by 26 pixels.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TextTruncatedByItsLimitIsChargedTheWidthItKeeps()
+    {
+        // Arrange
+        var text = new SceneText("label", 0, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20, Limit = 30 };
+
+        // Act
+        using var surface = Paint(30 * 26, Root(text));
+        var error = Assert.Throws<VegaLiteRenderException>(() => Paint((30 * 26) - 1, Root(text)));
+
+        // Assert
+        Assert.Equal(White, surface[99, 0]);
+        Assert.Contains("'label'", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that text that the painter does not draw is not charged: a fill of none, a fill that is fully transparent, an opacity of zero and a font size of zero (the smallest limit accepts a hundred of
+    ///     each, which would cost millions of pixels if they were charged as boxes).
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TextThatIsNotDrawnIsNotCharged()
+    {
+        // Arrange: each of these is a text item that is drawn by no pixel
+        var items = new List<SceneItem>();
+        for (var i = 0; i < 100; i++)
+        {
+            items.Add(new SceneText("none", 0, 50, ["Hello world"]) { Fill = "none", FontSize = 2000 });
+            items.Add(new SceneText("clear", 0, 50, ["Hello world"]) { Fill = "#00000000", FontSize = 2000 });
+            items.Add(new SceneText("faded", 0, 50, ["Hello world"]) { Fill = "#000000", FontSize = 2000, Opacity = 0 });
+            items.Add(new SceneText("zero", 0, 50, ["Hello world"]) { Fill = "#000000", FontSize = 0 });
+        }
+
+        // Act
+        using var surface = Paint(1, Root([.. items]));
+
+        // Assert
+        Assert.Equal(White, surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Test that a rotated text item is charged the square around its anchor that holds it in any rotation, cut to the surface: a quarter turn of a 132 pixel line at the middle of the surface reaches
+    ///     133 pixels, so the whole surface is charged, and the same text rotated far outside the surface is not charged.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RotatedTextIsChargedTheSquareAroundItsAnchorCutToTheSurface()
+    {
+        // Arrange
+        var near = new SceneText("near", 50, 50, ["Hello world"]) { Fill = "#000000", FontSize = 20, Angle = 90 };
+        var far = new SceneText("far", 5000, 5000, ["Hello world"]) { Fill = "#000000", FontSize = 20, Angle = 90 };
+
+        // Act
+        using var accepted = Paint(100 * 100, Root(near));
+        var error = Assert.Throws<VegaLiteRenderException>(() => Paint((100 * 100) - 1, Root(near)));
+        using var outside = Paint(1, Root(far));
+
+        // Assert
+        Assert.NotNull(accepted);
+        Assert.Contains("'near'", error.Message, StringComparison.Ordinal);
+        Assert.Equal(White, outside[50, 50]);
     }
 
     /// <summary>

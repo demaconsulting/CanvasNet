@@ -238,7 +238,7 @@ charges the `WorkMeter`; every limit message contains `the limit of`, `the limit
 | `window` | Unchanged; the `values` arrays are bounded by `MaxDataRows` in total | Partition keys 2 + group fields per group; sort keys `rows * sort fields`; value-state check; `TableLayout` | operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per aggregate** (cumulative frames are not recomputed); `values` length |
 | `bin` | Unchanged | `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`) | 1 per row for the extent, 1 per row for the assignment |
 | `stack` | Unchanged | 2 + group fields per group; sort keys; `TableLayout` | 1 per row for the copy and 1 for the number, the group size per group, n log n per sort |
-| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
+| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows` and `TableLayout.MaxCells`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
 <!-- markdownlint-enable MD013 -->
 
 **Preconditions and postconditions**: `SpecParser` validated the transform shapes (operation names, parameters,

@@ -440,12 +440,19 @@ input:
   full-surface rectangle took 6.7 milliseconds, a symbol of a million square pixels 25, a stroke 3,000 pixels wide 30,
   and an `image` mark without a size drew a 256 by 256 picture for every row, 87 seconds for 20,000 rows). The painter
   charges one **paint meter** (one per `Paint` call, carried in its context) before the work of every item: the bounding
-  box of the control points of a path (a curve lies inside the hull of them; an arc is its end point grown by its radius)
-  mapped to surface pixels, cut to the target (the surface, or the clip layer that the item is drawn on), once for a
-  visible fill and once for a visible stroke, the latter grown by half the stroke width; an estimated box for text (the
-  longest line times 0.6 of the font size by the line height, cut to the target, since measuring is painting work); the
+  box of a path in the item's units (`Path.GetBounds`: a curve lies inside the hull of its control points, and an arc is
+  converted to the curves of its ellipse with the radii corrected as SVG does, so the whole arc is inside, not only its
+  end point) mapped to surface pixels, widened to whole pixels, cut to the target (the surface, or the clip layer that
+  the item is drawn on), once for a visible fill and once for a visible stroke, the latter grown by half the stroke
+  width; for text, one estimated box for each non-empty line where the painter places it (the characters times 0.6 of
+  the font size, at most the `limit` of the text, by a font size and a third, from the baseline plus the line number
+  times the line height, aligned as the text is; a rotated item is one square around its anchor), cut to the target, so
+  that text that is truncated, off the target or not drawn (no visible fill, a font size that is not positive) is
+  charged only for what the painter draws, and a zero or negative line height still charges every line (measuring the
+  text would be painting work); the
   box of a picture and the pixels of each resampled copy that is made; the pixels of a clip layer and of the layers of a
-  translucent trail. An item outside the target costs nothing, an exact total at the limit is accepted, a box that cannot
+  translucent trail, whose fill chunks are then charged in the coordinates of the layer like its stroke chunks. An item
+  outside the target costs nothing, an exact total at the limit is accepted, a box that cannot
   be computed is the whole target, and the failure is raised before the item is painted. It is located at the item's
   `SceneItem.Source` or, when it has none, at the nearest enclosing group that has one: the `marks` group of a mark
   carries the location of the mark. At about 40 nanoseconds a pixel in the worst measured case (a circle with a stroke
@@ -484,7 +491,10 @@ input:
   step or index goes through `NumericConversions` (`ToInt32Saturating`, `ToInt64Saturating`: truncate toward zero,
   saturate at the range, NaN is zero), and the callers bound the saturated value (the row budget, the cell limit) before
   they allocate: a quantile checks the row budget, then `TableLayout.MaxCells`, before it creates the array of
-  probabilities. A canvas whose size is not a finite number (the guides of a `pow` scale with an exponent of `1e300`
+  probabilities, and the loader compares a row count with the row limit as an integer (a count of 2^63 equals a limit
+  of `long.MaxValue` as a double, so it is refused first) and bounds a generated sequence and the points of a sampled
+  curve by `MaxCells` as well. A canvas whose size is not a finite number (the guides of a `pow` scale with an
+  exponent of `1e300`
   are NaN) is a located `VegaLiteRenderException` raised when the view is measured, never an unlocated argument
   exception from the scene. A build with `CheckForOverflowUnderflow` on the library passes every test: that is the
   oracle for a cast that was missed.
@@ -2075,7 +2085,7 @@ fails when a `VegaLiteLimits` property has no row.
 | Input-controlled cost | Bound | Audit row |
 | --------------------- | ----- | --------- |
 | Source text length, JSON nesting | `MaxSourceLength` (`InvalidDataException`), `MaxJsonDepth` (`VegaLiteSpecException`, located at the crossing) | `open/source-length`, `open/json-depth` |
-| Inline rows, generated sequences (count, step, unrepresentable count), fields of a row | `MaxDataRows`, `MaxFieldCount`, charged before any row is converted | `data/rows-inline`, `data/rows-sequence`, `data/rows-sequence-step`, `data/rows-sequence-unrepresentable`, `data/fields` |
+| Inline rows, generated sequences (count, step, unrepresentable count, cells), fields of a row | `MaxDataRows` (compared as integers), `TableLayout.MaxCells` for a sequence, `MaxFieldCount`, charged before any row is converted | `data/rows-inline`, `data/rows-sequence`, `data/rows-sequence-step`, `data/rows-sequence-unrepresentable`, `data/rows-sequence-cells`, `data/fields` |
 | Data file size and number | `MaxDataBytes`, `MaxDataFiles`; a file over the limit is refused before it is opened | `data/bytes`, `data/files` |
 | Rows made by `fold`, `flatten`, `impute` (groups times keys), `quantile`, `density` | `MaxDataRows` with the clamped count, `TableLayout.MaxCells` for cells | `transform/fold`, `transform/flatten`, `transform/impute`, `transform/quantile-step`, `transform/density-steps` |
 | Work of `loess`, window frames, aggregates, bootstrap, polynomial fits | `MaxEvaluationSteps` (calibrated weights), cancellation | `transform/loess`, `transform/window-frame`, stage cancellation tests |
