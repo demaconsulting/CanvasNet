@@ -442,6 +442,8 @@ public class SvgLengthUnitTests
     [InlineData("-Infinity")]
     [InlineData("1e6in")]
     [InlineData("1e400px")]
+    [InlineData("1e39")]
+    [InlineData("1e39%")]
     [InlineData("")]
     [InlineData("abc")]
     [InlineData("1px 2px")]
