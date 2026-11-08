@@ -3,7 +3,7 @@
 ![CanvasNetSvg Structure](CanvasNetSvgView.svg)
 
 <!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca renderable -->
-<!-- cspell:ignore unitless letterboxing -->
+<!-- cspell:ignore unitless letterboxing vmin vmax longhand longhands -->
 
 `SvgCodec` is distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
 `DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package.
@@ -56,6 +56,12 @@ nor cacheable) - see _ViewBox Fitting Policy_ below
   `url(#id)`), `fill-opacity`, `fill-rule` (`nonzero`/`evenodd`), `stroke` (same color forms),
   `stroke-width`, `stroke-opacity`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`,
   `stroke-dasharray`, `stroke-dashoffset`, and `opacity`
+- Lengths and fonts: every `<length>` accepts a CSS unit (`px`, `pt`, `pc`, `in`, `cm`, `mm`, `Q`,
+  `em`, `ex`, `ch`, `rem`, `lh`, `rlh`, `vw`, `vh`, `vmin`, `vmax`), a percentage, or `calc()`/
+  `min()`/`max()`/`clamp()`; `font-size` takes lengths, keywords (`xx-small` to `xxx-large`,
+  `larger`, `smaller`) and the CSS-wide keywords from an attribute, an inline style, a stylesheet
+  rule or the `font` shorthand; a `text` element's first `dx`/`dy` value offsets its origin - see
+  _Length Units and font-size_ below
 - Colors: every color value (`fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color`) is parsed by
   the core `Canvas.CssColor` unit: the 148 CSS color names and `transparent`, `#rgb`/`#rgba`/`#rrggbb`/
   `#rrggbbaa`, `rgb()`/`rgba()` and `hsl()`/`hsla()` in comma or space-and-slash syntax, with fractional
@@ -234,7 +240,119 @@ exactly like the shape/text geometry attributes above. Threading a viewport basi
 `ResolvePaint`/`BuildGradient`/`GetGradientCoordinateOrDefault` for this one `userSpaceOnUse`
 case was evaluated for this phase and intentionally deferred to a follow-up phase as a bounded,
 documented simplification (not a defect) - it is unaffected by, and independent of, every other
-percentage capability described above.
+percentage capability described above. (Unit-bearing coordinates there are handled; see
+_Length Units and font-size_ below.)
+
+### Length Units and font-size
+
+Specification references: SVG 2 _Units_ (`coords.html#Units`: a unit-less number is in user units,
+and a unit is converted at the CSS reference pixel); CSS Values and Units Level 4 _Distance
+Units_ (`#lengths`, with `#absolute-lengths`, `#font-relative-lengths`,
+`#viewport-relative-lengths`) and _Mathematical Expressions_ (`#calc-func`); CSS Fonts Level 4
+`font-size` (`#font-size-prop`, `<absolute-size>`, `<relative-size>`) and `font` (`#font-prop`);
+SVG 2 _Presentation attributes_ (`styling.html#PresentationAttributes`).
+
+**Root cause that motivated this section.** The strict length parser (`ParseCoordinate`) knew only
+a number or a `%`, so `font-size="10px"` (the form Vega emits) failed with "invalid numeric data".
+The only unit-aware site was the root `width`/`height` (`ParseLength`), which stripped the unit
+without converting it, so a `1in` root reported 1 pixel.
+
+**One resolver.** All length parsing now funnels through `TryResolveLength` (file
+`SvgCodec.Lengths.cs`), which never throws and returns the user-unit value or a failure with a
+short reason. `ParseGeometryCoordinate` (strict), `ParseLength` (root size), the gradient/pattern/
+mask-region readers, the dash-array reader, `font-size` and the text `dx`/`dy` all call it, so the
+grammar, the unit conversions and the safety bounds exist once.
+
+- **Grammar.** `<number>` (user units), `<number><unit>` with no whitespace between them, a
+  `<percentage>`, or a math function. A unit identifier is at most four ASCII letters, matched
+  case-insensitively; an `e` is an exponent only when digits follow, so `1e3` is a number while
+  `1em`/`1ex` are a number plus a unit.
+- **Absolute units** are converted in double precision and rounded to float once: `px` 1, `pt` 96/72,
+  `pc` 16, `in` 96, `cm` 96/2.54, `mm` 96/25.4, `Q` 96/101.6. Bare numbers and percentages keep the
+  original single-precision arithmetic, so every pre-existing unit-less document renders
+  bit-identically; `1in`, `96px` and `2.54cm` resolve to the same float.
+- **Font-relative units** read the element's own cascaded state: `em` is the font size (the
+  **parent's** for the `font-size` property itself); `ex` and `ch` come from `FontRelativeMetrics`,
+  a lazily measured per-font object shared down the cascade while the family, weight and style are
+  unchanged (`ex` = height of the `x` glyph outline bounds divided by units-per-em, because the core
+  font reader does not expose the OS/2 `sxHeight`; `ch` = advance of `0` divided by units-per-em;
+  each falls back to 0.5 em when the glyph is missing or unusable, which CSS Values 4 permits);
+  `rem` is `RenderState.RootFontSize`; `lh` and `rlh` come from the cascaded `LineHeight`/
+  `RootLineHeight` (a number is a multiplier re-applied by each descendant's font size, a length or
+  percentage is resolved at the declaring element, and `normal` is 1.2 em).
+- **Viewport units** `vw`, `vh`, `vmin`, `vmax` are percentages of `RootViewportWidth`/
+  `RootViewportHeight` - the root's viewBox-derived size in user units, the same basis a `%` uses at
+  the root, never replaced by a `symbol` viewport. This differs from a browser only when the root
+  `width`/`height` and the `viewBox` disagree.
+- **Math functions.** `LengthMathEvaluator` is a recursive-descent evaluator for `calc()` (`+ - * /`,
+  parentheses, nested `calc()`), `min()`, `max()` and `clamp()`. Terms are numbers or lengths (a
+  percentage is a length, resolved eagerly against the call site's axis, so `calc(100% - 2em)`
+  works). `+`/`-` need matching kinds and surrounding whitespace, `*` needs a number operand, `/`
+  needs a non-zero number divisor. Input length (1024 characters) and nesting depth (16) are
+  bounded and the result must be finite and within `MaxCoordinateMagnitude`.
+
+**Render-state additions.** `RenderState` gained `RootFontSize`, `RootViewportWidth/Height`,
+`LineHeight`, `RootLineHeight` and `FontMetrics`. `ApplyPresentationAttributes` resolves the font
+properties first (into an intermediate state) and then every other length against that state, so
+`stroke-width="2em"` on an element that also sets `font-size` uses its own new size. The five places
+that restart the presentation cascade (clip-path, mask, marker, pattern and feImage content) use
+`RenderState.InitialWithin`, which keeps the viewport, root viewport, root font size and root line
+height so `rem` and `vw` mean the same inside such content. The root element's own cascade is run
+with `isRoot` so its own font size is the `rem` basis for the rest of its properties.
+
+**Call sites by malformed-value class** (this table is the consistency contract; see also
+_Error Handling_):
+
+| Class | Call sites | Malformed value |
+| --- | --- | --- |
+<!-- markdownlint-disable MD013 -->
+| S, strict | rect/ellipse/circle/line/image/use/symbol/marker geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`..`y2`, `refX`, `refY`, `markerWidth`, `markerHeight`), text `x`/`y`, `stroke-width`, `stroke-dashoffset`, each `stroke-dasharray` entry | `InvalidDataException` naming the attribute (never a raw `FormatException`) |
+| T, tolerant | root `width`/`height`, gradient and pattern coordinates, a `userSpaceOnUse` mask region | treated as absent; the default or fallback applies |
+| F, font | `font-size`, `line-height`, the `font` shorthand; text `dx`/`dy` | the declaration is ignored; the value is inherited (or no offset) |
+<!-- markdownlint-enable MD013 -->
+
+Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
+`stroke-miterlimit`, filter primitive parameters, `stdDeviation`, and the filter region and
+primitive subregion fractions.
+
+**Root width/height.** `ParseLength` resolves them with a throwaway state: a percentage or a
+viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their fallbacks, and
+`em`/`rem` use the root's own `font-size` from its attribute, inline `style` (including the `font`
+shorthand) or `font` attribute, else 16. Stylesheet rules are not consulted because the stylesheet
+is built after the size is known. `GetInfo` and `Load` therefore agree. Intended behavior changes:
+`1in` now reports 96 (not 1), `210mm` 794, `10rem` 160; `12 px` (a space before the unit, invalid
+CSS) is no longer accepted.
+
+**font-size.** `ParseFontSizeValue` accepts the absolute keywords (browser table 9/10/13/16/18/24/
+32/48; the CSS Fonts 4 factors 3/5, 3/4, 8/9, 1, 6/5, 3/2, 2, 3 would give 9.6, 12, 14.22, 16, 19.2,
+24, 32, 48 - the choice is one table, `AbsoluteFontSizes`), `larger`/`smaller` (1.2 times and a
+fifth of the parent's), `inherit`/`unset` (parent), `initial` (16), and any length, percentage or
+math function against the parent. `revert` and an invalid value are ignored, so the size is
+inherited; a zero or negative size still renders no text (existing behavior). `medium` is 16
+regardless of the parent.
+
+**font shorthand.** `ExpandFontShorthand` parses `[style || variant || weight || stretch]? size
+[/ line-height]? family` and expands it into the longhands `font-style`, `font-weight`,
+`font-size`, `line-height` and `font-family`, omitted components reset to `normal`. The expansion
+happens in `ParseDeclarationBlock`, so inline styles and stylesheet rules see only longhands and the
+existing last-declaration-wins and specificity rules apply unchanged; the `MaxCssDeclarationsPerRule`
+cap counts source declarations, not expansions. A system-font keyword, a missing family or an
+invalid size drops the whole declaration; the CSS-wide keywords expand to the longhands they affect.
+The `font` presentation attribute is expanded by `ExpandFontAttribute` as the lowest tier, below an
+explicit longhand attribute, an inline style and a stylesheet rule. `font-variant` and
+`font-stretch` components are parsed and ignored.
+
+**Text dx/dy.** `RenderText` adds the first `dx`/`dy` value (any length, em and percentages
+included) to the `x`/`y` origin, the canonical use of `em` in generated SVG (Vega's
+`dy="0.71em"`). Lists beyond the first value, `tspan` positioning, `letter-spacing`,
+`word-spacing`, `textLength` and `baseline-shift` remain unsupported.
+
+**Accepted simplifications.** `ex`/`ch`/`lh`/`em` in a gradient, pattern or mask-region coordinate
+resolve against the referencing element's font rather than the paint server's own cascade;
+percentages in gradient coordinates remain basis-1 fractions; units are converted (rather than
+rejected) under `objectBoundingBox`; nested `svg` elements remain unsupported, so there is no
+nested viewport basis for `vw`; and `ex` uses the `x` glyph's outline height rather than the font's
+declared x-height (a core-library follow-up).
 
 ### Data Model
 
@@ -488,7 +606,9 @@ tolerant-skip convention for other overflow cases (see _Error Handling_ below).
 
 `GetInfo` (and `Load`, internally, for the same purpose) resolves a document's size in three
 tiers, in order: (1) the `viewBox` attribute, if present; (2) the `width`/`height` attributes, if
-both are present and resolve to positive numbers; (3) the CSS/UA default replaced-element
+both are present and resolve to positive numbers - each converted from its CSS unit to user units
+(see _Length Units and font-size_ above; `1in` is 96, and a percentage or viewport unit counts as
+absent); (3) the CSS/UA default replaced-element
 intrinsic size of 300x150, if neither of the above is present. This mirrors how a web browser
 sizes a sizeless, viewBox-less `<img src="...svg">` element, and ensures `GetInfo` always returns
 a usable, positive size rather than failing on a document that omits explicit sizing information
@@ -1500,7 +1620,9 @@ looked up by core `Rendering.TextRenderer.CreateTextPath` (through `Fonts.TrueTy
 `GetGlyphOutline`/`GetAdvanceWidth`/`GetKerning`), which lays the run out as one combined local-space
 outline path. A private `BuildGlyphRunPath` helper is a thin adapter: it maps `text-anchor`
 (`start`/`middle`/`end`) to `TextAlign.Left`/`Center`/`Right` and passes the cascaded `font-size` and
-the element's `x`/`y` as the baseline anchor. The resulting path is transformed into pixel space and
+the element's baseline anchor - `x`/`y` plus the first `dx`/`dy` value, resolved by one shared
+`ResolveTextOrigin` so rendering, the filter bounds pre-pass and a `clipPath` text child place the
+run identically. The resulting path is transformed into pixel space and
 filled like any other shape.
 
 **Non-positive `font-size` renders nothing.** The cascaded `font-size` is only validated as finite
@@ -1581,7 +1703,15 @@ differently:
   is instead tolerated — treated as absent/unrecognized and resolved via each attribute's own
   documented fallback — because rendering can still proceed meaningfully without that one value,
   unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
-  all. An invalid `stroke-miterlimit` value (non-finite, or less than `1` - the documented
+  all. The same three-class policy governs every length (see _Length Units and font-size_): a
+  malformed length (an unknown unit, whitespace between number and unit, a malformed `calc()`, or a
+  non-finite or over-magnitude result) in shape/text/use/image/marker geometry, `stroke-width`,
+  `stroke-dashoffset` or a `stroke-dasharray` entry is `InvalidDataException` (never a raw
+  `FormatException`); in the root `width`/`height` or a gradient/pattern/mask-region coordinate it
+  is treated as absent; in `font-size`, `line-height`, the `font` shorthand or text `dx`/`dy` the
+  declaration is ignored and the value inherited - a deliberate change from throwing for
+  `font-size`, matching the CSS invalid-declaration rule. An invalid `stroke-miterlimit` value
+  (non-finite, or less than `1` - the documented
   contract of the `Drawing.StrokeStyle` it eventually feeds) is a further, separate tolerant case:
   rather than throwing, it falls back to the inherited value, matching this codec's existing
   tolerant handling of a malformed `stroke-dasharray`, since there is no natural "skip the whole

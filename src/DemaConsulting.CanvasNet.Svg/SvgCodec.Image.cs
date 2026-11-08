@@ -167,7 +167,7 @@ public static partial class SvgCodec
         // stands in for a shape's own stroke-expanded painted bounds (an <image> has no stroke
         // concept, so no ExpandBoundsForStroke call is needed)
         var placementRect = new Rect(x, y, width, height);
-        var effects = ResolveImageEffects(element, context, scope.MarkerDepth > 0, placementRect, transform);
+        var effects = ResolveImageEffects(element, state, context, scope.MarkerDepth > 0, placementRect, transform);
         if (effects == null)
         {
             return;
@@ -460,6 +460,7 @@ public static partial class SvgCodec
     ///     and the pixel-space effects region they imply.
     /// </summary>
     /// <param name="element">The <c>image</c> element.</param>
+    /// <param name="state">The element's cascaded state, used to resolve a mask region written with CSS units.</param>
     /// <param name="context">The fixed per-document render context.</param>
     /// <param name="suppressEffects">Whether the element's own effects are never resolved (marker content).</param>
     /// <param name="placementRect">The placement rect, standing in for a shape's painted bounds.</param>
@@ -467,6 +468,7 @@ public static partial class SvgCodec
     /// <returns>The resolved effects, or <see langword="null"/> for a degenerate/oversized region.</returns>
     private static ImageEffects? ResolveImageEffects(
         XElement element,
+        RenderState state,
         RenderContext context,
         bool suppressEffects,
         Rect placementRect,
@@ -476,7 +478,7 @@ public static partial class SvgCodec
         var clipPathElement = suppressEffects ? null : ResolveClipPathElement(element, context);
         var maskElement = suppressEffects ? null : ResolveMaskElement(element, context);
 
-        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, placementRect, transform);
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, placementRect, transform, state);
         if (region == null)
         {
             return null;

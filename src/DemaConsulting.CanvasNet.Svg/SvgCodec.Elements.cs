@@ -3,7 +3,7 @@
 // cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
 // cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-// cspell:ignore unblurred premult
+// cspell:ignore unblurred premult vmin vmax longhand longhands
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
@@ -108,6 +108,27 @@ public static partial class SvgCodec
     ///     <c>pixelated</c>, <c>crisp-edges</c> or <c>optimizeSpeed</c>, so a raster <c>image</c>
     ///     is drawn with nearest-neighbor sampling instead of smooth resampling.
     /// </param>
+    /// <param name="RootFontSize">
+    ///     The root <c>svg</c> element's computed <c>font-size</c>, the basis of the <c>rem</c>
+    ///     unit. Seeded with the initial 16 and replaced once the root element's own cascade is
+    ///     known (see <c>RenderDocument</c>).
+    /// </param>
+    /// <param name="RootViewportWidth">
+    ///     The root viewport's width in user units, the basis of the <c>vw</c>/<c>vmin</c>/<c>vmax</c>
+    ///     units. Unlike <paramref name="ViewportWidth"/> it is never replaced by a <c>symbol</c>
+    ///     viewport: the units are defined against the initial containing block.
+    /// </param>
+    /// <param name="RootViewportHeight">The root viewport's height in user units, the basis of <c>vh</c>/<c>vmin</c>/<c>vmax</c>.</param>
+    /// <param name="LineHeight">
+    ///     The computed <c>line-height</c> (see <see cref="LineHeightSpec"/>), the basis of the
+    ///     <c>lh</c> unit; <see langword="null"/> means <c>normal</c> (1.2 times the font size).
+    /// </param>
+    /// <param name="RootLineHeight">The root element's computed <c>line-height</c>, the basis of the <c>rlh</c> unit.</param>
+    /// <param name="FontMetrics">
+    ///     The lazily measured <c>ex</c>/<c>ch</c> ratios of the current font, shared down the
+    ///     cascade while the font stays the same; <see langword="null"/> before any cascade has run
+    ///     (those units then use their 0.5em fallback).
+    /// </param>
     private sealed record RenderState(
         string Fill,
         string Stroke,
@@ -131,7 +152,13 @@ public static partial class SvgCodec
         string MarkerEnd,
         float ViewportWidth,
         float ViewportHeight,
-        bool PixelatedImages = false)
+        bool PixelatedImages = false,
+        float RootFontSize = 16f,
+        float RootViewportWidth = 300f,
+        float RootViewportHeight = 150f,
+        LineHeightSpec? LineHeight = null,
+        LineHeightSpec? RootLineHeight = null,
+        FontRelativeMetrics? FontMetrics = null)
     {
         /// <summary>
         ///     The default render state every document starts with, matching the SVG/CSS initial
@@ -144,7 +171,8 @@ public static partial class SvgCodec
         ///     positive percentage basis even before <c>RenderDocument</c> overrides it with the
         ///     document's own resolved viewBox/size - every real render path immediately overrides
         ///     both fields (see <c>RenderDocument</c>'s remarks), so this default value is never
-        ///     itself observed by a percentage resolved against a real document.
+        ///     itself observed by a percentage resolved against a real document. The root font
+        ///     size, root viewport and line height seeds follow the same reasoning.
         /// </remarks>
         public static readonly RenderState Initial = new(
             Fill: "black",
@@ -169,7 +197,33 @@ public static partial class SvgCodec
             MarkerEnd: "none",
             ViewportWidth: 300f,
             ViewportHeight: 150f,
-            PixelatedImages: false);
+            PixelatedImages: false,
+            RootFontSize: 16f,
+            RootViewportWidth: 300f,
+            RootViewportHeight: 150f,
+            LineHeight: null,
+            RootLineHeight: null,
+            FontMetrics: null);
+
+        /// <summary>
+        ///     Starts a fresh presentation cascade (the initial values) for content that does not
+        ///     inherit its referencing element's presentation - <c>clipPath</c>, <c>mask</c>,
+        ///     <c>marker</c>, <c>pattern</c> and <c>feImage</c> content - while keeping the
+        ///     document-wide bases that are not part of the cascade: the current viewport, the root
+        ///     viewport, and the root font size/line height. This is what lets <c>rem</c> and
+        ///     <c>vw</c> mean the same thing inside such content as outside it.
+        /// </summary>
+        /// <param name="outer">The state of the referencing element.</param>
+        /// <returns>A new initial state carrying <paramref name="outer"/>'s viewport and root bases.</returns>
+        public static RenderState InitialWithin(RenderState outer) => Initial with
+        {
+            ViewportWidth = outer.ViewportWidth,
+            ViewportHeight = outer.ViewportHeight,
+            RootFontSize = outer.RootFontSize,
+            RootViewportWidth = outer.RootViewportWidth,
+            RootViewportHeight = outer.RootViewportHeight,
+            RootLineHeight = outer.RootLineHeight
+        };
     }
 
     /// <summary>
@@ -349,8 +403,17 @@ public static partial class SvgCodec
     /// </param>
     private static void RenderDocument(XElement root, Matrix3x2 fitTransform, Vector2 viewportSize, RenderContext context, RenderDiagnostics? diagnostics = null)
     {
-        var initialState = RenderState.Initial with { ViewportWidth = viewportSize.X, ViewportHeight = viewportSize.Y };
-        var rootState = ApplyPresentationAttributes(initialState, root, context);
+        var initialState = RenderState.Initial with
+        {
+            ViewportWidth = viewportSize.X,
+            ViewportHeight = viewportSize.Y,
+            RootViewportWidth = viewportSize.X,
+            RootViewportHeight = viewportSize.Y
+        };
+
+        // The root element's own cascade establishes the rem/rlh bases every descendant (and, via
+        // RenderState.InitialWithin, every fresh-cascade content tree) then shares
+        var rootState = ApplyPresentationAttributes(initialState, root, context, isRoot: true);
         var totalElements = 0;
         var workBudget = new GeometryWorkBudget();
         var filterWorkBudget = new FilterWorkBudget(diagnostics);
@@ -623,22 +686,78 @@ public static partial class SvgCodec
     ///     The fixed per-document render context, supplying this element's stylesheet-matching
     ///     inputs (<see cref="RenderContext.Stylesheet"/>/<see cref="RenderContext.CssBudget"/>).
     /// </param>
+    /// <param name="isRoot">
+    ///     <see langword="true"/> for the root <c>svg</c> element, whose own computed font size and
+    ///     line height become the <c>rem</c>/<c>rlh</c> bases for the rest of its own properties
+    ///     and for every descendant.
+    /// </param>
     /// <returns>The new, cascaded render state for <paramref name="element"/>.</returns>
-    private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element, RenderContext context)
+    /// <remarks>
+    ///     Font properties are resolved first, into an intermediate state, because every length
+    ///     property of the same element is evaluated against that element's OWN font (<c>em</c> in
+    ///     <c>stroke-width</c> means this element's font size), whereas <c>font-size</c> itself is
+    ///     evaluated against the parent's (CSS Fonts 4). The <c>font</c> shorthand is expanded into
+    ///     longhands by the CSS declaration parser for inline styles and stylesheet rules, and by
+    ///     <see cref="ExpandFontAttribute"/> for the <c>font</c> presentation attribute, which ranks
+    ///     below every other source.
+    /// </remarks>
+    private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element, RenderContext context, bool isRoot = false)
     {
         var styleContext = context.GetStyleContext(element);
+        var fontAttribute = ExpandFontAttribute(element);
 
-        string? Styled(string property) => ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property);
+        string? FromFontAttribute(string property) =>
+            fontAttribute != null && fontAttribute.TryGetValue(property, out var expanded) ? expanded : null;
 
+        string? Styled(string property) =>
+            ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property) ?? FromFontAttribute(property);
+
+        // Step 1: the font cascade. font-size resolves against the PARENT; an invalid value is
+        // ignored (class F: the declaration is dropped and the size is inherited)
+        var rawFontSize = Styled("font-size");
+        var fontSize = (rawFontSize == null ? null : ParseFontSizeValue(rawFontSize, parent)) ?? parent.FontSize;
+        var fontFamily = Styled("font-family") ?? parent.FontFamily;
+        var fontWeight = ParseFontWeight(Styled("font-weight")) ?? parent.FontWeight;
+        var fontStyle = ParseFontStyle(Styled("font-style")) ?? parent.FontStyle;
+
+        // The ex/ch measurements belong to the font, not the element: share them down the cascade
+        // until the family, weight or style changes
+        var fontMetrics = parent.FontMetrics != null &&
+                          parent.FontFamily == fontFamily && parent.FontWeight == fontWeight && parent.FontStyle == fontStyle
+            ? parent.FontMetrics
+            : new FontRelativeMetrics(() => ResolveFont(context, fontFamily, fontWeight, fontStyle));
+
+        var fontState = parent with
+        {
+            FontFamily = fontFamily,
+            FontSize = fontSize,
+            FontWeight = fontWeight,
+            FontStyle = fontStyle,
+            FontMetrics = fontMetrics,
+            RootFontSize = isRoot ? fontSize : parent.RootFontSize
+        };
+
+        // line-height is not an SVG presentation attribute: only CSS and the font shorthand set it
+        var rawLineHeight = ResolveStyledValue(styleContext, "line-height") ?? FromFontAttribute("line-height");
+        var lineHeight = rawLineHeight != null && TryParseLineHeight(rawLineHeight, fontState, out var computedLineHeight)
+            ? computedLineHeight
+            : parent.LineHeight;
+        fontState = fontState with
+        {
+            LineHeight = lineHeight,
+            RootLineHeight = isRoot ? lineHeight : parent.RootLineHeight
+        };
+
+        // Step 2: everything else, with em/ex/ch/lh/rem resolving against this element's font
         var dashArrayAttr = Styled("stroke-dasharray");
         var strokeDashArray = dashArrayAttr switch
         {
             null => parent.StrokeDashArray,
             _ when string.Equals(dashArrayAttr.Trim(), "none", StringComparison.OrdinalIgnoreCase) => null,
-            _ => ParseDashArray(dashArrayAttr, parent)
+            _ => ParseDashArray(dashArrayAttr, fontState)
         };
 
-        return parent with
+        return fontState with
         {
             Fill = Styled("fill") ?? parent.Fill,
             Stroke = Styled("stroke") ?? parent.Stroke,
@@ -646,16 +765,12 @@ public static partial class SvgCodec
             StrokeOpacity = ParseStyledOptionalOpacity(Styled("stroke-opacity")) ?? parent.StrokeOpacity,
             Opacity = parent.Opacity * (ParseStyledOptionalOpacity(Styled("opacity")) ?? 1f),
             FillRule = ParseFillRule(Styled("fill-rule")) ?? parent.FillRule,
-            StrokeWidth = GetOptionalFloat(Styled("stroke-width"), "stroke-width", parent, PercentageAxis.Diagonal) ?? parent.StrokeWidth,
+            StrokeWidth = GetOptionalFloat(Styled("stroke-width"), "stroke-width", fontState, PercentageAxis.Diagonal) ?? parent.StrokeWidth,
             StrokeLineCap = ParseLineCap(Styled("stroke-linecap")) ?? parent.StrokeLineCap,
             StrokeLineJoin = ParseLineJoin(Styled("stroke-linejoin")) ?? parent.StrokeLineJoin,
             StrokeMiterLimit = ParseValidMiterLimit(Styled("stroke-miterlimit")) ?? parent.StrokeMiterLimit,
             StrokeDashArray = strokeDashArray,
-            StrokeDashOffset = GetOptionalFloat(Styled("stroke-dashoffset"), "stroke-dashoffset", parent, PercentageAxis.Diagonal) ?? parent.StrokeDashOffset,
-            FontFamily = Styled("font-family") ?? parent.FontFamily,
-            FontSize = GetOptionalFloat(Styled("font-size"), "font-size", parent, PercentageAxis.FontSize) ?? parent.FontSize,
-            FontWeight = ParseFontWeight(Styled("font-weight")) ?? parent.FontWeight,
-            FontStyle = ParseFontStyle(Styled("font-style")) ?? parent.FontStyle,
+            StrokeDashOffset = GetOptionalFloat(Styled("stroke-dashoffset"), "stroke-dashoffset", fontState, PercentageAxis.Diagonal) ?? parent.StrokeDashOffset,
             TextAnchor = ParseTextAnchor(Styled("text-anchor")) ?? parent.TextAnchor,
             MarkerStart = Styled("marker-start") ?? parent.MarkerStart,
             MarkerMid = Styled("marker-mid") ?? parent.MarkerMid,
@@ -672,7 +787,7 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="raw">The already-resolved raw value, or <see langword="null"/> if absent from every tier.</param>
     /// <returns>The clamped opacity value, or <see langword="null"/> if <paramref name="raw"/> is <see langword="null"/>.</returns>
-    /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is present but not a valid number.</exception>
+    /// <exception cref="InvalidDataException">Thrown when <paramref name="raw"/> is present but not a valid number.</exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="raw"/> is present but parses to a non-finite value - see
     ///     <see cref="ParseCoordinate"/>.
@@ -795,7 +910,7 @@ public static partial class SvgCodec
     /// <summary>Parses and clamps a raw opacity string to <c>[0, 1]</c>. See <see cref="ParseStyledOptionalOpacity"/>.</summary>
     /// <param name="raw">The raw opacity string.</param>
     /// <returns>The clamped opacity value.</returns>
-    /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is not a valid number.</exception>
+    /// <exception cref="InvalidDataException">Thrown when <paramref name="raw"/> is not a valid number.</exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="raw"/> parses to a non-finite value - see
     ///     <see cref="ParseCoordinate"/>.
@@ -803,22 +918,23 @@ public static partial class SvgCodec
     private static float ParseOpacityValue(string raw) => Math.Clamp(ParseCoordinate(raw, 1f), 0f, 1f);
 
     /// <summary>
-    ///     Parses a <c>stroke-dasharray</c> attribute's number list, resolving a trailing <c>%</c>
-    ///     on any entry against the diagonal percentage basis (see
-    ///     <see cref="PercentageAxis.Diagonal"/> and <see cref="ParseDashArrayNumberList"/>) and
+    ///     Parses a <c>stroke-dasharray</c> attribute's length list, resolving each entry to user
+    ///     units (a number, a number with a CSS unit, a percentage against the diagonal percentage
+    ///     basis - see <see cref="PercentageAxis.Diagonal"/> and <see cref="ParseDashArrayNumberList"/> -
+    ///     or a math function) and
     ///     tolerantly treating a negative-containing or all-zero list as "no dashing" (solid
     ///     stroke) rather than an error, matching how an unparseable value is treated elsewhere in
     ///     this codec.
     /// </summary>
     /// <param name="raw">The attribute's raw, non-<c>"none"</c> value.</param>
     /// <param name="state">
-    ///     The cascaded render state supplying the current viewport, used to resolve the diagonal
-    ///     percentage basis for any percentage-suffixed entry.
+    ///     The cascaded render state supplying the current viewport (for the diagonal percentage
+    ///     basis) and the font (for font-relative units).
     /// </param>
     /// <returns>The parsed dash array, or <see langword="null"/> for an effectively-solid stroke.</returns>
     private static List<float>? ParseDashArray(string raw, RenderState state)
     {
-        var numbers = ParseDashArrayNumberList(raw, ResolvePercentageBasis(state, PercentageAxis.Diagonal));
+        var numbers = ParseDashArrayNumberList(raw, state);
         return numbers.Count == 0 || numbers.Exists(v => v < 0f) || numbers.TrueForAll(v => v.Equals(0f))
             ? null
             : numbers;

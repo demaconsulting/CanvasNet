@@ -20,6 +20,7 @@ for their provenance and licensing.
 | `arrow-markers.svg` | `marker` referenced via `marker-end`, `orient="auto"`, `markerUnits="userSpaceOnUse"` |
 | `label-halo.svg` | `filter` referenced via `filter="url(#id)"`: `feFlood`/`feGaussianBlur`/`feComposite` halo |
 | `css-styling.svg` | `<style>` CSS: type/class/id/universal/compound/comma-list selectors, combinators, cascade |
+| `vega-px-font-size.svg` | Vega-style output: `font-size="10px"`, `dy="0.71em"`, `px` lengths |
 
 ## Real-world third-party fixtures
 

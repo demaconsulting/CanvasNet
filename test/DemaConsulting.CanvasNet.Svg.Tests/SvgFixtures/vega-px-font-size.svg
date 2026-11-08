@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="marks" width="220" height="120" viewBox="0 0 220 120" version="1.1">
+  <rect width="220" height="120" fill="white"/>
+  <g transform="translate(30,10)">
+    <g class="mark-group role-frame root">
+      <g class="mark-rect role-mark marks" fill="#4c78a8">
+        <rect x="10.5" y="30.5" width="30px" height="60px"/>
+        <rect x="60.5" y="10.5" width="30px" height="80px"/>
+        <rect x="110.5" y="50.5" width="30px" height="40px"/>
+      </g>
+      <g class="mark-group role-axis">
+        <g transform="translate(0.5,90.5)">
+          <path class="domain" d="M0,0h160" fill="none" stroke="#888" stroke-width="1px"/>
+        </g>
+        <g class="mark-text role-axis-label" font-family="sans-serif" font-size="10px" fill="#000" text-anchor="middle">
+          <text transform="translate(25.5,93)" dy="0.71em">0</text>
+          <text transform="translate(75.5,93)" dy="0.71em">50</text>
+          <text transform="translate(125.5,93)" dy="0.71em">100</text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

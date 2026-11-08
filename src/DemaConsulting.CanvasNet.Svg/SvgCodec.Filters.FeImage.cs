@@ -121,7 +121,7 @@ public static partial class SvgCodec
         }
 
         var localToTemp = chain.Transform * Matrix3x2.CreateTranslation(-chain.RegionPixelX, -chain.RegionPixelY);
-        var targetState = RenderState.Initial with { ViewportWidth = chain.State.ViewportWidth, ViewportHeight = chain.State.ViewportHeight };
+        var targetState = RenderState.InitialWithin(chain.State);
         var targetContext = chain.Context with { Surface = output };
         RenderElement(target, targetState, localToTemp, targetContext, scope.NestedUse(), ref totalElements);
     }

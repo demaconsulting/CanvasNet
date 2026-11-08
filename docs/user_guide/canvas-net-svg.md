@@ -1,5 +1,7 @@
 # CanvasNet SVG Package
 
+<!-- cspell:ignore vmin vmax -->
+
 ## API Reference
 
 ### SvgCodec
@@ -52,11 +54,12 @@ face for each `text` element's own cascaded `font-weight`/`font-style`. The root
 attribute is absent - the centered-letterbox default every document without an
 explicit `preserveAspectRatio` attribute already rendered with. This same fit algorithm also
 applies to a `use` element referencing a `symbol` element with its own `viewBox`, and to a
-`marker` element's own explicit `preserveAspectRatio` attribute. Every shape/text geometry
-attribute (`x`/`y`/`width`/`height`/`rx`/`ry`/`cx`/`cy`/`r`/`x1`/`y1`/`x2`/`y2`/`font-size`/
-`stroke-width`/`stroke-dasharray`/`stroke-dashoffset`/`use`'s `x`/`y`/`width`/`height`/`text`'s
-`x`/`y`) also accepts a trailing `%`, resolved against the current viewport (or, for `font-size`,
-the parent element's own `font-size`) - `stroke-miterlimit` is the sole exception, since it is a
+`marker` element's own explicit `preserveAspectRatio` attribute. Every SVG length - shape and text
+positions and sizes, `stroke-width`, `stroke-dasharray`, `stroke-dashoffset`, `font-size`, the
+root `width`/`height` and gradient/pattern/mask coordinates - accepts a CSS unit (`px`, `pt`, `in`,
+`mm`, `em`, `rem`, `vw`, ...), a percentage (resolved against the current viewport or, for
+`font-size`, the parent's `font-size`), or a `calc()`/`min()`/`max()`/`clamp()` expression; see
+*Lengths, Units, and font-size* below. `stroke-miterlimit` is the sole exception, since it is a
 unitless ratio rather than a length. A `style` element's text content is parsed as CSS, matching
 type/class/id/universal/compound selectors (including comma-separated lists and
 descendant/child combinators) against elements, with standard CSS specificity/cascade-order
@@ -77,6 +80,77 @@ renders unfiltered rather than throwing; exceeding the document, depth or elemen
 `InvalidDataException`. The deterministic effect counters used to verify these budgets (work
 charged, charges rejected, effects surfaces and pixels allocated) are internal to the library and
 are not part of the public API.
+
+#### Lengths, Units, and font-size
+
+Anywhere SVG takes a length, `SvgCodec` accepts a number (user units), a number with a CSS unit,
+a percentage, or a math function. A unit follows the number with no space (`12px`, not `12 px`) and
+is not case sensitive (`10PX` is `10px`).
+
+| Unit | Meaning | In user units |
+| --- | --- | --- |
+| `px` | CSS pixel | 1 |
+| `pt` | point | 96/72 (1.333...) |
+| `pc` | pica | 16 |
+| `in` | inch | 96 |
+| `cm`, `mm`, `Q` | centimeter, millimeter, quarter-millimeter | 96/2.54, 96/25.4, 96/101.6 |
+| `em` | the element's own `font-size` (the parent's, for `font-size` itself) | font size |
+| `ex` | height of the font's `x` glyph | 0.5 em when the font has no `x` glyph |
+| `ch` | advance of the glyph `0` | 0.5 em when the font has no `0` glyph |
+| `rem` | `font-size` of the root `svg` element | 16 when the root sets none |
+| `lh`, `rlh` | the element's, and the root's, `line-height` | `normal` is 1.2 em |
+| `vw`, `vh`, `vmin`, `vmax` | 1% of the root viewport width, height, smaller side, larger side | see note |
+
+The viewport units use the root viewport in user units - the `viewBox` size, as a percentage does
+at the root. A browser instead uses the size the SVG is displayed at, so the two differ only when
+the root `width`/`height` and the `viewBox` disagree.
+
+`calc()` supports `+`, `-`, `*` and `/` (with spaces around `+` and `-`, as CSS requires),
+parentheses and nested `calc()`, and `min()`, `max()` and `clamp()` take lengths or numbers. A
+length can be combined with a percentage or a font-relative unit (`calc(100% - 2em)`). A division by
+zero, a product of two lengths and a sum of a number and a length are invalid, and an expression is
+limited to 1,024 characters and 16 levels of nesting.
+
+`font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
+shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
+the style, weight and line height it does not name; the `font` attribute ranks below every other
+source). It accepts:
+
+- a length or percentage, resolved against the parent's size (`font-size="10px"`, `2em`, `120%`);
+- the keywords `xx-small`, `x-small`, `small`, `medium`, `large`, `x-large`, `xx-large` and
+  `xxx-large`, which are 9, 10, 13, 16, 18, 24, 32 and 48 pixels as in the major browsers (the CSS
+  Fonts specification gives 9.6, 12, 14.2, 16, 19.2, 24, 32 and 48, and no longer requires fixed
+  values);
+- `larger` and `smaller`, which multiply and divide the parent's size by 1.2;
+- `inherit`, `initial` (16) and `unset`.
+
+A text element's first `dx` and `dy` value moves it (`dy="0.71em"`, as Vega writes it). Lists of
+`dx`/`dy` beyond the first value, `tspan` positioning, `letter-spacing`, `word-spacing`,
+`textLength` and `baseline-shift` are not supported, and nested `svg` elements are skipped.
+
+Example:
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" width="3in" height="1in" font-size="12pt">
+  <rect x="0.1in" y="0.1in" width="1in" height="0.5in" fill="#4c78a8"/>
+  <text x="1.3in" y="0.4in" dy="0.35em" style="font: bold 1.2em sans-serif">Bar</text>
+</svg>
+```
+
+A length that cannot be understood (an unknown unit, a space before the unit, a bad `calc()`, a
+non-finite or too large result) is handled by the kind of value it is:
+
+<!-- markdownlint-disable MD013 -->
+| Where | Result |
+| --- | --- |
+| Shape, text, `use`, `image` and `marker` geometry; `stroke-width`, `stroke-dashoffset`, `stroke-dasharray` | `InvalidDataException`, naming the attribute |
+| Root `width`/`height`; gradient, pattern and mask coordinates | treated as absent: the default is used (a percentage or viewport unit on the root `width`/`height` has no basis and is absent too) |
+| `font-size`, `line-height`, the `font` shorthand; text `dx`/`dy` | ignored, as in CSS: the inherited value stays |
+<!-- markdownlint-enable MD013 -->
+
+Before units were supported, a `font-size="10px"` was rejected as corrupt; it now renders. A root
+`width="1in"` used to report 1 pixel and now reports 96, so `GetInfo` and `Load` return the size
+the author wrote.
 
 #### SvgCodec Methods
 

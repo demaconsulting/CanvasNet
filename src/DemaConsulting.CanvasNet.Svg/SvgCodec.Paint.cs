@@ -35,13 +35,18 @@ public static partial class SvgCodec
     /// <param name="localPath">The shape's local-space outline, used as a gradient's object-bounding-box basis.</param>
     /// <param name="transform">The accumulated transform, composed into a resolved gradient's own transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="state">
+    ///     The referencing element's cascaded state, used to resolve a gradient coordinate written
+    ///     with a CSS unit (<c>em</c> resolves against the referencing element's font - a documented
+    ///     simplification of the paint server's own cascade).
+    /// </param>
     /// <returns>
     ///     A boxed <see cref="Rgba32"/>, a <see cref="Gradient"/>, or <see langword="null"/> - see
     ///     this class's error-handling policy remarks for why an unrecognized color keyword or a
     ///     dangling <c>url(#id)</c> reference tolerantly resolve to <see langword="null"/> rather
     ///     than throwing.
     /// </returns>
-    private static object? ResolvePaint(string spec, float alphaMultiplier, Path localPath, Matrix3x2 transform, RenderContext context)
+    private static object? ResolvePaint(string spec, float alphaMultiplier, Path localPath, Matrix3x2 transform, RenderContext context, RenderState state)
     {
         var trimmed = spec.Trim();
         if (trimmed.Length == 0 || string.Equals(trimmed, "none", StringComparison.OrdinalIgnoreCase))
@@ -57,7 +62,7 @@ public static partial class SvgCodec
                 return null;
             }
 
-            return BuildGradient(element, alphaMultiplier, localPath, transform, context);
+            return BuildGradient(element, alphaMultiplier, localPath, transform, context, state);
         }
 
         var color = ParseColor(trimmed);
@@ -104,15 +109,22 @@ public static partial class SvgCodec
     private static Rgba32? ParseColor(string spec) => CssColor.TryParse(spec, out var color) ? color : null;
 
     /// <summary>
-    ///     Parses either a bare number or a CSS percentage (resolved against <paramref name="basis"/>).
+    ///     Parses either a bare number or a CSS percentage (resolved against <paramref name="basis"/>)
+    ///     and, when <paramref name="state"/> is supplied, also a CSS length with a unit or a math
+    ///     function (resolved to user units against that state) - the tolerant (class T) counterpart
+    ///     of the strict length parser, used by gradient/pattern/mask-region coordinates.
     /// </summary>
     /// <param name="token">The raw, trimmed text.</param>
     /// <param name="basis">The value a <c>100%</c> percentage resolves to.</param>
+    /// <param name="state">
+    ///     The referencing element's cascaded state, or <see langword="null"/> to accept only a
+    ///     number or a percentage (the form used by opacity-like and fraction-only values).
+    /// </param>
     /// <returns>
-    ///     The resolved value, or <see langword="null"/> if not a recognizable number/percentage,
-    ///     or if it resolves to a non-finite value (<c>NaN</c>/<c>Infinity</c>).
+    ///     The resolved value, or <see langword="null"/> if not a recognizable number/percentage/
+    ///     length, or if it resolves to a non-finite value (<c>NaN</c>/<c>Infinity</c>).
     /// </returns>
-    private static float? ParsePercentOrNumber(string token, float basis)
+    private static float? ParsePercentOrNumber(string token, float basis, RenderState? state = null)
     {
         var trimmed = token.Trim();
         if (trimmed.Length == 0)
@@ -132,7 +144,11 @@ public static partial class SvgCodec
         }
         else if (!float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
         {
-            return null;
+            // Not a plain number: a unit-bearing length or a math function, when the caller has a
+            // state to resolve it against; otherwise unrecognized
+            return state != null && TryResolveLength(trimmed, state, PercentageAxis.Horizontal, out var length, out _)
+                ? length
+                : null;
         }
 
         // Reject a non-finite result (NaN/Infinity) the same way as an unparseable token: it is

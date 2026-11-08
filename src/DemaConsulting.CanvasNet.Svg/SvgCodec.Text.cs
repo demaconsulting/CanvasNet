@@ -47,7 +47,9 @@ public static partial class SvgCodec
     ///     installed/generic/bundled defaults, so text is never dropped for want of a registered
     ///     font. Nested markup (for example <c>tspan</c>) is not given its own positioning: every
     ///     descendant text node's content is concatenated and laid out as one flat run, a
-    ///     documented simplification.
+    ///     documented simplification. Only the first <c>dx</c>/<c>dy</c> value of the <c>text</c>
+    ///     element itself offsets the run; <c>letter-spacing</c>, <c>word-spacing</c>,
+    ///     <c>textLength</c>, <c>baseline-shift</c> and per-glyph position lists are not supported.
     /// </remarks>
     private static void RenderText(
         XElement element, RenderState state, Matrix3x2 transform, RenderContext context,
@@ -65,12 +67,31 @@ public static partial class SvgCodec
         // loop begins, so a pathologically long run throws before that work is spent
         scope.WorkBudget.Charge(text.Length);
 
-        var origin = new Vector2(
-            GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
-            GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
+        var origin = ResolveTextOrigin(element, state);
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
         RenderShapeWithEffects(element, glyphRunPath, state, transform, context, scope, ref totalElements);
     }
+
+    /// <summary>
+    ///     Resolves a <c>text</c> element's baseline anchor: its <c>x</c>/<c>y</c> plus the first
+    ///     <c>dx</c>/<c>dy</c> value, shared by rendering, the filter bounds pre-pass and a
+    ///     <c>clipPath</c> text child so all three place the run identically.
+    /// </summary>
+    /// <param name="element">The <c>text</c> element.</param>
+    /// <param name="state">The element's cascaded state (its font size is the <c>em</c> basis of <c>dx</c>/<c>dy</c>).</param>
+    /// <returns>The anchor in the element's local space.</returns>
+    /// <exception cref="InvalidDataException">Thrown when <c>x</c> or <c>y</c> is not a valid length (class S); a malformed <c>dx</c>/<c>dy</c> is ignored.</exception>
+    /// <remarks>
+    ///     <c>dx</c>/<c>dy</c> are the canonical use of <c>em</c> in generated SVG (a
+    ///     <c>dy="0.71em"</c> baseline offset). Only the first list value is honored, and a
+    ///     malformed one is ignored (class F in this class's remarks) because they are optional
+    ///     refinements of an otherwise valid position.
+    /// </remarks>
+    private static Vector2 ResolveTextOrigin(XElement element, RenderState state) => new(
+        GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal) +
+            ResolveFirstLengthOrZero((string?)element.Attribute("dx"), state, PercentageAxis.Horizontal),
+        GetFloatAttribute(element, "y", state, PercentageAxis.Vertical) +
+            ResolveFirstLengthOrZero((string?)element.Attribute("dy"), state, PercentageAxis.Vertical));
 
     /// <summary>
     ///     Finds the first font-family name in <paramref name="fontFamily"/>'s comma-separated

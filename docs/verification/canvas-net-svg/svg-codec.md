@@ -1,7 +1,7 @@
 ## SvgCodec Unit Verification Design
 
 <!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
-<!-- cspell:ignore unitless Pillarboxes letterboxed renderable -->
+<!-- cspell:ignore unitless Pillarboxes letterboxed renderable longhand longhands -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 
@@ -783,7 +783,8 @@ two tests above.
 `SvgCodec_Load_GradientCoordinatePercentage_UnaffectedByViewportPercentageResolution`,
 `SvgCodec_Load_StrokeWidthPercentage_ResolvesAgainstDiagonalBasis`,
 `SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize`,
-`SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`
+`SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis`,
+`SvgCodec_Load_PercentWidth_ResolvesAgainstViewportWidth`
 
 Asserts a `rect`'s `x`/`width` percentages resolve against the current viewport's width (
 `SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth`/
@@ -821,7 +822,133 @@ already exist and are unaffected) that
 `opacity="50%"`) and `SvgCodec_Load_GradientStopOffsetPercentage_RendersGradientCorrectly` (which
 exercises gradient `stop` `offset` percentages) continue to pass unmodified, proving
 opacity-family attributes and gradient `stop` `offset` remain correctly unaffected by this
-capability.
+capability. The unit-bearing and math forms of the same attributes are verified under
+`CanvasNetSvg-SvgCodec-LengthUnitsResolved` below; `SvgCodec_Load_PercentWidth_ResolvesAgainstViewportWidth`
+re-asserts here that the percentage path is unchanged by the shared length resolver.
+
+#### CanvasNetSvg-SvgCodec-LengthUnitsResolved: CSS Length Units Converted to User Units
+
+**Tests**: `SvgCodec_Load_AbsoluteUnit_ConvertsToUserUnits`,
+`SvgCodec_Load_EquivalentInch_RendersPixelIdentical`,
+`SvgCodec_Load_PxAndUnitless_RenderPixelIdentical`,
+`SvgCodec_Load_StrokeLengths_AcceptUnits`,
+`SvgCodec_Load_OtherGeometryAttributes_AcceptUnits`,
+`SvgCodec_Load_EmLength_UsesElementFontSize`,
+`SvgCodec_Load_EmOnElementWithOwnFontSize_UsesItsOwnSize`,
+`SvgCodec_Load_EmWithoutFontSize_Uses16`,
+`SvgCodec_Load_NestedEmFontSize_ResolvesAgainstParent`,
+`SvgCodec_Load_RemLength_UsesRootFontSize`,
+`SvgCodec_Load_RemWithoutRootFontSize_Uses16`,
+`SvgCodec_Load_RemInsideMaskContent_UsesRootFontSize`,
+`SvgCodec_Load_ExAndChWithoutGlyph_FallBackToHalfEm`,
+`SvgCodec_Load_ExAndChWithRealFont_MeasureTheFont`,
+`SvgCodec_Load_LhUnit_FollowsLineHeight`,
+`SvgCodec_Load_LineHeightInheritance_NumberVersusLength`,
+`SvgCodec_Load_RlhUnit_UsesRootLineHeight`,
+`SvgCodec_Load_ViewportUnit_ResolvesAgainstRootViewport`,
+`SvgCodec_Load_ViewportUnitInsideSymbol_StillUsesRootViewport`,
+`SvgCodec_Load_GradientCoordinateWithUnit_ConvertsToUserUnits`,
+`SvgCodec_Load_PatternTileWithUnits_MatchesUserUnits`,
+`SvgCodec_Load_MaskRegionWithUnits_ConvertsAndMalformedFallsBack`,
+`SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack`,
+`SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize`,
+`SvgCodec_Load_LegacyNumberForms_StillParse`
+
+Every test in `SvgLengthUnitTests` renders a bar (or shape) and measures its coverage with
+`SvgLengthTestSupport`, so an assertion states the length the attribute produced rather than a
+magic pixel. The absolute units are asserted against the CSS reference ratio (`1in` = 96 =
+`72pt` = `6pc` = `2.54cm` = `25.4mm` = `101.6Q`, case-insensitively), the equivalent inch forms are
+asserted pixel-identical to each other, and a unit-less document is asserted pixel-identical to
+its `px` spelling, proving the legacy number path is unchanged. Font-relative units are asserted
+against the element's own font size (including the element that sets both `font-size` and a
+length, and nested compounding), `rem` against the root font size (also inside restarted-cascade
+mask content), `ex`/`ch` against the 0.5 em fallback with the glyph-less synthetic font and against
+the measured `x` height and `0` advance of the bundled Liberation Sans, and `lh`/`rlh` against
+`normal` (1.2 em), a number, a length, a percentage and the `font` shorthand, with a number
+re-multiplying by a descendant's font size and a length fixed at its declaring element. Viewport
+units are asserted against the root viewport and shown unchanged inside a `symbol` whose viewport
+changes what `%` means. The tolerant call sites (gradient coordinate, pattern tile, user-space
+mask region) and the root size (`GetInfo` for `1in`, `210mm`, `10rem`, `em` with a root
+`font-size`, and the fallback for a percentage, viewport unit or unknown unit) are asserted, as is
+`Load` agreeing with `GetInfo`.
+
+#### CanvasNetSvg-SvgCodec-FontSizeSourcesAndKeywords: font-size Sources, Keywords and the font Shorthand
+
+**Tests**: `SvgCodec_Load_FontSizePx_RendersSameAsUnitless`,
+`SvgCodec_Load_FontSizeLength_ResolvesAgainstParent`,
+`SvgCodec_Load_FontSizeEm_UsesParentNotSelf`,
+`SvgCodec_Load_FontSizeRem_UsesRootFontSize`,
+`SvgCodec_Load_FontSizeExAndCh_UseParentFontFallback`,
+`SvgCodec_Load_FontSizeLh_UsesParentLineHeight`,
+`SvgCodec_Load_AbsoluteSizeKeyword_MapsToBrowserTable`,
+`SvgCodec_Load_RelativeAndCssWideKeyword_ResolvesAgainstParent`,
+`SvgCodec_Load_NestedLarger_Compounds`,
+`SvgCodec_Load_FontSizeSources_AreHonored`,
+`SvgCodec_Load_FontSizePrecedence_InlineBeatsRuleBeatsAttribute`,
+`SvgCodec_Load_FontShorthand_SetsSize`,
+`SvgCodec_Load_FontShorthandPrecedence_FollowsDeclarationOrderAndTier`,
+`SvgCodec_Load_FontShorthand_ResetsAndSetsWeight`,
+`SvgCodec_Load_InvalidFontShorthand_IsDropped`,
+`SvgCodec_Load_FontShorthandCssWideKeyword_AppliesToFontSize`,
+`SvgCodec_Load_TextDxDy_OffsetsOrigin`,
+`SvgCodec_Load_VegaPxFontSizeFixture_RendersSameAsStrippedPx`,
+`SvgCodec_Load_VegaPxFontSizeFixture_RendersTenUnitLabelsBelowAxis`
+
+`SvgFontSizeTests` measures the effective font size from the ink area of a synthetic glyph that is
+a square of half the font size (area S squared over 4), so the size is recovered regardless of how
+it was written. The reported defect (`font-size="10px"`) is asserted to render pixel-identically to
+`font-size="10"`. Every length form, every absolute keyword (9/10/13/16/18/24/32/48, ignoring the
+parent), `larger`/`smaller` (1.2 times), and `inherit`/`initial`/`unset`/`revert` are asserted
+against the PARENT's size. Each source is asserted - attribute, inline style, type and class
+rules, the `font` shorthand (style, weight, size, line height, family, a quoted family with a
+comma, `oblique` with an angle, `calc()` size, CSS-wide keywords) and the `font` presentation
+attribute - together with the precedence rules (inline beats rule beats attribute; later of
+shorthand and longhand in one block wins; the `font` attribute ranks lowest), the reset of omitted
+longhands (a bold attribute is reset by a later shorthand, a bold keyword in the shorthand selects
+the bold face), and the whole-declaration drop of an invalid shorthand. The first `dx`/`dy` value
+is asserted to offset the origin (user units, `em`, `%`, `in`, `pt`, `calc()`). The Vega-style
+fixture `vega-px-font-size.svg` is asserted pixel-identical to the same document with every `px`
+stripped, and its axis labels are asserted to be about 7 pixels high with the baseline at the
+anchor plus `0.71em`, which also fails if a dropped size fell back to 16.
+
+#### CanvasNetSvg-SvgCodec-LengthMath: calc(), min(), max() and clamp()
+
+**Tests**: `SvgCodec_Load_MathFunction_Evaluates`,
+`SvgCodec_Load_DashArrayEntryMathFunction_IsOneEntry`,
+`SvgCodec_Load_OverComplexMathExpression_ThrowsInvalidDataException`
+
+Asserts the evaluator on `calc()` with mixed units, percentages and font-relative operands,
+precedence and parentheses, nesting, case-insensitive function names, and `min()`/`max()`/
+`clamp()`; asserts a math function with spaces and commas is one `stroke-dasharray` entry; and
+asserts that an expression nested beyond the depth cap or longer than the length cap is rejected
+(the invalid-expression cases themselves are listed under the malformed-value requirement).
+
+#### CanvasNetSvg-SvgCodec-LengthMalformedPolicy: Malformed Lengths by Class
+
+**Tests**: `SvgCodec_Load_MalformedGeometryLength_ThrowsInvalidDataException`,
+`SvgCodec_Load_MalformedStrokeLength_ThrowsInvalidDataException`,
+`SvgCodec_Load_OverComplexMathExpression_ThrowsInvalidDataException`,
+`SvgCodec_Load_GradientCoordinateMalformed_FallsBackToDefault`,
+`SvgCodec_Load_MaskRegionWithUnits_ConvertsAndMalformedFallsBack`,
+`SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack`,
+`SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited`,
+`SvgCodec_Load_MalformedLineHeight_IsIgnored`,
+`SvgCodec_Load_NonPositiveFontSize_RendersNoText`,
+`SvgCodec_Load_MalformedTextDxDy_IsIgnored`,
+`SvgCodec_Load_InvalidFontShorthand_IsDropped`
+
+Class S: thirty malformed geometry values (unknown units, a space before the unit, a bare unit,
+a dangling exponent, `NaN`/`Infinity`, an over-magnitude `1e6in`, mismatched or unbalanced
+`calc()` forms, division by zero, a product of lengths) are each asserted to throw exactly
+`InvalidDataException` (`Assert.Throws` rejects any other type, so a raw `FormatException` fails
+the test), and the same holds for `stroke-width`, `stroke-dashoffset` and `stroke-dasharray`.
+Class T: a malformed gradient coordinate falls back to the default as if absent, a malformed
+mask-region value falls back to the default region, and a root size with an unknown unit or no
+basis counts as absent. Class F: a malformed `font-size` (attribute and inline style) is ignored
+and the parent's size is inherited, a malformed `line-height` and `dx`/`dy` are ignored, an invalid
+shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
+The pre-existing tests that pin the strict behavior for `NaN`/`Infinity`/over-magnitude geometry
+continue to pass unmodified.
 
 #### CanvasNetSvg-SvgCodec-UnsupportedConstructsIgnored: Out-of-Scope Constructs Tolerated
 
