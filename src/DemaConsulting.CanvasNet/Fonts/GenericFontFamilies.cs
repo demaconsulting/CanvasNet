@@ -26,8 +26,12 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///         surrounding white space, and empty names are dropped. A CSS backslash escape is decoded wherever it
 ///         appears: a backslash followed by a character that is not a hexadecimal digit is that character taken
 ///         literally (so <c>\"</c>, <c>\'</c>, <c>\\</c> and <c>\,</c> never end a string or split the list), a
-///         backslash followed by one to six hexadecimal digits (and one optional white-space character) is that
-///         Unicode code point, and a backslash at the very end of the text is dropped.
+///         backslash followed by one to six hexadecimal digits (and one optional CSS white-space - a space, a tab
+///         or a newline, where CR LF is one newline) is that Unicode code point, and a backslash at the very end
+///         of the text is dropped. A backslash followed by a newline (line feed, carriage return, form feed or
+///         CR LF) is a line continuation inside a quoted string and contributes nothing; outside a quoted string
+///         it is not a valid escape, so the whole list is invalid and <see cref="SplitFamilyList"/> returns an
+///         empty list.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety</b>: the class is stateless apart from read-only tables, so every member may be called
@@ -128,7 +132,8 @@ public static class GenericFontFamilies
     /// <returns>
     ///     The names without quotes or surrounding white space, in order, with CSS backslash escapes decoded
     ///     (see this class's remarks); empty names are dropped, and a
-    ///     <see langword="null"/> or white-space list yields an empty list.
+    ///     <see langword="null"/> or white-space list, or a list with a backslash-newline outside a quoted
+    ///     string (an invalid escape), yields an empty list.
     /// </returns>
     public static IReadOnlyList<string> SplitFamilyList(string? cssFontFamily)
     {
@@ -159,7 +164,21 @@ public static class GenericFontFamilies
                 // A trailing lone backslash is dropped; otherwise the escape never acts as a quote or comma
                 if (i < cssFontFamily.Length)
                 {
-                    i = AppendEscape(cssFontFamily, i, current);
+                    if (IsCssNewline(cssFontFamily[i]))
+                    {
+                        // A backslash before a newline is a line continuation inside a string (it
+                        // contributes nothing), but not a valid escape in an identifier: the list is invalid
+                        if (quote == '\0')
+                        {
+                            return new List<string>();
+                        }
+
+                        i = SkipCssNewline(cssFontFamily, i);
+                    }
+                    else
+                    {
+                        i = AppendEscape(cssFontFamily, i, current);
+                    }
                 }
             }
             else if (quote != '\0')
@@ -214,10 +233,11 @@ public static class GenericFontFamilies
             end++;
         }
 
-        // One white-space character after a hexadecimal escape belongs to it
-        if (end < text.Length && char.IsWhiteSpace(text[end]))
+        // One CSS white-space (space, tab or a newline; CR LF counts as one) after a hexadecimal
+        // escape belongs to it; other Unicode white space (NBSP, U+2028) does not
+        if (end < text.Length && IsCssWhitespace(text[end]))
         {
-            end++;
+            end = SkipCssNewline(text, end);
         }
 
         // Zero, a surrogate or a value beyond Unicode decodes to the replacement character
@@ -226,4 +246,21 @@ public static class GenericFontFamilies
             : char.ConvertFromUtf32(codePoint));
         return end;
     }
+
+    /// <summary>Determines whether a character is a CSS newline (line feed, carriage return or form feed; CSS Syntax 3, preprocessing).</summary>
+    /// <param name="c">The character.</param>
+    /// <returns><see langword="true"/> for <c>\n</c>, <c>\r</c> and <c>\f</c>.</returns>
+    private static bool IsCssNewline(char c) => c is '\n' or '\r' or '\f';
+
+    /// <summary>Determines whether a character is CSS white space (space, tab or a CSS newline; CSS Syntax 3).</summary>
+    /// <param name="c">The character.</param>
+    /// <returns><see langword="true"/> for a space, a tab and a CSS newline.</returns>
+    private static bool IsCssWhitespace(char c) => c is ' ' or '\t' || IsCssNewline(c);
+
+    /// <summary>Skips one CSS white-space unit, treating a carriage return followed by a line feed as a single newline.</summary>
+    /// <param name="text">The text being split.</param>
+    /// <param name="index">The index of the white-space character to skip.</param>
+    /// <returns>The index after the skipped unit.</returns>
+    private static int SkipCssNewline(string text, int index) =>
+        text[index] == '\r' && index + 1 < text.Length && text[index + 1] == '\n' ? index + 2 : index + 1;
 }

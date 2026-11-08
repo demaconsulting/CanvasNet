@@ -183,6 +183,8 @@ exhaustively by the `CssColor` unit tests in the core library.
 #### CanvasNetSvg-SvgCodec-Gradients: Gradient Fill/Stroke Resolution
 
 **Tests**: `SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis`,
+`SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth`,
+`SvgCodec_Load_RadialGradientUserSpaceOnUseOmittedCenterAndRadius_UsesHalfViewport`,
 `SvgCodec_Load_RadialGradient_VariesFromCenterToEdge`,
 `SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange`,
 `SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke`,
@@ -192,7 +194,15 @@ exhaustively by the `CssColor` unit tests in the core library.
 `SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing`,
 `SvgCodec_Load_RadialGradientRFrValid_RendersNormally`
 
-Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis; a radial
+Asserts a `userSpaceOnUse` linear gradient varies along the document's user-space axis;
+`SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth` asserts that, on a 200x100
+viewport, an omitted `x2` under `userSpaceOnUse` is the viewport width (black, mid-gray and
+near-white samples at a quarter, a half and three quarters of the width, and pixel-identical to an
+explicit `x2="100%"`) while the default `objectBoundingBox` mode renders identically to an explicit
+`x2="1"`; `SvgCodec_Load_RadialGradientUserSpaceOnUseOmittedCenterAndRadius_UsesHalfViewport`
+asserts that omitted `cx`, `cy` and `r` under `userSpaceOnUse` render pixel-identically to
+`50%` each (the center at the viewport's middle) and that an omitted `fx`/`fy` equals an explicit
+`cx`/`cy`; a radial
 gradient is brighter at its center than near its edge; `spreadMethod="repeat"` tiles a gradient's
 base range (asserting two positions at the same fractional offset in successive tiles render
 nearly the same color, and that the tiled color is distinguishably different from what a
@@ -919,6 +929,16 @@ mask region) and the root size (`GetInfo` for `1in`, `210mm`, `10rem`, `em` with
 `SvgCodec_Load_InvalidObliqueAngle_DropsShorthand`,
 `SvgCodec_Load_FontStyleLonghandObliqueAngle_SelectsFaceOrIsIgnored`,
 `SvgCodec_Load_FontWeightAndStyleKeywords_AreCaseInsensitive`,
+`SvgCodec_Load_InvalidFontSizeDeclaration_FallsThroughToNextSource`,
+`SvgCodec_Load_InvalidFontWeightStyleFamily_FallsThroughToNextSource`,
+`SvgCodec_Load_InvalidLineHeightDeclaration_FallsThroughToNextSource`,
+`SvgCodec_Load_InvalidNonFontDeclaration_StillMasksLowerSources`,
+`SvgCodec_GetInfoAndLoad_RootInvalidInlineFontSize_FallsThroughToAttribute`,
+`SvgCodec_Load_FontShorthandDuplicateComponent_IsDropped`,
+`SvgCodec_Load_FontShorthandRepeatedNormal_IsAccepted`,
+`SvgCodec_Load_FontShorthandUnitlessSize_IsDropped`,
+`SvgCodec_Load_FontShorthandZeroSize_IsAccepted`,
+`SvgCodec_Load_FontFamilyBackslashNewline_JoinsLinesInStringAndDropsInIdent`,
 `SvgCodec_Load_TextDxDy_OffsetsOrigin`,
 `SvgCodec_Load_VegaPxFontSizeFixture_RendersSameAsStrippedPx`,
 `SvgCodec_Load_VegaPxFontSizeFixture_RendersTenUnitLabelsBelowAxis`
@@ -939,6 +959,25 @@ is asserted to offset the origin (user units, `em`, `%`, `in`, `pt`, `calc()`). 
 fixture `vega-px-font-size.svg` is asserted pixel-identical to the same document with every `px`
 stripped, and its axis labels are asserted to be about 7 pixels high with the baseline at the
 anchor plus `0.71em`, which also fails if a dropped size fell back to 16.
+
+The fall-through tests assert that an invalid declaration is dropped so the next lower source
+applies instead of masking it: for `font-size`, nine cases under a parent of 40 (an invalid inline
+style over a valid attribute, an invalid inline style over a valid rule, an invalid rule over a
+valid attribute, `font-size: 20px; font-size: bad` in one block, an invalid `#id` rule over a valid
+type rule, an invalid attribute over a valid `font` attribute, an invalid `font` shorthand over a
+valid attribute, both invalid so the parent's 40 is inherited, and a CSS number-typed `calc()` that
+falls to the attribute where it is user units); for `font-weight`, `font-style` and `font-family`
+(`abc`, `tilted`, an out-of-range oblique angle and an empty quoted name fall to the lower source,
+while the valid `bolder` still masks a lower `bold`); for `line-height` (an invalid inline value lets
+the stylesheet's `20px` apply, measured as `2lh` = 40); that a non-font declaration (`fill`) is not
+filtered; and that the root `font-size` falls through in both `GetInfo` and `Load`. The shorthand
+tests assert that repeating a style, variant, weight or stretch component (nine forms, including
+`bold 700`, `italic oblique`, `oblique 10deg italic` and five components) drops the whole
+declaration, that `normal` fills free slots (four valid forms), that a unitless non-zero size
+(`0.5`, `bold 0.5`, `12`, `400 12`, `bold 12.5`) is invalid while a bare `0` is accepted (it masks
+the attribute and draws nothing). The backslash-newline test registers a `FooBar` face and asserts
+a quoted `"Foo\<newline>Bar"` joins the lines and selects it, while an unquoted one drops the
+declaration so the `font-family` attribute applies.
 
 `SvgCodec_Load_FontShorthandCssWideKeyword_AppliesToFontSize` asserts `font: inherit` takes the
 parent's size and family and `font: initial` renders pixel-identically to a text element with no
@@ -1034,8 +1073,9 @@ a dangling exponent, `NaN`/`Infinity`, an over-magnitude `1e6in`, mismatched or 
 the test), and the same holds for `stroke-width`, `stroke-dashoffset` and `stroke-dasharray`.
 Class T: a malformed gradient coordinate falls back to the default as if absent, a malformed
 mask-region value falls back to the default region, and a root size with an unknown unit or no
-basis counts as absent. Class F: a malformed `font-size` (attribute and inline style) is ignored
-and the parent's size is inherited, a malformed `line-height` and `dx`/`dy` are ignored, an invalid
+basis counts as absent. Class F: a malformed `font-size` (attribute and inline style) is dropped
+and the next lower source applies, else the parent's size is inherited (see the fall-through tests
+under the font-size requirement); a malformed `line-height` and `dx`/`dy` are ignored, an invalid
 shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
 A number-typed math result is user units where SVG 2 allows a number, so only a mixed expression is
 malformed there: `calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)` and `min(1, 1px)` are asserted to
@@ -1743,11 +1783,14 @@ an oversized offscreen buffer allocation.
 `SvgCodec_Load_DanglingPatternReference_RendersUnfilled`,
 `SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled`,
 `SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing`,
+`SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing`,
 `SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk`
 
 Asserts a `fill="url(#id)"` referencing a `pattern` with the default `patternUnits`
 (`objectBoundingBox`) and an explicit `width="1" height="1"` (per SVG, `width`/`height`
-themselves default to `0`, so a tile only ever renders once they are specified) tiles exactly
+themselves default to `0`, so a tile only ever renders once they are specified;
+`SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing` pins that an omitted `width`/`height`
+paints nothing in either units mode, SVG 2 "A value of zero disables rendering") tiles exactly
 once across the referencing shape's own bounding box, with the tile's own content - a literal
 absolute (`patternContentUnits`'s own default `userSpaceOnUse`) rect - painting only that single
 tile's own centered sub-region; asserts `patternUnits="userSpaceOnUse"` instead reads the tile's

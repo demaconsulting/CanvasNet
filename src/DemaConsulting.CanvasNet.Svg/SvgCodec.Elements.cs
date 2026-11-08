@@ -699,7 +699,12 @@ public static partial class SvgCodec
     ///     evaluated against the parent's (CSS Fonts 4). The <c>font</c> shorthand is expanded into
     ///     longhands by the CSS declaration parser for inline styles and stylesheet rules, and by
     ///     <see cref="ExpandFontAttribute"/> for the <c>font</c> presentation attribute, which ranks
-    ///     below every other source.
+    ///     below every other source. An invalid font declaration is dropped, so it never masks a lower
+    ///     source: the declaration parser drops an invalid font longhand when it is parsed (see
+    ///     <see cref="IsValidFontLonghand"/>), and the cascade then picks, per property, the first
+    ///     valid of CSS, presentation attribute and <c>font</c> attribute (see
+    ///     <see cref="ResolveFontSize"/> and <see cref="FirstValidFontValue"/>), inheriting only when
+    ///     none is valid.
     /// </remarks>
     private static RenderState ApplyPresentationAttributes(RenderState parent, XElement element, RenderContext context, bool isRoot = false)
     {
@@ -712,19 +717,30 @@ public static partial class SvgCodec
         string? Styled(string property) =>
             ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property) ?? FromFontAttribute(property);
 
+        // The first source (CSS, then the presentation attribute, then the 'font' attribute) whose
+        // value is valid for the property: an invalid declaration is dropped, so it never masks a
+        // lower source (CSS Syntax 3, "declaration invalid at parse time"; SVG 2 Styling 6.6)
+        string? StyledFont(string property, RenderState state) =>
+            FirstValidFontValue(
+                property,
+                state,
+                ResolveStyledValue(styleContext, property),
+                (string?)element.Attribute(property),
+                FromFontAttribute(property));
+
         // Step 1: the font cascade. font-size resolves against the PARENT; an invalid value is
-        // ignored (class F: the declaration is dropped and the size is inherited). A number-typed
+        // dropped (class F) and the next source applies, else the size is inherited. A number-typed
         // math result is user units only from the font-size attribute (SVG 2 Types 4.2), not from CSS
-        var cssFontSize = ResolveStyledValue(styleContext, "font-size");
-        var attributeFontSize = (string?)element.Attribute("font-size");
-        var rawFontSize = cssFontSize ?? attributeFontSize ?? FromFontAttribute("font-size");
-        var fontSizeNumberAllowed = cssFontSize == null && attributeFontSize != null;
-        var fontSize = (rawFontSize == null ? null : ParseFontSizeValue(rawFontSize, parent, fontSizeNumberAllowed)) ?? parent.FontSize;
+        var fontSize = ResolveFontSize(
+            ResolveStyledValue(styleContext, "font-size"),
+            (string?)element.Attribute("font-size"),
+            FromFontAttribute("font-size"),
+            parent);
 
         // The CSS-wide keywords (inherit/unset/revert -> the parent's value, initial -> the
         // property's initial value) apply to family, weight and style exactly as they do to size;
         // a quoted "inherit" is a family name, not a keyword
-        var rawFontFamily = Styled("font-family");
+        var rawFontFamily = StyledFont("font-family", parent);
         var fontFamily = ParseCssWideKeyword(rawFontFamily) switch
         {
             CssWideKeyword.Inherit => parent.FontFamily,
@@ -732,7 +748,7 @@ public static partial class SvgCodec
             _ => rawFontFamily ?? parent.FontFamily
         };
 
-        var rawFontWeight = Styled("font-weight");
+        var rawFontWeight = StyledFont("font-weight", parent);
         var fontWeight = ParseCssWideKeyword(rawFontWeight) switch
         {
             CssWideKeyword.Inherit => parent.FontWeight,
@@ -740,7 +756,7 @@ public static partial class SvgCodec
             _ => ParseFontWeight(rawFontWeight) ?? parent.FontWeight
         };
 
-        var rawFontStyle = Styled("font-style");
+        var rawFontStyle = StyledFont("font-style", parent);
         var fontStyle = ParseCssWideKeyword(rawFontStyle) switch
         {
             CssWideKeyword.Inherit => parent.FontStyle,
@@ -766,7 +782,8 @@ public static partial class SvgCodec
         };
 
         // line-height is not an SVG presentation attribute: only CSS and the font shorthand set it
-        var rawLineHeight = ResolveStyledValue(styleContext, "line-height") ?? FromFontAttribute("line-height");
+        var rawLineHeight = FirstValidFontValue(
+            "line-height", fontState, ResolveStyledValue(styleContext, "line-height"), null, FromFontAttribute("line-height"));
         var lineHeight = rawLineHeight != null && TryParseLineHeight(rawLineHeight, fontState, out var computedLineHeight)
             ? computedLineHeight
             : parent.LineHeight;
@@ -935,9 +952,9 @@ public static partial class SvgCodec
     /// <returns>
     ///     The resolved numeric weight, or <see langword="null"/> if <paramref name="raw"/> is
     ///     absent, blank, the relative keywords <c>bolder</c>/<c>lighter</c> (not implemented -
-    ///     see this class's remarks), or any other unparseable value - each tolerantly falling
-    ///     back to the inherited weight, matching this codec's established tolerant-fallback
-    ///     policy for a malformed presentation attribute (for example <c>stroke-miterlimit</c>).
+    ///     see this class's remarks), or any other unparseable value - each dropped by the cascade, so
+    ///     the next lower source applies, else the inherited weight, matching this codec's established
+    ///     tolerant-fallback policy for a malformed presentation attribute (for example <c>stroke-miterlimit</c>).
     /// </returns>
     private static int? ParseFontWeight(string? raw)
     {
@@ -972,8 +989,8 @@ public static partial class SvgCodec
     /// <returns>
     ///     The matching <see cref="SvgFontStyle"/>, or <see langword="null"/> if absent, blank, or
     ///     not valid <c>font-style</c> syntax (an unknown keyword, extra tokens, or a bad or
-    ///     out-of-range angle) - ignored, so the inherited style applies (the CSS
-    ///     invalid-declaration rule).
+    ///     out-of-range angle) - dropped, so the next lower source applies, else the inherited style
+    ///     (the CSS invalid-declaration rule).
     /// </returns>
     private static SvgFontStyle? ParseFontStyle(string? raw)
     {

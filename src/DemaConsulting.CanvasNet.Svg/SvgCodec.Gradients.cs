@@ -284,7 +284,10 @@ public static partial class SvgCodec
     ///     converting rather than rejecting is the tolerant choice). A number-typed math expression
     ///     (<c>calc(1 + 1)</c>) is a number, so it resolves like a literal in either mode (SVG 2
     ///     "Attribute syntax", Types 4.2); an unrecognized value - including a mixed-type math
-    ///     expression - falls back like any other unparseable one.
+    ///     expression - falls back like any other unparseable one. The caller computes percentage
+    ///     initial values (<c>x2</c> <c>100%</c>, <c>cx</c> <c>50%</c>...) with
+    ///     <see cref="GetPaintServerDefault"/> so an omitted attribute uses the same basis as an
+    ///     explicit percentage.
     /// </remarks>
     private static float GetGradientCoordinateOrDefault(
         XElement element, string name, float fallback, RenderState state, bool isUserSpaceOnUse)
@@ -295,6 +298,22 @@ public static partial class SvgCodec
             ? value
             : fallback;
     }
+
+    /// <summary>
+    ///     Computes the value of an omitted paint-server coordinate attribute whose initial value is a
+    ///     percentage, against the same basis an explicit percentage in that attribute would use.
+    /// </summary>
+    /// <param name="name">The attribute name (<c>x2</c>, <c>cx</c>, <c>r</c>...).</param>
+    /// <param name="fraction">The initial value as a fraction (<c>1</c> for <c>100%</c>, <c>0.5</c> for <c>50%</c>).</param>
+    /// <param name="state">The referencing element's cascaded state, supplying the viewport.</param>
+    /// <param name="isUserSpaceOnUse"><see langword="true"/> when the paint server's units mode is <c>userSpaceOnUse</c>.</param>
+    /// <returns>
+    ///     <paramref name="fraction"/> itself under <c>objectBoundingBox</c> (the basis is <c>1</c>), or
+    ///     <paramref name="fraction"/> times the viewport width, height or diagonal basis under
+    ///     <c>userSpaceOnUse</c> (SVG 2, Paint Servers: initial values are percentages).
+    /// </returns>
+    private static float GetPaintServerDefault(string name, float fraction, RenderState state, bool isUserSpaceOnUse) =>
+        fraction * ResolvePercentageBasis(state, GetPaintServerAxis(name, isUserSpaceOnUse));
 
     /// <summary>
     ///     Selects the percentage axis for a gradient/pattern/mask-region coordinate attribute.
@@ -351,6 +370,12 @@ public static partial class SvgCodec
     }
 
     /// <summary>Builds a <c>linearGradient</c> element's <see cref="LinearGradient"/>.</summary>
+    /// <remarks>
+    ///     The omitted-attribute defaults are the specification's percentages (<c>x1</c> <c>0%</c>,
+    ///     <c>y1</c> <c>0%</c>, <c>x2</c> <c>100%</c>, <c>y2</c> <c>0%</c>) against the same basis as
+    ///     an explicit percentage, so under <c>userSpaceOnUse</c> an omitted <c>x2</c> is the viewport
+    ///     width (see <see cref="GetPaintServerDefault"/>).
+    /// </remarks>
     /// <param name="element">The <c>linearGradient</c> element.</param>
     /// <param name="stops">The resolved, alpha-adjusted color stops.</param>
     /// <param name="spread">The resolved spread method.</param>
@@ -370,7 +395,7 @@ public static partial class SvgCodec
             GetGradientCoordinateOrDefault(element, "x1", 0f, state, isUserSpaceOnUse),
             GetGradientCoordinateOrDefault(element, "y1", 0f, state, isUserSpaceOnUse));
         var end = new Vector2(
-            GetGradientCoordinateOrDefault(element, "x2", 1f, state, isUserSpaceOnUse),
+            GetGradientCoordinateOrDefault(element, "x2", GetPaintServerDefault("x2", 1f, state, isUserSpaceOnUse), state, isUserSpaceOnUse),
             GetGradientCoordinateOrDefault(element, "y2", 0f, state, isUserSpaceOnUse));
 
         return new LinearGradient(start, end, stops, spread, transform);
@@ -385,9 +410,12 @@ public static partial class SvgCodec
     /// <param name="isUserSpaceOnUse"><see langword="true"/> when the gradient's units mode is <c>userSpaceOnUse</c>.</param>
     /// <returns>The built gradient.</returns>
     /// <remarks>
-    ///     The focal point (<c>fx</c>/<c>fy</c>) defaults to the end circle's own center
-    ///     (<c>cx</c>/<c>cy</c>) per the SVG specification, and the focal radius (<c>fr</c>,
-    ///     SVG 2) defaults to zero.
+    ///     The center (<c>cx</c>/<c>cy</c>) and radius (<c>r</c>) default to <c>50%</c> (SVG 2, Paint
+    ///     Servers), resolved against the same basis as an explicit percentage: <c>0.5</c> under
+    ///     <c>objectBoundingBox</c>, half the viewport width, height and diagonal basis under
+    ///     <c>userSpaceOnUse</c> (see <see cref="GetPaintServerDefault"/>). The focal point
+    ///     (<c>fx</c>/<c>fy</c>) defaults to the end circle's own center (<c>cx</c>/<c>cy</c>) per the SVG
+    ///     specification, and the focal radius (<c>fr</c>, SVG 2) defaults to zero.
     /// </remarks>
     private static RadialGradient BuildRadialGradient(
         XElement element,
@@ -397,9 +425,9 @@ public static partial class SvgCodec
         RenderState state,
         bool isUserSpaceOnUse)
     {
-        var cx = GetGradientCoordinateOrDefault(element, "cx", 0.5f, state, isUserSpaceOnUse);
-        var cy = GetGradientCoordinateOrDefault(element, "cy", 0.5f, state, isUserSpaceOnUse);
-        var r = GetGradientRadiusOrDefault(element, "r", 0.5f, state, isUserSpaceOnUse);
+        var cx = GetGradientCoordinateOrDefault(element, "cx", GetPaintServerDefault("cx", 0.5f, state, isUserSpaceOnUse), state, isUserSpaceOnUse);
+        var cy = GetGradientCoordinateOrDefault(element, "cy", GetPaintServerDefault("cy", 0.5f, state, isUserSpaceOnUse), state, isUserSpaceOnUse);
+        var r = GetGradientRadiusOrDefault(element, "r", GetPaintServerDefault("r", 0.5f, state, isUserSpaceOnUse), state, isUserSpaceOnUse);
         var fx = GetGradientCoordinateOrDefault(element, "fx", cx, state, isUserSpaceOnUse);
         var fy = GetGradientCoordinateOrDefault(element, "fy", cy, state, isUserSpaceOnUse);
         var fr = GetGradientRadiusOrDefault(element, "fr", 0f, state, isUserSpaceOnUse);

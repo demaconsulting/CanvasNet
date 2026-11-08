@@ -130,13 +130,19 @@ sections:
               The SvgCodec class shall paint a fill or stroke referencing a linearGradient or
               radialGradient element, honoring its stop colors/offsets/opacities,
               gradientUnits (objectBoundingBox or userSpaceOnUse), gradientTransform, and
-              spreadMethod (pad, reflect, or repeat).
+              spreadMethod (pad, reflect, or repeat), with an omitted x2, cx, cy or r taking the
+              specification's percentage default (100% or 50%) against the same basis as an
+              explicit percentage (the viewport under userSpaceOnUse units).
             justification: |
               Gradients are a common way SVG documents encode smoothly varying colors;
               callers need them rasterized as varying pixel colors rather than a flat
-              approximation.
+              approximation. SVG 2 (Paint Servers) gives these attributes percentage initial
+              values, so an omitted attribute must not behave differently from the same percentage
+              written explicitly.
             tests:
               - SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis
+              - SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth
+              - SvgCodec_Load_RadialGradientUserSpaceOnUseOmittedCenterAndRadius_UsesHalfViewport
               - SvgCodec_Load_RadialGradient_VariesFromCenterToEdge
               - SvgCodec_Load_GradientSpreadMethodRepeat_TilesPastBaseRange
               - SvgCodec_Load_StrokeGradient_PaintsVaryingColorAlongStroke
@@ -691,7 +697,13 @@ sections:
               an angle in deg, grad, rad or turn within -90deg to 90deg, and font-weight and
               font-style keywords matched ASCII case-insensitively, and shall offset a text
               element by the first value of its dx and dy attributes (including em and percentage
-              values).
+              values). An invalid font-size, font-family, font-weight, font-style or line-height
+              declaration shall be dropped, so the next lower source (inline style, stylesheet
+              rule, presentation attribute, then the font attribute) applies and the value is
+              inherited only when none is valid, and the root font-size shall follow the same rule
+              in GetInfo and Load. A font shorthand shall be invalid, and dropped whole, when it
+              repeats a style, variant, weight or stretch component (normal may fill any unfilled
+              slot) or when its size is a unitless non-zero number.
             justification: |
               CSS Fonts 4 defines font-size and the font shorthand, and SVG documents set text
               size through every one of these routes (Vega emits font-size="10px" with
@@ -700,6 +712,10 @@ sections:
               the same size here as in the browser it was authored in; CSS Fonts 4 no longer
               mandates a fixed ratio. CSS Values 4 applies a CSS-wide keyword to every longhand of a
               shorthand, defines the angle units and the ASCII case-insensitivity of keywords.
+              CSS Syntax 3 drops a declaration whose value is invalid when it is parsed, so it
+              cannot hide a valid declaration of lower precedence; the CSS Fonts 4 grammar
+              allows each shorthand component once, and CSS Values 4 makes a unitless number a
+              length only when it is zero.
             tests:
               - SvgCodec_Load_FontSizePx_RendersSameAsUnitless
               - SvgCodec_Load_FontSizeLength_ResolvesAgainstParent
@@ -722,6 +738,16 @@ sections:
               - SvgCodec_Load_InvalidObliqueAngle_DropsShorthand
               - SvgCodec_Load_FontStyleLonghandObliqueAngle_SelectsFaceOrIsIgnored
               - SvgCodec_Load_FontWeightAndStyleKeywords_AreCaseInsensitive
+              - SvgCodec_Load_InvalidFontSizeDeclaration_FallsThroughToNextSource
+              - SvgCodec_Load_InvalidFontWeightStyleFamily_FallsThroughToNextSource
+              - SvgCodec_Load_InvalidLineHeightDeclaration_FallsThroughToNextSource
+              - SvgCodec_Load_InvalidNonFontDeclaration_StillMasksLowerSources
+              - SvgCodec_GetInfoAndLoad_RootInvalidInlineFontSize_FallsThroughToAttribute
+              - SvgCodec_Load_FontShorthandDuplicateComponent_IsDropped
+              - SvgCodec_Load_FontShorthandRepeatedNormal_IsAccepted
+              - SvgCodec_Load_FontShorthandUnitlessSize_IsDropped
+              - SvgCodec_Load_FontShorthandZeroSize_IsAccepted
+              - SvgCodec_Load_FontFamilyBackslashNewline_JoinsLinesInStringAndDropsInIdent
               - SvgCodec_Load_TextDxDy_OffsetsOrigin
               - SvgCodec_Load_VegaPxFontSizeFixture_RendersSameAsStrippedPx
               - SvgCodec_Load_VegaPxFontSizeFixture_RendersTenUnitLabelsBelowAxis
@@ -779,8 +805,9 @@ sections:
               on shape, text, use, image and marker geometry, stroke-width, stroke-dashoffset and
               each stroke-dasharray entry, it shall throw InvalidDataException; on the root
               width/height and on gradient, pattern and mask-region coordinates, it shall be
-              treated as absent so the default applies; and on font-size, line-height and the
-              font shorthand, and on the text dx and dy, it shall be ignored so the inherited
+              treated as absent so the default applies; and on font-size, line-height, the
+              other font properties and the font shorthand, and on the text dx and dy, it shall be
+              dropped so the next lower source applies, else the inherited
               value remains.
             justification: |
               Geometry keeps its strict InvalidDataException behavior because existing callers and
@@ -1456,6 +1483,7 @@ sections:
               - SvgCodec_Load_DanglingPatternReference_RendersUnfilled
               - SvgCodec_Load_FillReferencesNonPatternElement_RendersUnfilled
               - SvgCodec_Load_PatternZeroWidthOrHeight_RendersUnfilledWithoutThrowing
+              - SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing
               - SvgCodec_Load_PatternContentWithGroupAndGradient_RendersViaRecursiveElementWalk
 
           - id: CanvasNetSvg-SvgCodec-PatternHrefInheritance

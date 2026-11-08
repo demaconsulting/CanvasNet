@@ -133,12 +133,22 @@ the default value is used. Under `userSpaceOnUse` (`gradientUnits`, `patternUnit
 `cx`, `fx` and `width`, height for the `y` family and `height`, and `sqrt(w^2 + h^2) / sqrt(2)` for
 `r` and `fr`. This is a behavior change: a plain `%` in a `userSpaceOnUse` gradient, pattern or mask
 region used to be a fraction of 1 (or of the shape's bounds, for a mask) and is now viewport-relative,
-as in SVG 2.
+as in SVG 2. An omitted attribute with a percentage default uses the same basis: under
+`userSpaceOnUse` an omitted `x2` is `100%` of the viewport width and an omitted `cx`, `cy` and `r`
+are `50%` of the viewport width, height and diagonal basis (`fx` and `fy` follow `cx` and `cy`), so
+a `userSpaceOnUse` gradient that leaves them out now spans the viewport instead of one user unit.
+Under `objectBoundingBox` they stay `1` and `0.5` of the shape's box. A pattern without `width` or
+`height` paints nothing, as the SVG 2 initial value is `0`.
 
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
 the style, weight and line height it does not name; the `font` attribute ranks below every other
-source). It accepts:
+source). An invalid font declaration is dropped as in CSS, so it does not hide a valid one from a
+lower source: with `font-size="30" style="font-size: bad"` the size is 30, and only when no source is
+valid is the parent's value inherited. In the `font` shorthand the style, variant, weight and stretch
+components may each appear at most once (`bold bold` and `italic oblique` are invalid; `normal` may
+fill any free slot), and the size needs a unit (`font: 12 serif` and `font: 0.5 serif` are invalid;
+only `0` may be bare). It accepts:
 
 - a length or percentage, resolved against the parent's size (`font-size="10px"`, `2em`, `120%`);
 - the keywords `xx-small`, `x-small`, `small`, `medium`, `large`, `x-large`, `xx-large` and
@@ -157,12 +167,13 @@ accepted in any letter case in an attribute, a `style` attribute and a `style` e
 `font-style: oblique` and the `font` shorthand also accept an angle after `oblique`, in `deg`,
 `grad`, `rad` or `turn` between -90deg and 90deg (`oblique 10deg`, `oblique 0.25turn`); the angle is
 validated but not used to slant text, and `oblique` renders with the italic face. An out-of-range
-or malformed angle makes the declaration invalid, so it is ignored.
+or malformed angle makes the declaration invalid, so it is dropped.
 
 A `font-family` list is split only at commas outside quotes, so a quoted name may contain a comma
 (`"Acme, Sans", sans-serif`), the quotes are removed, and a registered family and the default
 resolution see the same names. CSS backslash escapes in a family name are decoded (`Acme\, Sans`,
-`\41 cme`).
+`\41 cme`); a backslash before a newline joins the lines inside a quoted name and invalidates an
+unquoted list, which is then dropped like any invalid declaration.
 
 A text element's first `dx` and `dy` value moves it (`dy="0.71em"`, as Vega writes it). Lists of
 `dx`/`dy` beyond the first value, `tspan` positioning, `letter-spacing`, `word-spacing`,
@@ -187,7 +198,7 @@ value it is:
 | --- | --- |
 | Shape, text, `use`, `image` and `marker` geometry; `stroke-width`, `stroke-dashoffset`, `stroke-dasharray` | `InvalidDataException`, naming the attribute |
 | Root `width`/`height`; gradient, pattern and mask coordinates | treated as absent: the default is used (a percentage or viewport unit on the root `width`/`height` has no basis and is absent too) |
-| `font-size`, `line-height`, the `font` shorthand, `font-style`; text `dx`/`dy` | ignored, as in CSS: the inherited value stays |
+| `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | dropped, as in CSS: the next lower source applies, else the inherited value stays |
 <!-- markdownlint-enable MD013 -->
 
 Before units were supported, a `font-size="10px"` was rejected as corrupt; it now renders. A root

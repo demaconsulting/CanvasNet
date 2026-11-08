@@ -243,7 +243,15 @@ always basis 1 and has no state, remains only for opacity-like and fraction-only
 stop `offset` and the filter primitive fractions.) A plain `%` under `userSpaceOnUse` was previously a
 basis-1 fraction (and, for a mask region, a fraction of the shape's bounds), so this is an intended
 behavior change; unit-bearing coordinates are handled by the same funnel (see _Length Units and
-font-size_ below).
+font-size_ below). The percentage **initial values** of an omitted attribute use the same basis
+(`GetPaintServerDefault`): `x2` is `100%`, and `cx`, `cy` and `r` are `50%`, so under
+`userSpaceOnUse` an omitted `x2` is the viewport width and an omitted `cx`/`cy`/`r` is half the
+viewport width, height and diagonal basis, exactly like the explicit percentage (SVG 2, _Paint
+Servers_); under `objectBoundingBox` the basis is 1 and they stay `1` and `0.5`. `fx`/`fy` default
+to the resolved `cx`/`cy`, `fr` to 0, and a pattern's omitted `x`, `y`, `width` and `height` stay
+their initial value `0` (SVG 2: a zero `width`/`height` disables rendering) in either mode. This
+is an intended behavior change: a `userSpaceOnUse` gradient that omits those attributes used to be
+one user unit wide.
 
 ### Length Units and font-size
 
@@ -313,8 +321,10 @@ grammar, the unit conversions and the safety bounds exist once.
   not an SVG 2 presentation attribute): CSS Fonts 4 `font-size` is `<length-percentage [0,inf]>`
   with no `<number>`, so a number-typed math result there passes `allowNumberResult: false`
   (`ParseFontSizeValue(..., numberResultAllowed)`, `IsValidFontSizeSyntax`) and is ignored (class F),
-  and `ReadRootFontSize` mirrors the source rule so `GetInfo` and `Load` agree. A literal bare number
-  in a CSS `font-size` stays accepted (pre-existing leniency). `line-height` is unchanged: a
+  and `ReadRootFontSize` mirrors the source rule (it shares `ResolveFontSize` with the element
+  cascade) so `GetInfo` and `Load` agree. A literal bare number
+  in a CSS `font-size` longhand stays accepted (pre-existing leniency); the `font` shorthand is
+  stricter (see _font shorthand_ below). `line-height` is unchanged: a
   number-typed result is a multiplier via `TryResolveLengthOrNumber`. That the `font-size`
   _attribute_ (a range-restricted `<length-percentage [0,inf]>`) is covered by the 4.2 rule is the
   one reading of the specification text that is likely rather than certain. This reverses the earlier
@@ -340,7 +350,7 @@ _Error Handling_):
 <!-- markdownlint-disable MD013 -->
 | S, strict | rect/ellipse/circle/line/image/use/symbol/marker geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`..`y2`, `refX`, `refY`, `markerWidth`, `markerHeight`), text `x`/`y`, `stroke-width`, `stroke-dashoffset`, each `stroke-dasharray` entry | `InvalidDataException` naming the attribute (never a raw `FormatException`) |
 | T, tolerant | root `width`/`height`, gradient, pattern and mask-region coordinates | treated as absent; the default or fallback applies |
-| F, font | `font-size`, `line-height`, the `font` shorthand, `font-style`; text `dx`/`dy` | the declaration is ignored; the value is inherited (or no offset) |
+| F, font | `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`, the `font` shorthand; text `dx`/`dy` | the declaration is dropped: the next lower source applies (inline style, then stylesheet, then the presentation attribute, then the `font` attribute), and the value is inherited only when none is valid (no offset for `dx`/`dy`) |
 <!-- markdownlint-enable MD013 -->
 
 Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
@@ -362,15 +372,38 @@ CSS) is no longer accepted.
 32/48; the CSS Fonts 4 factors 3/5, 3/4, 8/9, 1, 6/5, 3/2, 2, 3 would give 9.6, 12, 14.22, 16, 19.2,
 24, 32, 48 - the choice is one table, `AbsoluteFontSizes`), `larger`/`smaller` (1.2 times and a
 fifth of the parent's), `inherit`/`unset` (parent), `initial` (16), and any length, percentage or
-math function against the parent. `revert` and an invalid value are ignored, so the size is
-inherited; a zero or negative size still renders no text (existing behavior). `medium` is 16
-regardless of the parent. A number-typed math result (`calc(5 + 5)`) is user units only when it
+math function against the parent. An invalid value is dropped, so the next lower source applies,
+else the size is inherited; `revert` is a valid declaration with no effect of its own, so it still
+masks the lower sources and inherits. A zero or negative size still renders no text (existing
+behavior). `medium` is 16 regardless of the parent. A number-typed math result (`calc(5 + 5)`) is user units only when it
 comes from the `font-size` presentation attribute; from an inline style, stylesheet rule, the
 `font` shorthand or the `font` attribute it is ignored (class F), as described under _Result type_.
 
+**Invalid font declarations never mask a lower source.** CSS drops a declaration whose value is
+invalid when it is parsed, so the cascade never sees it (CSS Syntax 3; SVG 2 _Styling_ 6.6 ranks
+presentation attributes below CSS). The codec resolves each CSS property to one raw string, so this
+is done in two layers. (A) `ParseDeclarationBlock` - the only producer of inline-style and
+stylesheet declarations - drops an invalid `font-size`, `font-family`, `font-weight`, `font-style`
+or `line-height` (`IsValidFontLonghand`: a CSS-wide keyword is valid; `bolder`/`lighter` are valid
+weights with no modeled effect; a family list needs at least one name; other properties are never
+filtered), so `font-size: 20px; font-size: bad` keeps `20px` and an invalid higher-specificity rule
+no longer hides a lower valid rule. (B) `ApplyPresentationAttributes` picks, per property, the first
+valid of CSS, presentation attribute and `font` attribute (`ResolveFontSize` and
+`FirstValidFontValue`; the `font-size` attribute alone allows a number-typed math result), which
+also covers a value that is only invalid against its parent. `ReadRootFontSize` uses the same
+`ResolveFontSize`. Other properties (`fill`, `stroke-*`) still pick the highest raw source before
+parsing, unchanged.
+
 **font shorthand.** `ExpandFontShorthand` parses `[style || variant || weight || stretch]? size
 [/ line-height]? family` and expands it into the longhands `font-style`, `font-weight`,
-`font-size`, `line-height` and `font-family`, omitted components reset to `normal`. The expansion
+`font-size`, `line-height` and `font-family`, omitted components reset to `normal`. Each of the
+four optional components may appear at most once, in any order (`||`): a repeated component
+(`bold bold`, `bold 700`, `italic oblique`, `condensed expanded`) drops the whole declaration, while
+`normal` belongs to all four components and may fill any free slot, so it may repeat up to the
+number of unfilled slots (`normal normal 12px F` is valid, five components are not). The size must
+carry a unit (a unitless non-zero number is not a length, CSS Values 4; only `0` may be bare), so
+`font: 0.5 F` is invalid, and `font: 12 F` is invalid because the `12` is read as the weight and
+leaves no size; the family list must contain at least one name. The expansion
 happens in `ParseDeclarationBlock`, so inline styles and stylesheet rules see only longhands and the
 existing last-declaration-wins and specificity rules apply unchanged; the `MaxCssDeclarationsPerRule`
 cap counts source declarations, not expansions. A system-font keyword, a missing family or an
@@ -1786,9 +1819,10 @@ differently:
   non-finite or over-magnitude result) in shape/text/use/image/marker geometry, `stroke-width`,
   `stroke-dashoffset` or a `stroke-dasharray` entry is `InvalidDataException` (never a raw
   `FormatException`); in the root `width`/`height` or a gradient/pattern/mask-region coordinate it
-  is treated as absent; in `font-size`, `line-height`, the `font` shorthand or text `dx`/`dy` the
-  declaration is ignored and the value inherited - a deliberate change from throwing for
-  `font-size`, matching the CSS invalid-declaration rule. An invalid `stroke-miterlimit` value
+  is treated as absent; in `font-size`, `line-height`, `font-family`, `font-weight`, `font-style`,
+  the `font` shorthand or text `dx`/`dy` the declaration is dropped (the next lower source
+  applies, else the value is inherited, or there is no offset for `dx`/`dy`) - a deliberate change
+  from throwing for `font-size`, matching the CSS invalid-declaration rule. An invalid `stroke-miterlimit` value
   (non-finite, or less than `1` - the documented
   contract of the `Drawing.StrokeStyle` it eventually feeds) is a further, separate tolerant case:
   rather than throwing, it falls back to the inherited value, matching this codec's existing

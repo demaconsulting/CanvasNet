@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Svg;
 
@@ -96,8 +97,9 @@ public static partial class SvgCodec
     ///     The resolved size; <see langword="null"/> when the value is invalid (an unknown unit,
     ///     garbage, a malformed expression, an over-magnitude result, or a number-typed math result
     ///     where <paramref name="numberResultAllowed"/> is <see langword="false"/>) or is a keyword with no
-    ///     effect (<c>revert</c>, <c>revert-layer</c>), meaning "ignore the declaration and inherit"
-    ///     per the CSS invalid-declaration rule (class F in this class's remarks). Never throws.
+    ///     effect (<c>revert</c>, <c>revert-layer</c>), meaning "drop the declaration": the cascade
+    ///     then tries the next lower source and inherits only when none is valid
+    ///     (see <see cref="ResolveFontSize"/>; class F in this class's remarks). Never throws.
     /// </returns>
     /// <remarks>
     ///     <c>inherit</c> and <c>unset</c> (font-size is inherited) yield the parent's size;
@@ -222,10 +224,13 @@ public static partial class SvgCodec
     ///     <c>font-variant</c> and <c>font-stretch</c> components are parsed and ignored. Never throws.
     /// </returns>
     /// <remarks>
-    ///     Grammar (CSS Fonts 4): optional style/weight/variant/stretch tokens in any order, then
-    ///     the size, an optional <c>/ line-height</c>, then a mandatory family list. A bare number
-    ///     before the size is a weight; the size itself must carry a unit or be a keyword, a
-    ///     percentage or a math function, which is how the two are told apart. <c>oblique</c> may be
+    ///     Grammar (CSS Fonts 4): optional style/variant/weight/stretch tokens in any order, each at
+    ///     most once (<c>normal</c> may stand in for any unfilled slot, so it may repeat up to the
+    ///     number of free slots), then the size, an optional <c>/ line-height</c>, then a mandatory
+    ///     family list. A repeated component (<c>bold bold</c>, <c>italic oblique</c>) makes the
+    ///     whole declaration invalid. A bare number before the size is a weight; the size itself must
+    ///     carry a unit or be a keyword, a percentage or a math function (only <c>0</c> may be bare),
+    ///     which is how the two are told apart. <c>oblique</c> may be
     ///     followed by an angle (<c>deg</c>, <c>grad</c>, <c>rad</c> or <c>turn</c>, within
     ///     <c>[-90deg, 90deg]</c>), which is validated and ignored; an invalid angle drops the whole
     ///     declaration. A CSS-wide keyword (<c>inherit</c>, <c>initial</c>, <c>unset</c>) expands to
@@ -263,9 +268,10 @@ public static partial class SvgCodec
             return null;
         }
 
-        // Step 1: consume the optional style/weight/variant/stretch tokens until the size appears
-        var style = "normal";
-        var weight = "normal";
+        // Step 1: consume the optional style/variant/weight/stretch tokens until the size appears.
+        // Each of the four components may appear at most once, in any order; 'normal' is a member of
+        // all four and may stand in for any still-unfilled slot
+        var prefix = new FontShorthandPrefix { Style = "normal", Weight = "normal" };
         var position = 0;
         string? size = null;
         var previousWasOblique = false;
@@ -285,7 +291,13 @@ public static partial class SvgCodec
                 continue;
             }
 
-            if (IsFontShorthandPrefixToken(token, ref style, ref weight))
+            var classification = ClassifyFontShorthandPrefixToken(token, ref prefix);
+            if (classification == FontShorthandToken.Duplicate)
+            {
+                return null;
+            }
+
+            if (classification == FontShorthandToken.Accepted)
             {
                 previousWasOblique = token.Equals("oblique", StringComparison.OrdinalIgnoreCase);
                 continue;
@@ -295,10 +307,13 @@ public static partial class SvgCodec
             break;
         }
 
-        if (size == null || !IsValidFontSizeSyntax(size))
+        if (size == null || !IsValidFontSizeSyntax(size) || prefix.ComponentCount > FontShorthandPrefixSlots)
         {
             return null;
         }
+
+        var style = prefix.Style;
+        var weight = prefix.Weight;
 
         // Step 2: optional "/ line-height"
         var lineHeight = "normal";
@@ -317,7 +332,7 @@ public static partial class SvgCodec
 
         // Step 3: everything left is the (mandatory) family list
         var family = text[position..].Trim();
-        if (family.Length == 0)
+        if (family.Length == 0 || GenericFontFamilies.SplitFamilyList(family).Count == 0)
         {
             return null;
         }
@@ -477,56 +492,148 @@ public static partial class SvgCodec
         return true;
     }
 
+    /// <summary>The number of optional components (style, variant, weight, stretch) a <c>font</c> shorthand may carry before the size.</summary>
+    private const int FontShorthandPrefixSlots = 4;
+
+    /// <summary>The outcome of classifying one pre-size <c>font</c> shorthand token.</summary>
+    private enum FontShorthandToken
+    {
+        /// <summary>The token is not one of the optional components (it is the size).</summary>
+        NotAComponent,
+
+        /// <summary>The token filled a free component slot.</summary>
+        Accepted,
+
+        /// <summary>The token repeats a component already given, which makes the shorthand invalid.</summary>
+        Duplicate
+    }
+
+    /// <summary>The optional pre-size components of a <c>font</c> shorthand collected so far.</summary>
+    private struct FontShorthandPrefix
+    {
+        /// <summary>The style keyword, <c>normal</c> until one is given.</summary>
+        public string Style;
+
+        /// <summary>The weight keyword or number, <c>normal</c> until one is given.</summary>
+        public string Weight;
+
+        /// <summary>Whether a style (<c>italic</c>/<c>oblique</c>) has been given.</summary>
+        public bool StyleSet;
+
+        /// <summary>Whether a <c>small-caps</c> variant has been given.</summary>
+        public bool VariantSet;
+
+        /// <summary>Whether a weight has been given.</summary>
+        public bool WeightSet;
+
+        /// <summary>Whether a stretch keyword has been given.</summary>
+        public bool StretchSet;
+
+        /// <summary>The number of <c>normal</c> tokens, each filling one still-unfilled slot.</summary>
+        public int NormalCount;
+
+        /// <summary>Gets the number of slots consumed by specific keywords and <c>normal</c> tokens together.</summary>
+        public readonly int ComponentCount =>
+            (StyleSet ? 1 : 0) + (VariantSet ? 1 : 0) + (WeightSet ? 1 : 0) + (StretchSet ? 1 : 0) + NormalCount;
+    }
+
     /// <summary>
     ///     Classifies one pre-size <c>font</c> shorthand token, recording a style or weight.
     /// </summary>
     /// <param name="token">The token.</param>
-    /// <param name="style">Updated when the token is a style keyword.</param>
-    /// <param name="weight">Updated when the token is a weight keyword or number.</param>
-    /// <returns><see langword="true"/> when the token is one of the optional components (so it is not the size).</returns>
-    private static bool IsFontShorthandPrefixToken(string token, ref string style, ref string weight)
+    /// <param name="prefix">The components collected so far; updated when the token is accepted.</param>
+    /// <returns>
+    ///     <see cref="FontShorthandToken.Accepted"/> when the token fills a free component slot,
+    ///     <see cref="FontShorthandToken.Duplicate"/> when it repeats a component (CSS Fonts 4:
+    ///     <c>||</c> allows each at most once), and <see cref="FontShorthandToken.NotAComponent"/>
+    ///     when it is not one of the optional components (so it is the size). <c>normal</c> is
+    ///     counted rather than slotted, because it is a member of all four components.
+    /// </returns>
+    private static FontShorthandToken ClassifyFontShorthandPrefixToken(string token, ref FontShorthandPrefix prefix)
     {
-        if (token.Equals("normal", StringComparison.OrdinalIgnoreCase) ||
-            token.Equals("small-caps", StringComparison.OrdinalIgnoreCase) ||
-            FontStretchKeywords.Contains(token))
+        if (token.Equals("normal", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            prefix.NormalCount++;
+            return FontShorthandToken.Accepted;
+        }
+
+        if (token.Equals("small-caps", StringComparison.OrdinalIgnoreCase))
+        {
+            return Claim(ref prefix.VariantSet);
+        }
+
+        if (FontStretchKeywords.Contains(token))
+        {
+            return Claim(ref prefix.StretchSet);
         }
 
         if (token.Equals("italic", StringComparison.OrdinalIgnoreCase) ||
             token.Equals("oblique", StringComparison.OrdinalIgnoreCase))
         {
-            style = token.ToLowerInvariant();
-            return true;
-        }
+            var result = Claim(ref prefix.StyleSet);
+            if (result == FontShorthandToken.Accepted)
+            {
+                prefix.Style = token.ToLowerInvariant();
+            }
 
-        if (token.Equals("bold", StringComparison.OrdinalIgnoreCase) ||
-            token.Equals("bolder", StringComparison.OrdinalIgnoreCase) ||
-            token.Equals("lighter", StringComparison.OrdinalIgnoreCase))
-        {
-            weight = token.ToLowerInvariant();
-            return true;
+            return result;
         }
 
         // A bare number in 1..1000 is a weight; a size always has a unit, so there is no ambiguity
-        if (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) &&
-            number is >= 1f and <= 1000f)
+        if (token.Equals("bold", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("bolder", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("lighter", StringComparison.OrdinalIgnoreCase) ||
+            (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) &&
+             number is >= 1f and <= 1000f))
         {
-            weight = token;
-            return true;
+            var result = Claim(ref prefix.WeightSet);
+            if (result == FontShorthandToken.Accepted)
+            {
+                prefix.Weight = char.IsAsciiLetter(token[0]) ? token.ToLowerInvariant() : token;
+            }
+
+            return result;
         }
 
-        return false;
+        return FontShorthandToken.NotAComponent;
+
+        static FontShorthandToken Claim(ref bool slot)
+        {
+            if (slot)
+            {
+                return FontShorthandToken.Duplicate;
+            }
+
+            slot = true;
+            return FontShorthandToken.Accepted;
+        }
     }
 
     /// <summary>Validates that a <c>font</c> shorthand size token is a keyword or a well-formed length (a bad size drops the whole shorthand).</summary>
     /// <param name="token">The size token.</param>
-    /// <returns><see langword="true"/> when the token is acceptable as a <c>font-size</c>.</returns>
-    private static bool IsValidFontSizeSyntax(string token) =>
-        AbsoluteFontSizes.ContainsKey(token) ||
-        token.Equals("larger", StringComparison.OrdinalIgnoreCase) ||
-        token.Equals("smaller", StringComparison.OrdinalIgnoreCase) ||
-        TryResolveLength(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _, allowNumberResult: false);
+    /// <returns>
+    ///     <see langword="true"/> when the token is acceptable as a <c>font-size</c>: a keyword, or a
+    ///     length, percentage or math result. A unitless number is a length only when it is zero (CSS
+    ///     Values 4, <c>&lt;length&gt;</c>), so <c>0.5</c> is rejected while <c>0</c> is accepted.
+    /// </returns>
+    private static bool IsValidFontSizeSyntax(string token)
+    {
+        if (AbsoluteFontSizes.ContainsKey(token) ||
+            token.Equals("larger", StringComparison.OrdinalIgnoreCase) ||
+            token.Equals("smaller", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!TryResolveLength(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _, allowNumberResult: false))
+        {
+            return false;
+        }
+
+        var position = 0;
+        return !(TryReadLengthToken(token, ref position, out var number, out var unit) &&
+                 position == token.Length && unit == LengthUnit.None && number != 0);
+    }
 
     /// <summary>Validates that a <c>font</c> shorthand line-height token is <c>normal</c>, a number or a well-formed length.</summary>
     /// <param name="token">The line-height token.</param>
@@ -566,7 +673,7 @@ public static partial class SvgCodec
     ///     root <c>width</c>/<c>height</c>, which must be known before any render state exists.
     /// </summary>
     /// <param name="root">The root element.</param>
-    /// <returns>The root's font size: its inline <c>style</c> (including the <c>font</c> shorthand), else its <c>font-size</c> attribute, else its <c>font</c> attribute, else 16.</returns>
+    /// <returns>The root's font size: the first valid of its inline <c>style</c> (including the <c>font</c> shorthand), its <c>font-size</c> attribute, then its <c>font</c> attribute (an invalid one is dropped, not masking the next), else 16.</returns>
     /// <remarks>
     ///     Stylesheet rules are not consulted: the stylesheet is built after the document size is
     ///     known. A root whose size depends on a <c>&lt;style&gt;</c>-declared font size therefore
@@ -577,32 +684,133 @@ public static partial class SvgCodec
     /// </remarks>
     private static float ReadRootFontSize(XElement root)
     {
-        string? raw = null;
-        var numberResultAllowed = false;
+        string? inlineSize = null;
         var inline = (string?)root.Attribute("style");
         if (inline != null)
         {
+            // Invalid font-size declarations were dropped by the parser, so the last survivor wins
             foreach (var (property, value) in ParseDeclarationBlock(inline))
             {
                 if (property == "font-size")
                 {
-                    raw = value;
+                    inlineSize = value;
                 }
             }
         }
 
-        if (raw == null && (string?)root.Attribute("font-size") is { } attributeValue)
+        string? fontAttributeSize = null;
+        ExpandFontAttribute(root)?.TryGetValue("font-size", out fontAttributeSize);
+        return ResolveFontSize(inlineSize, (string?)root.Attribute("font-size"), fontAttributeSize, RenderState.Initial);
+    }
+
+    /// <summary>
+    ///     Resolves an element's <c>font-size</c> from its sources in cascade order, skipping any
+    ///     source whose value is invalid so an invalid declaration never masks a lower one.
+    /// </summary>
+    /// <param name="css">The CSS value (inline style, then stylesheet), or <see langword="null"/>.</param>
+    /// <param name="attribute">The <c>font-size</c> presentation attribute, which alone accepts a number-typed math result, or <see langword="null"/>.</param>
+    /// <param name="fontAttribute">The <c>font</c> attribute's expanded size, or <see langword="null"/>.</param>
+    /// <param name="parent">The parent's state (the basis of <c>em</c>, <c>%</c>, <c>larger</c> and <c>smaller</c>).</param>
+    /// <returns>
+    ///     The size from the first valid source, else the parent's size. A CSS-wide keyword that has no
+    ///     effect of its own (<c>revert</c>, <c>revert-layer</c>) is a valid declaration that inherits,
+    ///     so it still masks the lower sources. Shared by the element cascade and
+    ///     <see cref="ReadRootFontSize"/> so <c>GetInfo</c> and <c>Load</c> agree.
+    /// </returns>
+    private static float ResolveFontSize(string? css, string? attribute, string? fontAttribute, RenderState parent)
+    {
+        if (TryResolveFontSizeSource(css, parent, false, out var size) ||
+            TryResolveFontSizeSource(attribute, parent, true, out size) ||
+            TryResolveFontSizeSource(fontAttribute, parent, false, out size))
         {
-            raw = attributeValue;
-            numberResultAllowed = true;
+            return size;
         }
 
-        if (raw == null && ExpandFontAttribute(root) is { } fontAttribute)
+        return parent.FontSize;
+    }
+
+    /// <summary>Resolves one <c>font-size</c> source; see <see cref="ResolveFontSize"/>.</summary>
+    /// <param name="raw">The raw value, or <see langword="null"/> when the source is absent.</param>
+    /// <param name="parent">The parent's state.</param>
+    /// <param name="numberResultAllowed">See <see cref="ParseFontSizeValue"/>.</param>
+    /// <param name="size">The resolved size when this method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when the source is present and valid (including a no-effect CSS-wide keyword, which inherits).</returns>
+    private static bool TryResolveFontSizeSource(string? raw, RenderState parent, bool numberResultAllowed, out float size)
+    {
+        size = parent.FontSize;
+        if (raw == null)
         {
-            fontAttribute.TryGetValue("font-size", out raw);
+            return false;
         }
 
-        return (raw == null ? null : ParseFontSizeValue(raw, RenderState.Initial, numberResultAllowed)) ?? MediumFontSize;
+        if (ParseFontSizeValue(raw, parent, numberResultAllowed) is { } parsed)
+        {
+            size = parsed;
+            return true;
+        }
+
+        return ParseCssWideKeyword(raw) != CssWideKeyword.None;
+    }
+
+    /// <summary>
+    ///     Determines whether a font declaration's value is valid for its property, so the declaration
+    ///     parser can drop an invalid one before it reaches the cascade (CSS Syntax 3: a declaration
+    ///     whose value is invalid is dropped when parsed).
+    /// </summary>
+    /// <param name="property">The lower-cased property name.</param>
+    /// <param name="value">The raw value.</param>
+    /// <param name="state">The state a <c>line-height</c> value resolves against.</param>
+    /// <returns>
+    ///     <see langword="true"/> for any property other than <c>font-size</c>, <c>font-family</c>,
+    ///     <c>font-weight</c>, <c>font-style</c> and <c>line-height</c>, and for a CSS-wide keyword.
+    ///     Otherwise whether the value parses: <c>font-weight</c> also accepts <c>bolder</c> and
+    ///     <c>lighter</c> (valid, but with no modeled effect), <c>font-family</c> needs at least one
+    ///     family name, and <c>font-size</c> is checked as a CSS declaration (no number-typed math
+    ///     result) against the initial state, since only a parent-dependent over-magnitude result can
+    ///     differ, which the cascade handles by falling to the next source.
+    /// </returns>
+    private static bool IsValidFontLonghand(string property, string value, RenderState state)
+    {
+        if (property is not ("font-size" or "font-family" or "font-weight" or "font-style" or "line-height") ||
+            ParseCssWideKeyword(value) != CssWideKeyword.None)
+        {
+            return true;
+        }
+
+        return property switch
+        {
+            "font-size" => ParseFontSizeValue(value, state, false) != null,
+            "font-family" => GenericFontFamilies.SplitFamilyList(value).Count > 0,
+            "font-weight" => ParseFontWeight(value) != null ||
+                             value.Trim().Equals("bolder", StringComparison.OrdinalIgnoreCase) ||
+                             value.Trim().Equals("lighter", StringComparison.OrdinalIgnoreCase),
+            "font-style" => ParseFontStyle(value) != null,
+            _ => TryParseLineHeight(value, state, out _)
+        };
+    }
+
+    /// <summary>
+    ///     Picks the first valid value of a font property from its sources, in cascade order.
+    /// </summary>
+    /// <param name="property">The property name.</param>
+    /// <param name="state">The state used to validate a <c>line-height</c>.</param>
+    /// <param name="css">The CSS value (inline style, then stylesheet), or <see langword="null"/>.</param>
+    /// <param name="attribute">The presentation attribute value, or <see langword="null"/>.</param>
+    /// <param name="fontAttribute">The <c>font</c> attribute's expanded value, or <see langword="null"/>.</param>
+    /// <returns>The first present, valid value, or <see langword="null"/> when none is (the value is then inherited).</returns>
+    private static string? FirstValidFontValue(string property, RenderState state, string? css, string? attribute, string? fontAttribute)
+    {
+        if (css != null && IsValidFontLonghand(property, css, state))
+        {
+            return css;
+        }
+
+        if (attribute != null && IsValidFontLonghand(property, attribute, state))
+        {
+            return attribute;
+        }
+
+        return fontAttribute != null && IsValidFontLonghand(property, fontAttribute, state) ? fontAttribute : null;
     }
 
     /// <summary>

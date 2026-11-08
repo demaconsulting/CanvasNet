@@ -122,4 +122,34 @@ public class GenericFontFamiliesTests
         Assert.Equal(["\uFFFD"], GenericFontFamilies.SplitFamilyList("\\110000"));
         Assert.Equal(["abc"], GenericFontFamilies.SplitFamilyList("abc\\"));
     }
+
+    /// <summary>
+    ///     Proves a backslash before a newline (line feed, carriage return, form feed or CR LF) is a line
+    ///     continuation inside a quoted string - it contributes nothing - and an invalid escape outside one, which
+    ///     makes the whole list empty; and that the white space a hexadecimal escape consumes is CSS white space
+    ///     (CR LF as one unit), not a no-break space.
+    /// </summary>
+    [Fact]
+    public void GenericFontFamilies_SplitFamilyList_HandlesBackslashNewline()
+    {
+        // Line continuation inside strings: every newline form joins the lines, CR LF as one
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\nBar\""));
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\rBar\""));
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\fBar\""));
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\r\nBar\""));
+        Assert.Equal(["AB", "serif"], GenericFontFamilies.SplitFamilyList("'A\\\nB', serif"));
+
+        // Not a valid escape in an identifier: the whole list is invalid
+        Assert.Empty(GenericFontFamilies.SplitFamilyList("Foo\\\nBar, serif"));
+        Assert.Empty(GenericFontFamilies.SplitFamilyList("serif, Foo\\\r\nBar"));
+
+        // A hexadecimal escape consumes one CSS white space (CR LF is one), and nothing else
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\"\\41\r\ncme\""));
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\"\\41\tcme\""));
+        Assert.Equal(["A\u00A0cme"], GenericFontFamilies.SplitFamilyList("\"\\41\u00A0cme\""));
+        Assert.Equal(["A\u2028cme"], GenericFontFamilies.SplitFamilyList("\"\\41\u2028cme\""));
+
+        // The existing trailing lone backslash behavior is unchanged
+        Assert.Equal(["abc"], GenericFontFamilies.SplitFamilyList("abc\\"));
+    }
 }

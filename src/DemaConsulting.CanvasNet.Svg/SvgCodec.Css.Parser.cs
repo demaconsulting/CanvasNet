@@ -456,6 +456,13 @@ public static partial class SvgCodec
                 continue;
             }
 
+            if (!IsValidFontLonghand(property, value, RenderState.Initial))
+            {
+                // An invalid font longhand is dropped at parse time, so it can never mask a valid
+                // value from a lower-precedence source (CSS Syntax 3); only font properties are filtered
+                continue;
+            }
+
             result.Add((property, value));
         }
 

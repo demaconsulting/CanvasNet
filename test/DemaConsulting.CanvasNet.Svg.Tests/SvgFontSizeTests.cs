@@ -675,6 +675,231 @@ public class SvgFontSizeTests
             $"<svg viewBox='0 0 200 200'>{SvgLengthTestSupport.Glyph($"font-size='{fontSize}'")}</svg>", 200, 200)), 0.0001);
 
     // ================================================================================================
+    // An invalid declaration is dropped, so the next source applies (it never masks a lower source)
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves an invalid <c>font-size</c> declaration is dropped when parsed, so the next valid
+    ///     source applies instead of the size being inherited: the inline style, a stylesheet rule
+    ///     (including a more specific rule), the presentation attribute and the <c>font</c> attribute
+    ///     are each tried in turn.
+    /// </summary>
+    /// <param name="stylesheet">An optional <c>style</c> element.</param>
+    /// <param name="textAttributes">The attributes of the <c>text</c> element.</param>
+    /// <param name="expected">The size of the first valid source; the parent supplies 40, so an ignored value would measure 40.</param>
+    [Theory]
+    [InlineData("", "font-size='30' style='font-size: bad'", 30.0)]
+    [InlineData("<style>text { font-size: 20px }</style>", "style='font-size: bad'", 20.0)]
+    [InlineData("<style>text { font-size: bad }</style>", "font-size='30'", 30.0)]
+    [InlineData("", "style='font-size: 20px; font-size: bad'", 20.0)]
+    [InlineData("<style>#t { font-size: bad } text { font-size: 22px }</style>", "id='t'", 22.0)]
+    [InlineData("", "font-size='bad' font='14px TestFont'", 14.0)]
+    [InlineData("", "style='font: 12xyz TestFont' font-size='30'", 30.0)]
+    [InlineData("", "font-size='bad' style='font: bad'", 40.0)]
+    [InlineData("", "style='font-size: calc(5 + 5)' font-size='calc(5 + 5)'", 10.0)]
+    public void SvgCodec_Load_InvalidFontSizeDeclaration_FallsThroughToNextSource(string stylesheet, string textAttributes, double expected)
+    {
+        // Arrange
+        var inner = $"{stylesheet}<g font-size='40'>{SvgLengthTestSupport.Glyph(textAttributes)}</g>";
+
+        // Act
+        var measured = SvgLengthTestSupport.MeasureFontSizeOf(inner);
+
+        // Assert
+        Assert.Equal(expected, measured, Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves an invalid <c>font-weight</c>, <c>font-style</c> or <c>font-family</c> declaration is
+    ///     dropped so a lower source applies, while a valid but not modeled <c>bolder</c> still masks a
+    ///     lower <c>bold</c> (the declaration is valid, it just has no modeled effect).
+    /// </summary>
+    /// <param name="textAttributes">The attributes of the <c>text</c> element.</param>
+    /// <param name="expectedCoverage">The ink area: 100 regular, 160 bold, 130 italic.</param>
+    [Theory]
+    [InlineData("font-weight='bold' style='font-weight: abc'", 160.0)]
+    [InlineData("font-weight='bold' style='font-weight: 700; font-weight: abc'", 160.0)]
+    [InlineData("font-weight='bold' style='font-weight: bolder'", 100.0)]
+    [InlineData("font-style='italic' style='font-style: tilted'", 130.0)]
+    [InlineData("font-style='italic' style='font-style: oblique 100deg'", 130.0)]
+    [InlineData("style='font-family: &quot;&quot;'", 100.0)]
+    public void SvgCodec_Load_InvalidFontWeightStyleFamily_FallsThroughToNextSource(string textAttributes, double expectedCoverage)
+    {
+        // Arrange: size 20, so the faces measure 100 (regular), 160 (bold) and 130 (italic)
+        var svg = $"<svg viewBox='0 0 200 200'><text x='20' y='150' font-family='TestFont' font-size='20' {textAttributes}>A</text></svg>";
+
+        // Act
+        var coverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.RenderWithStyledFaces(svg, 200, 200));
+
+        // Assert
+        Assert.Equal(expectedCoverage, coverage, 1.0);
+    }
+
+    /// <summary>
+    ///     Proves an invalid <c>line-height</c> is dropped so a stylesheet rule applies: <c>2lh</c> in
+    ///     the child's <c>font-size</c> measures the group's line height (20px, not the <c>normal</c> 12px).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_InvalidLineHeightDeclaration_FallsThroughToNextSource()
+    {
+        // Arrange: the group is 10px; its inline line-height is invalid, its rule says 20px
+        var inner = "<style>g { line-height: 20px }</style>" +
+                    $"<g font-size='10' style='line-height: 12xyz'>{SvgLengthTestSupport.Glyph("font-size='2lh'")}</g>";
+
+        // Act
+        var measured = SvgLengthTestSupport.MeasureFontSizeOf(inner);
+
+        // Assert
+        Assert.Equal(40.0, measured, Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves only font declarations are filtered at parse time: an invalid value of any other
+    ///     property still masks a lower source exactly as before, so a stylesheet's <c>fill</c> does
+    ///     not show through an unparsable inline <c>fill</c>.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_InvalidNonFontDeclaration_StillMasksLowerSources()
+    {
+        // Arrange
+        const string Shape = "<rect width='50' height='50' style='fill: not-a-paint'/>";
+        const string Rule = "<style>rect { fill: red }</style>";
+
+        // Act
+        var withRule = SvgLengthTestSupport.Render($"<svg viewBox='0 0 200 200'>{Rule}{Shape}</svg>", 200, 200);
+        var withoutRule = SvgLengthTestSupport.Render($"<svg viewBox='0 0 200 200'>{Shape}</svg>", 200, 200);
+
+        // Assert
+        Assert.True(SvgLengthTestSupport.AreIdentical(withoutRule, withRule));
+    }
+
+    /// <summary>
+    ///     Proves the root <c>font-size</c> follows the same fall-through in both
+    ///     <see cref="SvgCodec.GetInfo(Stream)"/> (resolving <c>2em</c>) and <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>:
+    ///     an invalid inline <c>font-size</c> is dropped and the attribute applies.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfoAndLoad_RootInvalidInlineFontSize_FallsThroughToAttribute()
+    {
+        // Arrange: 2em is 20 with the attribute's 10, and 32 when the invalid inline value masked it (16)
+        const string Svg =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='2em' height='2em' font-size='10' style='font-size: bad'>" +
+            "<rect width='20' height='20' fill='black'/></svg>";
+
+        // Act
+        using var infoStream = SvgLengthTestSupport.ToStream(Svg);
+        var info = SvgCodec.GetInfo(infoStream);
+        using var stream = SvgLengthTestSupport.ToStream(Svg);
+        var surface = SvgCodec.Load(stream, info.Width, info.Height);
+
+        // Assert
+        Assert.Equal(20, info.Width);
+        Assert.Equal(20, info.Height);
+        Assert.Equal(255, surface[19, 19].A);
+    }
+
+    // ================================================================================================
+    // font shorthand: each component at most once, size needs a unit
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves a <c>font</c> shorthand that repeats a style, variant, weight or stretch component (or
+    ///     has more <c>normal</c> tokens than free slots) is invalid as a whole, leaving the lower source in force.
+    /// </summary>
+    /// <param name="shorthand">The invalid shorthand value.</param>
+    [Theory]
+    [InlineData("bold bold 12px TestFont")]
+    [InlineData("bold 700 12px TestFont")]
+    [InlineData("bold bolder 12px TestFont")]
+    [InlineData("italic italic 12px TestFont")]
+    [InlineData("italic oblique 12px TestFont")]
+    [InlineData("oblique 10deg italic 12px TestFont")]
+    [InlineData("small-caps small-caps 12px TestFont")]
+    [InlineData("condensed expanded 12px TestFont")]
+    [InlineData("normal normal normal normal bold 12px TestFont")]
+    public void SvgCodec_Load_FontShorthandDuplicateComponent_IsDropped(string shorthand) =>
+        Assert.Equal(30.0, SvgLengthTestSupport.MeasureFontSizeOf(
+            $"<text x='20' y='150' font-family='TestFont' font-size='30' style='font: {shorthand}'>A</text>"), Tolerance);
+
+    /// <summary>
+    ///     Proves <c>normal</c> may repeat up to the number of free component slots (it is a member
+    ///     of the style, variant, weight and stretch components alike).
+    /// </summary>
+    /// <param name="shorthand">The valid shorthand value.</param>
+    [Theory]
+    [InlineData("normal normal 12px TestFont")]
+    [InlineData("normal normal normal normal 12px TestFont")]
+    [InlineData("normal bold normal 12px TestFont")]
+    [InlineData("italic normal bold small-caps 12px TestFont")]
+    public void SvgCodec_Load_FontShorthandRepeatedNormal_IsAccepted(string shorthand) =>
+        Assert.Equal(12.0, SvgLengthTestSupport.MeasureFontSizeOf(
+            $"<text x='20' y='150' font-family='Other' font-size='30' style='font: {shorthand}'>A</text>"), Tolerance);
+
+    /// <summary>
+    ///     Proves the shorthand size must carry a unit: a unitless non-zero number is not a length (CSS
+    ///     Values 4), and a number before the family is read as the weight, which leaves no size.
+    /// </summary>
+    /// <param name="shorthand">The invalid shorthand value.</param>
+    [Theory]
+    [InlineData("0.5 TestFont")]
+    [InlineData("bold 0.5 TestFont")]
+    [InlineData("12 TestFont")]
+    [InlineData("400 12 TestFont")]
+    [InlineData("bold 12.5 TestFont")]
+    public void SvgCodec_Load_FontShorthandUnitlessSize_IsDropped(string shorthand) =>
+        Assert.Equal(30.0, SvgLengthTestSupport.MeasureFontSizeOf(
+            $"<text x='20' y='150' font-family='TestFont' font-size='30' style='font: {shorthand}'>A</text>"), Tolerance);
+
+    /// <summary>
+    ///     Proves a bare <c>0</c> is a valid shorthand size: the declaration is accepted (it masks the
+    ///     <c>font-size</c> attribute) and a zero size renders no text.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FontShorthandZeroSize_IsAccepted()
+    {
+        // Arrange
+        var svg = "<svg viewBox='0 0 200 200'><text x='20' y='150' font-family='TestFont' font-size='30' style='font: 0 TestFont'>A</text></svg>";
+
+        // Act
+        var coverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.Render(svg, 200, 200));
+
+        // Assert
+        Assert.Equal(0.0, coverage, 0.0001);
+    }
+
+    // ================================================================================================
+    // font-family: backslash-newline
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves a backslash-newline inside a quoted <c>font-family</c> name is a line continuation (the
+    ///     lines join), and outside a quoted name is an invalid escape that drops the declaration so the
+    ///     <c>font-family</c> attribute applies. The newline needs a <c>style</c> element, because XML
+    ///     attribute-value normalization turns a newline in an attribute into a space.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FontFamilyBackslashNewline_JoinsLinesInStringAndDropsInIdent()
+    {
+        // Arrange: FooBar is 80 font units wide (160 square pixels at size 20), TestFont 50 (100)
+        var fonts = new Dictionary<string, TrueTypeFont>
+        {
+            ["FooBar"] = SvgLengthTestSupport.BuildSquareFont(80),
+            ["TestFont"] = SvgLengthTestSupport.BuildSquareFont()
+        };
+        const string Text = "<text x='20' y='150' font-size='20' font-family='TestFont'>A</text>";
+        var quoted = $"<svg viewBox='0 0 200 200'><style>text {{ font-family: \"Foo\\\nBar\", TestFont }}</style>{Text}</svg>";
+        var ident = $"<svg viewBox='0 0 200 200'><style>text {{ font-family: Foo\\\nBar }}</style>{Text}</svg>";
+
+        // Act
+        var quotedCoverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.RenderWithFonts(quoted, 200, 200, fonts));
+        var identCoverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.RenderWithFonts(ident, 200, 200, fonts));
+
+        // Assert
+        Assert.Equal(160.0, quotedCoverage, 1.0);
+        Assert.Equal(100.0, identCoverage, 1.0);
+    }
+
+    // ================================================================================================
     // Text dx / dy
     // ================================================================================================
 
