@@ -71,4 +71,45 @@ public class NumericConversionsTests
         // Assert
         Assert.Equal(expected, result);
     }
+
+    /// <summary>
+    ///     Validates the saturating sum and negation used for index arithmetic with offsets of any size: a sum that does not fit stops at the end of the range on its side and never wraps to the other, and the negation of the smallest value is the largest.
+    /// </summary>
+    /// <param name="left">The first addend.</param>
+    /// <param name="right">The second addend.</param>
+    /// <param name="expected">The expected sum.</param>
+    [Theory]
+    [InlineData(1L, 2L, 3L)]
+    [InlineData(-1L, -2L, -3L)]
+    [InlineData(long.MaxValue, 1L, long.MaxValue)]
+    [InlineData(1L, long.MaxValue, long.MaxValue)]
+    [InlineData(long.MaxValue, long.MaxValue, long.MaxValue)]
+    [InlineData(long.MinValue, -1L, long.MinValue)]
+    [InlineData(-1L, long.MinValue, long.MinValue)]
+    [InlineData(long.MinValue, long.MinValue, long.MinValue)]
+    [InlineData(long.MaxValue, long.MinValue, -1L)]
+    [InlineData(long.MinValue, long.MaxValue, -1L)]
+    [InlineData(3L, long.MinValue, long.MinValue + 3)]
+    public void NumericConversions_AddSaturating_StopsAtTheEndsOfTheRangeAndNeverWraps(long left, long right, long expected)
+    {
+        // Arrange / Act
+        var result = NumericConversions.AddSaturating(left, right);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    ///     Validates the saturating negation: the negation of <see cref="long.MinValue"/> (which no long holds) is <see cref="long.MaxValue"/>.
+    /// </summary>
+    [Fact]
+    public void NumericConversions_NegateSaturating_NegatesAndSaturatesTheSmallestValue()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal(-5L, NumericConversions.NegateSaturating(5));
+        Assert.Equal(5L, NumericConversions.NegateSaturating(-5));
+        Assert.Equal(0L, NumericConversions.NegateSaturating(0));
+        Assert.Equal(long.MaxValue, NumericConversions.NegateSaturating(long.MinValue));
+        Assert.Equal(long.MinValue + 1, NumericConversions.NegateSaturating(long.MaxValue));
+    }
 }

@@ -264,7 +264,7 @@ internal sealed partial class EncodingTransforms
         var location = _context.Locate(parameters ?? definition);
         var method = "value";
         var value = DataValue.FromNumber(0);
-        (int? Start, int? End) frame = (null, null);
+        (long? Start, long? End) frame = (null, null);
         if (parameters is not null)
         {
             (method, value, frame) = AggregateTransforms.ReadImputeParameters(parameters);

@@ -1153,8 +1153,10 @@ from a fresh parse, and from eight concurrent threads; that a chart with decimal
 format and the letters I and i gives the pixels of the invariant culture under `tr-TR`, `de-DE`, `fr-FR`, `ar-SA`,
 `ja-JP`, `th-TH` and `en-IN` (a culture that the host does not have is skipped); that no time zone is UTC; that the
 datasets, the parameters and the fields of the rows supplied in the opposite order give the same pixels; and that
-fourteen numeric edge specifications (a quantile step of 1e-300, a pivot limit of 1.8e308, a pow exponent of 1e300, a
-denormal tick span, 3e9 impute keys, a window frame of 1e18, and others) end with the same exception type and location,
+eighteen numeric edge specifications (a quantile step of 1e-300, a pivot limit of 1.8e308, a pow exponent of 1e300, a
+denormal tick span, 3e9 impute keys, window frames of 1e18, of 1e12 and at the ends of the int range, window offsets of
+9.2e18, an impute frame of 1e12, a frame bound of 1e999 that no double holds, and others) end with the same exception
+type and location,
 or complete, on every runtime. The pins and pictures are compared as pixels, never as the bytes of an encoded PNG. To
 capture them again after a deliberate change, set `CANVASNET_DETERMINISM_DIR` to the `Fixtures/Determinism` folder.
 

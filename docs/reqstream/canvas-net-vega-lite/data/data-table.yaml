@@ -124,6 +124,8 @@ sections:
                 tests:
                   - NumericConversions_ToInt32Saturating_TruncatesSaturatesAndMapsNaNToZero
                   - NumericConversions_ToInt64Saturating_TruncatesSaturatesAndMapsNaNToZero
+                  - NumericConversions_AddSaturating_StopsAtTheEndsOfTheRangeAndNeverWraps
+                  - NumericConversions_NegateSaturating_NegatesAndSaturatesTheSmallestValue
                   - StatisticsPrimitives_RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue
                   - StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget
                   - StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit

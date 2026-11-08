@@ -73,4 +73,34 @@ internal static class NumericConversions
 
         return value <= long.MinValue ? long.MinValue : (long)value;
     }
+
+    /// <summary>
+    ///     Adds two 64-bit integers and saturates at the range of the type instead of wrapping.
+    /// </summary>
+    /// <remarks>
+    ///     Index arithmetic with an offset that comes from a specification (a window frame bound, the offset of <c>lag</c>) uses this, so that an offset
+    ///     of <see cref="long.MaxValue"/> or <see cref="long.MinValue"/> lands outside the partition and is clamped or refused, and never wraps to an index inside it.
+    /// </remarks>
+    /// <param name="left">The first addend.</param>
+    /// <param name="right">The second addend.</param>
+    /// <returns>The sum, or <see cref="long.MaxValue"/> or <see cref="long.MinValue"/> when it does not fit.</returns>
+    public static long AddSaturating(long left, long right)
+    {
+        var sum = unchecked(left + right);
+
+        // Overflow happened exactly when both addends have a sign that the sum does not have
+        if (((left ^ sum) & (right ^ sum)) >= 0)
+        {
+            return sum;
+        }
+
+        return left < 0 ? long.MinValue : long.MaxValue;
+    }
+
+    /// <summary>
+    ///     Negates a 64-bit integer and saturates at the range of the type (the negation of <see cref="long.MinValue"/> is <see cref="long.MaxValue"/>).
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns>The negated number.</returns>
+    public static long NegateSaturating(long value) => value == long.MinValue ? long.MaxValue : -value;
 }

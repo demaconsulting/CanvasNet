@@ -2089,7 +2089,7 @@ fails when a `VegaLiteLimits` property has no row.
 | Data file size and number | `MaxDataBytes`, `MaxDataFiles`; a file over the limit is refused before it is opened | `data/bytes`, `data/files` |
 | Rows made by `fold`, `flatten`, `impute` (groups times keys), `quantile`, `density` | `MaxDataRows` with the clamped count, `TableLayout.MaxCells` for cells | `transform/fold`, `transform/flatten`, `transform/impute`, `transform/quantile-step`, `transform/density-steps` |
 | Work of `loess`, window frames, aggregates, bootstrap, polynomial fits | `MaxEvaluationSteps` (calibrated weights), cancellation | `transform/loess`, `transform/window-frame`, stage cancellation tests |
-| Regression order, window frame | parser: an integer within the documented range | `transform/regression-order`, `transform/window-frame` |
+| Regression order, window parameters | parser: a regression order is an integer within the documented range; window frame bounds and parameters are any integer (the engine clamps them) | `transform/regression-order`, `transform/window-frame` (completes) |
 | Expression length, depth, steps, strings, arrays | `MaxExpressionLength`, `MaxExpressionDepth`, `MaxEvaluationSteps`, `MaxStringLength`; arrays are cut at the `MaxScaleDomainSize` cap | `expression/length`, `expression/depth`, `expression/steps`, `expression/string`, `expression/array` |
 | Scale domain, bins | `MaxScaleDomainSize` (also for the bins of a bin step of `1e-9`) | `scale/domain`, `scale/bins` |
 | Ticks | `MaxTicks`, checked before the labels are made | `guide/ticks` |

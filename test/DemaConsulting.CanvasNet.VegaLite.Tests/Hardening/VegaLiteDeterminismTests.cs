@@ -349,7 +349,11 @@ public class VegaLiteDeterminismTests
     [InlineData("pow-scale-overflow", "VegaLiteRenderException@")]
     [InlineData("denormal-tick-span", "ok")]
     [InlineData("impute-keys-beyond-int", "VegaLiteRenderException@/transform/0")]
-    [InlineData("window-frame-beyond-int", "VegaLiteSpecException@/transform/0/frame/0")]
+    [InlineData("window-frame-beyond-int", "ok")]
+    [InlineData("window-offsets-beyond-int", "ok")]
+    [InlineData("window-int-edges-and-trillion", "ok")]
+    [InlineData("impute-frame-trillion", "ok")]
+    [InlineData("window-frame-unrepresentable", "VegaLiteSpecException@/transform/0/frame/1")]
     [InlineData("tick-count-beyond-int", "VegaLiteRenderException@/encoding/x")]
     [InlineData("band-padding-beyond-int", "ok")]
     [InlineData("bin-step-denormal", "VegaLiteRenderException@/encoding/x/bin")]
@@ -393,6 +397,10 @@ public class VegaLiteDeterminismTests
         ["denormal-tick-span"] = "{ \"data\": { \"values\": [ { \"x\": 5e-324, \"y\": 1 }, { \"x\": 1e-300, \"y\": 2 } ] }, \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\", \"axis\": { \"tickCount\": 1e10 } }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } } }",
         ["impute-keys-beyond-int"] = Chart("\"transform\": [ { \"impute\": \"y\", \"key\": \"x\", \"keyvals\": { \"start\": 0, \"stop\": 3e9 }, \"value\": 0 } ], \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\" } }"),
         ["window-frame-beyond-int"] = Chart("\"transform\": [ { \"window\": [ { \"op\": \"sum\", \"field\": \"y\", \"as\": \"s\" } ], \"frame\": [-1e18, 1e18] } ], \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\" } }"),
+        ["window-offsets-beyond-int"] = Chart("\"transform\": [ { \"window\": [ { \"op\": \"lag\", \"field\": \"y\", \"param\": 9.2e18, \"as\": \"a\" }, { \"op\": \"lead\", \"field\": \"y\", \"param\": 4294967296, \"as\": \"b\" }, { \"op\": \"nth_value\", \"field\": \"y\", \"param\": 9.2e18, \"as\": \"c\" }, { \"op\": \"ntile\", \"param\": 1e300, \"as\": \"d\" }, { \"op\": \"first_value\", \"field\": \"y\", \"as\": \"e\" }, { \"op\": \"last_value\", \"field\": \"y\", \"as\": \"f\" } ], \"sort\": [ { \"field\": \"x\" } ], \"frame\": [-2147483649, 2147483648] } ], \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\" } }"),
+        ["window-int-edges-and-trillion"] = Chart("\"transform\": [ { \"window\": [ { \"op\": \"lag\", \"field\": \"y\", \"param\": 2147483647, \"as\": \"a\" }, { \"op\": \"lead\", \"field\": \"y\", \"param\": 1e12, \"as\": \"b\" }, { \"op\": \"nth_value\", \"field\": \"y\", \"param\": 2147483647, \"as\": \"c\" }, { \"op\": \"rank\", \"as\": \"r\" }, { \"op\": \"sum\", \"field\": \"y\", \"as\": \"s\" } ], \"sort\": [ { \"field\": \"x\" } ], \"frame\": [-2147483648, 2147483647] }, { \"window\": [ { \"op\": \"mean\", \"field\": \"y\", \"as\": \"m\" }, { \"op\": \"last_value\", \"field\": \"y\", \"as\": \"l\" } ], \"frame\": [-1e12, 1e12] } ], \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"m\", \"type\": \"quantitative\" } }"),
+        ["impute-frame-trillion"] = Chart("\"transform\": [ { \"impute\": \"y\", \"key\": \"x\", \"method\": \"mean\", \"frame\": [-1e12, 1e12] } ], \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } }"),
+        ["window-frame-unrepresentable"] = Chart("\"transform\": [ { \"window\": [ { \"op\": \"sum\", \"field\": \"y\", \"as\": \"s\" } ], \"frame\": [null, 1e999] } ], \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\" } }"),
         ["tick-count-beyond-int"] = Chart("\"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"x\", \"type\": \"quantitative\", \"axis\": { \"tickCount\": 1.7976931348623157E+308 } }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } }"),
         ["band-padding-beyond-int"] = Chart("\"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"u\", \"type\": \"nominal\", \"scale\": { \"padding\": -4294967296 } }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } }"),
         ["bin-step-denormal"] = Chart("\"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"x\", \"bin\": { \"step\": 5e-324 }, \"type\": \"quantitative\" }, \"y\": { \"aggregate\": \"count\", \"type\": \"quantitative\" } }"),

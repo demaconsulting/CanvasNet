@@ -38,7 +38,7 @@ internal sealed partial class AggregateTransforms
     /// </summary>
     /// <param name="parameters">The transform object or the <c>impute</c> object of a channel definition (validated by the parser).</param>
     /// <returns>The method (<c>value</c> by default), the constant of the <c>value</c> method (0 by default) and the frame.</returns>
-    internal static (string Method, DataValue Value, (int? Start, int? End) Frame) ReadImputeParameters(SpecNode parameters)
+    internal static (string Method, DataValue Value, (long? Start, long? End) Frame) ReadImputeParameters(SpecNode parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         var method = parameters["method"]?.AsString() ?? "value";
@@ -72,7 +72,7 @@ internal sealed partial class AggregateTransforms
         string[] groupBy,
         string method,
         DataValue value,
-        (int? Start, int? End) frame,
+        (long? Start, long? End) frame,
         SpecNode? keyValues,
         ulong seed,
         VegaLiteLocation location,
@@ -186,7 +186,7 @@ internal sealed partial class AggregateTransforms
         string[] groupBy,
         string method,
         DataValue value,
-        (int? Start, int? End) frame,
+        (long? Start, long? End) frame,
         List<DataValue> domain,
         Dictionary<GroupKey, int> domainIndex,
         ulong seed,

@@ -79,6 +79,8 @@ are rejected with `ArgumentException` types, and out-of-range row, field, and co
 
 **Tests**: `NumericConversionsTests.NumericConversions_ToInt32Saturating_TruncatesSaturatesAndMapsNaNToZero`,
 `NumericConversionsTests.NumericConversions_ToInt64Saturating_TruncatesSaturatesAndMapsNaNToZero` (theories),
+`NumericConversionsTests.NumericConversions_AddSaturating_StopsAtTheEndsOfTheRangeAndNeverWraps`,
+`NumericConversionsTests.NumericConversions_NegateSaturating_NegatesAndSaturatesTheSmallestValue`,
 `StatisticsPrimitivesTests.StatisticsPrimitives_RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue`,
 `StatTransformsQuantileTests.StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget`,
 `StatTransformsQuantileTests.StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit`,
@@ -95,7 +97,9 @@ with the row limit raised to its maximum, at `TableLayout.MaxCells` and never al
 or 1.79e308 keeps every pivot value, and the whole-pixel size of a canvas dimension that is NaN or negative infinity is
 0 and that of positive infinity or 1e300 is `int.MaxValue`. The test project is also run with
 `CheckForOverflowUnderflow` on the library (a temporary project setting): every test passes, which is the oracle for a
-cast that was missed.
+cast that was missed. The saturating sum and negation that the index arithmetic of the window engine uses stop at the
+ends of the range of a `long` and never wrap (the sum of the largest value and 1 is the largest, of the smallest and -1
+the smallest, of the two extremes -1), and the negation of the smallest value is the largest.
 
 ##### Field Paths
 

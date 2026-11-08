@@ -434,8 +434,8 @@ public class VegaLiteLimitAuditTests
         yield return new Row("transform/loess", Sequence("20000", "{ \"calculate\": \"sin(datum.data)\", \"as\": \"y\" }, { \"loess\": \"y\", \"on\": \"data\", \"bandwidth\": 1 }"), Stage.Render, Outcome.RenderError, "MaxEvaluationSteps", "/transform/1");
         yield return new Row("transform/density-steps", Sequence("10", "{ \"density\": \"data\", \"steps\": 1e9 }"), Stage.Render, Outcome.RenderError, "MaxDataRows", "/transform/0");
         yield return new Row("transform/quantile-step", Sequence("10", "{ \"quantile\": \"data\", \"step\": 1e-300 }"), Stage.Render, Outcome.RenderError, "MaxDataRows", "/transform/0");
-        // A window frame is parsed as integers within the range of an int; the work of a frame that the budget accepts is stopped by the meter (MaxEvaluationSteps) and by cancellation (the stage test below)
-        yield return new Row("transform/window-frame", Sequence("10", "{ \"window\": [ { \"op\": \"median\", \"field\": \"data\", \"as\": \"m\" } ], \"frame\": [-1e18, 1e18] }"), Stage.Open, Outcome.SpecError, "frame", "/transform/0");
+        // A window frame bound is any integer, clamped to the partition (a frame of 1e18 is the whole partition); the work of a frame that the budget accepts is stopped by the meter (MaxEvaluationSteps) and by cancellation (the stage test below)
+        yield return new Row("transform/window-frame", Sequence("10", "{ \"window\": [ { \"op\": \"median\", \"field\": \"data\", \"as\": \"m\" } ], \"frame\": [-1e18, 1e18] }"), Stage.Render, Outcome.Completes, string.Empty, string.Empty);
         yield return new Row("transform/regression-order", Sequence("10", "{ \"regression\": \"data\", \"on\": \"data\", \"method\": \"poly\", \"order\": 1e9 }"), Stage.Open, Outcome.SpecError, "integer from", "/transform/0");
 
         // Expressions

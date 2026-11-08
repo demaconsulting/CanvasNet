@@ -1107,7 +1107,10 @@ predecessor, and its successor. An offset is clamped to the group, and a frame t
 the operation (`count` 0, `sum` `null`). When a `sort` is given and `ignorePeers` is not `true`, the ends of the frame
 are widened to include the **peers** of the rows they land on (rows with the same sort values), so a running `sum` over
 rows with equal sort values gives the same total to all of them; with `ignorePeers` set to `true` it does not. The
-parameters of `ntile`, `lag`, `lead`, and `nth_value` are integers from 1 up (`ntile` and `nth_value` need one). The
+parameters of `ntile`, `lag`, `lead`, and `nth_value` are integers from 1 up (`ntile` and `nth_value` need one). A frame
+offset or a parameter of any size is valid, also one beyond the range of an `int` or of a `long` (`[-1e18, 1e18]`, a `lag`
+of `4294967296`): an offset beyond the group clamps to it, a frame wholly outside the group is empty, and a `lag`,
+`lead`, or `nth_value` beyond the group or the frame gives `null`, on every .NET version. The
 frames that start at the beginning of the group are computed incrementally.
 
 **`bin`.** `{"bin": true | {...}, "field": ..., "as": ...}` writes the lower and the upper boundary of the bin of every

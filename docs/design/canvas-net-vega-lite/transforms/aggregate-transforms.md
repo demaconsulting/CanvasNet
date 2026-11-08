@@ -89,9 +89,17 @@ operation over the frame. `ntile` and `nth_value` need a `param` (an integer of 
 default it to 1.
 
 **Frames and peers.** A frame is two row offsets from the current row (null is unbounded; **default
-`[null, 0]`**), clamped to the partition. With a `sort` and without `ignorePeers`, each end of the frame is
-widened to include the peers (the rows with equal sort values) of the row at that end. The rows keep their
-**input order** in the output.
+`[null, 0]`**), clamped to the partition. An offset is any integer: `ReadFrame` keeps it as a `long` (a larger one
+saturates), and the frame positions and the positions of `lag`, `lead`, and `nth_value` are computed with
+`NumericConversions.AddSaturating`, so an offset of any size lands outside the partition and is clamped (a frame) or
+has no row (a position) and never wraps into an index, as the frame bounds and offsets of Vega, which are numbers of
+any size (`vega-transforms` `WindowOps.js`: `lag` and `lead` read `data[index -/+ offset]` of `+offset || 1`, and
+`nth_value` reads `data[i0 + (nth - 1)]` when it is below `i1`). The parser accepts any integer for a frame bound and
+any integer of at least 1 for the `param` of `ntile`, `lag`, `lead`, and `nth_value`; the engine, which callers other
+than the parser can reach, also defines a zero offset as 1 (Vega's `|| 1`) and gives no value for an offset or an nth
+that points outside the partition or the frame (Vega would read an undefined row there). With a `sort` and without
+`ignorePeers`, each end of the frame is widened to include the peers (the rows with equal sort values) of the row at
+that end. The rows keep their **input order** in the output.
 
 **Stack.** A group is stacked in the order of the sort fields (a stable sort: null first, NaN next, then by
 value; no sort keeps the table order); the first row is nearest to zero. `zero` stacks a value below 0 downwards
@@ -109,7 +117,7 @@ The imputed field is the `value` (default 0; an explicit null is honored) or, fo
 null of the field, including the nulls that were already in the rows (the pair of a window and a formula in
 Vega-Lite). The same engine serves the `impute` property of an encoding and the implicit impute of a stacked line or
 area (see _EncodingPlan_); it does not know where its parameters come from. The number of `keyvals` is checked against
-the row limit capped at the largest row count of a table (`int.MaxValue`) before it is converted to an int, so a row
+the row limit and `TableLayout.MaxCells` (the smaller of the two) before it is converted to an int, so a row
 limit above that range cannot make a count beyond it wrap (.NET 8) or saturate (.NET 9 and later) in the loop.
 
 **Bin.** `BinSettings` holds the parameters (`maxbins` 20 when the algorithm is used raw, `base` 10, `divide`

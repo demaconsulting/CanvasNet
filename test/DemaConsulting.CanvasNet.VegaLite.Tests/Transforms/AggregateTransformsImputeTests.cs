@@ -143,6 +143,30 @@ public class AggregateTransformsImputeTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that review found for the window engine that the impute transform shares: a frame whose bounds are beyond the range of an int or of a long clamps to the group (the
+    ///     whole group, or nothing when the frame is wholly outside it), and never wraps or throws.
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_Impute_FrameBoundsBeyondTheIntegerRangeClampToTheGroup()
+    {
+        // Act
+        var whole = Impute(Series, "\"method\":\"mean\",\"frame\":[-2147483649,2147483648]");
+        var edges = Impute(Series, "\"method\":\"mean\",\"frame\":[-2147483648,2147483647]");
+        var trillion = Impute(Series, "\"method\":\"mean\",\"frame\":[-1e12,1e12]");
+        var huge = Impute(Series, "\"method\":\"mean\",\"frame\":[-1e300,1e300]");
+        var ahead = Impute(Series, "\"method\":\"mean\",\"frame\":[9e18,9.2e18]");
+        var behind = Impute(Series, "\"method\":\"mean\",\"frame\":[-9.2e18,-9e18]");
+
+        // Assert: the whole group is the mean of 10 and 30 for a, 5 for b; a frame outside the group has no rows
+        Assert.Equal(["20", "5", "5"], Rows(whole, "y").Skip(3));
+        Assert.Equal(["20", "5", "5"], Rows(edges, "y").Skip(3));
+        Assert.Equal(["20", "5", "5"], Rows(trillion, "y").Skip(3));
+        Assert.Equal(["20", "5", "5"], Rows(huge, "y").Skip(3));
+        Assert.Equal(["null", "null", "null"], Rows(ahead, "y").Skip(3));
+        Assert.Equal(["null", "null", "null"], Rows(behind, "y").Skip(3));
+    }
+
+    /// <summary>
     ///     Validates that with a statistical method a null in an existing row is replaced as well (as Vega-Lite does), and that with the
     ///     constant method an existing null is left alone.
     /// </summary>
