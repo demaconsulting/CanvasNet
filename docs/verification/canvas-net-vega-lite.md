@@ -1083,7 +1083,9 @@ Measures and renders 100 generated specifications, 100 mutated fixtures and 100 
 (a fixed seed) under tight limits, and asserts for each: opening throws only a `VegaLiteSpecException` with a location
 or an `InvalidDataException`; measuring and rendering throw only a located `VegaLiteRenderException` or
 `VegaLiteSpecException`, a `VegaLiteUnsupportedFeatureException` in strict mode, or the documented
-`ArgumentOutOfRangeException` for the options; the case finishes within 20 seconds; the thread allocates less than 4 GiB;
+`ArgumentOutOfRangeException` for the options; the case does not exceed the hang guard (120 seconds, or the number of
+seconds of `CANVASNET_VL_HANG_GUARD_SECONDS`; the tests assert outcomes, never speed, and a failure of the guard says
+"Hang guard"); the thread allocates less than 4 GiB;
 and two runs give the same pixel hash and the same ordered reports, or the same error, and `Measure` equals the size of
 `Render`. Asserts that the generator and the random source are seeded and repeatable, that at least 10% of the generated
 specifications and 15% of the mutated fixtures render (so that the suite reaches the layout and the painter), and that
@@ -1112,7 +1114,8 @@ unsupported features under a diagnostics limit of 5, an array of a billion eleme
 an already canceled token with an unwrapped `OperationCanceledException`; that a density estimate of 20,000 rows by
 20,000 steps, a sliding median over 200,000 rows, an aggregate of 1,000,000 rows into 50,000 groups with `ci0` and a
 median, an impute of 3,000 groups by 3,000 keys, and a facet of 2,000 cells, all with their budgets lifted, stop with an
-unwrapped `OperationCanceledException` within ten seconds of a token that is canceled 150 milliseconds after they start;
+unwrapped `OperationCanceledException` after a token that is canceled 150 milliseconds after they start (the outcome is
+the assertion; the elapsed time is only checked against the generous hang guard of 120 seconds, see the fuzz test);
 and that every `VegaLiteLimits` property is named by a row (a new limit without a row fails).
 
 ### Hardening: Source Guards

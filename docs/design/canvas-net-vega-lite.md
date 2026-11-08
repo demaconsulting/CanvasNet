@@ -2107,7 +2107,11 @@ each case under tight limits (20,000 rows, 50,000 scene items, 5,000,000 steps, 
 `InvalidDataException`; (2) measuring and rendering throw only `VegaLiteRenderException` or `VegaLiteSpecException`
 with a
 location, `VegaLiteUnsupportedFeatureException` in strict mode, or the documented `ArgumentOutOfRangeException` for the
-options; (3) the case finishes within 20 seconds (a cancellation by that token is a hang); (4) the thread allocates less
+options; (3) the case does not reach the hang guard (a cancellation by the guard's token is reported as a hang with the
+message "Hang guard"): the guard is 120 seconds, orders of magnitude above any case under these limits, and
+`CANVASNET_VL_HANG_GUARD_SECONDS` sets another number of seconds for a very slow machine; the tests assert outcomes and
+never elapsed time, because the machines that run them can be heavily loaded (a calibration of the work meter against
+seconds is measured by the benchmark harness, not asserted); (4) the thread allocates less
 than 4 GiB gross over the parse and the four passes (a runaway detector; a rendering allocates about thirty kilobytes of
 short-lived memory per painted symbol); (5) two runs give the same pixels and the same ordered reports, or the same
 error, and `Measure` equals the size of `Render`. The default run is 300 cases with a fixed seed and takes about ten

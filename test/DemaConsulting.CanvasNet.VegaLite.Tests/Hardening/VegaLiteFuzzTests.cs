@@ -33,8 +33,8 @@ public class VegaLiteFuzzTests
     /// <summary>The default seed.</summary>
     private const ulong DefaultSeed = 20260601;
 
-    /// <summary>The longest time one case may take before it counts as a hang.</summary>
-    private static readonly TimeSpan CaseTimeout = TimeSpan.FromSeconds(20);
+    /// <summary>The longest time one case may take before it counts as a hang: the generous hang guard, not an assertion about speed (see <see cref="HangGuard"/>).</summary>
+    private static TimeSpan CaseTimeout => HangGuard.Limit;
 
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

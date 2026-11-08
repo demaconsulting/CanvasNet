@@ -77,8 +77,10 @@ internal static class VegaLiteFuzzHarness
             return new FuzzCaseResult("crash", "Parse threw an undocumented exception: " + ex);
         }
 
-        var first = Attempt(document, strict, source.Token);
-        var second = first.Failure is null ? Attempt(document, strict, source.Token) : first;
+        var first = Attempt(document, strict, source.Token, stopwatch);
+        cancellationToken.ThrowIfCancellationRequested();
+        var second = first.Failure is null ? Attempt(document, strict, source.Token, stopwatch) : first;
+        cancellationToken.ThrowIfCancellationRequested();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
         var failure = first.Failure ?? second.Failure;
         if (failure is null && first.Signature != second.Signature)
@@ -118,8 +120,9 @@ internal static class VegaLiteFuzzHarness
     /// <param name="document">The document.</param>
     /// <param name="strict">Whether unsupported features throw.</param>
     /// <param name="token">The token that stops the work.</param>
+    /// <param name="stopwatch">The stopwatch of the case, for the message of a hang.</param>
     /// <returns>The description.</returns>
-    private static AttemptResult Attempt(VegaLiteDocument document, bool strict, CancellationToken token)
+    private static AttemptResult Attempt(VegaLiteDocument document, bool strict, CancellationToken token, Stopwatch stopwatch)
     {
         var reports = new List<string>();
         var options = new VegaLiteRenderOptions
@@ -154,7 +157,8 @@ internal static class VegaLiteFuzzHarness
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            return new AttemptResult("hang", string.Empty, "The case did not finish in time (a hang, or a stage that does not poll the cancellation token).");
+            // The token of the test itself is not the hang guard: only the guard's own expiry is reported as a hang
+            return new AttemptResult("hang", string.Empty, HangGuard.Message("a fuzz case (a stage that is unbounded, or that does not poll the cancellation token)", stopwatch.Elapsed));
         }
         catch (VegaLiteRenderException ex)
         {

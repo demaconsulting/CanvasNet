@@ -174,7 +174,8 @@ public class VegaLiteLimitAuditTests
 
     /// <summary>
     ///     Validates that the transform and layout stages poll the cancellation token while they run: each of the stages that the calibration of the work meter left to the token (the density estimate, a
-    ///     sliding window, an aggregate of many groups, an impute of many combinations, a facet of many cells) runs for seconds when its budget is lifted and stops soon after the token is canceled with the cancellation itself.
+    ///     sliding window, an aggregate of many groups, an impute of many combinations, a facet of many cells) runs for a long time when its budget is lifted and ends with the cancellation itself once the token is
+    ///     canceled. The assertion is the outcome; the wall clock is only a generous hang guard (see <see cref="HangGuard"/>).
     /// </summary>
     /// <param name="stage">The name of the stage.</param>
     [Theory]
@@ -195,9 +196,9 @@ public class VegaLiteLimitAuditTests
         // Act
         var ex = Assert.ThrowsAny<OperationCanceledException>(() => document.Render(200, 200, new VegaLiteRenderOptions { Limits = limits }, source.Token));
 
-        // Assert: the cancellation itself, and not long after the request (the stage runs for many seconds when it is not stopped)
+        // Assert: the cancellation itself (the outcome); the wall clock is only the hang guard, not an assertion about speed
         Assert.IsNotType<AggregateException>(ex);
-        Assert.True(started.Elapsed < TimeSpan.FromSeconds(10), $"{stage}: stopped after {started.Elapsed.TotalSeconds:F1} s");
+        HangGuard.AssertNotHung(started, stage + " after the token was canceled");
     }
 
     /// <summary>

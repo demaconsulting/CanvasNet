@@ -2616,6 +2616,7 @@ reviews:
       - "benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
       - "benchmarks/visual-diff/README.md"                            # developer visual-diff harness documentation
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/FuzzRandom.cs"  # seeded random source of the fuzz suite
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/HangGuard.cs"  # generous wall-clock hang guard
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzGenerator.cs"  # specification generator
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzMutator.cs"  # fixture mutator
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzHarness.cs"  # fuzz oracle
