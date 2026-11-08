@@ -991,6 +991,16 @@ words:
   - TRAPSTART
   - uarr
   - xmpp
+  # Mermaid label and shape rendering terms (SVG text, HTML blocks, test strings of the shape vectors)
+  - AVAWAY
+  - bbox
+  - cious
+  - eacute
+  - frameset
+  - Größe
+  - Supercalifragilisticexpialido
+  - tspan
+  - tspans
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
@@ -1009,3 +1019,4 @@ ignorePaths:
   - "**/PngSuite/**"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"
+  - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlEntities.cs"

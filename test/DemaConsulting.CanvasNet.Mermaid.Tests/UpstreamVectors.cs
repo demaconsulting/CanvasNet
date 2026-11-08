@@ -133,7 +133,7 @@ internal static class UpstreamVectors
     /// </summary>
     /// <param name="name">The file name.</param>
     /// <returns>The JSON object.</returns>
-    private static JsonObject Load(string name)
+    internal static JsonObject Load(string name)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "upstream-vectors", name);
         return JsonNode.Parse(File.ReadAllText(path))!.AsObject();

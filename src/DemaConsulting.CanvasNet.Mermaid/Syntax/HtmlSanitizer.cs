@@ -24,8 +24,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Syntax;
 ///     <para>
 ///         <b>Simplifications</b> (labels use a small inline subset of HTML): the tree is built with a plain open-element
 ///         stack (an end tag closes up to its open element and is ignored otherwise; there is no implied closing of
-///         paragraphs, no table fixing and only the common case of the adoption of formatting elements closed out of order); only common named character
-///         references are decoded (an unknown one is kept as text); SVG and MathML content is removed.
+///         paragraphs, no table fixing and only the common case of the adoption of formatting elements closed out of order); only the named
+///         character references of <see cref="HtmlEntities"/> are decoded (an unknown one is kept as text); SVG and MathML content is removed.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use; it runs in time linear in the length of the text.
@@ -104,53 +104,6 @@ internal static class HtmlSanitizer
 
     /// <summary>The elements the fragment parser ignores (their content is kept).</summary>
     private static readonly FrozenSet<string> IgnoredElements = new[] { "html", "body", "head" }.ToFrozenSet(StringComparer.Ordinal);
-
-    /// <summary>The named character references that are decoded.</summary>
-    private static readonly FrozenDictionary<string, string> NamedReferences = new Dictionary<string, string>
-    {
-        ["amp"] = "&",
-        ["lt"] = "<",
-        ["gt"] = ">",
-        ["quot"] = "\"",
-        ["apos"] = "'",
-        ["nbsp"] = "\u00a0",
-        ["copy"] = "\u00a9",
-        ["reg"] = "\u00ae",
-        ["trade"] = "\u2122",
-        ["hellip"] = "\u2026",
-        ["mdash"] = "\u2014",
-        ["ndash"] = "\u2013",
-        ["laquo"] = "\u00ab",
-        ["raquo"] = "\u00bb",
-        ["lsquo"] = "\u2018",
-        ["rsquo"] = "\u2019",
-        ["ldquo"] = "\u201c",
-        ["rdquo"] = "\u201d",
-        ["bull"] = "\u2022",
-        ["middot"] = "\u00b7",
-        ["deg"] = "\u00b0",
-        ["plusmn"] = "\u00b1",
-        ["times"] = "\u00d7",
-        ["divide"] = "\u00f7",
-        ["euro"] = "\u20ac",
-        ["pound"] = "\u00a3",
-        ["yen"] = "\u00a5",
-        ["cent"] = "\u00a2",
-        ["sect"] = "\u00a7",
-        ["para"] = "\u00b6",
-        ["larr"] = "\u2190",
-        ["rarr"] = "\u2192",
-        ["uarr"] = "\u2191",
-        ["darr"] = "\u2193",
-        ["harr"] = "\u2194",
-        ["le"] = "\u2264",
-        ["ge"] = "\u2265",
-        ["ne"] = "\u2260",
-        ["equals"] = "=",
-        ["num"] = "#",
-        ["semi"] = ";",
-        ["colon"] = ":",
-    }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
     ///     Sanitizes a label as Mermaid's <c>sanitizeText</c> does with its default configuration.
@@ -630,7 +583,7 @@ internal static class HtmlSanitizer
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The decoded text.</returns>
-    private static string DecodeReferences(string text)
+    internal static string DecodeReferences(string text)
     {
         var amp = text.IndexOf('&', StringComparison.Ordinal);
         if (amp < 0)
@@ -692,7 +645,7 @@ internal static class HtmlSanitizer
             return true;
         }
 
-        return NamedReferences.TryGetValue(body, out decoded!);
+        return HtmlEntities.Named.TryGetValue(body, out decoded!);
     }
 
     /// <summary>
