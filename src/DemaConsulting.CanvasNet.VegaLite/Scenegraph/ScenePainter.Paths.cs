@@ -501,7 +501,8 @@ internal sealed partial class ScenePainter
             var shifted = local.Transform * Matrix3x2.CreateTranslation(-_boxX, -_boxY);
             if (_fill is not null)
             {
-                ChargePath(local, path, local.Transform, 0, trail);
+                // The fill is painted into its layer, in the coordinates of the layer, so it is charged there as the stroke below is: the box of the chunk shifted by the origin of the layer, cut to the layer
+                ChargePath(local with { Target = _fill, Transform = shifted }, path, shifted, 0, trail);
                 var opaque = new Rgba32(_fillColor.R, _fillColor.G, _fillColor.B, 255);
                 PathFiller.Fill(_fill, path.Transform(shifted), opaque, FillRule.NonZero, FlattenTolerance);
             }

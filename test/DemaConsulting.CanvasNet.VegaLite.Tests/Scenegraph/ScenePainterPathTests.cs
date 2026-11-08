@@ -402,6 +402,36 @@ public class ScenePainterPathTests
     }
 
     /// <summary>
+    ///     Validates that the chunks of a translucent trail that is painted through a layer are charged their fill in the coordinates of the layer: the layer starts away from the origin of the surface, and the fill of the
+    ///     chunks is charged at least the pixels that it paints, on top of the pixels of the layer. A limit one pixel below the layer plus the painted pixels refuses the trail, and a generous one accepts it.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer()
+    {
+        // Arrange: the fill-only layer of the seam trail is 7,528 by 8 = 60,224 pixels (the box starts at the row 6, not at the origin)
+        const long layer = 60_224;
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5 });
+        using var unlimited = new ScenePainter(new TextMeasurer()).Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+        long painted = 0;
+        for (var y = 0; y < 20; y++)
+        {
+            for (var x = 0; x < 7600; x++)
+            {
+                painted += unlimited[x, y] == White ? 0 : 1;
+            }
+        }
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => new ScenePainter(new TextMeasurer(), null, layer + painted - 1).Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct));
+        using var accepted = new ScenePainter(new TextMeasurer(), null, 4 * (layer + painted)).Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert
+        Assert.True(painted > 20_000, $"The trail should paint its band, but painted {painted} pixels.");
+        Assert.Contains("MaxPaintedPixels", error.Message, StringComparison.Ordinal);
+        Assert.InRange(accepted[100, 10].R, 127, 128);
+    }
+
+    /// <summary>
     ///     Validates that the outline of a translucent trail that is painted in several chunks has no seam either: a 2 wide half transparent black stroke without a fill. The
     ///     stroke follows the outline of every capsule, so the pixel row 8, which the top edges (y = 10 - 2) of all capsules cross, is covered by the stroke everywhere and is
     ///     one composite along the whole trail, also at the joint where the second chunk repeats a capsule.

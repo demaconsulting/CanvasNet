@@ -265,7 +265,28 @@ public class AggregateTransformsImputeTests
 
         // Assert
         Assert.Equal("/transform/0", exception.Location.Pointer);
-        Assert.Contains("the limit of 2147483647 (MaxDataRows)", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 33554432 (TableLayout.MaxCells)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the regression of a defect that review found: the key domain was bounded by the range of an int, so with a row limit raised to its maximum a sequence of a hundred million keys (in the range of an int, but
+    ///     more than the cells of any derived table) was materialized key by key before the groups-by-keys bound was reached. The domain is now bounded by <c>TableLayout.MaxCells</c> before the first key is allocated, located at the transform.
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_Impute_KeyCountBeyondTheCellLimitIsRefusedBeforeAllocationWhateverTheRowLimit()
+    {
+        // Arrange: a hundred million keys, a row limit that would let them pass, and a count of allocated bytes taken before
+        var json = Spec(Series, "[{\"impute\":\"y\",\"key\":\"x\",\"keyvals\":{\"start\":0,\"stop\":1e8}}]");
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, new VegaLiteLimits { MaxDataRows = long.MaxValue }));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: refused at the transform without the domain being built (a key costs tens of bytes, so a domain of a hundred million would be gigabytes)
+        Assert.Equal("/transform/0", exception.Location.Pointer);
+        Assert.Contains("(TableLayout.MaxCells)", exception.Message, StringComparison.Ordinal);
+        Assert.True(allocated < 256L * 1024 * 1024, $"The refusal allocated {allocated} bytes.");
     }
 
     /// <summary>

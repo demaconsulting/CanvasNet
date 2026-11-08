@@ -199,6 +199,19 @@ public class LoessFitTests
     }
 
     /// <summary>
+    ///     Validates that the estimate saturates instead of wrapping: for the largest group the product of the rows, the window and the weights is beyond a long, and a wrapped (negative) estimate would be free work.
+    /// </summary>
+    [Fact]
+    public void LoessFit_Cost_SaturatesForTheLargestGroups()
+    {
+        // Arrange / Act
+        var cost = LoessFit.Cost(int.MaxValue, 1);
+
+        // Assert
+        Assert.Equal(long.MaxValue, cost);
+    }
+
+    /// <summary>
     ///     Validates the argument checks.
     /// </summary>
     [Fact]

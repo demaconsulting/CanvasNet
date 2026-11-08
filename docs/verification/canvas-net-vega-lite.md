@@ -1101,6 +1101,7 @@ run more cases (every failing case is written to the dump folder).
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_ReportsAreCappedByTheDiagnosticsLimit`,
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_EveryLimitPropertyHasARow`,
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheIntRangeAreRefusedWhateverTheRowLimit`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheCellLimitAreRefusedWhateverTheRowLimit`,
 `CanvasNetVegaLite_SystemIntegration_LimitAudit_InfinitePaddingOfAChartWithoutDataIsLocated`
 
 Asserts, for each of 38 rows of the inventory of the design document (_Resource Limits And Hardening_), that the hostile

@@ -405,7 +405,7 @@ internal sealed partial class StatTransforms
     /// <param name="rows">The number of rows.</param>
     /// <param name="coefficients">The number of coefficients.</param>
     /// <returns>The cost, in work elements.</returns>
-    private static long FitCost(int rows, int coefficients) => (long)rows * ((coefficients * coefficients) + 8) * FitWeight;
+    private static long FitCost(int rows, int coefficients) => (long)rows * (((long)coefficients * coefficients) + 8) * FitWeight;
 
     /// <summary>The number of work elements that one unit of <see cref="FitCost"/> is charged as.</summary>
     private const long FitWeight = 16;

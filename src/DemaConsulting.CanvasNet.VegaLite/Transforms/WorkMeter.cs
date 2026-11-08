@@ -50,7 +50,8 @@ internal sealed class WorkMeter
             return;
         }
 
-        _pending += elements;
+        // The sum saturates: a wrapped (negative) pending count would make the work free
+        _pending = elements > long.MaxValue - _pending ? long.MaxValue : _pending + elements;
         if (_pending >= ElementsPerStep)
         {
             var whole = _pending - (_pending % ElementsPerStep);

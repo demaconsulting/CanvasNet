@@ -517,6 +517,7 @@ includes the device size.
 `ScenePainterBudgetTests.ScenePainter_Paint_TextIsChargedAnEstimatedBox`,
 `ScenePainterBudgetTests.ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine`,
 `ScenePainterBudgetTests.ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer`,
 `ScenePainterBudgetTests.ScenePainter_Paint_WithoutALimit_CountsNothing`,
 `ScenePainterBudgetTests.ScenePainter_Paint_LimitIsPerPainting`,
 `ScenePainterBudgetTests.ScenePainter_Paint_PictureBox_IsChargedBeforeItIsDrawnAndLocatedAtTheMark`,
@@ -537,7 +538,9 @@ a zero or negative line height (which Vega steps upward or not at all) cost 3 li
 pixels, or 10,000 when the step is taller than the surface), never a negative or smaller charge; that arcs (pies,
 donuts, rounded corners, a full circle, a sliver) centered on and beyond the edges and corners of the surface are each
 charged at least the pixels that they paint (a limit of one pixel less refuses them), which the box of the end point of
-an arc grown by its radius did not guarantee, and that the box is widened to whole pixels; that a painter without a
+an arc grown by its radius did not guarantee, and that the box is widened to whole pixels; that the fill chunks of a
+translucent trail painted through a layer are charged in the coordinates of the layer (a limit one pixel below the layer
+plus the painted pixels refuses the trail); that a painter without a
 limit counts nothing (a rectangle of two billion pixels is painted) and rejects a limit below one; and that the limit is
 per painting. Asserts that a 60 by 60 picture costs exactly 3,600 pixels, is located at the mark of the picture and is
 not painted when it fails; that three items that draw one 2 by 1 picture without smoothing in 100 by 50 boxes cost 5,000

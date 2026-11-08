@@ -536,6 +536,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_LimitAudit_ReportsAreCappedByTheDiagnosticsLimit
           - CanvasNetVegaLite_SystemIntegration_LimitAudit_EveryLimitPropertyHasARow
           - CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheIntRangeAreRefusedWhateverTheRowLimit
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheCellLimitAreRefusedWhateverTheRowLimit
           - CanvasNetVegaLite_SystemIntegration_LimitAudit_InfinitePaddingOfAChartWithoutDataIsLocated
           - CanvasNetVegaLite_SystemIntegration_SourceGuard_EveryNarrowingCastOfADoubleIsAudited
           - CanvasNetVegaLite_SystemIntegration_SourceGuard_EveryAuditedCastHasAReason

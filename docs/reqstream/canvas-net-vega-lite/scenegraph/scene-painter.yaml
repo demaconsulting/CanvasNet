@@ -299,6 +299,7 @@ sections:
                   - ScenePainter_Paint_TextIsChargedAnEstimatedBox
                   - ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine
                   - ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea
+                  - ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer
                   - ScenePainter_Paint_WithoutALimit_CountsNothing
                   - ScenePainter_Paint_LimitIsPerPainting
                   - ScenePainter_Paint_PictureBox_IsChargedBeforeItIsDrawnAndLocatedAtTheMark

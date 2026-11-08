@@ -80,7 +80,6 @@ public partial class VegaLiteSourceGuardTests
         ["Transforms/AggregateTransforms.Window.cs|int|Math.Clamp((long)p + e + 1, 0, _n)"] = "A long sum clamped to 0 up to the partition size (an int).",
         ["Transforms/AggregateTransforms.Window.cs|int|Math.Clamp((long)p + s, 0, _n)"] = "A long sum clamped to 0 up to the partition size (an int).",
         ["Transforms/BinAlgorithm.cs|int|(-logStep / logBase)"] = "The step is finite and positive (tested above), so its logarithm is finite and at most 745 in magnitude.",
-        ["Transforms/LoessFit.cs|long|n"] = "n is an int; the cast widens it before the product.",
         ["Transforms/StatTransforms.cs|int|Math.Min(Math.Max(needed, _cells.Length * 2L), TableLayout.MaxCells)"] = "A long clamped to TableLayout.MaxCells, which is an int.",
         ["Transforms/StatTransforms.cs|long|rows"] = "rows is an int; the cast widens it before the product.",
         ["VegaLiteDocument.Render.cs|int|height"] = "The size is rounded from a finite scale (validated) and tested against 1 and MaxDimension just before.",

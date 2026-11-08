@@ -279,8 +279,9 @@ output, as documented per operation. The unit performs no I/O.
 6. **Exponential default parameter**: a missing `param` is 0.5 (Vega-Lite does not require one).
 7. **Bin growth cap** and located failures for an extent that no finite step covers, and the bin count bound by
    `MaxScaleDomainSize`; JavaScript's `Math.round` (half toward positive infinity) is used.
-8. **Impute and `keyvals`**: keys are deduplicated structurally; a sequence is bounded by `MaxDataRows` before
-   it is built.
+8. **Impute and `keyvals`**: keys are deduplicated structurally; a sequence is bounded by `MaxDataRows` and by
+   `TableLayout.MaxCells` (each key is one cell of the key domain) before it is built, so a row limit raised to its
+   maximum cannot allocate a domain that no result table could hold.
 9. **`argmin` and `argmax`** return the whole first row as an object; the default name is `argmax_field`.
 
 #### Dependencies

@@ -195,7 +195,9 @@ counting toward the group size, and an empty table giving an empty result with t
 `..._StepWithACountBeyondLong_FailsLocatedAtTheRowBudget`,
 `..._StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit`,
 `..._StopsWhenCanceled`, `StatTransforms_Apply_ReleasesTheInputRowsWhenTheOutputIsComplete`;
-`LoessFitTests.LoessFit_Cost_CountsEachWeightEvaluationAsThreeElements`
+`LoessFitTests.LoessFit_Cost_CountsEachWeightEvaluationAsThreeElements`,
+`LoessFitTests.LoessFit_Cost_SaturatesForTheLargestGroups`,
+`StatTransformsDensityTests.StatTransforms_Density_KernelCostDoesNotWrapForTheLargestGroups`
 
 Asserts that a curve, a density grid, or a quantile list beyond `MaxRows` is a `VegaLiteRenderException` located at the
 transform before the rows exist (also a quantile step whose count of probabilities no integer holds, on every target
@@ -206,7 +208,10 @@ when the output is complete, and that two runs give identical tables. Asserts th
 (phase 14): the cost of a loess of 1,000 points with a bandwidth of 1 is 1,000 times 1,002 times 3 passes times 3
 elements plus 16,000 for the sort, a bandwidth that no integer window can hold is a window of every point, and a loess
 of 20,000 points with a bandwidth of 1 costs more than the whole default budget of 3.2 billion elements (it ran eleven
-seconds before the weights were set).
+seconds before the weights were set). The estimates cannot wrap into free work: the loess estimate for the largest
+group saturates at the largest long, the density charge of a group of `int.MaxValue` rows is four times that in a long
+(not a wrapped int), and the meter adds a pending count of 63 elements and the largest long as a saturated count that
+exhausts the budget (regression of a defect that review found).
 
 ##### System Integration
 

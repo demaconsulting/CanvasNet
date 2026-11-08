@@ -50,7 +50,9 @@ internal static class LoessFit
     public static long Cost(int n, double bandwidth)
     {
         var window = Math.Max(2, NumericConversions.ToInt64Saturating(Math.Max(0, bandwidth) * n));
-        return ((long)n * (Math.Min(window, n) + 2) * (MaxIterations + 1) * EvaluationWeight) + ((long)n * 16);
+        // The product of a row count, a window and the weights is far beyond a long for the largest groups; it saturates and so can never wrap to a charge that is free
+        var cost = ((double)n * (Math.Min(window, n) + 2) * (MaxIterations + 1) * EvaluationWeight) + ((double)n * 16);
+        return NumericConversions.ToInt64Saturating(cost);
     }
 
     /// <summary>

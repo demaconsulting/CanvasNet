@@ -241,7 +241,26 @@ public class VegaLiteLimitAuditTests
 
         // Assert
         Assert.Equal("/transform/0", error.Location.Pointer);
-        Assert.Contains("(MaxDataRows)", error.Message, StringComparison.Ordinal);
+        Assert.Contains("(TableLayout.MaxCells)", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the regression of a defect that review found: with the row limit at its maximum, a hundred million key values (in the range of an int) were materialized before the cells of the result were bounded.
+    ///     The key domain is bounded by the cells of a derived table before it is allocated, and the failure is located at the transform.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheCellLimitAreRefusedWhateverTheRowLimit()
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse(Sequence("5", "{ \"impute\": \"data\", \"key\": \"data\", \"keyvals\": { \"start\": 0, \"stop\": 1e8 }, \"value\": 0 }"));
+        var options = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxDataRows = long.MaxValue } };
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => document.Render(100, 100, options, Ct));
+
+        // Assert
+        Assert.Equal("/transform/0", error.Location.Pointer);
+        Assert.Contains("(TableLayout.MaxCells)", error.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

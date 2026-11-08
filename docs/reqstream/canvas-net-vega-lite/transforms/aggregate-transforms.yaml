@@ -359,6 +359,7 @@ sections:
                   - AggregateTransforms_Impute_HugeKeySequencesAreRejectedUpFront
                   - AggregateTransforms_Impute_LongKeyListsAreRejected
                   - AggregateTransforms_Impute_KeyCountBeyondTheIntRangeIsRefusedWhateverTheRowLimit
+                  - AggregateTransforms_Impute_KeyCountBeyondTheCellLimitIsRefusedBeforeAllocationWhateverTheRowLimit
                   - AggregateTransforms_Impute_FieldAndStringLimitsAreLocated
                   - AggregateTransforms_Impute_WorkIsChargedToTheStepBudget
                   - AggregateTransforms_Bin_UnbinnableExtentsAndTooManyBinsFail

@@ -239,5 +239,7 @@ sections:
                   - StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget
                   - StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit
                   - LoessFit_Cost_CountsEachWeightEvaluationAsThreeElements
+                  - LoessFit_Cost_SaturatesForTheLargestGroups
+                  - StatTransforms_Density_KernelCostDoesNotWrapForTheLargestGroups
                   - CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns
                   - StatTransforms_Quantile_StopsWhenCanceled
