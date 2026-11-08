@@ -841,6 +841,10 @@ words:
   - denormal
   - slnx
   # Mermaid / diagram terms
+  - acyclicer
+  - barycenters
+  - bilayer
+  - Brandes
   - Colours
   - composit
   - cyanaqua
@@ -848,25 +852,55 @@ words:
   - dagre
   - dasharray
   - dashoffset
+  - Eades
   - ebnf
+  - edgesep
   - eventmodeling
   - Fabio
   - frontmatter
+  - Gansner
   - gantt
+  - graphlib
+  - horiz
+  - indegree
   - ishikawa
   - jison
+  - Juenger
   - katex
   - keyify
   - khroma
   - Knut
+  - Koepf
+  - labeloffset
+  - labelpos
+  - labelposes
   - LALR
   - Maney
+  - marginx
+  - marginy
   - mindmap
+  - minlen
   - mmdc
+  - multigraph
+  - Mutzel
+  - nodesep
+  - Pettitt
+  - postorder
+  - preds
+  - preorder
   - Puzrin
+  - rankdir
+  - rankdirs
+  - ranksep
+  - reparents
   - sankey
+  - selfedge
+  - selfloop
+  - Smyth
   - Spampinato
+  - sucs
   - Sveidqvist
+  - tarjan
   - treemap
   - Vitaly
   - wardley

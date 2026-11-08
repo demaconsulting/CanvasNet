@@ -20,16 +20,23 @@ public class MermaidSystemIntegrationTests
         var mermaid = File.ReadAllText(Path.Combine(folder, "LICENSE-mermaid.txt"));
         var yaml = File.ReadAllText(Path.Combine(folder, "LICENSE-js-yaml.txt"));
         var khroma = File.ReadAllText(Path.Combine(folder, "LICENSE-khroma.txt"));
+        var dagre = File.ReadAllText(Path.Combine(folder, "LICENSE-dagre.txt"));
+        var lodash = File.ReadAllText(Path.Combine(folder, "LICENSE-lodash.txt"));
         var provenance = File.ReadAllText(Path.Combine(folder, "third-party-provenance.txt"));
 
         // Assert
         Assert.Contains("Copyright (c) 2014 - 2022 Knut Sveidqvist", mermaid, StringComparison.Ordinal);
         Assert.Contains("Copyright (C) 2011-2015 by Vitaly Puzrin", yaml, StringComparison.Ordinal);
         Assert.Contains("Copyright (c) 2019-present Fabio Spampinato, Andrew Maney", khroma, StringComparison.Ordinal);
+        Assert.Contains("Copyright (c) 2012-2014 Chris Pettitt", dagre, StringComparison.Ordinal);
+        Assert.Contains("dagre-es contributors", dagre, StringComparison.Ordinal);
+        Assert.Contains("Copyright OpenJS Foundation and other contributors", lodash, StringComparison.Ordinal);
         Assert.Contains("not affiliated", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-mermaid.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-js-yaml.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-khroma.txt", provenance, StringComparison.Ordinal);
+        Assert.Contains("LICENSE-dagre.txt", provenance, StringComparison.Ordinal);
+        Assert.Contains("LICENSE-lodash.txt", provenance, StringComparison.Ordinal);
     }
 
     /// <summary>
