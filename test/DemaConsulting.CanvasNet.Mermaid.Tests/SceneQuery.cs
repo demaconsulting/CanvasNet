@@ -115,6 +115,85 @@ internal static class SceneQuery
         [.. scene.Walk().Select(entry => entry.Item).Where(item => item.Role == role)];
 
     /// <summary>
+    ///     Samples a path at evenly spaced lengths (the way SVG's <c>getPointAtLength</c> does): the curves are flattened
+    ///     finely and the points are found along the flattened length.
+    /// </summary>
+    /// <param name="segments">The segments: moves, lines and curves (no arcs).</param>
+    /// <param name="intervals">The number of intervals; the result has one point more.</param>
+    /// <returns>The total length and the points at 0, 1/intervals, ..., 1 of it.</returns>
+    public static (double Length, List<(double X, double Y)> Points) Sample(IReadOnlyList<SceneSegment> segments, int intervals)
+    {
+        const int steps = 256;
+        var polyline = new List<(double X, double Y)>();
+        var (x, y) = (0.0, 0.0);
+        foreach (var s in segments)
+        {
+            switch (s.Kind)
+            {
+                case SceneSegmentKind.MoveTo:
+                case SceneSegmentKind.LineTo:
+                    polyline.Add((s.X, s.Y));
+                    break;
+                case SceneSegmentKind.QuadraticTo:
+                    for (var i = 1; i <= steps; i++)
+                    {
+                        var t = (double)i / steps;
+                        var u = 1 - t;
+                        polyline.Add(((u * u * x) + (2 * u * t * s.X1) + (t * t * s.X), (u * u * y) + (2 * u * t * s.Y1) + (t * t * s.Y)));
+                    }
+
+                    break;
+                case SceneSegmentKind.CubicTo:
+                    for (var i = 1; i <= steps; i++)
+                    {
+                        var t = (double)i / steps;
+                        var u = 1 - t;
+                        polyline.Add((
+                            (u * u * u * x) + (3 * u * u * t * s.X1) + (3 * u * t * t * s.X2) + (t * t * t * s.X),
+                            (u * u * u * y) + (3 * u * u * t * s.Y1) + (3 * u * t * t * s.Y2) + (t * t * t * s.Y)));
+                    }
+
+                    break;
+                default:
+                    throw new NotSupportedException($"A {s.Kind} segment is not sampled.");
+            }
+
+            (x, y) = (s.X, s.Y);
+        }
+
+        if (polyline.Count < 2)
+        {
+            throw new ArgumentException("A path needs two points to be sampled.", nameof(segments));
+        }
+        var cumulative = new double[polyline.Count];
+        for (var i = 1; i < polyline.Count; i++)
+        {
+            cumulative[i] = cumulative[i - 1] + Math.Sqrt(Math.Pow(polyline[i].X - polyline[i - 1].X, 2) + Math.Pow(polyline[i].Y - polyline[i - 1].Y, 2));
+        }
+
+        var length = cumulative[^1];
+
+        var points = new List<(double X, double Y)>(intervals + 1);
+        var j = 1;
+        for (var k = 0; k <= intervals; k++)
+        {
+            var target = length * k / intervals;
+            while (j < polyline.Count - 1 && cumulative[j] < target)
+            {
+                j++;
+            }
+
+            var span = cumulative[j] - cumulative[j - 1];
+            var f = span > 0 ? Math.Clamp((target - cumulative[j - 1]) / span, 0, 1) : 1;
+            points.Add((
+                polyline[j - 1].X + (f * (polyline[j].X - polyline[j - 1].X)),
+                polyline[j - 1].Y + (f * (polyline[j].Y - polyline[j - 1].Y))));
+        }
+
+        return (length, points);
+    }
+
+    /// <summary>
     ///     Translates a segment.
     /// </summary>
     /// <param name="s">The segment.</param>
