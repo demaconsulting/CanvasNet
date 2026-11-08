@@ -840,6 +840,27 @@ words:
   - mousemove
   - denormal
   - slnx
+  # Mermaid / diagram terms
+  - cynefin
+  - dagre
+  - dasharray
+  - ebnf
+  - eventmodeling
+  - gantt
+  - ishikawa
+  - jison
+  - Knut
+  - LALR
+  - mindmap
+  - mmdc
+  - Puzrin
+  - sankey
+  - Sveidqvist
+  - treemap
+  - Vitaly
+  - wardley
+  - xychart
+  - yytext
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
