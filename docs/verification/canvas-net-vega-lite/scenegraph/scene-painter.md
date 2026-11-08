@@ -515,6 +515,8 @@ includes the device size.
 `ScenePainterBudgetTests.ScenePainter_Paint_FillAndStrokeAreTwoCharges`,
 `ScenePainterBudgetTests.ScenePainter_Paint_ClipLayerAndItsContentAreCharged`,
 `ScenePainterBudgetTests.ScenePainter_Paint_TextIsChargedAnEstimatedBox`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine`,
+`ScenePainterBudgetTests.ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea`,
 `ScenePainterBudgetTests.ScenePainter_Paint_WithoutALimit_CountsNothing`,
 `ScenePainterBudgetTests.ScenePainter_Paint_LimitIsPerPainting`,
 `ScenePainterBudgetTests.ScenePainter_Paint_PictureBox_IsChargedBeforeItIsDrawnAndLocatedAtTheMark`,
@@ -530,8 +532,12 @@ surface from far outside is charged exactly the surface, and that nothing is cha
 pixels wide across the surface costs exactly 1,000 pixels (the box grown by half the width) and fails with 999; that a
 50 by 50 rectangle with a fill and a 2 pixel stroke costs 2,500 plus 2,704 (the stroke box is 52 by 52); that a group
 clipped to 50 by 50 pixels costs its 2,500 pixel layer plus the 2,500 pixels of the rectangle in it that is cut to the
-layer; that text of eleven characters at a font size of 20 costs the estimated 100 by 22 pixels; that a painter
-without a
+layer; that text of eleven characters at a font size of 20 costs the estimated 100 by 22 pixels, and three lines of it with
+a zero or negative line height (which Vega steps upward or not at all) cost 3 lines of at least a font size each (6,000
+pixels, or 10,000 when the step is taller than the surface), never a negative or smaller charge; that arcs (pies,
+donuts, rounded corners, a full circle, a sliver) centered on and beyond the edges and corners of the surface are each
+charged at least the pixels that they paint (a limit of one pixel less refuses them), which the box of the end point of
+an arc grown by its radius did not guarantee, and that the box is widened to whole pixels; that a painter without a
 limit counts nothing (a rectangle of two billion pixels is painted) and rejects a limit below one; and that the limit is
 per painting. Asserts that a 60 by 60 picture costs exactly 3,600 pixels, is located at the mark of the picture and is
 not painted when it fails; that three items that draw one 2 by 1 picture without smoothing in 100 by 50 boxes cost 5,000

@@ -21,7 +21,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///         <b>What is charged.</b> For a fill, the bounding box of the path in surface pixels cut to the surface (or, inside a clipped group, to the clip layer, which is the surface
 ///         that the children are drawn on); for a stroke, the same box grown by half the stroke width on each side; for text, the estimated box of its lines; for a picture, its box in the
 ///         surface; for the layer of a clipped group and the layers of a translucent trail, the pixels of the layer. A fill and a stroke of one item are two charges (two passes over its
-///         pixels). The box of a path is taken from its control points (a curve lies inside the hull of its control points), so the charge is an upper bound of the pixels that the filler
+///         pixels). The box of a path is taken from its control points (a curve lies inside the hull of its control points, and an arc is converted to the curves of its ellipse first, so a circle near the edge is charged for the part of it that is on the surface), so the charge is an upper bound of the pixels that the filler
 ///         visits, and an item that lies outside the surface is charged nothing. A box that cannot be computed (a coordinate that is NaN or overflows) is charged as the whole target.
 ///     </para>
 ///     <para>
@@ -56,40 +56,15 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        // The control box of the path in the units of the item: a curve lies inside the hull of its control points, and an arc inside its end point grown by its radii
-        double minX = double.PositiveInfinity, minY = double.PositiveInfinity, maxX = double.NegativeInfinity, maxY = double.NegativeInfinity;
-        foreach (var subpath in path.Subpaths)
-        {
-            Extend(subpath.Start, 0);
-            foreach (var command in subpath.Commands)
-            {
-                switch (command.Type)
-                {
-                    case PathCommandType.Close:
-                        break;
-                    case PathCommandType.QuadraticBezierTo:
-                        Extend(command.Control1, 0);
-                        Extend(command.EndPoint, 0);
-                        break;
-                    case PathCommandType.CubicBezierTo:
-                        Extend(command.Control1, 0);
-                        Extend(command.Control2, 0);
-                        Extend(command.EndPoint, 0);
-                        break;
-                    case PathCommandType.ArcTo:
-                        Extend(command.EndPoint, Math.Max(Math.Abs(command.Radius.X), Math.Abs(command.Radius.Y)));
-                        break;
-                    default:
-                        Extend(command.EndPoint, 0);
-                        break;
-                }
-            }
-        }
-
-        if (minX > maxX || minY > maxY)
+        // The control box of the path in the units of the item. A curve lies inside the hull of its control points, and an arc (a circle is emitted as arcs) is converted to the
+        // cubic curves of its ellipse first (the radii corrected as SVG does), so the box holds the whole arc and not only its end point: Path.GetBounds does both
+        var bounds = path.GetBounds();
+        if (bounds.IsEmpty)
         {
             return;
         }
+
+        double minX = bounds.Left, minY = bounds.Top, maxX = bounds.Right, maxY = bounds.Bottom;
 
         // The four corners of the box are mapped to surface pixels (the matrix can rotate a symbol); the pixel box is the box of the corners
         var (x1, y1) = Map(transform, minX, minY);
@@ -101,15 +76,6 @@ internal sealed partial class ScenePainter
         var right = Math.Max(Math.Max(x1, x2), Math.Max(x3, x4)) + grow;
         var bottom = Math.Max(Math.Max(y1, y2), Math.Max(y3, y4)) + grow;
         ChargeBox(context, left, top, right, bottom, item.Role, item.Source);
-        return;
-
-        void Extend(Vector2 point, double radius)
-        {
-            minX = Math.Min(minX, point.X - radius);
-            minY = Math.Min(minY, point.Y - radius);
-            maxX = Math.Max(maxX, point.X + radius);
-            maxY = Math.Max(maxY, point.Y + radius);
-        }
     }
 
     /// <summary>
@@ -127,7 +93,7 @@ internal sealed partial class ScenePainter
     /// </summary>
     /// <remarks>
     ///     The box is estimated from the text, not measured (measuring is the work of painting): the longest line is its characters times 0.6 of the font size (at most the limit of the
-    ///     item when it has one) wide, and each line is the line height tall. The estimate is cut to the size of the target, which is also what the glyphs are cut to.
+    ///     item when it has one) wide, and each line is the line height tall (the absolute value of it, and at least the font size: a line paints a row of glyphs even when the line height is zero or negative). The estimate is cut to the size of the target, which is also what the glyphs are cut to.
     /// </remarks>
     /// <param name="context">The context of the painting.</param>
     /// <param name="text">The text item.</param>
@@ -152,7 +118,10 @@ internal sealed partial class ScenePainter
             width = Math.Min(width, text.Limit * context.Scale);
         }
 
-        var height = text.Lines.Count * TextMeasurer.LineHeight(text.FontSize, text.LineHeight) * context.Scale;
+        // Every line paints its own row of glyphs, so a line is at least a font size tall, whatever the line height: Vega steps the baselines by a negative line height upward and by a
+        // zero one not at all (the lines then overlap), and a negative or small height must not make the charge negative or smaller than the painting
+        var step = Math.Max(Math.Abs(TextMeasurer.LineHeight(text.FontSize, text.LineHeight)) * context.Scale, size);
+        var height = text.Lines.Count * step;
         var area = Math.Min(width, context.Target.Width) * Math.Min(height, context.Target.Height);
         ChargePixels(context, area, text.Role, text.Source);
     }
@@ -183,8 +152,9 @@ internal sealed partial class ScenePainter
         }
         else
         {
-            var width = Math.Min(right, context.Target.Width) - Math.Max(left, 0);
-            var height = Math.Min(bottom, context.Target.Height) - Math.Max(top, 0);
+            // The pixels that a shape touches are the whole pixels of its box: the box is widened to whole pixels (a sliver of a pixel still paints that pixel)
+            var width = Math.Min(Math.Ceiling(right), context.Target.Width) - Math.Max(Math.Floor(left), 0);
+            var height = Math.Min(Math.Ceiling(bottom), context.Target.Height) - Math.Max(Math.Floor(top), 0);
             area = width > 0 && height > 0 ? width * height : 0;
         }
 

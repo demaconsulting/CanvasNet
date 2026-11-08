@@ -46,13 +46,18 @@ enclosing group that has one.
 pixels the work covers to the paint meter, a counter that exists for one `Paint` call and throws a
 `VegaLiteRenderException` that names `VegaLiteLimits.MaxPaintedPixels` when a charge would pass the limit, so the
 painter is stopped before the item that did not fit is painted. `ChargePath` takes the box of the control points of a
-path in the item's units (curves lie inside the hull of their control points; an arc is the end point grown by its
-radius), maps its four corners with the item's matrix in double precision (a symbol is rotated), grows the box by half
+path in the item's units, which is `Path.GetBounds()` (curves lie inside the hull of their control points; an arc is
+converted to the cubic curves of its ellipse, radii corrected as SVG does, so the box holds the whole arc and a full
+circle near the edge is charged the part of its box that is on the surface, not a sliver at its end point), maps its
+four corners with the item's matrix in double precision (a symbol is rotated), widens the box to whole pixels (a sliver
+still paints a pixel), grows the box by half
 the stroke width in surface pixels for a stroke (`StrokeOnly` charges after the width test, before the outline is
 made), and charges the part of it that lies on the target (the surface, or the clip layer when the item is inside a
 clipped group, so a huge rectangle in a small clip costs the clip); a fill and a stroke are two charges, a box with a
 NaN is the whole target and a box outside it is nothing. `ChargeText` estimates the box of a text item from its longest
-line (0.6 of the font size a character), its lines times the line height and its limit, cut to the target (measuring the
+line (0.6 of the font size a character), its lines times the line height (the absolute value, and at least the font
+size: Vega steps baselines by a negative line height upward and by zero not at all, yet every line paints a row of
+glyphs) and its limit, cut to the target (measuring the
 text would be the work being charged). The layer of a clipped group, the layers of a translucent trail, the box of a
 picture and the pixels of every resampled copy (`SceneImageSource.GetTile` reports the work through a callback before
 it allocates) are charged the same way. The failure is located at the `SceneItem.Source` of the item (text and

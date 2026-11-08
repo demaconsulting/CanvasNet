@@ -209,6 +209,80 @@ public class ScenePainterBudgetTests
     }
 
     /// <summary>
+    ///     Test that a negative or zero line height (Vega steps the baselines upward or not at all) is charged like a line height of a font size: every line paints a row of glyphs, so the
+    ///     charge is never negative and never below the painting. Three lines of eleven characters at a font size of 20 on a surface 100 pixels wide are 3 x 20 x 100 pixels (a step of 200
+    ///     pixels makes the box taller than the surface, which cuts it to 100 x 100).
+    /// </summary>
+    /// <param name="lineHeight">The line height of the text.</param>
+    [Theory]
+    [InlineData(-5.0)]
+    [InlineData(-200.0)]
+    [InlineData(0.0)]
+    public void ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine(double lineHeight)
+    {
+        // Arrange
+        var lines = new[] { "Hello world", "Hello world", "Hello world" };
+        var text = new SceneText("label", 0, 50, lines) { Fill = "#000000", FontSize = 20, LineHeight = lineHeight };
+        var expected = lineHeight < -20 ? 100 * 100 : 3 * 20 * 100;
+
+        // Act
+        using var surface = Paint(100_000, Root(text));
+        var error = Assert.Throws<VegaLiteRenderException>(() => Paint(expected - 1, Root(text)));
+
+        // Assert: the limit of exactly the estimate is accepted and one below it fails
+        Assert.Equal(White, surface[99, 0]);
+        Assert.Contains("MaxPaintedPixels", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that an arc is charged for its whole ellipse and not for its end point grown by the radius: arcs (pies, donuts, rounded corners, a full circle) centered on and beyond the edges
+    ///     and corners of the surface are each charged at least the pixels that they paint, so a limit one pixel below what an arc paints refuses it. (The box of the control points of an
+    ///     arc is not the box of its end point: a large arc reaches up to two radii from its end point.)
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea()
+    {
+        // Arrange: sweeps from a sliver to a full circle, with and without a hole and rounded corners, centered at an edge, a corner and just outside
+        var centers = new (double X, double Y)[] { (100, 50), (0, 50), (50, 0), (50, 100), (100, 100), (0, 0), (110, 50), (50, 120) };
+        var sweeps = new (double Start, double End, double Inner, double Corner)[]
+        {
+            (0, 2 * Math.PI, 0, 0),
+            (0, 2 * Math.PI, 12, 0),
+            (0.3, 4.9, 0, 0),
+            (0.3, 4.9, 10, 6),
+            (1, 1.05, 0, 0),
+            (0, 3 * Math.PI / 2, 0, 0),
+        };
+
+        foreach (var (cx, cy) in centers)
+        {
+            foreach (var (start, end, inner, corner) in sweeps)
+            {
+                SceneItem Arc() => new SceneArc("arc", cx, cy) { OuterRadius = 30, InnerRadius = inner, StartAngle = start, EndAngle = end, CornerRadius = corner, Fill = "#ff0000" };
+                using var unlimited = Paint(long.MaxValue, Root(Arc()));
+                var painted = 0;
+                for (var y = 0; y < 100; y++)
+                {
+                    for (var x = 0; x < 100; x++)
+                    {
+                        painted += unlimited[x, y] == White ? 0 : 1;
+                    }
+                }
+
+                // Act and Assert: a limit one pixel below what the arc paints refuses it, and the pixels that it paints are accepted
+                if (painted > 0)
+                {
+                    var thrown = Record.Exception(() => Paint(painted - 1, Root(Arc())));
+                    var error = Assert.IsType<VegaLiteRenderException>(thrown, exactMatch: true);
+                    Assert.Contains("MaxPaintedPixels", error.Message, StringComparison.Ordinal);
+                    using var accepted = Paint(100 * 100, Root(Arc()));
+                    Assert.NotNull(accepted);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     Test that a painter without a limit counts nothing: items that would cost billions of pixels are painted as before, and a limit below one is rejected.
     /// </summary>
     [Fact]
