@@ -585,6 +585,409 @@ public class SvgLengthUnitTests
     }
 
     // ================================================================================================
+    // Math result type: a number is not a length
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves a math expression that resolves to a <em>number</em> is rejected wherever a
+    ///     <c>&lt;length&gt;</c> is required (CSS Values 4, "Type Checking": <c>width: calc(0 + 5px)</c>
+    ///     is invalid), for geometry, <c>stroke-width</c>, a dash entry and the dash offset - while a
+    ///     literal bare number stays valid.
+    /// </summary>
+    /// <param name="value">The number-typed math expression.</param>
+    [Theory]
+    [InlineData("calc(1 + 1)")]
+    [InlineData("min(1, 2)")]
+    [InlineData("max(1, 2)")]
+    [InlineData("clamp(1, 2, 3)")]
+    [InlineData("calc(2 * 3)")]
+    [InlineData("calc(0)")]
+    public void SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException(string value)
+    {
+        // Arrange: the same expression as a geometry length, a stroke width, a dash entry and a dash offset
+        var documents = new[]
+        {
+            $"<svg viewBox='0 0 100 40'><rect x='0' y='0' width='{value}' height='10' fill='black'/></svg>",
+            $"<svg viewBox='0 0 100 40'><line x1='0' y1='20' x2='100' y2='20' stroke='black' stroke-width='{value}'/></svg>",
+            $"<svg viewBox='0 0 100 40'><line x1='0' y1='20' x2='100' y2='20' stroke='black' stroke-dasharray='5 {value}'/></svg>",
+            $"<svg viewBox='0 0 100 40'><line x1='0' y1='20' x2='100' y2='20' stroke='black' stroke-dasharray='5' stroke-dashoffset='{value}'/></svg>"
+        };
+
+        foreach (var svg in documents)
+        {
+            // Act / Assert
+            using var stream = SvgLengthTestSupport.ToStream(svg);
+            Assert.Throws<InvalidDataException>(() => SvgCodec.Load(stream, 100, 40));
+        }
+    }
+
+    /// <summary>Proves the controls for the number-typed rejection: a literal number and length-typed math still render as before.</summary>
+    /// <param name="width">The accepted width value.</param>
+    /// <param name="expected">The expected width in user units.</param>
+    [Theory]
+    [InlineData("10", 10.0)]
+    [InlineData("calc(2 * 10px)", 20.0)]
+    [InlineData("max(10px, 2em)", 32.0)]
+    [InlineData("calc(1px * 2 + 3px)", 5.0)]
+    public void SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted(string width, double expected) =>
+        Assert.Equal(expected, BarWidth(width), Tolerance);
+
+    /// <summary>Proves a number-typed math result in a tolerant (class T) site is treated as absent: the root size falls back to 300x150.</summary>
+    [Fact]
+    public void SvgCodec_GetInfo_RootSizeNumberMath_FallsBackTo300x150()
+    {
+        // Arrange
+        using var stream = SvgLengthTestSupport.ToStream("<svg xmlns='http://www.w3.org/2000/svg' width='calc(1 + 1)' height='min(1, 2)'/>");
+
+        // Act
+        var info = SvgCodec.GetInfo(stream);
+
+        // Assert
+        Assert.Equal(300, info.Width);
+        Assert.Equal(150, info.Height);
+    }
+
+    /// <summary>Proves a number-typed math result in a class F site (text <c>dx</c>/<c>dy</c>) is ignored, leaving the origin unmoved.</summary>
+    [Fact]
+    public void SvgCodec_Load_TextDxDyNumberMath_IsIgnored()
+    {
+        // Arrange
+        const string Template =
+            "<svg viewBox='0 0 200 200'><text x='20' y='100' font-family='TestFont' font-size='20' {0}>A</text></svg>";
+
+        // Act
+        var numberMath = SvgLengthTestSupport.Render(string.Format(Template, "dx='calc(1 + 1)' dy='min(1, 2)'"), 200, 200);
+        var plain = SvgLengthTestSupport.Render(string.Format(Template, string.Empty), 200, 200);
+
+        // Assert
+        AssertSurfacesEqual(plain, numberMath);
+    }
+
+    /// <summary>
+    ///     Proves <c>line-height</c> is the one length property where a number-typed math result is
+    ///     valid, and then it is a <em>multiplier</em> re-multiplied by each descendant's font size,
+    ///     exactly like a literal number.
+    /// </summary>
+    /// <param name="declaration">The attribute declaring the line height on the wrapping group (font size 10).</param>
+    [Theory]
+    [InlineData("style='line-height: calc(1 + 1)'")]
+    [InlineData("style='line-height: min(2, 3)'")]
+    [InlineData("style='line-height: max(1, 2)'")]
+    [InlineData("style='font: 10px/calc(1 + 1) serif'")]
+    public void SvgCodec_Load_LineHeightNumberMath_IsMultiplier(string declaration)
+    {
+        // Arrange: the group is 10px; the child group changes the font size to 50 and measures 1lh
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g {declaration} font-size='10'><g font-size='50'><rect width='1lh' height='10' fill='black'/></g></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert: 2 * 50 for a multiplier (it would be a fixed 2 if the math result were treated as a length)
+        Assert.Equal(100.0, measured, Tolerance);
+    }
+
+    /// <summary>Proves a length-typed math <c>line-height</c> stays an absolute length, and a type mix is invalid and ignored.</summary>
+    /// <param name="declaration">The <c>line-height</c> declaration.</param>
+    /// <param name="expected">The width of a <c>1lh</c> bar under a child font size of 50.</param>
+    [Theory]
+    [InlineData("line-height: calc(1px + 1px)", 2.0)]
+    [InlineData("line-height: calc(20% + 1px)", 3.0)]
+    [InlineData("line-height: calc(10% + 1)", 60.0)]
+    public void SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType(string declaration, double expected)
+    {
+        // Arrange: the invalid mix is ignored, so the child falls back to a normal line height (1.2 * 50)
+        var svg =
+            $"<svg viewBox='0 0 400 40'><g style='{declaration}' font-size='10'><g font-size='50'><rect width='1lh' height='10' fill='black'/></g></g></svg>";
+
+        // Act
+        var measured = SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5);
+
+        // Assert
+        Assert.Equal(expected, measured, Tolerance);
+    }
+
+    // ================================================================================================
+    // objectBoundingBox mask regions evaluate math on the fraction axis
+    // ================================================================================================
+
+    /// <summary>Renders a 200x100 document whose mask region (default <c>objectBoundingBox</c> units) carries <paramref name="maskAttributes"/>.</summary>
+    /// <param name="maskAttributes">Attributes for the <c>mask</c> element.</param>
+    /// <returns>The rendered surface.</returns>
+    private static Surface RenderBoundingBoxMask(string maskAttributes)
+    {
+        var svg =
+            $"<svg viewBox='0 0 200 100'><mask id='m' {maskAttributes}><rect width='200' height='100' fill='white'/></mask>" +
+            "<rect x='50' y='25' width='100' height='50' fill='black' mask='url(#m)'/></svg>";
+        return SvgLengthTestSupport.Render(svg, 200, 100);
+    }
+
+    /// <summary>
+    ///     Proves an <c>objectBoundingBox</c> mask region honors math functions with a basis of 1 -
+    ///     a percentage is a fraction, a number-typed result is a fraction - on a non-square document
+    ///     (so neither viewport axis can be mistaken for the fraction), rendering identically to the
+    ///     plain value rather than silently falling back to the default region.
+    /// </summary>
+    /// <param name="attribute">The region attribute.</param>
+    /// <param name="math">The math expression.</param>
+    /// <param name="plain">The equivalent plain value.</param>
+    [Theory]
+    [InlineData("x", "calc(10% + 5%)", "15%")]
+    [InlineData("y", "calc(10% + 5%)", "15%")]
+    [InlineData("width", "calc(100% / 4)", "25%")]
+    [InlineData("height", "min(10%, 20%)", "10%")]
+    [InlineData("width", "calc(50% + 0px)", "50%")]
+    [InlineData("x", "calc(0.1 + 0.2)", "0.3")]
+    [InlineData("height", "calc(0.1 + 0.2)", "0.3")]
+    public void SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis(string attribute, string math, string plain)
+    {
+        // Arrange / Act
+        var viaMath = RenderBoundingBoxMask($"{attribute}='{math}'");
+        var viaPlain = RenderBoundingBoxMask($"{attribute}='{plain}'");
+        var absent = RenderBoundingBoxMask(string.Empty);
+
+        // Assert: identical to the plain value, and the attribute genuinely changes the region
+        AssertSurfacesEqual(viaPlain, viaMath);
+        Assert.False(SvgLengthTestSupport.AreIdentical(absent, viaPlain));
+    }
+
+    /// <summary>
+    ///     Proves a region value that mixes a percentage and a number is invalid (CSS Values 4,
+    ///     "Type Checking": <c>opacity: calc(.25 + 25%)</c> is invalid) and falls back to the default region.
+    /// </summary>
+    /// <param name="attribute">The region attribute.</param>
+    [Theory]
+    [InlineData("x")]
+    [InlineData("y")]
+    [InlineData("width")]
+    [InlineData("height")]
+    public void SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault(string attribute)
+    {
+        // Arrange / Act
+        var mixed = RenderBoundingBoxMask($"{attribute}='calc(10% + 0.1)'");
+        var absent = RenderBoundingBoxMask(string.Empty);
+
+        // Assert
+        AssertSurfacesEqual(absent, mixed);
+    }
+
+    // ================================================================================================
+    // Gradient, pattern and mask coordinates: plain and compound percentages agree
+    // ================================================================================================
+
+    /// <summary>Gets the 200x100 viewport's percentage basis for a paint-server attribute under <c>userSpaceOnUse</c>.</summary>
+    /// <param name="attribute">The attribute name.</param>
+    /// <returns>The width, height or diagonal basis.</returns>
+    private static float ViewportBasis(string attribute) => attribute switch
+    {
+        "x" or "x1" or "x2" or "cx" or "fx" or "width" => 200f,
+        "y" or "y1" or "y2" or "cy" or "fy" or "height" => 100f,
+        _ => MathF.Sqrt((200f * 200f) + (100f * 100f)) / MathF.Sqrt(2f)
+    };
+
+    /// <summary>Formats a float so it parses back to exactly the same value.</summary>
+    /// <param name="value">The value.</param>
+    /// <returns>The round-trip text.</returns>
+    private static string Exact(float value) => value.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Builds an attribute string from a base set with <paramref name="attribute"/> set (or overridden) to <paramref name="value"/>.</summary>
+    /// <param name="baseValues">The base attribute values, in order.</param>
+    /// <param name="attribute">The tested attribute.</param>
+    /// <param name="value">The tested value.</param>
+    /// <returns>The attribute text.</returns>
+    private static string WithAttribute(IReadOnlyList<(string Name, string Value)> baseValues, string attribute, string? value)
+    {
+        var merged = baseValues.Where(pair => pair.Name != attribute).ToList();
+        if (value != null)
+        {
+            merged.Add((attribute, value));
+        }
+
+        return string.Join(' ', merged.Select(pair => $"{pair.Name}='{pair.Value}'"));
+    }
+
+    /// <summary>Renders a 200x100 document with a gradient painted over its full-size rectangle.</summary>
+    /// <param name="element">The gradient element name.</param>
+    /// <param name="attributes">The gradient attributes.</param>
+    /// <param name="userSpace">Whether the gradient uses <c>userSpaceOnUse</c> units.</param>
+    /// <returns>The rendered surface.</returns>
+    private static Surface RenderGradient(string element, string attributes, bool userSpace)
+    {
+        var units = userSpace ? " gradientUnits='userSpaceOnUse'" : string.Empty;
+        var svg =
+            $"<svg viewBox='0 0 200 100'><defs><{element} id='g'{units} {attributes}>" +
+            "<stop offset='0' stop-color='black'/><stop offset='1' stop-color='white'/>" +
+            $"</{element}></defs><rect width='200' height='100' fill='url(#g)'/></svg>";
+        return SvgLengthTestSupport.Render(svg, 200, 100);
+    }
+
+    /// <summary>
+    ///     Proves a plain percentage and the same percentage inside <c>calc()</c> resolve against the
+    ///     same basis for every gradient coordinate, in both units modes: a fraction of 1 under
+    ///     <c>objectBoundingBox</c>, and the viewport axis of the attribute (width, height, diagonal)
+    ///     under <c>userSpaceOnUse</c> (SVG 2, Paint Servers). Previously a plain <c>%</c> was always a
+    ///     fraction of 1 while <c>calc()</c> always used the viewport width.
+    /// </summary>
+    /// <param name="element">The gradient element name.</param>
+    /// <param name="attribute">The coordinate attribute.</param>
+    /// <param name="userSpace">Whether the gradient uses <c>userSpaceOnUse</c> units.</param>
+    [Theory]
+    [InlineData("linearGradient", "x1", false)]
+    [InlineData("linearGradient", "y1", false)]
+    [InlineData("linearGradient", "x2", false)]
+    [InlineData("linearGradient", "y2", false)]
+    [InlineData("radialGradient", "cx", false)]
+    [InlineData("radialGradient", "cy", false)]
+    [InlineData("radialGradient", "r", false)]
+    [InlineData("radialGradient", "fx", false)]
+    [InlineData("radialGradient", "fy", false)]
+    [InlineData("radialGradient", "fr", false)]
+    [InlineData("linearGradient", "x1", true)]
+    [InlineData("linearGradient", "y1", true)]
+    [InlineData("linearGradient", "x2", true)]
+    [InlineData("linearGradient", "y2", true)]
+    [InlineData("radialGradient", "cx", true)]
+    [InlineData("radialGradient", "cy", true)]
+    [InlineData("radialGradient", "r", true)]
+    [InlineData("radialGradient", "fx", true)]
+    [InlineData("radialGradient", "fy", true)]
+    [InlineData("radialGradient", "fr", true)]
+    public void SvgCodec_Load_PaintServerCoordinateMath_AgreesWithPlainPercentage(string element, string attribute, bool userSpace)
+    {
+        // Arrange: a base geometry that makes every tested attribute visible, and the expected number
+        // (a quarter is exact in binary, so the plain, compound and numeric forms are bit-identical)
+        var baseValues = (element, userSpace) switch
+        {
+            ("linearGradient", true) => new[] { ("x1", "0"), ("y1", "0"), ("x2", "200"), ("y2", "0") },
+            ("radialGradient", true) => new[] { ("cx", "100"), ("cy", "50"), ("r", "75") },
+            _ => Array.Empty<(string, string)>()
+        };
+        var numeric = userSpace ? Exact(0.25f * ViewportBasis(attribute)) : "0.25";
+
+        // Act
+        var plain = RenderGradient(element, WithAttribute(baseValues, attribute, "25%"), userSpace);
+        var compound = RenderGradient(element, WithAttribute(baseValues, attribute, "calc(25% + 0px)"), userSpace);
+        var literal = RenderGradient(element, WithAttribute(baseValues, attribute, numeric), userSpace);
+        var untouched = RenderGradient(element, WithAttribute(baseValues, attribute, null), userSpace);
+
+        // Assert
+        AssertSurfacesEqual(literal, plain);
+        AssertSurfacesEqual(literal, compound);
+        Assert.False(SvgLengthTestSupport.AreIdentical(untouched, plain));
+    }
+
+    /// <summary>Proves a number-typed math result is valid in an <c>objectBoundingBox</c> coordinate (the grammar is number-or-percentage).</summary>
+    [Fact]
+    public void SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted()
+    {
+        // Arrange / Act
+        var math = RenderGradient("linearGradient", "x2='calc(0.5 + 0.25)'", userSpace: false);
+        var plain = RenderGradient("linearGradient", "x2='0.75'", userSpace: false);
+
+        // Assert
+        AssertSurfacesEqual(plain, math);
+    }
+
+    /// <summary>Proves a number-typed math result is not a length, so under <c>userSpaceOnUse</c> the coordinate falls back like any unparseable one.</summary>
+    [Fact]
+    public void SvgCodec_Load_GradientUserSpaceNumberMath_FallsBackToDefault()
+    {
+        // Arrange / Act
+        var numberMath = RenderGradient("linearGradient", "x2='calc(1 + 1)'", userSpace: true);
+        var absent = RenderGradient("linearGradient", string.Empty, userSpace: true);
+        var literal = RenderGradient("linearGradient", "x2='2'", userSpace: true);
+
+        // Assert: the default applies (not the literal 2 the math result would have been)
+        AssertSurfacesEqual(absent, numberMath);
+        Assert.False(SvgLengthTestSupport.AreIdentical(literal, numberMath));
+    }
+
+    /// <summary>Renders a 200x100 document with a pattern painted over a shape that is smaller than the viewport.</summary>
+    /// <param name="attributes">The pattern attributes.</param>
+    /// <param name="userSpace">Whether the pattern uses <c>userSpaceOnUse</c> units.</param>
+    /// <returns>The rendered surface.</returns>
+    private static Surface RenderPattern(string attributes, bool userSpace)
+    {
+        var units = userSpace ? " patternUnits='userSpaceOnUse'" : string.Empty;
+        var svg =
+            $"<svg viewBox='0 0 200 100'><defs><pattern id='p'{units} {attributes}><polygon points='0,0 40,0 200,100 160,100' fill='black'/></pattern></defs>" +
+            "<rect x='20' y='10' width='160' height='80' fill='url(#p)'/></svg>";
+        return SvgLengthTestSupport.Render(svg, 200, 100);
+    }
+
+    /// <summary>Proves a plain and a compound percentage agree for every pattern tile attribute in both units modes.</summary>
+    /// <param name="attribute">The tile attribute.</param>
+    /// <param name="userSpace">Whether the pattern uses <c>userSpaceOnUse</c> units.</param>
+    [Theory]
+    [InlineData("x", false)]
+    [InlineData("y", false)]
+    [InlineData("width", false)]
+    [InlineData("height", false)]
+    [InlineData("x", true)]
+    [InlineData("y", true)]
+    [InlineData("width", true)]
+    [InlineData("height", true)]
+    public void SvgCodec_Load_PatternTileMath_AgreesWithPlainPercentage(string attribute, bool userSpace)
+    {
+        // Arrange: a base tile that is not a divisor of the tested offsets/sizes
+        var baseValues = userSpace
+            ? new[] { ("x", "0"), ("y", "0"), ("width", "32"), ("height", "16") }
+            : new[] { ("x", "0"), ("y", "0"), ("width", "0.2"), ("height", "0.2") };
+        var numeric = userSpace ? Exact(0.25f * ViewportBasis(attribute)) : "0.25";
+
+        // Act
+        var plain = RenderPattern(WithAttribute(baseValues, attribute, "25%"), userSpace);
+        var compound = RenderPattern(WithAttribute(baseValues, attribute, "calc(25% + 0px)"), userSpace);
+        var literal = RenderPattern(WithAttribute(baseValues, attribute, numeric), userSpace);
+        var untouched = RenderPattern(WithAttribute(baseValues, attribute, null), userSpace);
+
+        // Assert
+        AssertSurfacesEqual(literal, plain);
+        AssertSurfacesEqual(literal, compound);
+        Assert.False(SvgLengthTestSupport.AreIdentical(untouched, plain));
+    }
+
+    /// <summary>Renders a 200x100 document whose <c>userSpaceOnUse</c> mask region carries <paramref name="maskAttributes"/> over a shape smaller than the viewport.</summary>
+    /// <param name="maskAttributes">Attributes for the <c>mask</c> element.</param>
+    /// <returns>The rendered surface.</returns>
+    private static Surface RenderUserSpaceMask(string maskAttributes)
+    {
+        var svg =
+            $"<svg viewBox='0 0 200 100'><mask id='m' maskUnits='userSpaceOnUse' {maskAttributes}><rect width='200' height='100' fill='white'/></mask>" +
+            "<rect x='20' y='10' width='100' height='50' fill='black' mask='url(#m)'/></svg>";
+        return SvgLengthTestSupport.Render(svg, 200, 100);
+    }
+
+    /// <summary>
+    ///     Proves a <c>userSpaceOnUse</c> mask region resolves a plain and a compound percentage against
+    ///     the viewport on the attribute's axis (the shape is smaller than the viewport, so a
+    ///     bounds-relative reading would differ).
+    /// </summary>
+    /// <param name="attribute">The region attribute.</param>
+    [Theory]
+    [InlineData("x")]
+    [InlineData("y")]
+    [InlineData("width")]
+    [InlineData("height")]
+    public void SvgCodec_Load_MaskRegionUserSpacePercentage_ResolvesAgainstViewport(string attribute)
+    {
+        // Arrange: the base region covers the whole viewport; the tested value is half of the viewport axis
+        var baseValues = new[] { ("x", "0"), ("y", "0"), ("width", "200"), ("height", "100") };
+        var numeric = Exact(0.5f * ViewportBasis(attribute));
+
+        // Act
+        var plain = RenderUserSpaceMask(WithAttribute(baseValues, attribute, "50%"));
+        var compound = RenderUserSpaceMask(WithAttribute(baseValues, attribute, "calc(50% + 0px)"));
+        var literal = RenderUserSpaceMask(WithAttribute(baseValues, attribute, numeric));
+        var untouched = RenderUserSpaceMask(WithAttribute(baseValues, attribute, null));
+
+        // Assert
+        AssertSurfacesEqual(literal, plain);
+        AssertSurfacesEqual(literal, compound);
+        Assert.False(SvgLengthTestSupport.AreIdentical(untouched, plain));
+    }
+
+    // ================================================================================================
     // Root width/height (GetInfo and Load)
     // ================================================================================================
 

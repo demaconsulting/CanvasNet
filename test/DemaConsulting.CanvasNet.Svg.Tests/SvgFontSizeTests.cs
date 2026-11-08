@@ -1,3 +1,5 @@
+using DemaConsulting.CanvasNet.Fonts;
+
 namespace DemaConsulting.CanvasNet.Svg.Tests;
 
 /// <summary>
@@ -235,6 +237,15 @@ public class SvgFontSizeTests
     [InlineData("<text x='20' y='150' style='font: 700 oblique 14px / 2 TestFont'>A</text>", 14.0)]
     [InlineData("<text x='20' y='150' style='font: small-caps condensed normal 14px TestFont'>A</text>", 14.0)]
     [InlineData("<text x='20' y='150' style='font: oblique 10deg 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 10grad 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 0.2rad 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 0.05turn 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique -10DEG 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 10Grad 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 90deg 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 100grad 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: oblique 0.25turn 14px TestFont'>A</text>", 14.0)]
+    [InlineData("<text x='20' y='150' style='font: BOLD ITALIC 14px TestFont'>A</text>", 14.0)]
     [InlineData("<text x='20' y='150' style='font: 12px \"Some, Family\", TestFont'>A</text>", 12.0)]
     [InlineData("<text x='20' y='150' style='font: x-large TestFont'>A</text>", 24.0)]
     [InlineData("<text x='20' y='150' style='font: 150% TestFont'>A</text>", 24.0)]
@@ -309,19 +320,220 @@ public class SvgFontSizeTests
         Assert.Equal(30.0, SvgLengthTestSupport.MeasureFontSizeOf(
             $"<text x='20' y='150' font-family='TestFont' font-size='30' style='{style}'>A</text>"), Tolerance);
 
-    /// <summary>Proves the CSS-wide keywords work as the whole shorthand value.</summary>
+    /// <summary>
+    ///     Proves the CSS-wide keywords work as the whole shorthand value: <c>inherit</c> takes the
+    ///     parent's size and family, <c>initial</c> resets the size to <c>medium</c> and the family to the default.
+    /// </summary>
     [Fact]
     public void SvgCodec_Load_FontShorthandCssWideKeyword_AppliesToFontSize()
     {
-        // Arrange: parent 20
+        // Arrange / Act: the parent supplies the family (the shorthand keyword resets family too)
         var inherited = SvgLengthTestSupport.MeasureFontSizeOf(
-            "<g font-size='20'><text x='20' y='150' font-family='TestFont' font-size='40' style='font: inherit'>A</text></g>");
-        var initial = SvgLengthTestSupport.MeasureFontSizeOf(
-            "<g font-size='20'><text x='20' y='150' font-family='TestFont' font-size='40' style='font: initial'>A</text></g>");
+            "<g font-family='TestFont' font-size='20'><text x='20' y='150' font-family='Other' font-size='40' style='font: inherit'>A</text></g>");
+        var initial = SvgLengthTestSupport.Render(
+            "<svg viewBox='0 0 200 200'><g font-size='20'><text x='20' y='150' font-family='TestFont' font-size='40' style='font: initial'>A</text></g></svg>", 200, 200);
+        var defaults = SvgLengthTestSupport.Render("<svg viewBox='0 0 200 200'><text x='20' y='150'>A</text></svg>", 200, 200);
+
+        // Assert: initial is the default family at 16, exactly as a text element with no font properties
+        Assert.Equal(20.0, inherited, Tolerance);
+        AssertSurfacesEqual(defaults, initial);
+    }
+
+    // ================================================================================================
+    // CSS-wide keywords reset every font longhand, family included
+    // ================================================================================================
+
+    /// <summary>A parent font (bold italic <c>TestFont</c> at 20) every CSS-wide keyword test inherits from or resets.</summary>
+    private const string StyledParent = "font-family='TestFont' font-weight='bold' font-style='italic' font-size='20'";
+
+    /// <summary>
+    ///     Proves <c>inherit</c>/<c>initial</c>/<c>unset</c> apply to <c>font-family</c> (via the
+    ///     <c>font</c> shorthand and as longhands) as well as weight, style and size, with correct
+    ///     semantics: <c>inherit</c>/<c>unset</c> take the parent's value, <c>initial</c> the property's
+    ///     initial value, and a quoted <c>"inherit"</c> is a family name. The child must render
+    ///     pixel-identically to a document written without the keyword.
+    /// </summary>
+    /// <param name="parentAttributes">The attributes of the parent group.</param>
+    /// <param name="childAttributes">The attributes of the text element under test.</param>
+    /// <param name="expectedParentAttributes">The parent attributes of the equivalent keyword-free document.</param>
+    /// <param name="expectedChildAttributes">The text attributes of the equivalent keyword-free document.</param>
+    [Theory]
+    [InlineData(StyledParent, "font-family='Other' style='font: inherit'", StyledParent, "")]
+    [InlineData(StyledParent, "font-family='Other' style='font: unset'", StyledParent, "")]
+    [InlineData(StyledParent, "font-family='Other' style='FONT: INHERIT'", StyledParent, "")]
+    [InlineData(StyledParent, "style='font: initial'", "", "")]
+    [InlineData(StyledParent, "style='FONT: Initial'", "", "")]
+    [InlineData(StyledParent, "font-family='Other' style='font-family: inherit'", StyledParent, "")]
+    [InlineData(StyledParent, "font-family='Other' style='font-family: unset'", StyledParent, "")]
+    [InlineData(StyledParent, "style='font-family: initial'", "font-weight='bold' font-style='italic' font-size='20'", "")]
+    [InlineData(StyledParent, "style='font-weight: initial'", "font-family='TestFont' font-style='italic' font-size='20'", "")]
+    [InlineData(StyledParent, "font-weight='INITIAL'", "font-family='TestFont' font-style='italic' font-size='20'", "")]
+    [InlineData(StyledParent, "style='font-style: initial'", "font-family='TestFont' font-weight='bold' font-size='20'", "")]
+    [InlineData(StyledParent, "font-style='Initial'", "font-family='TestFont' font-weight='bold' font-size='20'", "")]
+    [InlineData(StyledParent, "style='font-family: \"inherit\"'", "font-family='Nonexistent' font-weight='bold' font-style='italic' font-size='20'", "")]
+    public void SvgCodec_Load_CssWideKeywordOnFontProperties_ResetsWithCorrectSemantics(
+        string parentAttributes, string childAttributes, string expectedParentAttributes, string expectedChildAttributes)
+    {
+        // Arrange
+        const string Template = "<svg viewBox='0 0 200 200'><g {0}><text x='20' y='150' {1}>A</text></g></svg>";
+
+        // Act
+        var actual = SvgLengthTestSupport.RenderWithStyledFaces(string.Format(Template, parentAttributes, childAttributes), 200, 200);
+        var expected = SvgLengthTestSupport.RenderWithStyledFaces(
+            string.Format(Template, expectedParentAttributes, expectedChildAttributes), 200, 200);
 
         // Assert
-        Assert.Equal(20.0, inherited, Tolerance);
-        Assert.Equal(16.0, initial, Tolerance);
+        AssertSurfacesEqual(expected, actual);
+    }
+
+    // ================================================================================================
+    // oblique angles
+    // ================================================================================================
+
+    /// <summary>Proves every CSS angle unit (<c>deg</c>, <c>grad</c>, <c>rad</c>, <c>turn</c>, ASCII case-insensitive) is accepted after <c>oblique</c> up to +-90deg, and the face is italic.</summary>
+    /// <param name="angle">The oblique angle.</param>
+    [Theory]
+    [InlineData("10deg")]
+    [InlineData("10grad")]
+    [InlineData("0.2rad")]
+    [InlineData("0.05turn")]
+    [InlineData("-10DEG")]
+    [InlineData("10Grad")]
+    [InlineData("90deg")]
+    [InlineData("-90deg")]
+    [InlineData("100grad")]
+    [InlineData("0.25turn")]
+    [InlineData("+15deg")]
+    public void SvgCodec_Load_FontShorthandObliqueAngle_SelectsItalicFace(string angle)
+    {
+        // Arrange: the italic face is 65 font units wide (130 square pixels at size 20); regular would be 100
+        var svg = $"<svg viewBox='0 0 200 200'><text x='20' y='150' style='font: oblique {angle} 20px TestFont'>A</text></svg>";
+
+        // Act
+        var coverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.RenderWithStyledFaces(svg, 200, 200));
+
+        // Assert
+        Assert.Equal(130.0, coverage, 1.0);
+    }
+
+    /// <summary>Proves an out-of-range, wrongly unit-ed or misplaced oblique angle makes the whole <c>font</c> shorthand invalid, so it is dropped.</summary>
+    /// <param name="style">The inline style holding the invalid shorthand.</param>
+    [Theory]
+    [InlineData("font: oblique 100deg 12px TestFont")]
+    [InlineData("font: oblique -100deg 12px TestFont")]
+    [InlineData("font: oblique 101grad 12px TestFont")]
+    [InlineData("font: oblique 2rad 12px TestFont")]
+    [InlineData("font: oblique 0.3turn 12px TestFont")]
+    [InlineData("font: oblique 10xyz 12px TestFont")]
+    [InlineData("font: oblique 10 deg 12px TestFont")]
+    [InlineData("font: 10deg oblique 12px TestFont")]
+    [InlineData("font: oblique 10 TestFont")]
+    public void SvgCodec_Load_InvalidObliqueAngle_DropsShorthand(string style) =>
+        Assert.Equal(30.0, SvgLengthTestSupport.MeasureFontSizeOf(
+            $"<text x='20' y='150' font-family='TestFont' font-size='30' style='{style}'>A</text>"), Tolerance);
+
+    /// <summary>
+    ///     Proves the <c>font-style</c> longhand accepts <c>oblique</c> with any valid angle unit and
+    ///     ignores anything that is not <c>normal</c>, <c>italic</c>, <c>oblique</c> or
+    ///     <c>oblique &lt;angle&gt;</c> (extra tokens, a bad or out-of-range angle).
+    /// </summary>
+    /// <param name="value">The <c>font-style</c> value.</param>
+    /// <param name="expectedCoverage">The ink area: 130 for the italic face, 100 for the regular face.</param>
+    [Theory]
+    [InlineData("italic", 130.0)]
+    [InlineData("oblique", 130.0)]
+    [InlineData("oblique 10grad", 130.0)]
+    [InlineData("oblique 0.1turn", 130.0)]
+    [InlineData("OBLIQUE 10DEG", 130.0)]
+    [InlineData("normal", 100.0)]
+    [InlineData("oblique abc", 100.0)]
+    [InlineData("italic bold", 100.0)]
+    [InlineData("oblique 100deg", 100.0)]
+    [InlineData("oblique 10", 100.0)]
+    [InlineData("oblique 10deg 5deg", 100.0)]
+    public void SvgCodec_Load_FontStyleLonghandObliqueAngle_SelectsFaceOrIsIgnored(string value, double expectedCoverage)
+    {
+        // Arrange
+        var svg = $"<svg viewBox='0 0 200 200'><text x='20' y='150' font-family='TestFont' font-size='20' style='font-style: {value}'>A</text></svg>";
+
+        // Act
+        var coverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.RenderWithStyledFaces(svg, 200, 200));
+
+        // Assert
+        Assert.Equal(expectedCoverage, coverage, 1.0);
+    }
+
+    // ================================================================================================
+    // font-family list splitting
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves a registered family whose name contains a comma matches when quoted (or escaped) in
+    ///     the <c>font-family</c> list, instead of the list being split at every comma, and that an
+    ///     unquoted comma still separates families.
+    /// </summary>
+    /// <param name="family">The <c>font-family</c> value.</param>
+    /// <param name="expectedCoverage">The ink area: 160 for the <c>Acme, Sans</c> face, 100 for <c>TestFont</c>.</param>
+    [Theory]
+    [InlineData("\"Acme, Sans\", TestFont", 160.0)]
+    [InlineData("'Acme, Sans', TestFont", 160.0)]
+    [InlineData("\"Acme, Sans\"", 160.0)]
+    [InlineData("Acme\\, Sans, TestFont", 160.0)]
+    [InlineData("\"Acme\\, Sans\", TestFont", 160.0)]
+    [InlineData("Acme, Sans, TestFont", 100.0)]
+    [InlineData("Nonexistent, TestFont", 100.0)]
+    [InlineData("'Nonexistent', \"TestFont\"", 100.0)]
+    public void SvgCodec_Load_FontFamilyQuotedComma_MatchesWholeName(string family, double expectedCoverage)
+    {
+        // Arrange: the Acme face is 80 font units wide (160 square pixels at size 20), TestFont is 50 (100)
+        var fonts = new Dictionary<string, TrueTypeFont>
+        {
+            ["Acme, Sans"] = SvgLengthTestSupport.BuildSquareFont(80),
+            ["TestFont"] = SvgLengthTestSupport.BuildSquareFont()
+        };
+        var escaped = System.Security.SecurityElement.Escape(family);
+        var svg = $"<svg viewBox=\"0 0 200 200\"><text x=\"20\" y=\"150\" font-size=\"20\" font-family=\"{escaped}\">A</text></svg>";
+
+        // Act
+        var coverage = SvgLengthTestSupport.TotalCoverage(SvgLengthTestSupport.RenderWithFonts(svg, 200, 200, fonts));
+
+        // Assert
+        Assert.Equal(expectedCoverage, coverage, 1.0);
+    }
+
+    // ================================================================================================
+    // Keyword case
+    // ================================================================================================
+
+    /// <summary>
+    ///     Proves <c>font-weight</c> and <c>font-style</c> keywords are ASCII case-insensitive (CSS
+    ///     Values 4, "Keywords") from a presentation attribute, an inline style and a stylesheet rule.
+    /// </summary>
+    /// <param name="markup">The document body.</param>
+    /// <param name="expectedCoverage">The ink area: 100 regular, 160 bold, 130 italic.</param>
+    [Theory]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' font-weight='BOLD'>A</text>", 160.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' font-weight='Bold'>A</text>", 160.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' font-weight='bOlD'>A</text>", 160.0)]
+    [InlineData("<g font-weight='bold'><text x='20' y='150' font-family='TestFont' font-size='20' font-weight='NORMAL'>A</text></g>", 100.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' style='font-weight: BOLD'>A</text>", 160.0)]
+    [InlineData("<g font-weight='bold'><text x='20' y='150' font-family='TestFont' font-size='20' style='font-weight: Normal'>A</text></g>", 100.0)]
+    [InlineData("<style>text { font-weight: BOLD }</style><text x='20' y='150' font-family='TestFont' font-size='20'>A</text>", 160.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' font-style='ITALIC'>A</text>", 130.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' font-style='Oblique'>A</text>", 130.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' font-style='OBLIQUE 10DEG'>A</text>", 130.0)]
+    [InlineData("<text x='20' y='150' font-family='TestFont' font-size='20' style='font-style: ITALIC'>A</text>", 130.0)]
+    [InlineData("<g font-style='italic'><text x='20' y='150' font-family='TestFont' font-size='20' style='font-style: NORMAL'>A</text></g>", 100.0)]
+    [InlineData("<g font-style='italic'><text x='20' y='150' font-family='TestFont' font-size='20' font-style='NORMAL'>A</text></g>", 100.0)]
+    [InlineData("<style>text { font-style: ITALIC }</style><text x='20' y='150' font-family='TestFont' font-size='20'>A</text>", 130.0)]
+    public void SvgCodec_Load_FontWeightAndStyleKeywords_AreCaseInsensitive(string markup, double expectedCoverage)
+    {
+        // Arrange / Act
+        var coverage = SvgLengthTestSupport.TotalCoverage(
+            SvgLengthTestSupport.RenderWithStyledFaces($"<svg viewBox='0 0 200 200'>{markup}</svg>", 200, 200));
+
+        // Assert
+        Assert.Equal(expectedCoverage, coverage, 1.0);
     }
 
     // ================================================================================================
@@ -341,6 +553,10 @@ public class SvgFontSizeTests
     [InlineData("calc(")]
     [InlineData("calc(1px + 2)")]
     [InlineData("calc(1px / 0)")]
+    [InlineData("calc(1 + 1)")]
+    [InlineData("min(1, 2)")]
+    [InlineData("max(1, 2)")]
+    [InlineData("clamp(1, 2, 3)")]
     [InlineData("-")]
     public void SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited(string fontSize)
     {

@@ -103,4 +103,23 @@ public class GenericFontFamiliesTests
         Assert.Empty(GenericFontFamilies.SplitFamilyList("   "));
         Assert.Empty(GenericFontFamilies.SplitFamilyList(null));
     }
+
+    /// <summary>
+    ///     Proves CSS backslash escapes are decoded: an escaped quote or comma neither ends a string nor splits the
+    ///     list, an escaped backslash is a backslash, a hexadecimal escape (with its one optional trailing white-space
+    ///     character) is that code point, an invalid code point becomes U+FFFD, and a trailing lone backslash is dropped.
+    /// </summary>
+    [Fact]
+    public void GenericFontFamilies_SplitFamilyList_HonorsBackslashEscapes()
+    {
+        Assert.Equal(["Say \"hi\"", "serif"], GenericFontFamilies.SplitFamilyList("\"Say \\\"hi\\\"\", serif"));
+        Assert.Equal(["It's"], GenericFontFamilies.SplitFamilyList("'It\\'s'"));
+        Assert.Equal(["Acme, Sans", "serif"], GenericFontFamilies.SplitFamilyList("Acme\\, Sans, serif"));
+        Assert.Equal(["a\\b"], GenericFontFamilies.SplitFamilyList("\"a\\\\b\""));
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\\41 cme"));
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\\000041cme"));
+        Assert.Equal(["A\u00E9"], GenericFontFamilies.SplitFamilyList("\"A\\e9\""));
+        Assert.Equal(["\uFFFD"], GenericFontFamilies.SplitFamilyList("\\110000"));
+        Assert.Equal(["abc"], GenericFontFamilies.SplitFamilyList("abc\\"));
+    }
 }

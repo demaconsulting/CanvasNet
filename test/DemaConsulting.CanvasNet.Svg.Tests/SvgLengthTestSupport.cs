@@ -86,6 +86,70 @@ internal static class SvgLengthTestSupport
         return SvgCodec.LoadWithFontFaces(stream, width, height, faces);
     }
 
+    /// <summary>
+    ///     Renders <paramref name="svg"/> 1:1 with a four-face <c>TestFont</c> family whose glyph widths
+    ///     make every weight/style combination visible in the ink area: regular 50, bold (700) 80,
+    ///     italic 65 and bold italic 90 font units (at font size 20 the ink areas are 100, 160, 130 and
+    ///     180 square pixels).
+    /// </summary>
+    /// <param name="svg">The SVG text.</param>
+    /// <param name="width">The surface width.</param>
+    /// <param name="height">The surface height.</param>
+    /// <returns>The rendered surface.</returns>
+    internal static Surface RenderWithStyledFaces(string svg, int width, int height)
+    {
+        var faces = new Dictionary<string, IReadOnlyList<SvgFontFace>>
+        {
+            ["TestFont"] =
+            [
+                new SvgFontFace(BuildSquareFont(), Weight: 400),
+                new SvgFontFace(BuildSquareFont(80), Weight: 700),
+                new SvgFontFace(BuildSquareFont(65), Weight: 400, Style: SvgFontStyle.Italic),
+                new SvgFontFace(BuildSquareFont(90), Weight: 700, Style: SvgFontStyle.Italic)
+            ]
+        };
+
+        using var stream = ToStream(svg);
+        return SvgCodec.LoadWithFontFaces(stream, width, height, faces);
+    }
+
+    /// <summary>Renders <paramref name="svg"/> 1:1 with a caller-supplied single-face font dictionary.</summary>
+    /// <param name="svg">The SVG text.</param>
+    /// <param name="width">The surface width.</param>
+    /// <param name="height">The surface height.</param>
+    /// <param name="fonts">The font family name to font mapping.</param>
+    /// <returns>The rendered surface.</returns>
+    internal static Surface RenderWithFonts(string svg, int width, int height, Dictionary<string, TrueTypeFont> fonts)
+    {
+        using var stream = ToStream(svg);
+        return SvgCodec.Load(stream, width, height, fonts);
+    }
+
+    /// <summary>Determines whether two same-size surfaces are pixel-identical.</summary>
+    /// <param name="left">The first surface.</param>
+    /// <param name="right">The second surface.</param>
+    /// <returns><see langword="true"/> when both have the same size and every pixel is equal.</returns>
+    internal static bool AreIdentical(Surface left, Surface right)
+    {
+        if (left.Width != right.Width || left.Height != right.Height)
+        {
+            return false;
+        }
+
+        for (var y = 0; y < left.Height; y++)
+        {
+            for (var x = 0; x < left.Width; x++)
+            {
+                if (!left[x, y].Equals(right[x, y]))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Sums a row's coverage (alpha / 255), giving the ink width of a horizontal bar in pixels with sub-pixel accuracy.</summary>
     /// <param name="surface">The rendered surface.</param>
     /// <param name="y">The row to measure.</param>

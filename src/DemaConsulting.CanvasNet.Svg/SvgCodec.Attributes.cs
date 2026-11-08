@@ -48,7 +48,16 @@ public static partial class SvgCodec
         ///     CSS/SVG-defined basis for a <c>font-size</c> percentage, distinct from every
         ///     viewport-relative basis above.
         /// </summary>
-        FontSize
+        FontSize,
+
+        /// <summary>
+        ///     An objectBoundingBox fraction (gradient, pattern and mask coordinates in their default
+        ///     units mode): a <c>%</c> is a fraction of <c>1</c> (<c>50%</c> is <c>0.5</c>), and, as
+        ///     the SVG grammar for these attributes is <c>&lt;number&gt; | &lt;percentage&gt;</c>, a
+        ///     math expression may resolve to either a number or a length/percentage. The only axis
+        ///     that accepts a number-typed math result.
+        /// </summary>
+        Fraction
     }
 
     /// <summary>
@@ -77,6 +86,7 @@ public static partial class SvgCodec
         PercentageAxis.Vertical => state.ViewportHeight,
         PercentageAxis.Diagonal => ComputeDiagonalBasis(state.ViewportWidth, state.ViewportHeight),
         PercentageAxis.FontSize => state.FontSize,
+        PercentageAxis.Fraction => 1f,
         _ => throw new ArgumentOutOfRangeException(nameof(axis), axis, "Unrecognized percentage axis.")
     };
 
@@ -141,9 +151,11 @@ public static partial class SvgCodec
     ///     <c>calc()</c>/<c>min()</c>/<c>max()</c>/<c>clamp()</c> expression - see
     ///     <see cref="TryResolveLength"/> for the grammar and conversions. Unlike opacity-family
     ///     attributes (see <see cref="ParseOpacityValue"/>), which are always basis-1 percentages of
-    ///     a <c>[0, 1]</c> range, and gradient coordinates/<c>stop</c> <c>offset</c> (see
-    ///     <see cref="ParsePercentOrNumber"/>), which are resolved as basis-1 fractions of the
-    ///     gradient's own coordinate space, this method is the strict (class S) length parser.
+    ///     a <c>[0, 1]</c> range, and gradient/pattern/mask coordinates and <c>stop</c>
+    ///     <c>offset</c>, which resolve against their own coordinate space (see
+    ///     <see cref="PercentageAxis.Fraction"/>), this method is the strict (class S) length parser:
+    ///     a math expression that resolves to a number (<c>calc(1 + 1)</c>) is not a length and is
+    ///     rejected.
     /// </summary>
     /// <param name="raw">The raw attribute text.</param>
     /// <param name="attributeName">The attribute's name, used in the error message.</param>

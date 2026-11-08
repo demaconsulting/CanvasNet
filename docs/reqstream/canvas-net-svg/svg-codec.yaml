@@ -390,12 +390,16 @@ sections:
               The SvgCodec class shall give a caller-registered font precedence over every
               default font: a registered family anywhere in a text element's font-family list
               (including a family named like a generic keyword) shall be used instead of any
-              installed or bundled font, walking a comma-separated font-family fallback list.
+              installed or bundled font, walking a font-family fallback list that is split only at
+              commas outside quotes (so a quoted family name may contain a comma).
             justification: |
               A caller that registers a font expects it to be used; adding default fonts must
-              not change what an existing caller's registered fonts render.
+              not change what an existing caller's registered fonts render. A quoted family name
+              such as "Acme, Sans" is one name in CSS, and the registered-font pass must agree
+              with the default-resolution pass on where the list splits.
             tests:
               - SvgCodec_Load_TextFontFamilyCommaSeparatedList_MatchesFirstAvailableFont
+              - SvgCodec_Load_FontFamilyQuotedComma_MatchesWholeName
               - SvgCodec_Load_TextRegisteredFontLaterInList_TakesPrecedenceOverEarlierGenericKeyword
               - SvgCodec_Load_TextRegisteredFontNamedLikeGenericKeyword_TakesPrecedenceOverBundledFont
               - SvgCodec_Load_TextLegacyFontsOverload_RegisteredFontWinsAndUnmatchedFamilyFallsThrough
@@ -436,15 +440,18 @@ sections:
               The SvgCodec class shall parse a text element's font-weight (normal/bold
               keywords or a numeric value) and font-style (normal/italic/oblique) presentation
               attributes and cascade each down to descendant elements exactly as font-family
-              and font-size already do.
+              and font-size already do, matching the keywords ASCII case-insensitively.
             justification: |
               Callers need bold titles and italic keywords - a common real-world diagram
               labeling pattern - to inherit through group nesting the same way every other
               presentation attribute already does, rather than requiring every leaf text
-              element to repeat its own font-weight/font-style.
+              element to repeat its own font-weight/font-style. CSS Values 4 interprets
+              keywords ASCII case-insensitively, so BOLD and Italic must work in an attribute,
+              an inline style and a stylesheet rule.
             tests:
               - SvgCodec_Load_GroupFontWeightInheritance_AppliesToChildTextWithoutOwnFontWeight
               - SvgCodec_Load_GroupFontStyleInheritance_AppliesToChildTextWithoutOwnFontStyle
+              - SvgCodec_Load_FontWeightAndStyleKeywords_AreCaseInsensitive
 
           - id: CanvasNetSvg-SvgCodec-FontFaceMatching
             title: >-
@@ -593,12 +600,18 @@ sections:
               attributes against the diagonal basis sqrt(width^2 + height^2) / sqrt(2), and
               font-size against the parent element's own font-size), rather than rejecting it
               with InvalidDataException. stroke-miterlimit remains the sole exception, since
-              it is a unitless ratio rather than a length.
+              it is a unitless ratio rather than a length. A percentage in a gradient, pattern or
+              mask-region coordinate shall resolve identically whether it is written plainly or
+              inside a math function: as a fraction of 1 under objectBoundingBox units, and
+              against the viewport on the attribute's own axis (width, height, or the diagonal
+              basis for r and fr) under userSpaceOnUse units.
             justification: |
               Real-world SVG documents commonly size geometry as a percentage of their
               containing viewport; resolving these against a well-defined, spec-aligned basis
               lets this codec render such documents correctly instead of rejecting them
-              outright.
+              outright. SVG 2 (Paint Servers) defines a userSpaceOnUse percentage as
+              viewport-relative and an objectBoundingBox one as a fraction of the bounding box, so
+              one coordinate-space basis for both forms keeps calc() and plain values consistent.
             tests:
               - SvgCodec_Load_RectXPercentage_ResolvesAgainstViewportWidth
               - SvgCodec_Load_RectWidthPercentage_ResolvesAgainstViewportWidth
@@ -610,6 +623,9 @@ sections:
               - SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize
               - SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis
               - SvgCodec_Load_PercentWidth_ResolvesAgainstViewportWidth
+              - SvgCodec_Load_PaintServerCoordinateMath_AgreesWithPlainPercentage
+              - SvgCodec_Load_PatternTileMath_AgreesWithPlainPercentage
+              - SvgCodec_Load_MaskRegionUserSpacePercentage_ResolvesAgainstViewport
 
           - id: CanvasNetSvg-SvgCodec-LengthUnitsResolved
             title: >-
@@ -669,15 +685,21 @@ sections:
               or percentage against the parent's font-size, the keywords xx-small, x-small,
               small, medium, large, x-large, xx-large and xxx-large to 9, 10, 13, 16, 18, 24, 32
               and 48 user units, larger and smaller to the parent's size multiplied or divided by
-              1.2, and inherit, initial and unset per CSS, and shall offset a text element by the
-              first value of its dx and dy attributes (including em and percentage values).
+              1.2, and inherit, initial and unset per CSS (as the whole font shorthand value they
+              shall reset every font longhand, font-family included, and they shall likewise
+              apply to the font-family, font-weight and font-style longhands), oblique followed by
+              an angle in deg, grad, rad or turn within -90deg to 90deg, and font-weight and
+              font-style keywords matched ASCII case-insensitively, and shall offset a text
+              element by the first value of its dx and dy attributes (including em and percentage
+              values).
             justification: |
               CSS Fonts 4 defines font-size and the font shorthand, and SVG documents set text
               size through every one of these routes (Vega emits font-size="10px" with
               dy="0.71em"; hand-written SVG uses style and the font shorthand; stylesheets use
               keywords). The keyword table follows the major browsers so that a document renders
               the same size here as in the browser it was authored in; CSS Fonts 4 no longer
-              mandates a fixed ratio.
+              mandates a fixed ratio. CSS Values 4 applies a CSS-wide keyword to every longhand of a
+              shorthand, defines the angle units and the ASCII case-insensitivity of keywords.
             tests:
               - SvgCodec_Load_FontSizePx_RendersSameAsUnitless
               - SvgCodec_Load_FontSizeLength_ResolvesAgainstParent
@@ -695,6 +717,11 @@ sections:
               - SvgCodec_Load_FontShorthand_ResetsAndSetsWeight
               - SvgCodec_Load_InvalidFontShorthand_IsDropped
               - SvgCodec_Load_FontShorthandCssWideKeyword_AppliesToFontSize
+              - SvgCodec_Load_CssWideKeywordOnFontProperties_ResetsWithCorrectSemantics
+              - SvgCodec_Load_FontShorthandObliqueAngle_SelectsItalicFace
+              - SvgCodec_Load_InvalidObliqueAngle_DropsShorthand
+              - SvgCodec_Load_FontStyleLonghandObliqueAngle_SelectsFaceOrIsIgnored
+              - SvgCodec_Load_FontWeightAndStyleKeywords_AreCaseInsensitive
               - SvgCodec_Load_TextDxDy_OffsetsOrigin
               - SvgCodec_Load_VegaPxFontSizeFixture_RendersSameAsStrippedPx
               - SvgCodec_Load_VegaPxFontSizeFixture_RendersTenUnitLabelsBelowAxis
@@ -705,22 +732,38 @@ sections:
               and -, parentheses and nested calc()), min(), max() and clamp() wherever a length is
               accepted, with number and length operands type-checked (a division by zero, a
               product of two lengths, and a sum of a number and a length being invalid), with
-              each percentage and font-relative operand resolved against the call site, and with
-              the expression length and nesting depth bounded.
+              each percentage and font-relative operand resolved against the call site, with
+              the expression length and nesting depth bounded, and with the result type kept: a
+              math expression that resolves to a number rather than a length (for example
+              calc(1 + 1)) shall not be a length where a length is required, while for
+              line-height it shall be a multiplier like a bare number, and for objectBoundingBox
+              gradient, pattern and mask-region coordinates, where the grammar is a number or a
+              percentage, it shall be accepted (a mix of a percentage and a number being invalid).
             justification: |
               CSS Values 4 defines the math functions and generated SVG (design tools and chart
               libraries) uses them in sizes and positions. Bounding the evaluator keeps a hostile
-              attribute from consuming unbounded time or stack.
+              attribute from consuming unbounded time or stack. CSS Values 4 (Type Checking) says
+              numbers never become lengths inside a math function, so width="calc(1 + 1)" is
+              invalid, while line-height and the number-or-percentage coordinate grammars name a
+              number as a valid result.
             tests:
               - SvgCodec_Load_MathFunction_Evaluates
               - SvgCodec_Load_DashArrayEntryMathFunction_IsOneEntry
               - SvgCodec_Load_OverComplexMathExpression_ThrowsInvalidDataException
+              - SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException
+              - SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted
+              - SvgCodec_Load_LineHeightNumberMath_IsMultiplier
+              - SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType
+              - SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis
+              - SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault
+              - SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted
 
           - id: CanvasNetSvg-SvgCodec-LengthMalformedPolicy
             title: >-
               The SvgCodec class shall treat a malformed length (an unknown unit, whitespace
-              between a number and its unit, a malformed math expression, or a non-finite or
-              over-magnitude result) consistently by class and never let a raw exception escape:
+              between a number and its unit, a malformed math expression, a math expression that
+              resolves to a number rather than a length, or a non-finite or over-magnitude
+              result) consistently by class and never let a raw exception escape:
               on shape, text, use, image and marker geometry, stroke-width, stroke-dashoffset and
               each stroke-dasharray entry, it shall throw InvalidDataException; on the root
               width/height and on gradient, pattern and mask-region coordinates, it shall be
@@ -745,6 +788,11 @@ sections:
               - SvgCodec_Load_NonPositiveFontSize_RendersNoText
               - SvgCodec_Load_MalformedTextDxDy_IsIgnored
               - SvgCodec_Load_InvalidFontShorthand_IsDropped
+              - SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException
+              - SvgCodec_GetInfo_RootSizeNumberMath_FallsBackTo300x150
+              - SvgCodec_Load_TextDxDyNumberMath_IsIgnored
+              - SvgCodec_Load_GradientUserSpaceNumberMath_FallsBackToDefault
+              - SvgCodec_Load_InvalidObliqueAngle_DropsShorthand
 
           - id: CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio
             title: >-

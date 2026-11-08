@@ -49,7 +49,12 @@ nothing is case-folded beyond the ordinal case-insensitive comparison.
 Reads the list once, left to right: a comma outside quotes ends a name; a single or a double quote
 opens a quoted run that only the same quote character closes (an unterminated quote runs to the
 end); the quote characters themselves are dropped; each name is trimmed of surrounding white
-space and empty names are dropped. A `null` or white-space list gives an empty list.
+space and empty names are dropped. A backslash starts a CSS escape wherever it appears (inside or
+outside quotes): a backslash followed by a character that is not a hexadecimal digit contributes
+that character literally (so `\"`, `\'`, `\\` and `\,` never end a string or split the list), a
+backslash followed by one to six hexadecimal digits and one optional white-space character
+contributes that code point (zero, a surrogate or a value above U+10FFFF gives U+FFFD), and a
+backslash at the very end is dropped. A `null` or white-space list gives an empty list.
 
 #### Error Handling
 

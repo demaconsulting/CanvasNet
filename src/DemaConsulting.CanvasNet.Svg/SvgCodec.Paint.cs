@@ -110,21 +110,19 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Parses either a bare number or a CSS percentage (resolved against <paramref name="basis"/>)
-    ///     and, when <paramref name="state"/> is supplied, also a CSS length with a unit or a math
-    ///     function (resolved to user units against that state) - the tolerant (class T) counterpart
-    ///     of the strict length parser, used by gradient/pattern/mask-region coordinates.
+    ///     - the tolerant (class T) number-or-percentage parser used by opacity-like and
+    ///     fraction-only values (stop <c>offset</c>, filter fractions). Gradient, pattern and mask
+    ///     coordinates do not use it: they resolve through <see cref="TryResolveLength"/> with a
+    ///     coordinate-space axis (see <see cref="GetGradientCoordinateOrDefault"/>), so a plain
+    ///     percentage and a percentage inside <c>calc()</c> always agree.
     /// </summary>
     /// <param name="token">The raw, trimmed text.</param>
     /// <param name="basis">The value a <c>100%</c> percentage resolves to.</param>
-    /// <param name="state">
-    ///     The referencing element's cascaded state, or <see langword="null"/> to accept only a
-    ///     number or a percentage (the form used by opacity-like and fraction-only values).
-    /// </param>
     /// <returns>
-    ///     The resolved value, or <see langword="null"/> if not a recognizable number/percentage/
-    ///     length, or if it resolves to a non-finite value (<c>NaN</c>/<c>Infinity</c>).
+    ///     The resolved value, or <see langword="null"/> if not a recognizable number/percentage,
+    ///     or if it resolves to a non-finite value (<c>NaN</c>/<c>Infinity</c>).
     /// </returns>
-    private static float? ParsePercentOrNumber(string token, float basis, RenderState? state = null)
+    private static float? ParsePercentOrNumber(string token, float basis)
     {
         var trimmed = token.Trim();
         if (trimmed.Length == 0)
@@ -144,11 +142,7 @@ public static partial class SvgCodec
         }
         else if (!float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
         {
-            // Not a plain number: a unit-bearing length or a math function, when the caller has a
-            // state to resolve it against; otherwise unrecognized
-            return state != null && TryResolveLength(trimmed, state, PercentageAxis.Horizontal, out var length, out _)
-                ? length
-                : null;
+            return null;
         }
 
         // Reject a non-finite result (NaN/Infinity) the same way as an unparseable token: it is

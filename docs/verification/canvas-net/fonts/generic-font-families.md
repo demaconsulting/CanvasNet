@@ -38,9 +38,14 @@ or otherwise folded), with both outputs `false`.
 
 ##### CanvasNet-Fonts-GenericFontFamilies-SplitFamilyList: Lists Are Split Honoring Quotes
 
-**Tests**: `GenericFontFamilies_SplitFamilyList_HonorsQuotesAndDropsEmptyNames`
+**Tests**: `GenericFontFamilies_SplitFamilyList_HonorsQuotesAndDropsEmptyNames`,
+`GenericFontFamilies_SplitFamilyList_HonorsBackslashEscapes`
 
 Asserts that `"Helvetica Neue", Arial ,  sans-serif` gives three names, that `'A, B', serif`
 gives two (the comma inside the quotes stays), that surrounding white space is trimmed, that
 empty entries and a trailing comma are dropped, that an apostrophe inside double quotes is kept,
-and that commas alone, an empty string, white space and `null` give an empty list.
+and that commas alone, an empty string, white space and `null` give an empty list. The escape test
+asserts that an escaped quote inside a quoted name, an escaped comma outside quotes and an escaped
+backslash are decoded without ending the string or splitting the list, that a hexadecimal escape
+(with its one optional trailing white-space character, up to six digits) gives that code point, that
+an out-of-range code point gives U+FFFD, and that a trailing lone backslash is dropped.

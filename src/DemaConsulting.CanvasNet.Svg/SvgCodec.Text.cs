@@ -94,9 +94,12 @@ public static partial class SvgCodec
             ResolveFirstLengthOrZero((string?)element.Attribute("dy"), state, PercentageAxis.Vertical));
 
     /// <summary>
-    ///     Finds the first font-family name in <paramref name="fontFamily"/>'s comma-separated
-    ///     list with a case-insensitive match in the caller-registered <paramref name="fonts"/>, then selects the
+    ///     Finds the first font-family name in <paramref name="fontFamily"/>'s CSS family list
+    ///     with a case-insensitive match in the caller-registered <paramref name="fonts"/>, then selects the
     ///     closest-matching registered face for that family via <see cref="SelectClosestFace"/>.
+    ///     The list is split by <see cref="GenericFontFamilies.SplitFamilyList"/> - the same splitter
+    ///     the default resolution uses - so a comma inside a quoted name (<c>"Acme, Sans"</c>) does
+    ///     not split it and both passes agree on the candidate names.
     ///     This is step 1 of <see cref="ResolveFont"/>; a <see langword="null"/> result there means
     ///     the default (installed/generic/bundled) resolution applies.
     /// </summary>
@@ -120,9 +123,8 @@ public static partial class SvgCodec
             return null;
         }
 
-        foreach (var candidate in fontFamily.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        foreach (var name in GenericFontFamilies.SplitFamilyList(fontFamily))
         {
-            var name = candidate.Trim('\'', '"');
             foreach (var (familyName, faces) in fonts)
             {
                 if (!string.Equals(familyName, name, StringComparison.OrdinalIgnoreCase))

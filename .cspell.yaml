@@ -850,6 +850,7 @@ words:
   - dasharray
   - dashoffset
   - tspan
+  - FFFD
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

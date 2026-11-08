@@ -229,19 +229,21 @@ parallel mechanism. A `marker` element establishes no viewport of its own for th
 content cascade inherits `ViewportWidth`/`ViewportHeight` from the shape it decorates, so a
 percentage inside marker content resolves against the referencing shape's own viewport.
 
-**Accepted, documented simplification: gradient `userSpaceOnUse` coordinates.** A
-`linearGradient`/`radialGradient`'s own `x1`/`y1`/`x2`/`y2`/`cx`/`cy`/`r`/`fx`/`fy`/`fr`
-coordinates are resolved through a separate, gradient-specific code path
-(`GetGradientCoordinateOrDefault`) that always treats a percentage as a `[0, 1]`-fraction of the
-gradient's own coordinate space, regardless of `gradientUnits`. This is spec-correct for the
-default `objectBoundingBox` mode, but under `gradientUnits="userSpaceOnUse"` the SVG
-specification instead defines a percentage there as resolving against the current viewport,
-exactly like the shape/text geometry attributes above. Threading a viewport basis through
-`ResolvePaint`/`BuildGradient`/`GetGradientCoordinateOrDefault` for this one `userSpaceOnUse`
-case was evaluated for this phase and intentionally deferred to a follow-up phase as a bounded,
-documented simplification (not a defect) - it is unaffected by, and independent of, every other
-percentage capability described above. (Unit-bearing coordinates there are handled; see
-_Length Units and font-size_ below.)
+**Gradient, pattern and mask-region coordinates.** These attributes (`x1`/`y1`/`x2`/`y2`/`cx`/`cy`/
+`r`/`fx`/`fy`/`fr` on a gradient, `x`/`y`/`width`/`height` on a pattern or a mask region) resolve a
+percentage through the same `TryResolveLength` funnel as every other length, with an axis chosen by
+the units mode (`GetPaintServerAxis`), so a plain `%` and a `%` inside `calc()` always agree (SVG 2,
+_Paint Servers_). Under the default `objectBoundingBox` units the axis is `Fraction`: a `%` is a
+fraction of 1 (basis 1), and, because the grammar of these attributes is `<number> | <percentage>`,
+it is the only axis that accepts a number-typed math result. Under `userSpaceOnUse` the axis is the
+attribute's own viewport axis - Horizontal for the `x` family and `width`, Vertical for the `y`
+family and `height`, Diagonal for `r`/`fr` - exactly like the shape and text geometry attributes
+above, and the viewport is the referencing element's current one. (`ParsePercentOrNumber`, which is
+always basis 1 and has no state, remains only for opacity-like and fraction-only values such as a
+stop `offset` and the filter primitive fractions.) A plain `%` under `userSpaceOnUse` was previously a
+basis-1 fraction (and, for a mask region, a fraction of the shape's bounds), so this is an intended
+behavior change; unit-bearing coordinates are handled by the same funnel (see _Length Units and
+font-size_ below).
 
 ### Length Units and font-size
 
@@ -290,6 +292,17 @@ grammar, the unit conversions and the safety bounds exist once.
   works). `+`/`-` need matching kinds and surrounding whitespace, `*` needs a number operand, `/`
   needs a non-zero number divisor. Input length (1024 characters) and nesting depth (16) are
   bounded and the result must be finite and within `MaxCoordinateMagnitude`.
+- **Result type.** The evaluator reports whether the result is a length (`TryEvaluate(out result,
+  out isLength)`), and `TryResolveLengthCore` keeps that type (CSS Values 4 _Type Checking_:
+  numbers never become lengths inside a math function, so `width: calc(0 + 5px)` is invalid). A
+  math result that is a number is therefore **rejected wherever a `<length>` is required** - class S
+  throws `InvalidDataException`, class T treats it as absent and class F ignores it - while a
+  _literal_ unitless number stays valid as user units (SVG 2 _Units_), so every existing document is
+  unchanged. Two call sites accept a number-typed result: `line-height` (CSS Fonts 4 and Values 4
+  name it; the result is a multiplier, exactly like a literal number, via
+  `TryResolveLengthOrNumber`) and the `Fraction` axis of `objectBoundingBox` coordinates (grammar
+  `<number> | <percentage>`). Values 4 says a number-typed math result "might become valid in Quirks
+  Mode"; that optional allowance is deliberately not adopted.
 
 **Render-state additions.** `RenderState` gained `RootFontSize`, `RootViewportWidth/Height`,
 `LineHeight`, `RootLineHeight` and `FontMetrics`. `ApplyPresentationAttributes` resolves the font
@@ -307,8 +320,8 @@ _Error Handling_):
 | --- | --- | --- |
 <!-- markdownlint-disable MD013 -->
 | S, strict | rect/ellipse/circle/line/image/use/symbol/marker geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`..`y2`, `refX`, `refY`, `markerWidth`, `markerHeight`), text `x`/`y`, `stroke-width`, `stroke-dashoffset`, each `stroke-dasharray` entry | `InvalidDataException` naming the attribute (never a raw `FormatException`) |
-| T, tolerant | root `width`/`height`, gradient and pattern coordinates, a `userSpaceOnUse` mask region | treated as absent; the default or fallback applies |
-| F, font | `font-size`, `line-height`, the `font` shorthand; text `dx`/`dy` | the declaration is ignored; the value is inherited (or no offset) |
+| T, tolerant | root `width`/`height`, gradient, pattern and mask-region coordinates | treated as absent; the default or fallback applies |
+| F, font | `font-size`, `line-height`, the `font` shorthand, `font-style`; text `dx`/`dy` | the declaration is ignored; the value is inherited (or no offset) |
 <!-- markdownlint-enable MD013 -->
 
 Not lengths, and unchanged: `viewBox`, `transform` arguments, path data, `points`,
@@ -337,7 +350,24 @@ regardless of the parent.
 happens in `ParseDeclarationBlock`, so inline styles and stylesheet rules see only longhands and the
 existing last-declaration-wins and specificity rules apply unchanged; the `MaxCssDeclarationsPerRule`
 cap counts source declarations, not expansions. A system-font keyword, a missing family or an
-invalid size drops the whole declaration; the CSS-wide keywords expand to the longhands they affect.
+invalid size drops the whole declaration (as does `revert`/`revert-layer`). A CSS-wide keyword
+(`inherit`, `initial`, `unset`) as the whole value expands to that keyword for **every** longhand -
+`font-style`, `font-weight`, `font-size`, `line-height` and `font-family` (CSS Fonts 4 and Values 4:
+the shorthand resets all of its sub-properties) - and the keyword itself reaches the cascade.
+`ApplyPresentationAttributes` resolves it through `ParseCssWideKeyword` (ASCII case-insensitive, whole
+unquoted value; `unset` and `revert` act as `inherit` because every font property is inherited and
+the user-agent sheet sets none): `inherit` takes the parent's value and `initial` the initial one
+(default family, weight 400, `normal`, 16, `normal` line height). The same handling applies to the
+`font-family`, `font-weight` and `font-style` longhands, so `font-family: inherit` is no longer
+stored as a literal family name (a quoted `"inherit"` still is a family name).
+`oblique` may be followed by an angle: `TryParseObliqueAngle` accepts `<number><unit>` (no space)
+with `deg`, `grad` (400 per turn), `rad` or `turn` (ASCII case-insensitive, CSS Values 4 _Angle
+Units_) within `[-90deg, 90deg]` (CSS Fonts 4; a 1e-9 epsilon keeps `100grad` and `0.25turn` exact),
+and a unitless number is rejected; the angle is consumed and ignored (the codec has no slant model),
+and a bad or out-of-range angle falls through to the size slot, fails its syntax check and drops
+the shorthand. The same validator backs `ParseFontStyle`, which now accepts only `normal`, `italic`,
+`oblique` or `oblique <angle>` (extra tokens or a bad angle are an invalid declaration, ignored).
+`left`/`right` (CSS Fonts 4) are not added.
 The `font` presentation attribute is expanded by `ExpandFontAttribute` as the lowest tier, below an
 explicit longhand attribute, an inline style and a stylesheet rule. `font-variant` and
 `font-stretch` components are parsed and ignored.
@@ -348,11 +378,21 @@ included) to the `x`/`y` origin, the canonical use of `em` in generated SVG (Veg
 `word-spacing`, `textLength` and `baseline-shift` remain unsupported.
 
 **Accepted simplifications.** `ex`/`ch`/`lh`/`em` in a gradient, pattern or mask-region coordinate
-resolve against the referencing element's font rather than the paint server's own cascade;
-percentages in gradient coordinates remain basis-1 fractions; units are converted (rather than
-rejected) under `objectBoundingBox`; nested `svg` elements remain unsupported, so there is no
-nested viewport basis for `vw`; and `ex` uses the `x` glyph's outline height rather than the font's
-declared x-height (a core-library follow-up).
+resolve against the referencing element's font rather than the paint server's own cascade; units are
+converted (rather than rejected) under `objectBoundingBox`; nested `svg` elements remain
+unsupported, so there is no nested viewport basis for `vw`; and `ex` uses the `x` glyph's outline
+height rather than the font's declared x-height (a core-library follow-up). Keyword
+ASCII-case-insensitivity is implemented for `font-weight` and `font-style` (and the CSS-wide
+keywords on the font properties); other presentation keywords (`fill-rule`, `stroke-linecap`,
+`text-anchor`, `spreadMethod`, the `*Units` attributes ...) are still matched case-sensitively, a
+separate pre-existing limitation.
+
+**Line height and `line-height` math.** `TryParseLineHeight` resolves through
+`TryResolveLengthOrNumber`: a literal number or a number-typed math result (`calc(1 + 1)`) is a
+multiplier re-applied by each descendant's font size, a length/percentage result is an absolute
+length fixed at the declaring element, and a mixed expression (`calc(10% + 1)`) is invalid and
+ignored. `IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
+`font: 10px/calc(1 + 1) Family` is accepted.
 
 ### Data Model
 
@@ -1201,10 +1241,15 @@ cycle guard. `mask`'s region box (`maskUnits`/`x`/`y`/`width`/`height`, default
 (`ComputeMaskRegionLocalBounds` for the former, the same `clipPathUnits`-style
 object-bounding-box-map prepending for the latter) rather than one being conflated with or
 overriding the other - a distinction the SVG specification itself draws and this implementation
-preserves. A percentage value under `maskUnits="userSpaceOnUse"` still resolves against the
-reference bounds rather than the current viewport, a deliberate, documented simplification since
-viewport dimensions are not threaded to this call site; only a bare number literal under
-`userSpaceOnUse` is interpreted as a literal absolute local-space coordinate.
+preserves. Under the default `maskUnits="objectBoundingBox"` each of `x`/`y`/`width`/`height` is a fraction
+of the reference bounds, evaluated with the `Fraction` axis (a plain `%` is a fraction of 1, a math
+expression may be a number or a length/percentage, so `calc(10% + 5%)` and `calc(0.1 + 0.2)` work
+while `calc(10% + 0.1)` mixes a percentage and a number, is invalid and falls back to the default
+region). Under `maskUnits="userSpaceOnUse"` the value is an absolute local-space coordinate and a
+percentage - plain or inside a math function - resolves against the current viewport on the
+attribute's own axis (width for `x`/`width`, height for `y`/`height`), as for gradients and patterns
+(see _Percentage-Based Geometry Resolution_ above); this replaces the earlier simplification that
+resolved such a percentage against the reference bounds.
 
 _Resource safety._ Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
 their own offscreen-buffer allocation charge - a deliberate judgment call rather than the
@@ -1591,17 +1636,24 @@ entirely. `BuildIdIndex`'s whole-document walk therefore reuses the existing
 with a single guard - since it runs before rendering and covers every element in the document, it
 transitively bounds `ParseStops`'s later, otherwise-unbounded `<stop>` enumeration too.
 
-**Text.** A `text` element's `font-family` is matched, case-insensitively, against a
-caller-supplied `fonts` dictionary keyed by family name, walking a comma-separated fallback list
-of families exactly as CSS `font-family` does. Once a family name matches, the matching family's
+**Text.** A `text` element's `font-family` list is split by the core `GenericFontFamilies.SplitFamilyList`
+(commas inside quotes do not split, the quotes are removed, CSS backslash escapes are decoded) and
+each name is matched, case-insensitively, against a
+caller-supplied `fonts` dictionary keyed by family name, walking the fallback list
+of families exactly as CSS `font-family` does; the registered-font pass and the default-resolution
+pass use that one splitter, so they always agree on the candidate names. Once a family name matches, the matching family's
 registered `SvgFontFace` list is narrowed to a single face via a private `SelectClosestFace`
 helper, scoring each candidate face against the element's own cascaded `font-weight`/
 `font-style` (parsed by private `ParseFontWeight`/`ParseFontStyle` helpers alongside every other
 presentation attribute in `ApplyPresentationAttributes` - `font-weight` accepts the keywords
-`normal`(`400`)/`bold`(`700`) or a literal integer, tolerantly falling back to the inherited value
+`normal`(`400`)/`bold`(`700`), ASCII case-insensitively, or a literal integer, tolerantly falling
+back to the inherited value
 for the unimplemented relative keywords `bolder`/`lighter` or any other unparseable value;
-`font-style` accepts `normal`/`italic`/`oblique`, the latter two both resolving to
-`SvgFontStyle.Italic`) in priority order: (1) an exact style match always beats a style mismatch,
+`font-style` accepts `normal`/`italic`/`oblique` (ASCII case-insensitive, `oblique` optionally with
+an angle in `deg`/`grad`/`rad`/`turn` within `[-90deg, 90deg]`), the latter two both resolving to
+`SvgFontStyle.Italic`; any other shape is ignored, so the inherited style applies. The CSS-wide keywords
+`inherit`/`initial`/`unset` on `font-family`, `font-weight` and `font-style` take the parent's or the
+initial value - see _font shorthand_ above) in priority order: (1) an exact style match always beats a style mismatch,
 regardless of weight; (2) among faces tied on style match, the smallest absolute
 `font-weight` distance wins; (3) among faces tied on both, the face on the same "boldness side"
 as the request (its own weight and the requested weight are both `>= 400` or both `< 400`) wins
@@ -1704,7 +1756,8 @@ differently:
   documented fallback — because rendering can still proceed meaningfully without that one value,
   unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
   all. The same three-class policy governs every length (see _Length Units and font-size_): a
-  malformed length (an unknown unit, whitespace between number and unit, a malformed `calc()`, or a
+  malformed length (an unknown unit, whitespace between number and unit, a malformed `calc()`, a
+  `calc()` that resolves to a number rather than a length, or a
   non-finite or over-magnitude result) in shape/text/use/image/marker geometry, `stroke-width`,
   `stroke-dashoffset` or a `stroke-dasharray` entry is `InvalidDataException` (never a raw
   `FormatException`); in the root `width`/`height` or a gradient/pattern/mask-region coordinate it

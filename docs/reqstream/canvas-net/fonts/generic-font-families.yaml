@@ -34,10 +34,13 @@ sections:
                 title: >-
                   The GenericFontFamilies type shall split a CSS font-family list at the commas
                   outside single or double quotes, dropping the quotes and the white space around
-                  each name and the empty names, and shall give an empty list for a null or
-                  white-space list.
+                  each name and the empty names, decoding CSS backslash escapes (an escaped
+                  character taken literally, and a hexadecimal code point of up to six digits) so
+                  that an escaped quote or comma neither ends a string nor splits the list, and
+                  shall give an empty list for a null or white-space list.
                 justification: |
-                  A family name may itself contain a comma when it is quoted, and the quotes are
-                  not part of the name; every consumer must read the list the same way.
+                  A family name may itself contain a comma when it is quoted or escaped, and the
+                  quotes are not part of the name; every consumer must read the list the same way.
                 tests:
                   - GenericFontFamilies_SplitFamilyList_HonorsQuotesAndDropsEmptyNames
+                  - GenericFontFamilies_SplitFamilyList_HonorsBackslashEscapes

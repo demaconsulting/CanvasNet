@@ -229,11 +229,17 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>&lt;length&gt;</c>s - <c>viewBox</c>, <c>transform</c> arguments, path data, <c>points</c>,
 ///     <c>stroke-miterlimit</c>, filter primitive parameters - stay unitless numbers per the
 ///     specification; a percentage on <c>stroke-miterlimit</c> is deliberately still rejected as
-///     invalid numeric syntax (see below). Gradient coordinates on a <c>userSpaceOnUse</c> gradient
-///     are a separate, narrower simplification: a <c>%</c> there is still always resolved as a
-///     basis-1 fraction of the gradient's own bounding-box-relative coordinate space rather than the
-///     current viewport (see this class's <c>GetGradientCoordinateOrDefault</c> remarks) - a bounded,
-///     intentionally out-of-scope simplification, not a defect.
+///     invalid numeric syntax (see below). Gradient, pattern and mask-region coordinates resolve a
+///     <c>%</c> against their own coordinate space, identically for a plain percentage and one
+///     inside a math function (SVG 2, Paint Servers): a fraction of <c>1</c> under the default
+///     <c>objectBoundingBox</c> units, and the current viewport on the attribute's own axis
+///     (width for the <c>x</c> family, height for the <c>y</c> family, the diagonal basis for
+///     <c>r</c>/<c>fr</c>) under <c>userSpaceOnUse</c>. A math expression keeps its type (CSS Values
+///     Level 4, "Type Checking"): one that resolves to a number (<c>calc(1 + 1)</c>) is not a
+///     length, so it is malformed wherever a length is required, while a literal bare number is
+///     still user units; the exceptions are <c>line-height</c>, where it is a multiplier, and the
+///     <c>objectBoundingBox</c> coordinates (<c>&lt;number&gt; | &lt;percentage&gt;</c>), where
+///     either type is valid.
 ///     </para>
 ///     <para>
 ///     <b><c>font-size</c>, <c>line-height</c> and the <c>font</c> shorthand.</b> <c>font-size</c> is
@@ -250,10 +256,11 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     and so that existing strictness is unchanged. <i>Class S (strict)</i> - shape, text, use,
 ///     image and marker geometry, <c>stroke-width</c>, <c>stroke-dashoffset</c> and each
 ///     <c>stroke-dasharray</c> entry: a value that is not a number, a number with a known unit, a
-///     percentage or a math function, or that is non-finite or beyond the supported magnitude after
+///     percentage or a math function, that is a math expression resolving to a number (not a
+///     length), or that is non-finite or beyond the supported magnitude after
 ///     conversion, throws <see cref="InvalidDataException"/> (never a <see cref="FormatException"/>).
 ///     <i>Class T (tolerant)</i> - root <c>width</c>/<c>height</c>, gradient and pattern coordinates
-///     and a <c>userSpaceOnUse</c> mask region: an unparseable value is treated as absent and the
+///     and mask-region coordinates: an unparseable value is treated as absent and the
 ///     usual default or fallback applies. <i>Class F (font and text offsets)</i> - <c>font-size</c>,
 ///     <c>line-height</c>, the <c>font</c> shorthand and the text <c>dx</c>/<c>dy</c> offsets: an
 ///     invalid declaration is ignored (the CSS invalid-declaration rule), so the value is inherited

@@ -716,9 +716,33 @@ public static partial class SvgCodec
         // ignored (class F: the declaration is dropped and the size is inherited)
         var rawFontSize = Styled("font-size");
         var fontSize = (rawFontSize == null ? null : ParseFontSizeValue(rawFontSize, parent)) ?? parent.FontSize;
-        var fontFamily = Styled("font-family") ?? parent.FontFamily;
-        var fontWeight = ParseFontWeight(Styled("font-weight")) ?? parent.FontWeight;
-        var fontStyle = ParseFontStyle(Styled("font-style")) ?? parent.FontStyle;
+
+        // The CSS-wide keywords (inherit/unset/revert -> the parent's value, initial -> the
+        // property's initial value) apply to family, weight and style exactly as they do to size;
+        // a quoted "inherit" is a family name, not a keyword
+        var rawFontFamily = Styled("font-family");
+        var fontFamily = ParseCssWideKeyword(rawFontFamily) switch
+        {
+            CssWideKeyword.Inherit => parent.FontFamily,
+            CssWideKeyword.Initial => null,
+            _ => rawFontFamily ?? parent.FontFamily
+        };
+
+        var rawFontWeight = Styled("font-weight");
+        var fontWeight = ParseCssWideKeyword(rawFontWeight) switch
+        {
+            CssWideKeyword.Inherit => parent.FontWeight,
+            CssWideKeyword.Initial => NormalFontWeight,
+            _ => ParseFontWeight(rawFontWeight) ?? parent.FontWeight
+        };
+
+        var rawFontStyle = Styled("font-style");
+        var fontStyle = ParseCssWideKeyword(rawFontStyle) switch
+        {
+            CssWideKeyword.Inherit => parent.FontStyle,
+            CssWideKeyword.Initial => SvgFontStyle.Normal,
+            _ => ParseFontStyle(rawFontStyle) ?? parent.FontStyle
+        };
 
         // The ex/ch measurements belong to the font, not the element: share them down the cascade
         // until the family, weight or style changes
@@ -851,9 +875,57 @@ public static partial class SvgCodec
         _ => null
     };
 
+    /// <summary>The numeric <c>font-weight</c> of the <c>normal</c> keyword (and the property's initial value).</summary>
+    private const int NormalFontWeight = 400;
+
+    /// <summary>The CSS-wide keywords the font properties honor (see <see cref="ParseCssWideKeyword"/>).</summary>
+    private enum CssWideKeyword
+    {
+        /// <summary>The value is not a CSS-wide keyword.</summary>
+        None,
+
+        /// <summary>
+        ///     <c>inherit</c>, <c>unset</c> or <c>revert</c>/<c>revert-layer</c>: take the parent's
+        ///     value. Every font property is inherited, so <c>unset</c> is <c>inherit</c>, and the
+        ///     user-agent style sheet sets none of them, so <c>revert</c> falls back to it too.
+        /// </summary>
+        Inherit,
+
+        /// <summary><c>initial</c>: take the property's initial value.</summary>
+        Initial
+    }
+
+    /// <summary>
+    ///     Recognizes a CSS-wide keyword that is the whole (unquoted) value, ASCII
+    ///     case-insensitively (CSS Values 4, "Keywords").
+    /// </summary>
+    /// <param name="raw">The raw property value, or <see langword="null"/> if absent.</param>
+    /// <returns>The keyword, or <see cref="CssWideKeyword.None"/> for any other value (including a quoted <c>"inherit"</c>).</returns>
+    private static CssWideKeyword ParseCssWideKeyword(string? raw)
+    {
+        if (raw == null)
+        {
+            return CssWideKeyword.None;
+        }
+
+        var text = raw.AsSpan().Trim();
+        if (text.Equals("initial", StringComparison.OrdinalIgnoreCase))
+        {
+            return CssWideKeyword.Initial;
+        }
+
+        return text.Equals("inherit", StringComparison.OrdinalIgnoreCase) ||
+               text.Equals("unset", StringComparison.OrdinalIgnoreCase) ||
+               text.Equals("revert", StringComparison.OrdinalIgnoreCase) ||
+               text.Equals("revert-layer", StringComparison.OrdinalIgnoreCase)
+            ? CssWideKeyword.Inherit
+            : CssWideKeyword.None;
+    }
+
     /// <summary>
     ///     Parses a <c>font-weight</c> value: the keywords <c>normal</c> (<c>400</c>) and
-    ///     <c>bold</c> (<c>700</c>), or a literal integer.
+    ///     <c>bold</c> (<c>700</c>), matched ASCII case-insensitively (CSS Values 4, "Keywords"), or
+    ///     a literal integer.
     /// </summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
     /// <returns>
@@ -871,25 +943,33 @@ public static partial class SvgCodec
         }
 
         var trimmed = raw.Trim();
-        return trimmed switch
+        if (trimmed.Equals("normal", StringComparison.OrdinalIgnoreCase))
         {
-            "normal" => 400,
-            "bold" => 700,
-            _ => int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null
-        };
+            return NormalFontWeight;
+        }
+
+        if (trimmed.Equals("bold", StringComparison.OrdinalIgnoreCase))
+        {
+            return 700;
+        }
+
+        return int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null;
     }
 
     /// <summary>
-    ///     Parses a <c>font-style</c> value: <c>normal</c>, <c>italic</c>, or <c>oblique</c> (the
-    ///     latter two both resolving to <see cref="SvgFontStyle.Italic"/> - see
-    ///     <see cref="SvgFontStyle"/>'s remarks). Only the first whitespace-delimited token is
-    ///     considered, tolerating a full <c>oblique &lt;angle&gt;</c> value without parsing the
-    ///     angle itself.
+    ///     Parses a <c>font-style</c> value: <c>normal</c>, <c>italic</c>, or <c>oblique</c> with an
+    ///     optional angle (CSS Fonts 4: <c>oblique &lt;angle [-90deg,90deg]&gt;</c>), the keywords
+    ///     matched ASCII case-insensitively. <c>italic</c> and <c>oblique</c> both resolve to
+    ///     <see cref="SvgFontStyle.Italic"/> - see <see cref="SvgFontStyle"/>'s remarks - and the
+    ///     angle is validated (<c>deg</c>, <c>grad</c>, <c>rad</c> or <c>turn</c>, within
+    ///     <c>[-90deg, 90deg]</c>) but otherwise ignored, since the codec has no slant model.
     /// </summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
     /// <returns>
     ///     The matching <see cref="SvgFontStyle"/>, or <see langword="null"/> if absent, blank, or
-    ///     unrecognized (falling back to the inherited style).
+    ///     not valid <c>font-style</c> syntax (an unknown keyword, extra tokens, or a bad or
+    ///     out-of-range angle) - ignored, so the inherited style applies (the CSS
+    ///     invalid-declaration rule).
     /// </returns>
     private static SvgFontStyle? ParseFontStyle(string? raw)
     {
@@ -898,13 +978,26 @@ public static partial class SvgCodec
             return null;
         }
 
-        var firstToken = raw.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)[0];
-        return firstToken switch
+        var tokens = raw.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var keyword = tokens[0];
+        if (tokens.Length == 1)
         {
-            "normal" => SvgFontStyle.Normal,
-            "italic" or "oblique" => SvgFontStyle.Italic,
-            _ => null
-        };
+            if (keyword.Equals("normal", StringComparison.OrdinalIgnoreCase))
+            {
+                return SvgFontStyle.Normal;
+            }
+
+            return keyword.Equals("italic", StringComparison.OrdinalIgnoreCase) ||
+                   keyword.Equals("oblique", StringComparison.OrdinalIgnoreCase)
+                ? SvgFontStyle.Italic
+                : null;
+        }
+
+        return tokens.Length == 2 &&
+               keyword.Equals("oblique", StringComparison.OrdinalIgnoreCase) &&
+               TryParseObliqueAngle(tokens[1], out _)
+            ? SvgFontStyle.Italic
+            : null;
     }
 
     /// <summary>Parses and clamps a raw opacity string to <c>[0, 1]</c>. See <see cref="ParseStyledOptionalOpacity"/>.</summary>

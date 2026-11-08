@@ -69,6 +69,12 @@ public static partial class SvgCodec
     /// <summary>The maximum number of tokens the <c>font</c> shorthand parser examines before the family list begins.</summary>
     private const int MaxFontShorthandPrefixTokens = 8;
 
+    /// <summary>The largest magnitude, in degrees, of an <c>oblique</c> angle (CSS Fonts 4: <c>[-90deg, 90deg]</c>).</summary>
+    private const double MaxObliqueDegrees = 90.0;
+
+    /// <summary>Tolerance, in degrees, so equivalent boundary angles (<c>100grad</c>, <c>0.25turn</c>) compare equal to <c>90deg</c>.</summary>
+    private const double ObliqueAngleEpsilon = 1e-9;
+
     /// <summary>
     ///     Resolves a raw <c>font-size</c> value to user units against its parent's state.
     /// </summary>
@@ -144,8 +150,9 @@ public static partial class SvgCodec
     /// <param name="state">The declaring element's state (its own computed font size is the basis for <c>em</c> and <c>%</c>).</param>
     /// <param name="computed">
     ///     On success the computed value: <see langword="null"/> for <c>normal</c> (and
-    ///     <c>initial</c>), a multiplier for a bare number, or an absolute length for a
-    ///     length/percentage (resolved at the declaring element, as CSS specifies).
+    ///     <c>initial</c>), a multiplier for a bare number or a math expression that resolves to a
+    ///     number (<c>calc(1 + 1)</c>), or an absolute length for a length/percentage (resolved at
+    ///     the declaring element, as CSS specifies).
     /// </param>
     /// <returns>
     ///     <see langword="true"/> when the declaration sets a value; <see langword="false"/> for an
@@ -179,12 +186,15 @@ public static partial class SvgCodec
             return true;
         }
 
-        if (!TryResolveLength(text, state, PercentageAxis.FontSize, out var length, out _) || length < 0f)
+        // A number-typed math result (calc(1 + 1)) is a multiplier like a bare number; a length or
+        // percentage result is an absolute length (CSS Values 4, "Type Checking", which singles out
+        // line-height for this); the two are told apart by the type the evaluator preserved
+        if (!TryResolveLengthOrNumber(text, state, PercentageAxis.FontSize, out var length, out var isNumber, out _) || length < 0f)
         {
             return false;
         }
 
-        computed = new LineHeightSpec(length, IsMultiplier: false);
+        computed = new LineHeightSpec(length, IsMultiplier: isNumber);
         return true;
     }
 
@@ -206,9 +216,11 @@ public static partial class SvgCodec
     ///     Grammar (CSS Fonts 4): optional style/weight/variant/stretch tokens in any order, then
     ///     the size, an optional <c>/ line-height</c>, then a mandatory family list. A bare number
     ///     before the size is a weight; the size itself must carry a unit or be a keyword, a
-    ///     percentage or a math function, which is how the two are told apart. The CSS-wide
-    ///     keywords expand to the longhands they affect here (<c>font-family</c> is left alone
-    ///     because its value cannot be a keyword).
+    ///     percentage or a math function, which is how the two are told apart. <c>oblique</c> may be
+    ///     followed by an angle (<c>deg</c>, <c>grad</c>, <c>rad</c> or <c>turn</c>, within
+    ///     <c>[-90deg, 90deg]</c>), which is validated and ignored; an invalid angle drops the whole
+    ///     declaration. A CSS-wide keyword (<c>inherit</c>, <c>initial</c>, <c>unset</c>) expands to
+    ///     that keyword for every longhand, <c>font-family</c> included.
     /// </remarks>
     private static List<(string Property, string Value)>? ExpandFontShorthand(string value)
     {
@@ -218,20 +230,19 @@ public static partial class SvgCodec
             return null;
         }
 
-        // CSS-wide keywords and system fonts are whole-value forms
+        // CSS-wide keywords and system fonts are whole-value forms. A CSS-wide keyword applies to
+        // every longhand of the shorthand (CSS Values 4, "CSS-wide keywords"; CSS Fonts 4, "font"),
+        // font-family included, and reaches the cascade as the keyword itself
         var lower = text.ToLowerInvariant();
         switch (lower)
         {
             case "inherit":
             case "unset":
-                return
-                [
-                    ("font-style", lower), ("font-weight", lower), ("font-size", lower), ("line-height", lower)
-                ];
             case "initial":
                 return
                 [
-                    ("font-style", "normal"), ("font-weight", "normal"), ("font-size", "initial"), ("line-height", "normal")
+                    ("font-style", lower), ("font-weight", lower), ("font-size", lower),
+                    ("line-height", lower), ("font-family", lower)
                 ];
             case "revert":
             case "revert-layer":
@@ -256,8 +267,10 @@ public static partial class SvgCodec
                 return null;
             }
 
-            // 'oblique' may be followed by an angle, which belongs to the style and is ignored
-            if (previousWasOblique && token.EndsWith("deg", StringComparison.OrdinalIgnoreCase))
+            // 'oblique' may be followed by an angle, which belongs to the style and is ignored; a
+            // missing, malformed or out-of-range angle falls through to the size slot, fails its
+            // syntax check and drops the whole shorthand
+            if (previousWasOblique && TryParseObliqueAngle(token, out _))
             {
                 previousWasOblique = false;
                 continue;
@@ -374,6 +387,88 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Parses the <c>&lt;angle&gt;</c> of <c>font-style: oblique &lt;angle&gt;</c> (CSS Fonts 4):
+    ///     a number immediately followed by <c>deg</c>, <c>grad</c> (400 per turn), <c>rad</c> or
+    ///     <c>turn</c>, the unit matched ASCII case-insensitively (CSS Values 4, "Angle Units").
+    /// </summary>
+    /// <param name="token">The candidate token; no whitespace is allowed between the number and its unit.</param>
+    /// <param name="degrees">The angle converted to degrees when this method returns <see langword="true"/>.</param>
+    /// <returns>
+    ///     <see langword="true"/> for a finite angle within <c>[-90deg, 90deg]</c> (the CSS range for
+    ///     an oblique angle; a tiny epsilon keeps <c>100grad</c> and <c>0.25turn</c> exactly valid);
+    ///     <see langword="false"/> for a unitless number (an angle has no legacy zero here), an
+    ///     unknown unit, or an out-of-range or non-finite value.
+    /// </returns>
+    private static bool TryParseObliqueAngle(string token, out double degrees)
+    {
+        degrees = 0;
+        var scan = 0;
+        if (scan < token.Length && (token[scan] == '+' || token[scan] == '-'))
+        {
+            scan++;
+        }
+
+        var sawDigit = false;
+        var sawDot = false;
+        while (scan < token.Length && (char.IsAsciiDigit(token[scan]) || (token[scan] == '.' && !sawDot)))
+        {
+            if (token[scan] == '.')
+            {
+                sawDot = true;
+            }
+            else
+            {
+                sawDigit = true;
+            }
+
+            scan++;
+        }
+
+        if (!sawDigit)
+        {
+            return false;
+        }
+
+        scan = TryConsumeExponent(token, scan);
+        if (!double.TryParse(token.AsSpan(0, scan), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ||
+            !double.IsFinite(number))
+        {
+            return false;
+        }
+
+        var unit = token.AsSpan(scan);
+        double converted;
+        if (unit.Equals("deg", StringComparison.OrdinalIgnoreCase))
+        {
+            converted = number;
+        }
+        else if (unit.Equals("grad", StringComparison.OrdinalIgnoreCase))
+        {
+            converted = number * 0.9;
+        }
+        else if (unit.Equals("rad", StringComparison.OrdinalIgnoreCase))
+        {
+            converted = number * 180.0 / Math.PI;
+        }
+        else if (unit.Equals("turn", StringComparison.OrdinalIgnoreCase))
+        {
+            converted = number * 360.0;
+        }
+        else
+        {
+            return false;
+        }
+
+        if (!double.IsFinite(converted) || Math.Abs(converted) > MaxObliqueDegrees + ObliqueAngleEpsilon)
+        {
+            return false;
+        }
+
+        degrees = converted;
+        return true;
+    }
+
+    /// <summary>
     ///     Classifies one pre-size <c>font</c> shorthand token, recording a style or weight.
     /// </summary>
     /// <param name="token">The token.</param>
@@ -430,7 +525,7 @@ public static partial class SvgCodec
     private static bool IsValidLineHeightSyntax(string token) =>
         token.Equals("normal", StringComparison.OrdinalIgnoreCase) ||
         (float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && float.IsFinite(number) && number >= 0f) ||
-        TryResolveLength(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _);
+        TryResolveLengthOrNumber(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _, out _);
 
     /// <summary>
     ///     Expands an element's <c>font</c> presentation attribute into longhand values, the lowest

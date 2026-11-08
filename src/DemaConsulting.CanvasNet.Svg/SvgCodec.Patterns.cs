@@ -263,10 +263,10 @@ public static partial class SvgCodec
             (string?)patternElement.Attribute("patternUnits"), "userSpaceOnUse", StringComparison.Ordinal);
         var placementTransform = patternUnitsIsUserSpace ? Matrix3x2.Identity : ComputeObjectBoundingBoxMap(referenceBounds);
 
-        var tileX = GetGradientCoordinateOrDefault(patternElement, "x", 0f, state);
-        var tileY = GetGradientCoordinateOrDefault(patternElement, "y", 0f, state);
-        var tileWidth = GetGradientCoordinateOrDefault(patternElement, "width", 0f, state);
-        var tileHeight = GetGradientCoordinateOrDefault(patternElement, "height", 0f, state);
+        var tileX = GetGradientCoordinateOrDefault(patternElement, "x", 0f, state, patternUnitsIsUserSpace);
+        var tileY = GetGradientCoordinateOrDefault(patternElement, "y", 0f, state, patternUnitsIsUserSpace);
+        var tileWidth = GetGradientCoordinateOrDefault(patternElement, "width", 0f, state, patternUnitsIsUserSpace);
+        var tileHeight = GetGradientCoordinateOrDefault(patternElement, "height", 0f, state, patternUnitsIsUserSpace);
         if (!float.IsFinite(tileWidth) || !float.IsFinite(tileHeight) || tileWidth <= 0f || tileHeight <= 0f)
         {
             return;

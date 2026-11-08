@@ -104,10 +104,28 @@ at the root. A browser instead uses the size the SVG is displayed at, so the two
 the root `width`/`height` and the `viewBox` disagree.
 
 `calc()` supports `+`, `-`, `*` and `/` (with spaces around `+` and `-`, as CSS requires),
-parentheses and nested `calc()`, and `min()`, `max()` and `clamp()` take lengths or numbers. A
-length can be combined with a percentage or a font-relative unit (`calc(100% - 2em)`). A division by
-zero, a product of two lengths and a sum of a number and a length are invalid, and an expression is
-limited to 1,024 characters and 16 levels of nesting.
+parentheses and nested `calc()`, and `min()`, `max()` and `clamp()` take lengths or numbers (not
+a mix). A length can be combined with a percentage or a font-relative unit (`calc(100% - 2em)`). A
+division by zero, a product of two lengths and a sum of a number and a length are invalid, and an
+expression is limited to 1,024 characters and 16 levels of nesting.
+
+A math expression keeps its type, as in CSS (Values 4, "Type Checking"): `calc(2 * 10px)` is a
+length, while `calc(1 + 1)` or `min(1, 2)` is a plain *number* and is **not** a length - a literal
+`width="10"` is user units, but `width="calc(1 + 1)"` is invalid. Two places accept a number-typed
+result: `line-height`, where it is a multiplier like a bare number (`line-height: calc(1 + 1)` is
+twice each element's own font size), and objectBoundingBox gradient, pattern and mask coordinates,
+whose values are a number or a percentage.
+
+**Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage
+inside `calc()` always agree. Under the default
+`objectBoundingBox` units, a `%` is a fraction of 1 (`50%` is `0.5`), so `calc(10% + 5%)` is `0.15`
+and `calc(0.1 + 0.2)` is `0.3`; mixing a percentage and a number (`calc(10% + 0.1)`) is invalid, and
+the default value is used. Under `userSpaceOnUse` (`gradientUnits`, `patternUnits`, `maskUnits`) a
+`%` is relative to the current viewport on the attribute's own axis - width for `x`, `x1`, `x2`,
+`cx`, `fx` and `width`, height for the `y` family and `height`, and `sqrt(w^2 + h^2) / sqrt(2)` for
+`r` and `fr`. This is a behavior change: a plain `%` in a `userSpaceOnUse` gradient, pattern or mask
+region used to be a fraction of 1 (or of the shape's bounds, for a mask) and is now viewport-relative,
+as in SVG 2.
 
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets
@@ -121,6 +139,22 @@ source). It accepts:
   values);
 - `larger` and `smaller`, which multiply and divide the parent's size by 1.2;
 - `inherit`, `initial` (16) and `unset`.
+
+The CSS-wide keywords `inherit`, `initial` and `unset` (and `revert`, which acts like `inherit`) work
+the same way on `font-family`, `font-weight` and `font-style` (`initial` is the default family,
+weight `400` and `normal`), and used alone as the `font` value (`font: inherit`) they reset every
+font property - `font-family` included - not just the size. A quoted `"inherit"` is a family name, not
+a keyword. The `font-weight` and `font-style` keywords (`normal`, `bold`, `italic`, `oblique`) are
+accepted in any letter case in an attribute, a `style` attribute and a `style` element rule.
+`font-style: oblique` and the `font` shorthand also accept an angle after `oblique`, in `deg`,
+`grad`, `rad` or `turn` between -90deg and 90deg (`oblique 10deg`, `oblique 0.25turn`); the angle is
+validated but not used to slant text, and `oblique` renders with the italic face. An out-of-range
+or malformed angle makes the declaration invalid, so it is ignored.
+
+A `font-family` list is split only at commas outside quotes, so a quoted name may contain a comma
+(`"Acme, Sans", sans-serif`), the quotes are removed, and a registered family and the default
+resolution see the same names. CSS backslash escapes in a family name are decoded (`Acme\, Sans`,
+`\41 cme`).
 
 A text element's first `dx` and `dy` value moves it (`dy="0.71em"`, as Vega writes it). Lists of
 `dx`/`dy` beyond the first value, `tspan` positioning, `letter-spacing`, `word-spacing`,
@@ -136,14 +170,15 @@ Example:
 ```
 
 A length that cannot be understood (an unknown unit, a space before the unit, a bad `calc()`, a
-non-finite or too large result) is handled by the kind of value it is:
+`calc()` that resolves to a number, a non-finite or too large result) is handled by the kind of
+value it is:
 
 <!-- markdownlint-disable MD013 -->
 | Where | Result |
 | --- | --- |
 | Shape, text, `use`, `image` and `marker` geometry; `stroke-width`, `stroke-dashoffset`, `stroke-dasharray` | `InvalidDataException`, naming the attribute |
 | Root `width`/`height`; gradient, pattern and mask coordinates | treated as absent: the default is used (a percentage or viewport unit on the root `width`/`height` has no basis and is absent too) |
-| `font-size`, `line-height`, the `font` shorthand; text `dx`/`dy` | ignored, as in CSS: the inherited value stays |
+| `font-size`, `line-height`, the `font` shorthand, `font-style`; text `dx`/`dy` | ignored, as in CSS: the inherited value stays |
 <!-- markdownlint-enable MD013 -->
 
 Before units were supported, a `font-size="10px"` was rejected as corrupt; it now renders. A root

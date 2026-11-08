@@ -278,12 +278,64 @@ public static partial class SvgCodec
     ///     pre-unit parser did, so every document that used only those forms renders bit-identically.
     ///     Unit conversions are evaluated in double precision and rounded to single precision once,
     ///     so equivalent absolute lengths (for example <c>1in</c>, <c>96px</c> and <c>2.54cm</c>)
-    ///     resolve to the same float.
+    ///     resolve to the same float. A math expression keeps its type (CSS Values 4, "Type
+    ///     Checking"): one that resolves to a <em>number</em> is not a length and is rejected here
+    ///     (<c>calc(1 + 1)</c>, <c>min(1, 2)</c>), except under <see cref="PercentageAxis.Fraction"/>
+    ///     whose grammar is <c>&lt;number&gt; | &lt;percentage&gt;</c>.
     /// </remarks>
     private static bool TryResolveLength(
-        string raw, RenderState state, PercentageAxis axis, out float value, out string? error, bool enforceMagnitude = true)
+        string raw, RenderState state, PercentageAxis axis, out float value, out string? error, bool enforceMagnitude = true) =>
+        TryResolveLengthCore(raw, state, axis, axis == PercentageAxis.Fraction, out value, out _, out error, enforceMagnitude);
+
+    /// <summary>
+    ///     Resolves a value that is either a <c>&lt;length&gt;</c>/<c>&lt;percentage&gt;</c> or a
+    ///     <c>&lt;number&gt;</c> - the <c>line-height</c> grammar - reporting which kind a math
+    ///     expression produced, so the caller can apply the number a different meaning (a multiplier).
+    /// </summary>
+    /// <param name="raw">The raw value text; surrounding whitespace is ignored.</param>
+    /// <param name="state">The cascaded state supplying unit and percentage bases.</param>
+    /// <param name="axis">Which basis a <c>%</c> resolves against.</param>
+    /// <param name="value">The resolved value when this method returns <see langword="true"/>.</param>
+    /// <param name="isNumber">
+    ///     <see langword="true"/> when the value is a plain number (a literal number or a math
+    ///     expression whose type is a number); <see langword="false"/> for a length or percentage.
+    /// </param>
+    /// <param name="error">A short description of the problem when this method returns <see langword="false"/>.</param>
+    /// <returns><see langword="true"/> when <paramref name="raw"/> is a valid number or length.</returns>
+    /// <remarks>
+    ///     A math expression keeps its type (CSS Values 4, "Type Checking"): <c>calc(1 + 1)</c> is
+    ///     a number and <c>calc(1px + 1px)</c> is a length, so <c>line-height: calc(1 + 1)</c> is a
+    ///     multiplier while <c>line-height: calc(1px + 1px)</c> is an absolute length.
+    /// </remarks>
+    private static bool TryResolveLengthOrNumber(
+        string raw, RenderState state, PercentageAxis axis, out float value, out bool isNumber, out string? error) =>
+        TryResolveLengthCore(raw, state, axis, true, out value, out isNumber, out error, true);
+
+    /// <summary>
+    ///     The shared implementation of <see cref="TryResolveLength"/> and
+    ///     <see cref="TryResolveLengthOrNumber"/>.
+    /// </summary>
+    /// <param name="raw">The raw value text; surrounding whitespace is ignored.</param>
+    /// <param name="state">The cascaded state supplying unit and percentage bases.</param>
+    /// <param name="axis">Which basis a <c>%</c> resolves against.</param>
+    /// <param name="allowNumberResult">
+    ///     <see langword="true"/> to accept a math expression whose type is a number; otherwise such
+    ///     a result is rejected, because CSS Values 4 never lets a number become a length inside a
+    ///     math function (<c>width: calc(0 + 5px)</c> is invalid). A <em>literal</em> bare number is
+    ///     always accepted as user units regardless of this flag.
+    /// </param>
+    /// <param name="value">The resolved value when this method returns <see langword="true"/>.</param>
+    /// <param name="isNumber">
+    ///     <see langword="true"/> for a unitless number or a number-typed math result.
+    /// </param>
+    /// <param name="error">A short description of the problem when this method returns <see langword="false"/>.</param>
+    /// <param name="enforceMagnitude">See <see cref="TryResolveLength"/>.</param>
+    /// <returns><see langword="true"/> when the value resolved.</returns>
+    private static bool TryResolveLengthCore(
+        string raw, RenderState state, PercentageAxis axis, bool allowNumberResult, out float value, out bool isNumber, out string? error, bool enforceMagnitude)
     {
         value = 0f;
+        isNumber = false;
         error = null;
         var text = raw.Trim();
         if (text.Length == 0)
@@ -302,11 +354,19 @@ public static partial class SvgCodec
         if (StartsWithMathFunction(text))
         {
             var evaluator = new LengthMathEvaluator(text, state, axis);
-            if (!evaluator.TryEvaluate(out result))
+            if (!evaluator.TryEvaluate(out result, out var isLength))
             {
                 error = evaluator.Error ?? "the math expression is invalid";
                 return false;
             }
+
+            if (!isLength && !allowNumberResult)
+            {
+                error = "a math expression that resolves to a number is not a length";
+                return false;
+            }
+
+            isNumber = !isLength;
         }
         else
         {
@@ -317,6 +377,7 @@ public static partial class SvgCodec
                 return false;
             }
 
+            isNumber = unit == LengthUnit.None;
             result = unit switch
             {
                 // Single-precision, exactly as the legacy number/percentage parser: see remarks
@@ -672,10 +733,15 @@ public static partial class SvgCodec
 
         /// <summary>Evaluates the whole expression.</summary>
         /// <param name="result">The result (as a number or user-unit length) on success.</param>
+        /// <param name="isLength">
+        ///     <see langword="true"/> when the result is a length (or percentage), <see langword="false"/>
+        ///     when it is a plain number; the type is preserved through the whole expression.
+        /// </param>
         /// <returns><see langword="true"/> on success; <see langword="false"/> with <see cref="Error"/> set otherwise.</returns>
-        public bool TryEvaluate(out double result)
+        public bool TryEvaluate(out double result, out bool isLength)
         {
             result = 0;
+            isLength = false;
             if (!TryParseFactor(out var value))
             {
                 return false;
@@ -688,6 +754,7 @@ public static partial class SvgCodec
             }
 
             result = value.Number;
+            isLength = value.IsLength;
             return true;
         }
 
