@@ -802,6 +802,53 @@ public class DataLoaderTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that review found: the length of a sequence was compared with the row limit as a double, and a limit of <c>long.MaxValue</c> is 2^63 as a double, so a length of 2^63
+    ///     compared equal and passed, and the saturated count was handed to the generator, which began to materialize rows. The length is compared as an integer (a length that no long holds is refused first), and
+    ///     a sequence is also bounded by the cells that a table may have, whatever the row limit is, before a row is generated.
+    /// </summary>
+    /// <param name="stop">The stop of the sequence, as the text of a JSON number.</param>
+    /// <param name="limitText">The text that names the limit that refuses it.</param>
+    [Theory]
+    [InlineData("9223372036854775808", "(MaxDataRows)")]
+    [InlineData("9.3e18", "(MaxDataRows)")]
+    [InlineData("1e300", "(MaxDataRows)")]
+    [InlineData("9007199254740993", "(TableLayout.MaxCells)")]
+    [InlineData("9007199254740992", "(TableLayout.MaxCells)")]
+    [InlineData("1e12", "(TableLayout.MaxCells)")]
+    [InlineData("33554433", "(TableLayout.MaxCells)")]
+    public void DataLoader_Load_SequenceBeyondTheIntegerRangeOrTheCellLimitIsRefusedWhateverTheRowLimit(string stop, string limitText)
+    {
+        // Arrange: a row limit at its maximum, so that only the integer comparison and the cell bound can refuse the sequence
+        var tree = Spec("{\"sequence\":{\"start\":0,\"stop\":" + stop + "}}");
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => DataLoader.Load(tree.Root["data"], SpecName, new VegaLiteLimits { MaxDataRows = long.MaxValue }, Ct));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: located at the sequence, naming the limit, and refused before any row was generated
+        Assert.Contains(limitText, ex.Message, StringComparison.Ordinal);
+        Assert.Equal("/data/sequence", ex.Location.Pointer);
+        Assert.True(allocated < 64L * 1024 * 1024, $"The refusal allocated {allocated} bytes.");
+    }
+
+    /// <summary>
+    ///     Validates that a sequence that fits is accepted under a row limit at its maximum, so the integer comparison and the cell bound do not refuse an ordinary sequence.
+    /// </summary>
+    [Fact]
+    public void DataLoader_Load_SequenceOfExactlyTheCellLimitIsAcceptedUnderALargeEnoughRowLimit()
+    {
+        // Arrange
+        var tree = Spec("{\"sequence\":{\"start\":0,\"stop\":1000}}");
+
+        // Act
+        var table = DataLoader.Load(tree.Root["data"], SpecName, new VegaLiteLimits { MaxDataRows = long.MaxValue }, Ct);
+
+        // Assert
+        Assert.Equal(1000, table.RowCount);
+    }
+
+    /// <summary>
     ///     Validates that a sequence without a <c>start</c> or a <c>stop</c> is a located failure, never an empty table.
     /// </summary>
     [Fact]
@@ -951,6 +998,27 @@ public class DataLoaderTests
         // The root adopts the data node, so that the pointer of the sequence is /data/sequence
         _ = new SpecNode(SpecNodeKind.Object, null, -1, position, null, 0, false, [data]);
         return DataLoader.Load(data, SpecName, null, Ct);
+    }
+
+    /// <summary>
+    ///     Validates that the rows of a derived table are compared with the row limit as exact integers: a count one above a limit of 2^53 does not round down to it (the double nearest to 2^53 + 1 is 2^53), and the count
+    ///     that equals the limit is accepted.
+    /// </summary>
+    [Fact]
+    public void DataLoader_ReserveDerivedRows_ComparesLongCountsExactly()
+    {
+        // Arrange
+        const long limit = 1L << 53;
+        var loader = new DataLoader(SpecName, new VegaLiteLimits { MaxDataRows = limit }, cancellationToken: Ct);
+        var location = new VegaLiteLocation(SpecName, "/transform/0", 1, 1);
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => loader.ReserveDerivedRows(limit + 1, "test output", location));
+        loader.ReserveDerivedRows(limit, "test output", location);
+
+        // Assert: refused at one above, accepted at exactly the limit, and nothing is left over from the refusal
+        Assert.Contains("(MaxDataRows)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(limit, loader.RowsLoaded);
     }
 
     /// <summary>

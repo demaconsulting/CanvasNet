@@ -268,6 +268,14 @@ internal sealed partial class StatTransforms
         var rows = Math.Min(points, (double)long.MaxValue / 2);
         _context.Loader.ReserveDerivedRows(rows, what, location);
         _context.Loader.ReleaseRows(NumericConversions.ToInt64Saturating(rows));
+
+        // The row budget can be raised by the caller, but the rows of a generated curve are held in one table: never more than the cells that a table may have
+        if (rows > TableLayout.MaxCells)
+        {
+            throw new VegaLiteRenderException(
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"The {what} would have {rows:0} rows, more than the limit of {TableLayout.MaxCells} cells that a table may have (TableLayout.MaxCells)."),
+                location);
+        }
     }
 
     /// <summary>

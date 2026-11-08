@@ -55,7 +55,7 @@ internal sealed record FacetPartition(FacetDomains Domains, int RowCount, int Co
 ///     </para>
 ///     <para>
 ///         <b>Partition.</b> One pass assigns every row to its cell, one more builds a table for each cell with the same fields and the rows in their original order (the tables of cells
-///         without rows share one empty table). The rows of the cells are counted in the row budget once (<see cref="DataLoader.ReserveDerivedRows"/>); the table of the facet stays counted,
+///         without rows share one empty table). The rows of the cells are counted in the row budget once (<see cref="DataLoader.ReserveDerivedRows(long, string, VegaLiteLocation)"/>); the table of the facet stays counted,
 ///         as the other views that read it may still need it. The work of every row is charged to the evaluation-step budget and the cancellation token is checked every 1,024 rows.
 ///     </para>
 /// </remarks>

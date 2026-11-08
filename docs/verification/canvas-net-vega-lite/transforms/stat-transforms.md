@@ -190,6 +190,7 @@ counting toward the group size, and an empty table giving an empty result with t
 `..._OutputBeyondTheFieldLimitFailsAtTheTransform`, `..._Loess_WorkBeyondTheStepBudgetFailsAtTheTransform`,
 `..._RegressionAndLoess_StopWhenCanceled`, `..._IsDeterministic`;
 `StatTransformsDensityTests.StatTransforms_Density_StepsBeyondTheRowBudgetFailAtTheTransform`,
+`..._StepsBeyondTheCellLimitWithAnUnboundedRowBudget_FailAtTheCellLimit`,
 `..._WorkBeyondTheStepBudgetFailsAtTheTransform`, `..._StopsWhenCanceled`;
 `StatTransformsQuantileTests.StatTransforms_Quantile_TinyStepBeyondTheRowBudgetFailsAtTheTransform`,
 `..._StepWithACountBeyondLong_FailsLocatedAtTheRowBudget`,
@@ -201,7 +202,9 @@ counting toward the group size, and an empty table giving an empty result with t
 
 Asserts that a curve, a density grid, or a quantile list beyond `MaxRows` is a `VegaLiteRenderException` located at the
 transform before the rows exist (also a quantile step whose count of probabilities no integer holds, on every target
-framework, and one beyond the cell limit when the row limit is raised to its maximum), that work beyond
+framework, and one beyond the cell limit when the row limit is raised to its maximum, as is a density with 1e17 or 1e300
+steps: the generated curves of the statistical transforms are bounded by the cells of a table as well, before any point
+is computed), that work beyond
 `MaxEvaluationSteps` is a located failure, that an output beyond the
 field or cell limit fails, that a canceled token throws `OperationCanceledException`, that the input rows are released
 when the output is complete, and that two runs give identical tables. Asserts the calibration of the work estimate

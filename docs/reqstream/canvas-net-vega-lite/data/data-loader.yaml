@@ -94,6 +94,9 @@ sections:
                 tests:
                   - DataLoader_Load_SequenceUsesExclusiveStopAndAs
                   - DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation
+                  - DataLoader_Load_SequenceBeyondTheIntegerRangeOrTheCellLimitIsRefusedWhateverTheRowLimit
+                  - DataLoader_Load_SequenceOfExactlyTheCellLimitIsAcceptedUnderALargeEnoughRowLimit
+                  - DataLoader_ReserveDerivedRows_ComparesLongCountsExactly
                   - DataLoader_Load_SequenceWrongDirectionWithPositiveStepIsEmpty
                   - DataLoader_Load_SequenceArithmeticOverflowFailsBeforeAllocation
 

@@ -233,6 +233,7 @@ sections:
                   - StatTransforms_Loess_WorkBeyondTheStepBudgetFailsAtTheTransform
                   - StatTransforms_RegressionAndLoess_StopWhenCanceled
                   - StatTransforms_Density_StepsBeyondTheRowBudgetFailAtTheTransform
+                  - StatTransforms_Density_StepsBeyondTheCellLimitWithAnUnboundedRowBudget_FailAtTheCellLimit
                   - StatTransforms_Density_WorkBeyondTheStepBudgetFailsAtTheTransform
                   - StatTransforms_Density_StopsWhenCanceled
                   - StatTransforms_Quantile_TinyStepBeyondTheRowBudgetFailsAtTheTransform

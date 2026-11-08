@@ -326,6 +326,28 @@ public class StatTransformsDensityTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that review found for the generated curves: with the row budget at its maximum, a step count of 1e17 or 1e300 passed the row comparison (the count was capped at half the range of
+    ///     a long and compared as a double), and the sampler began to hold points. The count is also bounded by the cells that a table may have, before any point is computed, located at the transform.
+    /// </summary>
+    /// <param name="steps">The number of steps.</param>
+    [Theory]
+    [InlineData("1e17")]
+    [InlineData("1e300")]
+    [InlineData("9007199254740993")]
+    public void StatTransforms_Density_StepsBeyondTheCellLimitWithAnUnboundedRowBudget_FailAtTheCellLimit(string steps)
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxDataRows = long.MaxValue };
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => Run("[{\"density\":\"v\",\"steps\":" + steps + "}]", Support, limits));
+
+        // Assert
+        Assert.Equal("/transform/0", error.Location.Pointer);
+        Assert.Contains("(TableLayout.MaxCells)", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the step budget: a density of a hundred rows sampled at two hundred points costs more steps than the budget of a few, and fails at the transform.
     /// </summary>
     [Fact]

@@ -52,7 +52,13 @@ counts down); each is computed from its index, so rounding does not drift. The l
 in floating point: a quotient that is not positive (a step that points away from `stop`, including a positive step
 with `stop` below `start`) is an empty table, and a difference or quotient that overflows to infinity, or any length
 above the remaining `MaxDataRows` budget, fails the row limit before anything is allocated (the message describes an
-unrepresentable count instead of printing it); the count is converted to an integer only after that check.
+unrepresentable count instead of printing it); the count is converted to an integer only after that check. The
+comparison is made on integers, not on doubles (a limit of `long.MaxValue` is 2^63 as a double, which a length of 2^63
+equals): a length that no `long` holds, NaN, or infinity is refused first, and the others are converted exactly and
+compared as longs (an exact-integer overload of the reservation serves the transforms that count rows in a long). A
+sequence is also bounded by `TableLayout.MaxCells`, the cells that a table may have (its one field makes a row a cell),
+before the first row is generated, whatever the row limit is; the generated curves of the statistical transforms have
+the same bound.
 
 **Parse default.** As in Vega, no data-based type inference happens unless the specification asks for it. For CSV, TSV,
 and DSV an absent `format.parse` and `parse: null` keep every cell as a string (so `01234`, `2024-03-05`, and `true`
