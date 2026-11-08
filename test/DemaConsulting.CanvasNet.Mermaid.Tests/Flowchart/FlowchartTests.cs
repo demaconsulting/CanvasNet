@@ -79,8 +79,8 @@ public class FlowchartTests
     }
 
     /// <summary>
-    ///     Validates that a look, a layout and icons are reported at their locations, and that the render then fails
-    ///     because drawing is not wired yet.
+    ///     Validates that a look, a layout and icons are reported at their locations, and that the diagram is still
+    ///     measured.
     /// </summary>
     [Fact]
     public void Flowchart_Render_UnsupportedFeatures_AreReported()
@@ -91,9 +91,10 @@ public class FlowchartTests
         var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
 
         // Act
-        Assert.Throws<MermaidRenderException>(() => document.Measure(options, TestContext.Current.CancellationToken));
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
 
         // Assert
+        Assert.True(size.Width > 16 && size.Height > 16);
         Assert.Empty(warnings);
         Assert.Equal(
             [
@@ -136,9 +137,10 @@ public class FlowchartTests
         var (options, _, unsupported) = MermaidTestHelpers.Collecting();
 
         // Act
-        Assert.Throws<MermaidRenderException>(() => document.Render(options, TestContext.Current.CancellationToken));
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
 
         // Assert
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
         Assert.Equal(("flowchart", "flowchart-elk", "TB"), (document.DiagramType, document.Detected.MermaidId, document.Direction));
         Assert.Equal(MermaidDiagnosticCodes.LayoutUnsupported, Assert.Single(unsupported).Feature);
     }

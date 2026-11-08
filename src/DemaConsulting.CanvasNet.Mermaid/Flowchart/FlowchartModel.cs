@@ -606,19 +606,6 @@ internal sealed partial class FlowchartModel : IMermaidDiagram
         return new FlowLink(startType, startStroke, endLength, text, id);
     }
 
-    /// <inheritdoc />
-    public Scene Layout(DiagramRenderContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-
-        // The reports of the diagram come first, so they are delivered even though drawing is not available yet
-        ReportUnsupported(context.Config, context.Sink);
-        throw new MermaidRenderException(
-            MermaidDiagnosticCodes.RenderFailed,
-            "drawing flowchart diagrams is not available in this build yet",
-            KeywordLocation);
-    }
-
     /// <summary>
     ///     Reads the start of a link with text (Mermaid's <c>destructStartLink</c>).
     /// </summary>

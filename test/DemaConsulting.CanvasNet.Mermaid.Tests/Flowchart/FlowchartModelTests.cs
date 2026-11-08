@@ -300,20 +300,20 @@ public class FlowchartModelTests
     }
 
     /// <summary>
-    ///     Validates that laying the model out delivers its reports and then fails, as drawing is not wired yet.
+    ///     Validates that laying the model out delivers its reports and then draws the diagram.
     /// </summary>
     [Fact]
-    public void FlowchartModel_Layout_BeforeRenderer_ReportsThenThrowsRenderFailed()
+    public void FlowchartModel_Layout_IconLabel_ReportsThenRenders()
     {
         // Arrange
         var document = MermaidDocument.Parse("flowchart LR\n  a[fa:fa-car Car]\n");
         var (options, _, unsupported) = MermaidTestHelpers.Collecting();
 
         // Act
-        var ex = Assert.Throws<MermaidRenderException>(() => document.Render(options, TestContext.Current.CancellationToken));
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, ex.Code);
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
         Assert.Equal(MermaidDiagnosticCodes.IconUnsupported, Assert.Single(unsupported).Feature);
     }
 

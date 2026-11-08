@@ -173,22 +173,6 @@ public class MermaidDocumentTests
         Assert.Throws<InvalidDataException>(() => MermaidDocument.Open(stream, options));
     }
 
-    /// <summary>
-    ///     Validates that a supported type whose drawing is not wired in yet fails at render time with a located code.
-    /// </summary>
-    [Fact]
-    public void MermaidDocument_Render_FlowchartBeforePipeline_ThrowsRenderFailed()
-    {
-        // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.FlowchartText);
-
-        // Act
-        var ex = Assert.Throws<MermaidRenderException>(() => document.Measure(cancellationToken: TestContext.Current.CancellationToken));
-
-        // Assert
-        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, ex.Code);
-        Assert.Equal(1, ex.Location.Line);
-    }
 
     /// <summary>
     ///     A stream that cannot be read.

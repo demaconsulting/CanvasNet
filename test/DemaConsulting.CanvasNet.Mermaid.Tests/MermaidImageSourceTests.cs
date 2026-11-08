@@ -70,6 +70,31 @@ public class MermaidImageSourceTests
     }
 
     /// <summary>
+    ///     Validates that a flowchart is drawn through the same pipeline as a document render, at its natural size and at
+    ///     a requested size.
+    /// </summary>
+    [Fact]
+    public void MermaidImageSource_Render_Flowchart_DrawsTheDiagram()
+    {
+        // Arrange
+        var source = new MermaidImageSource();
+        var natural = MermaidDocument.Parse(MermaidTestHelpers.FlowchartText).Measure(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Act
+        var result = source.Render(Request(MermaidTestHelpers.FlowchartText));
+        using var surface = result.Surface;
+        var sized = source.Render(Request(MermaidTestHelpers.FlowchartText, "theme=dark", 400, 140));
+        using var sizedSurface = sized.Surface;
+
+        // Assert
+        Assert.Equal((natural.Width, natural.Height), (surface.Width, surface.Height));
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
+        Assert.Empty(result.Diagnostics);
+        Assert.Equal((400, 140), (sizedSurface.Width, sizedSurface.Height));
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(sizedSurface));
+    }
+
+    /// <summary>
     ///     Validates that strict requests throw the unsupported-feature exception.
     /// </summary>
     [Fact]

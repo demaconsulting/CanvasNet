@@ -1001,6 +1001,10 @@ words:
   - Supercalifragilisticexpialido
   - tspan
   - tspans
+  # Mermaid edge and subgraph rendering terms (d3 curves, the cluster layout)
+  - hypot
+  - Steffen's
+  - tridiagonal
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

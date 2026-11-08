@@ -126,6 +126,20 @@ public sealed partial class MermaidDocument
     }
 
     /// <summary>
+    ///     Lays the diagram out under options and returns its scene without drawing it (internal; the scene model the
+    ///     tests and the reference comparison read). The reports are delivered as for <see cref="Measure"/>.
+    /// </summary>
+    /// <param name="options">Optional render options; <see langword="null"/> uses the defaults.</param>
+    /// <param name="cancellationToken">A token that stops the work.</param>
+    /// <returns>The scene, whose view box is the natural size.</returns>
+    internal Scene LayoutScene(MermaidRenderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var effective = options ?? new MermaidRenderOptions();
+        cancellationToken.ThrowIfCancellationRequested();
+        return Run(effective, cancellationToken, (scene, _) => scene);
+    }
+
+    /// <summary>
     ///     Gets the natural size of a scene: its view box rounded up to whole pixels (as <c>mmdc</c> rounds the bounding box
     ///     of the SVG), at least one pixel.
     /// </summary>
@@ -173,7 +187,7 @@ public sealed partial class MermaidDocument
     /// <returns>The surface.</returns>
     private static Surface Paint(Scene scene, int width, int height, ScenePlacement placement, DiagramRenderContext context)
     {
-        var painter = new ScenePainter(context.Fonts, images: null, context.Options.Limits.MaxPaintedPixels);
+        var painter = new ScenePainter(context.Fonts, scene.Images, context.Options.Limits.MaxPaintedPixels);
         return painter.Paint(scene, width, height, placement, context.Options.Background, context.CancellationToken);
     }
 

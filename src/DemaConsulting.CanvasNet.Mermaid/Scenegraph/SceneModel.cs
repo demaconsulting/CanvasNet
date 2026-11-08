@@ -296,6 +296,41 @@ internal sealed record SceneImage(SceneRect Box, string Href) : SceneItem
 internal sealed record Scene(SceneRect ViewBox, IReadOnlyList<SceneItem> Items)
 {
     /// <summary>
+    ///     Gets the picture loader of the scene's pictures (the one that measured them during the layout, so the image
+    ///     budget is shared), or null when the scene has none.
+    /// </summary>
+    public ISceneImageLoader? Images { get; init; }
+
+    /// <summary>
+    ///     Enumerates every item of the scene depth first in paint order, with the accumulated translation of the groups
+    ///     around it (an item's absolute position is its own coordinates plus the offset).
+    /// </summary>
+    /// <returns>The items and their offsets.</returns>
+    public IEnumerable<(SceneItem Item, double OffsetX, double OffsetY)> Walk() => Walk(Items, 0, 0);
+
+    /// <summary>
+    ///     Enumerates items depth first with their accumulated offsets.
+    /// </summary>
+    /// <param name="items">The items.</param>
+    /// <param name="dx">The offset of the items.</param>
+    /// <param name="dy">The offset of the items.</param>
+    /// <returns>The items and their offsets.</returns>
+    private static IEnumerable<(SceneItem Item, double OffsetX, double OffsetY)> Walk(IReadOnlyList<SceneItem> items, double dx, double dy)
+    {
+        foreach (var item in items)
+        {
+            yield return (item, dx, dy);
+            if (item is SceneGroup group)
+            {
+                foreach (var child in Walk(group.Children, dx + group.OffsetX, dy + group.OffsetY))
+                {
+                    yield return child;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     ///     Gets the bounds of items, groups' translations applied: the union of the geometry of every path (curves exactly,
     ///     strokes not included, as SVG's <c>getBBox</c>), the box of every text line and of every picture.
     /// </summary>

@@ -241,6 +241,7 @@ internal static partial class ShapeLibrary
             "bang" => Bang(input),
             "cloud" => Cloud(input),
             "collapsedGroup" => CollapsedGroup(input),
+            "labelRect" => LabelRect(input),
             "imageSquare" => ImageSquare(input),
             "icon" => Icon(input),
             "iconSquare" => IconSquare(input),
@@ -264,9 +265,21 @@ internal static partial class ShapeLibrary
     internal static (List<string> Label, List<string> Node) SplitStyles(LayoutNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
-        var map = new List<KeyValuePair<string, string>>();
         var labelStyleItems = node.LabelStyle.Split(';').Select(item => item.Trim()).Where(item => item.Length > 0);
-        foreach (var style in node.CssCompiledStyles.Concat(node.CssStyles ?? []).Concat(labelStyleItems))
+        return SplitStyles(node.CssCompiledStyles.Concat(node.CssStyles ?? []).Concat(labelStyleItems));
+    }
+
+    /// <summary>
+    ///     Splits style items as Mermaid's <c>styles2String</c> does (each <c>key:value</c>, a later key wins) into the label
+    ///     styles (text properties) and the other styles.
+    /// </summary>
+    /// <param name="styles">The style items in cascade order.</param>
+    /// <returns>The label and other style items, as <c>key:value</c>.</returns>
+    internal static (List<string> Label, List<string> Node) SplitStyles(IEnumerable<string> styles)
+    {
+        ArgumentNullException.ThrowIfNull(styles);
+        var map = new List<KeyValuePair<string, string>>();
+        foreach (var style in styles)
         {
             // style.split(':') keeps the first two parts only
             var parts = style.Split(':');
@@ -291,6 +304,26 @@ internal static partial class ShapeLibrary
         }
 
         return (label, nodeStyles);
+    }
+
+    /// <summary>
+    ///     Gets the font a label starts from: the style sheet's text rule with the element's own label styles
+    ///     (<c>font-family</c>, <c>font-size</c>, <c>font-weight</c>, <c>font-style</c> and <c>color</c>) over it.
+    /// </summary>
+    /// <param name="labelStyles">The element's label styles.</param>
+    /// <param name="css">The text rule of the style sheet.</param>
+    /// <returns>The font.</returns>
+    internal static LabelFont LabelFontOf(StyleDeclarationSet labelStyles, TextPaint css)
+    {
+        ArgumentNullException.ThrowIfNull(labelStyles);
+        ArgumentNullException.ThrowIfNull(css);
+        var family = labelStyles["font-family"] ?? css.FontFamily;
+        var size = labelStyles["font-size"] is { } value && StyleDeclarations.TryParseLength(value, css.FontSize, out var length) && length > 0
+            ? length
+            : css.FontSize;
+        var bold = labelStyles["font-weight"] is { } weight && StyleDeclarations.TryParseBold(weight, out var isBold) && isBold;
+        var italic = labelStyles["font-style"] is { } style && StyleDeclarations.TryParseItalic(style, out var isItalic) && isItalic;
+        return new LabelFont(family, size, bold, italic, labelStyles.Paint("color") ?? css.Color);
     }
 
     /// <summary>
@@ -339,6 +372,9 @@ internal static partial class ShapeLibrary
         /// <summary>Gets the node's own non-label styles.</summary>
         public StyleDeclarationSet User { get; }
 
+        /// <summary>Gets the node's own label styles.</summary>
+        public StyleDeclarationSet LabelStyles => _labelStyles;
+
         /// <summary>Gets the paint of the node.</summary>
         public NodePaint Paint { get; }
 
@@ -358,15 +394,8 @@ internal static partial class ShapeLibrary
         public LabelLayout MeasureLabel(double? width = null, bool assetShape = false, string? label = null)
         {
             var css = Context.Styles.NodeLabel;
-            var family = _labelStyles["font-family"] ?? css.FontFamily;
-            var size = _labelStyles["font-size"] is { } value && StyleDeclarations.TryParseLength(value, css.FontSize, out var length) && length > 0
-                ? length
-                : css.FontSize;
-            var bold = _labelStyles["font-weight"] is { } weight && StyleDeclarations.TryParseBold(weight, out var isBold) && isBold;
-            var italic = _labelStyles["font-style"] is { } style && StyleDeclarations.TryParseItalic(style, out var isItalic) && isItalic;
-            var color = _labelStyles.Paint("color") ?? css.Color;
             var wrap = width is > 0 ? width.Value : Context.Config.Flowchart.WrappingWidth;
-            var request = new LabelRequest(label ?? Node.Label ?? string.Empty, new LabelFont(family, size, bold, italic, color))
+            var request = new LabelRequest(label ?? Node.Label ?? string.Empty, LabelFontOf(_labelStyles, css))
             {
                 Markdown = Node.LabelType == "markdown",
                 HtmlLabels = HtmlLabels,
