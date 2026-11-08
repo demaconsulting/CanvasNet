@@ -226,6 +226,7 @@ an empty selection leaves the bins of the data, and that a variable parameter ho
 
 **Tests**: `BinAlgorithmTests.BinAlgorithm_Compute_TinyHugeOrInvalidExtentsFail`,
 `BinAlgorithmTests.BinAlgorithm_Compute_MoreBinsThanTheLimitFails`,
+`BinAlgorithmTests.BinAlgorithm_Compute_BaseBarelyAboveOneKeepsTheDecimalsOfTheStepAsANumber`,
 `AggregateTransformsTests.AggregateTransforms_Bin_UnbinnableExtentsAndTooManyBinsFail`,
 `AggregateTransformsTests.AggregateTransforms_Bin_KeepsRowsAndChargesWork`,
 `AggregateTransformsTests.AggregateTransforms_Bin_CancellationIsPolled`
@@ -233,7 +234,9 @@ an empty selection leaves the bins of the data, and that a variable parameter ho
 Asserts that a subnormal, an overflowing, a non-finite, and a reversed extent fail located with "The values cannot be
 binned"; that 101 bins over a limit of 100 and a tiny exact step fail naming `the limit of 100
 (VegaLiteLimits.MaxScaleDomainSize)` while exactly 100 bins pass with step 0.01; that a bin transform leaves the rows
-and the row budget alone, charges its work, and bounds its output names; and that the cancellation token is polled.
+and the row budget alone, charges its work, and bounds its output names; that the cancellation token is polled; and
+that a base barely above 1 (1.0000000000000002), whose number of decimals of the step is about 3e16, keeps it as a
+number: the bins of 0 to 1 with a step of 0.001 are 1,000 on every runtime.
 
 ##### Joinaggregate Writes Group Measures To Every Row
 
@@ -264,6 +267,8 @@ budget is unchanged.
 `AggregateTransformsWindowTests.AggregateTransforms_Window_PreviousAndNextValueSkipNulls`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_SlidingFrameAverages`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_FramesAreClampedAndMayBeEmpty`,
+`AggregateTransformsWindowTests.AggregateTransforms_Window_FrameBoundsAndOffsetsBeyondTheIntegerRangeClampAndNeverThrow`,
+`AggregateTransformsWindowTests.AggregateTransforms_Window_IndexArithmeticMatchesAnExactReferenceOnExtremeBoundsAndOffsets`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_WholePartitionFrame`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_ValuesFollowTheFrameAndPeersShareTheArray`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_AggregateOperationsOverTheWholePartition`,
@@ -281,7 +286,18 @@ and `nth_value` over `[-1, 1]` clamped at the ends; that `prev_value` and `next_
 and do not carry across partitions; the sliding average; the clamped and empty frames above; the whole-partition frame
 per partition; that `values` follows the frame and peers share one array; aggregate operations over a partition; that
 the rank of a descending sort can drive a following `filter`; and that an empty table gives an empty table with the new
-fields and the row budget does not change.
+fields and the row budget does not change. Regression of a defect that review found (the index arithmetic of the
+window engine): frame bounds of any size (`-2147483649` to `2147483648`, `int.MinValue` to `int.MaxValue`, `1e12`,
+`1e18`, `1e300`, `9.2e18`) clamp to the partition (the whole partition: sum 80 over rows 10, 20, 20, 30, 4 rows,
+first 10, last 30), a frame wholly beyond either end is empty (null sum, count 0; also `[1e12, 2e12]` and
+`[-2e12, -1e12]`), a `lag`, `lead`, or `nth_value` beyond the partition or the frame (`2147483647`, `4294967296`,
+`1e12`, `9.2e18`, `2147483648`) is `null` and an `ntile` of `4294967296` gives the tile numbers of a count that no
+int holds; and an exact reference with unbounded integers (`BigInteger`) agrees with the engine on every combination
+of 25 parameters (from `-1.79e308` and the infinities to 1.79e308 and NaN, including the largest and the smallest
+long, `-1e12` and `1e12`, negative offsets, zero as the offset 1 of Vega's `|| 1`) and 20 frame bounds (null,
+`long.MinValue`, `long.MaxValue`, `-1e12`, `1e12`, the ends of the int range and small offsets), for `lag`, `lead`,
+`nth_value`, `first_value`, and `last_value`, with no `IndexOutOfRangeException`; a `frame` that is not an integer,
+or has not two entries, is still a located specification error.
 
 ##### Window Cumulative Fast Path Equals Recomputation
 
@@ -366,6 +382,9 @@ ones, so 6 stay counted) and keeps them counted when the caller still uses the i
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_GroupsTimesKeysIsBoundedBeforeAllocation`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_HugeKeySequencesAreRejectedUpFront`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_LongKeyListsAreRejected`,
+`AggregateTransformsImputeTests.AggregateTransforms_Impute_KeyCountBeyondTheIntRangeIsRefusedWhateverTheRowLimit`,
+`AggregateTransformsImputeTests.AggregateTransforms_Impute_KeyCountBeyondTheCellLimitIsRefusedBeforeAllocationWhateverTheRowLimit`,
+`AggregateTransformsImputeTests.AggregateTransforms_Impute_FrameBoundsBeyondTheIntegerRangeClampToTheGroup`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_FieldAndStringLimitsAreLocated`
 
 Asserts the exact boundaries above, each failure located at `/transform/0` and naming its limit (`(MaxDataRows)`,
@@ -375,7 +394,17 @@ released and 8 when the caller keeps the input; that the cumulative `values` arr
 row limit of 1,000 while one shared array of the whole partition fits; that sequences of 1e12 and 1e300 / 1e-300 keys
 are refused with `the limit of 1000000 (MaxDataRows)` before they are materialized, and 2,000 keys under a limit of
 1,000 as well; and that more output fields than the field limit and a text longer than the string limit are refused
-before any row is read.
+before any row is read. A key count beyond the cells of a derived table is refused with
+`the limit of 33554432 (TableLayout.MaxCells)` even when the row limit is `long.MaxValue` (regression of two defects: the
+count was cast to an int for the loop, a wrapped number on .NET 8, and a count in the range of an int, a hundred million
+keys, was materialized key by key before the groups-by-keys bound; the domain is now bounded by the cells before the
+first key is allocated, which the test checks by the bytes allocated), and an aggregate whose group-by field is not a
+valid field name (an empty field
+name on the channel of a boxplot) is a located `VegaLiteRenderException`, covered by the fuzz regression corpus
+(`VegaLiteFuzzTests.CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed`). The frame of an impute shares the
+window engine: bounds at the ends of the int range and beyond the int and long ranges (`-2147483649` to `2147483648`,
+`int.MinValue` to `int.MaxValue`, `-1e12` to `1e12`, `-1e300` to `1e300`) clamp to the
+group (the means 20, 5, 5), and a frame wholly beyond either end of it is empty (null).
 
 ##### Work Is Charged To The Step Budget
 

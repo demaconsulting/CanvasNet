@@ -112,6 +112,15 @@ any published chart. To capture them again after a deliberate change of the outp
 `CANVASNET_SCENE_SNAPSHOT_DIR` to this folder's `SceneSnapshots` directory and run the test, which then writes the
 files; review the difference before committing it.
 
+- `Determinism/pixel-pins.txt` and `Determinism/golden/*.png`: the pins and the pictures of the determinism tests
+  (`Hardening/VegaLiteDeterminismTests.cs`). The charts are **original works** written in that test file with made-up
+  numbers and words (bars, a strip of ticks, text labels, a scatter plot, a line over four dates, a density, a pie, a log
+  scatter and a regression); the pictures are the output of this package, drawn with its bundled fonts. A line of the
+  pin file is `name WxH sha256-of-the-pixels` (the pixels of the `Surface`, never the bytes of an encoded file, which
+  differ between .NET versions); a picture is compared within a tolerance, not exactly. To capture them again after a
+  deliberate change of the output, set the environment variable `CANVASNET_DETERMINISM_DIR` to this folder's
+  `Determinism` directory and run the tests of the class, which then write the files.
+
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or
 rendered meaning (rows, values, pixels) and never the raw bytes or the line endings of the file; do not rewrite a

@@ -103,7 +103,8 @@ internal sealed partial class AggregateTransforms
         // The texts of the specification are bounded by the limit of this call
         CheckAggregateTexts(groupBy, measures, location);
 
-        var groupNames = groupBy.Select(g => FieldPath.Canonicalize(g)!).ToArray();
+        // A group-by field that is not a valid field path (an empty field name on the channel of a boxplot, an error bar or an error band, which write their aggregate from the encoding) is the specification's mistake, located at the transform
+        var groupNames = groupBy.Select(g => FieldPath.Canonicalize(g) ?? throw new VegaLiteRenderException($"The field '{g}' cannot be used to group the rows: it is not a valid field name.", location)).ToArray();
         var layout = new TableLayout(
             input,
             [.. groupNames, .. measures.Select(m => TableLayout.Canonical(m.Name))],

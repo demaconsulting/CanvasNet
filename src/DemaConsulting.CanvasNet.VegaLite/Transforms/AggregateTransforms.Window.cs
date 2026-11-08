@@ -35,8 +35,8 @@ internal sealed record WindowSpec(WindowOp? Window, AggregateOp Aggregate, strin
 /// </content>
 internal sealed partial class AggregateTransforms
 {
-    /// <summary>The number of elements the work of recomputing one row of a frame is charged for each row of the frame (one step per 16 rows).</summary>
-    private const int FrameRowCost = 4;
+    /// <summary>The number of work elements that one element of the work of recomputing one row of a frame is charged as (see <see cref="WorkMeter"/>): measured at about 6 nanoseconds per element of the frame and aggregate for the means and extremes and up to about 45 for a median (which sorts the frame), so twenty at about three nanoseconds an element stops a frame in about ten seconds.</summary>
+    private const long FrameRowCost = 20;
 
     /// <summary>
     ///     Reads the operations of a <c>window</c> transform.
@@ -114,16 +114,20 @@ internal sealed partial class AggregateTransforms
     /// <summary>
     ///     Reads a <c>frame</c> value: two offsets, each an integer or null.
     /// </summary>
+    /// <remarks>
+    ///     An offset is any integer that a <c>long</c> holds (a larger one saturates): a bound beyond the partition is clamped to it when the frame is
+    ///     computed, as in Vega, whose frame bounds are numbers of any size.
+    /// </remarks>
     /// <param name="frame">The array (validated by the parser), or null for the default.</param>
     /// <returns>The offsets of the first and the last row of the frame relative to the current row; null is unbounded.</returns>
-    internal static (int? Start, int? End) ReadFrame(SpecNode? frame)
+    internal static (long? Start, long? End) ReadFrame(SpecNode? frame)
     {
         if (frame is not { IsArray: true, Items.Count: 2 })
         {
             return (null, 0);
         }
 
-        int? Bound(SpecNode node) => node.AsNumber() is { } n ? (int)n : null;
+        long? Bound(SpecNode node) => node.AsNumber() is { } n ? NumericConversions.ToInt64Saturating(n) : null;
         return (Bound(frame.Items[0]), Bound(frame.Items[1]));
     }
 
@@ -150,8 +154,8 @@ internal sealed partial class AggregateTransforms
         DataTable input,
         IReadOnlyList<string> groupBy,
         IReadOnlyList<SortField> sort,
-        int? frameStart,
-        int? frameEnd,
+        long? frameStart,
+        long? frameEnd,
         bool ignorePeers,
         IReadOnlyList<WindowSpec> ops,
         ulong seed,
@@ -186,10 +190,10 @@ internal sealed partial class AggregateTransforms
         private readonly IReadOnlyList<SortField> _sort;
 
         /// <summary>The offset of the first frame row, or null.</summary>
-        private readonly int? _frameStart;
+        private readonly long? _frameStart;
 
         /// <summary>The offset of the last frame row, or null.</summary>
-        private readonly int? _frameEnd;
+        private readonly long? _frameEnd;
 
         /// <summary>Whether the frame is widened to take in peers.</summary>
         private readonly bool _range;
@@ -273,8 +277,8 @@ internal sealed partial class AggregateTransforms
             DataTable input,
             IReadOnlyList<string> groupBy,
             IReadOnlyList<SortField> sort,
-            int? frameStart,
-            int? frameEnd,
+            long? frameStart,
+            long? frameEnd,
             bool ignorePeers,
             IReadOnlyList<WindowSpec> ops,
             ulong seed,
@@ -418,8 +422,9 @@ internal sealed partial class AggregateTransforms
                 _owner._meter.Add(_ops.Count + 1);
                 var row = _order[_base + p];
 
-                var i0 = _frameStart is { } s ? (int)Math.Clamp((long)p + s, 0, _n) : 0;
-                var i1 = _frameEnd is { } e ? (int)Math.Clamp((long)p + e + 1, 0, _n) : _n;
+                // The frame bounds are offsets of any size: the sums saturate and the positions are clamped to the partition (a bound beyond it is the end of it)
+                var i0 = _frameStart is { } s ? ClampToPartition(NumericConversions.AddSaturating(p, s)) : 0;
+                var i1 = _frameEnd is { } e ? ClampToPartition(NumericConversions.AddSaturating(NumericConversions.AddSaturating(p, e), 1)) : _n;
                 if (_range)
                 {
                     // The frame takes in the peers of its first and its last row
@@ -455,7 +460,7 @@ internal sealed partial class AggregateTransforms
                     {
                         Array.Clear(cells);
                         var length = Math.Max(0, i1 - i0);
-                        _owner._meter.Add((long)FrameRowCost * length * _aggregates.Length);
+                        _owner._meter.Add(FrameRowCost * length * _aggregates.Length);
                         for (var q = i0; q < i1; q++)
                         {
                             AddRow(cells, _order[_base + q]);
@@ -538,6 +543,30 @@ internal sealed partial class AggregateTransforms
         private DataValue Value(int op, int position) => _readers[_opReader[op]].Read(_order[_base + position], _evaluation);
 
         /// <summary>
+        ///     Clamps a position, computed in 64 bits, to the sorted partition: 0 up to the number of rows.
+        /// </summary>
+        /// <param name="position">The position.</param>
+        /// <returns>The clamped position, which is an index or the position after the last row.</returns>
+        private int ClampToPartition(long position)
+        {
+            if (position <= 0)
+            {
+                return 0;
+            }
+
+            return position >= _n ? _n : (int)position;
+        }
+
+        /// <summary>
+        ///     Gets a position as an index when it lies in a range of positions.
+        /// </summary>
+        /// <param name="position">The position, computed in 64 bits.</param>
+        /// <param name="first">The first position of the range.</param>
+        /// <param name="after">The position after the last of the range.</param>
+        /// <returns>The index, or null when the position is outside the range.</returns>
+        private static int? PositionOrNone(long position, int first, int after) => position >= first && position < after ? (int)position : null;
+
+        /// <summary>
         ///     Computes a window-only operation for a row.
         /// </summary>
         /// <param name="window">The operation.</param>
@@ -548,7 +577,10 @@ internal sealed partial class AggregateTransforms
         /// <returns>The result.</returns>
         private DataValue WindowValue(WindowOp window, int op, int p, int i0, int i1)
         {
-            var param = (long)_ops[op].Param;
+            var param = NumericConversions.ToInt64Saturating(_ops[op].Param);
+
+            // Vega reads the offset of lag and lead as +offset || 1: zero (and NaN) is 1
+            var offset = param == 0 ? 1 : param;
             switch (window)
             {
                 case WindowOp.RowNumber:
@@ -563,17 +595,19 @@ internal sealed partial class AggregateTransforms
                 case WindowOp.CumeDist:
                     return DataValue.FromNumber(_peerEnd[p] / (double)_n);
                 case WindowOp.Ntile:
-                    return DataValue.FromNumber(Math.Ceiling(param * (_peerEnd[p] / (double)_n)));
+                    return DataValue.FromNumber(Math.Ceiling(_ops[op].Param * (_peerEnd[p] / (double)_n)));
                 case WindowOp.Lag:
-                    return p - param >= 0 ? Value(op, (int)(p - param)) : default;
+                    // Vega reads data[index - offset]; the difference saturates, so an offset of any size lands outside the partition (no value) and a negative one (from a caller that skips the parser) reads forward as in Vega
+                    return PositionOrNone(NumericConversions.AddSaturating(p, NumericConversions.NegateSaturating(offset)), 0, _n) is { } lagged ? Value(op, lagged) : default;
                 case WindowOp.Lead:
-                    return p + param < _n ? Value(op, (int)(p + param)) : default;
+                    return PositionOrNone(NumericConversions.AddSaturating(p, offset), 0, _n) is { } led ? Value(op, led) : default;
                 case WindowOp.FirstValue:
                     return i1 > i0 ? Value(op, i0) : default;
                 case WindowOp.LastValue:
                     return i1 > i0 ? Value(op, i1 - 1) : default;
                 case WindowOp.NthValue:
-                    return i1 > i0 && i0 + (param - 1) < i1 ? Value(op, (int)(i0 + (param - 1))) : default;
+                    // The nth row of the frame, counted from 1: a position in the frame, which an nth beyond it (or below 1) does not have
+                    return i1 > i0 && PositionOrNone(NumericConversions.AddSaturating(i0, NumericConversions.AddSaturating(param, -1)), i0, i1) is { } nth ? Value(op, nth) : default;
                 case WindowOp.PrevValue:
                     var current = Value(op, p);
                     if (!current.IsNull)

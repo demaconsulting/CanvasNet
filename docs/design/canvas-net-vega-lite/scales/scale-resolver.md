@@ -24,7 +24,8 @@ the `DomainOrder` enumeration:
 - `ScaleResolver.Layers.cs` - the scales of the layers of a layered view (`ResolveLayers`, `LayerScaleInput`,
   `LayeredScales`): the shared scale with the combined domain, the independent scales, and the conflicts
 - `ScaleResolver.Offsets.cs` - the nested offset scales of `xOffset` and `yOffset`: `OffsetDecision` (an enumeration:
-  `Supported`, `NoDiscreteParent`, `Ranged`, `TimeUnitParent`), `DecideOffset`, `HasNestedOffset`, `HasTimeUnitOffset`,
+  `Supported`, `NoDiscreteParent`, `Ranged`, `TimeUnitParent`, `UnsupportedContinuous`), `DecideOffset`, `HasNestedOffset`,
+  `HasRangedOffset`, `HasTimeUnitOffset`,
   `StepForOf`, and the `ApplyNestedOffsets`
   post-pass that sizes the step of a position scale from its offset scale
 - `ScaleResolver.Raw.cs` - the raw domain of a scale (phase 12): `RawDomain`, `ScaleExtent`, `FindExtent`, `ReadRawDomain`,
@@ -242,7 +243,8 @@ transform) for a
   when a custom domain already spans zero; never for quantile and threshold scales, never for a time or UTC scale or any
   temporal field (also the sequential scale of a temporal color: zero is not meaningful for dates), and never for a log
   scale, whose domain
-  cannot reach zero, even when `zero: true` is given), then `domainMin` and `domainMax`
+  cannot reach zero, even when `zero: true` is given; an offset scale never includes zero except that of a ranged
+  offset, which does), then `domainMin` and `domainMax`
   replace the first and the last entry (sequential and linear scales), and `domainMid` (colors) inserts the middle value
   before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. **A log scale refuses a
   domain that includes zero or crosses it**: Vega only warns and then draws nothing (every position is NaN), while the
@@ -325,12 +327,16 @@ transform) for a
   or a temporal one with a
   supported `timeUnit` (below): `DecideOffset` returns
   `Supported`, `NoDiscreteParent` (position missing, continuous, or temporal without a time unit that can hold the
-  offset), `Ranged` (a continuous
-  offset of a `bar` or `area`, which Vega-Lite draws as a range from the start of the band), or `TimeUnitParent` (a
-  temporal position with a time unit, whose smallest part is not the day of the week); only a `Supported` or
+  offset), `Ranged` (Phase 14: an unbinned quantitative offset of a `bar` or `area` whose position is a nominal or
+  ordinal field or datum without a secondary channel, which Vega-Lite draws as a range from the baseline of the offset
+  scale, see _Continuous offsets_ below), `TimeUnitParent` (a
+  temporal position with a time unit, whose smallest part is not the day of the week), or `UnsupportedContinuous` (a
+  continuous offset of a `bar` or `area` that is not ranged: a temporal or binned offset, a position with `x2` or
+  `y2`, a temporal position with a time unit); only a `Supported`, `Ranged`, or
   `TimeUnitParent` offset
   has a scale
-  (`NoDiscreteParent` and `Ranged` are reported by the feature catalog and ignored). A position that holds a nested
+  (`NoDiscreteParent` and `UnsupportedContinuous` are reported by the feature catalog and ignored). A position that
+  holds a nested
   offset
   (`HasNestedOffset`) is **always a band scale**, for every mark (an explicit `scale.type` of `point` is not accepted,
   the feature catalog warns), with `paddingInner` and `paddingOuter` of `config.scale.bandWithNestedOffsetPaddingInner`
@@ -338,7 +344,8 @@ transform) for a
   **offset scale**: a discrete offset is a band scale for `bar`, `rect`, `image`, `rule`, and `tick` marks and a point
   scale for the others (its outer padding is 0.5, so the points sit at the centers of the bands of an offset band
   scale); a band offset has the paddings `config.scale.offsetBandPaddingInner` and `...Outer` (0 by default); a
-  quantitative or temporal offset is a linear or time scale with no zero, no `nice`, and no pixel padding. The
+  quantitative or temporal offset is a linear or time scale with no zero (a ranged offset has one), no `nice`, and no
+  pixel padding. The
   **domain** of
   a discrete offset is the distinct values of the whole field (a slot with no row stays empty), ordered by `sort`
   (ascending by default). The **range** (`ScaleResolver.Range.cs`, `ResolvedScale.IsOffset`) is the bandwidth of the
@@ -365,7 +372,8 @@ transform) for a
   covers the discrete parents only; `HasTimeUnitOffset` says whether the offset is of this kind); only the offset
   gets a scale of its own, by the rules above (a nominal offset is a band scale for a `bar`, `rect`, `image`, `rule`,
   or `tick` with the paddings 0, a point scale with the outer padding 0.5 for the other marks; a quantitative or temporal
-  offset is a linear or time scale; a continuous offset of a `bar` or `area` is still `Ranged`, `vl-offset-ranged`).
+  offset is a linear or time scale; a continuous offset of a `bar` or `area` is `Ranged` when it is a ranged offset and
+  `UnsupportedContinuous` (`vl-offset-ranged`) otherwise).
   Its **range** is not the bandwidth of the position band but the pixels of one reference unit of the parent time scale
   (`MarkBuilder.TimeUnitOffsetRange`, see _MarkBuilder Design_), passed to `ResolvedScale.CreateModel(extent,
   (Start, End)? nestedRange)`: the overload whose default range for an offset channel is `[Start, End]` pixels (no y
@@ -374,6 +382,21 @@ transform) for a
   other case (a missing, quantitative, or temporal parent without a unit, `day`,
   `weekday`, a binned or `maxbins` unit of a temporal parent, a `rect` mark with a temporal parent) stays
   `NoDiscreteParent` (`vl-offset-position`).
+
+  **Continuous offsets (ranged offsets, Phase 14).** Vega-Lite 6.5.0 draws a `bar` or `area` whose `xOffset` or
+  `yOffset` is an unbinned quantitative field or numeric datum, over a nominal or ordinal position without a secondary
+  channel (`isRangedOffset` of `compile/unit.ts`; `rangePosition`, `area.ts`), as a range inside the band of the
+  position: from the zero of the offset scale to the offset value. `DecideOffset` returns `Ranged` exactly for that
+  case, and `HasRangedOffset(channel, encoding, markType)` says so for a position channel (`HasNestedOffset` accepts it
+  too: the position is a band scale with the nested paddings, 0.2 each). The offset scale is a linear scale whose range
+  is the bandwidth of the position scale (running upward for `yOffset`) and whose **`zero` is true** (Vega-Lite's
+  `zero()` in `compile/scale/properties.ts`: `isXorYOffset(channel)` returns `hasRangedOffset`; `ZeroRule` of
+  `ScaleResolver.cs` reads `HasRangedOffset`), so the domain includes zero and the baseline is inside the band; the
+  other offset scales never include zero and have no `nice`. A positive and a negative value therefore stand on the two
+  sides of the baseline. `MarkBuilder` draws the range (see _MarkBuilder Design_) and `AxisBuilder` puts the ticks and
+  the labels of the position at the baseline (see _AxisBuilder Design_). The continuous offsets of a bar or area that
+  are not ranged are not drawn (`UnsupportedContinuous`).
+
 - **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). **`theta` is 0 to
   2 * PI** (radians; the extent is ignored) and **`radius` is 0 to
   the extent that the caller passes** (half of the smaller side of the data rectangle, in pixels); an explicit
@@ -506,8 +529,11 @@ explicit `utc` type on a temporal color keeps its meaning although the scale is 
 color scale): the scale uses the UTC calendar and `ResolvedScale.IsUtcTime` is set, so the legend takes the whole-day
 ticks counted from the epoch and UTC labels whatever the zone of the chart is.
 
-The offset channels deviate from Vega-Lite in these ways: (1) a **continuous** offset of a `bar` or `area` (Vega-Lite's
-ranged offset) is not drawn (`vl-offset-ranged`); (2) a temporal position nests the offset only for a unit whose
+The offset channels deviate from Vega-Lite in these ways: (1) a **continuous** offset of a `bar` or `area` that is not a
+ranged offset (a temporal or binned offset, a position with a secondary channel or with a time unit) is not drawn
+(`vl-offset-ranged`; the ranged offset itself is drawn since Phase 14), and a ranged offset whose position is missing is
+not drawn either (`vl-offset-position`: Vega-Lite spans the bars from the top of the view and from half of the height
+then, a layout that this renderer does not reproduce); (2) a temporal position nests the offset only for a unit whose
 smallest part is not the day of
 the week, with the reference unit of `durationExpr` measured on the scale of the chart (the deviations of the
 placement are listed in _MarkBuilder Design_); (3) the offset scale of a discrete parent has no step of its own: it
@@ -572,11 +598,13 @@ parameter) resolve no scale.
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field
   or a count.
 - `DecideOffset(offsetChannel, encoding, markType)` (`ScaleResolver.Offsets.cs`) - the `OffsetDecision` of an offset
-  channel (`Supported`, `NoDiscreteParent`, `Ranged`, or `TimeUnitParent`; `Supported` also when the encoding has no
+  channel (`Supported`, `NoDiscreteParent`, `Ranged`, `TimeUnitParent`, or `UnsupportedContinuous`; `Supported` also
+  when the encoding has no
   offset to decide);
   the feature catalog and the resolver both call it, so what is reported is what is ignored. `HasNestedOffset(channel,
   encoding, markType)` says whether the band of a position holds a drawn offset scale (it makes the position a band
-  scale with the nested paddings; a discrete parent, with or without a time unit), and
+  scale with the nested paddings; a discrete parent, with or without a time unit; a ranged offset included), `HasRangedOffset(channel,
+  encoding, markType)` whether the offset of a position is a ranged offset, and
   `HasTimeUnitOffset(channel, encoding, markType)` whether
   the position is a temporal one with a time unit that holds an offset scale (it stays a time scale).
   `ApplyNestedOffsets(scales, context)` sizes the step of the position scales as

@@ -88,7 +88,6 @@ public class SpecParserAggregatesTests
     [InlineData("""{"window":[{"op":"ntile","param":0}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"ntile","param":1.5}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"ntile","param":"4"}]}""", "/transform/0/window/0/param")]
-    [InlineData("""{"window":[{"op":"ntile","param":2147483648}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"lag"}]}""", "/transform/0/window/0")]
     [InlineData("""{"window":[{"op":"lag","field":"a","param":0}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"lead","field":"a","param":-1}]}""", "/transform/0/window/0/param")]
@@ -108,7 +107,8 @@ public class SpecParserAggregatesTests
     [InlineData("""{"window":[{"op":"rank"}],"frame":[1,2,3]}""", "/transform/0/frame")]
     [InlineData("""{"window":[{"op":"rank"}],"frame":[1.5,2]}""", "/transform/0/frame/0")]
     [InlineData("""{"window":[{"op":"rank"}],"frame":[null,"a"]}""", "/transform/0/frame/1")]
-    [InlineData("""{"window":[{"op":"rank"}],"frame":[0,3000000000]}""", "/transform/0/frame/1")]
+    [InlineData("""{"window":[{"op":"rank"}],"frame":[0,1e300,0]}""", "/transform/0/frame")]
+    [InlineData("""{"window":[{"op":"rank"}],"frame":[0.5,3000000000]}""", "/transform/0/frame/0")]
     [InlineData("""{"window":[{"op":"rank"}],"ignorePeers":"yes"}""", "/transform/0/ignorePeers")]
     public void SpecParser_Parse_WindowTransformShapesArePinned(string entry, string pointer) =>
         AssertLocated(FailTransform(entry), pointer);

@@ -206,7 +206,7 @@ internal static class BinAlgorithm
 
         // The precision of the step decides the tolerance of the rounding below
         var logStep = Math.Log(step);
-        var precision = logStep >= 0 ? 0 : (int)(-logStep / logBase) + 1;
+        var precision = logStep >= 0 ? 0.0 : Math.Floor(-logStep / logBase) + 1;
         var epsilon = Math.Pow(settings.Base, -precision - 1);
         if (settings.Nice)
         {

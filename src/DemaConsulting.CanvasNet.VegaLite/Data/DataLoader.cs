@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Data;
 
@@ -61,7 +62,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         <b>Transforms.</b> The loader of the call is also the context of the row transforms: the data of a lookup is
 ///         loaded by <see cref="Load(SpecNode?, IReadOnlySet{string}?)"/> on the same instance (so with the sandbox, the file cache, the file and
 ///         byte limits and the row total of the main data), and the rows of a derived table are counted by
-///         <see cref="ReserveDerivedRows"/> before they are allocated and given back by <see cref="ReleaseRows"/> when the table
+///         <see cref="ReserveDerivedRows(double, string, VegaLiteLocation)"/> before they are allocated and given back by <see cref="ReleaseRows"/> when the table
 ///         they came from is no longer needed.
 ///     </para>
 /// </remarks>
@@ -150,7 +151,23 @@ internal sealed class DataLoader
     public void ReserveDerivedRows(double rows, string what, VegaLiteLocation location)
     {
         Charge(rows, what, location);
-        _rowsLoaded += (long)rows;
+        _rowsLoaded += NumericConversions.ToInt64Saturating(rows);
+    }
+
+    /// <summary>
+    ///     Counts the rows of a derived table, given as an exact integer, against <see cref="VegaLiteLimits.MaxDataRows"/> before the table is allocated.
+    /// </summary>
+    /// <remarks>
+    ///     The integer is compared as it is: converting a row count above 2^53 to a double rounds it, and a count one above the limit could round down to it.
+    /// </remarks>
+    /// <param name="rows">The number of rows about to be created.</param>
+    /// <param name="what">What the rows are, for the message.</param>
+    /// <param name="location">The location of the transform.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the rows would exceed <see cref="VegaLiteLimits.MaxDataRows"/>.</exception>
+    public void ReserveDerivedRows(long rows, string what, VegaLiteLocation location)
+    {
+        Charge(rows, what, location);
+        _rowsLoaded += Math.Max(0, rows);
     }
 
     /// <summary>
@@ -339,6 +356,9 @@ internal sealed class DataLoader
         return current;
     }
 
+    /// <summary>2^63 as a double: the first count that no <see cref="long"/> holds.</summary>
+    private const double LongRange = 9223372036854775808.0;
+
     /// <summary>
     ///     Counts rows against the total row limit before they are created.
     /// </summary>
@@ -348,19 +368,47 @@ internal sealed class DataLoader
     /// <exception cref="VegaLiteRenderException">Thrown when the rows would exceed <see cref="VegaLiteLimits.MaxDataRows"/>.</exception>
     private void Charge(double rows, string what, VegaLiteLocation location)
     {
+        // The count is compared as an integer: a double comparison rounds at the top of the range (a limit of long.MaxValue is 2^63 as a double, which a count of 2^63 equals), so a count that no long
+        // holds (also NaN and infinity) is refused first, and the others are converted exactly and compared as longs
+        if (rows < LongRange)
+        {
+            Charge(rows <= 0 ? 0 : NumericConversions.ToInt64Saturating(Math.Ceiling(rows)), what, location);
+            return;
+        }
+
+        Refuse("an unrepresentable number of", what, location);
+    }
+
+    /// <summary>
+    ///     Counts an exact number of rows against the total row limit before they are created.
+    /// </summary>
+    /// <param name="rows">The number of rows about to be created.</param>
+    /// <param name="what">What the rows are, for the message.</param>
+    /// <param name="location">The location of the data.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the rows would exceed <see cref="VegaLiteLimits.MaxDataRows"/>.</exception>
+    private void Charge(long rows, string what, VegaLiteLocation location)
+    {
         if (rows <= _limits.MaxDataRows - _rowsLoaded)
         {
             return;
         }
 
+        // A count beyond any exact integer of a double is described, not printed digit by digit
+        Refuse(rows < 1_000_000_000_000_000_000L ? rows.ToString(CultureInfo.InvariantCulture) : "an unrepresentable number of", what, location);
+    }
+
+    /// <summary>
+    ///     Throws the failure of a row count that is more than the limit allows.
+    /// </summary>
+    /// <param name="count">The count, as text.</param>
+    /// <param name="what">What the rows are, for the message.</param>
+    /// <param name="location">The location of the data.</param>
+    /// <exception cref="VegaLiteRenderException">Always.</exception>
+    private void Refuse(string count, string what, VegaLiteLocation location)
+    {
         var total = _rowsLoaded == 0
             ? string.Empty
             : string.Create(CultureInfo.InvariantCulture, $"; with the {_rowsLoaded} rows read before, that is");
-
-        // A count that overflowed or is beyond any exact integer is described, not printed digit by digit
-        var count = double.IsFinite(rows) && rows < 1e18
-            ? string.Create(CultureInfo.InvariantCulture, $"{rows:0}")
-            : "an unrepresentable number of";
         throw new VegaLiteRenderException(
             string.Create(CultureInfo.InvariantCulture, $"The {what} has {count} rows{total}, more than the limit of {_limits.MaxDataRows} (MaxDataRows)."),
             location);
@@ -534,8 +582,18 @@ internal sealed class DataLoader
         length = double.IsNaN(length) || length <= 0 ? 0 : Math.Ceiling(length);
         length = TrimSequenceCount(start, stop, step, length);
         Charge(length, "generated sequence", location);
+
+        // The sequence has one field, so each row is a cell of the table that is allocated: the rows are bounded by the cells that a table may have as well as by the row limit, which a
+        // caller may raise to its maximum (the rows are generated into one table before anything else can refuse them)
+        if (length > TableLayout.MaxCells)
+        {
+            throw new VegaLiteRenderException(
+                string.Create(CultureInfo.InvariantCulture, $"The generated sequence has {length:0} rows, more than the limit of {TableLayout.MaxCells} cells that a table may have (TableLayout.MaxCells)."),
+                location);
+        }
+
         var field = FieldPath.Escape(sequence["as"]?.AsString() ?? PrimitiveField);
-        var table = DataTable.Create([field], Generate(start, step, (long)length, location), _limits, location);
+        var table = DataTable.Create([field], Generate(start, step, NumericConversions.ToInt64Saturating(length), location), _limits, location);
         _rowsLoaded += table.RowCount;
         return table;
     }

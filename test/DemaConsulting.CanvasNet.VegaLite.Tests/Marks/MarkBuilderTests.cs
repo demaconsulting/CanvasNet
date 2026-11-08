@@ -674,6 +674,30 @@ public class MarkBuilderTests
     }
 
     /// <summary>
+    ///     Validates the rule of data that is binned already (Vega-Lite's orient of a rule, <c>compile/mark/init.ts</c>: a channel with <c>bin: "binned"</c> and its end is not a range of the rule): with
+    ///     <c>x</c> binned (and <c>x2</c>) and <c>y</c> with <c>y2</c> the rule is vertical, at the middle of the bin, from <c>y</c> to <c>y2</c> (not the diagonal segment that two ranges draw); with
+    ///     only a binned <c>x</c> and <c>x2</c> it is vertical too, and a rule that is not binned keeps the segment.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_RuleOfBinnedDataIsVerticalAtTheMiddleOfTheBin()
+    {
+        // Arrange: x on 0 to 20 gives 5 px per unit; y on 0 to 10 gives 10 px per unit (100 px square view); the bin 0 to 10 has its middle at 5, so 25 px
+        const string rows = "[ { \"s\": 0, \"e\": 10, \"lo\": 2, \"hi\": 6 }, { \"s\": 10, \"e\": 20, \"lo\": 1, \"hi\": 9 } ]";
+        const string encoding = "{ \"x\": { \"field\": \"s\", \"type\": \"quantitative\", \"bin\": \"binned\" }, \"x2\": { \"field\": \"e\" }, \"y\": { \"field\": \"lo\", \"type\": \"quantitative\" }, \"y2\": { \"field\": \"hi\" } }";
+        const string plain = "{ \"x\": { \"field\": \"s\", \"type\": \"quantitative\" }, \"x2\": { \"field\": \"e\" }, \"y\": { \"field\": \"lo\", \"type\": \"quantitative\" }, \"y2\": { \"field\": \"hi\" } }";
+
+        // Act
+        var binned = ChartTestHelpers.Of<SceneRule>(ChartTestHelpers.Marks(Sized("\"rule\"", encoding, rows, 100, 100), 100, 100), "mark-rule");
+        var segments = ChartTestHelpers.Of<SceneRule>(ChartTestHelpers.Marks(Sized("\"rule\"", plain, rows, 100, 100), 100, 100), "mark-rule");
+
+        // Assert: vertical rules (equal x), one for each bin; the x of the plain segment follows its two ends
+        Assert.Equal(2, binned.Count);
+        Assert.All(binned, r => Assert.Equal(r.X, r.X2, 6));
+        Assert.Equal(binned[0].X * 3, binned[1].X, 6);
+        Assert.All(segments, r => Assert.NotEqual(r.X, r.X2));
+    }
+
+    /// <summary>
     ///     Validates that every mark of a stack or a bin is charged to the scene budget before it exists, that a canceled token stops the work, and that
     ///     the fixture of a chart with one row per category is drawn as before (the bars run from zero).
     /// </summary>

@@ -101,11 +101,13 @@ views of a concatenation, a facet or a repeat),
 `vl-scale-time` and `vl-scale-utc` (`time` and `utc` join the supported scale types). The identifiers that the phase
 adds are:
 
-- `vl-timeunit-binned` - a `binned` time unit (a name that starts with `binned`, or `binned: true`) in an encoding, a
-  condition, a predicate, or the `timeUnit` transform; the unit is ignored and the field is used as it is. It is also
-  an `UnsupportedFeature`, so strict mode throws at the first one.
-- `vl-timeunit-maxbins` - the `{"maxbins": n}` form of a unit that names no unit, in a **predicate** (a predicate has no
-  data extent to bin; the unit is ignored). The encoding and the transform apply `maxbins`.
+- `vl-timeunit-binned` and `vl-timeunit-maxbins` (**retired in Phase 14**, never produced again and never reused): a `binned`
+  time unit (a name that starts with `binned`, or `binned: true`) in an encoding, a condition, a predicate, or the
+  `timeUnit` transform was reported and ignored, and so was the `{"maxbins": n}` form of a unit that names no unit in a
+  predicate. They are applied now (see _EncodingPlan_, _TimeUnitTransform_ and the predicate rules of _SpecParser_): the
+  field of a binned unit is read as it is and its end computed where a channel spans the unit, a predicate compares
+  `time(field)`, and a predicate with the `maxbins` form compares the field as it is (Vega-Lite's `fieldFilterExpression`
+  has no unit to build a part with).
 - `vl-predicate-timeunit-part` (warning) - the `timeUnit` of a predicate (a filter or a condition test) whose unit has a
   `week` or `dayofyear` part, which a predicate does not apply (as in Vega-Lite); the other parts are compared.
 - `vl-encoding-bandposition-rect` - a `bandPosition` or `timeUnitBandPosition` other than 0.5 on a bar or rect whose
@@ -228,11 +230,11 @@ are:
   top-level view decides it.
 - `vl-layer-scale-conflict` (warning) - **produced by the renderer** (the scale resolver and the document), not by the
   catalog, because it needs the scales: layers whose scales of a shared channel cannot be merged.
-- `vl-composite-grouping` - a channel of a `boxplot`, `errorbar`, or `errorband` that groups the rows (every channel but
-  the measure axis, the second ends and error channels, and the tooltip) that has an enabled `bin`, an `aggregate`, or
-  a binned or `maxbins` `timeUnit` (a `timeUnit` with parts is applied since Phase 13, see _SpecNormalizer_): the rows
-  are grouped by the raw field. The orientation is decided by `SpecNormalizer.TryOrientation`;
-  nothing is reported when it cannot be decided (the render fails with a specification error).
+- `vl-composite-grouping` (**retired in Phase 14**, never produced again and never reused): a channel of a `boxplot`,
+  `errorbar`, or `errorband` that groups the rows (every channel but the measure axis, the second ends and error
+  channels, and the tooltip) with an enabled `bin`, an `aggregate`, or a binned or `maxbins` `timeUnit` was reported
+  and grouped by the raw field. The expansion transforms them now (see _SpecNormalizer_), so the catalog visits only the
+  definitions as any other channel.
 - `vl-channel-xerror`, `vl-channel-xerror2`, `vl-channel-yerror`, and `vl-channel-yerror2` - an error channel on a mark
   other than `errorbar` and `errorband`, which use them; the channel is ignored. The `x2` and `y2` channels are accepted
   on
@@ -260,10 +262,11 @@ layered view whose encoding holds the channel, the `spec` of a facet). The ident
   concatenation, a copy of a repeat) are drawn: `VisitEncoding` hands their field definitions to
   `VisitFacetFieldDefinition`, which is also what visits the `facet` property (`VisitFacet`: a field definition, or an
   object with `row` and `column`).
-- `vl-facet-field-transform` - a `bin` or `aggregate` of a facet field, or a binned or `maxbins` `timeUnit` of one, at
-  that property; the raw value of the field is the value of the cell. A `timeUnit` with parts is applied since Phase 13
-  (see _EncodingPlan_) and a facet `sort` by `{field, op}` orders the cells by that aggregate; `vl-facet-sort` is
-  retired. `vl-header-orient` - a `header.labelOrient` or `header.titleOrient` on
+- `vl-facet-field-transform` (**retired in Phase 14**, never produced again and never reused): a `bin` or `aggregate`
+  of a facet field, or a binned or `maxbins` `timeUnit` of one, was reported at that property and the raw value of the
+  field was the cell. They are applied now as Vega-Lite's facet model applies them (see _EncodingPlan_), and a facet
+  `sort` by `{field, op}` orders the cells by that aggregate; `vl-facet-sort` is retired. `vl-header-orient` - a
+  `header.labelOrient` or `header.titleOrient` on
   a side that the header does not draw on (`HeaderSettings.IsHonoredOrient`: a row honors `left` and `right`, a column
   `top` and `bottom`, the label of a wrapped facet any side and its title `top` and `bottom`); the default side is used.
   `header.labelExpr` is evaluated and, like every label expression, reports only the constructs its expression cannot
@@ -300,10 +303,12 @@ again and its identifier is never reused. `ReportConstructs` reports only what t
 `vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>`, located at the expression text (also
 for the `labelExpr` of an axis or header configuration; `VisitConfigLabelExpressions` visits `config`). A `labelExpr` in
 `config.legend` is **neither compiled nor reported**: Vega-Lite 6 has no such property and the renderer does not read
-it. The number `format(datum.value, ',')` is one of the 100 whitelisted functions (`timeFormat` was already), so it
+it. The number `format(datum.value, ',')` is one of the 113 whitelisted functions (`timeFormat` was already), so it
 is evaluated and **not reported**: `vl-expr-function-format` is **retired** (it is no longer produced, and is never
-reused). A function that is still outside the table, such as `luminance`, `geoarea`, or `now`, is reported and
-evaluates to null (an empty label).
+reused). A function that is still outside the table, such as `luminance`, `geoarea`, `now`, or the sampling functions
+`random`, `sampleNormal`, `sampleLogNormal`, and `sampleUniform` (Phase 14: the nine distribution functions are in the
+table; the sampling functions are not, because an expression must be a pure deterministic function and Vega's `random`
+is the unseeded `Math.random`), is reported and evaluates to null (an empty label).
 
 **Offset channel identifiers.** `xOffset` and `yOffset` are supported channels. `VisitOffset` calls
 `ScaleResolver.DecideOffset`, the rule that the scale resolver also applies, so the report and the drawing agree:
@@ -317,12 +322,28 @@ The message is "The 'xOffset' channel needs a nominal or ordinal 'x' channel (wi
 temporal one with
 a supported time unit (not 'day' or 'weekday', binned or 'maxbins'; not a 'rect' mark), to nest in; the offset is
 ignored
-...". **`vl-offset-ranged`** is reported when a continuous (quantitative
-or temporal) offset sits on a `bar` or `area`, which Vega-Lite draws as a range; both are unsupported-feature reports
+...". **`vl-offset-ranged`** (narrowed in Phase 14) is reported when `DecideOffset` returns
+`OffsetDecision.UnsupportedContinuous`: a continuous (quantitative or temporal) offset sits on a `bar` or `area` and is
+not a ranged offset, that is, it is temporal or binned, or the position has a secondary channel (`x2` or `y2`) or is a
+temporal field with a time unit. A ranged offset (an unbinned quantitative offset of a bar or area whose position is a
+nominal or ordinal field or datum without a secondary channel; Vega-Lite's `isRangedOffset`) is **drawn and not
+reported**. The message is "The continuous 'yOffset' of a 'bar' mark is drawn as a range only when it is an unbinned
+quantitative field or datum of a mark whose 'y' is a nominal or ordinal field without a 'y2' channel; this offset ...
+is not supported: it is ignored and the marks are drawn at the 'y' position." Both are unsupported-feature reports
 located at the offset channel definition and neither is produced for an offset that is drawn. An explicit
 `scale.type` of `point` on a position that holds an offset is the existing warning `vl-scale-type-ignored`
 (`ScaleResolver.AcceptsScaleType` takes the nested-offset flag, so the default band scale is used). A `bin` on an offset
 channel is the existing `vl-encoding-bin`. Both new identifiers are never reused once retired.
+
+**`config.scale.invalid` identifier (Phase 14).** `VisitConfigScaleInvalid` visits the `config.scale.invalid` object of
+the specification's own configuration (the root `config`; the entries of `VegaLiteRenderOptions.Config` are not visited:
+a documented deviation) and reports **`vl-scale-invalid-value`** (unsupported feature, area `scale`) once for each entry
+that the renderer cannot read, at the entry: the entries that Vega-Lite 6.5.0's `invalid.ts` allows are `"zero-or-min"`
+and `{"value": ...}`, which `MarkBuilder` draws (a number or a text `value`), and the unreadable ones are `null`, a
+boolean, or a list as the `value`, and an entry of another shape (an expression reference as the `value` is skipped here:
+the generic `vl-expr-ref` check of the configuration reports it at the value, so it is not reported twice). The message
+names the entry and
+says that it is ignored and that the invalid values of that channel are handled by the `invalid` mode of the mark.
 
 **Phase 13 (statistical transforms) identifiers.** The transforms `regression`, `loess`, `density`, `quantile`, and
 `extent` are computed (see _StatTransforms_), so **`vl-transform-regression`**, **`vl-transform-loess`**,
@@ -402,12 +423,13 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
   none),
   and the `invalid` mode is checked like that of any drawn mark. `VisitEncoding` reports the
   channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the offset channels that are not drawn
-  (`VisitOffset`: `vl-offset-position`, `vl-offset-ranged`), the field type (`vl-type-geojson`; a
+  (`VisitOffset`: `vl-offset-position`, and `vl-offset-ranged` for a continuous offset of a bar or area that is not a
+  ranged offset), the field type (`vl-type-geojson`; a
   `temporal` field is supported), the encoding properties (`vl-encoding-<name>`), the scale type and properties
   (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-type-ignored`), the parts
   of a legend that are not drawn (`VisitLegend`: `vl-guide-encode`, `vl-format-type-custom` (for a
   `formatType` other than `number`, `time`, and `utc`),
-  `vl-guide-legend-clipheight`, and `vl-shape-path-invalid` for a `symbolType` that is neither a symbol name nor path
+  and `vl-shape-path-invalid` for a `symbolType` that is neither a symbol name nor path
   data that parses; its
   `labelExpr` reports only its unsupported constructs), the invalid
   path shapes (`vl-shape-path-invalid`), and the axis
@@ -482,11 +504,11 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
   reports
   only what the legend builder does not draw.
 - The phase 8 rules: `SupportedScaleTypes` also holds `time` and `utc` (so `vl-scale-time` and `vl-scale-utc` are
-  retired). `VisitChannelDefinition` no longer reports a temporal type or a time unit; it calls `VisitTimeUnit`, which
-  reads the unit with `TimeUnitSpec.TryRead` and reports `vl-timeunit-binned` for a binned unit (and
-  `vl-timeunit-maxbins` for a `{maxbins}` form without a unit where that cannot be applied, which is in a predicate);
+  retired). `VisitChannelDefinition` no longer reports a temporal type or a time unit (the `VisitTimeUnit` that
+  reported a binned unit and
+  the `maxbins` form was removed in Phase 14: `TimeUnitSpec.TryRead` is used by `VisitBandPosition` only);
   `VisitBandPosition` reports `vl-encoding-bandposition` and `vl-encoding-bandposition-rect` by the rules above (a
-  `bandPosition` on a field with a real, unbinned time unit is reported only for a bar or rect and a value other than
+  `bandPosition` on a field with a time unit (any form) is reported only for a bar or rect and a value other than
   0.5);
   the `datum` that is a date-time object (`SpecParser.IsDateTimeShaped`) is `vl-encoding-datum-datetime`;
   `VisitIntervals` warns `vl-scale-nice-interval` and `vl-guide-axis-tickcount-interval` for an interval on a channel
@@ -514,9 +536,11 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
   evaluated;
   `vl-transform-filter-param` is retired in phase 12), and, through `VisitFieldPredicate`, the time unit of a field
   predicate (`VisitPredicateTimeUnit`:
-  `vl-timeunit-binned`, `vl-timeunit-maxbins`, and the warning `vl-predicate-timeunit-part`; the retired
+  only the warning `vl-predicate-timeunit-part`, and not for a binned unit, which builds no part;
+  `vl-timeunit-binned` and `vl-timeunit-maxbins` were
+  retired in Phase 14; the retired
   `vl-transform-filter-timeunit` and `vl-transform-filter-datetime` are no longer produced); a `timeUnit` transform
-  reports `vl-timeunit-binned` for a binned unit; a pivot `op` other than `sum` and `count` is
+  reports nothing for a binned unit (it floors, like any other unit); a pivot `op` other than `sum` and `count` is
   `vl-transform-pivot-op` no more (retired in phase 13: a pivot computes every aggregate operation), and a lookup
   `from.param` is `vl-transform-lookup-param` while its `from.data` is visited
   like any `data` object (`vl-data-*`); a `bin` transform whose `extent` is a parameter is supported
@@ -604,7 +628,8 @@ applied here: the document records the reports in a sink, which throws at the fi
   that the report and the pipeline decide alike; **`ScaleResolver.ChannelIsDrawn`** - the support table of the channels
   per mark, shared with the scale resolver
 - **`TimeUnitSpec`** - the time unit reader of the `Data` subsystem (see _Time Calendar Design_), so that the report and
-  the unit that is applied agree on what a binned or `maxbins` unit is
+  the unit that is applied agree on what a binned or `maxbins` unit is, and **`EncodingPlan`** helpers (`IsBinning`,
+  `AggregateFieldPath`, `DescribeAggregate`, `DefaultFieldTitle`)
 - **`ScaleResolver.AcceptsScaleType`**, **`ScaleResolver.DecideOffset`**, and **`ScaleResolver.HasNestedOffset`** - the
   scale type rule per channel and field type (including temporal fields) and the offset rules, in
   the `Scales` subsystem

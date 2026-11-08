@@ -44,7 +44,7 @@ internal sealed partial class StatTransforms
         var yPath = operation.StringValue!;
         var xPath = entry["on"]!.StringValue!;
         var method = entry["method"]?.AsString() ?? "linear";
-        var order = entry["order"] is { IsNumber: true } given ? (int)given.NumberValue : 3;
+        var order = entry["order"] is { IsNumber: true } given ? NumericConversions.ToInt32Saturating(given.NumberValue) : 3;
         var paramsOnly = entry["params"] is { IsBoolean: true, BoolValue: true };
         var groupBy = ReadGroupBy(entry);
         var names = ReadAs(entry, xPath, yPath);

@@ -274,7 +274,7 @@ internal static partial class TimeFormat
                 fields.Millisecond = value;
                 break;
             case 'm':
-                fields.Month = (int)value - 1;
+                fields.Month = NumericConversions.ToInt32Saturating(value) - 1;
                 break;
             case 'M':
                 fields.Minute = value;
@@ -283,7 +283,7 @@ internal static partial class TimeFormat
                 fields.Second = value;
                 break;
             case 'q':
-                fields.Quarter = (int)(value * 3) - 3;
+                fields.Quarter = NumericConversions.ToInt32Saturating(value * 3) - 3;
                 break;
             case 'Q':
                 fields.UnixMilliseconds = value;
@@ -292,19 +292,19 @@ internal static partial class TimeFormat
                 fields.UnixSeconds = value;
                 break;
             case 'u':
-                fields.WeekdayMonday = (int)value;
+                fields.WeekdayMonday = NumericConversions.ToInt32Saturating(value);
                 break;
             case 'w':
-                fields.WeekdaySunday = (int)value;
+                fields.WeekdaySunday = NumericConversions.ToInt32Saturating(value);
                 break;
             case 'U':
-                fields.WeekSunday = (int)value;
+                fields.WeekSunday = NumericConversions.ToInt32Saturating(value);
                 break;
             case 'V':
-                fields.WeekIso = (int)value;
+                fields.WeekIso = NumericConversions.ToInt32Saturating(value);
                 break;
             default:
-                fields.WeekMonday = (int)value;
+                fields.WeekMonday = NumericConversions.ToInt32Saturating(value);
                 break;
         }
     }
@@ -514,7 +514,7 @@ internal static partial class TimeFormat
     {
         // Week 1 contains the first Thursday: the Monday on or after January 1 for Friday to Sunday, else the Monday before
         var first = TimeCalendar.FirstWeekdayOfYear(year);
-        var january1 = TimeCalendar.DaysFromCivil((long)year, 1, 1);
+        var january1 = TimeCalendar.DaysFromCivil(NumericConversions.ToInt64Saturating(year), 1, 1);
         var monday = first is > 4 or 0 ? january1 + ((8 - first) % 7) : january1 - ((first + 6) % 7);
         TimeCalendar.CivilFromDays(monday + (((f.WeekIso ?? 1) - 1) * 7L), out var resultYear, out var resultMonth, out var resultDay);
         var weekday = f.WeekdaySunday ?? 1;
@@ -544,10 +544,11 @@ internal static partial class TimeFormat
 
         // d3 builds the date in the year -1 so that JavaScript does not add 1900, then sets the year: the month, the day and
         // the time come from that first date, which matters for a day that rolls over (and a leap day)
-        var monthNumber = (long)month;
+        var monthNumber = NumericConversions.ToInt64Saturating(month);
         var carriedYear = -1 + TimeCalendar.FloorDiv(monthNumber, 12);
-        var days = TimeCalendar.DaysFromCivil(carriedYear, (int)TimeCalendar.FloorMod(monthNumber, 12) + 1, (long)day);
-        var time = ((long)hour * 3_600_000L) + ((long)minute * 60_000L) + ((long)second * 1000L) + (long)millisecond;
+        var days = TimeCalendar.DaysFromCivil(carriedYear, (int)TimeCalendar.FloorMod(monthNumber, 12) + 1, NumericConversions.ToInt64Saturating(day));
+        var time = (NumericConversions.ToInt64Saturating(hour) * 3_600_000L) + (NumericConversions.ToInt64Saturating(minute) * 60_000L)
+            + (NumericConversions.ToInt64Saturating(second) * 1000L) + NumericConversions.ToInt64Saturating(millisecond);
         var wall = (days * 86_400_000L) + time;
         TimeCalendar.CivilFromDays(TimeCalendar.FloorDiv(wall, 86_400_000L), out _, out var rolledMonth, out var rolledDay);
         return calendar.FromParts(year, rolledMonth - 1, rolledDay, 0, 0, 0, TimeCalendar.FloorMod(wall, 86_400_000L));

@@ -2607,10 +2607,23 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteAutosizeIntegrationTests.cs"  # autosize fit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLabelExprIntegrationTests.cs"  # label expression tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteOffsetIntegrationTests.cs"  # offset channel tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLitePhase14SystemTests.cs"  # phase 14 additions
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteParamsIntegrationTests.cs"  # parameter and fold tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSelectionIntegrationTests.cs"  # selection tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBrushIntegrationTests.cs"  # brush mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSelectionExtentIntegrationTests.cs"  # extent tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs"  # documentation gallery tests
+      - "benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
+      - "benchmarks/visual-diff/README.md"                            # developer visual-diff harness documentation
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/FuzzRandom.cs"  # seeded random source of the fuzz suite
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/HangGuard.cs"  # generous wall-clock hang guard
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzGenerator.cs"  # specification generator
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzMutator.cs"  # fixture mutator
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzHarness.cs"  # fuzz oracle
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzTests.cs"  # fuzz suite, regressions
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteLimitAuditTests.cs"  # limit audit table
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteSourceGuardTests.cs"  # source guards
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteDeterminismTests.cs"  # determinism tiers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeTestSupport.cs"  # shared time test helpers (zones)
@@ -2849,8 +2862,10 @@ reviews:
       - "docs/verification/canvas-net-vega-lite/data/data-table.md"   # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/data/data-table.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataTable.cs"     # unit source (includes DataValue)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/NumericConversions.cs"  # unit source (saturating conversions)
       - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataObject.cs"    # unit source (composite array and object values)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTableTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/NumericConversionsTests.cs"  # unit tests (conversions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs"  # unit tests (composite values)
 
   # CanvasNetVegaLite-Data-DataLoader Review (one per unit)
@@ -3016,6 +3031,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsNumberTests.cs"  # tests (number)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsSelectionTests.cs"  # tests (fn)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsDistributionTests.cs"  # tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/SelectionTestSemanticsTests.cs"  # tests (semantics)
 
   # CanvasNetVegaLite-Transforms Review (one per subsystem)
@@ -3382,6 +3398,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderHeaderTests.cs"  # unit tests (header axes)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderLabelExprTests.cs"  # unit tests (labelExpr)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderStaticPropertiesTests.cs"  # tests (axis props)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderRangedOffsetTests.cs"  # tests (ranged offsets)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-LabelOverlap Review (one per unit)
@@ -3430,6 +3447,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderLabelExprTests.cs"  # unit tests (labelExpr)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTitleOrientTests.cs"  # tests (title orient)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderSelectionTests.cs"  # unit tests (legend bind)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderClipHeightTests.cs"  # unit tests (clipHeight)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-TimeLabels Review (one per unit)
@@ -3561,6 +3579,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTimeTests.cs"  # unit tests (time units)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderPathTests.cs"  # unit tests (line, area, trail)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderInvalidShowTests.cs"  # unit tests (invalid show)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderScaleInvalidTests.cs"  # tests (scale invalid)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderRangedOffsetTests.cs"  # tests (ranged offsets)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOrderTests.cs"  # unit tests (draw order)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOverlayTests.cs"  # unit tests (overlays)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTextTests.cs"  # unit tests (text)
@@ -3642,6 +3662,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterPathTests.cs"  # unit tests (paths)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterImageTests.cs"  # unit tests (pictures)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterBudgetTests.cs"  # unit tests (budget)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Scenegraph-ArcGeometry Review (one per unit)

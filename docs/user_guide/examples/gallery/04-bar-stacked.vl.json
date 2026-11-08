@@ -1,0 +1,26 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Horizontal stacked bars of loaves sold by a bakery, sorted by total, with the totals as text.",
+  "title": "Loaves sold per bakery stall",
+  "width": 300,
+  "height": {"step": 26},
+  "data": {"values": [
+    {"stall": "Harbor Road", "kind": "Rye", "loaves": 42}, {"stall": "Harbor Road", "kind": "Sourdough", "loaves": 65},
+    {"stall": "Harbor Road", "kind": "Seeded", "loaves": 23},
+    {"stall": "Mill Square", "kind": "Rye", "loaves": 30}, {"stall": "Mill Square", "kind": "Sourdough", "loaves": 48},
+    {"stall": "Mill Square", "kind": "Seeded", "loaves": 31},
+    {"stall": "Old Gate", "kind": "Rye", "loaves": 18}, {"stall": "Old Gate", "kind": "Sourdough", "loaves": 25},
+    {"stall": "Old Gate", "kind": "Seeded", "loaves": 12},
+    {"stall": "Pier Lane", "kind": "Rye", "loaves": 36}, {"stall": "Pier Lane", "kind": "Sourdough", "loaves": 71},
+    {"stall": "Pier Lane", "kind": "Seeded", "loaves": 40}
+  ]},
+  "mark": "bar",
+  "encoding": {
+    "y": {"field": "stall", "type": "nominal", "sort": "-x", "title": null},
+    "x": {"field": "loaves", "type": "quantitative", "aggregate": "sum", "title": "Loaves"},
+    "color": {
+      "field": "kind", "type": "nominal", "title": "Loaf",
+      "scale": {"range": ["#8c6d46", "#d9a441", "#6b8e4e"]}
+    }
+  }
+}

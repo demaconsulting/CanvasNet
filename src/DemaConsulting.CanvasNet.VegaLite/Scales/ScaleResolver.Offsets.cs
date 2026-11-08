@@ -19,8 +19,17 @@ internal enum OffsetDecision
     /// <summary>The position channel is missing, is continuous, or has a time unit that cannot hold an offset (<c>day</c>, <c>weekday</c>, binned or <c>maxbins</c> on a temporal field, a <c>rect</c> mark, or a time unit on a field that is neither temporal nor discrete): the offset is not drawn and the position is drawn without it.</summary>
     NoDiscreteParent,
 
-    /// <summary>A continuous offset of a <c>bar</c> or <c>area</c>, which Vega-Lite draws as a range from the start of the band: the offset is not drawn.</summary>
+    /// <summary>
+    ///     An unbinned quantitative offset of a <c>bar</c> or <c>area</c> whose position is a discrete field or datum and has no secondary channel (Vega-Lite's <c>isRangedOffset</c>): the mark spans from the baseline
+    ///     of the offset scale (zero, which its domain includes) inside the band to the offset value, which is drawn. The offset scale is a linear scale of its own, nested in the band of the position.
+    /// </summary>
     Ranged,
+
+    /// <summary>
+    ///     A continuous offset of a <c>bar</c> or <c>area</c> that is not a ranged offset: a temporal offset, a binned offset, a position with a secondary channel or with a time unit. Vega-Lite draws the mark at the offset
+    ///     value as for a point; the renderer does not, so the offset is not drawn and the feature catalog reports it.
+    /// </summary>
+    UnsupportedContinuous,
 }
 
 /// <content>
@@ -43,8 +52,15 @@ internal enum OffsetDecision
 ///         restrictions of the time units do not apply to it.
 ///     </para>
 ///     <para>
-///         <b>Not drawn.</b> An offset whose position is missing, continuous or has a time unit that cannot hold it (<see cref="OffsetDecision.NoDiscreteParent"/>) and a continuous
-///         offset of a bar or area (<see cref="OffsetDecision.Ranged"/>) have no scale; the feature catalog reports them.
+///         <b>Ranged offsets (Phase 14).</b> A <c>bar</c> or <c>area</c> whose discrete position has an unbinned quantitative offset and no secondary channel (<c>isRangedOffset</c> of <c>compile/unit.ts</c>
+///         at v6.5.0, <see cref="OffsetDecision.Ranged"/>) is drawn as a range from the zero of the offset scale to the offset value inside the band: the offset scale is linear and its <c>zero</c> is true
+///         (<c>zero</c> of <c>compile/scale/properties.ts</c>: <c>isXorYOffset(channel)</c> returns <c>hasRangedOffset</c>, so the other offsets never include zero), and the position axis puts its ticks and labels
+///         at the band start of an x position and the band end of a y position (<c>defaultBandPosition</c>). The ranged offset of a position that is missing is not drawn (see below).
+///     </para>
+///     <para>
+///         <b>Not drawn.</b> An offset whose position is missing (Vega-Lite spans bars from the top of the view and from half of the height: its output is not a chart that this renderer reproduces), continuous
+///         or has a time unit that cannot hold it (<see cref="OffsetDecision.NoDiscreteParent"/>) and a continuous offset of a bar or area that is not ranged (<see cref="OffsetDecision.UnsupportedContinuous"/>)
+///         have no scale; the feature catalog reports them.
 ///     </para>
 /// </remarks>
 internal static partial class ScaleResolver
@@ -94,8 +110,16 @@ internal static partial class ScaleResolver
             return OffsetDecision.NoDiscreteParent;
         }
 
-        var continuous = ChannelDefinitions.TypeOf(offset, offsetChannel, encoding) is "quantitative" or "temporal";
-        return continuous && markType is "bar" or "area" ? OffsetDecision.Ranged : decision;
+        var offsetType = ChannelDefinitions.TypeOf(offset, offsetChannel, encoding);
+        if (offsetType is not ("quantitative" or "temporal") || markType is not ("bar" or "area"))
+        {
+            return decision;
+        }
+
+        // isRangedOffset: no secondary channel, a discrete position and an unbinned quantitative offset (isUnbinnedQuantitativeFieldOrDatumDef)
+        return decision == OffsetDecision.Supported && offsetType == "quantitative" && !IsEnabled(offset["bin"]) && encoding[position + "2"] is null
+            ? OffsetDecision.Ranged
+            : OffsetDecision.UnsupportedContinuous;
     }
 
     /// <summary>
@@ -115,7 +139,27 @@ internal static partial class ScaleResolver
         var offsetChannel = channel + "Offset";
         return encoding[offsetChannel] is { IsObject: true } offset
             && HasFieldOrDatum(offset)
-            && DecideOffset(offsetChannel, encoding, markType) == OffsetDecision.Supported;
+            && DecideOffset(offsetChannel, encoding, markType) is OffsetDecision.Supported or OffsetDecision.Ranged;
+    }
+
+    /// <summary>
+    ///     Tells whether the offset of a position channel is a ranged offset: the mark spans from the baseline of the offset scale to the offset value (<see cref="OffsetDecision.Ranged"/>).
+    /// </summary>
+    /// <param name="channel">The channel; only <c>x</c> and <c>y</c> can hold one.</param>
+    /// <param name="encoding">The encoding object, or null.</param>
+    /// <param name="markType">The mark type.</param>
+    /// <returns><see langword="true"/> when the offset channel of the position is drawn as a range.</returns>
+    internal static bool HasRangedOffset(string channel, SpecNode? encoding, string markType)
+    {
+        if (channel is not ("x" or "y") || encoding is null)
+        {
+            return false;
+        }
+
+        var offsetChannel = channel + "Offset";
+        return encoding[offsetChannel] is { IsObject: true } offset
+            && HasFieldOrDatum(offset)
+            && DecideOffset(offsetChannel, encoding, markType) == OffsetDecision.Ranged;
     }
 
     /// <summary>

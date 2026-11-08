@@ -1,0 +1,22 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A scatter plot of invented seed counts: three varieties, size by weight (no size legend), shape by variety.",
+  "title": "Seeds per pod and pod length",
+  "width": 320,
+  "height": 200,
+  "data": {"sequence": {"start": 0, "stop": 45, "as": "i"}},
+  "transform": [
+    {"calculate": "10 + datum.i * 0.9 + 6 * sin(datum.i * 1.7)", "as": "length"},
+    {"calculate": "4 + datum.length * 0.45 + 3 * cos(datum.i * 2.3)", "as": "seeds"},
+    {"calculate": "['Amber', 'Basil', 'Cedar'][datum.i % 3]", "as": "variety"},
+    {"calculate": "1 + abs(sin(datum.i * 0.77))", "as": "weight"}
+  ],
+  "mark": {"type": "point", "filled": true, "opacity": 0.8},
+  "encoding": {
+    "x": {"field": "length", "type": "quantitative", "title": "Pod length (mm)"},
+    "y": {"field": "seeds", "type": "quantitative", "title": "Seeds"},
+    "color": {"field": "variety", "type": "nominal"},
+    "shape": {"field": "variety", "type": "nominal"},
+    "size": {"field": "weight", "type": "quantitative", "legend": null}
+  }
+}

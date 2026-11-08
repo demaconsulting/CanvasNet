@@ -119,6 +119,9 @@ that a file named twice in one call is requested once and counts once for a file
 `DataLoaderTests.DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate`,
 `DataLoaderTests.DataLoader_Load_SequenceUsesExclusiveStopAndAs`,
 `DataLoaderTests.DataLoader_Load_SequenceRowLimitIsCheckedBeforeAllocation`,
+`DataLoaderTests.DataLoader_Load_SequenceBeyondTheIntegerRangeOrTheCellLimitIsRefusedWhateverTheRowLimit`,
+`DataLoaderTests.DataLoader_Load_SequenceOfExactlyTheCellLimitIsAcceptedUnderALargeEnoughRowLimit`,
+`DataLoaderTests.DataLoader_ReserveDerivedRows_ComparesLongCountsExactly`,
 `DataLoaderTests.DataLoader_Load_SequenceMissingStartOrStopIsLocatedFailure`,
 `DataLoaderTests.DataLoader_Load_SequenceNonNumericEndpointsAreLocatedFailure`,
 `DataLoaderTests.DataLoader_Load_SequenceZeroOrNonFiniteStepIsLocatedFailure`,
@@ -143,7 +146,13 @@ failure at `/data/sequence`, while an absent step defaults to 1. A positive step
 negative step with the stop above the start, and equal endpoints give an empty table with the field. An endpoint
 difference that overflows (`-MaxValue` to `MaxValue`), a quotient that overflows with a tiny step, and a finite but
 astronomically long sequence fail against `MaxDataRows` at `/data/sequence` with no `Infinity` or `NaN` in the message
-and without allocating, while an overflowing difference in the wrong direction is still empty.
+and without allocating, while an overflowing difference in the wrong direction is still empty. The comparison with the
+row limit is made on integers (regression of a defect that review found): with `MaxDataRows` at `long.MaxValue`, a
+sequence of 2^63 (or 9.3e18, or 1e300) values is refused at `/data/sequence` with `(MaxDataRows)` because no long
+holds it, and a sequence of 2^53 (or 2^53 + 1, 1e12, or 33,554,433) values is refused with
+`(TableLayout.MaxCells)` before any row is generated (the bytes allocated stay small), while a sequence of 1,000 rows
+is accepted under the same limit; `ReserveDerivedRows` of a `long` compares exactly, so one above a limit of 2^53 is
+refused and exactly the limit is accepted.
 
 ##### Parse Failures Are Warnings
 

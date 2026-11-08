@@ -28,6 +28,8 @@ the language that is implemented.
 | matplotlib colormaps (Nathaniel J. Smith, Stefan van der Walt, Eric Firing; `BIDS/colormap`) | `colormaps.py` of the `main` branch, read on 2026-10-30 | CC0 1.0 (public domain dedication; the header asks for credit but imposes no legal restriction) | none (dedicated to the public domain) | `ColorSchemeData` (`Scales/`) | The color values of `viridis`, `magma`, `inferno` and `plasma`, as Vega samples them in 31 colors; credited here as the authors ask |
 | cividis (Jamie R. Nunez, Christopher R. Anderton, Ryan S. Renslow; Pacific Northwest National Laboratory) | `pnnl/cmaputil` `main` branch, read on 2026-10-30; the colors are Vega's sampling of the polynomial approximation in d3-scale-chromatic | Battelle Memorial Institute license of `pnnl/cmaputil` (permissive, BSD kind: redistribution with notice, conditions and disclaimer, no use of the name Battelle) | Copyright (c) 2017, Battelle Memorial Institute | `ColorSchemeData` (`Scales/`) | The 64 color samples of `cividis`; the license text is shipped as `LICENSE-cividis.txt` |
 | Turbo (Anton Mikhailov, Google LLC) | the published `turbo_colormap.py` header, read on 2026-10-30; the colors are Vega's sampling of the polynomial approximation in d3-scale-chromatic | Apache-2.0 | Copyright 2019 Google LLC | `ColorSchemeData` (`Scales/`) | The 64 color samples of `turbo`; the notice is shipped as `LICENSE-turbo.txt` together with the Apache License text |
+| Apache Commons Math (`commons-math3`; The Apache Software Foundation) | the `erfInv` approximation of Mike Giles as `vega-statistics` 2.0.0 `normal.js` ports it (read through that file, not from Commons Math itself) | Apache-2.0 | Copyright The Apache Software Foundation | `ExpressionFunctions.Distributions.cs` (`Expressions/`) | The coefficient tables and the three-range polynomial structure of the inverse error function behind `quantileNormal`, `quantileLogNormal`; the license text ships as `licenses\LICENSE-apache-2.0.txt` |
+| Vega (`vega-statistics`, `vega-functions`) | `vega` 6.4.0 line, `vega-statistics` 2.0.0, read on 2026-11-07 | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `ExpressionFunctions.Distributions.cs` (`Expressions/`) | The nine distribution functions of the expression language (`densityNormal`, `cumulativeNormal`, `quantileNormal`, `densityLogNormal`, `cumulativeLogNormal`, `quantileLogNormal`, `densityUniform`, `cumulativeUniform`, `quantileUniform`): the formulas, the constants, the approximation of West (2009) for the cumulative normal distribution and the JavaScript defaults of their arguments |
 | Vega (`vega-statistics`, `vega-transforms`, `vega-encode`) | `main` branch of the `vega` 6.4.0 line, read on 2026-10-29 | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `BinAlgorithm`, `AggregateMeasures`, `AggregateTransforms` and `StackRules` (`Transforms/`) | The bin algorithm of `vega-statistics` (the starting step `base^(round(log_base(span)) - level)`, the bounded-by-us growth of the step, the divisors, the `steps` choice, the rounding of the extent with the precision-based epsilon) and the assignment rules of the `bin` transform (the `1e-14` epsilon, the infinite bins outside the extent, the closed last bin, the anchor shift and the upper boundary formula); the semantics of the aggregate operations (the classification of missing and valid values, the incremental variance, the standard error, the exponential weighting formulas, distinct counts, min and max with the relational operators, argmin and argmax) and the default output names; the behavior rules of the `window` transform (the window-only operations, the default frame, the clamping of frame offsets, the widening of a frame to the peers of its rows), of the `stack` transform of `vega-encode` (separate positive and negative stacks, the `center` and `normalize` offsets) and of the `impute` transform (the missing key combinations, the appended rows, the methods over a window) |
 | Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `AggregateTransforms`, `EncodingPlan`, `EncodingTransforms` and `StackRules` (`Transforms/`), `ScaleResolver` (`Scales/`), `MarkBuilder` (`Marks/`), `AxisBuilder` (`Guides/`) | The default of ten bins for a `bin` transform without `maxbins` and `step`, and the output names of a `bin` transform given one name (`name` and `name_end`); the compile rules that turn an encoding into transforms (the order bin, aggregate, stack; the group-by and stack-by fields; which marks stack and in which direction, the default offset, the layer order and the `order` channel; the names of the derived fields such as `sum_x`, `__count`, `bin_maxbins_10_x` and `x_start`; the default titles such as `Sum of x`, `Count of Records` and `x (binned)`); the default `maxbins` of the channels; the scale domain of a stacked, binned or aggregated field (the union of start and end, no zero and no nice for a bin, the sort of a discrete domain by an aggregate over the unaggregated rows, `unaggregated`); the geometry of a binned bar or rect (the edges moved in by half the bin spacing, the minimum band size, the bin midpoint of point-like marks) and the tick count of a binned axis |
 | d3-time | 3.1.0 | ISC | Copyright 2010-2022 Mike Bostock | `TimeCalendar` (`Data/`: the `TimeInterval` type), `Ticks` (`Scales/`) | The calendar interval algorithms for the millisecond, second, minute, hour, day, week (Sunday based), month and year, in local (here: the zone of the render options) and UTC form: `floor`, `ceil`, `round`, `offset`, `count`, `every` (the filter-based forms for seconds, minutes, hours, days and months that floor to a multiple of a field of the unit, the closed forms for years and milliseconds, a result of nothing for a step that is not positive) and `range` (the start rounded up, the stop excluded); the day-of-the-month rule of a local `day.every` and the days-since-the-epoch rule of the UTC one |
@@ -455,11 +457,12 @@ verification documents), never output of Vega-Lite or Vega. The unit headers car
 | d3-format | `src/locale.js`, `src/formatSpecifier.js` | the specifier grammar and the number formats that `format()` of the expression language gives (the same rules as the `NumberFormat` row of the provenance table above), and that the type `c` prints the original value as text (`x + ""`) with the prefix, suffix and padding of the specifier |
 | Vega-Lite | `src/stack.ts`, `src/compile/unit.ts` | that the offset of the dimension is a group-by field of a stack and so not a stack-by field, that an aggregate with nothing to stack by is not stacked, that a continuous offset without a dimension disables the default stack, and which continuous offsets are ranged (the cases that are reported and not drawn) |
 
-Where this package deliberately differs from the upstream behavior: the ranged offset of a bar or an area and the offset
-of a
+Where this package deliberately differs from the upstream behavior: the offset of a
 position of a temporal field that has a time unit that cannot hold it (the day of the week, a binned unit, `maxbins`, or
-a `rect` mark) are reported (`vl-offset-ranged`,
-`vl-offset-position`) and not drawn; a mark without a band position over a time unit uses the middle of the unit where
+a `rect` mark), a continuous offset of a bar or an area that is not a ranged offset (a temporal or binned offset, a
+position with a secondary channel or with a time unit) and an offset whose position is missing are reported
+(`vl-offset-ranged`, `vl-offset-position`) and not drawn (the ranged offset of a bar or an area is drawn since Phase 14,
+see the Phase 14 section below); a mark without a band position over a time unit uses the middle of the unit where
 Vega-Lite computes NaN; the reference duration of a UTC unit
 is measured in UTC; `datum.size` and `datum.offset` of a symbol legend are null; the
 text of a date that a label expression converts is its ISO text; the custom `formatType` and the replacement of
@@ -530,7 +533,9 @@ is limited to 64 and the `bandwidth` of a loess to the range from 0 to 1, a nega
 value,
 and the transforms are bounded by the row budget, the evaluation step budget and the cancellation token of the call.
 The
-`erfinv` and probit functions of `normal.js` (which cite Apache Commons Math) are not used and not ported.
+`erfinv` and probit functions of `normal.js` (which cite Apache Commons Math) are not used by the transforms; the
+expression functions port them in Phase 14, see _Files read for the Phase 14 distribution functions, the ranged offsets,
+`clipHeight` and `config.scale.invalid`_ below.
 
 ## Files read for the image mark
 
@@ -576,12 +581,50 @@ checked against the output of `vega-parser` for the same legends.
 | Vega-Lite | `src/compositemark/boxplot.ts`, `errorbar.ts`, `common.ts` | the grouping channels of a composite mark and the time unit that a grouping channel carries |
 | d3-interpolate, d3-color | `dist/d3-interpolate.js` (`cubehelix`, `cubehelixLong`) and `dist/d3-color.js` (`Cubehelix`, `cubehelixConvert`) | the cubehelix constants, the conversions to and from sRGB, the gamma of the lightness, the hue difference of the short and the long way, and the grey rule |
 
+## Files read for the Phase 14 distribution functions, the ranged offsets, `clipHeight` and `config.scale.invalid`
+
+`ExpressionFunctions.Distributions.cs` (`Expressions/`), the ranged offsets (`ScaleResolver.Offsets.cs` and the zero rule
+of `ScaleResolver` in `Scales/`, the offset parts of `MarkBuilder` in `Marks/`, the band position of `AxisBuilder` in
+`Guides/`), the symbol legend entries with a clip height (`LegendBuilder.Symbols.cs` in `Guides/`) and the invalid output
+of a channel (`MarkBuilder.cs`, `ScaleModel.cs`) were written from the behavior of the files below. The distribution
+functions are a **port** of the vega-statistics functions, operation by operation, with their numeric constants; the rest
+is own C# code written from the behavior (no source text was copied). The upstream files were read in the checkouts of
+`vega` 6.4.0 (`vega-statistics` 2.0.0, `vega-functions`, `vega-parser`, `vega-scenegraph`, `vega-view-transforms`) and
+`vega-lite` 6.5.0. The expected numbers of the tests are numbers that `vega-statistics` 2.0.0 returns for the same calls
+(run once in Node.js and written into the test file), and the geometry of the offset, clip height and invalid tests is
+that of the SVG that `vega-lite` 6.5.0 and `vega` 6.4.0 draw for the same specifications, read once.
+
+| Project | File | What was taken |
+| ------- | ---- | -------------- |
+| Vega | `packages/vega-statistics/src/normal.js` | `densityNormal`, `cumulativeNormal` (the approximation of West, 2009, "Better Approximations to Cumulative Normal Functions": the two polynomials and the continued fraction with their coefficients and the thresholds 7.07106781186547 and 37) and `quantileNormal` (`mean + stdev * sqrt(2) * erfinv(2p - 1)`, NaN outside 0 to 1), and the JavaScript defaults (`mean \|\| 0`, `stdev == null ? 1 : stdev`); `erfinv` is the approximation of Mike Giles ("Approximating the erfinv function", GPU Computing Gems, volume 2, 2010) in the double precision form of Apache Commons Math that this file ports: the three polynomial ranges of `w = -ln((1 - x)(1 + x))` with their coefficient tables |
+| Apache Commons Math | `org.apache.commons.math3.special.Erf` (`erfInv`; read through the comment of `normal.js`, which cites it) | the coefficients of the polynomials of `erfinv`, which are numeric constants of the published approximation of Giles; Apache-2.0, the license text ships as `licenses\LICENSE-apache-2.0.txt` (see the provenance table: copyright The Apache Software Foundation) |
+| Vega | `packages/vega-statistics/src/lognormal.js`, `uniform.js` | `densityLogNormal` (zero for a value that is not above zero), `cumulativeLogNormal` and `quantileLogNormal` over the normal functions, and the three uniform functions with the rule that a missing maximum makes the minimum the maximum and zero the minimum |
+| Vega | `packages/vega-functions/src/codegen.js`, `packages/vega-statistics/src/random.js` | which statistics functions the expression language exposes (the nine density, cumulative and quantile functions and `random`, `sampleNormal`, `sampleLogNormal` and `sampleUniform`) and that `random` is the unseeded `Math.random`, which is why the sampling functions stay outside the closed function table |
+| Vega-Lite | `src/compile/unit.ts` (`isRangedOffset`), `src/encoding.ts` (`channelHasQuantitativeOffset`), `src/channeldef.ts` (`isUnbinnedQuantitativeFieldOrDatumDef`) | which offsets are ranged: a bar or area, no secondary channel, an unbinned quantitative offset, a missing or discrete position |
+| Vega-Lite | `src/compile/mark/encode/position-range.ts`, `position-rect.ts`, `position-point.ts`, `offset.ts`, `src/compile/mark/area.ts`, `src/compile/mark/init.ts` | the range of a ranged mark (the position plus the scaled offset value to the position plus the scaled zero of the offset scale), which end is which for a bar and an area, and the orientation that a ranged offset gives |
+| Vega-Lite | `src/compile/scale/properties.ts` (`zero`), `src/compile/scale/range.ts` (`getOffsetRange`), `src/compile/axis/properties.ts` (`defaultBandPosition`), `src/compile/axis/encode.ts` (`labelsPositionSpec`) | that the offset scale of a ranged offset includes zero and the other offset scales never do, its range (the bandwidth of the position, upward for a `yOffset`), and the default `bandPosition` 0 of x and 1 of y with the labels moved to it |
+| Vega | `packages/vega-parser/src/parsers/guides/legend-symbol-groups.js` | `clipHeight`: the symbol and the label at half of it, the clip of the symbols mark and the entry group of that height that counts in the bounds |
+| Vega | `packages/vega-scenegraph/src/marks/group.js`, `bound/boundClip.js`, `util/canvas/clip.js`, `packages/vega-view-transforms/src/layout/legend.js` (`legendEntryLayout`) | the bounds of a group and of a clipped mark (cut to the width and height of the group), the clip rectangle (the width and height of the group), and the width of an entry group (the widest entry of its column) and its height (the bottom edge of its bounds) |
+| Vega-Lite | `src/compile/legend/properties.ts` (`clipHeight`) | that Vega-Lite passes a clip height of 20 for a gradient legend only, which the gradient parser never reads |
+| Vega-Lite | `src/invalid.ts`, `src/compile/invalid/ScaleInvalidDataMode.ts`, `src/compile/mark/encode/invalid.ts`, `src/compile/data/filterinvalid.ts` | the entries of `config.scale.invalid` (`"zero-or-min"` or `{value}` per scale channel), that an entry makes its channel valid whatever the `invalid` mode (no filter, no path break), the test `!isValid(datum.f) \|\| !isFinite(+datum.f)`, and that the `{value}` is the output of the property as it is |
+
+Where this package deliberately differs from the upstream behavior: a ranged offset whose position channel is missing is
+reported (`vl-offset-position`) and not drawn (Vega-Lite draws the marks from the top of the view); the continuous
+offsets of a bar or area that are not ranged are reported (`vl-offset-ranged`); the sampling functions are not
+available (an expression must be a pure function of its row and parameters); a stacked channel ignores its entry of
+`config.scale.invalid`; an entry that is not `"zero-or-min"` or a number or text `value` is reported
+(`vl-scale-invalid-value`) and ignored; the scale domains still include the invalid rows; and the box of a legend entry
+that has a clip height uses the label bounds measured with the bundled fonts where Vega's headless output estimates the
+text.
+
 ## Expression language and row transforms (nothing ported)
 
 The units `ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions` (except its date and time functions, see
 _Files
 read for the time units, time formats and time scales_ above, its `format` function, see _Files read for label
-expressions and offset channels_ above, and its selection functions, see _Files read for selections_ above) and
+expressions and offset channels_ above, its selection functions, see _Files read for selections_ above, and its
+distribution functions, see _Files read for the Phase 14 distribution functions, the ranged offsets, `clipHeight` and
+`config.scale.invalid`_ above) and
 `ExpressionRegex` (`Expressions/`) and
 `RowTransforms`, `RowSampler`, `TableLayout` and `ParameterEnvironment` (`Transforms/`) are original C# code (except
 the cells of `pivot`, see _Files read for the statistical transforms_ above). Nothing
@@ -622,7 +665,8 @@ all copies. The license texts are therefore shipped in the NuGet package under `
   d3-scale-chromatic, d3-shape and d3-path (all ten copyright notices, verbatim)
 - `licenses\LICENSE-colorbrewer.txt` — Apache-2.0 notice of the ColorBrewer color schemes (verbatim, as published with
   d3-scale-chromatic)
-- `licenses\LICENSE-apache-2.0.txt` — the text of the Apache License, Version 2.0 (ColorBrewer and Turbo)
+- `licenses\LICENSE-apache-2.0.txt` — the text of the Apache License, Version 2.0 (ColorBrewer, Turbo, and the inverse
+  error function of Apache Commons Math behind the quantile functions)
 - `licenses\LICENSE-turbo.txt` — the Google notice of the Turbo color map (Apache-2.0)
 - `licenses\LICENSE-cividis.txt` — the Battelle Memorial Institute license of the cividis color map (verbatim)
 - `licenses\LICENSE-d3-regression.txt` — BSD-3-Clause, d3-regression (Harry Stevens; the regression models of Vega)

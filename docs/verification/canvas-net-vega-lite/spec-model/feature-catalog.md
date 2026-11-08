@@ -253,11 +253,13 @@ it reports only the function that the engine does not have (`vl-expr-function-lu
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported`
 
 Asserts that legends are not reported (the identifier `vl-guide-legend` is retired), that the legend properties that are
-not drawn are reported once each at the exact property (`vl-guide-legend-clipheight`, `vl-expr-function-luminance`
+not drawn are reported once each at the exact property (`vl-expr-function-luminance`
 (for a `labelExpr` that calls a color function, which
 the engine does not have; the retired `vl-expr-label` is never produced), `vl-format-type-custom` (for a format type
 that is not `number`, `time`, or `utc`: the test uses `myFormat`), and
-`vl-guide-encode`), in document order, and that a `titleOrient` of any value (`left` and `top` in the test, drawn since
+`vl-guide-encode`), in document order, and that a `clipHeight` (drawn since Phase 14, `vl-guide-legend-clipheight` is
+retired; the test uses `encode` where it used `clipHeight` before), a `titleOrient` of any value (`left` and `top` in
+the test, drawn since
 Phase 13, `vl-guide-legend-titleorient` is retired), a `symbolType` that is a valid path (`M0,0L1,1`) or a symbol
 name, a
 `null` legend, a null scale, and a legend
@@ -349,10 +351,9 @@ in document order. Since Phase 8 a time unit and a date-time object in a predica
 `vl-transform-filter-timeunit` (at the `timeUnit` of a predicate) nor `vl-transform-filter-datetime` (at a date object
 in `oneOf` and in `equal`) is produced; instead the same transform list asserts the time reports at the exact value:
 `vl-predicate-timeunit-part` at the `timeUnit` of a filter with the unit `yearweek` (`/transform/9/filter/timeUnit`),
-`vl-timeunit-maxbins` at a filter with `{"maxbins": 10}` (`/transform/10/filter/timeUnit`), `vl-timeunit-binned` at a
-filter with a binned object unit (`/transform/11/filter/timeUnit`) and at a `timeUnit` transform with the name
-`binnedyearmonth` (`/transform/12/timeUnit`), while the `timeUnit` transform with `{"maxbins": 10}` is silent because
-the transform applies `maxbins`.
+while a filter with `{"maxbins": 10}` or with a binned object unit, a `timeUnit` transform with the name
+`binnedyearmonth`, and one with `{"maxbins": 10}` are silent (Phase 14 retired `vl-timeunit-maxbins` and
+`vl-timeunit-binned`: they are applied).
 
 ##### Nested Views Apply Their Transforms And Report Their Variable Parameters
 
@@ -432,7 +433,8 @@ and in the legacy `selection` form) is evaluated and not reported (`vl-encoding-
 12); that a `timeUnit` and a date object inside an `or` are supported and not reported (the identifier
 `vl-encoding-condition-test` is retired), that the `yearweek` unit of a predicate is the warning
 `vl-predicate-timeunit-part` at the `timeUnit` of the test (`/encoding/color/condition/test/timeUnit`), and that a
-binned unit is `vl-timeunit-binned` at the same place; that a condition on `x` is `vl-encoding-condition` at the
+binned unit (including `binnedyearweek`) is silent (it builds no part); that a condition on `x` is
+`vl-encoding-condition` at the
 condition; and that a function outside the list in a test or in a `value.expr` is `vl-expr-function-now` at the text, a
 `temporal` field in a field condition is silent (the former `vl-type-temporal` is retired), and a `geojson` field is
 `vl-type-geojson` at its `type`. The over-budget test asserts that visiting a color condition whose test is a
@@ -479,23 +481,25 @@ at all (so none of `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-tim
 `vl-data-parse-date-format`, `vl-scale-time`, and `vl-scale-utc`); and a `timeUnit` transform in a nested view of an
 `hconcat` and in the `spec` of a `facet` is applied and silent since Phase 11.
 
-##### Time Unit Reports: Binned And Maxbins
+##### Time Unit Reports: Binned And Maxbins Are Applied
 
-**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
-`FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly`,
+**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsNotReported`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsNotReported`,
 `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
 `FeatureCatalogTimeTests.FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows`
 
-Asserts that a binned unit, by the name `binnedyearmonth` or by the object `{"unit":"yearmonth","binned":true}`, is
-`vl-timeunit-binned` at the `timeUnit` value (`/encoding/x/timeUnit`) while `binned: false` is silent; that the
-`{"maxbins": 10}` form is silent in an encoding and in the `timeUnit` transform (where the extent of the data resolves
-it) and is `vl-timeunit-maxbins` in a predicate (`/transform/0/filter/timeUnit`), which has no data extent to bin; that
+Asserts that a binned unit, by the name `binnedyearmonth` or by the object `{"unit":"yearmonth","binned":true}`, reports
+nothing in an encoding and in the `timeUnit` transform (Phase 14 retired `vl-timeunit-binned`), as `binned: false`; that
+the `{"maxbins": 10}` form reports nothing in an encoding, in the `timeUnit` transform, and in a predicate (retired
+`vl-timeunit-maxbins`: a predicate compares the field as it is); that
 a predicate whose unit has a `week` or `dayofyear` part (`yearweek` in a filter, `dayofyear` inside an `and`) is the
 warning `vl-predicate-timeunit-part` at the `timeUnit` of the predicate (`/transform/0/filter/timeUnit` and
 `/transform/1/filter/and/0/timeUnit`), of kind `Warning`, while `yearmonth` in a predicate and `yearweek` in an
-encoding are silent. Through the public API, a render in strict mode of a specification with a binned unit throws a
-`VegaLiteUnsupportedFeatureException` whose `Feature` is `vl-timeunit-binned`, the same specification rendered leniently
-delivers exactly one report `vl-timeunit-binned /encoding/x/timeUnit` to the unsupported-feature handler, and the
+encoding are silent. Through the public API, a strict render of a specification with an unsupported part that is
+still reported (`axis.encode`, `vl-guide-encode`) throws a `VegaLiteUnsupportedFeatureException` whose `Feature` is that
+identifier, the same specification rendered leniently delivers exactly one report
+`vl-guide-encode /encoding/x/axis/encode` to the unsupported-feature handler (the identifiers of the binned and `maxbins`
+units are retired), and the
 `yearweek` predicate is delivered as a warning (its message names the week) and does not throw in strict mode.
 
 ##### Band Position, Datum, And Interval Reports
@@ -650,7 +654,7 @@ view and of its layers, a `regression` in a layer of a facet included.
 **Tests**: `FeatureCatalogCompositionTests.FeatureCatalog_Visit_ConcatAndRepeatAreNotReported`,
 `FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetAndFacetedUnitViewAreNotReported`,
 `FeatureCatalogCompositionTests.FeatureCatalog_Visit_RowColumnChannelInLayerOrFacetSpecStillReported`,
-`FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetFieldTransformIsReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetFieldTransformIsNotReported`,
 `FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetSortByAggregateIsNotReported`,
 `FeatureCatalogCompositionTests.FeatureCatalog_Visit_HeaderOrientExprAndFormatTypeAreReported`,
 `FeatureCatalogCompositionTests.FeatureCatalog_Visit_CompositionPropertiesIgnoredAreWarnedAbout`,
@@ -665,11 +669,10 @@ report; that a `facet` (a field, or `row` and `column`), and a unit view with a 
 an angle and a title of null, and a transform on the view (`vl-composition-facet` is retired); that the faceting
 channels of a unit that cannot be faceted (a layer, a channel that a layered view passes to its layers, and the `spec`
 of a facet) are still `vl-channel-row`, `-column`, and `-facet` at the channel, with a message that says the channel
-only facets a unit view that is not a layer or the spec of a facet; that a `bin` and an `aggregate` of a
-facet field, and a `maxbins` or binned `timeUnit`, are `vl-facet-field-transform` at that property, in the operator
-and in
-the channel of a unit view (`bin: false`, `timeUnit: null`, and `aggregate: null` report nothing, and a `timeUnit` of
-`yearmonth` is applied since Phase 13 and silent); that a `sort` by a field and an operation (`mean`), by the operation
+only facets a unit view that is not a layer or the spec of a facet; that a `bin`, an `aggregate`, and a `timeUnit` of a
+facet field (a unit, a binned unit, and the `maxbins` form), in the operator and in
+the channel of a unit view, are silent (Phase 14 retired `vl-facet-field-transform`; `bin: false`, `timeUnit: null`, and
+`aggregate: null` report nothing as well); that a `sort` by a field and an operation (`mean`), by the operation
 `count` with an order, `null`, `descending`, and an array are all silent (`vl-facet-sort` is retired); that
 `header.labelExpr` is evaluated and reports only
 what its
@@ -706,27 +709,26 @@ construct is written; and that a view inside a layered view that sets a
 ##### Composite Marks Are Drawn, And The Grouping And Error Channels Are Gated
 
 **Tests**: `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels`,
-`FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOrAggregateOfAGroupingChannelIsNotReported`,
 `FeatureCatalogCompositeTests.FeatureCatalog_Visit_TimeUnitOfAGroupingChannelIsNotReported`,
-`FeatureCatalogCompositeTests.FeatureCatalog_Visit_AggregateOfAGroupingChannelIsReportedButNotTheMeasure`,
-`FeatureCatalogCompositeTests.FeatureCatalog_Visit_GroupingReportFollowsTheOrientationAndLayers`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_GroupingFormsAreNotReportedWhateverTheOrientationAndLayers`,
 `FeatureCatalogCompositeTests.FeatureCatalog_Visit_UndecidableBoxPlotAndRetiredIdentifier`,
 `FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarAndErrorBandAreSupportedWithTheirChannels`,
 `FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported`,
 `FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarReportsTheChannelsItDoesNotDraw`,
-`FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarGroupingIsReportedAtTheGroupingChannel`
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarGroupingIsNotReported`
 
 Asserts that a plain `boxplot`, `errorbar`, and `errorband` (also with the range `x2` and `y2` and the errors `xError`
 and `yError2` that the error marks use, and the `shape` and `size` channels that the outliers and the box draw) produce
-no report and that the retired identifiers are never produced; that a `bin` and a `maxbins` `timeUnit`, and an
-`aggregate`, on a
-channel that groups the rows are `vl-composite-grouping` at that channel, while a `timeUnit` with parts (`year`) on a grouping
-channel of a `boxplot`, an `errorbar`, and an `errorband` is applied since Phase 13 and silent
-(`FeatureCatalog_Visit_TimeUnitOfAGroupingChannelIsNotReported`), and the measure, the secondary channels, and
-the tooltip are not grouping channels (a bin of the measure is not reported by this rule); that the measure is the
-continuous channel of the orientation (for a horizontal box plot `y` groups the rows), that the report is made for a
-composite mark inside layers (at the channel of the layer, once for an inherited channel) and not for the other marks,
-and that an orientation that cannot be decided adds no report (the render fails with a specification error instead);
+no report and that the retired identifiers are never produced; that a `bin` (also of an ordinal channel), a `maxbins`
+and a
+binned `timeUnit`, and an `aggregate`, on a channel that groups the rows are silent (Phase 14 retired
+`vl-composite-grouping`), as is a `timeUnit` with parts (`year`) on a grouping
+channel of a `boxplot`, an `errorbar`, and an `errorband`
+(`FeatureCatalog_Visit_TimeUnitOfAGroupingChannelIsNotReported`), and a bin of the measure and the tooltip is the
+ordinary bin of the channel; that the grouping forms report nothing whatever the orientation of the mark (a horizontal
+box plot) and the layers (a channel inherited from the layer above); and that an orientation that cannot be decided
+adds no report (the render fails with a specification error instead);
 that, for an error mark, the orientation comes from the range or error channels when they are given; that the error
 channels are reported on a mark that does not use them (`vl-channel-xerror`, `-xerror2`, `-yerror`, and `-yerror2`, once
 at each channel) while `x2` and `y2` are still reported for a mark that has no range; and that the `size` channel of an
@@ -761,11 +763,27 @@ unit (a bar or a `rect`: an ordinary band parent); that an offset whose position
 missing, or is temporal with the unit `day`, a `maxbins` unit, or on a `rect`
 mark is
 `vl-offset-position` at `/encoding/xOffset` (and at `/encoding/yOffset` for `yOffset`), while a temporal `x` with the
-unit `year` has no report (the offset is drawn inside the unit) and
-a continuous offset of a bar or area is `vl-offset-ranged`; that an explicit `point` scale type on a position that holds
+unit `year` has no report (the offset is drawn inside the unit); that a quantitative offset of a bar over a nominal `x`
+(a ranged offset, drawn since Phase 14) has no report and a temporal offset of the same bar is `vl-offset-ranged` at
+`/encoding/xOffset` (the identifier is narrowed to the continuous offsets that are not ranged); that an explicit
+`point` scale type on a position that holds
 an offset (also a nominal one with a time unit) is the warning `vl-scale-type-ignored` at
 `/encoding/x/scale/type`; and that the `for` of a width step accepts
 `position` and `offset` and any other value is a `VegaLiteSpecException` located at `/width/for`.
+
+##### Unreadable Scale Invalid Entries Are Reported
+
+**Tests**: `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_UnreadableScaleInvalidEntriesAreReported`
+
+Asserts, for a specification whose `config.scale.invalid` has the entries `x: "zero-or-min"`, `y: {"value": 5}`, and
+`color: {"value": "#aaa"}` (readable, not reported), `size: {"value": {"expr": "1"}}` (an expression reference, reported
+by the generic check as `vl-expr-ref` at `/config/scale/invalid/size/value` and not twice), and `opacity: {"value": null}`,
+`fill: {"value": true}`, `stroke: "other"`, `angle: 3`, and `shape: {"value": [1]}` (not readable), that
+`vl-scale-invalid-value` is reported exactly five times, once at each unreadable entry
+(`/config/scale/invalid/opacity`, `/fill`, `/stroke`, `/angle`, and `/shape`), in document order, and that the
+readable entries produce no `vl-scale-invalid-value` report. The system test
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported` asserts the
+report, with its location and strict mode, from a specification text.
 
 ##### The Image Mark And Its Channels Are Reported Only When They Cannot Be Drawn
 

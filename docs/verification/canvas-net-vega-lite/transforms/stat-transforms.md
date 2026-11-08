@@ -147,7 +147,8 @@ values.
 `StatisticsPrimitivesTests.StatisticsPrimitives_Quantiles_AreLinearInterpolationOfTheSortedNumbers`,
 `..._Numbers_DropsNullEmptyAndNaNAndConvertsTheRest`,
 `..._Deviation_IsTheSampleDeviationOfTheNonNullNumbers`, `..._Extent_FollowsJavaScriptComparison`,
-`..._RangeCount_MatchesTheLengthOfD3Range`, `..._IsTruthy_ZeroAndNaNAreFalsy`,
+`..._RangeCount_MatchesTheLengthOfD3Range`, `..._RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue`,
+`..._IsTruthy_ZeroAndNaNAreFalsy`,
 `..._JsMinAndJsMax_PropagateNaN`, `..._NullArguments_Throw`
 
 Asserts that the default step gives the probabilities 0.005 to 0.995 (100 rows), that `step: 0.25` gives 0.125, 0.375,
@@ -189,14 +190,31 @@ counting toward the group size, and an empty table giving an empty result with t
 `..._OutputBeyondTheFieldLimitFailsAtTheTransform`, `..._Loess_WorkBeyondTheStepBudgetFailsAtTheTransform`,
 `..._RegressionAndLoess_StopWhenCanceled`, `..._IsDeterministic`;
 `StatTransformsDensityTests.StatTransforms_Density_StepsBeyondTheRowBudgetFailAtTheTransform`,
+`..._StepsBeyondTheCellLimitWithAnUnboundedRowBudget_FailAtTheCellLimit`,
 `..._WorkBeyondTheStepBudgetFailsAtTheTransform`, `..._StopsWhenCanceled`;
 `StatTransformsQuantileTests.StatTransforms_Quantile_TinyStepBeyondTheRowBudgetFailsAtTheTransform`,
-`..._StopsWhenCanceled`, `StatTransforms_Apply_ReleasesTheInputRowsWhenTheOutputIsComplete`
+`..._StepWithACountBeyondLong_FailsLocatedAtTheRowBudget`,
+`..._StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit`,
+`..._StopsWhenCanceled`, `StatTransforms_Apply_ReleasesTheInputRowsWhenTheOutputIsComplete`;
+`LoessFitTests.LoessFit_Cost_CountsEachWeightEvaluationAsThreeElements`,
+`LoessFitTests.LoessFit_Cost_SaturatesForTheLargestGroups`,
+`StatTransformsDensityTests.StatTransforms_Density_KernelCostDoesNotWrapForTheLargestGroups`
 
 Asserts that a curve, a density grid, or a quantile list beyond `MaxRows` is a `VegaLiteRenderException` located at the
-transform before the rows exist, that work beyond `MaxEvaluationSteps` is a located failure, that an output beyond the
+transform before the rows exist (also a quantile step whose count of probabilities no integer holds, on every target
+framework, and one beyond the cell limit when the row limit is raised to its maximum, as is a density with 1e17 or 1e300
+steps: the generated curves of the statistical transforms are bounded by the cells of a table as well, before any point
+is computed), that work beyond
+`MaxEvaluationSteps` is a located failure, that an output beyond the
 field or cell limit fails, that a canceled token throws `OperationCanceledException`, that the input rows are released
-when the output is complete, and that two runs give identical tables.
+when the output is complete, and that two runs give identical tables. Asserts the calibration of the work estimate
+(phase 14): the cost of a loess of 1,000 points with a bandwidth of 1 is 1,000 times 1,002 times 3 passes times 3
+elements plus 16,000 for the sort, a bandwidth that no integer window can hold is a window of every point, and a loess
+of 20,000 points with a bandwidth of 1 costs more than the whole default budget of 3.2 billion elements (it ran eleven
+seconds before the weights were set). The estimates cannot wrap into free work: the loess estimate for the largest
+group saturates at the largest long, the density charge of a group of `int.MaxValue` rows is four times that in a long
+(not a wrapped int), and the meter adds a pending count of 63 elements and the largest long as a saturated count that
+exhausts the budget (regression of a defect that review found).
 
 ##### System Integration
 

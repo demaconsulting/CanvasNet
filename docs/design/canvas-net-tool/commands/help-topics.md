@@ -122,6 +122,8 @@ are formatted with the invariant culture and no thousands separator.
 | `vlMaxDataFiles` | `VegaLiteLimits.Default.MaxDataFiles` |
 | `vlMaxDataBytes` | `VegaLiteLimits.Default.MaxDataBytes` |
 | `vlMaxDataRows` | `VegaLiteLimits.Default.MaxDataRows` |
+| `vlMaxImages` | `VegaLiteLimits.Default.MaxImages` |
+| `vlMaxPaintedPixels` | `VegaLiteLimits.Default.MaxPaintedPixels` |
 | `fragmentMaxLength` | `ImageFragment.MaxLength` |
 | `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
 

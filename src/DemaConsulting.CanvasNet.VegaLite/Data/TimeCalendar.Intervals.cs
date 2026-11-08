@@ -696,7 +696,7 @@ internal sealed class TimeInterval
         else if (_kind == TimeIntervalKind.Second)
         {
             // d3 reads the UTC second, which is the same in every zone
-            field = TimeCalendar.FloorMod((long)Math.Floor(t / 1000.0), 60);
+            field = TimeCalendar.FloorMod(NumericConversions.ToInt64Saturating(Math.Floor(t / 1000.0)), 60);
         }
         else
         {

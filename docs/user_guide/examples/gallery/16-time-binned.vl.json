@@ -1,0 +1,37 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Time units: daily rows are grouped into months with a timeUnit, and a second chart reads dates that are already floored to the month with a binned unit.",
+  "title": "Time units",
+  "hconcat": [
+    {
+      "title": "Rides per month (timeUnit)",
+      "width": 200,
+      "height": 170,
+      "data": {"sequence": {"start": 0, "stop": 360, "as": "i"}},
+      "transform": [
+        {"calculate": "datetime(2024, 0, 1 + datum.i)", "as": "day"},
+        {"calculate": "10 + 8 * sin(datum.i / 58) + (datum.i % 7)", "as": "rides"}
+      ],
+      "mark": "bar",
+      "encoding": {
+        "x": {"field": "day", "type": "temporal", "timeUnit": "yearmonth", "title": "Month", "axis": {"labelAngle": -45}},
+        "y": {"field": "rides", "type": "quantitative", "aggregate": "sum", "title": "Rides"}
+      }
+    },
+    {
+      "title": "Binned units",
+      "width": 200,
+      "height": 170,
+      "data": {"values": [
+        {"start": "2024-01-01", "score": 12}, {"start": "2024-02-01", "score": 19},
+        {"start": "2024-03-01", "score": 15}, {"start": "2024-04-01", "score": 27},
+        {"start": "2024-05-01", "score": 22}, {"start": "2024-06-01", "score": 31}
+      ]},
+      "mark": {"type": "bar", "color": "#59a14f", "stroke": "white"},
+      "encoding": {
+        "x": {"field": "start", "type": "temporal", "timeUnit": "binnedyearmonth", "title": "Month", "axis": {"format": "%b"}},
+        "y": {"field": "score", "type": "quantitative", "title": "Score"}
+      }
+    }
+  ]
+}

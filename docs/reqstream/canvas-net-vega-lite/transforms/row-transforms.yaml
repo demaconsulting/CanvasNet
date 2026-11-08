@@ -178,7 +178,8 @@ sections:
                 title: >-
                   The RowTransforms unit shall group the rows by the groupby fields in first-seen order,
                   turn the distinct texts of the pivot field into columns in ordinal order (keeping the first
-                  limit of them), fill each cell with the result of any aggregate operation of Vega (the sum
+                  limit of them, a limit that no integer can hold keeping every one), fill each cell with the
+                  result of any aggregate operation of Vega (the sum
                   by default; count, valid, missing, distinct, mean, average, variance, variancep, stdev,
                   stdevp, stderr, median, q1, q3, ci0, ci1, min, max, argmin, argmax, values, product,
                   exponential, and exponentialb) over the rows of the group that have that pivot value,
@@ -195,6 +196,7 @@ sections:
                   - RowTransforms_Apply_PivotCountsAndComputesTheOtherOperations
                   - RowTransforms_Apply_PivotComputesTheOperation
                   - RowTransforms_Apply_PivotDefaultsToTheSumAndAppliesTheLimit
+                  - RowTransforms_Apply_PivotLimitBeyondLong_KeepsEveryPivotValue
                   - RowTransforms_Apply_PivotWithoutGroupsAggregatesEveryRowOfAValue
                   - RowTransforms_Apply_PivotValuesAreTheRowsOfTheGroup
                   - RowTransforms_Apply_PivotArgMinAndArgMaxReturnTheRows

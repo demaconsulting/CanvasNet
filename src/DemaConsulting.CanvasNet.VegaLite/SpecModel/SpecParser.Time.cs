@@ -105,6 +105,12 @@ internal sealed partial class SpecParser
         {
             throw Error(node, "A time unit object needs a 'unit' or a 'maxbins'.");
         }
+
+        // A binned unit is already floored to a unit, so it names one (Vega-Lite reads the smallest part of its unit and fails without it)
+        if (node["binned"] is { IsBoolean: true, BoolValue: true } binned && node["unit"] is null)
+        {
+            throw Error(binned, "A binned time unit needs a 'unit'.");
+        }
     }
 
     /// <summary>

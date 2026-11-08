@@ -269,3 +269,46 @@ sections:
                   - ScenePainter_Paint_WithoutResolver_DrawsNothingAndReportsNothing
                   - SceneImageSource_Get_ResolverThrows_PropagatesUnchanged
                   - SceneImageSource_Get_KeyIncludesTheDeviceSize
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-PaintBudget
+                title: >-
+                  The ScenePainter unit shall count the device pixels that a painting fills, strokes and draws against
+                  the paint limit it was given (VegaLiteLimits.MaxPaintedPixels) before it does the work of each item -
+                  the box of a fill (the bounds of the path, arcs included, widened to whole pixels) cut to the
+                  surface (or to the clip layer that the item is drawn on), the box of a
+                  stroke grown by half its width, the estimated box of each line of text where it is drawn (nothing
+                  for text that is not drawn, cut off or off the surface), the box of a picture and the pixels of
+                  each resampled copy that is made, and the pixels of a clip layer and of the layers of a translucent
+                  trail - charging nothing for an item outside the surface, accepting a total exactly at the limit,
+                  and failing the painting with a VegaLiteRenderException that names VegaLiteLimits.MaxPaintedPixels
+                  and is located at the item or at the nearest enclosing group that has a location (the marks group
+                  of a mark has the location of the mark) before the item that did not fit is painted; shall count
+                  nothing when it has no limit; and shall make the resampled or translucent copy of a picture once for
+                  the items that draw the same picture at the same size and opacity, keeping at most a bounded number
+                  of pixels of copies.
+                justification: |
+                  The number of scene items does not bound the area they cover: marks of a million square pixels,
+                  strokes thousands of pixels wide and pictures without a size are cheap to describe and take minutes
+                  to paint, so a hostile specification would otherwise exhaust time without breaking any other limit.
+                tests:
+                  - ScenePainter_Paint_FullSurfaceRects_AreChargedTheirBoxBeforeThePaint
+                  - ScenePainter_Paint_ItemThatDoesNotFit_IsNotPainted
+                  - ScenePainter_Paint_FailureIsLocatedAtTheItemOrTheNearestLocatedGroup
+                  - ScenePainter_Paint_BoxIsCutToTheSurface_AndAnItemOutsideCostsNothing
+                  - ScenePainter_Paint_StrokeIsChargedItsBoxGrownByHalfTheWidth
+                  - ScenePainter_Paint_FillAndStrokeAreTwoCharges
+                  - ScenePainter_Paint_ClipLayerAndItsContentAreCharged
+                  - ScenePainter_Paint_TextIsChargedAnEstimatedBox
+                  - ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine
+                  - ScenePainter_Paint_TextBeyondTheSurfaceIsNotChargedAndTextAtTheEdgeIsChargedThePartThatIsOnIt
+                  - ScenePainter_Paint_TextTruncatedByItsLimitIsChargedTheWidthItKeeps
+                  - ScenePainter_Paint_TextThatIsNotDrawnIsNotCharged
+                  - ScenePainter_Paint_RotatedTextIsChargedTheSquareAroundItsAnchorCutToTheSurface
+                  - ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea
+                  - ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer
+                  - ScenePainter_Paint_WithoutALimit_CountsNothing
+                  - ScenePainter_Paint_LimitIsPerPainting
+                  - ScenePainter_Paint_PictureBox_IsChargedBeforeItIsDrawnAndLocatedAtTheMark
+                  - ScenePainter_Paint_NonSmoothPictureCopy_IsMadeOnceForTheItemsThatShareIt
+                  - SceneImageSource_GetTile_SharesCopiesAndBoundsWhatItKeeps
+                  - VegaLiteDocument_Render_ImageMarkWithoutSize_IsBoundedByThePaintLimitAndResamplesOnce

@@ -29,6 +29,7 @@
         { "term": "Specification", "text": "At most {{vlMaxSourceLength}} characters (corrupt-input) and JSON nesting depth {{vlMaxJsonDepth}} (vega-lite-error)." },
         { "term": "Data files", "text": "At most {{vlMaxDataFiles}} files, {{vlMaxDataBytes}} bytes per file, and {{vlMaxDataRows}} rows in total; beyond that the chart fails with budget-exceeded." },
         { "term": "Pictures", "text": "At most {{vlMaxImages}} different pictures (image marks); beyond that the chart fails with budget-exceeded." },
+        { "term": "Painting", "text": "At most {{vlMaxPaintedPixels}} device pixels painted in one render (fills, strokes, text, and pictures that cover the image count by the area they cover, so marks with huge sizes or stroke widths, or pictures without a size, are stopped); beyond that the chart fails with budget-exceeded, located at the mark." },
         { "term": "Size", "text": "A chart that lays out larger than {{maxDimension}} pixels on a side is size-limit." }
       ]
     },

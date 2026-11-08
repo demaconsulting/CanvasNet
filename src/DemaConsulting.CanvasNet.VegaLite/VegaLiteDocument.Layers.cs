@@ -210,7 +210,7 @@ public sealed partial class VegaLiteDocument
                 IReadOnlyList<FacetCellData>? cellTables = null;
                 if (node.Kind == ViewKind.Facet && !node.HasCells)
                 {
-                    cellTables = InstantiateFacet(tree, node, table, nodeContext, needed, units);
+                    cellTables = InstantiateFacet(tree, node, table, nodeContext, needed, units, config);
                 }
 
                 for (var i = node.Children.Count - 1; i >= 0; i--)
@@ -247,11 +247,12 @@ public sealed partial class VegaLiteDocument
     /// <param name="context">The context of the transforms (row budget, limits, token).</param>
     /// <param name="needed">The views that the walk visits; receives the views of the cells that are drawn.</param>
     /// <param name="units">The units that the walk builds a layer for; receives the units of the cells that are drawn.</param>
+    /// <param name="config">The effective configuration (the number format of the text of a binned facet field).</param>
     /// <returns>The cells with their rows, in the order of the facet's children.</returns>
-    private static IReadOnlyList<FacetCellData> InstantiateFacet(LayerTree tree, LayerNode facet, DataTable table, TransformContext context, HashSet<LayerNode> needed, HashSet<LayerNode> units)
+    private static IReadOnlyList<FacetCellData> InstantiateFacet(LayerTree tree, LayerNode facet, DataTable table, TransformContext context, HashSet<LayerNode> needed, HashSet<LayerNode> units, ResolvedConfig config)
     {
         var (perCell, outside) = tree.FacetViews(facet);
-        var partition = EncodingTransforms.Facet(facet.Facet!, table, perCell, outside, context);
+        var partition = EncodingTransforms.Facet(facet.Facet!, table, perCell, outside, context, config);
         tree.InstantiateFacet(facet, partition.Infos);
 
         // The copies of the units that are drawn: a walk below the facet (the tree is small enough: the number of views was checked against MaxViews)

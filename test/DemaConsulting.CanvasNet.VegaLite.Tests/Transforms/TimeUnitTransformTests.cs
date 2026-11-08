@@ -245,17 +245,45 @@ public class TimeUnitTransformTests
     }
 
     /// <summary>
-    ///     Validates that a binned unit does not floor: the value is the start and the end follows one step later.
+    ///     Validates that the transform floors a binned unit like any other (Vega's <c>timeunit</c> has no <c>binned</c> parameter, which Vega-Lite's <c>assemble</c> passes through and Vega ignores):
+    ///     the 15th of March is floored to the first of the month, and a value that is the start already stays.
     /// </summary>
     [Fact]
-    public void TimeUnitTransform_BinnedUnit_KeepsTheValueAsTheStart()
+    public void TimeUnitTransform_BinnedUnitInTheTransform_FloorsLikeTheUnit()
     {
-        // Act: 2024-03-01T00:00Z is the start of its month already
-        var table = Run(UnitSpec("[{\"d\":\"2024-03-01T00:00:00Z\"}]", "\"binnedyearmonth\""));
+        // Act
+        var table = Run(UnitSpec("[{\"d\":\"2024-03-01T00:00:00Z\"},{\"d\":\"2024-03-15T10:00:00Z\"}]", "\"binnedyearmonth\""));
 
         // Assert
         Assert.Equal(1_709_251_200_000, Ms(table, 0, "u"));
         Assert.Equal(1_711_929_600_000, Ms(table, 0, "u_end"));
+        Assert.Equal(1_709_251_200_000, Ms(table, 1, "u"));
+        Assert.Equal(1_711_929_600_000, Ms(table, 1, "u_end"));
+    }
+
+    /// <summary>
+    ///     Validates the end-only request of the encoding of a binned unit (Vega-Lite's <c>timeOffset(part, field, step)</c> formula): the start field is not added, the end is one step of the smallest part
+    ///     after the value as it is (a month after the 15th of March is the 15th of April, not the first), the step of the unit applies, a <c>utc</c> unit adds in UTC, and a value that is not a date has no end.
+    /// </summary>
+    [Fact]
+    public void TimeUnitTransform_EndOnly_AddsTheEndOfTheValueAsItIs()
+    {
+        // Arrange
+        var (table, context, _, tree, _) = Prepare(UnitSpec("[{\"d\":\"2024-03-15T10:00:00Z\"},{\"d\":null},{\"d\":\"2024-12-31T00:00:00Z\"},{\"d\":\"2024-01-31T00:00:00Z\"},{\"d\":\"2024-02-29T00:00:00Z\"}]", "\"binnedyearmonth\""));
+        var node = tree.Root["transform"]!.Items[0];
+        TimeUnitSpec Read(string text) => TimeUnitSpec.TryParse(text, out var parsed, out _) ? parsed : throw new InvalidOperationException();
+        var month = new TimeUnitRequest("d", "d", "d_end", Read("binnedyearmonth"), node, EndOnly: true);
+        var year = new TimeUnitRequest("d", "d", "d_year_end", Read("binnedutcyear"), node, EndOnly: true);
+
+        // Act
+        var result = TimeUnitTransform.Apply(table, [month, year], context, tree.Locate(node));
+
+        // Assert: the start name is not a new field (the field is the start already) and the ends are added; like Vega's timeOffset an overflowing day rolls over (January 31 plus a month is March 2,
+        // February 29 plus a year is March 1) and the value is not floored (the 15th stays the 15th)
+        Assert.Equal(table.Fields.Concat(["d_end", "d_year_end"]).Order(StringComparer.Ordinal), result.Fields.Order(StringComparer.Ordinal));
+        Assert.Equal([TimeTestSupport.Ms(2024, 4, 15, 10), double.NaN, TimeTestSupport.Ms(2025, 1, 31), TimeTestSupport.Ms(2024, 3, 2), TimeTestSupport.Ms(2024, 3, 29)], Dates(result, "d_end"));
+        Assert.Equal([TimeTestSupport.Ms(2025, 3, 15, 10), double.NaN, TimeTestSupport.Ms(2025, 12, 31), TimeTestSupport.Ms(2025, 1, 31), TimeTestSupport.Ms(2025, 3, 1)], Dates(result, "d_year_end"));
+        Assert.Equal(table.GetValue(0, "d"), result.GetValue(0, "d"));
     }
 
     /// <summary>

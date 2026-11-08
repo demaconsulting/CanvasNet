@@ -42,15 +42,18 @@ sections:
                 title: >-
                   The TimeUnitTransform unit shall add the end field of each request, the start moved
                   forward by one step of the smallest part of the unit as the Vega timeUnit transform
-                  does, so that a bar or a rect can span its unit, and, for a binned unit, shall keep the
-                  value as the start and give the end one step later.
+                  does, so that a bar or a rect can span its unit; for a binned unit of an encoding (an end-only
+                  request) shall write only the end, the value of the field as it is one step later, and
+                  not the start, and for a binned unit in the transform shall floor like any other unit (the Vega
+                  timeUnit transform has no binned parameter).
                 justification: |
                   A bar over a month must reach the start of the next month, whatever the length of the
                   month.
                 tests:
                   - TimeUnitTransform_YearMonth_StartAndEnd
                   - TimeUnitTransform_Quarter_YearQuarter_Ends
-                  - TimeUnitTransform_BinnedUnit_KeepsTheValueAsTheStart
+                  - TimeUnitTransform_EndOnly_AddsTheEndOfTheValueAsItIs
+                  - TimeUnitTransform_BinnedUnitInTheTransform_FloorsLikeTheUnit
 
               - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-Zone
                 title: >-

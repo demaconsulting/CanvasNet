@@ -85,7 +85,10 @@ sections:
                   The MarkBuilder unit shall draw a bar or rect whose x or y has an x2 or y2 (a field, a
                   datum, or a pixel value) as a range between the two ends instead of a bar to zero or a
                   centered thickness, draw a rule with a range on one channel between the two ends and with
-                  ranges on both between the two points, let a pixel value of the secondary channel win over a
+                  ranges on both between the two points (except a pre-binned channel with its end, which is not a
+                  range of a rule: the rule is then vertical or horizontal at the middle of the bin), let a pixel
+                  value of
+                  the secondary channel win over a
                   stack start, and draw nothing for a row whose end is not a number.
                 justification: |
                   Ranges (a floating bar, an error bar, a timeline) are written with the secondary
@@ -93,6 +96,7 @@ sections:
                 tests:
                   - MarkBuilder_Build_SecondaryChannelsSpanARange
                   - MarkBuilder_Build_PreBinnedRangesSpanFromTheStartToTheEndField
+                  - MarkBuilder_Build_RuleOfBinnedDataIsVerticalAtTheMiddleOfTheBin
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-MarkClip
                 title: >-
@@ -466,6 +470,29 @@ sections:
                   - MarkBuilder_Build_StackedNullSliceOfAPolarTextIsNotDrawn
                   - MarkBuilder_Build_StackedNullInAStackedAreaBreaksThePath
 
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ScaleInvalid
+                title: >-
+                  The MarkBuilder unit shall read the config.scale.invalid entry of a channel that has a field
+                  and a scale with a continuous domain and is not stacked (Vega-Lite 6.5.0 invalid.ts) as the
+                  show mode of that channel whatever the invalid mode of the mark is - its rows with a null,
+                  NaN, or non-finite value neither filtered nor breaking a path - placing them, for the
+                  entry zero-or-min, where the scale maps zero when its domain holds zero (never on a time
+                  or log scale) and at the first value of its domain otherwise, and, for the entry {"value": v}
+                  with a number or a text, at v as the output of the mark property as it is (a pixel
+                  position, a size area, an opacity, or a color text) without passing it through the scale;
+                  shall keep the mode of the mark for every channel that has no readable entry, ignore an
+                  entry that is neither form, and keep filtering a stacked channel.
+                justification: |
+                  Vega-Lite lets a configuration give the rows without a value an output of their own; a chart
+                  that sets it must draw them there, and the channels without an entry must behave as before.
+                tests:
+                  - MarkBuilder_Build_ScaleInvalidValuesAreTheOutputOfTheChannel
+                  - MarkBuilder_Build_AChannelWithoutAnEntryStillFiltersItsInvalidRows
+                  - MarkBuilder_Build_WithoutScaleInvalidTheRowsAreFiltered
+                  - MarkBuilder_Build_ScaleInvalidWinsOverTheInvalidModeOfTheMark
+                  - MarkBuilder_Build_ScaleInvalidKeepsAPathUnbroken
+                  - MarkBuilder_Build_UnreadableScaleInvalidEntriesAreIgnored
+
               - id: CanvasNetVegaLite-Marks-MarkBuilder-StrokeProperties
                 title: >-
                   The MarkBuilder unit shall give the stroke dash, the stroke dash offset, the stroke cap, the
@@ -646,7 +673,8 @@ sections:
                   band of their group: a point, circle, square, text, line, or area at the start of the band plus
                   the center of the offset scale (a continuous offset of a point-like mark drawing a strip of the
                   band), a bar, rect, tick, or rule spanning the band of the offset scale (a bar of an explicit size
-                  centered in it, and a fixed-width chart letting the groups share the band), stacking the bars
+                  centered in it, and a fixed-width chart letting the groups share the band; a bar or an area with a
+                  ranged offset is the case of the ranged offsets below), stacking the bars
                   of one offset group with each other and not with those of the other groups (a default stack that
                   a quantitative offset without a dimension disables, and none for aggregated grouped bars), and
                   not drawing a row whose offset value is invalid; and, for an offset inside a temporal position with
@@ -676,6 +704,26 @@ sections:
                   - MarkBuilder_Run_TimeUnitOffsetRangeFollowsBandSizeSizeBandPositionAndPadding
                   - MarkBuilder_Run_TimeUnitOffsetPointsAndTicks
                   - MarkBuilder_Run_TimeUnitYOffsetRunsUpward
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-RangedOffsets
+                title: >-
+                  The MarkBuilder unit shall draw a bar or an area whose position is a nominal or ordinal field
+                  or datum without a secondary channel and whose xOffset or yOffset is an unbinned quantitative
+                  field or numeric datum (Vega-Lite 6.5.0's ranged offset) as a range inside the band of the
+                  position, from the zero of the offset scale (a linear scale of the bandwidth of the band, with
+                  zero in its domain) to the offset value: a bar as the rectangle between them, a negative value
+                  hanging on the other side of the baseline, and an area with its y and y2 (or x and x2) at them
+                  and its points along the other axis, the measure axis of the area following the ranged offset;
+                  and shall keep the strip placement for every other mark and a position with a secondary channel.
+                justification: |
+                  A ranged offset is how Vega-Lite draws a bar or an area from a baseline inside a band; drawing
+                  it as a point at the offset value would be a different chart.
+                tests:
+                  - MarkBuilder_Build_YOffsetBarsSpanFromTheBaselineToTheOffsetValue
+                  - MarkBuilder_Build_XOffsetBarsSpanFromTheBaselineToTheOffsetValue
+                  - MarkBuilder_Build_YOffsetAreaSpansFromTheBaselineToTheOffsetValue
+                  - MarkBuilder_Build_PointMarksAreNotRanged
+                  - MarkBuilder_Build_ASecondaryChannelIsNotARangedOffset
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-Images
                 title: >-

@@ -10,6 +10,19 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 /// </content>
 internal sealed partial class StatTransforms
 {
+    /// <summary>The number of work elements that one kernel evaluation of a density is charged as (see <see cref="WorkMeter"/>): an exponential and a few multiplications, measured about 13 nanoseconds, so four at about three nanoseconds an element.</summary>
+    private const int KernelWeight = 4;
+
+    /// <summary>
+    ///     Gets the work elements of one kernel evaluation of a density over the rows of a group, which is charged for every sample point.
+    /// </summary>
+    /// <remarks>
+    ///     The product is widened to a long before it is multiplied: for a group of more than 536 million rows the product of two ints wrapped to a negative number, which the meter ignores, so the work of the density was free.
+    /// </remarks>
+    /// <param name="rows">The number of rows of the group.</param>
+    /// <returns>The work elements.</returns>
+    internal static long KernelCost(int rows) => (long)rows * KernelWeight;
+
     /// <summary>
     ///     Estimates the density (or the cumulative distribution) of a field for every group by a Gaussian kernel and generates the sampled curve.
     /// </summary>
@@ -82,8 +95,8 @@ internal sealed partial class StatTransforms
             var points = CurveSampler.Sample(
                 x =>
                 {
-                    // One kernel evaluation for every row of the group
-                    _meter.Add(rows);
+                    // One kernel evaluation for every row of the group, each counted as KernelWeight work elements (an evaluation is an exponential, measured about 13 nanoseconds)
+                    _meter.Add(KernelCost(rows));
                     return curve(x);
                 },
                 local[0],

@@ -210,23 +210,117 @@ public class EncodingTransformsFacetTests
     }
 
     /// <summary>
-    ///     Validates that a binned time unit and the maxbins form of a facet field are not applied: the raw value of the field is the cell.
+    ///     Validates that a binned time unit of a facet field is not transformed (Vega-Lite's <c>TimeUnitNode.makeFromEncoding</c> adds nothing for a binned unit of a facet model): the raw value
+    ///     of the field is the cell and the table gets no field.
     /// </summary>
     [Fact]
-    public void EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied()
+    public void EncodingTransforms_Facet_BinnedTimeUnitIsTheRawValue()
+    {
+        // Arrange
+        const string rows = """[{"t":1705276800000,"v":1},{"t":1708387200000,"v":2},{"t":1705276800000,"v":3}]""";
+        var binned = Prepare("""{"field":"t","type":"temporal","timeUnit":{"unit":"month","binned":true}}""", rows);
+
+        // Act
+        var partition = Split(binned);
+
+        // Assert: the two distinct raw values, in the table of the cell as they were, and no field was added
+        Assert.Equal([DataValue.FromNumber(1705276800000), DataValue.FromNumber(1708387200000)], partition.Domains.Wrap);
+        Assert.Equal(binned.Table.Fields, partition.Cells[0].Table.Fields);
+    }
+
+    /// <summary>
+    ///     Validates that the maxbins form of a facet field is applied (Vega-Lite's <c>TimeUnitNode</c> with <c>maxbins</c>): the extent of the two dates, 2024-01-15 and 2024-02-20, with
+    ///     three bins gives Vega's <c>timeBin</c> the unit <c>yearweek</c> (computed with vega-time 2.x: the weeks starting Sunday 2024-01-14 and Sunday 2024-02-18), and the field
+    ///     <c>timeunit_maxbins_3_t</c> is derived.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_MaxBinsTimeUnitIsResolvedAgainstTheData()
     {
         // Arrange
         const string rows = """[{"t":1705276800000,"v":1},{"t":1708387200000,"v":2},{"t":1705276800000,"v":3}]""";
         var maxBins = Prepare("""{"field":"t","type":"temporal","timeUnit":{"maxbins":3}}""", rows);
-        var binned = Prepare("""{"field":"t","type":"temporal","timeUnit":{"unit":"month","binned":true}}""", rows);
 
         // Act
-        var byMaxBins = EncodingTransforms.FacetDomain(maxBins.Facet, maxBins.Table, maxBins.Context).Wrap;
-        var byBinned = EncodingTransforms.FacetDomain(binned.Facet, binned.Table, binned.Context).Wrap;
+        var partition = Split(maxBins);
 
-        // Assert: the two distinct raw values
-        Assert.Equal([DataValue.FromNumber(1705276800000), DataValue.FromNumber(1708387200000)], byMaxBins);
-        Assert.Equal([DataValue.FromNumber(1705276800000), DataValue.FromNumber(1708387200000)], byBinned);
+        // Assert
+        Assert.Equal([DataValue.FromDate(1705190400000), DataValue.FromDate(1708214400000)], partition.Domains.Wrap);
+        Assert.Equal([[1.0, 3.0], [2.0]], partition.Cells.Select(c => Numbers(c.Table, "v")));
+        Assert.Contains("timeunit_maxbins_3_t", partition.Cells[0].Table.Fields);
+    }
+
+    /// <summary>
+    ///     Validates the <c>bin</c> of a facet field (Vega-Lite's <c>BinNode</c> of a facet model, 6 bins for a <c>column</c> by default): the cell is the start of the bin, the cells are in ascending order of the
+    ///     start, the text of the cell is <c>start – end</c> (with the <c>format</c> of the header when the configuration gives one), a row without a number is the cell <c>null</c>, and the bin fields are added.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_BinOfTheFieldIsTheCellWithItsRangeAsText()
+    {
+        // Arrange: bins of 10 (maxbins 3 over 1..29), a text that is no number and a missing value
+        const string rows = """[{"c":25,"v":1},{"c":2,"v":2},{"c":12,"v":3},{"c":"x","v":4},{"c":3,"v":5},{"v":6}]""";
+        var setup = Prepare("""{"column":{"field":"c","type":"quantitative","bin":{"maxbins":3}}}""", rows);
+
+        // Act
+        var partition = Split(setup);
+        var domain = EncodingTransforms.FacetDomain(setup.Facet, setup.Table, setup.Context);
+
+        // Assert: the null cell first (a null sorts first), then 0 - 10, 10 - 20 and 20 - 30
+        Assert.Equal([S("null"), S("0 \u2013 10"), S("10 \u2013 20"), S("20 \u2013 30")], partition.Domains.Columns);
+        Assert.Equal(partition.Domains.Columns, domain.Columns);
+        Assert.Equal([[4.0, 6.0], [2.0, 5.0], [3.0], [1.0]], partition.Cells.Select(c => Numbers(c.Table, "v")));
+        Assert.Contains("bin_maxbins_3_c", partition.Cells[1].Table.Fields);
+        Assert.Contains("bin_maxbins_3_c_end", partition.Cells[1].Table.Fields);
+    }
+
+    /// <summary>
+    ///     Validates the default number of bins of a facet field (<c>autoMaxBins</c>: 6 for <c>row</c> and <c>column</c>, 10 for the wrapped <c>facet</c>) and the order of bins, which is numeric
+    ///     (the bin <c>2 – 3</c> comes before the bin <c>10 – 11</c>, not after it as text).
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_BinNamesFollowAutoMaxBinsAndOrderIsNumeric()
+    {
+        // Arrange: values 0 to 20 in steps of 1
+        var rows = "[" + string.Join(",", Enumerable.Range(0, 21).Select(i => $"{{\"c\":{i},\"v\":{i}}}")) + "]";
+        var column = Prepare("""{"column":{"field":"c","type":"quantitative","bin":true}}""", rows);
+        var wrap = Prepare("""{"field":"c","type":"quantitative","bin":true}""", rows);
+
+        // Act
+        var byColumn = Split(column);
+        var byWrap = Split(wrap);
+
+        // Assert: four bins of 5 (0..20) for the column, ten bins of 2 (0..20) for the wrapped facet, in numeric order (the maximum belongs to the last bin)
+        Assert.Equal(4, byColumn.Domains.Columns.Count);
+        Assert.Equal(S("0 \u2013 5"), byColumn.Domains.Columns[0]);
+        Assert.Equal(S("15 \u2013 20"), byColumn.Domains.Columns[3]);
+        Assert.Contains("bin_maxbins_6_c", byColumn.Cells[0].Table.Fields);
+        Assert.Equal(10, byWrap.Domains.Wrap.Count);
+        Assert.Equal(S("2 \u2013 4"), byWrap.Domains.Wrap[1]);
+        Assert.Equal(S("10 \u2013 12"), byWrap.Domains.Wrap[5]);
+        Assert.Contains("bin_maxbins_10_c", byWrap.Cells[0].Table.Fields);
+    }
+
+    /// <summary>
+    ///     Validates that the <c>aggregate</c> of a facet field is not computed (Vega-Lite's <c>AggregateNode.makeFromEncoding</c> takes a unit model only): the cell reads the field of the name that
+    ///     <c>vgField</c> gives (<c>sum_v</c>), which a table that an aggregate transform wrote has, and a table that has no such field is the one null cell.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_AggregateOfTheFieldReadsTheFieldOfItsName()
+    {
+        // Arrange
+        const string rows = """[{"c":"a","sum_v":10,"v":1},{"c":"b","sum_v":20,"v":2},{"c":"a","sum_v":10,"v":3}]""";
+        var named = Prepare("""{"field":"v","type":"quantitative","aggregate":"sum"}""", rows);
+        var missing = Prepare("""{"field":"c","type":"nominal","aggregate":"max"}""", rows);
+        var counted = Prepare("""{"field":"c","type":"nominal","aggregate":"count"}""", """[{"c":"a","__count":2},{"c":"b","__count":1}]""");
+
+        // Act
+        var byName = Split(named);
+        var byMissing = Split(missing);
+        var byCount = Split(counted);
+
+        // Assert
+        Assert.Equal([DataValue.FromNumber(10), DataValue.FromNumber(20)], byName.Domains.Wrap);
+        Assert.Equal([default], byMissing.Domains.Wrap);
+        Assert.Equal([DataValue.FromNumber(1), DataValue.FromNumber(2)], byCount.Domains.Wrap);
     }
 
     /// <summary>

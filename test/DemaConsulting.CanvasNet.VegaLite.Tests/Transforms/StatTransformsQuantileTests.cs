@@ -168,6 +168,43 @@ public class StatTransformsQuantileTests
     }
 
     /// <summary>
+    ///     Validates defect B1: a step whose count of probabilities is finite but beyond any 64-bit integer (1e-300 gives 5e299) is a located row-budget failure on every runtime, never an unhandled
+    ///     <see cref="OverflowException"/> from the allocation of a negative-length array (what .NET 8 did with the unsaturated cast).
+    /// </summary>
+    /// <param name="step">The step.</param>
+    [Theory]
+    [InlineData("1e-300")]
+    [InlineData("1e-30")]
+    [InlineData("5e-324")]
+    public void StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget(string step)
+    {
+        // Arrange / Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => Run("[{\"quantile\":\"v\",\"step\":" + step + "}]", OneToTen));
+
+        // Assert
+        Assert.Equal("/transform/0", error.Location.Pointer);
+        Assert.Contains("(MaxDataRows)", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a caller who raised the row limit to its maximum is still protected from one huge array: the probabilities of a step of 1e-300 are refused at the cell limit that bounds every table
+    ///     (<c>TableLayout.MaxCells</c>) with a located error, instead of an allocation that cannot succeed.
+    /// </summary>
+    [Fact]
+    public void StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit()
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxDataRows = long.MaxValue };
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => Run("[{\"quantile\":\"v\",\"step\":1e-300}]", OneToTen, limits));
+
+        // Assert
+        Assert.Equal("/transform/0", error.Location.Pointer);
+        Assert.Contains("TableLayout.MaxCells", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the cancellation: a token that is already canceled stops the quantile.
     /// </summary>
     [Fact]

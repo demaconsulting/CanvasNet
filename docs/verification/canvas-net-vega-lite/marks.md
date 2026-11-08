@@ -237,6 +237,19 @@ the unit verification document passes without error or unexpected exception.
   `M0,200 L300,100 L150,0`, and with `order: false` follows the data, `M150,0 L0,200 L300,100`; of three overlapping squares
   of the categories a, b, c with the order values 2, 3, 1 the drawing is c, a, b ascending (b on top, so the pixel in the
   middle is orange) and b, a, c descending (c on top, red).
+- **Scale Invalid Entries And Ranged Offsets Are Drawn Through The Whole Pipeline (Phase 14)**:
+  `MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidValuesAreTheOutputOfTheChannel`,
+  `MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidKeepsAPathUnbroken`,
+  `MarkBuilderRangedOffsetTests.MarkBuilder_Build_YOffsetBarsSpanFromTheBaselineToTheOffsetValue`,
+  `MarkBuilderRangedOffsetTests.MarkBuilder_Build_YOffsetAreaSpansFromTheBaselineToTheOffsetValue`,
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_RowsWithoutAValueTakeTheConfiguredOutput`,
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsBarsFromTheBaseline`,
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsAnAreaBetweenTheValuesAndTheBaseline`
+  — a channel that `config.scale.invalid` names (`"zero-or-min"`, or a number or text `value` as the output of the
+  channel) draws its rows without a value whatever the `invalid` mode of the mark is (four rows where two were drawn, the
+  line unbroken through the baseline), and a bar or an area with an unbinned quantitative offset over a nominal position
+  spans inside the band from the zero of the offset scale to the value (the numbers are those of Vega 6.4), with the
+  pixels of the bars and of the area on the two sides of the baseline.
 - **Arcs And Labels Drawn Through The Whole Pipeline**:
   `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Arcs_PieAndDonutCoverTheirWedges`,
   `VegaLiteArcTextIntegrationTests.CanvasNetVegaLite_SystemIntegration_Arcs_PieLabelsAreAtTheSliceMiddles`,

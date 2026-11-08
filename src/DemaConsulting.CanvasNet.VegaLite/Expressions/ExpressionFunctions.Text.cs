@@ -331,9 +331,9 @@ internal static partial class ExpressionFunctions
         }
 
         var total = text.Length + (Math.Floor(missing) * padding.Length);
-        context.CheckStringLength(total >= long.MaxValue ? long.MaxValue : (long)total);
-        var count = (int)missing;
-        context.ChargeSize((long)total);
+        context.CheckStringLength(NumericConversions.ToInt64Saturating(total));
+        var count = NumericConversions.ToInt32Saturating(missing);
+        context.ChargeSize(NumericConversions.ToInt64Saturating(total));
         return DataValue.FromString(align switch
         {
             "left" => Repeat(padding, count) + text,

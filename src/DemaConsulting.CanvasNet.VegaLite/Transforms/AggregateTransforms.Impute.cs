@@ -38,7 +38,7 @@ internal sealed partial class AggregateTransforms
     /// </summary>
     /// <param name="parameters">The transform object or the <c>impute</c> object of a channel definition (validated by the parser).</param>
     /// <returns>The method (<c>value</c> by default), the constant of the <c>value</c> method (0 by default) and the frame.</returns>
-    internal static (string Method, DataValue Value, (int? Start, int? End) Frame) ReadImputeParameters(SpecNode parameters)
+    internal static (string Method, DataValue Value, (long? Start, long? End) Frame) ReadImputeParameters(SpecNode parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         var method = parameters["method"]?.AsString() ?? "value";
@@ -72,7 +72,7 @@ internal sealed partial class AggregateTransforms
         string[] groupBy,
         string method,
         DataValue value,
-        (int? Start, int? End) frame,
+        (long? Start, long? End) frame,
         SpecNode? keyValues,
         ulong seed,
         VegaLiteLocation location,
@@ -118,7 +118,12 @@ internal sealed partial class AggregateTransforms
             return;
         }
 
-        var limit = _context.Limits.MaxDataRows;
+        // Every key is one cell of the key domain, and the domain is materialized (a list and an index) before the combinations with the groups are bounded, so it is bounded here
+        // by the cells that a derived table may have as well as by the row limit: a row limit above that is no use, and a count in the range of an int that no table could hold would
+        // be allocated (and, beyond the range, converted to an int below, which wrapped on .NET 8 and saturated on .NET 9 and later)
+        var rowLimit = _context.Limits.MaxDataRows;
+        var limit = Math.Min(rowLimit, TableLayout.MaxCells);
+        var limitName = rowLimit <= TableLayout.MaxCells ? "MaxDataRows" : "TableLayout.MaxCells";
         double count;
         double start = 0, step = 1;
         if (keyValues.IsArray)
@@ -141,7 +146,7 @@ internal sealed partial class AggregateTransforms
         if (!(count <= limit))
         {
             throw new VegaLiteRenderException(
-                $"The keyvals of the impute have {(double.IsFinite(count) ? count.ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "an unrepresentable number of")} values, more than the limit of {limit} (MaxDataRows).",
+                $"The keyvals of the impute have {(double.IsFinite(count) ? count.ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "an unrepresentable number of")} values, more than the limit of {limit} ({limitName}).",
                 location);
         }
 
@@ -181,7 +186,7 @@ internal sealed partial class AggregateTransforms
         string[] groupBy,
         string method,
         DataValue value,
-        (int? Start, int? End) frame,
+        (long? Start, long? End) frame,
         List<DataValue> domain,
         Dictionary<GroupKey, int> domainIndex,
         ulong seed,

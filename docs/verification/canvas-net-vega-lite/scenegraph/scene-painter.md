@@ -504,3 +504,59 @@ released; that a resolver answering `null` is asked once for a link used twice a
 `vl-mark-image-unresolved:` and names the link; that no resolver means no call, no warning, and nothing drawn; that an
 exception of the resolver propagates as the same object and releases the earlier surfaces; and that the cache key
 includes the device size.
+
+##### The Paint Budget Is Charged Before Each Item, At The Item Or Its Mark
+
+**Tests**: `ScenePainterBudgetTests.ScenePainter_Paint_FullSurfaceRects_AreChargedTheirBoxBeforeThePaint`,
+`ScenePainterBudgetTests.ScenePainter_Paint_ItemThatDoesNotFit_IsNotPainted`,
+`ScenePainterBudgetTests.ScenePainter_Paint_FailureIsLocatedAtTheItemOrTheNearestLocatedGroup`,
+`ScenePainterBudgetTests.ScenePainter_Paint_BoxIsCutToTheSurface_AndAnItemOutsideCostsNothing`,
+`ScenePainterBudgetTests.ScenePainter_Paint_StrokeIsChargedItsBoxGrownByHalfTheWidth`,
+`ScenePainterBudgetTests.ScenePainter_Paint_FillAndStrokeAreTwoCharges`,
+`ScenePainterBudgetTests.ScenePainter_Paint_ClipLayerAndItsContentAreCharged`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextIsChargedAnEstimatedBox`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextWithANonPositiveLineHeight_IsChargedEveryLine`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextBeyondTheSurfaceIsNotChargedAndTextAtTheEdgeIsChargedThePartThatIsOnIt`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextTruncatedByItsLimitIsChargedTheWidthItKeeps`,
+`ScenePainterBudgetTests.ScenePainter_Paint_TextThatIsNotDrawnIsNotCharged`,
+`ScenePainterBudgetTests.ScenePainter_Paint_RotatedTextIsChargedTheSquareAroundItsAnchorCutToTheSurface`,
+`ScenePainterBudgetTests.ScenePainter_Paint_ArcsAtTheEdge_AreChargedAtLeastTheirVisibleArea`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailInSeveralChunksIsChargedItsFillInTheLayer`,
+`ScenePainterBudgetTests.ScenePainter_Paint_WithoutALimit_CountsNothing`,
+`ScenePainterBudgetTests.ScenePainter_Paint_LimitIsPerPainting`,
+`ScenePainterBudgetTests.ScenePainter_Paint_PictureBox_IsChargedBeforeItIsDrawnAndLocatedAtTheMark`,
+`ScenePainterBudgetTests.ScenePainter_Paint_NonSmoothPictureCopy_IsMadeOnceForTheItemsThatShareIt`,
+`ScenePainterBudgetTests.SceneImageSource_GetTile_SharesCopiesAndBoundsWhatItKeeps`
+
+Asserts, on a 100 by 100 surface (10,000 pixels) painted at a scale of one, that two rectangles that cover it fit a
+limit of exactly 20,000 pixels and fail, naming `VegaLiteLimits.MaxPaintedPixels`, the item and the pixel count, with
+19,999; that the item that fails leaves the surface as the earlier item painted it (the charge is made before the fill);
+that the failure is located at the `Source` of the item that has one and, for an item that has none, at the nearest
+enclosing group that has one; that a rectangle beyond the surface costs nothing (a limit of 1), that one that covers the
+surface from far outside is charged exactly the surface, and that nothing is charged beyond it; that a horizontal rule 10
+pixels wide across the surface costs exactly 1,000 pixels (the box grown by half the width) and fails with 999; that a
+50 by 50 rectangle with a fill and a 2 pixel stroke costs 2,500 plus 2,704 (the stroke box is 52 by 52); that a group
+clipped to 50 by 50 pixels costs its 2,500 pixel layer plus the 2,500 pixels of the rectangle in it that is cut to the
+layer; that text of eleven characters at a font size of 20 on a baseline of 50 costs the estimated 100 by 26 pixels (132
+wide, cut to the surface; a font size and a third tall), that three lines of it with a zero or negative line height
+(which Vega steps upward or not at all) are charged line by line where each is (3 x 2,600 pixels for a step of -5 or 0,
+and 2,600 for a step of -200, where the other two lines are above the surface), never a negative or smaller charge;
+that text is not over-charged: text beyond the surface, or to the left of a right-aligned anchor, or above it costs
+nothing (the smallest limit accepts it), an anchor at 90 costs the 10 by 26 pixels that are on the surface, a centered
+anchor at 0 the half of the width (66 by 26), an empty line costs nothing, a text limited to 30 pixels costs 30 by 26,
+and text with no fill, a fully transparent fill, an opacity of zero or a font size of zero costs nothing (a hundred of
+each under the limit of 1); that a rotated text item is charged the square around its anchor, cut to the surface, and
+nothing when it is far outside; that arcs (pies,
+donuts, rounded corners, a full circle, a sliver) centered on and beyond the edges and corners of the surface are each
+charged at least the pixels that they paint (a limit of one pixel less refuses them), which the box of the end point of
+an arc grown by its radius did not guarantee, and that the box is widened to whole pixels; that the fill chunks of a
+translucent trail painted through a layer are charged in the coordinates of the layer (a limit one pixel below the layer
+plus the painted pixels refuses the trail); that a painter without a
+limit counts nothing (a rectangle of two billion pixels is painted) and rejects a limit below one; and that the limit is
+per painting. Asserts that a 60 by 60 picture costs exactly 3,600 pixels, is located at the mark of the picture and is
+not painted when it fails; that three items that draw one 2 by 1 picture without smoothing in 100 by 50 boxes cost 5,000
+pixels each and 5,000 once for the resampled copy (a limit of 20,000 passes and 19,999 fails, where a copy for every item
+would need 30,000); and that `SceneImageSource.GetTile` gives the same copy for the same picture, size and opacity
+without charging again, another copy for another size or opacity (the opacity 0.5 gives an alpha of 128), the picture
+itself for a smoothed opaque picture, and, for a copy of 9,000,000 pixels that does not fit the 8,388,608 that are kept,
+a copy that the caller owns and that is made (and charged) for every request.

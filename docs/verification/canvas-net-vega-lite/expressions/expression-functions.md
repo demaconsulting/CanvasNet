@@ -2,14 +2,14 @@
 
 This document describes the unit-level verification strategy for the `ExpressionFunctions` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace: the internal static `ExpressionFunctions` class (the closed
-function table with `Names`, `TryGet`, and `Invoke`, split over its math, text, type, regular-expression, time, and
-number files),
+function table with `Names`, `TryGet`, and `Invoke`, split over its math, text, type, regular-expression, time,
+number, selection, and distribution files),
 the `ExpressionFunction` delegate and `ExpressionFunctionContext` (the per-evaluation context that counts steps, charges
 size-proportional work, checks cancellation and the string limit, carries the calendar of the date and time functions,
 and caches compiled regular expressions, time formatters, and number formatters), and `ExpressionRegex` (the
 translation of a JavaScript
 regular expression into a safe .NET regular expression, with its flags and its source text). The table holds exactly
-the 100 whitelisted functions of the supported subset:
+the 113 whitelisted functions of the supported subset:
 
 - **Math (27)**: `abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `ceil`, `clamp`, `cos`, `cosh`,
   `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `trunc`
@@ -24,8 +24,12 @@ the 100 whitelisted functions of the supported subset:
   `timeUnitSpecifier`; `timeFormat`, `utcFormat`, `timeParse`, `utcParse`; and `monthFormat`, `monthAbbrevFormat`,
   `dayFormat`, `dayAbbrevFormat`
 - **Number formatting (1)**: `format`
+- **Selection (4)**: `data`, `vlSelectionTest`, `vlSelectionIdTest`, `vlSelectionResolve`
+- **Distributions (9, Phase 14)**: `densityNormal`, `cumulativeNormal`, `quantileNormal`, `densityLogNormal`,
+  `cumulativeLogNormal`, `quantileLogNormal`, `densityUniform`, `cumulativeUniform`, `quantileUniform`
 
-Color, scale, and random functions are not in the table, and neither is `now` (the clock is not an input
+Color, scale, and sampling (`random`, `sampleNormal`, `sampleLogNormal`, and `sampleUniform`) functions are not in the
+table, and neither is `now` (the clock is not an input
 of a pure expression): a call to them is parsed, reported by the feature catalog, and evaluates to null. The date and
 time functions compute in the calendar of the evaluation (a `TimeCalendar`: UTC unless the render was given a time
 zone) and never in the host's zone, clock, or culture; the calendar, the d3 time format, and the unit specifier that
@@ -112,12 +116,50 @@ constitutes a failure.
 **Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Names_AreTheWhitelistedFunctions`,
 `ExpressionFunctionsTests.ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException`
 
-Asserts that `Names` returns exactly the 104 names above in ordinal order (the 57 names of the earlier phases, the 41
-date and time names, `toDate`, `format`, and the four selection names `data`, `vlSelectionTest`, `vlSelectionIdTest`, and
-`vlSelectionResolve`), that `random`, `now`, `rgb`, `scale`, `if`, `eval`, and `Function` are
+Asserts that `Names` returns exactly the 113 names above in ordinal order (the 57 names of the earlier phases, the 41
+date and time names, `toDate`, `format`, the four selection names `data`, `vlSelectionTest`, `vlSelectionIdTest`, and
+`vlSelectionResolve`, and the 9 distribution functions of Phase 14), that `random`, `sampleNormal`, `now`, `rgb`,
+`scale`, `if`, `eval`, and `Function` are
 absent and not found by `TryGet`, that
 names are case sensitive (`ABS` and `isNan` are not found), that invoking an unknown name is an `ArgumentException`, a
 null context is an `ArgumentNullException`, and `abs(-3)` called directly gives 3.
+
+##### Distribution Functions Port vega-statistics
+
+**Tests**: `ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_Functions_MatchVegaStatistics`,
+`ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_ClosedForms_Hold`,
+`ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_Density_IntegratesToTheCumulativeDistribution`,
+`ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_Arguments_FollowJavaScript`,
+`ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_TextOperands_FollowJavaScriptOperators`,
+`ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_Sampling_IsNotInTheTable`,
+`ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_Repeated_ResultsAreIdentical`
+
+The oracle is `vega-statistics` 2.0.0 itself (the package that Vega 6.4 uses): the numbers of the theory were produced
+by running the reference code once in Node.js and are compared at a relative tolerance of 1e-12 (the host's `exp` and
+`log` can differ from V8's in the last bits; zero, the infinities, and NaN are compared exactly). The calls cover the
+defaults (mean 0, deviation 1, the interval from 0 to 1), other parameters, both tails of the cumulative normal (the far
+tails reach exactly 1 and 0), the normal quantile in the three ranges of
+the inverse error function (`quantileNormal(0.999999)` reaches the second and `quantileNormal(1e-10)` the third range),
+the infinite
+quantiles at 0 and 1, a quantile outside 0 to 1 (NaN), the log-normal functions (a value of 0 or less has density 0 and
+the cumulative function of a negative value is NaN), the uniform functions with one bound (the interval from 0 to the
+bound) and a degenerate interval. The closed-form scenario round-trips `quantileNormal` through `cumulativeNormal` for
+eleven probabilities from 1e-10 to 1 - 1e-6 (within 2e-16 absolute plus 1e-12 relative), asserts the symmetry of the
+normal distribution (`cumulativeNormal(1.3) + cumulativeNormal(-1.3)` is 1 and the densities are equal) and that the
+median of a log-normal distribution is the exponential of its mean. The integration scenario integrates the density of
+the normal distribution with the mean 1 and the deviation 2 from -9 to 4 by the trapezoid rule in 20,000 steps and
+expects the difference of the cumulative function at the ends to 8 decimals. The argument scenario checks the
+JavaScript defaults and coercions: a falsy mean (0, `''`, null, NaN) is 0, a missing or null deviation is 1, a
+deviation of `'x'` is NaN, `true` is 1, a text number is read as a number, a uniform function with
+a null maximum takes the minimum as the maximum, and a missing first argument is NaN (`densityUniform()` is 0, because
+the comparison with NaN is false). The text-operand scenario checks JavaScript's operators on texts: `'b'` is between
+`'a'` and
+`'c'` but the width is NaN, `'10'` compares with `'1'` and `'9'` as text (the cumulative uniform value is 1.125), a
+text probability is NaN, and a text mean or minimum makes the sum a concatenation (`quantileNormal(0.5, '5')` is the
+text `50`, `quantileNormal(0.5, 'a')` is `a0`, and `quantileUniform(0.5, '2', 3)` is `20.5`). The sampling scenario
+asserts, for `random`, `sampleNormal`, `sampleLogNormal`, and `sampleUniform`, that `TryGet` does not find the name, the
+compiled call lists `vl-expr-function-<name>` (lower case) among its unsupported constructs, and the evaluation is
+null. The repeated scenario asserts bit-identical results on a second call of four of the functions.
 
 ##### Selection Functions Port The Tests Of Vega
 

@@ -18,7 +18,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///         functions (<c>regexp</c>, <c>test</c> and the regular expression form of <c>replace</c>) and the date and time
 ///         functions (<c>datetime</c>, <c>year</c>, <c>timeFormat</c>, <c>timeSequence</c> and their relatives, but not the
 ///         clock function <c>now</c>) and number formatting (<c>format</c>) and the selection functions (<c>data</c> for the stores of selection parameters,
-///         <c>vlSelectionTest</c>, <c>vlSelectionIdTest</c> and <c>vlSelectionResolve</c>). Color, geographic, scale, statistical and the other data-flow functions are
+///         <c>vlSelectionTest</c>, <c>vlSelectionIdTest</c> and <c>vlSelectionResolve</c>) and the nine pure distribution functions (the density, cumulative distribution and quantile of the
+///         normal, log-normal and uniform distributions, <c>ExpressionFunctions.Distributions.cs</c>). Color, geographic, scale, the sampling functions (<c>random</c>,
+///         <c>sampleNormal</c>, <c>sampleLogNormal</c>, <c>sampleUniform</c>: they would make an expression depend on a random source) and the other data-flow functions are
 ///         deferred; an unlisted function is
 ///         not an error of this unit: the parser reports it and the evaluator gives null.
 ///     </para>
@@ -89,6 +91,7 @@ internal static partial class ExpressionFunctions
         AddTime(table);
         AddNumber(table);
         AddSelection(table);
+        AddDistributions(table);
         return table.ToFrozenDictionary(StringComparer.Ordinal);
     }
 

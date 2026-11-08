@@ -1,0 +1,20 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Image marks: small SVG pictures placed by the data and read from the folder of the chart.",
+  "title": "Pictures as marks",
+  "width": 320,
+  "height": 180,
+  "data": {"values": [
+    {"stop": 1, "load": 20, "src": "gallery-badge.svg"},
+    {"stop": 2, "load": 45, "src": "gallery-badge.svg"},
+    {"stop": 3, "load": 65, "src": "gallery-flag.svg"},
+    {"stop": 4, "load": 38, "src": "gallery-badge.svg"},
+    {"stop": 5, "load": 82, "src": "gallery-flag.svg"}
+  ]},
+  "mark": {"type": "image", "width": 32, "height": 32, "aspect": true},
+  "encoding": {
+    "x": {"field": "stop", "type": "quantitative", "scale": {"domain": [0, 6]}, "title": "Stop"},
+    "y": {"field": "load", "type": "quantitative", "scale": {"domain": [0, 100]}, "title": "Passengers"},
+    "url": {"field": "src", "type": "nominal"}
+  }
+}

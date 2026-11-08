@@ -159,6 +159,8 @@ public partial class HelpTopicsTests
         Assert.Equal(ScadLimits.Default.MaxTriangles.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["scadMaxTriangles"]);
         Assert.Equal(ArgumentReader.MaxDpi.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["maxDpi"]);
         Assert.Equal(ResultWriter.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["schemaVersion"]);
+        Assert.Equal(VegaLiteLimits.Default.MaxPaintedPixels.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["vlMaxPaintedPixels"]);
+        Assert.Contains($"At most {VegaLiteLimits.Default.MaxPaintedPixels} device pixels painted", limits);
         Assert.Contains($"{Surface.MaxDimension} pixels", limits);
         Assert.Contains($"Default {ScadLimits.Default.MaxTriangles} triangles", limits);
         Assert.Contains($"At most {VegaLiteLimits.Default.MaxDataFiles} files", limits);

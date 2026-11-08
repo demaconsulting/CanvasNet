@@ -271,3 +271,7 @@ intervals and read the domains with `DateTimeObject` and the unit rule. `AxisBui
 `TimeCalendarIntervalTests.cs`, `TimeCalendarEpochDayTests.cs`, `TimeUnitSpecTests.cs`, and `DateTimeObjectTests.cs`,
 with the zone helpers in `TimeTestSupport.cs`) call the types directly through `InternalsVisibleTo`, with zones they
 construct themselves, so they do not depend on the time zone database of the operating system.
+
+Phase 14 hardening: the casts of a floating-point value to an integer in `TimeCalendar` (and in `TimeFormat` and
+`TimeUnits`) go through the saturating `NumericConversions` (see _DataTable_), and `TimeCalendar.MakeDay` refuses a NaN
+day, so a hostile time value is a refusal or an invalid date on every runtime and never a wrapped integer.

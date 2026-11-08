@@ -108,3 +108,28 @@ sections:
                   A table is the largest allocation of a rendering and must be bounded.
                 tests:
                   - DataTable_Create_LimitsFailClosedWithLocation
+
+              - id: CanvasNetVegaLite-Data-DataTable-NumericConversions
+                title: >-
+                  The DataTable unit shall provide the conversions from a number to a 32-bit and a 64-bit integer that
+                  every count, size, step and index of the package that comes from a specification or its data goes
+                  through: the number is truncated toward zero, a number beyond the range of the integer and the
+                  infinities saturate at its largest or smallest value, and NaN is zero, so that the result is the
+                  same on every runtime (a plain cast gives the smallest value for such a number on .NET 8 and
+                  saturates on .NET 9 and later) and an out-of-range number can never become a negative count.
+                justification: |
+                  A specification can steer a number out of the range of an integer (a quantile step of 1e-300, a
+                  pivot limit of 1e308, a scale exponent of 1e300); an undefined conversion would give a different
+                  chart, or an unhandled exception, on two runtimes.
+                tests:
+                  - NumericConversions_ToInt32Saturating_TruncatesSaturatesAndMapsNaNToZero
+                  - NumericConversions_ToInt64Saturating_TruncatesSaturatesAndMapsNaNToZero
+                  - NumericConversions_AddSaturating_StopsAtTheEndsOfTheRangeAndNeverWraps
+                  - NumericConversions_NegateSaturating_NegatesAndSaturatesTheSmallestValue
+                  - StatisticsPrimitives_RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue
+                  - StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget
+                  - StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit
+                  - RowTransforms_Apply_PivotLimitBeyondLong_KeepsEveryPivotValue
+                  - ViewLayout_NaturalSize_NonFiniteDimensions_AreDefinedAndTheSameOnEveryRuntime
+                  - CanvasNetVegaLite_SystemIntegration_Limits_NonFiniteLayoutSizeFailsWithALocation
+                  - CanvasNetVegaLite_SystemIntegration_Limits_QuantileStepBeyondTheIntegersFailsLocatedAtTheRowLimit

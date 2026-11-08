@@ -267,3 +267,21 @@ sections:
                   - AxisBuilder_Build_TickExtraNeedsABandPosition
                   - AxisBuilder_Build_LabelBoundHidesLabelsThatPassTheRange
                   - AxisBuilder_Build_LabelBoundAppliesAlongYForAVerticalAxis
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-RangedOffsets
+                title: >-
+                  The AxisBuilder unit shall, for a band position that holds a ranged offset (a bar or an area
+                  whose xOffset or yOffset is an unbinned quantitative field or numeric datum, Vega-Lite's
+                  defaultBandPosition and labelsPositionSpec), default the bandPosition of the axis to 0 for x
+                  and to 1 for y so that the ticks and the grid sit at the baseline of the offset scale, place the
+                  labels at the bandPosition of the axis (the explicit axis.bandPosition winning over the default,
+                  and 0.5 leaving them in the middle of the band), and leave the axes of every other position in
+                  the middle of the band.
+                justification: |
+                  The baseline of a ranged offset is where the marks start; an axis whose ticks and labels sat in
+                  the middle of the band would not point at it.
+                tests:
+                  - AxisBuilder_Build_RangedYOffsetPutsTicksAndLabelsAtTheBandEnd
+                  - AxisBuilder_Build_RangedXOffsetPutsTicksAndLabelsAtTheBandStart
+                  - AxisBuilder_Build_ExplicitBandPositionWinsOverTheRangedDefault
+                  - AxisBuilder_Build_OtherAxesStayInTheMiddleOfTheBand

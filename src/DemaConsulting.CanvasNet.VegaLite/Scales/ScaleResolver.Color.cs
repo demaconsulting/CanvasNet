@@ -218,7 +218,7 @@ internal static partial class ScaleResolver
         if (node["count"] is { } countNode)
         {
             count = countNode.AsNumber() is { } n && n >= 1 && double.IsInteger(n)
-                ? (int)Math.Min(n, int.MaxValue)
+                ? NumericConversions.ToInt32Saturating(n)
                 : throw new VegaLiteSpecException("The 'count' of a configured color scheme must be a positive whole number.", location);
         }
 
@@ -252,7 +252,7 @@ internal static partial class ScaleResolver
 
         // The parser has checked the shape of a scheme object: a name, a positive whole count and an extent of two numbers
         var extent = node["extent"] is { IsArray: true, Items.Count: 2 } e && e.Items[0].AsNumber() is { } a && e.Items[1].AsNumber() is { } b ? (a, b) : ((double, double)?)null;
-        int? count = node["count"]?.AsNumber() is { } n and >= 1 ? (int)Math.Min(n, int.MaxValue) : null;
+        int? count = node["count"]?.AsNumber() is { } n and >= 1 ? NumericConversions.ToInt32Saturating(n) : null;
         return (null, new SchemeChoice(node["name"]?.AsString(), null, count, extent, node["name"]?.GetLocation(context.SourceName) ?? location));
     }
 

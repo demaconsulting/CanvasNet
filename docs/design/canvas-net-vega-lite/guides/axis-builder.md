@@ -103,10 +103,21 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   `bandPosition` (0.5 by default), the extra tick is `tickExtra` (false by default), and the offset is `tickOffset`; a
   `tickBand` of `"extent"` is the end of the band (1) with an extra tick and no offset, and any other value is the
   middle (0.5) without an extra tick and with the `tickOffset`. The ticks and the grid take the band
-  shift `bandwidth x Band + offset`; **the labels keep a band of 0.5** (`axis-labels.js`) and only the offset. The extra
+  shift `bandwidth x Band + offset`; **the labels keep a band of 0.5** (`axis-labels.js`) and only the offset, except on
+  a position that holds a ranged offset (below). The extra
   tick is pegged to the first domain value (the start of its band, plus the offset) and is appended after the label
   expression has replaced the labels, when the band is not 0; it has a tick mark and a grid line but no label
   (`AxisTick.IsExtra`), so the labels skip it.
+- **A position that holds a ranged offset** (Phase 14; Vega-Lite's `defaultBandPosition` of `compile/axis/properties.ts`
+  and `labelsPositionSpec`; see _Continuous offsets_ in the `ScaleResolver` design). When the position is a band scale
+  of an `x` or `y` channel whose `xOffset` or `yOffset` is a ranged offset (`ScaleResolver.HasRangedOffset`: a bar or
+  area whose offset is an unbinned quantitative field), `RangedDefaultBand` gives the default `bandPosition`, 0 for `x`
+  and 1 for `y`, so the ticks and the grid sit at the baseline of the offset scale (`TickBand.Resolve` takes it as its
+  fallback; an explicit `axis.bandPosition` wins over it, as it wins over the configuration). Vega puts the labels of a
+  band scale in the middle whatever the band position, so Vega-Lite gives them their own position, and
+  `RangedLabelBandOf` does the same: the labels sit at the `bandPosition` of the axis (the default above), with the
+  `labelOffset` and no tick offset; a band position of 0.5 leaves them in the middle. The other axes stay in the middle
+  of the band.
 - **`translate` and `position`.** The group of the axis sits at the edge of the data rectangle plus the offset, shifted
   by `translate` (0.5 by default: the half pixel that keeps a one-pixel line crisp, replaced by the property; the shift
   of the bins of a bar in `MarkBuilder` does not read it) and, along the axis, by `position`.

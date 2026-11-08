@@ -1,0 +1,44 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Two composite marks side by side: a box plot per batch and an error band around a mean line.",
+  "title": "Composite marks",
+  "hconcat": [
+    {
+      "title": "Box plot of jar fill",
+      "width": 170,
+      "height": 180,
+      "data": {"sequence": {"start": 0, "stop": 90, "as": "i"}},
+      "transform": [
+        {"calculate": "['Batch A', 'Batch B', 'Batch C'][datum.i % 3]", "as": "batch"},
+        {"calculate": "250 + (datum.i % 3) * 4 + 9 * sin(datum.i * 1.3) + (datum.i == 31 ? 38 : 0)", "as": "grams"}
+      ],
+      "mark": {"type": "boxplot", "extent": 1.5},
+      "encoding": {
+        "x": {"field": "batch", "type": "nominal", "title": null, "axis": {"labelAngle": 0}},
+        "y": {"field": "grams", "type": "quantitative", "scale": {"zero": false}, "title": "Fill (g)"},
+        "color": {"field": "batch", "type": "nominal", "legend": null}
+      }
+    },
+    {
+      "title": "Error band around a mean",
+      "width": 200,
+      "height": 180,
+      "data": {"sequence": {"start": 0, "stop": 120, "as": "i"}},
+      "transform": [
+        {"calculate": "floor(datum.i / 6)", "as": "hour"},
+        {"calculate": "40 + datum.hour * 2 + 8 * sin(datum.i * 2.1)", "as": "load"}
+      ],
+      "layer": [
+        {
+          "mark": {"type": "errorband", "extent": "stdev", "opacity": 0.3},
+          "encoding": {"y": {"field": "load", "type": "quantitative", "title": "Load (%)"}}
+        },
+        {
+          "mark": "line",
+          "encoding": {"y": {"field": "load", "type": "quantitative", "aggregate": "mean"}}
+        }
+      ],
+      "encoding": {"x": {"field": "hour", "type": "quantitative", "title": "Hour"}}
+    }
+  ]
+}

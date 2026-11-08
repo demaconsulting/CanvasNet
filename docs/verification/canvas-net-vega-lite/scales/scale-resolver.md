@@ -862,14 +862,21 @@ and no nice (the domain 1 to 5 maps to 0 and 40 on x and runs upward on y); and 
 
 Asserts that an offset whose position is quantitative, missing, or a temporal field with the unit `day` has no scale (the
 quantitative position stays linear), and that `DecideOffset` returns `Supported`,
-`NoDiscreteParent`, `Ranged`, or `TimeUnitParent` for every combination of position type, time unit, offset type, and
-mark and rejects a null channel: a temporal position with the unit `year`, `month`, `yearmonthdate`, `hours`, or
+`NoDiscreteParent`, `Ranged`, `TimeUnitParent`, or `UnsupportedContinuous` for every combination of position type,
+time unit, offset type, secondary channel, `bin`, and mark and rejects a null channel: a temporal position with the unit
+`year`, `month`, `yearmonthdate`, `hours`, or
 `{unit: month, step: 2}` is `TimeUnitParent` for a nominal offset (`bar`, `point`, or `tick`), and for a quantitative
-offset of a `point`; a continuous offset of a `bar` or `area` is `Ranged` (also over a `month` unit); a temporal
+offset of a `point`; an unbinned quantitative offset of a `bar` or `area` over a nominal position without a secondary
+channel is `Ranged` (Vega-Lite 6.5.0's `isRangedOffset`; also with an `aggregate` on the offset and over a nominal
+position with a `month` unit), while a quantitative offset of a `bar` over a temporal position with a `month` unit, a
+temporal offset, a `bin: true` offset, and an offset of a position with an `x2` channel are `UnsupportedContinuous`
+(`vl-offset-ranged`); a temporal
 position with the unit `day`, with `maxbins`, with `binnedyearmonth`, without a time unit, or a `yearmonthdate` unit on
 a `rect`, and a quantitative position with the unit `month`, is `NoDiscreteParent`; and a nominal or ordinal position
 with a time unit is an ordinary discrete parent: `Supported` with the unit `month` (`bar`), `year` on a `rect`, `day`,
-or `maxbins`, `Ranged` for a quantitative offset of a `bar` and `Supported` for one of a `point`.
+or `maxbins`, `Ranged` for a quantitative offset of a `bar` and `Supported` for one of a `point`. The zero of the
+offset scale of a ranged offset is checked through the bars of `MarkBuilderRangedOffsetTests` (the baseline inside the
+band) rather than at the scale.
 
 ##### Offsets Of A Discrete Position With A Time Unit Are Nested In Its Band
 

@@ -141,6 +141,17 @@ scenario in the five unit verification documents passes without error or unexpec
   (`geoshape` and `image`) are reported at the mark, a channel that a mark does not draw (`theta` on a line) is reported
   at the channel and ignored, and the invalid data modes, the bundle interpolation of an area, and the impute of a
   stacked path mark over a binned dimension are reported at their values.
+- **Unreadable `config.scale.invalid` Entries Are Reported, And Ranged Offsets And Clip Heights Are Not (Phase 14)**:
+  `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_UnreadableScaleInvalidEntriesAreReported`,
+  `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported`,
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported`,
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported` — the five
+  entries of `config.scale.invalid` that are neither `"zero-or-min"` nor an object with a number or text `value` (an
+  expression reference is reported by `vl-expr-ref` instead) are
+  reported once each, at the entry, as `vl-scale-invalid-value`; a quantitative offset of a bar over a nominal position
+  (a ranged offset) is not reported while a temporal one is `vl-offset-ranged`; and a `legend.clipHeight` is not reported
+  (`vl-guide-legend-clipheight` is retired) while `legend.encode` still is `vl-guide-encode`.
 - **Time Constructs Are Validated At Open, Written As Expressions, And Reported Only Where They Are Not Applied**:
   `SpecParserTimeTests.SpecParser_TimeUnit_AcceptsEveryName`,
   `SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,
@@ -156,7 +167,9 @@ scenario in the five unit verification documents passes without error or unexpec
   `PredicateSourceTimeTests.PredicateSource_TimeUnit_Equal_Month`,
   `PredicateSourceTimeTests.PredicateSource_WeekPart_IsOmittedAndWarned`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
-  `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsNotReported`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsNotReported`,
+  `PredicateSourceTimeTests.PredicateSource_BinnedUnitComparesTheInstantOfTheField`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows`,
   `FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing`,
@@ -172,12 +185,13 @@ scenario in the five unit verification documents passes without error or unexpec
   `MaxSourceLength`, not by the 4,096 characters of a user-written expression, so a membership list of a thousand values
   compiles), and the catalog, which reads the same units with `TimeUnitSpec`, reports nothing for a supported
   specification that uses temporal fields, time units, time and UTC scales, date-time objects, a custom date format, and
-  the `timeUnit` transform, while the parts that are not applied are reported at the exact value: a binned unit
-  (`vl-timeunit-binned`, an unsupported feature, so strict mode throws at the first), a `maxbins` unit in a predicate,
-  the `week` and
-  `dayofyear` parts of a predicate (`vl-predicate-timeunit-part`, a warning that strict mode delivers without
-  stopping), a band position of a rect or bar, a date-time `datum`, intervals on a scale that has no time scale, a
-  `zero` on a time scale, and the scale types that a temporal field cannot use. The identifiers of the earlier phases
+  the `timeUnit` transform, and for a binned unit and the `maxbins` form of a predicate (applied since Phase 14),
+  while the parts that are not applied are reported at the exact value: a band position of a rect or bar, a date-time
+  `datum`, intervals on a scale that has no time scale, a
+  `zero` on a time scale, and the scale types that a temporal field cannot use; the
+  `week` and
+  `dayofyear` parts of a predicate (`vl-predicate-timeunit-part`) are a warning that strict mode delivers without
+  stopping. The identifiers of the earlier phases
   that said time was unsupported (`vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-timeunit` for a drawn view,
   `vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`,
   `vl-data-parse-date-format`, `vl-scale-time`, and `vl-scale-utc`) are never produced, and the end-to-end render of a
@@ -211,7 +225,8 @@ scenario in the five unit verification documents passes without error or unexpec
   tree,
   no longer reports a `layer`, a `concat`, `hconcat`, `vconcat`, a `facet`, or a `repeat`, or the transform of a view
   that the renderer draws (every view), reports a `row`, `column`, or `facet` channel only where the unit cannot be
-  faceted and the parts of a facet that are not drawn (`vl-facet-field-transform`, `vl-header-orient`),
+  faceted and the parts of a facet that are not drawn (`vl-header-orient`; the `bin`, `aggregate`, and `timeUnit` of a
+  facet field are drawn since Phase 14),
   visits the encoding that a layer or the chart of a concatenation inherits once for each layer with that layer's mark
   (reporting a construct once, at the place where it is written), and warns about the properties that a layer or a
   composition ignores.
@@ -222,14 +237,16 @@ scenario in the five unit verification documents passes without error or unexpec
   `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBarDefaultIsTheRuleOfTheMeanAndStandardError`,
   `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBandTwoDimensionalIsAnAreaWithLineBorders`,
   `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels`,
-  `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported`,
+  `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOrAggregateOfAGroupingChannelIsNotReported`,
+  `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_GroupingChannelsAddBinTimeUnitAndAggregateTransforms`,
   `FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported`,
   `FeatureCatalogCompositeTests.ConfigResolver_Resolve_CarriesTheBoxPlotDefaults` — the parser checks the extent, the
   center, and the parts of a composite mark; the configuration carries the defaults of the three marks; the normalizer
   expands
   each mark into the layers Vega-Lite normalizes it to, with the transforms and the properties of the parts, using the
   same orientation rule as the catalog; and the catalog reports nothing for a composite mark that is drawn (with the
-  channels that it uses) while reporting the grouping channel that has a bin, a time unit, or an aggregate, and the
+  channels that it uses) and for the bin, time unit, or aggregate of a grouping channel (the expansion applies them as
+  Vega-Lite's `extractTransformsFromEncoding` does), while reporting the
   error
   channels of a mark that does not use them.
 - **Expression References Of The Static Sites Are Compiled At Open, Folded Once, And Reported Only Where They Are Not

@@ -331,7 +331,9 @@ their conditions are not evaluated (the catalog reports the channel itself, see 
 shape
 cannot be what its author meant is a `VegaLiteSpecException` at that exact value, and a member that Vega-Lite does not
 define is a `vl-unknown-property` warning; what the renderer does with a valid construct it cannot apply is left to the
-catalog (for example a binned unit).
+catalog (before Phase 14, for example a binned unit). A **binned** unit (`binned: true`) must name a `unit`:
+`{"maxbins": 4,
+"binned": true}` is a specification error at the `binned` member, where Vega-Lite fails in its compiler.
 
 - **Time units** (`ValidateTimeUnit`) are checked in a channel definition, in a condition, in a predicate, and in the
   `timeUnit` transform. The value is null, a unit name that `TimeUnitSpec.TryParse` accepts (the 40 local names and
@@ -561,10 +563,16 @@ an error; a duplicate key keeps the last value at the position of the first occu
   unit's (`year(datum["d"])`, `month(...)`, ...; a part the unit lacks defaults as a date-time object does: the year
   2012,
   January, the first, zero for the times; a quarter is written as the month `3 * (quarter - 1)`), and the instant of
-  the value on the right, `time(datetime(...))`, so that both sides are numbers. Without a unit but with a date-time
+  the value on the right, `time(datetime(...))`, so that both sides are numbers. A **binned** unit (Phase 14) builds no
+  part: the field is already the start of its unit, so the left side is `time(datum["f"])` and the values are read for
+  the unit as for any other (a number below 10,000 is the one part of a single unit, as `isLocalSingleTimeUnit` tells for
+  the normalized unit, whose `utc` flag the normalization removes). The **`maxbins`** form names no unit, so its predicate
+  is written as one without a unit: the field is compared as it is (`ReadUnit` is null for it). Without a unit but with
+  a date-time
   value the left side is `time(datum["f"])`. For a UTC unit the `utc...` getters and `utc(...)` are written (Vega-Lite
   ignores the UTC flag here, marking it a TODO; this renderer honors it). The `week` and `dayofyear` parts are not
-  written, as in Vega-Lite (and the catalog reports `vl-predicate-timeunit-part`). A date-time object value is its
+  written, as in Vega-Lite (and the catalog reports `vl-predicate-timeunit-part`, not for a binned unit). A date-time
+  object value is its
   `DateTimeObject.ToExpression()`; a number compared with a single local unit is that unit's part when it is below
   10,000 and milliseconds since the epoch otherwise, and a text that is not a date is a unit part name (a month or
   weekday name) while one that is a date is read as a date; `{"expr": ...}`

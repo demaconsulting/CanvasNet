@@ -137,9 +137,35 @@ function New-MontageExplode {
     Join-Path $Folder 'montage-explode.png'
 }
 
+# docs/images/vegalite-gallery.png: six charts of the Vega-Lite gallery (docs/user_guide/examples/gallery, original
+# specifications), each drawn in strict mode at twice its size and shown at 400x300 in the montage. --labels prints
+# the input file name, so the charts are copied to extensionless files named after their labels first.
+function New-VegaLiteGallery {
+    param([string]$Folder)
+    $sources = 'docs/user_guide/examples/gallery'
+    $labeled = Join-Path $Folder 'labeled'
+    New-Item -ItemType Directory -Force -Path $labeled | Out-Null
+
+    $charts = [ordered]@{
+        '02-line-series' = 'Lines'; '04-bar-stacked' = 'Stacked bars'; '06-heatmap' = 'Binned heat map'
+        '11-donut' = 'Donut'; '13-density' = 'Density'; '18-dark-theme' = 'Theme'
+    }
+    foreach ($name in $charts.Keys) {
+        Invoke-ToolOrFail render "$sources/$name.vl.json" --strict --scale 2 --pad 12 --pad-color '#ffffff' `
+            -o "$Folder/$name.png"
+        Copy-Item (Join-Path $Folder "$name.png") (Join-Path $labeled $charts[$name])
+    }
+
+    $panels = $charts.Values | ForEach-Object { Join-Path $labeled $_ }
+    Invoke-ToolOrFail montage @panels --columns 3 --cell 400x300 --spacing 12 --padding 12 `
+        --background '#e5e7eb' --labels -o "$Folder/vegalite-gallery.png"
+    Join-Path $Folder 'vegalite-gallery.png'
+}
+
 $images = @(
     @{ Path = 'docs/images/showcase.png'; Build = ${function:New-Showcase} }
     @{ Path = 'docs/images/montage-explode.png'; Build = ${function:New-MontageExplode} }
+    @{ Path = 'docs/images/vegalite-gallery.png'; Build = ${function:New-VegaLiteGallery} }
 )
 
 # --- Run --------------------------------------------------------------------------------------------------------

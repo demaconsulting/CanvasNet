@@ -3,6 +3,7 @@ using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
@@ -468,10 +469,10 @@ internal sealed partial class ScenePainter
                 return null;
             }
 
-            var boxX = (int)Math.Floor(left);
-            var boxY = (int)Math.Floor(top);
-            var boxWidth = (int)Math.Ceiling(right) - boxX;
-            var boxHeight = (int)Math.Ceiling(bottom) - boxY;
+            var boxX = NumericConversions.ToInt32Saturating(Math.Floor(left));
+            var boxY = NumericConversions.ToInt32Saturating(Math.Floor(top));
+            var boxWidth = NumericConversions.ToInt32Saturating(Math.Ceiling(right)) - boxX;
+            var boxHeight = NumericConversions.ToInt32Saturating(Math.Ceiling(bottom)) - boxY;
 
             // The layers are charged against the budget before anything is allocated; a trail over it is painted chunk by chunk
             if ((long)boxWidth * boxHeight * plan.Count > pixelBudget)
@@ -479,6 +480,8 @@ internal sealed partial class ScenePainter
                 return null;
             }
 
+            // The layers are allocated and composited, which is painting work of their own: it is charged against the paint limit before they exist
+            ChargePixels(local, (long)boxWidth * boxHeight * plan.Count, trail.Role);
             return new TrailLayers(trail, plan, boxX, boxY, boxWidth, boxHeight);
         }
 
@@ -498,6 +501,8 @@ internal sealed partial class ScenePainter
             var shifted = local.Transform * Matrix3x2.CreateTranslation(-_boxX, -_boxY);
             if (_fill is not null)
             {
+                // The fill is painted into its layer, in the coordinates of the layer, so it is charged there as the stroke below is: the box of the chunk shifted by the origin of the layer, cut to the layer
+                ChargePath(local with { Target = _fill, Transform = shifted }, path, shifted, 0, trail);
                 var opaque = new Rgba32(_fillColor.R, _fillColor.G, _fillColor.B, 255);
                 PathFiller.Fill(_fill, path.Transform(shifted), opaque, FillRule.NonZero, FlattenTolerance);
             }
@@ -506,12 +511,13 @@ internal sealed partial class ScenePainter
             {
                 // An opaque solid fill (no seam, so no layer) or a gradient fill (or a fallback to its solid fill) is not layered: it is painted chunk by chunk
                 // straight onto the target, below the composite of the stroke layer
+                ChargePath(local, path, local.Transform, 0, trail);
                 PathFiller.Fill(local.Target, path.Transform(local.Transform), color, FillRule.NonZero, FlattenTolerance);
             }
 
             if (_stroke is not null)
             {
-                StrokeOnly(path, _strokeItem!, new Context(_stroke, shifted, local.Scale), shifted);
+                StrokeOnly(path, _strokeItem!, local with { Target = _stroke, Transform = shifted }, shifted);
             }
         }
 

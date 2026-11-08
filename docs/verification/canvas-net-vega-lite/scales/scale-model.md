@@ -249,3 +249,15 @@ band scale has no calendar, the linear scale is linear-like and the band scale i
 
 January 3 is two tenths of the way along the domain (0.2) and the two ends are 0 and 1; legends use the fraction for
 their gradient stops.
+
+##### Scale Invalid Outputs Are Observed Through The Marks (Phase 14)
+
+**Tests**: `MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidValuesAreTheOutputOfTheChannel`,
+`MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidKeepsAPathUnbroken`
+
+`ScaleModel.WithInvalidOutput` (a copy of a model with a `ScaleInvalidOutput`, only for a scale with a continuous domain
+as `HasContinuousDomain` says) and the way that `Map` and `MapText` return the output as it is for a value that does not
+read as a number have no test of their own: the product reaches them only from `MarkBuilder.ApplyShowInvalid`, so the
+mark tests are their evidence. A number entry is the position, size, opacity, or stroke width of a row without a value
+(a pixel position of 5 for an `x`, the opacity 0.25), a text entry the color (`#aaa`), and a row with a number keeps the
+output of the scale, which is the observable proof that the original mapping is unchanged.

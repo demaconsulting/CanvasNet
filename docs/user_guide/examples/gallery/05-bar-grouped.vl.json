@@ -1,0 +1,20 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Grouped bars: the xOffset channel nests the two years inside each band, a label expression names the quarters.",
+  "title": "Orders per quarter",
+  "width": {"step": 46},
+  "height": 190,
+  "data": {"values": [
+    {"q": 1, "year": "2023", "orders": 120}, {"q": 1, "year": "2024", "orders": 150},
+    {"q": 2, "year": "2023", "orders": 180}, {"q": 2, "year": "2024", "orders": 175},
+    {"q": 3, "year": "2023", "orders": 90}, {"q": 3, "year": "2024", "orders": 130},
+    {"q": 4, "year": "2023", "orders": 210}, {"q": 4, "year": "2024", "orders": 260}
+  ]},
+  "mark": {"type": "bar", "cornerRadiusTopLeft": 3, "cornerRadiusTopRight": 3},
+  "encoding": {
+    "x": {"field": "q", "type": "ordinal", "title": "Quarter", "axis": {"labelAngle": 0, "labelExpr": "'Q' + datum.label"}},
+    "xOffset": {"field": "year", "type": "nominal"},
+    "y": {"field": "orders", "type": "quantitative", "scale": {"domain": [0, 300]}, "title": "Orders"},
+    "color": {"field": "year", "type": "nominal", "title": "Year", "scale": {"range": ["#9ecae1", "#08519c"]}}
+  }
+}

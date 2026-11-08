@@ -4,8 +4,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.SpecModel;
 
 /// <summary>
 ///     Unit tests of <see cref="FeatureCatalog"/> for the composite marks <c>boxplot</c>, <c>errorbar</c> and <c>errorband</c> (Phase 10): the marks are drawn (the identifiers
-///     <c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> are retired), a <c>bin</c>, a binned or maxbins <c>timeUnit</c> or an <c>aggregate</c> on a channel that groups the rows
-///     is reported as <c>vl-composite-grouping</c> (a <c>timeUnit</c> with a unit is applied, Phase 13), the error channels are reported on the marks that do not use them; and of the configuration defaults of the composite marks
+///     <c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> are retired), a <c>bin</c>, an <c>aggregate</c> and a <c>timeUnit</c> of any form on a channel that groups the rows
+///     are applied (Phase 14: <c>vl-composite-grouping</c> is retired), the error channels are reported on the marks that do not use them; and of the configuration defaults of the composite marks
 ///     (<see cref="ConfigResolver"/>) that the expansion reads.
 /// </summary>
 public class FeatureCatalogCompositeTests
@@ -35,21 +35,22 @@ public class FeatureCatalogCompositeTests
     }
 
     /// <summary>
-    ///     Validates the grouping report for a bin and a time unit that is not applied (the maxbins form) on a grouping channel, at that channel; a time unit with a unit is applied and not reported.
+    ///     Validates that a bin, an aggregate and a time unit of any form on a grouping channel are applied and not reported (Phase 14; the identifier <c>vl-composite-grouping</c> is retired).
     /// </summary>
     /// <param name="channel">The grouping channel definition.</param>
-    /// <param name="pointer">The pointer of the report.</param>
     [Theory]
-    [InlineData("""{ "field": "g", "type": "quantitative", "bin": true }""", "/encoding/x")]
-    [InlineData("""{ "field": "g", "type": "temporal", "timeUnit": { "maxbins": 4 } }""", "/encoding/x")]
-    [InlineData("""{ "field": "g", "type": "ordinal", "bin": { "maxbins": 5 } }""", "/encoding/x")]
-    public void FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported(string channel, string pointer)
+    [InlineData("""{ "field": "g", "type": "quantitative", "bin": true }""")]
+    [InlineData("""{ "field": "g", "type": "temporal", "timeUnit": { "maxbins": 4 } }""")]
+    [InlineData("""{ "field": "g", "type": "temporal", "timeUnit": "binnedyearmonth" }""")]
+    [InlineData("""{ "field": "g", "type": "ordinal", "bin": { "maxbins": 5 } }""")]
+    [InlineData("""{ "field": "g", "type": "quantitative", "aggregate": "mean" }""")]
+    public void FeatureCatalog_Visit_BinOrTimeUnitOrAggregateOfAGroupingChannelIsNotReported(string channel)
     {
         // Arrange / Act
         var reports = Visit($$"""{ "mark": "boxplot", "encoding": { "x": {{channel}}, "y": { "field": "v", "type": "quantitative" } } }""");
 
         // Assert
-        Assert.Equal([("vl-composite-grouping", pointer)], reports);
+        Assert.Empty(reports);
     }
 
     /// <summary>
@@ -70,48 +71,30 @@ public class FeatureCatalogCompositeTests
     }
 
     /// <summary>
-    ///     Validates that an aggregate on another channel that groups is reported too, and that the measure channel, the secondary channels and the tooltip are not grouping
-    ///     channels (a bin of the measure is not reported by this rule).
+    ///     Validates that the grouping of the three composite marks reports nothing whatever the orientation and the layering: a bin of the measure channel, of the other position channel
+    ///     of a horizontal mark, and of a channel inherited from the layers above.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_AggregateOfAGroupingChannelIsReportedButNotTheMeasure()
+    public void FeatureCatalog_Visit_GroupingFormsAreNotReportedWhateverTheOrientationAndLayers()
     {
         // Arrange / Act
-        var grouping = Visit("""
-            { "mark": "boxplot", "encoding": { "x": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" },
-                                               "size": { "field": "z", "aggregate": "mean", "type": "quantitative" } } }
-            """);
         var measure = Visit("""
             { "mark": "boxplot", "encoding": { "x": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative", "bin": true },
                                                "tooltip": { "field": "v", "bin": true } } }
             """);
-
-        // Assert
-        Assert.Equal([("vl-composite-grouping", "/encoding/size")], grouping);
-        Assert.DoesNotContain(measure, r => r.Id == "vl-composite-grouping");
-    }
-
-    /// <summary>
-    ///     Validates that the measure is the continuous channel of the orientation: for a horizontal box plot <c>y</c> groups the rows, and that the report is made for a
-    ///     boxplot inside layers (at the channel of the layer, once for an inherited channel), but not for the other marks.
-    /// </summary>
-    [Fact]
-    public void FeatureCatalog_Visit_GroupingReportFollowsTheOrientationAndLayers()
-    {
-        // Arrange / Act
         var horizontal = Visit("""
             { "mark": "boxplot", "encoding": { "y": { "field": "g", "type": "ordinal", "bin": true }, "x": { "field": "v", "type": "quantitative" } } }
             """);
         var layered = Visit("""
             { "encoding": { "x": { "field": "g", "type": "ordinal", "bin": true } },
               "layer": [ { "mark": "boxplot", "encoding": { "y": { "field": "v", "type": "quantitative" } } },
-                         { "mark": "boxplot", "encoding": { "y": { "field": "w", "type": "quantitative" } } },
                          { "mark": "bar", "encoding": { "y": { "field": "v", "type": "quantitative" } } } ] }
             """);
 
-        // Assert
-        Assert.Equal([("vl-composite-grouping", "/encoding/y")], horizontal);
-        Assert.Equal([("vl-composite-grouping", "/encoding/x")], layered);
+        // Assert: the bin of the measure and of the tooltip is the ordinary bin of the channel, which the catalog supports
+        Assert.DoesNotContain(measure, r => r.Id == "vl-composite-grouping");
+        Assert.Empty(horizontal);
+        Assert.Empty(layered);
     }
 
     /// <summary>
@@ -186,10 +169,10 @@ public class FeatureCatalogCompositeTests
     }
 
     /// <summary>
-    ///     Validates the grouping report for an error bar and an error band, and that the orientation comes from the range or error channels when they are given.
+    ///     Validates that the grouping of an error bar and an error band reports nothing, and that the orientation comes from the range or error channels when they are given.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_ErrorBarGroupingIsReportedAtTheGroupingChannel()
+    public void FeatureCatalog_Visit_ErrorBarGroupingIsNotReported()
     {
         // Arrange / Act
         var raw = Visit("""{ "mark": "errorbar", "encoding": { "x": { "field": "g", "type": "ordinal", "bin": true }, "y": { "field": "v", "type": "quantitative" } } }""");
@@ -197,9 +180,9 @@ public class FeatureCatalogCompositeTests
         var ranged = Visit("""{ "mark": "errorbar", "encoding": { "y": { "field": "g", "type": "ordinal", "bin": true }, "x": { "field": "lo", "type": "quantitative" }, "x2": { "field": "hi" } } }""");
 
         // Assert
-        Assert.Equal([("vl-composite-grouping", "/encoding/x")], raw);
-        Assert.Equal([("vl-composite-grouping", "/encoding/x")], band);
-        Assert.Equal([("vl-composite-grouping", "/encoding/y")], ranged);
+        Assert.Empty(raw);
+        Assert.Empty(band);
+        Assert.Empty(ranged);
     }
 
     /// <summary>

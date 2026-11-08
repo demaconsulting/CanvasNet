@@ -162,6 +162,8 @@ sections:
                   - AggregateTransforms_Window_PreviousAndNextValueSkipNulls
                   - AggregateTransforms_Window_SlidingFrameAverages
                   - AggregateTransforms_Window_FramesAreClampedAndMayBeEmpty
+                  - AggregateTransforms_Window_FrameBoundsAndOffsetsBeyondTheIntegerRangeClampAndNeverThrow
+                  - AggregateTransforms_Window_IndexArithmeticMatchesAnExactReferenceOnExtremeBoundsAndOffsets
                   - AggregateTransforms_Window_WholePartitionFrame
                   - AggregateTransforms_Window_CumulativeFastPathEqualsRecomputation
                   - AggregateTransforms_Window_ValuesFollowTheFrameAndPeersShareTheArray
@@ -228,6 +230,7 @@ sections:
                   - BinAlgorithm_Compute_DegenerateExtentUsesTheMagnitude
                   - BinAlgorithm_Compute_TinyHugeOrInvalidExtentsFail
                   - BinAlgorithm_Compute_MoreBinsThanTheLimitFails
+                  - BinAlgorithm_Compute_BaseBarelyAboveOneKeepsTheDecimalsOfTheStepAsANumber
                   - BinAlgorithm_Align_AnchorShiftsTheBins
                   - BinAlgorithm_Align_RoundsTheStopUpToAWholeStep
                   - BinAlgorithm_Resolve_AppliesTheAnchor
@@ -358,6 +361,9 @@ sections:
                   - AggregateTransforms_Impute_GroupsTimesKeysIsBoundedBeforeAllocation
                   - AggregateTransforms_Impute_HugeKeySequencesAreRejectedUpFront
                   - AggregateTransforms_Impute_LongKeyListsAreRejected
+                  - AggregateTransforms_Impute_KeyCountBeyondTheIntRangeIsRefusedWhateverTheRowLimit
+                  - AggregateTransforms_Impute_KeyCountBeyondTheCellLimitIsRefusedBeforeAllocationWhateverTheRowLimit
+                  - AggregateTransforms_Impute_FrameBoundsBeyondTheIntegerRangeClampToTheGroup
                   - AggregateTransforms_Impute_FieldAndStringLimitsAreLocated
                   - AggregateTransforms_Impute_WorkIsChargedToTheStepBudget
                   - AggregateTransforms_Bin_UnbinnableExtentsAndTooManyBinsFail

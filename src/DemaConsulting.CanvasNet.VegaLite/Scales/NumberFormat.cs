@@ -644,7 +644,7 @@ internal sealed partial class NumberFormat
     /// <returns>The specifier with the precision set, or the specifier unchanged.</returns>
     private static FormatSpecifier WithPrecision(FormatSpecifier specifier, double precision, int offset) =>
         specifier.Precision is null && !double.IsNaN(precision)
-            ? specifier with { Precision = (int)Math.Min(precision - offset, 1000) }
+            ? specifier with { Precision = NumericConversions.ToInt32Saturating(Math.Min(precision - offset, 1000)) }
             : specifier;
 
     /// <summary>

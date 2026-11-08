@@ -195,6 +195,11 @@ its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") 
 the
 library that the mapping recognizes.
 
+**SourceLoader_Load_VegaLite_MapsPaintLimitFailureToBudgetExceeded**: a real failure of the library for a chart that
+paints more than a `MaxPaintedPixels` of 10 (whose message names `VegaLiteLimits.MaxPaintedPixels`) is
+`budget-exceeded` with a hint and the exception as its cause, and not an error of the chart; this pins the text of the
+paint limit that the mapping recognizes.
+
 **SourceLoader_Load_VegaLite_MapsCompositionLimitFailuresToBudgetExceeded**: a real failure of the library for an
 `hconcat` of two charts and for a facet of two cells, each with a view limit of 1 (whose message names
 `the limit (MaxViews)`), is `budget-exceeded` with a hint and the exception as its cause; this pins the second text form

@@ -21,10 +21,10 @@ that the render options name, UTC when none). It contains three units:
 - **ExpressionEvaluator** - the internal `ExpressionEvaluator` and the `IExpressionDatum` interface: runs a compiled
   expression with JavaScript coercion, culture-independently, under the step budget and the cancellation token; see
   _ExpressionEvaluator Unit Design_ (`expressions/expression-evaluator.md`)
-- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 104 functions, the `ExpressionFunctionContext`,
+- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 113 functions, the `ExpressionFunctionContext`,
   `ExpressionRegex`, and the selection stores and tests: the math, text and array, type and conversion, regular
   expression, date and time,
-  number formatting, and selection functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
+  number formatting, selection, and probability distribution functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
 
 The subsystem's namespace documentation is in `Expressions/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Expressions-*` requirements in `docs/reqstream/canvas-net-vega-lite/expressions.yaml`.
@@ -105,9 +105,12 @@ string with the offset in the message; a cancellation is an `OperationCanceledEx
 language: a function exists only if
 it is in the frozen table. The families are the math functions, the text and array functions, the type and conversion
 functions, the regular expression functions, the date and time functions (the constructors, the getters and their
-UTC forms, offsets and sequences, the unit specifier, and the time format and parse functions), and the number `format`
-function (d3-format, en-US). The color, geographic, scale, statistical, and data-flow
-functions are deferred to later phases of the roadmap. There is no
-`random` function because reproducible rendering is a system contract, and there is no `now` function for the same
+UTC forms, offsets and sequences, the unit specifier, and the time format and parse functions), the number `format`
+function (d3-format, en-US), the selection functions, and the nine probability distribution functions (density,
+cumulative, and quantile of the normal, log-normal, and uniform distributions; Phase 14). The color, geographic,
+scale, and data-flow functions are deferred to later phases of the roadmap. There is no sampling function (`random`,
+`sampleNormal`, `sampleLogNormal`, `sampleUniform`) because reproducible rendering is a system contract and Vega's
+`random` is the unseeded `Math.random`; a call is reported as `vl-expr-function-random` (and the like) and gives null.
+There is no `now` function for the same
 reason: the clock is not an input of a pure expression, so a call of `now` is reported as `vl-expr-function-now` and
 gives null. A date function never reads the host's zone or clock; it takes its calendar from the evaluator.

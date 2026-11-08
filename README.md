@@ -28,6 +28,11 @@ load/crop/resize/save workflows.
 *Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, PDF, PowerPoint, and Visio. See
 [how the image was made](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
 
+![The Vega-Lite gallery: a line chart, stacked bars, a binned heat map, a donut, a density estimate, and a dark-themed chart, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/vegalite-gallery.png)
+
+*Six of the 18 charts of the Vega-Lite gallery in the user guide; every chart of the gallery is an original
+specification and is rendered, in strict mode, by a test.*
+
 ## Features
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
@@ -52,6 +57,8 @@ load/crop/resize/save workflows.
 - 🧊 **3D Rendering** - Rasterize meshes and scenes with CSG, extrusion, hulls, and Minkowski sums
 - 🧩 **OpenSCAD-Language Rendering** - Parse, evaluate, and render `.scad` models to a surface
 - 📉 **Vega-Lite Charts** - Render a growing subset of Vega-Lite specs (see User Guide)
+- 🛡️ **Vega-Lite Hardening** - Resource limits for every stage (rows, steps, items, painted pixels), cancellation,
+  a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, and pages in Pandoc documents (see User Guide)

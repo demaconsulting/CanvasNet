@@ -144,7 +144,8 @@ internal static partial class SpecNormalizer
         }
 
         var axis = b.ContinuousAxis(encoding, orient);
-        var (shared, groupBy, timeUnits) = b.Grouping(encoding!, axis);
+        var grouping = b.Grouping(encoding!, axis);
+        var shared = grouping.Channels;
         if (b.Type == "errorbar")
         {
             // Vega-Lite drops the size channel from the parts of an errorbar (its ticks and rule have the size of the mark definition)
@@ -152,7 +153,7 @@ internal static partial class SpecNormalizer
         }
 
         var is2D = encoding!["x"] is { IsNull: false } && encoding["y"] is { IsNull: false };
-        return new ErrorLayers(b, encoding, axis, orient, input, shared, groupBy, timeUnits, is2D).Create();
+        return new ErrorLayers(b, encoding, axis, orient, input, grouping, is2D).Create();
     }
 
     /// <summary>
@@ -181,8 +182,11 @@ internal static partial class SpecNormalizer
         /// <summary>The fields that group the rows.</summary>
         private readonly List<string> _groupBy;
 
-        /// <summary>The <c>timeUnit</c> transforms of the grouping channels, which run before the aggregate.</summary>
+        /// <summary>The transforms of the grouping channels (the bins, then the time units), which run before the aggregate.</summary>
         private readonly List<SpecNode> _timeUnits;
+
+        /// <summary>The measures that the aggregating channels add to the aggregate.</summary>
+        private readonly List<SpecNode> _measures;
 
         /// <summary>Whether both <c>x</c> and <c>y</c> are given (an errorband then draws an area and lines).</summary>
         private readonly bool _is2D;
@@ -195,20 +199,19 @@ internal static partial class SpecNormalizer
         /// <param name="axis">The continuous axis.</param>
         /// <param name="orient">The orientation.</param>
         /// <param name="input">The kind of input.</param>
-        /// <param name="shared">The channels the parts share.</param>
-        /// <param name="groupBy">The fields that group the rows.</param>
-        /// <param name="timeUnits">The <c>timeUnit</c> transforms of the grouping channels.</param>
+        /// <param name="grouping">The channels that group the rows, and what their definitions add.</param>
         /// <param name="is2D">Whether both <c>x</c> and <c>y</c> are given.</param>
-        public ErrorLayers(CompositeBuilder b, SpecNode? encoding, CompositeAxis axis, string orient, ErrorInput input, List<SpecNode> shared, List<string> groupBy, List<SpecNode> timeUnits, bool is2D)
+        public ErrorLayers(CompositeBuilder b, SpecNode? encoding, CompositeAxis axis, string orient, ErrorInput input, CompositeGrouping grouping, bool is2D)
         {
             _b = b;
             _encoding = encoding!;
             _axis = axis;
             _orient = orient;
             _input = input;
-            _shared = shared;
-            _groupBy = groupBy;
-            _timeUnits = timeUnits;
+            _shared = grouping.Channels;
+            _groupBy = grouping.GroupBy;
+            _timeUnits = grouping.Transforms;
+            _measures = grouping.Measures;
             _is2D = is2D;
         }
 
@@ -280,12 +283,14 @@ internal static partial class SpecNormalizer
             switch (_input)
             {
                 case ErrorInput.UpperLower:
+                    AddChannelAggregate(transforms);
                     transforms.Add(Calculate(Read(_axis.Secondary), Name("upper")));
                     transforms.Add(Calculate(own, Name("lower")));
                     break;
                 case ErrorInput.Error:
                     var error = _axis.Channel + "Error";
                     var error2 = error + "2";
+                    AddChannelAggregate(transforms);
                     transforms.Add(Calculate($"{own} + {Read(error)}", Name("upper")));
                     transforms.Add(Calculate(_encoding[error2] is null ? $"{own} - {Read(error)}" : $"{own} + {Read(error2)}", Name("lower")));
                     break;
@@ -295,6 +300,18 @@ internal static partial class SpecNormalizer
             }
 
             return transforms;
+        }
+
+        /// <summary>
+        ///     Writes the aggregate of the channels that aggregate, when the mark has aggregated input (Vega-Lite adds <c>{aggregate, groupby}</c> only when a channel aggregates).
+        /// </summary>
+        /// <param name="transforms">Receives the transform entry.</param>
+        private void AddChannelAggregate(List<SpecNode> transforms)
+        {
+            if (_measures.Count > 0)
+            {
+                transforms.Add(_b.Obj(null, _b.Arr("aggregate", _measures), _b.Arr("groupby", _groupBy.Select(g => _b.Str(null, g)))));
+            }
         }
 
         /// <summary>
@@ -318,7 +335,7 @@ internal static partial class SpecNormalizer
                 measures = [Op(lowerOp, Name("lower")), Op(upperOp, Name("upper")), Op(centerOp, Name("center"))];
             }
 
-            transforms.Add(_b.Obj(null, _b.Arr("aggregate", measures), _b.Arr("groupby", _groupBy.Select(g => _b.Str(null, g)))));
+            transforms.Add(_b.Obj(null, _b.Arr("aggregate", [.. measures, .. _measures]), _b.Arr("groupby", _groupBy.Select(g => _b.Str(null, g)))));
             if (extent is "stderr" or "stdev")
             {
                 transforms.Add(Calculate($"{Access(Name("center"))} + {Access(Name("extent"))}", Name("upper")));

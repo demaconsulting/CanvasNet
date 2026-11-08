@@ -193,6 +193,7 @@ sections:
                   - StatisticsPrimitives_Deviation_IsTheSampleDeviationOfTheNonNullNumbers
                   - StatisticsPrimitives_Extent_FollowsJavaScriptComparison
                   - StatisticsPrimitives_RangeCount_MatchesTheLengthOfD3Range
+                  - StatisticsPrimitives_RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue
                   - StatisticsPrimitives_IsTruthy_ZeroAndNaNAreFalsy
                   - StatisticsPrimitives_JsMinAndJsMax_PropagateNaN
                   - StatisticsPrimitives_NullArguments_Throw
@@ -217,8 +218,11 @@ sections:
                   before they exist (the points of a curve as they are found, the grid of a density and the
                   probabilities of a quantile before they are computed), give the rows of its input back when
                   its output is complete (an extent keeps its input), keep the output within the field and
-                  cell limits, charge the work of a fit, a loess window, a kernel evaluation, and a sort to
-                  the step budget, stop for a canceled token, and give the same table on every call.
+                  cell limits, charge the work of a fit, a loess window, a kernel evaluation, a bootstrap
+                  draw, and a sort to the step budget with weights that make the default budget stop each of
+                  them in about ten seconds, refuse a quantile step whose probabilities no integer count can
+                  hold (or that exceed the cell limit) at the row budget before any array is allocated, stop
+                  for a canceled token, and give the same table on every call.
                 justification: |
                   The number of generated rows and the work depend on the options and not on the size of the
                   specification, so a hostile specification would otherwise exhaust memory or time.
@@ -229,7 +233,14 @@ sections:
                   - StatTransforms_Loess_WorkBeyondTheStepBudgetFailsAtTheTransform
                   - StatTransforms_RegressionAndLoess_StopWhenCanceled
                   - StatTransforms_Density_StepsBeyondTheRowBudgetFailAtTheTransform
+                  - StatTransforms_Density_StepsBeyondTheCellLimitWithAnUnboundedRowBudget_FailAtTheCellLimit
                   - StatTransforms_Density_WorkBeyondTheStepBudgetFailsAtTheTransform
                   - StatTransforms_Density_StopsWhenCanceled
                   - StatTransforms_Quantile_TinyStepBeyondTheRowBudgetFailsAtTheTransform
+                  - StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget
+                  - StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit
+                  - LoessFit_Cost_CountsEachWeightEvaluationAsThreeElements
+                  - LoessFit_Cost_SaturatesForTheLargestGroups
+                  - StatTransforms_Density_KernelCostDoesNotWrapForTheLargestGroups
+                  - CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns
                   - StatTransforms_Quantile_StopsWhenCanceled

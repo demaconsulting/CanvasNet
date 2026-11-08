@@ -89,9 +89,17 @@ operation over the frame. `ntile` and `nth_value` need a `param` (an integer of 
 default it to 1.
 
 **Frames and peers.** A frame is two row offsets from the current row (null is unbounded; **default
-`[null, 0]`**), clamped to the partition. With a `sort` and without `ignorePeers`, each end of the frame is
-widened to include the peers (the rows with equal sort values) of the row at that end. The rows keep their
-**input order** in the output.
+`[null, 0]`**), clamped to the partition. An offset is any integer: `ReadFrame` keeps it as a `long` (a larger one
+saturates), and the frame positions and the positions of `lag`, `lead`, and `nth_value` are computed with
+`NumericConversions.AddSaturating`, so an offset of any size lands outside the partition and is clamped (a frame) or
+has no row (a position) and never wraps into an index, as the frame bounds and offsets of Vega, which are numbers of
+any size (`vega-transforms` `WindowOps.js`: `lag` and `lead` read `data[index -/+ offset]` of `+offset || 1`, and
+`nth_value` reads `data[i0 + (nth - 1)]` when it is below `i1`). The parser accepts any integer for a frame bound and
+any integer of at least 1 for the `param` of `ntile`, `lag`, `lead`, and `nth_value`; the engine, which callers other
+than the parser can reach, also defines a zero offset as 1 (Vega's `|| 1`) and gives no value for an offset or an nth
+that points outside the partition or the frame (Vega would read an undefined row there). With a `sort` and without
+`ignorePeers`, each end of the frame is widened to include the peers (the rows with equal sort values) of the row at
+that end. The rows keep their **input order** in the output.
 
 **Stack.** A group is stacked in the order of the sort fields (a stable sort: null first, NaN next, then by
 value; no sort keeps the table order); the first row is nearest to zero. `zero` stacks a value below 0 downwards
@@ -108,7 +116,9 @@ The imputed field is the `value` (default 0; an explicit null is honored) or, fo
 `max`, that operation over the `frame` (default `[null, null]`) of the group in data order, and replaces every
 null of the field, including the nulls that were already in the rows (the pair of a window and a formula in
 Vega-Lite). The same engine serves the `impute` property of an encoding and the implicit impute of a stacked line or
-area (see _EncodingPlan_); it does not know where its parameters come from.
+area (see _EncodingPlan_); it does not know where its parameters come from. The number of `keyvals` is checked against
+the row limit and `TableLayout.MaxCells` (the smaller of the two) before it is converted to an int, so a row
+limit above that range cannot make a count beyond it wrap (.NET 8) or saturate (.NET 9 and later) in the loop.
 
 **Bin.** `BinSettings` holds the parameters (`maxbins` 20 when the algorithm is used raw, `base` 10, `divide`
 `[5, 2]`, `step`, `steps`, `minstep`, `nice` true, `anchor`, `extent`, `span`; the `bin` transform and the position
@@ -156,7 +166,10 @@ clock, the environment, a random source, or the current culture.
 - `Aggregate(input, groupBy, measures, location, seed, releaseInput)` (internal) - the engine of `aggregate` and
   of the implicit aggregate of an encoding. Pass 1 (`GroupRows`) assigns every row to a group with `BuildKey`;
   pass 2 (`AccumulateGroups`) feeds each row to the `MeasureCell` of every measure of its group; pass 3 writes
-  one output row per group (the group fields, then one field per measure; a later field of the same name wins).
+  one output row per group (the group fields, then one field per measure; a later field of the same name wins). A
+  group-by field that is not a valid field path (an empty field name on the channel of a boxplot, an error bar or an
+  error band, which write their aggregate from the encoding) is a located `VegaLiteRenderException` at the transform
+  (the explicit `groupby` of a transform is validated when the specification is opened).
   `joinaggregate` runs the first two passes, computes the result of every group **once**, and writes it to every
   row of the group (so a `values` array, or an `argmin` row, is the same shared value for all rows of the group);
   rows and their order are unchanged.
@@ -233,7 +246,7 @@ charges the `WorkMeter`; every limit message contains `the limit of`, `the limit
 | `window` | Unchanged; the `values` arrays are bounded by `MaxDataRows` in total | Partition keys 2 + group fields per group; sort keys `rows * sort fields`; value-state check; `TableLayout` | operations + 1 per row; n log n per sort; **4 per row of every recomputed frame per aggregate** (cumulative frames are not recomputed); `values` length |
 | `bin` | Unchanged | `TableLayout`; bin count at most `MaxScaleDomainSize` (also for an explicit `step`) | 1 per row for the extent, 1 per row for the assignment |
 | `stack` | Unchanged | 2 + group fields per group; sort keys; `TableLayout` | 1 per row for the copy and 1 for the number, the group size per group, n log n per sort |
-| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
+| `impute` | `groups * keys` reserved, then the exact remainder; the input is released at the end unless the caller keeps it (peak: input plus output) | `keyvals` count against `MaxDataRows` and `TableLayout.MaxCells`; one bit per combination; `MaxFieldCount`; output cells | 1 or 2 per row, 1 + group fields per imputed row, the window engine for the other methods |
 <!-- markdownlint-enable MD013 -->
 
 **Preconditions and postconditions**: `SpecParser` validated the transform shapes (operation names, parameters,
@@ -274,8 +287,9 @@ output, as documented per operation. The unit performs no I/O.
 6. **Exponential default parameter**: a missing `param` is 0.5 (Vega-Lite does not require one).
 7. **Bin growth cap** and located failures for an extent that no finite step covers, and the bin count bound by
    `MaxScaleDomainSize`; JavaScript's `Math.round` (half toward positive infinity) is used.
-8. **Impute and `keyvals`**: keys are deduplicated structurally; a sequence is bounded by `MaxDataRows` before
-   it is built.
+8. **Impute and `keyvals`**: keys are deduplicated structurally; a sequence is bounded by `MaxDataRows` and by
+   `TableLayout.MaxCells` (each key is one cell of the key domain) before it is built, so a row limit raised to its
+   maximum cannot allocate a domain that no result table could hold.
 9. **`argmin` and `argmax`** return the whole first row as an object; the default name is `argmax_field`.
 
 #### Dependencies

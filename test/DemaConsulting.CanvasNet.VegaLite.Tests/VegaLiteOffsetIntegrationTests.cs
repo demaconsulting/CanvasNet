@@ -237,9 +237,9 @@ public class VegaLiteOffsetIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored()
     {
-        // Arrange: a quantitative x, a bar with a quantitative offset (ranged), and the time unit positions that cannot hold an offset (the day of the week) or can (a month)
+        // Arrange: a quantitative x, a bar with a temporal offset (not a ranged offset), and the time unit positions that cannot hold an offset (the day of the week) or can (a month)
         const string quantitative = """{ "mark": "point", "encoding": { "x": { "field": "v", "type": "quantitative" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } }""";
-        const string ranged = """{ "mark": "bar", "encoding": { "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "quantitative" }, "y": { "field": "v", "type": "quantitative" } } }""";
+        const string ranged = """{ "mark": "bar", "encoding": { "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "temporal" }, "y": { "field": "v", "type": "quantitative" } } }""";
 
         // Act
         var (quantitativeReport, _) = Report("{ " + Data + ", " + quantitative.TrimStart('{').TrimEnd('}') + " }");

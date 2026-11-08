@@ -31,19 +31,28 @@ internal static class LoessFit
     /// <summary>The number of robustness iterations after the first fit (Vega's <c>maxiters</c>).</summary>
     private const int MaxIterations = 2;
 
+    /// <summary>
+    ///     The number of work elements that one weight evaluation of the window loop is charged as. A work element is calibrated at about three nanoseconds (see <see cref="WorkMeter"/>: the default
+    ///     budget of 50,000,000 steps of 64 elements stops a transform in about ten seconds); one evaluation is a tricube kernel, five multiply-adds and a bounds-checked read, measured at about nine
+    ///     nanoseconds on a current desktop processor, so it counts three.
+    /// </summary>
+    private const long EvaluationWeight = 3;
+
     /// <summary>The smallest median residual that is still iterated on, and the weight of a point that is an extreme outlier.</summary>
     private const double Epsilon = 1e-12;
 
     /// <summary>
-    ///     Estimates the work of a fit, in weight evaluations, so that the caller can charge it before it starts.
+    ///     Estimates the work of a fit, in work elements, so that the caller can charge it before it starts.
     /// </summary>
     /// <param name="n">The number of rows of the group (an upper bound of the valid points).</param>
     /// <param name="bandwidth">The bandwidth.</param>
-    /// <returns>The number of evaluations: the points times the window times the passes, and the sort.</returns>
+    /// <returns>The work elements: the weight evaluations (the points times the window times the passes, each counted <see cref="EvaluationWeight"/> times), and the sort.</returns>
     public static long Cost(int n, double bandwidth)
     {
-        var window = Math.Max(2, (long)Math.Truncate(Math.Max(0, bandwidth) * n));
-        return (long)n * (Math.Min(window, n) + 2) * (MaxIterations + 1) + ((long)n * 16);
+        var window = Math.Max(2, NumericConversions.ToInt64Saturating(Math.Max(0, bandwidth) * n));
+        // The product of a row count, a window and the weights is far beyond a long for the largest groups; it saturates and so can never wrap to a charge that is free
+        var cost = ((double)n * (Math.Min(window, n) + 2) * (MaxIterations + 1) * EvaluationWeight) + ((double)n * 16);
+        return NumericConversions.ToInt64Saturating(cost);
     }
 
     /// <summary>

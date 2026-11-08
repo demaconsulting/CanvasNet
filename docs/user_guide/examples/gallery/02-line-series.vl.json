@@ -1,0 +1,21 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Monthly mean temperature of three invented towns: a line per town with a point on each month.",
+  "title": "Monthly temperature by town",
+  "width": 360,
+  "height": 200,
+  "data": {"sequence": {"start": 0, "stop": 24, "as": "i"}},
+  "transform": [
+    {"calculate": "datetime(2023 + floor(datum.i / 12), datum.i % 12, 1)", "as": "month"},
+    {"calculate": "11 + 10 * sin((datum.i - 3) / 12 * 2 * PI)", "as": "Alder Bay"},
+    {"calculate": "7 + 13 * sin((datum.i - 3) / 12 * 2 * PI)", "as": "Birch Hill"},
+    {"calculate": "15 + 6 * sin((datum.i - 2) / 12 * 2 * PI)", "as": "Cove Harbor"},
+    {"fold": ["Alder Bay", "Birch Hill", "Cove Harbor"], "as": ["town", "celsius"]}
+  ],
+  "mark": {"type": "line", "point": true},
+  "encoding": {
+    "x": {"field": "month", "type": "temporal", "timeUnit": "yearmonth", "title": "Month"},
+    "y": {"field": "celsius", "type": "quantitative", "title": "Temperature (°C)"},
+    "color": {"field": "town", "type": "nominal", "title": "Town"}
+  }
+}

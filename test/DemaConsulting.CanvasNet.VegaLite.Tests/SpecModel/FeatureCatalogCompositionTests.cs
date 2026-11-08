@@ -91,11 +91,11 @@ public class FeatureCatalogCompositionTests
     }
 
     /// <summary>
-    ///     Validates the reports about the field definition of a facet: a <c>bin</c>, a binned or maxbins <c>timeUnit</c> or an <c>aggregate</c> that is not applied, in the facet operator and in the
-    ///     channel of a unit view, each at its property, with the one identifier <c>vl-facet-field-transform</c>; a time unit with a unit is applied (Phase 13) and not reported.
+    ///     Validates that the field definition of a facet is not reported: a <c>bin</c>, an <c>aggregate</c> and a <c>timeUnit</c> (a unit, a binned unit and the maxbins form) are applied in the facet
+    ///     operator and in the channel of a unit view (Phase 14; the identifier <c>vl-facet-field-transform</c> is retired and never produced).
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_FacetFieldTransformIsReported()
+    public void FeatureCatalog_Visit_FacetFieldTransformIsNotReported()
     {
         // Arrange
         const string facet = """
@@ -107,11 +107,11 @@ public class FeatureCatalogCompositionTests
         const string binned = """{ "facet": { "field": "c", "type": "temporal", "timeUnit": { "unit": "month", "binned": true } }, "spec": { "mark": "point" } }""";
 
         // Act / Assert
-        Assert.Equal([("vl-facet-field-transform", "/facet/row/bin"), ("vl-facet-field-transform", "/facet/column/timeUnit")], Ids(facet));
-        Assert.Equal([("vl-facet-field-transform", "/encoding/column/aggregate")], Ids(channel));
+        Assert.Empty(Visit(facet));
+        Assert.Empty(Visit(channel));
         Assert.Empty(Visit(off));
         Assert.Empty(Visit(unit));
-        Assert.Equal([("vl-facet-field-transform", "/facet/timeUnit")], Ids(binned));
+        Assert.Empty(Visit(binned));
     }
 
     /// <summary>

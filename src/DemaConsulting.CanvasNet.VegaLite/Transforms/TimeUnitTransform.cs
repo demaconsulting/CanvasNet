@@ -13,7 +13,12 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 /// <param name="EndName">The literal name of the field that receives the end of the unit (exclusive).</param>
 /// <param name="Spec">The time unit (the <c>maxbins</c> form is resolved against the data).</param>
 /// <param name="Node">The node of the specification that asked for the unit (the location of a failure when the call has none of its own).</param>
-internal sealed record TimeUnitRequest(string Field, string StartName, string EndName, TimeUnitSpec Spec, SpecNode Node);
+/// <param name="EndOnly">
+///     Whether the field already holds the start of the unit (a <c>binned</c> unit of an encoding): only the end is written, one step of the smallest part after the value as it is,
+///     and <paramref name="StartName"/> is not added to the table (it names the field that already holds the start).
+///     Vega-Lite's <c>timeOffset</c> formula of <c>TimeUnitNode.assemble</c> (<c>compile/data/timeunit.ts</c>, v6.5.0).
+/// </param>
+internal sealed record TimeUnitRequest(string Field, string StartName, string EndName, TimeUnitSpec Spec, SpecNode Node, bool EndOnly = false);
 
 /// <summary>
 ///     The <c>timeUnit</c> transform: adds, for every row, the start and the end of the time unit that contains a date.
@@ -26,7 +31,9 @@ internal sealed record TimeUnitRequest(string Field, string StartName, string En
 ///         The value of a row is read as a date when it is a date or a finite number (milliseconds since the epoch); anything else (null, text,
 ///         a boolean) and a date that the calendar cannot place (outside the years 1 to 9999) gives null in both fields. The <c>maxbins</c> form that names
 ///         no unit is resolved first: one pass finds the extent of the valid dates, and Vega's <c>timeBin</c> chooses the unit and the step for it
-///         (a table without a valid date gets null fields). A <c>binned</c> unit does not floor: the value is the start and the end follows it.
+///         (a table without a valid date gets null fields). The <c>timeUnit</c> transform of a specification floors a <c>binned</c> unit like any other (Vega's <c>timeunit</c> transform has no <c>binned</c>
+///         parameter, which Vega-Lite's <c>assemble</c> passes through and Vega ignores). The encoding of a <c>binned</c> unit uses <see cref="TimeUnitRequest.EndOnly"/> instead:
+///         the field is the start and only the end is computed, as <c>timeOffset(part, field, step)</c> of the value as it is.
 ///     </para>
 ///     <para>
 ///         <b>Limits and cancellation.</b> The fields are added through <see cref="TableLayout"/> (the field and cell limits are checked before
@@ -67,11 +74,24 @@ internal static class TimeUnitTransform
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(context);
         var names = new List<string>(requests.Count * 2);
-        foreach (var request in requests)
+        var startAt = new int[requests.Count];
+        var endAt = new int[requests.Count];
+        for (var r = 0; r < requests.Count; r++)
         {
-            context.CheckText(DataValue.FromString(request.StartName), "An output name of the timeUnit transform", location);
+            var request = requests[r];
             context.CheckText(DataValue.FromString(request.EndName), "An output name of the timeUnit transform", location);
-            names.Add(TableLayout.Canonical(request.StartName));
+            if (request.EndOnly)
+            {
+                startAt[r] = -1;
+            }
+            else
+            {
+                context.CheckText(DataValue.FromString(request.StartName), "An output name of the timeUnit transform", location);
+                startAt[r] = names.Count;
+                names.Add(TableLayout.Canonical(request.StartName));
+            }
+
+            endAt[r] = names.Count;
             names.Add(TableLayout.Canonical(request.EndName));
         }
 
@@ -108,17 +128,22 @@ internal static class TimeUnitTransform
                         continue;
                     }
 
-                    var start = spec.IsBinned ? ms : spec.Floor(calendar, ms);
+                    // The field of an encoding with a binned unit is the start already: the end is one step after the value as it is
+                    var start = requests[r].EndOnly ? ms : spec.Floor(calendar, ms);
                     if (!TimeCalendar.IsValid(start))
                     {
                         continue;
                     }
 
-                    cells[offset + layout.Added[2 * r]] = DataValue.FromDate(start);
+                    if (startAt[r] >= 0)
+                    {
+                        cells[offset + layout.Added[startAt[r]]] = DataValue.FromDate(start);
+                    }
+
                     var end = spec.End(calendar, start);
                     if (TimeCalendar.IsValid(end))
                     {
-                        cells[offset + layout.Added[(2 * r) + 1]] = DataValue.FromDate(end);
+                        cells[offset + layout.Added[endAt[r]]] = DataValue.FromDate(end);
                     }
                 }
             }

@@ -536,21 +536,24 @@ color have none.
 `SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,
 `SpecParserTimeTests.SpecParser_TimeUnit_ObjectForm_ValidatesMembers`,
 `SpecParserTimeTests.SpecParser_TimeUnit_UnknownMemberIsAWarning`,
-`SpecParserTimeTests.SpecParser_TimeUnit_Binned_ParsesAndIsReported`
+`SpecParserTimeTests.SpecParser_TimeUnit_Binned_ParsesAndIsApplied`
 
 Asserts that each of the 40 local time unit names of Vega-Lite and its `utc` form (80 spellings) is accepted in the
 encoding of a temporal field without a warning; that an unknown unit is a located `VegaLiteSpecException` whose message
 says `Unrecognized time unit 'foo'` (and `'year-week'`, and the wrongly cased `'Month'`), at the `timeUnit` of an
 encoding (`/encoding/x/timeUnit`), of a condition, of a predicate (`/transform/0/filter/timeUnit`), and of the
-`timeUnit` transform (`/transform/0/timeUnit`); that, as a theory of eighteen values, the object form accepts a unit
-with a step, a `utc` unit, `utc: true`, a bare `maxbins`, and `binned: true`, while a step of 0, -1, or a text, a
-`maxbins` of 0 or a text, a `utc` or `binned` that is not a boolean, and a `unit` that is a number or unknown are each
+`timeUnit` transform (`/transform/0/timeUnit`); that, as a theory, the object form accepts a unit
+with a step, a `utc` unit, `utc: true`, a bare `maxbins`, and `binned: true` with a unit, while a step of 0, -1, or a
+text, a
+`maxbins` of 0 or a text, a `utc` or `binned` that is not a boolean, a `unit` that is a number or unknown, and
+`binned: true`
+with no `unit` (`{"maxbins":10,"binned":true}`, "A binned time unit needs a 'unit'.", Phase 14) are each
 an error at their own member (`/step`, `/maxbins`, `/utc`, `/binned`, `/unit`), and an object with neither a `unit` nor
 a `maxbins` (`{"step":2}`, `{}`), a number, and a boolean are an error at the `timeUnit` itself; that a member that
 the object does not define (`bogus`) is one `vl-unknown-property` warning at its key (`/encoding/x/timeUnit/bogus`)
 and the unit still applies; and that a binned unit, by the name `binnedyearmonth` or by `binned: true`, parses without
-error, is reported once by the feature catalog as `vl-timeunit-binned` at `/encoding/x/timeUnit`, and gives the
-encoding plan no time unit (it is ignored).
+error, is not reported by the feature catalog (Phase 14 retired `vl-timeunit-binned`), and gives the
+encoding plan the field as it is (`ValueField` is `d`) with a binned unit spec.
 
 ##### Date-Time Objects Are Validated Wherever They Stand
 
@@ -659,6 +662,7 @@ the length of the document, and compiles with the default limits.
 `PredicateSourceTimeTests.PredicateSource_NumberBelow10000WithSingleUnit_UsesThePart`,
 `PredicateSourceTimeTests.PredicateSource_UnitsThatApplyNothingAndExpressionValuesStayPlain`,
 `PredicateSourceTimeTests.PredicateSource_IsTimeAware_AndReadUnit`,
+`PredicateSourceTimeTests.PredicateSource_BinnedUnitComparesTheInstantOfTheField`,
 `PredicateSourceTimeTests.PredicateSource_TimePredicates_AreCultureIndependent`,
 `PredicateSourceTimeTests.PredicateSource_TimeMembers_RejectNull`
 
@@ -681,10 +685,17 @@ reference values (the catalog reports the omission as `vl-predicate-timeunit-par
 number below 10,000 with a single local unit is that unit's part (3 is month index 2, 5 is the hour 5) and any other
 number is milliseconds written as it is (`1709596800000`, which is 2024-03-05T00:00Z: 19,787 days x 86,400,000 ms),
 while a number with a multi-part unit is written as it is. A `valid` test with a unit tests the field itself, a
-`maxbins` unit and a binned unit are ignored (`datum["d"] === 3`), and an expression value is written in parentheses.
-`IsTimeAware` is true for a unit with parts, a date-time value, and a list that holds one, and false for a plain
+`maxbins` unit is ignored (`datum["d"] === 3`), and an expression value is written in parentheses. A **binned** unit
+(Phase 14, Vega-Lite's `binned` branch of `fieldFilterExpression`) builds no parts: the field is compared as an instant,
+`time(datum["d"])`, with the values read for the unit as for any other: `binnedyearmonth` with 3 is
+`(time(datum["d"])===3)`, with `"2024-03-01"` it is `time(datetime("2024-03-01"))`, `{"year": 2024, "month": "march"}`
+is `time(datetime(2024, 2, 1, 0, 0, 0, 0))`, `binnedyear` with 2020 and the single-part `binnedutcyear` with 2020 and 5
+are the instants of the year, and a `valid` test of a binned unit tests the field.
+`IsTimeAware` is true for a unit with parts (a binned one included), a date-time value, and a list that holds one, and
+false for a plain
 number, a `valid` test, a `maxbins` unit, and an expression text; `ReadUnit` gives the parts `year` and `month` for
-`yearmonth` and null for no unit and for a binned unit. The text is the same under the invariant, `tr-TR`, and `de-DE`
+`yearmonth`, a unit with `IsBinned` for a binned unit, and null for no unit and for the `maxbins` form. The text is
+the same under the invariant, `tr-TR`, and `de-DE`
 cultures (an upper-case `FRIDAY` and `SEPTEMBER` are matched without the culture, Friday is the 6th, and 1.5 and 0.5
 keep their point), and a null node is an `ArgumentNullException` for `IsTimeAware` and `ReadUnit`.
 

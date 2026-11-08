@@ -12,6 +12,9 @@
     <Project Path="src/DemaConsulting.CanvasNet.Viewer/DemaConsulting.CanvasNet.Viewer.csproj" />
     <Project Path="src/DemaConsulting.CanvasNet.Tool/DemaConsulting.CanvasNet.Tool.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/test/">
     <Project Path="test/DemaConsulting.CanvasNet.Tests/DemaConsulting.CanvasNet.Tests.csproj" />
     <Project Path="test/DemaConsulting.CanvasNet.Svg.Tests/DemaConsulting.CanvasNet.Svg.Tests.csproj" />

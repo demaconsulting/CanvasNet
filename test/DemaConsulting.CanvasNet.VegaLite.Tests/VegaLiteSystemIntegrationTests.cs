@@ -1246,6 +1246,134 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates defect B3: a scale whose positions overflow (a <c>pow</c> scale with an exponent of 1e300 maps every tick to NaN) gives a canvas whose size is not a number. Measuring and
+    ///     rendering both fail with a located <see cref="VegaLiteRenderException"/> that says so, never with an <see cref="ArgumentOutOfRangeException"/> from the scene without a location.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_NonFiniteLayoutSizeFailsWithALocation()
+    {
+        // Arrange
+        const string spec = """
+            { "data": { "values": [ { "x": 1, "y": 2 }, { "x": 3, "y": 4 } ] }, "mark": "point",
+              "encoding": { "x": { "field": "x", "type": "quantitative", "scale": { "type": "pow", "exponent": 1e300 } },
+                            "y": { "field": "y", "type": "quantitative" } } }
+            """;
+        var document = VegaLiteDocument.Parse(spec);
+
+        // Act
+        var measure = Assert.Throws<VegaLiteRenderException>(() => document.Measure(new VegaLiteRenderOptions(), Ct));
+        var render = Assert.Throws<VegaLiteRenderException>(() => document.Render(new VegaLiteRenderOptions(), Ct));
+
+        // Assert: located at the specification, and the message says what is wrong
+        Assert.True(measure.Location.IsKnown);
+        Assert.True(render.Location.IsKnown);
+        Assert.Contains("not a finite number", measure.Message, StringComparison.Ordinal);
+        Assert.Contains("not a finite number", render.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates defect B1 end to end: a quantile whose step of 1e-300 would make a count of probabilities that no integer holds is a located row-limit failure (the same on every runtime), not an
+    ///     unhandled exception from the allocation of the probabilities.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_QuantileStepBeyondTheIntegersFailsLocatedAtTheRowLimit()
+    {
+        // Arrange
+        const string spec = """
+            { "data": { "values": [ { "y": 1 }, { "y": 2 } ] }, "transform": [ { "quantile": "y", "step": 1e-300 } ], "mark": "point",
+              "encoding": { "x": { "field": "prob", "type": "quantitative" }, "y": { "field": "value", "type": "quantitative" } } }
+            """;
+        var document = VegaLiteDocument.Parse(spec);
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => document.Render(new VegaLiteRenderOptions(), Ct));
+
+        // Assert
+        Assert.Equal("/transform/0", error.Location.Pointer);
+        Assert.Contains("(MaxDataRows)", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates defect B4: marks that are cheap to describe and expensive to paint (symbols of a hundred million square pixels, each covering the whole image) are stopped by
+    ///     <see cref="VegaLiteLimits.MaxPaintedPixels"/> with an error that names the limit and is located at the mark, before the item is painted; measuring paints nothing and is not affected, and a limit that
+    ///     the chart fits does not change the image.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_PaintedPixelsStopsExpensivePaintingAtTheMark()
+    {
+        // Arrange: 100 symbols that each cover the 100 by 100 chart (the image is 110 by 110 with the padding)
+        const string spec = """
+            { "width": 100, "height": 100, "data": { "sequence": { "start": 0, "stop": 100 } },
+              "mark": { "type": "point", "filled": true, "size": 100000000 },
+              "encoding": { "x": { "field": "data", "type": "quantitative", "axis": null }, "y": { "field": "data", "type": "quantitative", "axis": null } } }
+            """;
+        var document = VegaLiteDocument.Parse(spec);
+        var limited = new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxPaintedPixels = 100_000 } };
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => document.Render(limited, Ct));
+        var size = document.Measure(limited, Ct);
+        using var unlimited = document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxPaintedPixels = long.MaxValue } }, Ct);
+
+        // Assert
+        Assert.Contains("VegaLiteLimits.MaxPaintedPixels", error.Message, StringComparison.Ordinal);
+        Assert.Equal("/mark", error.Location.Pointer);
+        Assert.Equal(new VegaLiteSize(unlimited.Width, unlimited.Height), size);
+    }
+
+    /// <summary>
+    ///     Validates the calibration of the work meter (defect B5): a loess of 20,000 rows with a bandwidth of 1 (which took eleven seconds before the weights were set) is refused when the transform starts, and
+    ///     a loess that the budget accepts is not.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns()
+    {
+        // Arrange
+        static string Spec(int rows) => "{ \"data\": { \"sequence\": { \"start\": 0, \"stop\": " + rows + " } }, \"transform\": [ { \"calculate\": \"sin(datum.data)\", \"as\": \"y\" }, { \"loess\": \"y\", \"on\": \"data\", \"bandwidth\": 1 } ], \"mark\": \"point\", "
+            + "\"encoding\": { \"x\": { \"field\": \"data\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } } }";
+        var refused = VegaLiteDocument.Parse(Spec(20_000));
+        var accepted = VegaLiteDocument.Parse(Spec(200));
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => refused.Measure(new VegaLiteRenderOptions(), Ct));
+        var size = accepted.Measure(new VegaLiteRenderOptions(), Ct);
+
+        // Assert
+        Assert.Contains("MaxEvaluationSteps", error.Message, StringComparison.Ordinal);
+        Assert.Equal("/transform/1", error.Location.Pointer);
+        Assert.True(size.Width > 0);
+    }
+
+    /// <summary>
+    ///     Validates that cancellation is honored while the work is in flight (not only before it starts): a loess that the budget accepts and that runs for seconds, and the painting of strokes that are
+    ///     thousands of pixels wide, both stop with an unwrapped <see cref="OperationCanceledException"/> soon after the token is canceled.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Cancellation_IsHonoredWhileTheTransformsAndThePainterRun()
+    {
+        // Arrange: about 1.3 billion weight evaluations (budgeted, several seconds), and 300 circles whose strokes are 3,000 pixels wide
+        const string loess = """
+            { "data": { "sequence": { "start": 0, "stop": 12000 } }, "transform": [ { "calculate": "sin(datum.data)", "as": "y" }, { "loess": "y", "on": "data", "bandwidth": 1 } ],
+              "mark": "point", "encoding": { "x": { "field": "data", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" } } }
+            """;
+        const string strokes = """
+            { "data": { "sequence": { "start": 0, "stop": 300 } }, "mark": { "type": "point", "size": 10, "strokeWidth": 3000 },
+              "encoding": { "x": { "field": "data", "type": "quantitative" }, "y": { "field": "data", "type": "quantitative" } } }
+            """;
+
+        foreach (var spec in new[] { loess, strokes })
+        {
+            var document = VegaLiteDocument.Parse(spec);
+            using var source = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+            source.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+            // Act / Assert: the exception is the cancellation itself, not a wrapper
+            var ex = Assert.ThrowsAny<OperationCanceledException>(() => document.Render(new VegaLiteRenderOptions(), source.Token));
+            Assert.IsNotType<AggregateException>(ex);
+        }
+    }
+
+    /// <summary>
     ///     Validates that the file-backed fixture chart does not depend on the line endings of the checkout: the same
     ///     rows written with LF and with CRLF line breaks (and without a final line break) give the same pixels.
     /// </summary>

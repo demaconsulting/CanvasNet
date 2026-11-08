@@ -8,7 +8,8 @@ The `SceneModel` unit is the first software unit in the `Scenegraph` subsystem. 
 - `SceneModel.cs` - `Scene`, `SceneItem` and its subtypes `SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`,
   `SceneSymbol`, `SceneText`, `SceneArc`, and `SceneTrail`, the gradient types `SceneGradient` and `SceneGradientStop`,
   the path types `ScenePathSegmentKind` and `ScenePathSegment`, the value types `ScenePoint`, `SceneTrailPoint`,
-  `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper
+  `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper; every `SceneItem` has a `Source` (a `VegaLiteLocation`,
+  unknown by default) that the painter reports a paint-limit failure at (phase 14)
 - `SceneBounds.cs` - `SceneBounds` (readonly record struct): axis-aligned bounding boxes
 - `SceneBudget.cs` - `SceneBudget` (sealed class): the item counter behind `MaxSceneItems`
 
@@ -60,9 +61,12 @@ replaces the solid `Fill` when it is set and can be drawn.
   (lines joined by a line feed), `Dx`, `Dy`, `FontFamily`, `FontSize` (11), `FontWeight`, `FontStyle`, `Align` (left,
   center, right), `Baseline` (alphabetic, top, middle, bottom, line-top, line-bottom), `Angle`, `Limit`, `LineHeight`,
   and
-  `Ellipsis` (the horizontal ellipsis), and `Source` (a `VegaLiteLocation`, `default` = unknown: where in the
-  specification the text comes from, which a diagnostic about the text points at; the text mark sets it to the
-  location of its mark, text built by the chart itself leaves it unknown); text has no gradient fill.
+  `Ellipsis` (the horizontal ellipsis); text has no gradient fill. `Source` is a member of every item since phase 14
+  (it was `SceneText` and `SceneImage` only): `default` = unknown, where in the specification the item comes from,
+  which a diagnostic points at; the text and image marks set it on each item, and the `marks` group of a mark has the
+  location of
+  the mark, which is where the painter locates the failure of an item without a location of its own; text built by the
+  chart itself (axes, legends, titles) leaves it unknown.
 - **`ScenePathSegmentKind`** (`MoveTo`, `LineTo`, `CubicTo`, `Close`) and **`ScenePathSegment`** - one drawing command
   with
   absolute coordinates: `Kind`, the point `(X, Y)` (the end point of a cubic), and the control points `(X1, Y1)` and

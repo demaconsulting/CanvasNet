@@ -273,24 +273,25 @@ to the baseline constitutes a failure.
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
-  `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
-  `FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsNotReported`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsNotReported`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsAppliedInConcatAndFacetAndRemovedIdsAreGone`,
   `RowTransformsTests.RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`,
-  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsRectBandPositionAndNotBinnedTimeUnit`,
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — every
   transform of Vega-Lite (the row, grouped, `timeUnit`, and, since Phase 13, statistical transforms) of the drawn view
   is computed and not reported (the identifiers `vl-transform-regression`, `-loess`, `-density`, `-quantile`, `-extent`,
   and `vl-transform-pivot-op` are retired), while the variable parameters of a nested view,
   the animation selections and the other selection parts that are not modeled, the conditions on a channel that takes
   none, and the parts of the supported transforms that
-  are not computed (a lookup in a parameter, the `week` and `dayofyear` parts and the `maxbins` form of a time unit in a
+  are not computed (a lookup in a parameter, the `week` and `dayofyear` parts of a time unit in a
   filter
-  predicate, and a binned time unit) are reported once each in document order, are skipped by the executor, and the
-  chart is still drawn; a binned time unit next to the aggregate of the fixture is the one report, `vl-timeunit-binned`
-  at `/encoding/x/timeUnit`, which strict mode turns into an exception.
+  predicate) are reported once each in document order, are skipped by the executor, and the
+  chart is still drawn; an `encode` of an axis next to the aggregate of the fixture is the one report, `vl-guide-encode`
+  at `/encoding/x/axis/encode`, which strict mode turns into an exception (the binned time unit and the `maxbins` form
+  of a predicate, which this scenario reported until Phase 13, are applied).
 - **Statistical Transforms Compose With The Rest Of The Pipeline**:
   `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_RegressionLineIsDrawnAtTheScaledEndPoints`,
   `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_ExtentParameterFeedsTheFollowingTransforms`,

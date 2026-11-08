@@ -737,7 +737,8 @@ a string longer than the parser allows, or is plain Vega named like a chart is a
 `vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example
 data
 that does not fit the encoding). A chart that exceeds a limit of the library while it is laid out or drawn (too many
-data rows, data files, or data bytes, scene items, or ticks) fails with `budget-exceeded`; a specification file
+data rows, data files, or data bytes, scene items, painted pixels, or ticks) fails with `budget-exceeded`; a
+specification file
 longer than the library reads
 (4,194,304 characters) is `corrupt-input`, as an overlong OpenSCAD model is; and a chart that lays out larger
 than 8192 pixels on a side is `size-limit` (nothing else is).

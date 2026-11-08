@@ -164,8 +164,8 @@ internal sealed class TimeFormatter
         'M' => TimeFormat.Pad(p.Minutes, fill, 2),
         'p' => TimeFormat.Periods[p.Hours >= 12 ? 1 : 0],
         'q' => TimeFormat.Pad((p.Month / 3) + 1, '\0', 1),
-        'Q' => TimeFormat.Pad((long)ms, '\0', 1),
-        's' => TimeFormat.Pad((long)Math.Floor(ms / 1000.0), '\0', 1),
+        'Q' => TimeFormat.Pad(NumericConversions.ToInt64Saturating(ms), '\0', 1),
+        's' => TimeFormat.Pad(NumericConversions.ToInt64Saturating(Math.Floor(ms / 1000.0)), '\0', 1),
         'S' => TimeFormat.Pad(p.Seconds, fill, 2),
         'u' => TimeFormat.Pad(p.Day == 0 ? 7 : p.Day, '\0', 1),
         'w' => TimeFormat.Pad(p.Day, '\0', 1),
@@ -209,7 +209,7 @@ internal sealed class TimeFormatter
     /// <returns>The text; <c>+0000</c> for UTC.</returns>
     private static string ZoneText(double offsetMs)
     {
-        var minutes = (long)Math.Truncate(offsetMs / 60_000.0);
+        var minutes = NumericConversions.ToInt64Saturating(offsetMs / 60_000.0);
         var absolute = Math.Abs(minutes);
         return (minutes < 0 ? "-" : "+") + TimeFormat.Pad(absolute / 60, '0', 2) + TimeFormat.Pad(absolute % 60, '0', 2);
     }

@@ -7,10 +7,18 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///     elements, carrying the remainder from one charge to the next.
 /// </summary>
 /// <remarks>
+/// <para>
 ///     <see cref="ExpressionFunctionContext.ChargeSize"/> rounds down, so a loop that charged a few elements per row would pay
 ///     nothing. The meter accumulates the elements and pays whole blocks of 64, which also polls the cancellation token as the
 ///     step counter advances. A failure is an <see cref="ExpressionRuntimeException"/> that the transform converts into a located
 ///     <see cref="VegaLiteRenderException"/>. One meter serves one transform on one thread.
+/// </para>
+/// <para>
+///     <b>Calibration.</b> The default budget of 50,000,000 steps is 3,200,000,000 elements, and the callers weight an element so that it stands for about three nanoseconds of work: the budget then
+///     stops every transform family in about ten seconds on a current desktop processor (measured weights: a loess weight evaluation 3, a kernel evaluation of a density 4, an element of a
+///     polynomial regression fit 16, an element of a bootstrap 5, an element of a recomputed window frame 20; the row-wise transforms charge one element a row and are bounded by the row limit).
+///     A change to a weight is a change to which specifications a default render accepts, so the weights are pinned by the transform tests.
+/// </para>
 /// </remarks>
 internal sealed class WorkMeter
 {
@@ -42,7 +50,8 @@ internal sealed class WorkMeter
             return;
         }
 
-        _pending += elements;
+        // The sum saturates: a wrapped (negative) pending count would make the work free
+        _pending = elements > long.MaxValue - _pending ? long.MaxValue : _pending + elements;
         if (_pending >= ElementsPerStep)
         {
             var whole = _pending - (_pending % ElementsPerStep);

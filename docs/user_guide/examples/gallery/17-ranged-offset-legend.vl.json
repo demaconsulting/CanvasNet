@@ -1,0 +1,24 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A ranged offset (bars that run from zero to the offset value inside a band, negative values hang below) and a symbol legend with a clipHeight.",
+  "title": "Gain and loss per team",
+  "width": {"step": 60},
+  "height": {"step": 80},
+  "data": {"values": [
+    {"quarter": "Q1", "team": "Red", "net": 12}, {"quarter": "Q1", "team": "Blue", "net": -7},
+    {"quarter": "Q2", "team": "Red", "net": -9}, {"quarter": "Q2", "team": "Blue", "net": 14},
+    {"quarter": "Q3", "team": "Red", "net": 6}, {"quarter": "Q3", "team": "Blue", "net": 3},
+    {"quarter": "Q4", "team": "Red", "net": 17}, {"quarter": "Q4", "team": "Blue", "net": -4}
+  ]},
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "quarter", "type": "ordinal", "title": "Quarter", "axis": {"labelAngle": 0}},
+    "y": {"field": "team", "type": "nominal", "title": null},
+    "yOffset": {"field": "net", "type": "quantitative", "title": "Net"},
+    "color": {
+      "field": "team", "type": "nominal", "title": "Team",
+      "scale": {"range": ["#4c78a8", "#e45756"]},
+      "legend": {"clipHeight": 24, "symbolType": "square"}
+    }
+  }
+}

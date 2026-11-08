@@ -48,15 +48,20 @@ public class ExpressionFunctionsTests
             "timeOffset", "utcOffset", "timeSequence", "utcSequence", "timeUnitSpecifier",
             "timeFormat", "utcFormat", "timeParse", "utcParse", "monthFormat", "monthAbbrevFormat", "dayFormat", "dayAbbrevFormat",
         ];
-        var expected = math.Concat(text).Concat(types).Concat(number).Concat(regex).Concat(selection).Concat(time).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
+        string[] distributions =
+        [
+            "cumulativeLogNormal", "cumulativeNormal", "cumulativeUniform", "densityLogNormal", "densityNormal", "densityUniform",
+            "quantileLogNormal", "quantileNormal", "quantileUniform",
+        ];
+        var expected = math.Concat(text).Concat(types).Concat(number).Concat(regex).Concat(selection).Concat(time).Concat(distributions).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
 
         // Act
         var names = ExpressionFunctions.Names();
 
         // Assert
         Assert.Equal(expected, names);
-        Assert.Equal(104, names.Count);
-        foreach (var excluded in new[] { "random", "now", "rgb", "scale", "if", "eval", "Function" })
+        Assert.Equal(113, names.Count);
+        foreach (var excluded in new[] { "random", "sampleNormal", "sampleLogNormal", "sampleUniform", "now", "rgb", "scale", "if", "eval", "Function" })
         {
             Assert.DoesNotContain(excluded, names);
             Assert.False(ExpressionFunctions.TryGet(excluded, out _));

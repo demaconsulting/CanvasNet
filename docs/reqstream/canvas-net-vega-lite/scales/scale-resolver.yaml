@@ -692,12 +692,17 @@ sections:
                   parent) or a
                   temporal field with a supported time unit (the time unit parent: the unit parses, is not binned
                   or maxbins, has a smallest part that is not the day of the week, and the mark is not a rect) and,
-                  for a bar or an area, only when the offset field is not continuous; shall give no scale to an
+                  for a bar or an area, only when the offset field is not continuous or is a ranged offset (an
+                  unbinned quantitative field or numeric datum over a nominal or ordinal position without a
+                  secondary channel x2 or y2, Vega-Lite's isRangedOffset); shall give no scale to an
                   offset with neither parent (a missing, quantitative, or temporal position without a time unit, a
                   temporal position with a day or weekday unit, a binned or maxbins unit, or a rect mark) or to a
-                  continuous offset of a bar or an area, so that the offset is ignored; and
+                  continuous offset of a bar or an area that is not a ranged offset (a temporal or binned offset, a
+                  position with a secondary channel, a temporal position with a time unit), so that the offset is
+                  ignored; and
                   shall give a quantitative or temporal offset of the other marks a linear or time scale without
-                  zero, nice, or pixel padding.
+                  zero, nice, or pixel padding, and the ranged offset a linear scale without nice or pixel padding
+                  that includes zero.
                 justification: |
                   Vega-Lite nests an offset only in a band of a discrete position (whether it has a time unit or not)
                   or inside the unit of a time scale;

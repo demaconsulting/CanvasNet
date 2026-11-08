@@ -222,7 +222,7 @@ internal sealed class AxisBuilder
         var extent = isX ? request.DataWidth : request.DataHeight;
         var ticks = BuildTicks(request, axis, settings, extent, location, cancellationToken);
 
-        var layout = new Layout(settings, request, orient, isX, extent, ticks);
+        var layout = new Layout(settings, request, orient, isX, extent, ticks) { RangedLabelBand = RangedLabelBandOf(request, settings) };
 
         // Every scene item is charged before it is created: the axis group, then the grid group and rules, the tick
         // rules, the labels, the domain line and the title (the grid group exists only when there is a tick)
@@ -423,7 +423,7 @@ internal sealed class AxisBuilder
 
         var formatLocation = (axis?["format"] ?? axis ?? request.ChannelDef)?.GetLocation(_sourceName) ?? location;
         var values = axis?["values"] is { IsArray: true } valuesNode ? valuesNode.Items : null;
-        var tickBand = TickBand.Resolve(settings);
+        var tickBand = TickBand.Resolve(settings, RangedDefaultBand(request));
         var tickOffset = tickBand.Offset;
         var round = settings.Bool("tickRound") ?? true;
         var bandShift = (model.Bandwidth * tickBand.Band) + tickOffset;
@@ -977,9 +977,11 @@ internal sealed class AxisBuilder
                 continue;
             }
 
-            // Labels use the unrounded position of the band center, plus the tick offset and the label offset
+            // Labels use the unrounded position of the band center, plus the tick offset and the label offset; the labels of a ranged offset sit at their own band position instead (no tick offset)
             var start = model.Map(tick.Value) ?? tick.Position;
-            var along = start + (model.Bandwidth * 0.5) + labelOffset;
+            var along = layout.RangedLabelBand is { } ranged
+                ? start + (model.Bandwidth * ranged) + (s.Number("labelOffset") ?? 0)
+                : start + (model.Bandwidth * 0.5) + labelOffset;
             var flushed = flush is { } threshold ? Flush(model.RangeStart, model.RangeEnd, start, threshold) : 0;
             var x = layout.IsX ? along : layout.Sign * distance;
             var y = layout.IsX ? layout.Sign * distance : along;
@@ -1234,6 +1236,39 @@ internal sealed class AxisBuilder
     }
 
     /// <summary>
+    ///     Gets the band position that a position holding a ranged offset has by default (Vega-Lite's <c>defaultBandPosition</c> of <c>compile/axis/properties.ts</c>).
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <returns>0 for x and 1 for y when the position is a band scale whose offset is a ranged offset (the ticks and grid lines sit at the baseline of the offset scale); null otherwise.</returns>
+    private static double? RangedDefaultBand(AxisRequest request)
+    {
+        if (request is not { Channel: "x" or "y", Model.Kind: ScaleKind.Band, MarkType: { } mark } || !ScaleResolver.HasRangedOffset(request.Channel, request.ChannelDef?.Parent, mark))
+        {
+            return null;
+        }
+
+        return request.Channel == "x" ? 0.0 : 1.0;
+    }
+
+    /// <summary>
+    ///     Gets where the labels of a position holding a ranged offset sit inside the band (Vega-Lite's <c>labelsPositionSpec</c>): Vega puts the labels of a band scale in the middle whatever the band
+    ///     position of the axis, so Vega-Lite gives them their own position, at the <c>bandPosition</c> of the axis (0 for x and 1 for y by default).
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <param name="settings">The axis settings.</param>
+    /// <returns>The band position of the labels; null for the middle of the band.</returns>
+    private static double? RangedLabelBandOf(AxisRequest request, Settings settings)
+    {
+        if (RangedDefaultBand(request) is not { } inferred)
+        {
+            return null;
+        }
+
+        var band = settings.Explicit("bandPosition")?.AsNumber() ?? inferred;
+        return band.CompareTo(0.5) == 0 ? null : band;
+    }
+
+    /// <summary>
     ///     Where the ticks and grid lines of an axis sit inside the bands of its scale (<c>tickBand</c>, <c>bandPosition</c>, <c>tickExtra</c>, <c>tickOffset</c>).
     /// </summary>
     /// <remarks>
@@ -1250,14 +1285,16 @@ internal sealed class AxisBuilder
         ///     Resolves the settings.
         /// </summary>
         /// <param name="settings">The axis settings.</param>
+        /// <param name="rangedBand">The band position of a position that holds a ranged offset when the axis gives none, or null.</param>
         /// <returns>The band position, the extra tick and the offset.</returns>
-        public static TickBand Resolve(Settings settings)
+        public static TickBand Resolve(Settings settings, double? rangedBand = null)
         {
             var offset = settings.Number("tickOffset") ?? 0;
             var band = settings.Property("tickBand");
             if (band is null or { Kind: ConfigNodeKind.Null } or { Kind: ConfigNodeKind.Boolean, BoolValue: false } or { Kind: ConfigNodeKind.String, StringValue: "" })
             {
-                return new TickBand(settings.Number("bandPosition") ?? 0.5, settings.Bool("tickExtra") ?? false, offset);
+                // Vega-Lite's axis.bandPosition ?? defaultBandPosition, which wins over the configuration
+                return new TickBand(settings.Explicit("bandPosition")?.AsNumber() ?? rangedBand ?? settings.Number("bandPosition") ?? 0.5, settings.Bool("tickExtra") ?? false, offset);
             }
 
             return band is { Kind: ConfigNodeKind.String, StringValue: "extent" }
@@ -1340,6 +1377,12 @@ internal sealed class AxisBuilder
 
         /// <summary>Gets the sign of the direction away from the data rectangle: -1 for top and left, 1 for bottom and right.</summary>
         public int Sign { get; }
+
+        /// <summary>
+        ///     Gets the position inside its band at which the labels of a position that holds a ranged offset sit (Vega-Lite's <c>labelsPositionSpec</c>: the <c>bandPosition</c> of the axis, else 0 for x and 1 for y),
+        ///     or null for the labels in the middle of the band (every other axis, and a ranged band position of 0.5).
+        /// </summary>
+        public double? RangedLabelBand { get; init; }
 
         /// <summary>Gets the ticks.</summary>
         public List<AxisTick> TickList { get; }

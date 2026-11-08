@@ -267,7 +267,15 @@ internal sealed partial class StatTransforms
     {
         var rows = Math.Min(points, (double)long.MaxValue / 2);
         _context.Loader.ReserveDerivedRows(rows, what, location);
-        _context.Loader.ReleaseRows((long)rows);
+        _context.Loader.ReleaseRows(NumericConversions.ToInt64Saturating(rows));
+
+        // The row budget can be raised by the caller, but the rows of a generated curve are held in one table: never more than the cells that a table may have
+        if (rows > TableLayout.MaxCells)
+        {
+            throw new VegaLiteRenderException(
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"The {what} would have {rows:0} rows, more than the limit of {TableLayout.MaxCells} cells that a table may have (TableLayout.MaxCells)."),
+                location);
+        }
     }
 
     /// <summary>
@@ -396,10 +404,17 @@ internal sealed partial class StatTransforms
     private static DataValue NumberOrNull(double value) => double.IsNaN(value) ? default : DataValue.FromNumber(value);
 
     /// <summary>
-    ///     Estimates the work of a fit over some rows, for the step budget: a unit for each coefficient of each row.
+    ///     Estimates the work of a fit over some rows, for the step budget: a unit for each coefficient of each row, weighted so that the budget stops a polynomial fit in about ten seconds.
     /// </summary>
+    /// <remarks>
+    ///     The normal equations are built from the powers of x of every row, which costs about 40 to 65 nanoseconds for each squared coefficient of a row (measured with polynomials of order 3 to 20 on
+    ///     900,000 rows); a work element is calibrated at about three nanoseconds (see <see cref="WorkMeter"/>), so the cost is weighted by <see cref="FitWeight"/>.
+    /// </remarks>
     /// <param name="rows">The number of rows.</param>
     /// <param name="coefficients">The number of coefficients.</param>
-    /// <returns>The cost.</returns>
-    private static long FitCost(int rows, int coefficients) => (long)rows * ((coefficients * coefficients) + 8);
+    /// <returns>The cost, in work elements.</returns>
+    private static long FitCost(int rows, int coefficients) => (long)rows * (((long)coefficients * coefficients) + 8) * FitWeight;
+
+    /// <summary>The number of work elements that one unit of <see cref="FitCost"/> is charged as.</summary>
+    private const long FitWeight = 16;
 }

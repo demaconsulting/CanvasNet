@@ -80,6 +80,7 @@ sections:
               - CanvasNetVegaLite-Guides-AxisBuilder-DrawingOrder
               - CanvasNetVegaLite-Guides-AxisBuilder-Errors
               - CanvasNetVegaLite-Guides-AxisBuilder-StaticProperties
+              - CanvasNetVegaLite-Guides-AxisBuilder-RangedOffsets
             tests:
               - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
               - AxisBuilder_Build_BandAxisUsesExpectedCategoriesAndGrid
@@ -182,6 +183,7 @@ sections:
               - CanvasNetVegaLite-Guides-LegendBuilder-DiscreteGradient
               - CanvasNetVegaLite-Guides-LegendBuilder-Titles
               - CanvasNetVegaLite-Guides-LegendBuilder-TitleOrient
+              - CanvasNetVegaLite-Guides-LegendBuilder-ClipHeight
               - CanvasNetVegaLite-Guides-LegendBuilder-Limits
               - CanvasNetVegaLite-Guides-LegendBuilder-Determinism
             tests:

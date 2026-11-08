@@ -20,8 +20,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         <c>timeBin</c> for the <c>maxbins</c> form that names no unit.
 ///     </para>
 ///     <para>
-///         The <c>binned*</c> units are parsed (<see cref="IsBinned"/>) but not applied here: the data of a binned unit is
-///         already floored. A <c>utc</c> unit always uses the UTC calendar in <c>Floor</c> and <c>End</c>, whatever calendar is
+///         The <c>binned*</c> units are parsed (<see cref="IsBinned"/>): the data of a binned unit is already floored, so the encoding does not floor it
+///         (it only adds the end of the unit, <see cref="End"/> of the value as it is), while the <c>timeUnit</c> transform floors it like any other unit. A <c>utc</c> unit always uses the UTC calendar in <c>Floor</c> and <c>End</c>, whatever calendar is
 ///         passed in (Vega-Lite's <c>fieldExpr</c> prefixes <c>utc</c>), but <see cref="ReferenceSpan"/> and
 ///         <see cref="DurationMilliseconds(TimeCalendar)"/> read the calendar they are given, even for a UTC unit, as Vega-Lite's
 ///         <c>durationExpr</c> builds its dates without <c>utc</c> (vega-lite 6.5.0 <c>src/timeunit.ts</c>; <c>dateTimeToExpr</c> in

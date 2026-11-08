@@ -54,29 +54,31 @@ public class FeatureCatalogTimeTests
     }
 
     /// <summary>
-    ///     Validates the report of a binned time unit, in an encoding, with the object flag, and in a transform: the unit is ignored, strict mode delivers it, and the
-    ///     identifier is at the <c>timeUnit</c> value.
+    ///     Validates that a binned time unit is applied and reported as nothing (Phase 14; <c>vl-timeunit-binned</c> is retired): in an encoding (a name or the object flag), a condition and the
+    ///     <c>timeUnit</c> transform.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue()
+    public void FeatureCatalog_Visit_BinnedTimeUnitIsNotReported()
     {
         // Act
         var named = VisitView("\"bar\"", """{"x":{"field":"d","type":"temporal","timeUnit":"binnedyearmonth"}}""");
         var flagged = VisitView("\"bar\"", """{"x":{"field":"d","type":"temporal","timeUnit":{"unit":"yearmonth","binned":true}}}""");
         var unbinned = VisitView("\"bar\"", """{"x":{"field":"d","type":"temporal","timeUnit":{"unit":"yearmonth","binned":false}}}""");
+        var transform = Visit("""{"data":{"values":[{"d":1}]},"transform":[{"timeUnit":"binnedyearmonth","field":"d","as":"b"}],"mark":"point"}""");
 
         // Assert
-        Assert.Equal([("vl-timeunit-binned", "/encoding/x/timeUnit")], named);
-        Assert.Equal([("vl-timeunit-binned", "/encoding/x/timeUnit")], flagged);
+        Assert.Empty(named);
+        Assert.Empty(flagged);
         Assert.Empty(unbinned);
+        Assert.Empty(transform);
     }
 
     /// <summary>
-    ///     Validates the <c>maxbins</c> form: supported in an encoding and in the transform (the extent of the data resolves it), reported in a predicate, which has no data
-    ///     extent to bin.
+    ///     Validates that the <c>maxbins</c> form is supported everywhere and reports nothing (Phase 14; <c>vl-timeunit-maxbins</c> is retired): the extent of the data resolves it in an encoding and
+    ///     in the transform, and a predicate compares the field as it is, as Vega-Lite does for a unit that names none.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly()
+    public void FeatureCatalog_Visit_MaxBinsTimeUnitIsNotReported()
     {
         // Act
         var encoding = VisitView("\"bar\"", """{"x":{"field":"d","type":"temporal","timeUnit":{"maxbins":10}}}""");
@@ -86,7 +88,7 @@ public class FeatureCatalogTimeTests
         // Assert
         Assert.Empty(encoding);
         Assert.Empty(transform);
-        Assert.Equal([("vl-timeunit-maxbins", "/transform/0/filter/timeUnit")], predicate);
+        Assert.Empty(predicate);
     }
 
     /// <summary>
@@ -275,27 +277,27 @@ public class FeatureCatalogTimeTests
     }
 
     /// <summary>
-    ///     Validates the delivery through the public API: in strict mode a binned time unit throws at the first unsupported feature with its identifier and location, a
+    ///     Validates the delivery through the public API: in strict mode a feature that is not drawn (a custom guide encoding) throws at the first unsupported feature with its identifier and location, a
     ///     warning identifier never throws (the warning is delivered with its text), and the other reports are delivered once.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows()
     {
         // Arrange
-        const string Binned = """{"data":{"values":[{"d":"2024-03-05","v":1}]},"mark":"point","encoding":{"x":{"field":"v","type":"quantitative","timeUnit":"binnedyearmonth"}}}""";
+        const string Unsupported = """{"data":{"values":[{"d":"2024-03-05","v":1}]},"mark":"point","encoding":{"x":{"field":"v","type":"quantitative","axis":{"encode":{"labels":{}}}}}}""";
         const string Warned = """{"data":{"values":[{"d":"2024-03-05","v":1}]},"transform":[{"filter":{"field":"d","timeUnit":"yearweek","equal":{"year":2024}}}],"mark":"point","encoding":{"x":{"field":"v","type":"quantitative"}}}""";
         var features = new List<string>();
         var warnings = new List<string>();
         var lenient = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => features.Add(u.Feature + " " + u.Location.Pointer), WarningHandler = w => warnings.Add(w.Message) };
 
         // Act
-        var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => VegaLiteDocument.Parse(Binned).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
-        using var drawn = VegaLiteDocument.Parse(Binned).Render(lenient, Ct);
+        var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => VegaLiteDocument.Parse(Unsupported).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+        using var drawn = VegaLiteDocument.Parse(Unsupported).Render(lenient, Ct);
         using var warned = VegaLiteDocument.Parse(Warned).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, WarningHandler = w => warnings.Add(w.Message) }, Ct);
 
         // Assert
-        Assert.Equal("vl-timeunit-binned", strict.Feature);
-        Assert.Equal(["vl-timeunit-binned /encoding/x/timeUnit"], features);
+        Assert.Equal("vl-guide-encode", strict.Feature);
+        Assert.Equal(["vl-guide-encode /encoding/x/axis/encode"], features);
         Assert.Contains(warnings, message => message.Contains("week", StringComparison.Ordinal));
     }
 

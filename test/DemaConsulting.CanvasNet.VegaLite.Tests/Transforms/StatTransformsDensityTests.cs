@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
@@ -186,6 +187,29 @@ public class StatTransformsDensityTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that review found: the work of a density, one kernel evaluation per row per sample point, was the product of two ints, which wrapped to a negative number for a group of more than
+    ///     536 million rows, and the meter ignores a negative count, so the work was free. The product is a long and a count that no long can hold saturates in the meter and exhausts the budget.
+    /// </summary>
+    [Fact]
+    public void StatTransforms_Density_KernelCostDoesNotWrapForTheLargestGroups()
+    {
+        // Arrange
+        var context = new ExpressionFunctionContext(new VegaLiteLimits { MaxEvaluationSteps = 1_000_000 }, TestContext.Current.CancellationToken);
+        var meter = new WorkMeter(context);
+
+        // Act
+        var cost = StatTransforms.KernelCost(int.MaxValue);
+        var beyondInt = StatTransforms.KernelCost(600_000_000);
+        meter.Add(63);
+        var exhausted = Assert.Throws<ExpressionRuntimeException>(() => meter.Add(long.MaxValue));
+
+        // Assert: four elements a row in a long, and a pending count of 63 plus the largest long saturates rather than wraps to a negative count
+        Assert.Equal(4L * int.MaxValue, cost);
+        Assert.Equal(2_400_000_000L, beyondInt);
+        Assert.Contains("MaxEvaluationSteps", exhausted.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the step options: <c>minsteps</c> and <c>maxsteps</c> bound the adaptive sample (a smooth density in the minimum of four steps), and <c>steps</c> overrides both.
     /// </summary>
     [Fact]
@@ -299,6 +323,28 @@ public class StatTransformsDensityTests
         // Assert
         Assert.Equal("/transform/0", error.Location.Pointer);
         Assert.Contains("MaxDataRows", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the regression of a defect that review found for the generated curves: with the row budget at its maximum, a step count of 1e17 or 1e300 passed the row comparison (the count was capped at half the range of
+    ///     a long and compared as a double), and the sampler began to hold points. The count is also bounded by the cells that a table may have, before any point is computed, located at the transform.
+    /// </summary>
+    /// <param name="steps">The number of steps.</param>
+    [Theory]
+    [InlineData("1e17")]
+    [InlineData("1e300")]
+    [InlineData("9007199254740993")]
+    public void StatTransforms_Density_StepsBeyondTheCellLimitWithAnUnboundedRowBudget_FailAtTheCellLimit(string steps)
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxDataRows = long.MaxValue };
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => Run("[{\"density\":\"v\",\"steps\":" + steps + "}]", Support, limits));
+
+        // Assert
+        Assert.Equal("/transform/0", error.Location.Pointer);
+        Assert.Contains("(TableLayout.MaxCells)", error.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

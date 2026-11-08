@@ -208,6 +208,7 @@ internal static partial class HelpTopics
             ["vlMaxDataBytes"] = Format(vegaLite.MaxDataBytes),
             ["vlMaxDataRows"] = Format(vegaLite.MaxDataRows),
             ["vlMaxImages"] = Format(vegaLite.MaxImages),
+            ["vlMaxPaintedPixels"] = Format(vegaLite.MaxPaintedPixels),
             ["fragmentMaxLength"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxLength),
             ["fragmentMaxParameters"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxParameters)
         };

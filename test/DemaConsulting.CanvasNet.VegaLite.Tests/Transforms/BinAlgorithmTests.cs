@@ -221,6 +221,24 @@ public class BinAlgorithmTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that the audit of the index and count arithmetic found: with a base that is barely above 1 the number of decimals of the step (the logarithm of the step over the logarithm of
+    ///     the base, about 3e16 here) was cast to an int, which wrapped on .NET 8 and saturated on .NET 9 and later; it is kept as a number, so the tolerance of the rounding is the same on every runtime
+    ///     (about a thousandth: 1.0000000000000002 to the power of minus 3e16) and the bins of the extent 0 to 1 with a step of a thousandth are 1,000.
+    /// </summary>
+    [Fact]
+    public void BinAlgorithm_Compute_BaseBarelyAboveOneKeepsTheDecimalsOfTheStepAsANumber()
+    {
+        // Arrange / Act
+        var bins = Compute(0, 1, new BinSettings { Step = 0.001, Base = 1.0000000000000002 });
+
+        // Assert
+        Assert.Equal(0, bins.Start);
+        Assert.Equal(1, bins.Stop, 9);
+        Assert.Equal(0.001, bins.Step, 12);
+        Assert.Equal(1000, bins.BinCount);
+    }
+
+    /// <summary>
     ///     Validates that an anchor shifts the boundaries so that one lines up with it, like the transform of Vega.
     /// </summary>
     [Fact]

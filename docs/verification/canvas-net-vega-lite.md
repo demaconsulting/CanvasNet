@@ -81,8 +81,9 @@ that is binned already as bars over their ranges; and the `window-cumulative` fi
 window transform (4, 7, 12, 14). The scenarios also assert that the groups count in the row budget (the five rows and
 three groups of the aggregate bars need `MaxDataRows` 8), that the marks of stacked and binned charts are counted
 exactly by the scene budget, that measuring equals rendering and renders are byte-identical for every fixture, and that
-an aggregate, bin, or stack is drawn without a report while a part that is still unsupported next to them (a binned time
-unit) is reported once and stops a strict render.
+an aggregate, bin, or stack is drawn without a report while a part that is still unsupported next to them (a custom
+axis `encode`)
+is reported once and stops a strict render.
 
 The time scenarios assert on what the system draws from temporal fields, time units, and the `TimeZone` render option,
 with expectations derived by hand from the calendar of 2024 (a leap year that starts on a Monday), the d3 time interval
@@ -95,8 +96,10 @@ UTC moves a reading at 20:00Z to the next day, which shifts its point by exactly
 follows the United States rule the day of March 10, 2024 is 23 hours long, so the middle of three days is 240 pixels in
 of 470 instead of 235; a UTC time unit ignores the zone; a parse directive reads day-first dates that the default parse
 rejects; text dates are parsed like `Date.parse`; a filter by time unit and date-time object keeps four of eight rows; a
-temporal color has a gradient legend of dates; an ordinal time unit is a band scale; a binned time unit and a band
-position other than one half on a bar are reported and stop a strict render; the tick and string limits and the
+temporal color has a gradient legend of dates; an ordinal time unit is a band scale; a binned time unit has the bars
+of the
+unit (a binned unit is not floored by the encoding but by the transform) and its predicates compare the field, and a band
+position other than one half on a bar is reported and stops a strict render; the tick and string limits and the
 cancellation fail closed; and the renders are byte-identical on repeated and concurrent calls, under other cultures, and
 whatever the host's time zone is. The units under it are verified in the _TimeCalendar_, _TimeFormat_, _TimeLabels_, and
 _TimeUnitTransform_ Unit Verification Designs.
@@ -869,9 +872,10 @@ limit) and a canceled token stops the render with an `OperationCanceledException
 `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`
 
 Renders the five fixtures with a handler and asserts that the aggregate, bin, stack, and window are drawn without a
-report, since the color legend of the stacked bars is drawn too (the fixtures report nothing); and that adding a
-`binnedyearmonth` time unit (a binned time unit, still unsupported) next to the aggregate of `aggregate-bars.vl.json` is
-reported once (`vl-timeunit-binned` at `/encoding/x/timeUnit`) with the chart still drawn, and stops a strict render
+report, since the color legend of the stacked bars is drawn too (the fixtures report nothing); and that adding an
+`encode` object to the axis (a custom guide encoding, still unsupported; the binned time unit that this scenario used until
+Phase 13 is applied now) next to the aggregate of `aggregate-bars.vl.json` is
+reported once (`vl-guide-encode` at `/encoding/x/axis/encode`) with the chart still drawn, and stops a strict render
 with a `VegaLiteUnsupportedFeatureException` for that feature.
 
 ### Limits: Oversized Source And Excessive Depth Fail Closed
@@ -933,7 +937,9 @@ sticks out; the size legend of a trail (four rows with the sizes 1, 3, 6, and 9)
 stroke widths run from 1 to 3 + 2 / 3, and the ink of the largest symbol is
 about 3.7 pixels thick in the rendered picture (the sum of the coverage of the column through its center is at least
 3.4, where a symbol of the width 1.5 was about 1.5 thick); the `titleOrient` of a legend is drawn since Phase 13 and not
-reported (see the _LegendBuilder Unit Verification Design_); a `MaxSceneItems` of
+reported (see the _LegendBuilder Unit Verification Design_), as is the `clipHeight` (see _Legends: Clip Height_ below; the
+test of the unsupported properties now uses `legend.encode`, which is still reported as `vl-guide-encode` at
+`/encoding/color/legend/encode`, where it used `clipHeight` before); a `MaxSceneItems` of
 the exact scene count renders and one less fails with the name of the limit, as does a limit that only the legends fit
 in, and a canceled token stops the render; and four concurrent renders are byte-identical to the first.
 
@@ -1006,6 +1012,39 @@ Asserts that an invalid axis format is a `VegaLiteSpecException` pointing at the
 with more rows than the item budget allows is a `VegaLiteRenderException` pointing at the mark, and that reports
 found before the failure (a `bandPosition` report in the test) are still delivered.
 
+### Limits: Painted Pixels Stop Expensive Painting At The Mark
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Limits_PaintedPixelsStopsExpensivePaintingAtTheMark`
+
+Asserts that 100 symbols of a hundred million square pixels, each covering the 110 by 110 image, are a
+`VegaLiteRenderException` that names `VegaLiteLimits.MaxPaintedPixels` and is located at `/mark` when the limit is
+100,000 pixels, that `Measure` of the same chart with the same limit returns the size of the unlimited render (nothing is
+painted, so nothing is charged), and that a limit that the chart fits renders it.
+
+### Limits: A Size That Is Not A Finite Number Fails With A Location
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Limits_NonFiniteLayoutSizeFailsWithALocation`
+
+Asserts, for a `pow` scale with an exponent of 1e300 on a quantitative x channel (every tick maps to NaN), that
+`Measure` and `Render` both throw a `VegaLiteRenderException` that has a known location and says that the size is not a
+finite number, and never the `ArgumentOutOfRangeException` without a location that the scene threw before.
+
+### Limits: A Quantile Step Beyond The Integers Fails At The Row Limit
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Limits_QuantileStepBeyondTheIntegersFailsLocatedAtTheRowLimit`
+
+Asserts that a quantile with a step of 1e-300 (5e299 probabilities, which no integer holds) fails with a
+`VegaLiteRenderException` located at `/transform/0` that names `(MaxDataRows)`, on every target framework: on .NET 8 an
+unsaturated cast gave a negative count and an unhandled `OverflowException` from the allocation.
+
+### Limits: A Loess Beyond The Step Budget Is Refused Before It Runs
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns`
+
+Asserts that a loess of 20,000 rows with a bandwidth of 1 (which ran for eleven seconds under the earlier weights) is a
+`VegaLiteRenderException` that names `MaxEvaluationSteps` and is located at `/transform/1` when the chart is measured,
+and that a loess of 200 rows is accepted.
+
 ### Cancellation: Stops Measuring And Rendering
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Cancellation_Honored`
@@ -1015,6 +1054,14 @@ Asserts that a canceled token makes `Measure`, `Render`, and `Render(width, heig
 rendering it delivers a `vl-schema-version` warning), and that the same calls succeed, with events
 delivered, with a token that is not canceled, the rendered surface having the measured size of the layered chart.
 
+### Cancellation: Honored While The Transforms And The Painter Run
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Cancellation_IsHonoredWhileTheTransformsAndThePainterRun`
+
+Asserts that a loess of 12,000 rows (within the budget, several seconds of work) and the painting of 300 circles with
+a stroke width of 3,000 pixels (within the paint limit, seconds of work) both stop with an unwrapped
+`OperationCanceledException` after a token that is canceled 100 milliseconds into the render, not only before it.
+
 ### Determinism And Concurrency: Repeated And Concurrent Renders Are Byte-Identical
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical`
@@ -1023,6 +1070,95 @@ Renders one document with a scale of 1.5 and a custom background on the calling 
 thread, and from sixteen concurrent tasks through the same immutable document, and asserts that every pixel
 snapshot is byte-identical to the baseline. Asserts that parsing the same text twice gives the same description
 and that two documents deliver identical event sequences.
+
+### Hardening: The Fuzz Suite Passes The Oracle
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_Fuzz_GeneratorIsSeededAndDeterministic`,
+`CanvasNetVegaLite_SystemIntegration_Fuzz_GeneratedSpecificationsReachTheRenderer`,
+`CanvasNetVegaLite_SystemIntegration_Fuzz_MutatedFixturesFailOnlyInDocumentedWays`,
+`CanvasNetVegaLite_SystemIntegration_Fuzz_MutatedGeneratedSpecificationsFailOnlyInDocumentedWays`,
+`CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed`
+
+Measures and renders 100 generated specifications, 100 mutated fixtures and 100 mutated generated specifications
+(a fixed seed) under tight limits, and asserts for each: opening throws only a `VegaLiteSpecException` with a location
+or an `InvalidDataException`; measuring and rendering throw only a located `VegaLiteRenderException` or
+`VegaLiteSpecException`, a `VegaLiteUnsupportedFeatureException` in strict mode, or the documented
+`ArgumentOutOfRangeException` for the options; the case does not exceed the hang guard (120 seconds, or the number of
+seconds of `CANVASNET_VL_HANG_GUARD_SECONDS`; the tests assert outcomes, never speed, and a failure of the guard says
+"Hang guard"); the thread allocates less than 4 GiB;
+and two runs give the same pixel hash and the same ordered reports, or the same error, and `Measure` equals the size of
+`Render`. Asserts that the generator and the random source are seeded and repeatable, that at least 10% of the generated
+specifications and 15% of the mutated fixtures render (so that the suite reaches the layout and the painter), and that
+the regression corpus (the specifications that broke the oracle: a denormal tick span, an infinite padding, an empty
+field name on a boxplot and on a repeated error band) passes it. The default run takes about ten seconds on each target
+framework; the opt-in variables `CANVASNET_VL_FUZZ_CASES`, `CANVASNET_VL_FUZZ_SEED` and `CANVASNET_VL_FUZZ_DUMP_DIR`
+run more cases (every failing case is written to the dump folder).
+
+### Hardening: The Limit Audit Table
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_LimitAudit_CostIsRefusedLocatedAndBeforeAllocation`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_BoundedCostCompletes`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_CanceledTokenIsHonored`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_CancellationIsHonoredWhileTheStageRuns`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_ReportsAreCappedByTheDiagnosticsLimit`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_EveryLimitPropertyHasARow`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheIntRangeAreRefusedWhateverTheRowLimit`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheCellLimitAreRefusedWhateverTheRowLimit`,
+`CanvasNetVegaLite_SystemIntegration_LimitAudit_InfinitePaddingOfAChartWithoutDataIsLocated`
+
+Asserts, for each of 41 rows of the inventory of the design document (_Resource Limits And Hardening_), that the hostile
+specification is refused with the exception type of the row, located under the JSON pointer of the row, with a message
+that contains the limit, and with less than 96 MiB allocated on the thread (the cost is charged before the allocation);
+that the costs that are bounded without a refusal (a format width of a billion, a dash period of 1e-30, a flood of
+unsupported features under a diagnostics limit of 5, an array of a billion elements) complete; that every row accepts
+an already canceled token with an unwrapped `OperationCanceledException`; that a density estimate of 20,000 rows by
+20,000 steps, a sliding median over 200,000 rows, an aggregate of 1,000,000 rows into 50,000 groups with `ci0` and a
+median, an impute of 3,000 groups by 3,000 keys, and a facet of 2,000 cells, all with their budgets lifted, stop with an
+unwrapped `OperationCanceledException` after a token that is canceled 150 milliseconds after they start (the outcome is
+the assertion; the elapsed time is only checked against the generous hang guard of 120 seconds, see the fuzz test);
+and that every `VegaLiteLimits` property is named by a row (a new limit without a row fails).
+
+### Hardening: Source Guards
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_SourceGuard_EveryNarrowingCastOfADoubleIsAudited`,
+`CanvasNetVegaLite_SystemIntegration_SourceGuard_EveryAuditedCastHasAReason`,
+`CanvasNetVegaLite_SystemIntegration_SourceGuard_ScanFlagsDoubleCastsOnly`,
+`CanvasNetVegaLite_SystemIntegration_SourceGuard_NoMachineInputsAreRead`
+
+Scans the source text of the package and asserts that every narrowing cast of an expression that may be a `double` is in
+the audited list with the reason that its value is in range (and that no entry is stale), that the scan itself flags a
+cast of a `double`, of `Math.Floor(...)` and of a `var` initialized from `Math`, and skips an `int`, a comment and a
+string, and that the package reads no wall clock, local time zone, culture of the thread, environment variable, random
+source, parallel or concurrent collection, or string hash code outside the listed files (the hash codes of the key
+structs of dictionaries).
+
+### Determinism: Pixel Pins, Golden Pictures, Cultures, Threads, And Insertion Order
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_Determinism_ExactPixelPinsAreCurrent`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_TolerantChartMatchesItsGolden`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_SameSpecificationGivesIdenticalPixelsTwice`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_ConcurrentRenderingsGiveTheSamePixels`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_CultureOfTheThreadChangesNothing`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_NoTimeZoneMeansUtc`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_InsertionOrderOfInputsChangesNothing`,
+`CanvasNetVegaLite_SystemIntegration_Determinism_NumericEdgeOutcomeIsTheSameOnEveryRuntime`
+
+Asserts, on every target framework (and so on every CI leg), that the SHA-256 of the `Surface` pixels of six charts made
+of rectangles, lines and text equals the committed pin (`Fixtures/Determinism/pixel-pins.txt`; the exact tier); that the
+pixels of six charts that use library functions with last-bit differences (circle, monotone curve, density area, arc,
+log scales, regression) match the committed pictures in `Fixtures/Determinism/golden` within a root-mean-square
+difference of one color level and at most 0.1% of the pixels more than eight levels apart (the tolerance of
+`docs/images/render-images.ps1`; the tolerant tier); that all twelve charts give the same pixels when rendered twice and
+from a fresh parse, and from eight concurrent threads; that a chart with decimal numbers, month names, a currency
+format and the letters I and i gives the pixels of the invariant culture under `tr-TR`, `de-DE`, `fr-FR`, `ar-SA`,
+`ja-JP`, `th-TH` and `en-IN` (a culture that the host does not have is skipped); that no time zone is UTC; that the
+datasets, the parameters and the fields of the rows supplied in the opposite order give the same pixels; and that
+eighteen numeric edge specifications (a quantile step of 1e-300, a pivot limit of 1.8e308, a pow exponent of 1e300, a
+denormal tick span, 3e9 impute keys, window frames of 1e18, of 1e12 and at the ends of the int range, window offsets of
+9.2e18, an impute frame of 1e12, a frame bound of 1e999 that no double holds, and others) end with the same exception
+type and location,
+or complete, on every runtime. The pins and pictures are compared as pixels, never as the bytes of an encoded PNG. To
+capture them again after a deliberate change, set `CANVASNET_DETERMINISM_DIR` to the `Fixtures/Determinism` folder.
 
 ### Fonts: Default Uses The Bundled Liberation Fonts
 
@@ -1159,15 +1295,33 @@ bar chart of the count, 300 pixels wide, in strict mode. The bands are those of 
 300 / (3 - 0.1 + 0.1) = 100, so the bars start at 5, 105, and 205 and are 90 wide; February has two rows so its bar is
 twice as high as January's; the labels are `Jan`, `Feb`, and `Mar` and are not turned (angle 0).
 
+### Time: Binned Units Draw The Bars Of The Unit And Compare The Field
+
+**Tests**:
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitDrawsTheBarsOfTheUnitAndDoesNotFloor`,
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitOfAPointSitsAtTheDate`,
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_PredicatesOfBinnedAndMaxBinsUnitsCompareTheField`,
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitInTheTransformFloors`
+
+Asserts, in strict mode (nothing is reported), that a bar chart with the unit `binnedyearmonth` has four bars with the
+same geometry as the unit `yearmonth` whether the dates are the first or the 15th of the months (the encoding reads
+the field
+as it is and its end is one month after it; the first bar is 300 x 31 / 121 - 1 wide), with the title `d` where the
+unit has `d (year-month)`; that a point with a binned unit sits at the date (0, 150, and 300 pixels for January 1, 6, and
+11); that predicates of a binned unit compare the instant of the field (`gte` of February 2024 keeps three of four
+months, `equal` `2024-03-01` one, a `oneOf` of January and April two) and the `maxbins` form, which names no unit, compares
+the numeric field as a number (`lt` 3 keeps two); and that the `timeUnit` transform with a binned unit floors the
+15th, 20th, and 25th to the first of their month (points at 0, 300, and 300 pixels).
+
 ### Time: Strict Mode Reports Only What Is Unsupported
 
 **Test**:
-`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition`
+`VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsRectBandPositionAndNotBinnedTimeUnit`
 
 Renders `time-bars.vl.json` and `time-parse.vl.json` in strict mode without a report: temporal fields, time units, and
-date parse directives are supported. Asserts that changing the unit to `binnedyearmonth` throws a
-`VegaLiteUnsupportedFeatureException` for `vl-timeunit-binned`, and that a bar with a `timeUnitBandPosition` of 0.2 (not
-one half) throws one for `vl-encoding-bandposition-rect`, each with a known line.
+date parse directives are supported. Asserts that changing the unit to `binnedyearmonth` renders in strict mode without
+a report (Phase 14 retired `vl-timeunit-binned`), and that a bar with a `timeUnitBandPosition` of 0.2 (not
+one half) throws a `VegaLiteUnsupportedFeatureException` for `vl-encoding-bandposition-rect` with a known line.
 
 ### Time: Tick And String Limits Fail Closed
 
@@ -1767,7 +1921,8 @@ override it; and that `config.boxplot` sets the size (a box 8 wide, centered in 
 **Tests**:
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_TopLevelTransformAppliesFirst`,
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_LayersShareTheMeasureScale`,
-`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ReportsOnlyUnsupportedGrouping`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_BinOfAGroupingChannelIsApplied`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_AggregateOfAGroupingChannelIsAMeasure`,
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ExpandedViewsAreLimitedByMaxViews`,
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_NoContinuousChannelIsASpecificationError`,
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_MeasureMatchesRenderAndIsDeterministic`
@@ -1778,11 +1933,15 @@ quartiles
 measure
 scale and the axis title is the title the box plot writes for its measure (`v`: a written title wins over the `Mean of
 v`
-derived for the rule), that nothing is reported for the supported box plot in strict mode while a
-`bin`, a
-`timeUnit`, or an `aggregate` on the grouping channel gives `vl-composite-grouping` and the chart is still drawn (and
-`vl-mark-boxplot` is never produced), that the nine views of a box plot count against `MaxViews` at the mark, that a box
-plot
+derived for the rule), that nothing is reported for the supported box plot in strict mode, and that a `bin` on the
+grouping channel is applied (Phase 14, Vega-Lite's `extractTransformsFromEncoding`; `vl-composite-grouping` is
+retired, and
+`vl-mark-boxplot` is never produced): the values 1 to 15 and 30 fall in five bins of 5, each with a box (five bars),
+the axis titles are `v (binned)` and `v`, the whiskers are vertical rules at the middle of their bin (a pre-binned
+channel with
+its end is not a range of a rule), and strict mode reports nothing; that a `count` aggregate on the `color` of an error
+bar is a measure of the aggregate (a legend titled `Count of Records` and one rule for each group); that the nine
+views of a box plot count against `MaxViews` at the mark, that a box plot
 with no continuous channel is a specification error at the mark, and that `Measure` equals `Render` and the render is
 deterministic.
 
@@ -1957,7 +2116,11 @@ legend.
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedLegendIsOutsideTheGrid`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_CellLimitIsEnforcedBeforeAllocation`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnsIsIgnoredForAColumnFieldWithWarning`,
-`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported`
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_BinOfTheFieldGivesACellPerBinWithRangeLabels`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_BinLabelsUseTheHeaderFormatAndNullIsItsOwnCell`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_BinnedAndMaxBinsTimeUnitsAreDrawn`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_AggregateOfTheFieldReadsTheFieldOfItsName`
 
 Asserts, with the positions derived by hand (a cell of 100 by 80 pixels with its one pixel border is followed at
 `ceil(100.5) + 20 + ceil(0.5)` = 122 pixels, a header label lies 10 + 10 pixels above its cell, and a title 10 pixels
@@ -1969,13 +2132,18 @@ x axis shared by the cells is drawn once in the footer of each column and the y 
 (the cells keep only their grid lines), that an independent scale gives each row its own domain, that the legend that
 the cells share is drawn once beside the grid, that a facet of more cells than `MaxViews` allows fails before any cell
 is made and is located at the facet field, that a `columns` next to a `row` and `column` mapping is the warning
-`vl-composition-columns-ignored`, and that a `bin` of the facet field, a header
-side that is not drawn, and a format type that is not drawn are reported with `vl-facet-field-transform`,
-`vl-header-orient`, and `vl-format-type-custom` (a sort by an aggregate is drawn since Phase 13 and `vl-facet-sort` is
+`vl-composition-columns-ignored`, and that a header
+side that is not drawn and a format type that is not drawn are reported with
+`vl-header-orient` and `vl-format-type-custom` (a `bin` of the facet field, with the `vl-facet-field-transform` that
+reported it until Phase 13, is drawn since Phase 14, and so is a sort by an aggregate, whose `vl-facet-sort` is
 retired), and the unsupported function of a header label
 expression (`luminance`) with `vl-expr-function-luminance` (the retired `vl-expr-label` is never produced), while the
 cells
-are drawn. The
+are drawn; and, with strict mode throwing nothing, that the `bin` of a facet field gives a cell for each bin with the
+range as the header (`0 – 10`, `10 – 20`, `20 – 30`) and the title `c (binned)`, that the header `format` and the
+`numberFormat` of the configuration format the bin labels and a row without a number is the cell `null`, that a binned
+and a `maxbins` time unit are drawn (`Jan 2024` and `Feb 2024`, and two cells of weeks), and that an `aggregate` reads
+the field of its name (`sum_v`; title `Sum of v`). The
 remaining scenarios of the facet (the order and the null cell, the header properties, the sides, the aggregate and the
 stack of a cell, the layered body, the unit view with facet channels, the size of independent step scales, the limits,
 cancellation, and determinism under concurrency) are listed in the _VegaLiteDocument_ unit verification.
@@ -1997,9 +2165,9 @@ size of the surface (also for a vertical concatenation that nests a horizontal o
 repeat); that the output of a concatenation, a facet, a repeat, a fit, and a container size is the same, in scene and in
 pixels, under the invariant, `de-DE`, `tr-TR`, `fr-FR`, and `ar-SA` cultures; that strict mode has nothing to throw for,
 and nothing is delivered, on that nested specification with a top-level `filter`; that strict mode throws with the
-identifier and the pointer of the construct for a `lookup` in a parameter and a `geoshape` mark in a child, a `bin` of a
-facet field, and a header side that is not drawn (`vl-transform-lookup-param`,
-`vl-mark-geoshape`, `vl-facet-field-transform`, `vl-header-orient`); that a canceled token stops
+identifier and the pointer of the construct for a `lookup` in a parameter and a `geoshape` mark in a child and a header
+side that is not drawn (`vl-transform-lookup-param`,
+`vl-mark-geoshape`, `vl-header-orient`); that a canceled token stops
 measuring and rendering of a concatenation, a facet, and a repeat with an unwrapped `OperationCanceledException`; that a
 limit of one view fewer than a three-child concatenation, a two-cell facet, and a three-copy repeat has fails with an
 error that names `MaxViews` and the exact number of views is accepted; and that a facet and a repeat of a layered chart
@@ -2072,8 +2240,10 @@ the step 62.5 and bars of 25 from 12.5, that the children of a concatenation hav
 chart is 80 pixels wider) unless they are shared, that the cells of a facet and the layers of a layered view share the
 offset scale (the labels of a text layer are at the centers of the bars), that an offset without a discrete position
 or a
-supported time unit (a quantitative `x`, or the `day` unit) and a continuous offset of a bar are reported
-(`vl-offset-position` and `vl-offset-ranged`) and ignored while the `month` unit reports nothing, that a grouped bar
+supported time unit (a quantitative `x`, or the `day` unit) and a continuous offset of a bar that is not a ranged offset
+(a temporal offset since Phase 14: a quantitative one over a nominal position is drawn, see the scenario below) are
+reported (`vl-offset-position` and `vl-offset-ranged`) and ignored while the `month` unit reports nothing, that a
+grouped bar
 chart over months (`month` unit, width 300, two groups over January to March, so the domain is the 91 days of the leap
 year 2012 and the reference month of 31 days is 31 x 300 / 91 = 102.2 pixels) has six bars 0.4 of a month wide, starting
 at 0.1 and 0.5 of a month in January (touching) and at one month plus the same offsets in February, with a legend of `a`
@@ -2149,6 +2319,86 @@ by
 `MaxImages` with the call beyond it failing at the mark. The units are verified in the _MarkBuilder_, _SceneModel_,
 _ScenePainter_, _FeatureCatalog_, and _VegaLiteDocument_ Unit Verification Designs, and the Viewer wiring in the
 _SourceLoader_ Unit Verification Design.
+
+### Legends: Clip Height Clips The Symbols To Their Entries (Phase 14)
+
+**Test**: `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightClipsTheSymbolsToTheirEntries`,
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightIsChargedToTheSceneBudget`
+
+Renders a 100 by 100 chart of three categories as filled, opaque points whose color legend has `clipHeight: 10` and
+`symbolSize: 3000` (symbols 62 pixels across in entries 10 high) with the strict policy, so that nothing may be reported.
+Asserts that the scene holds three `legend-symbol-clip` groups at y = 0, 12, and 24 (the entry height plus the row padding
+of 2), the first with a clip rectangle 10 high, and that in the rendered picture the column through the center of the
+first symbol holds between 9 and 11 pixels of the symbol color, against more than 40 for the same legend without the
+property, so the clip reaches the pixels. The test
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightIsChargedToTheSceneBudget` renders the
+same kind of chart with `clipHeight: 12` and asserts that the number of items of the scene is that of the legend
+without the property plus one clipping group for each of the three entries, that a `MaxSceneItems` of exactly that
+count renders, and that one item less fails with a `VegaLiteRenderException` that names `MaxSceneItems`. The geometry of
+the legend is verified in the _LegendBuilder_ Unit
+Verification Design.
+
+### Offset Channels: Ranged Offsets Draw Bars And Areas From The Baseline (Phase 14)
+
+**Tests**:
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsBarsFromTheBaseline`,
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsAnAreaBetweenTheValuesAndTheBaseline`,
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported`
+
+Renders a 150 by 100 chart of three quarters (`x` ordinal, `y` nominal with one category) with a quantitative `yOffset`
+of 12, -9, and 4, without padding or axes, with the strict policy. Asserts that the bar chart has three bars, that the
+pixel inside the bar of 12 (above the baseline of its band) and of 4 has the bar color and the pixel on the other side
+of the baseline is white, and that the bar of -9 hangs below the baseline (the bar color below it and white above it);
+that the area of the same data is a polygon of seven segments (Vega's `M25,16.667 L75,83.333 L125,42.063 L125,54.762
+L75,54.762 L25,54.762 Z`) whose pixels between the offset values and the baseline have the area color, those beyond it
+white; and that a bar whose `yOffset` is a temporal field is not a ranged offset, so strict mode throws a
+`VegaLiteUnsupportedFeatureException` with the feature `vl-offset-ranged` at `/encoding/yOffset`. The axes are verified
+in the _AxisBuilder_ Unit Verification Design and the geometry in the _MarkBuilder_ one.
+
+### Scale Invalid: Rows Without A Value Take The Configured Output (Phase 14)
+
+**Tests**:
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_RowsWithoutAValueTakeTheConfiguredOutput`,
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported`
+
+Renders four filled circles of size 400 over `a`, `b`, and `c`, the second without a color value and the third without an
+x, with `config.scale.invalid` of `{"color": {"value": "#aaa"}, "x": {"value": 5}}` under the strict policy. Asserts that
+all four rows are drawn where the same chart without the configuration draws two, that the second has the fill `#aaa`
+and the pixel at its center has that color, and that the third is at x = 5. A second chart whose configuration gives the
+entry `x` the value `null` (not readable) makes strict mode throw a `VegaLiteUnsupportedFeatureException`
+with the feature `vl-scale-invalid-value` at `/config/scale/invalid/x`.
+
+### Expressions: Distribution Functions Draw Their Results And Sampling Is Still Reported (Phase 14)
+
+**Tests**:
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Expressions_DistributionFunctionsDrawTheirResults`,
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Expressions_SamplingFunctionsAreStillReported`
+
+Renders, with the strict policy, a chart over a generated sequence from -3 to 3 in steps of 0.5 whose transforms filter
+on `cumulativeNormal(datum.x) > 0.975`, calculate `quantileNormal(0.975)`, and calculate `densityNormal(datum.x)` as the
+`y` field, with the `x` domain -3 to 3 over 130 pixels. Asserts that nothing is reported (the three functions are in the
+table), that exactly the points x = 2, 2.5, and 3 remain (the cumulative values 0.9772, 0.9938, and 0.9987 exceed
+0.975, while 0.9332 at x = 1.5 does not) at the pixels 108.333, 119.167, and 130, and that their `y` rises from one to
+the next
+as the density falls. A calculate of `random()` is not in the table: strict mode throws a
+`VegaLiteUnsupportedFeatureException` with the feature `vl-expr-function-random`. The numbers of the functions are
+verified in the _ExpressionFunctions_ Unit Verification Design.
+
+### Gallery: Every Specification Of The Documentation Gallery Renders Strict Without A Warning
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_Gallery_HoldsDescribedSpecifications`,
+`CanvasNetVegaLite_SystemIntegration_Gallery_RendersStrictWithoutWarnings` (a theory with one case for each file)
+
+The specifications under `docs/user_guide/examples/gallery` (18 original charts that use the marks, the composition
+operators, the transforms, the parameters, the time units, the ranged offsets, the legend `clipHeight`, and the
+configuration themes of the package) are copied next to the test assembly as `Gallery`. The first test asserts that at
+least sixteen files are there and that each has a `description` and the Vega-Lite 6 `$schema`. The theory opens each
+file with `VegaLiteDocument.Open`, renders it with `ThrowOnUnsupportedFeature = true`, a warning handler, and a
+resolver that hands out solid pictures for the image chart, and asserts that no exception is thrown (nothing is
+reported as unsupported), that no warning is raised, that the picture has the size that `Measure` gives, that more than
+two percent of its pixels differ from the pixel in its corner (the chart is not blank), and that the image chart asked
+the resolver for both of its pictures. The charts are drawn in the user guide by the Pandoc filter, and
+`docs/images/render-images.ps1 -Check` checks the montage of six of them; neither runs in the test job.
 
 ### Platform: Every System Scenario Runs On Every Target
 

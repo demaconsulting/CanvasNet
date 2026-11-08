@@ -1,0 +1,32 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A configuration theme: a dark background, light axes and text, a custom color range, and rounded line caps.",
+  "title": "Signal strength through the night",
+  "width": 340,
+  "height": 190,
+  "background": "#1d2330",
+  "config": {
+    "title": {"color": "#f1f3f8", "fontSize": 15},
+    "axis": {
+      "labelColor": "#c5cbd9", "titleColor": "#c5cbd9",
+      "domainColor": "#6b7488", "tickColor": "#6b7488", "gridColor": "#343c4f"
+    },
+    "legend": {"labelColor": "#c5cbd9", "titleColor": "#c5cbd9"},
+    "range": {"category": ["#ffb347", "#6ec6ff", "#b39ddb"]},
+    "line": {"strokeWidth": 2.5, "strokeCap": "round"}
+  },
+  "data": {"sequence": {"start": 0, "stop": 48, "as": "i"}},
+  "transform": [
+    {"calculate": "datum.i / 2", "as": "hour"},
+    {"calculate": "-60 + 12 * sin(datum.hour / 3.8)", "as": "Alpha"},
+    {"calculate": "-70 + 9 * cos(datum.hour / 2.9)", "as": "Beta"},
+    {"calculate": "-55 + 6 * sin(datum.hour / 1.7) + datum.hour * 0.3", "as": "Gamma"},
+    {"fold": ["Alpha", "Beta", "Gamma"], "as": ["station", "dbm"]}
+  ],
+  "mark": "line",
+  "encoding": {
+    "x": {"field": "hour", "type": "quantitative", "title": "Hours after dusk"},
+    "y": {"field": "dbm", "type": "quantitative", "scale": {"zero": false}, "title": "Signal (dBm)"},
+    "color": {"field": "station", "type": "nominal", "title": "Station"}
+  }
+}

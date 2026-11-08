@@ -452,6 +452,107 @@ public class VegaLiteFacetIntegrationTests
     }
 
     /// <summary>
+    ///     Validates the <c>bin</c> of a facet field (Vega-Lite's <c>BinNode</c> of a facet model): the values of the field 1, 2, 12, 14 and 25 fall in the bins <c>0 – 10</c>, <c>10 – 20</c> and <c>20 – 30</c> (three
+    ///     bins of 10), each with a cell and a bar per row, the headers are the bin ranges, the title of the field is <c>c (binned)</c>, and strict mode has nothing to report.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Facet_BinOfTheFieldGivesACellPerBinWithRangeLabels()
+    {
+        // Arrange
+        var json = """
+            { "data": { "values": [ { "a": "A", "v": 1, "c": 1 }, { "a": "B", "v": 2, "c": 2 }, { "a": "C", "v": 3, "c": 12 }, { "a": "D", "v": 4, "c": 14 }, { "a": "E", "v": 5, "c": 25 } ] },
+              "width": 20, "height": 20, "mark": "bar",
+              "encoding": { "x": { "field": "a", "type": "nominal", "axis": null }, "y": { "field": "v", "type": "quantitative", "axis": null },
+                            "column": { "field": "c", "type": "quantitative", "bin": { "maxbins": 3 } } } }
+            """;
+
+        // Act
+        var scene = VegaLiteDocument.Parse(json).BuildScene(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+        using var surface = VegaLiteDocument.Parse(json).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+
+        // Assert: a cell for each bin, in order, with the bars of its rows (2, 2 and 1)
+        Assert.Equal(["0 \u2013 10", "10 \u2013 20", "20 \u2013 30"], HeaderTexts(scene, "column-header"));
+        Assert.Equal(5, BarHeights(scene).Count);
+        Assert.Equal(["c (binned)"], Texts(scene, "title-text").Where(t => t.StartsWith('c')).ToList());
+    }
+
+    /// <summary>
+    ///     Validates the header of a binned facet field with a <c>format</c> (the bins are formatted by the header's d3 format, as Vega-Lite's <c>binFormatExpression</c> does) and the <c>numberFormat</c> of the
+    ///     configuration, and that a row without a number is the cell labeled <c>null</c>, which comes first.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Facet_BinLabelsUseTheHeaderFormatAndNullIsItsOwnCell()
+    {
+        // Arrange
+        const string Rows = """{ "values": [ { "a": "A", "v": 1, "c": 1000 }, { "a": "B", "v": 2, "c": 2500 }, { "a": "C", "v": 3 } ] }""";
+        string Spec(string header, string config) => "{ " + config + " \"data\": " + Rows
+            + ", \"width\": 20, \"height\": 20, \"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"nominal\", \"axis\": null }, \"y\": { \"field\": \"v\", \"type\": \"quantitative\", \"axis\": null }, "
+            + "\"column\": { \"field\": \"c\", \"type\": \"quantitative\", \"bin\": { \"step\": 1000 }" + header + " } } }";
+
+        // Act
+        var plain = HeaderTexts(SceneOf(Spec(string.Empty, string.Empty)), "column-header");
+        var formatted = HeaderTexts(SceneOf(Spec(", \"header\": { \"format\": \",.1f\" }", string.Empty)), "column-header");
+        var configured = HeaderTexts(SceneOf(Spec(string.Empty, "\"config\": { \"numberFormat\": \".2s\" },")), "column-header");
+
+        // Assert
+        Assert.Equal(["null", "1000 \u2013 2000", "2000 \u2013 3000"], plain);
+        Assert.Equal(["null", "1,000.0 \u2013 2,000.0", "2,000.0 \u2013 3,000.0"], formatted);
+        Assert.Equal(["null", "1.0k \u2013 2.0k", "2.0k \u2013 3.0k"], configured);
+    }
+
+    /// <summary>
+    ///     Validates the time units of a facet field: a binned unit leaves the raw value as the cell, with the header labeled by the unit (<c>binnedyearmonth</c>: <c>Jan 2024</c>), the <c>maxbins</c> form
+    ///     is resolved against the data (the two months of the data give weeks), and the title is the default title of the field (<c>d (year-month)</c>, the field for a binned unit).
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Facet_BinnedAndMaxBinsTimeUnitsAreDrawn()
+    {
+        // Arrange
+        const string Rows = """{ "values": [ { "a": "A", "v": 1, "d": "2024-01-01" }, { "a": "B", "v": 2, "d": "2024-02-01" }, { "a": "C", "v": 3, "d": "2024-02-01" } ] }""";
+        string Spec(string unit) => "{ \"data\": " + Rows + ", \"width\": 20, \"height\": 20, \"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"nominal\", \"axis\": null }, "
+            + "\"y\": { \"field\": \"v\", \"type\": \"quantitative\", \"axis\": null }, \"column\": { \"field\": \"d\", \"type\": \"temporal\", \"timeUnit\": " + unit + " } } }";
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+        // Act
+        var binned = VegaLiteDocument.Parse(Spec("\"binnedyearmonth\"")).BuildScene(strict, Ct);
+        var unit = VegaLiteDocument.Parse(Spec("\"yearmonth\"")).BuildScene(strict, Ct);
+        var maxBins = VegaLiteDocument.Parse(Spec("{ \"maxbins\": 3 }")).BuildScene(strict, Ct);
+
+        // Assert: the same two cells as the unit (the data is floored), the same labels, and the title without the unit for a binned one
+        Assert.Equal(["Jan 2024", "Feb 2024"], HeaderTexts(binned, "column-header"));
+        Assert.Equal(HeaderTexts(unit, "column-header"), HeaderTexts(binned, "column-header"));
+        Assert.Equal(["d"], Texts(binned, "title-text").Where(t => t.StartsWith('d')).ToList());
+        Assert.Equal(["d (year-month)"], Texts(unit, "title-text").Where(t => t.StartsWith('d')).ToList());
+
+        // Assert: the maxbins unit gives two cells (the two weeks that hold the dates) and a title that is the field
+        Assert.Equal(2, HeaderTexts(maxBins, "column-header").Count);
+        Assert.Equal(["d"], Texts(maxBins, "title-text").Where(t => t.StartsWith('d')).ToList());
+    }
+
+    /// <summary>
+    ///     Validates the <c>aggregate</c> of a facet field (Vega-Lite's facet model has no aggregate node): the field of the name <c>vgField</c> gives is the cell (<c>sum_v</c>, which an <c>aggregate</c> transform
+    ///     writes, so the rows with the sums 10 and 20 are two cells) and the title is <c>Sum of v</c>; a field of that name that the data does not have is one cell labeled <c>null</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Facet_AggregateOfTheFieldReadsTheFieldOfItsName()
+    {
+        // Arrange
+        const string Rows = """{ "values": [ { "a": "A", "v": 1, "sum_v": 10 }, { "a": "B", "v": 2, "sum_v": 20 }, { "a": "C", "v": 3, "sum_v": 10 } ] }""";
+        string Spec(string field) => "{ \"data\": " + Rows + ", \"width\": 20, \"height\": 20, \"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"nominal\", \"axis\": null }, "
+            + "\"y\": { \"field\": \"v\", \"type\": \"quantitative\", \"axis\": null }, \"column\": { \"field\": \"" + field + "\", \"type\": \"quantitative\", \"aggregate\": \"sum\" } } }";
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+        // Act
+        var named = VegaLiteDocument.Parse(Spec("v")).BuildScene(strict, Ct);
+        var missing = VegaLiteDocument.Parse(Spec("w")).BuildScene(strict, Ct);
+
+        // Assert
+        Assert.Equal(["10", "20"], HeaderTexts(named, "column-header"));
+        Assert.Equal(["Sum of v"], Texts(named, "title-text").Where(t => t.StartsWith('S')).ToList());
+        Assert.Equal(["null"], HeaderTexts(missing, "column-header"));
+    }
+
+    /// <summary>
     ///     Validates that the properties of the header change its text: the label font size, color and angle of the labels, the font size of the title, and a title that the header or the
     ///     field definition writes.
     /// </summary>
@@ -767,8 +868,8 @@ public class VegaLiteFacetIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the parts of a facet that are not drawn are reported with their identifiers and the rest of the chart is drawn: a binned field, and the
-    ///     header's side, label expression and custom format type (a sort by an aggregate is drawn).
+    ///     Validates that the parts of a facet that are not drawn are reported with their identifiers and the rest of the chart is drawn: the
+    ///     header's side, label expression and custom format type (a sort by an aggregate is drawn, and so is a bin of the field since Phase 14).
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported()
@@ -785,7 +886,7 @@ public class VegaLiteFacetIntegrationTests
 
         // Assert
         Assert.Equal(
-            ["vl-expr-function-luminance", "vl-facet-field-transform", "vl-format-type-custom", "vl-header-orient"],
+            ["vl-expr-function-luminance", "vl-format-type-custom", "vl-header-orient"],
             ids);
     }
 

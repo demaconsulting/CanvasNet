@@ -245,6 +245,8 @@ naming the field and the limit; and that 200 rows with 2,000-character group and
 
 **Tests**: `RowTransformsPivotOpTests.RowTransforms_Apply_PivotComputesTheOperation` (a theory over the operations),
 `RowTransformsPivotOpTests.RowTransforms_Apply_PivotDefaultsToTheSumAndAppliesTheLimit`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotLimitBeyondLong_KeepsEveryPivotValue` (a theory over 9.3e18, 1e30,
+and 1.79e308),
 `RowTransformsPivotOpTests.RowTransforms_Apply_PivotWithoutGroupsAggregatesEveryRowOfAValue`,
 `RowTransformsPivotOpTests.RowTransforms_Apply_PivotValuesAreTheRowsOfTheGroup`,
 `RowTransformsPivotOpTests.RowTransforms_Apply_PivotArgMinAndArgMaxReturnTheRows`,
@@ -258,7 +260,9 @@ confidence interval, which is deterministic and ordered), the Vega semantics of 
 operations that need one, 0 for the counts), that the default operation is the sum and the `limit` still applies, that a
 pivot without groups aggregates every row of a pivot value, that `values` is the array of the rows of the group, that
 numeric texts are converted by the sum, and that a pivot whose state of cells (cells times the state of an operator)
-exceeds the cell limit fails at the transform before it is allocated.
+exceeds the cell limit fails at the transform before it is allocated; and that a `limit` that no 64-bit integer holds
+keeps every pivot value, the same table as without a limit on every target framework (the cast it replaces gave the
+smallest long on .NET 8).
 
 ##### Lookup Copies Fields Of The First Match
 

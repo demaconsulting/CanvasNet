@@ -27,13 +27,30 @@ internal sealed partial class MarkBuilder
         ///     Initializes the offset of a channel.
         /// </summary>
         /// <param name="reader">The offset channel, whose model is the offset scale for the bandwidth of the position scale.</param>
-        public ChannelOffset(Channel reader) => Reader = reader;
+        /// <param name="ranged">Whether the mark spans from the baseline of the offset scale to the offset value (<see cref="OffsetDecision.Ranged"/>).</param>
+        public ChannelOffset(Channel reader, bool ranged = false)
+        {
+            Reader = reader;
+            Ranged = ranged;
+        }
 
         /// <summary>Gets the offset channel.</summary>
         public Channel Reader { get; }
 
+        /// <summary>Gets a value indicating whether the offset is a ranged offset: a bar or area spans from the zero of the offset scale to the offset value inside the band of the position.</summary>
+        public bool Ranged { get; }
+
         /// <summary>Gets the offset scale model, whose range is the bandwidth of the band of the position scale, or the share of the time unit of the position that the offset occupies.</summary>
         public ScaleModel Model => Reader.Model!;
+
+        /// <summary>
+        ///     Gets where a ranged offset of a row spans inside the band of the position: from the zero of the offset scale to the offset value.
+        /// </summary>
+        /// <param name="table">The data.</param>
+        /// <param name="row">The row.</param>
+        /// <returns>The distance of the value and of the zero from the start of the band in pixels; null when the offset value of the row is invalid (the row is not drawn).</returns>
+        public (double Value, double Zero)? Range(DataTable table, int row) =>
+            Model.Map(Reader.Read(table, row)) is { } value && Model.Map(DataValue.FromNumber(0)) is { } zero ? (value, zero) : null;
 
         /// <summary>
         ///     Gets where the band (or the point) of the offset of a row starts inside the band of the position.
@@ -78,7 +95,7 @@ internal sealed partial class MarkBuilder
 
                 if (parentModel.Kind == ScaleKind.Band)
                 {
-                    parent.Offset = new ChannelOffset(new Channel(node, scale, scale.CreateModel(parentModel.Bandwidth), _table));
+                    parent.Offset = new ChannelOffset(new Channel(node, scale, scale.CreateModel(parentModel.Bandwidth), _table), ScaleResolver.HasRangedOffset(position, encoding, _type));
                 }
                 else if (parentModel.Kind is ScaleKind.Time or ScaleKind.Utc && TimeUnitOffsetRange(parent, parentModel) is { } range)
                 {

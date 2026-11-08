@@ -361,4 +361,40 @@ public class VegaLiteImageMarkIntegrationTests
         // Assert
         Assert.Equal(VegaLiteTestHelpers.Snapshot(first), VegaLiteTestHelpers.Snapshot(second));
     }
+
+    /// <summary>
+    ///     Validates defect B4 for image marks without a width and height: every picture is drawn at its natural size (256 by 256 here), which is not the author's to bound, so the pixels of the picture boxes are
+    ///     charged to <see cref="VegaLiteLimits.MaxPaintedPixels"/> before each picture is drawn, and the failure names the limit and is located at the mark. The same chart renders under a limit it fits, and
+    ///     a picture that is not smoothed is resampled once for the whole chart (the resolver is asked once for each render).
+    /// </summary>
+    [Fact]
+    public void VegaLiteDocument_Render_ImageMarkWithoutSize_IsBoundedByThePaintLimitAndResamplesOnce()
+    {
+        // Arrange: 40 rows of a picture without a size and without smoothing on a 100 by 100 chart, each box covering the chart
+        const string chart = """
+            {
+              "width": 100, "height": 100, "padding": 0,
+              "data": { "sequence": { "start": 0, "stop": 40 } },
+              "mark": { "type": "image", "smooth": false },
+              "encoding": {
+                "x": { "field": "data", "type": "quantitative", "axis": null },
+                "y": { "value": 0 },
+                "url": { "value": "icon.png" }
+              }
+            }
+            """;
+        var document = VegaLiteDocument.Parse(chart);
+        var resolver = new FakeResolver();
+
+        // Act: 40 pictures of at most 10,000 visible pixels each (and the 65,536 pixels of the one resampled copy) are far beyond a limit of 30,000, which the chart cannot fit
+        var error = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { ImageResolver = resolver, Limits = new VegaLiteLimits { MaxPaintedPixels = 30_000 } }, Ct));
+        using var fits = document.Render(new VegaLiteRenderOptions { ImageResolver = resolver, Limits = new VegaLiteLimits { MaxPaintedPixels = 1_000_000 } }, Ct);
+
+        // Assert
+        Assert.Contains("VegaLiteLimits.MaxPaintedPixels", error.Message, StringComparison.Ordinal);
+        Assert.Equal("/mark", error.Location.Pointer);
+        Assert.Equal(2, resolver.Calls.Count);
+        Assert.Equal(Red, fits[1, 1]);
+    }
 }

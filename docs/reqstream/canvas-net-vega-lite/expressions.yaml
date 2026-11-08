@@ -66,15 +66,19 @@ sections:
               year numbers, the calendar offset and sequence, the d3 time format and parse functions, and
               the time unit specifier, all in the time zone of the chart) and the selection functions
               (data, the selection tests, and the resolution of a selection over the stores of the call)
-              - 104 functions in all, with the JavaScript and Vega results,
+              and the probability distribution functions (the density, cumulative distribution, and quantile
+              of the normal, log-normal, and uniform distributions)
+              - 113 functions in all, with the JavaScript and Vega results,
               invariant of the culture, and no function that reads a clock (now is not provided), a random
-              source, the file system, or the network.
+              source (the sampling functions random, sampleNormal, sampleLogNormal, and sampleUniform are not
+              provided), the file system, or the network.
             justification: |
               Calculated fields and filters need the Vega functions, and a closed list of them is what
               keeps an untrusted expression from reaching anything else.
             children:
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Whitelist
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-SelectionFunctions
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Distributions
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-TextAndArrays
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-TypesAndConversions

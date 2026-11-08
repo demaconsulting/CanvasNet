@@ -1,4 +1,5 @@
 // Portions derived from Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause); see third-party/README.md
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
@@ -175,9 +176,9 @@ internal sealed record ViewMeasure(
     /// <summary>
     ///     Rounds a canvas dimension to whole pixels without overflowing.
     /// </summary>
-    /// <param name="value">The dimension.</param>
+    /// <param name="value">The dimension; NaN gives zero.</param>
     /// <returns>The rounded value, from 0 to <see cref="int.MaxValue"/>.</returns>
-    private static int ToPixels(double value) => (int)Math.Min(int.MaxValue, Math.Max(0, Math.Round(value, MidpointRounding.AwayFromZero)));
+    private static int ToPixels(double value) => NumericConversions.ToInt32Saturating(Math.Max(0, Math.Round(value, MidpointRounding.AwayFromZero)));
 }
 
 /// <summary>

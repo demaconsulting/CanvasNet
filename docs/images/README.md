@@ -10,6 +10,19 @@ levels 0, 0.5 and 1, chosen by the fragment of each input path (`explode.scad#de
 (`-D '$vpd=360' -D '$vpt=[0,0,50]'`) gives every cell one scale, so the plate is as large in all three cells; without
 it each cell would be fitted to its own geometry. `render-images.ps1` draws and checks it like `showcase.png`.
 
+## vegalite-gallery.png
+
+`vegalite-gallery.png` (1248x680) is a montage of six charts of the Vega-Lite gallery (a line chart, stacked bars, a
+binned heat map, a donut, a density estimate, and a themed chart), each drawn by `canvasnet render --strict` at twice
+its size and shown at 400x300. It is referenced from the README by an absolute URL, like `showcase.png`. The gallery has
+18 charts in all; they are in `docs/user_guide/examples/gallery`, are drawn in the user guide by the Pandoc filter,
+and are rendered by a test (`VegaLiteGalleryTests`) so that none of them can stop working. `render-images.ps1` draws
+and checks the montage like the other images.
+
+Every gallery specification, and the two small SVG pictures (`gallery-badge.svg` and `gallery-flag.svg`) that its image
+chart shows, is **original to this repository** (MIT): the data is invented (a few inline rows, or a `sequence` and
+`calculate` transforms), and no example of the Vega-Lite project and no Vega dataset is copied.
+
 ## showcase.png
 
 `showcase.png` (1248x680) is a montage of six panels, each rendered by the `canvasnet` command-line tool:

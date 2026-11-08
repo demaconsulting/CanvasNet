@@ -302,9 +302,10 @@ internal sealed partial class SpecParser
             return;
         }
 
-        if (windowOp is { } window && AggregateMeasures.TakesParameter(window) && !IsInteger(parameter, 1, int.MaxValue))
+        if (windowOp is { } window && AggregateMeasures.TakesParameter(window) && !(parameter.IsNumber && double.IsInteger(parameter.NumberValue) && parameter.NumberValue >= 1))
         {
-            throw Error(parameter, $"The 'param' of {item["op"]!.StringValue} must be an integer from 1 to {int.MaxValue}.");
+            // Any integer from 1: an offset or a position beyond the partition has no row (no value), and a tile count beyond the rows is one row a tile
+            throw Error(parameter, $"The 'param' of {item["op"]!.StringValue} must be an integer of at least 1.");
         }
 
         // The other operations take no parameter; Vega-Lite lets it be written and the renderer ignores it
@@ -648,7 +649,8 @@ internal sealed partial class SpecParser
 
         foreach (var bound in frame.Items)
         {
-            if (!bound.IsNull && !IsInteger(bound, int.MinValue, int.MaxValue))
+            // Any integer: a bound beyond the partition (or beyond the range of an int or a long) is clamped to it, as in Vega
+            if (!bound.IsNull && !(bound.IsNumber && double.IsInteger(bound.NumberValue)))
             {
                 throw Error(bound, message);
             }
@@ -875,16 +877,6 @@ internal sealed partial class SpecParser
     // ------------------------------------------------------------------------------------------------------------------
     // Small checks
     // ------------------------------------------------------------------------------------------------------------------
-
-    /// <summary>
-    ///     Determines whether a value is a whole number in a range.
-    /// </summary>
-    /// <param name="node">The value.</param>
-    /// <param name="min">The smallest accepted value.</param>
-    /// <param name="max">The largest accepted value.</param>
-    /// <returns><see langword="true"/> for a number with no fraction in the range.</returns>
-    private static bool IsInteger(SpecNode node, long min, long max) =>
-        node.IsNumber && double.IsInteger(node.NumberValue) && node.NumberValue >= min && node.NumberValue <= max;
 
     /// <summary>
     ///     Checks that a value is a number in a range.

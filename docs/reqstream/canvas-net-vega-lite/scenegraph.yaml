@@ -47,7 +47,8 @@ sections:
               with fill, stroke, dash, miter limit, opacity, rotation, rounded rectangles, symbols, paths
               (including curved segments), arcs, trails, text with baseline and limit, and clipping with
               fractional coverage, drawing nothing for an item without paint, producing the same pixels on
-              every platform, and observing cancellation.
+              every platform, observing cancellation, and bounding the pixels it paints with a limit that
+              is charged before each item is painted.
             justification: |
               The painter turns the verified scene into pixels, and its output must be correct and
               deterministic.
@@ -63,6 +64,7 @@ sections:
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Trails
               - CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit
               - CanvasNetVegaLite-Scenegraph-ScenePainter-Bounds
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-PaintBudget
             tests:
               - ScenePainter_Paint_RectAndRuleHonorsFillStrokeOpacity
               - ScenePainter_Paint_GradientFillRunsAlongTheItemBox

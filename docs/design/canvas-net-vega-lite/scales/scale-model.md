@@ -55,7 +55,9 @@ entry of the complete range for a linear scale), `Clamp`, `Round`, `PaddingInner
 diverging scale), and
 `Thresholds` (the interval boundaries of a quantize, quantile, or threshold scale, or the bin edges of a bin-ordinal
 scale), `Transform` (the `ScaleTransform` of a continuous scale), `Calendar` (the `TimeCalendar` of a `Time` or `Utc`
-scale, which its ticks and `nice` follow; null for every other kind), and `IsLinearLike`. The factories are
+scale, which its ticks and `nice` follow; null for every other kind), `IsLinearLike`, `HasContinuousDomain` (Vega-Lite's
+`hasContinuousDomain`: a linear, time, UTC, sequential, diverging, quantize, quantile, or threshold scale), and
+`InvalidOutput` (Phase 14, below). The factories are
 `CreateLinear(domainStart,
 domainEnd, rangeStart, rangeEnd, clamp, round, transform)`, `CreateLinear(double[] domain, double[] range, clamp, round,
 transform)` (the piecewise form), `CreateTime(double[] domain, double[] range, clamp, round, calendar, utc)` (the same
@@ -66,6 +68,15 @@ rangeEnd, padding, align, round)`, `CreateOrdinal(domain, range)` (texts or a `S
 (two entries sequential, three diverging), `CreateQuantize(start, end, range)`, `CreateQuantile(sortedValues, range)`,
 `CreateThreshold(thresholds, range)`, and `CreateBinOrdinal(edges, range)`. The static `BandSpace(count, paddingInner,
 paddingOuter)` is Vega's `bandspace`: the number of steps a discrete scale needs.
+
+**`ScaleInvalidOutput`** (Phase 14; a sealed record `(double? Number, string? Text)`) is the output that Vega-Lite's
+`config.scale.invalid` gives a channel as `{"value": ...}`: `Number` is read by a number channel (a position in pixels,
+a size, an opacity, a stroke width, an angle) and is null when the value is not a number, and `Text` is read by a text
+channel (a color) and is null when the value is not a text. Only
+`ScaleModel.WithInvalidOutput(output)` sets it (a copy; the model itself never changes, as the next paragraph says) and
+`InvalidOutput` is meaningful only for a scale with a continuous domain: `Map(DataValue)` and `MapText(DataValue)` of
+such a scale return the output, as it is and not passed through the scale, for a value that does not read as a number
+(`TryGetQuantitative`), and a discrete scale has an output for every value so it is never given one.
 
 **Invariants**: a model never changes after it is built; a discrete model's domain is deduplicated, keeps its order, and
 has an index per value; a linear, time, or UTC model with a domain of zero width maps every value to the middle of its

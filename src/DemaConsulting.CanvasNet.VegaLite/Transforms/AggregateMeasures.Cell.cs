@@ -76,6 +76,9 @@ internal struct MeasureCell
     /// <summary>The number of bootstrap resamples of the confidence interval.</summary>
     internal const int BootstrapSamples = 1000;
 
+    /// <summary>The number of work elements that one draw of a bootstrap resample is charged as (see <see cref="WorkMeter"/>): a draw (a generator step, a modulo and a read) measured about 15 nanoseconds, so five at about three nanoseconds an element.</summary>
+    private const long BootstrapElementWeight = 5;
+
     /// <summary>The increment that mixes the group number into a bootstrap seed (the golden-ratio constant of SplitMix64).</summary>
     private const ulong GroupSeedMultiplier = 0x9E3779B97F4A7C15;
 
@@ -381,7 +384,7 @@ internal struct MeasureCell
     private static double Bootstrap(ReadOnlySpan<double> values, double p, ulong seed, MeasureEnvironment env)
     {
         var n = values.Length;
-        env.Meter.Add((long)BootstrapSamples * n);
+        env.Meter.Add((long)BootstrapSamples * n * BootstrapElementWeight);
         var means = new double[BootstrapSamples];
         var state = seed;
         for (var sample = 0; sample < BootstrapSamples; sample++)

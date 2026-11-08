@@ -414,12 +414,12 @@ public class SpecNormalizerBoxPlotTests
     }
 
     /// <summary>
-    ///     Validates that a bin or an aggregate on a grouping channel is not applied (the raw field groups the rows, the bin is not in the encoding of the parts and a channel that
-    ///     aggregates is left out), and that a time unit is applied (Vega-Lite's <c>extractTransformsFromEncoding</c>): a <c>timeUnit</c> transform runs before the aggregate, the unit's field
-    ///     groups the rows and the channel reads it with the default title.
+    ///     Validates the transforms that the grouping channels add (Vega-Lite's <c>extractTransformsFromEncoding</c>): a <c>bin</c> becomes a <c>bin</c> transform whose start and end group the rows
+    ///     (the channel reads the start as a binned quantitative field with the end as <c>x2</c> and a default title), a <c>timeUnit</c> becomes a <c>timeUnit</c> transform that runs after the bins
+    ///     and before the aggregate (the unit's field groups the rows and the channel reads it with the default title), and a channel that aggregates adds a measure to the aggregate and reads its result.
     /// </summary>
     [Fact]
-    public void SpecNormalizer_Expand_GroupingChannelsDropBinAndAggregateAndApplyTimeUnit()
+    public void SpecNormalizer_Expand_GroupingChannelsAddBinTimeUnitAndAggregateTransforms()
     {
         // Arrange / Act
         var expanded = Expand("""
@@ -431,21 +431,79 @@ public class SpecNormalizerBoxPlotTests
         var boxTransform = expanded.Layers.Root.Children[1].Transform!.Items;
         var quartileTransform = expanded.Layers.Root.Children[0].Transform!.Items;
 
-        // Assert: the time unit transform comes first in both views, then the aggregate groups by the unit's field
-        Assert.Equal("year", boxTransform[0]["timeUnit"]!.StringValue);
-        Assert.Equal("t", boxTransform[0]["field"]!.StringValue);
-        Assert.Equal("year_t", boxTransform[0]["as"]!.StringValue);
-        Assert.Equal("year", quartileTransform[0]["timeUnit"]!.StringValue);
-        Assert.Equal(["g", "year_t"], boxTransform[1]["groupby"]!.Items.Select(g => g.StringValue));
-        Assert.Null(box["x"]!["bin"]);
-        Assert.Equal("g", box["x"]!["field"]!.StringValue);
-        Assert.Equal("ordinal", box["x"]!["type"]!.StringValue);
+        // Assert: the bin transform comes first (the bins of the encoding take autoMaxBins of the channel, 10 for x), then the time unit, then the aggregate that groups by both ends of the bin and the unit
+        Assert.Equal(10, boxTransform[0]["bin"]!["maxbins"]!.NumberValue);
+        Assert.Equal("g", boxTransform[0]["field"]!.StringValue);
+        Assert.Equal("bin_maxbins_10_g", boxTransform[0]["as"]!.StringValue);
+        Assert.Equal("year", boxTransform[1]["timeUnit"]!.StringValue);
+        Assert.Equal("t", boxTransform[1]["field"]!.StringValue);
+        Assert.Equal("year_t", boxTransform[1]["as"]!.StringValue);
+        Assert.Equal("bin_maxbins_10_g", quartileTransform[0]["as"]!.StringValue);
+        Assert.Equal("year", quartileTransform[1]["timeUnit"]!.StringValue);
+        Assert.Equal(["bin_maxbins_10_g", "bin_maxbins_10_g_end", "year_t"], boxTransform[2]["groupby"]!.Items.Select(g => g.StringValue));
+        Assert.Contains("mean z mean_z", Operations(boxTransform[2], "aggregate"));
 
-        // Assert: the channel reads the derived field, has no time unit and keeps a default title; the aggregated channel is left out
+        // Assert: the binned channel reads the start as quantitative data that is binned already, with the end as x2 and the default title
+        Assert.Equal("bin_maxbins_10_g", box["x"]!["field"]!.StringValue);
+        Assert.Equal("binned", box["x"]!["bin"]!.StringValue);
+        Assert.Equal("quantitative", box["x"]!["type"]!.StringValue);
+        Assert.Equal("g (binned)", box["x"]!["title"]!.StringValue);
+        Assert.Equal("bin_maxbins_10_g_end", box["x2"]!["field"]!.StringValue);
+
+        // Assert: the time unit channel reads the derived field, has no time unit and keeps a default title; the aggregated channel reads the measure with the title of its definition
         Assert.Null(box["color"]!["timeUnit"]);
         Assert.Equal("year_t", box["color"]!["field"]!.StringValue);
         Assert.Equal("t (year)", box["color"]!["title"]!.StringValue);
-        Assert.Null(box["size"]);
+        Assert.Equal("mean_z", box["size"]!["field"]!.StringValue);
+        Assert.Null(box["size"]!["aggregate"]);
+        Assert.Equal("Mean of z", box["size"]!["title"]!.StringValue);
+    }
+
+    /// <summary>
+    ///     Validates the grouping forms that leave the field as it is or change only parts of the definition: a <c>bin</c> that is <c>"binned"</c> or false and a binned time unit are dropped from the
+    ///     channel, a time unit next to <c>bin: false</c> applies, the <c>maxbins</c> form of a time unit is a transform, a count and an <c>argmax</c> read their results, and a bin on a channel
+    ///     other than <c>x</c> and <c>y</c> reads the start without a second channel.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_Expand_GroupingFormsThatKeepTheFieldAndTheLessCommonAggregates()
+    {
+        // Arrange / Act
+        var kept = Expand("""
+            { "mark": "boxplot",
+              "encoding": { "x": { "field": "g", "type": "ordinal", "bin": "binned" }, "y": { "field": "v", "type": "quantitative" },
+                            "color": { "field": "t", "type": "temporal", "timeUnit": "binnedyear" } } }
+            """);
+        var forms = Expand("""
+            { "mark": "boxplot",
+              "encoding": { "x": { "field": "d", "type": "ordinal", "bin": false, "timeUnit": { "maxbins": 4 } }, "y": { "field": "v", "type": "quantitative" },
+                            "color": { "aggregate": "count", "type": "quantitative" }, "opacity": { "aggregate": { "argmax": "w" }, "field": "z", "type": "quantitative" },
+                            "size": { "field": "q", "type": "quantitative", "bin": { "maxbins": 3 } } } }
+            """);
+        var keptBox = kept.Layers.Units.Single(u => MarkOf(u.Unit!)["type"]!.StringValue == "bar").Unit!["encoding"]!;
+        var formsBox = forms.Layers.Units.Single(u => MarkOf(u.Unit!)["type"]!.StringValue == "bar").Unit!["encoding"]!;
+        var formsTransform = forms.Layers.Root.Children[1].Transform!.Items;
+
+        // Assert: the written bin and the binned unit are dropped and the fields group the rows as they are
+        Assert.Null(keptBox["x"]!["bin"]);
+        Assert.Equal("g", keptBox["x"]!["field"]!.StringValue);
+        Assert.Null(keptBox["color"]!["timeUnit"]);
+        Assert.Equal("t", keptBox["color"]!["field"]!.StringValue);
+        Assert.Equal(["g", "t"], kept.Layers.Root.Children[1].Transform!.Items[0]["groupby"]!.Items.Select(g => g.StringValue));
+
+        // Assert: the maxbins unit is a transform, the count and the argmax add measures and read their results, the bin of a size has no second channel
+        Assert.Equal(4, formsTransform[1]["timeUnit"]!["maxbins"]!.NumberValue);
+        Assert.Equal("timeunit_maxbins_4_d", formsTransform[1]["as"]!.StringValue);
+        Assert.Equal("timeunit_maxbins_4_d", formsBox["x"]!["field"]!.StringValue);
+        Assert.Equal("d", formsBox["x"]!["title"]!.StringValue);
+        Assert.Equal("__count", formsBox["color"]!["field"]!.StringValue);
+        Assert.Equal("Count of Records", formsBox["color"]!["title"]!.StringValue);
+        Assert.Equal("argmax_w.z", formsBox["opacity"]!["field"]!.StringValue);
+        Assert.Equal("bin_maxbins_3_q", formsBox["size"]!["field"]!.StringValue);
+        Assert.Null(formsBox["size"]!["bin"]);
+        Assert.Null(formsBox["size2"]);
+        var measures = formsTransform[2]["aggregate"]!.Items;
+        Assert.Contains(measures, m => m["op"]!.StringValue == "count" && m["field"] is null && m["as"]!.StringValue == "__count");
+        Assert.Contains(measures, m => m["op"]!.StringValue == "argmax" && m["field"]!.StringValue == "w" && m["as"]!.StringValue == "argmax_w");
     }
 
     /// <summary>
