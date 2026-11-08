@@ -396,7 +396,7 @@ internal static class DiagramDetector
     /// <param name="a">The first text.</param>
     /// <param name="b">The second text.</param>
     /// <returns>The number of insertions, deletions and substitutions that turn one into the other.</returns>
-    private static int EditDistance(string a, string b)
+    internal static int EditDistance(string a, string b)
     {
         var previous = new int[b.Length + 1];
         var current = new int[b.Length + 1];

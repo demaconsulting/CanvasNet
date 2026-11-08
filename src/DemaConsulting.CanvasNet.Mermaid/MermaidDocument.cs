@@ -1,4 +1,5 @@
 using System.Text;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid;
@@ -205,9 +206,16 @@ public sealed partial class MermaidDocument
     /// <returns>The document.</returns>
     private static MermaidDocument Create(string text, string? sourceName, MermaidLimits limits)
     {
-        // The pipeline of Mermaid's parse: preprocess, detect, then parse the diagram of a supported type
+        // The pipeline of Mermaid's parse: preprocess, detect with the configuration of the text (the frontmatter and the
+        // directives choose the flowchart, class and state renderers that the detectors read), then parse a supported type
         var source = Preprocessor.Run(text, sourceName, limits);
         var detected = DiagramDetector.Detect(source.Code, DetectorSettings.Default);
+        var settings = MermaidConfigResolver.Resolve(source, diagramId: null, options: null, sink: null).DetectorSettings;
+        if (settings != DetectorSettings.Default)
+        {
+            detected = DiagramDetector.Detect(source.Code, settings);
+        }
+
         var diagram = detected.IsSupported ? DiagramRegistry.Parse(detected, source, limits) : null;
         return new MermaidDocument(source, detected, diagram, sourceName);
     }

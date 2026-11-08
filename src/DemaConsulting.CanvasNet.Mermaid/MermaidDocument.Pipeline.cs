@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -71,6 +72,10 @@ internal interface IMermaidDiagram
 /// <param name="Source">The preprocessed text (frontmatter, directives and code).</param>
 /// <param name="Diagram">The detected type.</param>
 /// <param name="Options">The effective options of the call.</param>
+/// <param name="Config">
+///     The effective configuration of the call (defaults, site configuration, frontmatter and directives) with its theme
+///     variables; build the diagram's style sheet from it with <see cref="FlowchartStyles.Create"/>.
+/// </param>
 /// <param name="Sink">The report sink of the call.</param>
 /// <param name="Fonts">The font resolver of the call.</param>
 /// <param name="CancellationToken">The token that stops the work.</param>
@@ -78,6 +83,7 @@ internal sealed record DiagramRenderContext(
     PreprocessedSource Source,
     DetectedDiagram Diagram,
     MermaidRenderOptions Options,
+    MermaidConfig Config,
     MermaidReportSink Sink,
     FontResolver Fonts,
     CancellationToken CancellationToken);

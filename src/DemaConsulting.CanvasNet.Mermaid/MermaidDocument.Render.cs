@@ -1,6 +1,7 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -195,7 +196,9 @@ public sealed partial class MermaidDocument
         T result;
         try
         {
-            var context = new DiagramRenderContext(Source, Detected, options, sink, ScenePainter.CreateFontResolver(), cancellationToken);
+            // The configuration of a type that is not drawn is resolved silently: its only report is that it is not drawn
+            var config = MermaidConfigResolver.Resolve(Source, Detected.MermaidId, options, Diagram is null ? null : sink);
+            var context = new DiagramRenderContext(Source, Detected, options, config, sink, ScenePainter.CreateFontResolver(), cancellationToken);
             result = finish(BuildScene(context), context);
         }
         catch

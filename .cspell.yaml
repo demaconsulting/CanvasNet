@@ -841,20 +841,31 @@ words:
   - denormal
   - slnx
   # Mermaid / diagram terms
+  - Colours
+  - composit
+  - cyanaqua
   - cynefin
   - dagre
   - dasharray
+  - dashoffset
   - ebnf
   - eventmodeling
+  - Fabio
+  - frontmatter
   - gantt
   - ishikawa
   - jison
+  - katex
+  - keyify
+  - khroma
   - Knut
   - LALR
+  - Maney
   - mindmap
   - mmdc
   - Puzrin
   - sankey
+  - Spampinato
   - Sveidqvist
   - treemap
   - Vitaly
