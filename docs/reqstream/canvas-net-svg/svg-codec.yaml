@@ -642,12 +642,16 @@ sections:
               matched case-insensitively and converted to user units at 1in = 96px - the
               absolute units px, pt, pc, in, cm, mm and Q; the font-relative units em and ex
               (the element's own font, the parent's for font-size itself), ch, rem (the root
-              element's font-size), lh and rlh (a normal line height being 1.2em); and the
+              element's font-size), lh and rlh (the element's and the root element's computed
+              line-height from CSS or the font shorthand, a normal line height being 1.2em, and
+              lh and rlh inside line-height itself resolving against the parent's line height,
+              or the initial 1.2 x 16 on the root, so no declaration refers to itself); and the
               viewport-relative units vw, vh, vmin and vmax (percentages of the root viewport in
               user units) - with ex measured as the height of the font's x glyph and ch as the
               advance of the glyph 0, each falling back to 0.5em when the font has no such
               glyph, and shall report a root width/height in these units from GetInfo converted
-              to user units rather than with the unit stripped.
+              to user units rather than with the unit stripped, resolving lh and rlh there
+              against the root's own line-height and font-size exactly as Load does.
             justification: |
               SVG 2 and CSS Values 4 define lengths with units, and real documents (Vega and
               Vega-Lite output with font-size="10px", Inkscape output in mm, hand-written SVG in
@@ -680,6 +684,9 @@ sections:
               - SvgCodec_Load_MaskRegionWithUnits_ConvertsAndMalformedFallsBack
               - SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack
               - SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize
+              - SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight
+              - SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize
+              - SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent
               - SvgCodec_Load_LegacyNumberForms_StillParse
 
           - id: CanvasNetSvg-SvgCodec-FontSizeSourcesAndKeywords
@@ -1366,9 +1373,11 @@ sections:
               computed luminance (0.2125*R + 0.7154*G + 0.0721*B, scaled by that pixel's own
               alpha), honoring maskUnits (the mask's own x/y/width/height region box,
               defaulting to objectBoundingBox) independently from maskContentUnits (the mask
-              content's own coordinate system, defaulting to userSpaceOnUse), while tolerating
-              a dangling or wrong-element-type mask reference as a no-op (rendering
-              unmasked).
+              content's own coordinate system, defaulting to userSpaceOnUse), with an omitted
+              x, y, width or height taking its -10%, -10%, 120% or 120% initial value against
+              the referencing element's bounding box under objectBoundingBox and against the
+              current viewport under userSpaceOnUse, while tolerating a dangling or
+              wrong-element-type mask reference as a no-op (rendering unmasked).
             justification: |
               mask is SVG's standard mechanism for a soft, gradient-capable reveal/hide effect
               (vignettes, fades, gradient-driven cutouts) that clip-path's hard-edged
@@ -1378,13 +1387,17 @@ sections:
               maskContentUnits are deliberately independent attributes governing distinct
               concerns (the mask's own region box vs. its content's own coordinate system)
               and are resolved as such rather than conflated, matching the SVG specification's
-              own separation of the two.
+              own separation of the two. CSS Masking 1 defines the region's initial values as
+              percentages in both units modes, so an omitted attribute must resolve exactly
+              like the same explicit percentage rather than against the bounding box when
+              maskUnits is userSpaceOnUse.
             tests:
               - SvgCodec_Load_MaskDefaultLuminance_WhiteRevealsBlackHides
               - SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance
               - SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates
               - SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds
               - SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget
+              - SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport
 
           - id: CanvasNetSvg-SvgCodec-EffectOrdering
             title: >-

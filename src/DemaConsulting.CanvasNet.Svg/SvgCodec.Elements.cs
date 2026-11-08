@@ -782,11 +782,8 @@ public static partial class SvgCodec
         };
 
         // line-height is not an SVG presentation attribute: only CSS and the font shorthand set it
-        var rawLineHeight = FirstValidFontValue(
-            "line-height", fontState, ResolveStyledValue(styleContext, "line-height"), null, FromFontAttribute("line-height"));
-        var lineHeight = rawLineHeight != null && TryParseLineHeight(rawLineHeight, fontState, out var computedLineHeight)
-            ? computedLineHeight
-            : parent.LineHeight;
+        var lineHeight = ResolveComputedLineHeight(
+            ResolveStyledValue(styleContext, "line-height"), FromFontAttribute("line-height"), fontState, parent);
         fontState = fontState with
         {
             LineHeight = lineHeight,

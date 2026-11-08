@@ -251,7 +251,10 @@ Servers_); under `objectBoundingBox` the basis is 1 and they stay `1` and `0.5`.
 to the resolved `cx`/`cy`, `fr` to 0, and a pattern's omitted `x`, `y`, `width` and `height` stay
 their initial value `0` (SVG 2: a zero `width`/`height` disables rendering) in either mode. This
 is an intended behavior change: a `userSpaceOnUse` gradient that omits those attributes used to be
-one user unit wide.
+one user unit wide. A mask region's omitted `x`, `y`, `width` and `height` follow the same rule
+(`ReadMaskRegionValue`): their initial values `-10%`, `-10%`, `120%` and `120%` are percentages in
+both units modes (CSS Masking 1), so under `maskUnits="userSpaceOnUse"` they are `-10%`/`120%` of
+the viewport width or height, not of the shape's bounds as before.
 
 ### Length Units and font-size
 
@@ -360,7 +363,11 @@ primitive subregion fractions.
 **Root width/height.** `ParseLength` resolves them with a throwaway state: a percentage or a
 viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their fallbacks, and
 `em`/`rem` use the root's own `font-size` from its attribute, inline `style` (including the `font`
-shorthand) or `font` attribute, else 16. Stylesheet rules are not consulted because the stylesheet
+shorthand) or `font` attribute, else 16. `lh`/`rlh` use the root's own `line-height`
+(`ReadRootLineHeight`) from its inline `style` (including the `font` shorthand) or `font` attribute,
+else `normal`, resolved with the root's own font size through the same `ResolveComputedLineHeight`
+the element cascade uses; a `line-height` that needs the viewport (`vw`...) has no basis here and is
+dropped. Stylesheet rules are not consulted because the stylesheet
 is built after the size is known. `GetInfo` and `Load` therefore agree. A number-typed math result
 in the root `width`/`height` is user units (px), like a literal (SVG 2 _Types_ 4.2; _Coordinates_
 8.1); in the root's `font-size` it is accepted only from the `font-size` attribute, mirroring the
@@ -449,7 +456,14 @@ separate pre-existing limitation.
 multiplier re-applied by each descendant's font size, a length/percentage result is an absolute
 length fixed at the declaring element, and a mixed expression (`calc(10% + 1)`) is invalid and
 ignored. `IsValidLineHeightSyntax` (the shorthand's `/ line-height` check) uses the same rule, so
-`font: 10px/calc(1 + 1) Family` is accepted.
+`font: 10px/calc(1 + 1) Family` is accepted. `ResolveComputedLineHeight` picks the first valid of
+CSS and the `font` attribute, else inherits, and is shared by the element cascade and
+`ReadRootLineHeight`. Inside `line-height` itself `lh` resolves against the parent's line height and
+font size, and `rlh` on the root against the initial values (CSS Values 4, font-relative lengths):
+both bases are frozen as absolute lengths taken from the parent state before the value is parsed, so
+`line-height: 2lh` is twice the parent's line height (twice 1.2 x 16 on the root) and can neither
+refer to itself nor be re-multiplied by the element's own font size. `normal` is 1.2 times the font
+size wherever the codec resolves it (`NormalLineHeightMultiplier`).
 
 ### Data Model
 
@@ -1307,7 +1321,10 @@ number-typed math result (`calc(1 + 1)`) is user units like a literal (SVG 2 _Ty
 percentage - plain or inside a math function - resolves against the current viewport on the
 attribute's own axis (width for `x`/`width`, height for `y`/`height`), as for gradients and patterns
 (see _Percentage-Based Geometry Resolution_ above); this replaces the earlier simplification that
-resolved such a percentage against the reference bounds.
+resolved such a percentage against the reference bounds. An omitted, empty or unparseable attribute
+takes its initial value (`-10%`, `-10%`, `120%`, `120%`) on the same basis as an explicit
+percentage in the active mode: the reference bounds under `objectBoundingBox`, the current viewport
+under `userSpaceOnUse` (one reader, `ReadMaskRegionValue`, serves all four attributes).
 
 _Resource safety._ Both clip and mask reuse `FilterWorkBudget` (not a separate budget class) for
 their own offscreen-buffer allocation charge - a deliberate judgment call rather than the

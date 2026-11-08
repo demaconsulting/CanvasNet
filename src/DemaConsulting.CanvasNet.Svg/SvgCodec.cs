@@ -214,7 +214,10 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     property itself); <c>ex</c> is the height of the font's <c>x</c> glyph and <c>ch</c> the
 ///     advance of <c>0</c>, each falling back to <c>0.5em</c> when the font lacks the glyph; a
 ///     <c>normal</c> line height is <c>1.2em</c>; <c>rem</c> and <c>rlh</c> resolve against the root
-///     <c>svg</c> element; and the viewport units are percentages of the root viewport in user
+///     <c>svg</c> element (also for a root <c>width</c>/<c>height</c>); inside <c>line-height</c>
+///     itself <c>lh</c> resolves against the parent's line height and <c>rlh</c> on the root against
+///     the initial values (CSS Values 4), so a line height never refers to itself; and the viewport
+///     units are percentages of the root viewport in user
 ///     units (the same viewBox-derived basis a percentage uses), which differs from a browser only
 ///     when the root <c>width</c>/<c>height</c> and <c>viewBox</c> disagree. A trailing <c>%</c>
 ///     resolves against the current viewport, per the SVG specification's per-attribute basis rules:
@@ -234,7 +237,9 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     inside a math function (SVG 2, Paint Servers): a fraction of <c>1</c> under the default
 ///     <c>objectBoundingBox</c> units, and the current viewport on the attribute's own axis
 ///     (width for the <c>x</c> family, height for the <c>y</c> family, the diagonal basis for
-///     <c>r</c>/<c>fr</c>) under <c>userSpaceOnUse</c>. A math expression keeps its type (CSS Values
+///     <c>r</c>/<c>fr</c>) under <c>userSpaceOnUse</c>; an omitted attribute whose initial value is a
+///     percentage (a mask region's <c>-10% -10% 120% 120%</c>, CSS Masking 1) uses the same basis.
+///     A math expression keeps its type (CSS Values
 ///     Level 4, "Type Checking"). One that resolves to a number (<c>calc(1 + 1)</c>) is accepted
 ///     wherever SVG 2 allows a <c>&lt;number&gt;</c> - the property grammar
 ///     <c>&lt;length-percentage&gt; | &lt;number&gt;</c> of <c>stroke-width</c>,

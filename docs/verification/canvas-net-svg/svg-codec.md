@@ -886,6 +886,9 @@ a basis-1 fraction (or a fraction of the shape's bounds) under `userSpaceOnUse`.
 `SvgCodec_Load_MaskRegionWithUnits_ConvertsAndMalformedFallsBack`,
 `SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack`,
 `SvgCodec_Load_RootSizeInInches_FitsContentToConvertedSize`,
+`SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight`,
+`SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize`,
+`SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent`,
 `SvgCodec_Load_LegacyNumberForms_StillParse`
 
 Every test in `SvgLengthUnitTests` renders a bar (or shape) and measures its coverage with
@@ -904,7 +907,15 @@ units are asserted against the root viewport and shown unchanged inside a `symbo
 changes what `%` means. The tolerant call sites (gradient coordinate, pattern tile, user-space
 mask region) and the root size (`GetInfo` for `1in`, `210mm`, `10rem`, `em` with a root
 `font-size`, and the fallback for a percentage, viewport unit or unknown unit) are asserted, as is
-`Load` agreeing with `GetInfo`.
+`Load` agreeing with `GetInfo`. A root `width`/`height` in `lh`/`rlh` is asserted against the
+root's own `line-height` - a number, `px`, `em`, `rem`, `%`, a number-typed `calc()`, `normal`,
+the `font` shorthand in the inline style and the `font` attribute - resolved with the root's own
+font size (`2lh` by `3rlh` at `font-size='10'` and `line-height:2` is 40x60), and `Load` is asserted
+to fill exactly that size. `lh` and `rlh` inside `line-height` are asserted to resolve against the
+parent's line height (a `1lh` line height under a parent with `line-height:2` at size 10 is 20,
+even when the element's own size is 50) and, on the root, against the initial 1.2 x 16 = 19.2
+(`line-height:5lh` and `5rlh` both give 96, in `GetInfo` and in `Load`) without a cycle; a
+`line-height` in a viewport unit has no basis for the root size and leaves `normal`.
 
 #### CanvasNetSvg-SvgCodec-FontSizeSourcesAndKeywords: font-size Sources, Keywords and the font Shorthand
 
@@ -1681,7 +1692,8 @@ rendering unclipped, mirroring this codec's existing `filter`/marker wrong-eleme
 `SvgCodec_Load_MaskGrayShape_AttenuatesAlphaProportionallyToLuminance`,
 `SvgCodec_Load_MaskUnitsUserSpaceOnUse_ReadsRegionAsAbsoluteCoordinates`,
 `SvgCodec_Load_MaskContentUnitsObjectBoundingBox_ScalesMaskContentToReferenceBounds`,
-`SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget`
+`SvgCodec_Load_MaskOnUseElement_MasksResolvedTarget`,
+`SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport`
 
 Asserts a `mask="url(#id)"` referencing a `mask` element with a white rect over half the
 referencing element's own bounds and a black rect over the other half fully reveals the element
@@ -1699,6 +1711,12 @@ mistakenly conflated with (or overriding) the other; and asserts `mask` on a `<u
 masks the whole resolved target subtree as a single unit, the same convention
 `CanvasNetSvg-SvgCodec-GroupFilterRendering` already establishes for group-level `filter`
 and `CanvasNetSvg-SvgCodec-ClipPathRendering` establishes for group-level `clip-path`.
+`SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport` omits each of `x`,
+`y`, `width` and `height` in turn from a `userSpaceOnUse` region over a shape in the bottom-right
+quarter of a 200x100 document, and asserts the render is pixel-identical to the literal viewport
+value of the initial percentage (`-20`, `-10`, `240` and `120`: `-10%` or `120%` of the viewport
+width or height) and differs from the bounding-box reading (`90`, `45`, `120` and `60`), which
+clips the shape differently (CSS Masking 1: the initial values are percentages in both modes).
 
 #### CanvasNetSvg-SvgCodec-EffectOrdering: Clip/Mask-Before-Filter Ordering and Regression Coverage
 
