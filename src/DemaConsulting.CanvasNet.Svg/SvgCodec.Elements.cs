@@ -3,7 +3,7 @@
 // cspell:ignore evenodd nonzero viewbox gradientunits gradienttransform spreadmethod
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
 // cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
-// cspell:ignore unblurred premult vmin vmax longhand longhands
+// cspell:ignore unblurred premult
 using System.Globalization;
 using System.Linq;
 using System.Numerics;

@@ -4,7 +4,7 @@
 // cspell:ignore userspaceonuse objectboundingbox skewx skewy tspan
 // cspell:ignore rasterizing unparseable rrggbb sizeless bbox moveto multiplicatively pillarbox SMIL uncatchable formedness
 // cspell:ignore unblurred premult
-// cspell:ignore unitless letterboxing vmin vmax
+// cspell:ignore unitless letterboxing
 using System.Globalization;
 using System.Numerics;
 using System.Xml;
@@ -254,10 +254,10 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     conversion, throws <see cref="InvalidDataException"/> (never a <see cref="FormatException"/>).
 ///     <i>Class T (tolerant)</i> - root <c>width</c>/<c>height</c>, gradient and pattern coordinates
 ///     and a <c>userSpaceOnUse</c> mask region: an unparseable value is treated as absent and the
-///     usual default or fallback applies. <i>Class F (font)</i> - <c>font-size</c>, <c>line-height</c>
-///     and the <c>font</c> shorthand: an invalid declaration is ignored (the CSS invalid-declaration
-///     rule), so the value is inherited. Text <c>dx</c>/<c>dy</c> are tolerant too (an invalid value
-///     is ignored).
+///     usual default or fallback applies. <i>Class F (font and text offsets)</i> - <c>font-size</c>,
+///     <c>line-height</c>, the <c>font</c> shorthand and the text <c>dx</c>/<c>dy</c> offsets: an
+///     invalid declaration is ignored (the CSS invalid-declaration rule), so the value is inherited
+///     (or, for <c>dx</c>/<c>dy</c>, the offset is zero).
 ///     </para>
 ///     <para>
 ///     <b>GetInfo fallback policy.</b> <see cref="GetInfo(Stream)"/> resolves an intrinsic size in

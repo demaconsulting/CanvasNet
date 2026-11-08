@@ -1,6 +1,6 @@
 # System Design
 
-<!-- cspell:ignore Linq renderable vmin vmax -->
+<!-- cspell:ignore Linq renderable -->
 
 This document provides the system-level design for CanvasNetSvg.
 

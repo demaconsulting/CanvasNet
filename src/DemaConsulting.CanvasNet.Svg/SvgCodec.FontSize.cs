@@ -1,4 +1,3 @@
-// cspell:ignore rlh xxx oblique deg bolder longhand longhands
 using System.Globalization;
 using System.Xml.Linq;
 

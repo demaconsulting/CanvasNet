@@ -1,4 +1,3 @@
-// cspell:ignore rlh vmin vmax rem xxx Hhea oblique deg longhand longhands
 namespace DemaConsulting.CanvasNet.Svg.Tests;
 
 /// <summary>

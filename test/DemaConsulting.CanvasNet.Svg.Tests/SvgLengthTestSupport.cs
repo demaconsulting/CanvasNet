@@ -1,4 +1,3 @@
-// cspell:ignore Hhea hmtx Hmtx Loca Maxp rlh vmin vmax rem dasharray dashoffset
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;

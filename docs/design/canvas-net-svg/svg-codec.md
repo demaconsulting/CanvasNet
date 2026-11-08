@@ -3,7 +3,7 @@
 ![CanvasNetSvg Structure](CanvasNetSvgView.svg)
 
 <!-- cspell:ignore rasterizing rrggbb sizeless SMIL unparseable Linq uncatchable Glyf Loca renderable -->
-<!-- cspell:ignore unitless letterboxing vmin vmax longhand longhands -->
+<!-- cspell:ignore unitless letterboxing -->
 
 `SvgCodec` is distributed as the separate `DemaConsulting.CanvasNet.Svg` NuGet package (namespace
 `DemaConsulting.CanvasNet.Svg`), which references the core `DemaConsulting.CanvasNet` package.

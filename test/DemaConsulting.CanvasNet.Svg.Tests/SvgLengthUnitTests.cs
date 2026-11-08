@@ -1,4 +1,3 @@
-// cspell:ignore rlh vmin vmax rem dasharray dashoffset objectboundingbox userspaceonuse Hhea
 using System.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;

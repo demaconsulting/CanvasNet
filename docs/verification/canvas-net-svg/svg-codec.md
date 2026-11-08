@@ -1,7 +1,7 @@
 ## SvgCodec Unit Verification Design
 
 <!-- cspell:ignore unstroked Letterboxing uncatchable Glyf Loca unparseable Cmap -->
-<!-- cspell:ignore unitless Pillarboxes letterboxed renderable longhand longhands -->
+<!-- cspell:ignore unitless Pillarboxes letterboxed renderable -->
 
 This document describes the unit-level verification strategy for the `SvgCodec` class.
 

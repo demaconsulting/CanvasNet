@@ -1,7 +1,5 @@
 # CanvasNet SVG Package
 
-<!-- cspell:ignore vmin vmax -->
-
 ## API Reference
 
 ### SvgCodec

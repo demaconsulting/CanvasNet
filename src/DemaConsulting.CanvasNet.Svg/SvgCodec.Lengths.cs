@@ -1,4 +1,3 @@
-// cspell:ignore rlh vmin vmax rem ch ex Pt unitless dasharray
 using System.Globalization;
 using DemaConsulting.CanvasNet.Fonts;
 
@@ -604,8 +603,9 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Resolves the first entry of a length list tolerantly (used for the text <c>dx</c>/<c>dy</c>
-    ///     attributes, of which only the first value is honored).
+    ///     Resolves the first entry of a length list as a class F value (used for the text
+    ///     <c>dx</c>/<c>dy</c> attributes, of which only the first value is honored; see
+    ///     <see cref="SvgCodec"/>'s remarks on the malformed-length policy).
     /// </summary>
     /// <param name="raw">The raw list text, or <see langword="null"/> when the attribute is absent.</param>
     /// <param name="state">The cascaded state supplying unit and percentage bases.</param>

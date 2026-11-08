@@ -3,7 +3,6 @@
 #
 # cspell:ignore moveto lineto closepath dasharray letterboxing renderable xlink SMIL uncatchable
 # cspell:ignore miterlimit dashoffset unitless Pillarboxes
-# cspell:ignore vmin vmax longhand longhands
 #
 # These requirements describe the design-level behavior of the SvgCodec unit.
 #
