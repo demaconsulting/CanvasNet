@@ -964,23 +964,35 @@ presentation attribute, an inline style and a stylesheet rule.
 **Tests**: `SvgCodec_Load_MathFunction_Evaluates`,
 `SvgCodec_Load_DashArrayEntryMathFunction_IsOneEntry`,
 `SvgCodec_Load_OverComplexMathExpression_ThrowsInvalidDataException`,
-`SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException`,
+`SvgCodec_Load_StrokeNumberMath_IsUserUnits`,
+`SvgCodec_Load_AttributeNumberMath_GeometryIsUserUnits`,
+`SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException`,
 `SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted`,
 `SvgCodec_Load_LineHeightNumberMath_IsMultiplier`,
 `SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType`,
 `SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis`,
 `SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault`,
-`SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted`
+`SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted`,
+`SvgCodec_Load_FontSizeAttributeNumberMath_IsUserUnits`
 
 Asserts the evaluator on `calc()` with mixed units, percentages and font-relative operands,
 precedence and parentheses, nesting, case-insensitive function names, and `min()`/`max()`/
 `clamp()`; asserts a math function with spaces and commas is one `stroke-dasharray` entry; and
 asserts that an expression nested beyond the depth cap or longer than the length cap is rejected
 (the invalid-expression cases themselves are listed under the malformed-value requirement).
-The result type is asserted to be kept: `calc(1 + 1)`, `min(1, 2)`, `max(1, 2)`, `clamp(1, 2, 3)`,
-`calc(2 * 3)` and `calc(0)` are numbers, so each throws `InvalidDataException` as a `rect` width, a
-`stroke-width`, a dash entry and a dash offset, while a literal `10`, `calc(2 * 10px)` and
-`max(10px, 2em)` still render. For `line-height` the number-typed results (`calc(1 + 1)`,
+The result type is asserted to be kept (SVG 2 Painting `<length-percentage> | <number>` for the
+stroke trio, and SVG 2 Types 4.2 "Attribute syntax" for presentation attributes; browser behavior
+has not been verified). `calc(1 + 1)` (2), `min(1, 2)` (1), `max(1, 2)` (2), `clamp(1, 2, 3)` (2),
+`calc(2 * 3)` (6) and `calc(0)` (0) are numbers, so each is user units, rendering pixel-identical
+to the literal number, as `stroke-width`, a `stroke-dasharray` entry and `stroke-dashoffset` - from a
+presentation attribute, an inline style and a `<style>` rule - and (attribute only) as a `rect`
+`width`, a `circle` `r`, a `line` `x2`, a `use` `width`, a `marker` `markerWidth` and a `text` `x`; a
+value that differs from the property's initial value is also asserted to differ from the render
+with the property absent. A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)`,
+`min(1, 1px)`) still throws `InvalidDataException` as a `rect` width, a `stroke-width`, a dash entry
+and a dash offset, while a literal `10`, `calc(2 * 10px)` and `max(10px, 2em)` still render. A number-typed
+`font-size` attribute (`calc(5 + 5)`, `min(10, 20)`, `max(10, 20)`, `clamp(10, 15, 20)`) measures
+10, 10, 20 and 15 under a parent size of 40. For `line-height` the number-typed results (`calc(1 + 1)`,
 `min(2, 3)`, `max(1, 2)` and `font: 10px/calc(1 + 1) serif`) are asserted to be multipliers
 re-multiplied by a descendant's font size (`1lh` is 100 under a child `font-size` of 50, not a fixed
 2), a length result (`calc(1px + 1px)`, `calc(20% + 1px)`) stays a fixed length, and the invalid mix
@@ -1003,10 +1015,16 @@ default region; a number-typed `calc(0.5 + 0.25)` is accepted as a gradient's `x
 `SvgCodec_Load_NonPositiveFontSize_RendersNoText`,
 `SvgCodec_Load_MalformedTextDxDy_IsIgnored`,
 `SvgCodec_Load_InvalidFontShorthand_IsDropped`,
-`SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException`,
-`SvgCodec_GetInfo_RootSizeNumberMath_FallsBackTo300x150`,
-`SvgCodec_Load_TextDxDyNumberMath_IsIgnored`,
-`SvgCodec_Load_GradientUserSpaceNumberMath_FallsBackToDefault`,
+`SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException`,
+`SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits`,
+`SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150`,
+`SvgCodec_Load_TextDxDyNumberMath_IsUserUnits`,
+`SvgCodec_Load_GradientUserSpaceNumberMath_IsUserUnits`,
+`SvgCodec_Load_GradientUserSpaceMixedTypeMath_FallsBackToDefault`,
+`SvgCodec_Load_PatternUserSpaceNumberMath_IsUserUnits`,
+`SvgCodec_Load_MaskRegionUserSpaceNumberMath_IsUserUnits`,
+`SvgCodec_Load_FontSizeNumberMathFromCss_IsIgnoredAndInherited`,
+`SvgCodec_GetInfoAndLoad_RootFontSizeAttributeNumberMath_Agree`,
 `SvgCodec_Load_InvalidObliqueAngle_DropsShorthand`
 
 Class S: thirty malformed geometry values (unknown units, a space before the unit, a bare unit,
@@ -1019,12 +1037,22 @@ mask-region value falls back to the default region, and a root size with an unkn
 basis counts as absent. Class F: a malformed `font-size` (attribute and inline style) is ignored
 and the parent's size is inherited, a malformed `line-height` and `dx`/`dy` are ignored, an invalid
 shorthand is dropped whole, and a zero or negative size still renders no text (existing behavior).
-A math expression that resolves to a number is malformed where a length is required: a number-typed
-`calc()` in a geometry length, `stroke-width`, a dash entry or a dash offset is asserted to throw
-`InvalidDataException` (class S), as a root `width`/`height` it counts as absent so `GetInfo` reports
-300x150 (class T), a `font-size` of `calc(1 + 1)`, `min(1, 2)`, `max(1, 2)` or `clamp(1, 2, 3)` is
-ignored and inherited, a text `dx`/`dy` is ignored (class F), and under `userSpaceOnUse` a gradient
-`x2='calc(1 + 1)'` falls back to the default like an absent value (class T). An invalid oblique angle
+A number-typed math result is user units where SVG 2 allows a number, so only a mixed expression is
+malformed there: `calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)` and `min(1, 1px)` are asserted to
+throw `InvalidDataException` in a geometry length, `stroke-width`, a dash entry and a dash offset
+(class S), a root `width`/`height` of `calc(1 + 1px)`/`calc(10% + 1)` counts as absent so `GetInfo`
+reports 300x150 (class T), `font-size` `calc(1px + 2)`, `min(1, 1px)` and `calc(10% + 1)` are ignored
+and inherited, and under `userSpaceOnUse` a gradient `x2='calc(1 + 1px)'` falls back to the default
+like an absent value (class T). The number-typed results themselves are asserted as user units: a
+root `width='calc(1 + 1)' height='min(1, 2)'` makes `GetInfo` report 2x1 and `Load` fill that surface,
+a text `dx='calc(1 + 1)' dy='min(1, 2)'` renders identically to `dx='2' dy='1'`, and a
+`userSpaceOnUse` gradient `x2`, pattern tile and mask region render identically to the literal
+numbers. The one place a number-typed math result stays invalid is a `font-size` declared in CSS
+(an inline style, a `<style>` rule, the `font` shorthand and the `font` attribute): `calc(1 + 1)`,
+`min(1, 2)`, `max(1, 2)` and `clamp(1, 2, 3)` there are ignored and the parent's size inherited
+(class F), whereas the root `font-size` attribute `calc(5 + 5)` makes `GetInfo` report 20 for
+`width='2em'` and `Load` agree, and the same value in the root's inline style is ignored by both
+(the root sizes against 16, giving 32). An invalid oblique angle
 drops the whole `font` shorthand.
 The pre-existing tests that pin the strict behavior for `NaN`/`Infinity`/over-magnitude geometry
 continue to pass unmodified.

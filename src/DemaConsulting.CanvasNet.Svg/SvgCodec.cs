@@ -235,11 +235,21 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>objectBoundingBox</c> units, and the current viewport on the attribute's own axis
 ///     (width for the <c>x</c> family, height for the <c>y</c> family, the diagonal basis for
 ///     <c>r</c>/<c>fr</c>) under <c>userSpaceOnUse</c>. A math expression keeps its type (CSS Values
-///     Level 4, "Type Checking"): one that resolves to a number (<c>calc(1 + 1)</c>) is not a
-///     length, so it is malformed wherever a length is required, while a literal bare number is
-///     still user units; the exceptions are <c>line-height</c>, where it is a multiplier, and the
-///     <c>objectBoundingBox</c> coordinates (<c>&lt;number&gt; | &lt;percentage&gt;</c>), where
-///     either type is valid.
+///     Level 4, "Type Checking"). One that resolves to a number (<c>calc(1 + 1)</c>) is accepted
+///     wherever SVG 2 allows a <c>&lt;number&gt;</c> - the property grammar
+///     <c>&lt;length-percentage&gt; | &lt;number&gt;</c> of <c>stroke-width</c>,
+///     <c>stroke-dasharray</c> entries and <c>stroke-dashoffset</c> (SVG 2, Painting), and every
+///     length presentation attribute, because SVG 2 "Attribute syntax" (Types 4.2) inserts
+///     <c>&lt;number&gt;</c> into <c>&lt;length&gt;</c> and <c>&lt;length-percentage&gt;</c> for a
+///     presentation attribute (shape/text/<c>use</c>/<c>image</c>/<c>marker</c> geometry, text
+///     <c>dx</c>/<c>dy</c>, gradient/pattern/mask coordinates, the root <c>width</c>/<c>height</c>
+///     and the <c>font-size</c> attribute) - and is then user units, exactly like a literal bare
+///     number. A mixed expression (<c>calc(1 + 1px)</c>, <c>calc(10% + 1)</c>) is always invalid.
+///     The one length-percentage-only grammar is a CSS-declared <c>font-size</c> (inline style,
+///     stylesheet rule, <c>font</c> shorthand or <c>font</c> attribute), where a number-typed result
+///     is ignored (class F); <c>line-height</c> keeps treating it as a multiplier. This rests on
+///     the specification text alone; browser behavior for a number-typed math function in an SVG
+///     attribute has not been verified.
 ///     </para>
 ///     <para>
 ///     <b><c>font-size</c>, <c>line-height</c> and the <c>font</c> shorthand.</b> <c>font-size</c> is
@@ -256,14 +266,15 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     and so that existing strictness is unchanged. <i>Class S (strict)</i> - shape, text, use,
 ///     image and marker geometry, <c>stroke-width</c>, <c>stroke-dashoffset</c> and each
 ///     <c>stroke-dasharray</c> entry: a value that is not a number, a number with a known unit, a
-///     percentage or a math function, that is a math expression resolving to a number (not a
-///     length), or that is non-finite or beyond the supported magnitude after
+///     percentage or a math function, that is a mixed-type math expression (a number combined
+///     with a length or percentage), or that is non-finite or beyond the supported magnitude after
 ///     conversion, throws <see cref="InvalidDataException"/> (never a <see cref="FormatException"/>).
 ///     <i>Class T (tolerant)</i> - root <c>width</c>/<c>height</c>, gradient and pattern coordinates
 ///     and mask-region coordinates: an unparseable value is treated as absent and the
 ///     usual default or fallback applies. <i>Class F (font and text offsets)</i> - <c>font-size</c>,
 ///     <c>line-height</c>, the <c>font</c> shorthand and the text <c>dx</c>/<c>dy</c> offsets: an
-///     invalid declaration is ignored (the CSS invalid-declaration rule), so the value is inherited
+///     invalid declaration (including a number-typed math result in a CSS-declared
+///     <c>font-size</c>) is ignored (the CSS invalid-declaration rule), so the value is inherited
 ///     (or, for <c>dx</c>/<c>dy</c>, the offset is zero).
 ///     </para>
 ///     <para>

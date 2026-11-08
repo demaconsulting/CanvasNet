@@ -84,9 +84,18 @@ public static partial class SvgCodec
     ///     <c>larger</c> and <c>smaller</c> are all relative to the PARENT for the <c>font-size</c>
     ///     property itself (CSS Fonts 4), unlike every other property.
     /// </param>
+    /// <param name="numberResultAllowed">
+    ///     <see langword="true"/> only when <paramref name="raw"/> is the element's <c>font-size</c>
+    ///     presentation <em>attribute</em>, to which SVG 2 "Attribute syntax" (Types 4.2) adds
+    ///     <c>&lt;number&gt;</c>, so a number-typed math result (<c>calc(5 + 5)</c>) is user units
+    ///     like the literal <c>10</c>; <see langword="false"/> for a CSS declaration (inline style,
+    ///     stylesheet rule, <c>font</c> shorthand or the <c>font</c> attribute's expansion), whose
+    ///     grammar is <c>&lt;length-percentage [0,inf]&gt;</c> with no <c>&lt;number&gt;</c>.
+    /// </param>
     /// <returns>
     ///     The resolved size; <see langword="null"/> when the value is invalid (an unknown unit,
-    ///     garbage, a malformed expression, an over-magnitude result) or is a keyword with no
+    ///     garbage, a malformed expression, an over-magnitude result, or a number-typed math result
+    ///     where <paramref name="numberResultAllowed"/> is <see langword="false"/>) or is a keyword with no
     ///     effect (<c>revert</c>, <c>revert-layer</c>), meaning "ignore the declaration and inherit"
     ///     per the CSS invalid-declaration rule (class F in this class's remarks). Never throws.
     /// </returns>
@@ -95,7 +104,7 @@ public static partial class SvgCodec
     ///     <c>initial</c> and <c>medium</c> yield 16 regardless of the parent. A zero or negative
     ///     size is returned as-is: the text renderer draws nothing for it, as before.
     /// </remarks>
-    private static float? ParseFontSizeValue(string raw, RenderState parent)
+    private static float? ParseFontSizeValue(string raw, RenderState parent, bool numberResultAllowed)
     {
         var text = raw.Trim();
         if (text.Length == 0)
@@ -133,7 +142,7 @@ public static partial class SvgCodec
         }
         else
         {
-            return TryResolveLength(text, parent, PercentageAxis.FontSize, out var length, out _) ? length : null;
+            return TryResolveLength(text, parent, PercentageAxis.FontSize, out var length, out _, allowNumberResult: numberResultAllowed) ? length : null;
         }
 
         // Repeated 'larger' down a deep tree compounds 1.2^depth: keep the result inside the same
@@ -517,7 +526,7 @@ public static partial class SvgCodec
         AbsoluteFontSizes.ContainsKey(token) ||
         token.Equals("larger", StringComparison.OrdinalIgnoreCase) ||
         token.Equals("smaller", StringComparison.OrdinalIgnoreCase) ||
-        TryResolveLength(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _);
+        TryResolveLength(token, RenderState.Initial, PercentageAxis.FontSize, out _, out _, allowNumberResult: false);
 
     /// <summary>Validates that a <c>font</c> shorthand line-height token is <c>normal</c>, a number or a well-formed length.</summary>
     /// <param name="token">The line-height token.</param>
@@ -562,11 +571,14 @@ public static partial class SvgCodec
     ///     Stylesheet rules are not consulted: the stylesheet is built after the document size is
     ///     known. A root whose size depends on a <c>&lt;style&gt;</c>-declared font size therefore
     ///     sizes against 16, a documented simplification that keeps <c>GetInfo</c> and <c>Load</c>
-    ///     in agreement.
+    ///     in agreement. Only the <c>font-size</c> attribute accepts a number-typed math result
+    ///     (see <see cref="ParseFontSizeValue"/>), mirroring the element cascade so both entry
+    ///     points agree.
     /// </remarks>
     private static float ReadRootFontSize(XElement root)
     {
         string? raw = null;
+        var numberResultAllowed = false;
         var inline = (string?)root.Attribute("style");
         if (inline != null)
         {
@@ -579,13 +591,18 @@ public static partial class SvgCodec
             }
         }
 
-        raw ??= (string?)root.Attribute("font-size");
+        if (raw == null && (string?)root.Attribute("font-size") is { } attributeValue)
+        {
+            raw = attributeValue;
+            numberResultAllowed = true;
+        }
+
         if (raw == null && ExpandFontAttribute(root) is { } fontAttribute)
         {
             fontAttribute.TryGetValue("font-size", out raw);
         }
 
-        return (raw == null ? null : ParseFontSizeValue(raw, RenderState.Initial)) ?? MediumFontSize;
+        return (raw == null ? null : ParseFontSizeValue(raw, RenderState.Initial, numberResultAllowed)) ?? MediumFontSize;
     }
 
     /// <summary>

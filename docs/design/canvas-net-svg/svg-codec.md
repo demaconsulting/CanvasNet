@@ -235,7 +235,7 @@ percentage through the same `TryResolveLength` funnel as every other length, wit
 the units mode (`GetPaintServerAxis`), so a plain `%` and a `%` inside `calc()` always agree (SVG 2,
 _Paint Servers_). Under the default `objectBoundingBox` units the axis is `Fraction`: a `%` is a
 fraction of 1 (basis 1), and, because the grammar of these attributes is `<number> | <percentage>`,
-it is the only axis that accepts a number-typed math result. Under `userSpaceOnUse` the axis is the
+a math expression may resolve to either a number or a length/percentage. Under `userSpaceOnUse` the axis is the
 attribute's own viewport axis - Horizontal for the `x` family and `width`, Vertical for the `y`
 family and `height`, Diagonal for `r`/`fr` - exactly like the shape and text geometry attributes
 above, and the viewport is the referencing element's current one. (`ParsePercentOrNumber`, which is
@@ -294,15 +294,34 @@ grammar, the unit conversions and the safety bounds exist once.
   bounded and the result must be finite and within `MaxCoordinateMagnitude`.
 - **Result type.** The evaluator reports whether the result is a length (`TryEvaluate(out result,
   out isLength)`), and `TryResolveLengthCore` keeps that type (CSS Values 4 _Type Checking_:
-  numbers never become lengths inside a math function, so `width: calc(0 + 5px)` is invalid). A
-  math result that is a number is therefore **rejected wherever a `<length>` is required** - class S
-  throws `InvalidDataException`, class T treats it as absent and class F ignores it - while a
-  _literal_ unitless number stays valid as user units (SVG 2 _Units_), so every existing document is
-  unchanged. Two call sites accept a number-typed result: `line-height` (CSS Fonts 4 and Values 4
-  name it; the result is a multiplier, exactly like a literal number, via
-  `TryResolveLengthOrNumber`) and the `Fraction` axis of `objectBoundingBox` coordinates (grammar
-  `<number> | <percentage>`). Values 4 says a number-typed math result "might become valid in Quirks
-  Mode"; that optional allowance is deliberately not adopted.
+  numbers never become lengths inside a math function, so `width: calc(0 + 5px)` and
+  `calc(10% + 1)` are invalid). A math result that is a **number** is accepted wherever SVG 2
+  allows a `<number>`, and is then user units, exactly like a literal unitless number
+  (`allowNumberResult` defaults to `true` on `TryResolveLength`). Two SVG 2 rules make that
+  everywhere the codec reads a length except one: (1) the property grammar of `stroke-width`,
+  `stroke-dasharray` entries and `stroke-dashoffset` is `<length-percentage> | <number>` (SVG 2
+  _Painting_, "A `<number>` value represents a value in user units"); (2) SVG 2 _Types_ section 4.2
+  "Attribute syntax" says a presentation attribute parsed from a CSS value-definition grammar
+  replaces `<length>` with `[ <length> | <number> ]` and `<length-percentage>` with
+  `[ <length-percentage> | <number> ]`, which covers every geometry attribute (the codec reads all
+  geometry, text `x`/`y`/`dx`/`dy`, marker size and reference point, gradient/pattern/mask
+  coordinates, the root `width`/`height` and the `font-size` attribute from presentation attributes
+  only). A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`, `calc(1px * 1px)`, `min(1, 1px)`)
+  is always invalid: class S throws `InvalidDataException`, class T treats it as absent and class F
+  ignores it. The **one** length-percentage-only grammar left is a CSS-declared `font-size` (inline
+  style, stylesheet rule, `font` shorthand, and the `font` attribute, which is a codec extension and
+  not an SVG 2 presentation attribute): CSS Fonts 4 `font-size` is `<length-percentage [0,inf]>`
+  with no `<number>`, so a number-typed math result there passes `allowNumberResult: false`
+  (`ParseFontSizeValue(..., numberResultAllowed)`, `IsValidFontSizeSyntax`) and is ignored (class F),
+  and `ReadRootFontSize` mirrors the source rule so `GetInfo` and `Load` agree. A literal bare number
+  in a CSS `font-size` stays accepted (pre-existing leniency). `line-height` is unchanged: a
+  number-typed result is a multiplier via `TryResolveLengthOrNumber`. That the `font-size`
+  _attribute_ (a range-restricted `<length-percentage [0,inf]>`) is covered by the 4.2 rule is the
+  one reading of the specification text that is likely rather than certain. This reverses the earlier
+  decision that rejected number math wherever a length is required, which read only CSS Values 4 and
+  not SVG 2 _Types_ 4.2; it rests on the specification text alone, and browser behavior for a
+  number-typed math function in an SVG attribute has not been verified. The optional CSS Values 4
+  quirks-mode allowance is not what this rests on.
 
 **Render-state additions.** `RenderState` gained `RootFontSize`, `RootViewportWidth/Height`,
 `LineHeight`, `RootLineHeight` and `FontMetrics`. `ApplyPresentationAttributes` resolves the font
@@ -332,7 +351,10 @@ primitive subregion fractions.
 viewport unit resolves against NaN and so counts as absent, `ex`/`ch` use their fallbacks, and
 `em`/`rem` use the root's own `font-size` from its attribute, inline `style` (including the `font`
 shorthand) or `font` attribute, else 16. Stylesheet rules are not consulted because the stylesheet
-is built after the size is known. `GetInfo` and `Load` therefore agree. Intended behavior changes:
+is built after the size is known. `GetInfo` and `Load` therefore agree. A number-typed math result
+in the root `width`/`height` is user units (px), like a literal (SVG 2 _Types_ 4.2; _Coordinates_
+8.1); in the root's `font-size` it is accepted only from the `font-size` attribute, mirroring the
+element cascade. Intended behavior changes:
 `1in` now reports 96 (not 1), `210mm` 794, `10rem` 160; `12 px` (a space before the unit, invalid
 CSS) is no longer accepted.
 
@@ -342,7 +364,9 @@ CSS) is no longer accepted.
 fifth of the parent's), `inherit`/`unset` (parent), `initial` (16), and any length, percentage or
 math function against the parent. `revert` and an invalid value are ignored, so the size is
 inherited; a zero or negative size still renders no text (existing behavior). `medium` is 16
-regardless of the parent.
+regardless of the parent. A number-typed math result (`calc(5 + 5)`) is user units only when it
+comes from the `font-size` presentation attribute; from an inline style, stylesheet rule, the
+`font` shorthand or the `font` attribute it is ignored (class F), as described under _Result type_.
 
 **font shorthand.** `ExpandFontShorthand` parses `[style || variant || weight || stretch]? size
 [/ line-height]? family` and expands it into the longhands `font-style`, `font-weight`,
@@ -1245,7 +1269,8 @@ preserves. Under the default `maskUnits="objectBoundingBox"` each of `x`/`y`/`wi
 of the reference bounds, evaluated with the `Fraction` axis (a plain `%` is a fraction of 1, a math
 expression may be a number or a length/percentage, so `calc(10% + 5%)` and `calc(0.1 + 0.2)` work
 while `calc(10% + 0.1)` mixes a percentage and a number, is invalid and falls back to the default
-region). Under `maskUnits="userSpaceOnUse"` the value is an absolute local-space coordinate and a
+region). Under `maskUnits="userSpaceOnUse"` the value is an absolute local-space coordinate, a
+number-typed math result (`calc(1 + 1)`) is user units like a literal (SVG 2 _Types_ 4.2), and a
 percentage - plain or inside a math function - resolves against the current viewport on the
 attribute's own axis (width for `x`/`width`, height for `y`/`height`), as for gradients and patterns
 (see _Percentage-Based Geometry Resolution_ above); this replaces the earlier simplification that
@@ -1757,7 +1782,7 @@ differently:
   unlike a malformed `viewBox`/`transform`/`path` `d`, without which nothing can be rendered at
   all. The same three-class policy governs every length (see _Length Units and font-size_): a
   malformed length (an unknown unit, whitespace between number and unit, a malformed `calc()`, a
-  `calc()` that resolves to a number rather than a length, or a
+  mixed-type `calc()` such as `calc(1 + 1px)`, or a
   non-finite or over-magnitude result) in shape/text/use/image/marker geometry, `stroke-width`,
   `stroke-dashoffset` or a `stroke-dasharray` entry is `InvalidDataException` (never a raw
   `FormatException`); in the root `width`/`height` or a gradient/pattern/mask-region coordinate it

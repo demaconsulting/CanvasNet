@@ -553,10 +553,8 @@ public class SvgFontSizeTests
     [InlineData("calc(")]
     [InlineData("calc(1px + 2)")]
     [InlineData("calc(1px / 0)")]
-    [InlineData("calc(1 + 1)")]
-    [InlineData("min(1, 2)")]
-    [InlineData("max(1, 2)")]
-    [InlineData("clamp(1, 2, 3)")]
+    [InlineData("min(1, 1px)")]
+    [InlineData("calc(10% + 1)")]
     [InlineData("-")]
     public void SvgCodec_Load_MalformedFontSize_IsIgnoredAndInherited(string fontSize)
     {
@@ -567,6 +565,90 @@ public class SvgFontSizeTests
         // Act / Assert: inherited, and no exception
         Assert.Equal(20.0, SvgLengthTestSupport.MeasureFontSizeOf(viaAttribute), Tolerance);
         Assert.Equal(20.0, SvgLengthTestSupport.MeasureFontSizeOf(viaStyle), Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves a math expression that resolves to a <em>number</em> is ignored (the size is
+    ///     inherited) when <c>font-size</c> is declared in CSS - an inline style, a stylesheet rule, the
+    ///     <c>font</c> shorthand or the <c>font</c> attribute - because the CSS Fonts 4 grammar
+    ///     <c>&lt;length-percentage [0,inf]&gt;</c> has no <c>&lt;number&gt;</c> and SVG 2 "Attribute
+    ///     syntax" applies only to a presentation attribute.
+    /// </summary>
+    /// <param name="fontSize">The number-typed math expression.</param>
+    [Theory]
+    [InlineData("calc(1 + 1)")]
+    [InlineData("min(1, 2)")]
+    [InlineData("max(1, 2)")]
+    [InlineData("clamp(1, 2, 3)")]
+    public void SvgCodec_Load_FontSizeNumberMathFromCss_IsIgnoredAndInherited(string fontSize)
+    {
+        // Arrange: parent 20; the value comes from a CSS source on the text element
+        var sources = new[]
+        {
+            $"<g font-size='20'>{SvgLengthTestSupport.Glyph($"style='font-size: {fontSize}'")}</g>",
+            $"<style>text {{ font-size: {fontSize} }}</style><g font-size='20'>{SvgLengthTestSupport.Glyph(string.Empty)}</g>",
+            $"<g font-size='20'>{SvgLengthTestSupport.Glyph($"style='font: {fontSize} TestFont'")}</g>",
+            $"<g font-size='20'>{SvgLengthTestSupport.Glyph($"font='{fontSize} TestFont'")}</g>"
+        };
+
+        foreach (var inner in sources)
+        {
+            // Act / Assert: inherited, and no exception
+            Assert.Equal(20.0, SvgLengthTestSupport.MeasureFontSizeOf(inner), Tolerance);
+        }
+    }
+
+    /// <summary>
+    ///     Proves a number-typed math result in the <c>font-size</c> presentation <em>attribute</em> is
+    ///     user units, exactly like the literal number (SVG 2 "Attribute syntax", Types 4.2).
+    /// </summary>
+    /// <param name="fontSize">The number-typed math expression.</param>
+    /// <param name="expected">The expected font size.</param>
+    [Theory]
+    [InlineData("calc(5 + 5)", 10.0)]
+    [InlineData("min(10, 20)", 10.0)]
+    [InlineData("max(10, 20)", 20.0)]
+    [InlineData("clamp(10, 15, 20)", 15.0)]
+    public void SvgCodec_Load_FontSizeAttributeNumberMath_IsUserUnits(string fontSize, double expected)
+    {
+        // Arrange: parent 40, so an ignored value would measure 40
+        var inner = $"<g font-size='40'>{SvgLengthTestSupport.Glyph($"font-size='{fontSize}'")}</g>";
+
+        // Act / Assert
+        Assert.Equal(expected, SvgLengthTestSupport.MeasureFontSizeOf(inner), Tolerance);
+    }
+
+    /// <summary>
+    ///     Proves the root <c>font-size</c> attribute accepts a number-typed math result in both
+    ///     <see cref="SvgCodec.GetInfo(Stream)"/> (resolving <c>2em</c>) and <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>,
+    ///     while the same value in the root's inline style is ignored by both.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_GetInfoAndLoad_RootFontSizeAttributeNumberMath_Agree()
+    {
+        // Arrange: 2em is 20 when the attribute font size is 10, and 32 when it is ignored (16)
+        const string Template =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='2em' height='2em' {0}><rect width='20' height='20' fill='black'/></svg>";
+        var attribute = string.Format(Template, "font-size='calc(5 + 5)'");
+        var inline = string.Format(Template, "style='font-size: calc(5 + 5)'");
+
+        // Act
+        using var attributeInfoStream = SvgLengthTestSupport.ToStream(attribute);
+        var attributeInfo = SvgCodec.GetInfo(attributeInfoStream);
+        using var attributeStream = SvgLengthTestSupport.ToStream(attribute);
+        var attributeSurface = SvgCodec.Load(attributeStream, attributeInfo.Width, attributeInfo.Height);
+        using var inlineInfoStream = SvgLengthTestSupport.ToStream(inline);
+        var inlineInfo = SvgCodec.GetInfo(inlineInfoStream);
+        using var inlineStream = SvgLengthTestSupport.ToStream(inline);
+        var inlineSurface = SvgCodec.Load(inlineStream, inlineInfo.Width, inlineInfo.Height);
+
+        // Assert: the attribute gives 20x20 and the 20x20 rect fills it (a 16 root size would give 32 and leave the corner empty)
+        Assert.Equal(20, attributeInfo.Width);
+        Assert.Equal(20, attributeInfo.Height);
+        Assert.Equal(255, attributeSurface[19, 19].A);
+        Assert.Equal(32, inlineInfo.Width);
+        Assert.Equal(32, inlineInfo.Height);
+        Assert.Equal(0, inlineSurface[31, 31].A);
     }
 
     /// <summary>Proves a malformed <c>line-height</c> is ignored rather than failing the document.</summary>

@@ -110,11 +110,19 @@ division by zero, a product of two lengths and a sum of a number and a length ar
 expression is limited to 1,024 characters and 16 levels of nesting.
 
 A math expression keeps its type, as in CSS (Values 4, "Type Checking"): `calc(2 * 10px)` is a
-length, while `calc(1 + 1)` or `min(1, 2)` is a plain *number* and is **not** a length - a literal
-`width="10"` is user units, but `width="calc(1 + 1)"` is invalid. Two places accept a number-typed
-result: `line-height`, where it is a multiplier like a bare number (`line-height: calc(1 + 1)` is
-twice each element's own font size), and objectBoundingBox gradient, pattern and mask coordinates,
-whose values are a number or a percentage.
+length, while `calc(1 + 1)` or `min(1, 2)` is a plain *number*. A number-typed result is accepted
+wherever SVG 2 allows a number, and is then user units exactly like a literal `width="10"`: in
+`stroke-width`, each `stroke-dasharray` entry and `stroke-dashoffset` (SVG 2 Painting:
+`<length-percentage> | <number>`), and in every length attribute (SVG 2 "Attribute syntax"
+inserts `<number>` into `<length>` and `<length-percentage>` for presentation attributes) - shape,
+text, `use`, `image` and `marker` geometry, text `dx`/`dy`, gradient, pattern and mask coordinates,
+the root `width`/`height` and the `font-size` attribute - so `width="calc(1 + 1)"` is 2 user units.
+A mixed expression (`calc(1 + 1px)`, `calc(10% + 1)`) is always invalid. The one exception is a
+`font-size` declared in CSS (a `style` attribute, a `style` element rule, or the `font` shorthand or
+attribute), whose grammar has no number: a number-typed result there is ignored and the inherited
+size stays. `line-height` keeps treating a number-typed result as a multiplier like a bare number
+(`line-height: calc(1 + 1)` is twice each element's own font size). This follows the specification
+text; browser behavior for a number-typed math function in an SVG attribute has not been verified.
 
 **Percentages in gradient, pattern and mask coordinates.** A plain percentage and a percentage
 inside `calc()` always agree. Under the default
@@ -170,7 +178,8 @@ Example:
 ```
 
 A length that cannot be understood (an unknown unit, a space before the unit, a bad `calc()`, a
-`calc()` that resolves to a number, a non-finite or too large result) is handled by the kind of
+mixed-type `calc()` such as `calc(1 + 1px)`, a number-typed `calc()` in a CSS-declared `font-size`,
+a non-finite or too large result) is handled by the kind of
 value it is:
 
 <!-- markdownlint-disable MD013 -->

@@ -276,15 +276,15 @@ public static partial class SvgCodec
     ///     A plain percentage and a percentage inside a math function resolve against the same
     ///     basis (SVG 2, Paint Servers: <c>gradientUnits</c>/<c>patternUnits</c>). Under
     ///     <c>objectBoundingBox</c> (the default) a <c>%</c> is a fraction of <c>1</c> (see
-    ///     <see cref="PercentageAxis.Fraction"/>, which also lets a math expression resolve to a
-    ///     number). Under <c>userSpaceOnUse</c> a <c>%</c> is relative to the current viewport on
+    ///     <see cref="PercentageAxis.Fraction"/>). Under <c>userSpaceOnUse</c> a <c>%</c> is relative to the current viewport on
     ///     the attribute's own axis: width for <c>x</c>/<c>x1</c>/<c>x2</c>/<c>cx</c>/<c>fx</c>/<c>width</c>,
     ///     height for the <c>y</c> family and <c>height</c>, and the diagonal basis for <c>r</c>/<c>fr</c>.
     ///     A value with a CSS unit (<c>px</c>, <c>em</c>...) or a math function is converted to
     ///     user units whatever the units mode (SVG forbids units under <c>objectBoundingBox</c>;
-    ///     converting rather than rejecting is the tolerant choice), and an unrecognized value -
-    ///     including a number-typed math expression under <c>userSpaceOnUse</c> - falls back like
-    ///     any other unparseable one.
+    ///     converting rather than rejecting is the tolerant choice). A number-typed math expression
+    ///     (<c>calc(1 + 1)</c>) is a number, so it resolves like a literal in either mode (SVG 2
+    ///     "Attribute syntax", Types 4.2); an unrecognized value - including a mixed-type math
+    ///     expression - falls back like any other unparseable one.
     /// </remarks>
     private static float GetGradientCoordinateOrDefault(
         XElement element, string name, float fallback, RenderState state, bool isUserSpaceOnUse)

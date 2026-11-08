@@ -713,9 +713,13 @@ public static partial class SvgCodec
             ResolveStyledValue(styleContext, property) ?? (string?)element.Attribute(property) ?? FromFontAttribute(property);
 
         // Step 1: the font cascade. font-size resolves against the PARENT; an invalid value is
-        // ignored (class F: the declaration is dropped and the size is inherited)
-        var rawFontSize = Styled("font-size");
-        var fontSize = (rawFontSize == null ? null : ParseFontSizeValue(rawFontSize, parent)) ?? parent.FontSize;
+        // ignored (class F: the declaration is dropped and the size is inherited). A number-typed
+        // math result is user units only from the font-size attribute (SVG 2 Types 4.2), not from CSS
+        var cssFontSize = ResolveStyledValue(styleContext, "font-size");
+        var attributeFontSize = (string?)element.Attribute("font-size");
+        var rawFontSize = cssFontSize ?? attributeFontSize ?? FromFontAttribute("font-size");
+        var fontSizeNumberAllowed = cssFontSize == null && attributeFontSize != null;
+        var fontSize = (rawFontSize == null ? null : ParseFontSizeValue(rawFontSize, parent, fontSizeNumberAllowed)) ?? parent.FontSize;
 
         // The CSS-wide keywords (inherit/unset/revert -> the parent's value, initial -> the
         // property's initial value) apply to family, weight and style exactly as they do to size;

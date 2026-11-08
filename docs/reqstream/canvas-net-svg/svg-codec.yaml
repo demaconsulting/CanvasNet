@@ -734,35 +734,47 @@ sections:
               product of two lengths, and a sum of a number and a length being invalid), with
               each percentage and font-relative operand resolved against the call site, with
               the expression length and nesting depth bounded, and with the result type kept: a
-              math expression that resolves to a number rather than a length (for example
-              calc(1 + 1)) shall not be a length where a length is required, while for
-              line-height it shall be a multiplier like a bare number, and for objectBoundingBox
-              gradient, pattern and mask-region coordinates, where the grammar is a number or a
-              percentage, it shall be accepted (a mix of a percentage and a number being invalid).
+              math expression that resolves to a number (for example calc(1 + 1)) shall be user
+              units, like a literal number, wherever SVG 2 allows a number (stroke-width,
+              stroke-dasharray entries and stroke-dashoffset, and every length presentation
+              attribute including the font-size attribute), shall be a multiplier for
+              line-height, and shall be ignored for a font-size declared in CSS (an inline style,
+              a stylesheet, or the font shorthand or attribute), a mixed expression (a number
+              combined with a length or percentage, for example calc(1 + 1px) or calc(10% + 1))
+              being invalid everywhere.
             justification: |
               CSS Values 4 defines the math functions and generated SVG (design tools and chart
               libraries) uses them in sizes and positions. Bounding the evaluator keeps a hostile
               attribute from consuming unbounded time or stack. CSS Values 4 (Type Checking) says
-              numbers never become lengths inside a math function, so width="calc(1 + 1)" is
-              invalid, while line-height and the number-or-percentage coordinate grammars name a
-              number as a valid result.
+              a math function keeps its type and numbers never mix with lengths, so
+              calc(1 + 1px) is invalid. SVG 2 Painting gives stroke-width, stroke-dasharray and
+              stroke-dashoffset the grammar length-percentage or number, and SVG 2 Types section
+              4.2 (Attribute syntax) inserts number into length and length-percentage for
+              presentation attributes, so a number-typed result is user units there; CSS Fonts 4
+              font-size and the font shorthand have no number, and line-height names a number as
+              a multiplier. Browser behavior for a number-typed math function in an SVG attribute
+              has not been verified.
             tests:
               - SvgCodec_Load_MathFunction_Evaluates
               - SvgCodec_Load_DashArrayEntryMathFunction_IsOneEntry
               - SvgCodec_Load_OverComplexMathExpression_ThrowsInvalidDataException
-              - SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException
+              - SvgCodec_Load_StrokeNumberMath_IsUserUnits
+              - SvgCodec_Load_AttributeNumberMath_GeometryIsUserUnits
+              - SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException
               - SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted
               - SvgCodec_Load_LineHeightNumberMath_IsMultiplier
               - SvgCodec_Load_LineHeightLengthMathAndTypeMix_FollowsType
               - SvgCodec_Load_MaskRegionBoundingBoxMath_UsesFractionBasis
               - SvgCodec_Load_MaskRegionBoundingBoxMixedPercentAndNumber_FallsBackToDefault
               - SvgCodec_Load_GradientBoundingBoxNumberMath_IsAccepted
+              - SvgCodec_Load_FontSizeAttributeNumberMath_IsUserUnits
 
           - id: CanvasNetSvg-SvgCodec-LengthMalformedPolicy
             title: >-
               The SvgCodec class shall treat a malformed length (an unknown unit, whitespace
-              between a number and its unit, a malformed math expression, a math expression that
-              resolves to a number rather than a length, or a non-finite or over-magnitude
+              between a number and its unit, a malformed math expression, a mixed-type math
+              expression such as calc(1 + 1px), a number-typed math expression in a font-size
+              declared in CSS, or a non-finite or over-magnitude
               result) consistently by class and never let a raw exception escape:
               on shape, text, use, image and marker geometry, stroke-width, stroke-dashoffset and
               each stroke-dasharray entry, it shall throw InvalidDataException; on the root
@@ -788,10 +800,16 @@ sections:
               - SvgCodec_Load_NonPositiveFontSize_RendersNoText
               - SvgCodec_Load_MalformedTextDxDy_IsIgnored
               - SvgCodec_Load_InvalidFontShorthand_IsDropped
-              - SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException
-              - SvgCodec_GetInfo_RootSizeNumberMath_FallsBackTo300x150
-              - SvgCodec_Load_TextDxDyNumberMath_IsIgnored
-              - SvgCodec_Load_GradientUserSpaceNumberMath_FallsBackToDefault
+              - SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException
+              - SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits
+              - SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150
+              - SvgCodec_Load_TextDxDyNumberMath_IsUserUnits
+              - SvgCodec_Load_GradientUserSpaceNumberMath_IsUserUnits
+              - SvgCodec_Load_GradientUserSpaceMixedTypeMath_FallsBackToDefault
+              - SvgCodec_Load_PatternUserSpaceNumberMath_IsUserUnits
+              - SvgCodec_Load_MaskRegionUserSpaceNumberMath_IsUserUnits
+              - SvgCodec_Load_FontSizeNumberMathFromCss_IsIgnoredAndInherited
+              - SvgCodec_GetInfoAndLoad_RootFontSizeAttributeNumberMath_Agree
               - SvgCodec_Load_InvalidObliqueAngle_DropsShorthand
 
           - id: CanvasNetSvg-SvgCodec-MarkerPreserveAspectRatio

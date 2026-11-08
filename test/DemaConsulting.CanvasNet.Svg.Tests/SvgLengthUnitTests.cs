@@ -585,24 +585,136 @@ public class SvgLengthUnitTests
     }
 
     // ================================================================================================
-    // Math result type: a number is not a length
+    // Math result type: a number-typed result is user units where SVG 2 allows a <number>
     // ================================================================================================
 
     /// <summary>
-    ///     Proves a math expression that resolves to a <em>number</em> is rejected wherever a
-    ///     <c>&lt;length&gt;</c> is required (CSS Values 4, "Type Checking": <c>width: calc(0 + 5px)</c>
-    ///     is invalid), for geometry, <c>stroke-width</c>, a dash entry and the dash offset - while a
-    ///     literal bare number stays valid.
+    ///     Builds a document whose line carries one stroke property in the requested source.
+    /// </summary>
+    /// <param name="source">
+    ///     <c>attribute</c> (presentation attribute), <c>style</c> (inline style) or <c>stylesheet</c>
+    ///     (a <c>&lt;style&gt;</c> rule).
+    /// </param>
+    /// <param name="property">The stroke property name.</param>
+    /// <param name="value">The property value; <see langword="null"/> omits the property.</param>
+    /// <returns>The SVG document text.</returns>
+    private static string StrokeDocument(string source, string property, string? value)
+    {
+        var extra = property == "stroke-dashoffset" ? " stroke-dasharray='5'" : string.Empty;
+        const string Line = "x1='0' y1='20' x2='100' y2='20' stroke='black'";
+        if (value == null)
+        {
+            return $"<svg viewBox='0 0 100 40'><line {Line}{extra}/></svg>";
+        }
+
+        return source switch
+        {
+            "attribute" => $"<svg viewBox='0 0 100 40'><line {Line}{extra} {property}='{value}'/></svg>",
+            "style" => $"<svg viewBox='0 0 100 40'><line {Line}{extra} style='{property}: {value}'/></svg>",
+            _ => $"<svg viewBox='0 0 100 40'><style>line {{ {property}: {value} }}</style><line {Line}{extra}/></svg>"
+        };
+    }
+
+    /// <summary>
+    ///     Proves a math expression that resolves to a <em>number</em> is user units in
+    ///     <c>stroke-width</c>, each <c>stroke-dasharray</c> entry and <c>stroke-dashoffset</c>
+    ///     (SVG 2 Painting: <c>&lt;length-percentage&gt; | &lt;number&gt;</c>), from an attribute, an
+    ///     inline style and a stylesheet rule, rendering pixel-identically to the literal number.
     /// </summary>
     /// <param name="value">The number-typed math expression.</param>
+    /// <param name="expected">The user-unit value it resolves to.</param>
     [Theory]
-    [InlineData("calc(1 + 1)")]
-    [InlineData("min(1, 2)")]
-    [InlineData("max(1, 2)")]
-    [InlineData("clamp(1, 2, 3)")]
-    [InlineData("calc(2 * 3)")]
-    [InlineData("calc(0)")]
-    public void SvgCodec_Load_MathResultIsNumber_GeometryThrowsInvalidDataException(string value)
+    [InlineData("calc(1 + 1)", 2)]
+    [InlineData("min(1, 2)", 1)]
+    [InlineData("max(1, 2)", 2)]
+    [InlineData("clamp(1, 2, 3)", 2)]
+    [InlineData("calc(2 * 3)", 6)]
+    [InlineData("calc(0)", 0)]
+    public void SvgCodec_Load_StrokeNumberMath_IsUserUnits(string value, int expected)
+    {
+        // Arrange: (property, text before the value, the value that equals the property's initial value)
+        var sites = new (string Property, string Prefix, int Neutral)[]
+        {
+            ("stroke-width", string.Empty, 1),
+            ("stroke-dasharray", "5 ", 0),
+            ("stroke-dashoffset", string.Empty, 0)
+        };
+
+        foreach (var (property, prefix, neutral) in sites)
+        {
+            var absent = SvgLengthTestSupport.Render(StrokeDocument("attribute", property, null), 100, 40);
+            foreach (var source in new[] { "attribute", "style", "stylesheet" })
+            {
+                // Act
+                var math = SvgLengthTestSupport.Render(StrokeDocument(source, property, prefix + value), 100, 40);
+                var literal = SvgLengthTestSupport.Render(StrokeDocument(source, property, prefix + expected), 100, 40);
+
+                // Assert: identical to the literal, and (unless it is the initial value) not to the absent property
+                AssertSurfacesEqual(literal, math);
+                if (expected != neutral)
+                {
+                    Assert.False(SvgLengthTestSupport.AreIdentical(absent, math), $"{property} via {source}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves a number-typed math result is user units in a geometry presentation attribute (SVG 2
+    ///     "Attribute syntax", Types 4.2, inserts <c>&lt;number&gt;</c> next to <c>&lt;length&gt;</c> and
+    ///     <c>&lt;length-percentage&gt;</c>): one representative per grammar family - shape size, circle
+    ///     radius, line endpoint, <c>use</c> size, <c>marker</c> size and text position.
+    /// </summary>
+    /// <param name="value">The number-typed math expression.</param>
+    /// <param name="expected">The user-unit value it resolves to.</param>
+    [Theory]
+    [InlineData("calc(1 + 1)", 2)]
+    [InlineData("min(1, 2)", 1)]
+    [InlineData("max(1, 2)", 2)]
+    [InlineData("clamp(1, 2, 3)", 2)]
+    [InlineData("calc(2 * 3)", 6)]
+    [InlineData("calc(0)", 0)]
+    public void SvgCodec_Load_AttributeNumberMath_GeometryIsUserUnits(string value, int expected)
+    {
+        // Arrange: each builder places the value in one attribute of a different grammar family
+        var builders = new (string Name, Func<string, string> Build)[]
+        {
+            ("rect width", v => $"<rect x='0' y='0' width='{v}' height='10' fill='black'/>"),
+            ("circle r", v => $"<circle cx='50' cy='20' r='{v}' fill='black'/>"),
+            ("line x2", v => $"<line x1='0' y1='20' x2='{v}' y2='20' stroke='black' stroke-width='4'/>"),
+            ("use width",
+                v => "<defs><symbol id='s' viewBox='0 0 10 10'><rect width='10' height='10' fill='black'/></symbol></defs>" +
+                     $"<use href='#s' x='10' y='5' width='{v}' height='10'/>"),
+            ("marker markerWidth",
+                v => $"<defs><marker id='m' viewBox='0 0 10 4' markerWidth='{v}' markerHeight='4' refX='0' refY='2'><rect width='10' height='4' fill='black'/></marker></defs>" +
+                     "<line x1='10' y1='20' x2='90' y2='20' stroke='black' marker-end='url(#m)'/>"),
+            ("text x", v => $"<text x='{v}' y='30' font-family='TestFont' font-size='20'>A</text>")
+        };
+
+        foreach (var (name, build) in builders)
+        {
+            // Act
+            var math = SvgLengthTestSupport.Render($"<svg viewBox='0 0 100 40'>{build(value)}</svg>", 100, 40);
+            var literal = SvgLengthTestSupport.Render($"<svg viewBox='0 0 100 40'>{build(expected.ToString(System.Globalization.CultureInfo.InvariantCulture))}</svg>", 100, 40);
+            var other = SvgLengthTestSupport.Render($"<svg viewBox='0 0 100 40'>{build((expected + 10).ToString(System.Globalization.CultureInfo.InvariantCulture))}</svg>", 100, 40);
+
+            // Assert: the math result is the literal's user units (and the attribute is not ignored)
+            AssertSurfacesEqual(literal, math);
+            Assert.False(SvgLengthTestSupport.AreIdentical(other, math), name);
+        }
+    }
+
+    /// <summary>
+    ///     Proves a mixed-type math expression (a number combined with a length or percentage) stays
+    ///     invalid in the strict class, for geometry, <c>stroke-width</c>, a dash entry and the dash offset.
+    /// </summary>
+    /// <param name="value">The mixed-type math expression.</param>
+    [Theory]
+    [InlineData("calc(1 + 1px)")]
+    [InlineData("calc(10% + 1)")]
+    [InlineData("calc(1px * 1px)")]
+    [InlineData("min(1, 1px)")]
+    public void SvgCodec_Load_MathTypeMix_StillThrowsInvalidDataException(string value)
     {
         // Arrange: the same expression as a geometry length, a stroke width, a dash entry and a dash offset
         var documents = new[]
@@ -621,7 +733,7 @@ public class SvgLengthUnitTests
         }
     }
 
-    /// <summary>Proves the controls for the number-typed rejection: a literal number and length-typed math still render as before.</summary>
+    /// <summary>Proves the controls for the number-typed acceptance: a literal number and length-typed math still render as before.</summary>
     /// <param name="width">The accepted width value.</param>
     /// <param name="expected">The expected width in user units.</param>
     [Theory]
@@ -632,12 +744,42 @@ public class SvgLengthUnitTests
     public void SvgCodec_Load_MathResultIsLengthOrLiteralNumber_StillAccepted(string width, double expected) =>
         Assert.Equal(expected, BarWidth(width), Tolerance);
 
-    /// <summary>Proves a number-typed math result in a tolerant (class T) site is treated as absent: the root size falls back to 300x150.</summary>
+    /// <summary>
+    ///     Proves a number-typed math result in the root <c>width</c>/<c>height</c> is user units (px),
+    ///     like a literal (SVG 2 Types 4.2; Coordinates 8.1), and that <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/>
+    ///     agrees with <see cref="SvgCodec.GetInfo(Stream)"/>.
+    /// </summary>
+    /// <param name="attributes">The root size attributes.</param>
+    /// <param name="expectedWidth">The expected reported width.</param>
+    /// <param name="expectedHeight">The expected reported height.</param>
+    [Theory]
+    [InlineData("width='calc(1 + 1)' height='min(1, 2)'", 2, 1)]
+    [InlineData("width='max(10, 20)' height='clamp(1, 30, 40)'", 20, 30)]
+    [InlineData("width='calc(2 * 10)' height='calc(0 + 5)'", 20, 5)]
+    public void SvgCodec_GetInfo_RootSizeNumberMath_ResolvesToUserUnits(string attributes, int expectedWidth, int expectedHeight)
+    {
+        // Arrange: a rect that exactly fills the converted size, so Load can prove it used the same size
+        var svg = $"<svg xmlns='http://www.w3.org/2000/svg' {attributes}><rect width='{expectedWidth}' height='{expectedHeight}' fill='black'/></svg>";
+        using var infoStream = SvgLengthTestSupport.ToStream(svg);
+
+        // Act
+        var info = SvgCodec.GetInfo(infoStream);
+        using var loadStream = SvgLengthTestSupport.ToStream(svg);
+        var surface = SvgCodec.Load(loadStream, info.Width, info.Height);
+
+        // Assert: GetInfo reports the user units and Load fills the surface with the rect
+        Assert.Equal(expectedWidth, info.Width);
+        Assert.Equal(expectedHeight, info.Height);
+        Assert.Equal(255, surface[0, 0].A);
+        Assert.Equal(255, surface[expectedWidth - 1, expectedHeight - 1].A);
+    }
+
+    /// <summary>Proves a mixed-type math result in a tolerant (class T) site is treated as absent: the root size falls back to 300x150.</summary>
     [Fact]
-    public void SvgCodec_GetInfo_RootSizeNumberMath_FallsBackTo300x150()
+    public void SvgCodec_GetInfo_RootSizeMixedTypeMath_FallsBackTo300x150()
     {
         // Arrange
-        using var stream = SvgLengthTestSupport.ToStream("<svg xmlns='http://www.w3.org/2000/svg' width='calc(1 + 1)' height='min(1, 2)'/>");
+        using var stream = SvgLengthTestSupport.ToStream("<svg xmlns='http://www.w3.org/2000/svg' width='calc(1 + 1px)' height='calc(10% + 1)'/>");
 
         // Act
         var info = SvgCodec.GetInfo(stream);
@@ -647,9 +789,9 @@ public class SvgLengthUnitTests
         Assert.Equal(150, info.Height);
     }
 
-    /// <summary>Proves a number-typed math result in a class F site (text <c>dx</c>/<c>dy</c>) is ignored, leaving the origin unmoved.</summary>
+    /// <summary>Proves a number-typed math result in text <c>dx</c>/<c>dy</c> is user units, like the literal offsets.</summary>
     [Fact]
-    public void SvgCodec_Load_TextDxDyNumberMath_IsIgnored()
+    public void SvgCodec_Load_TextDxDyNumberMath_IsUserUnits()
     {
         // Arrange
         const string Template =
@@ -657,10 +799,12 @@ public class SvgLengthUnitTests
 
         // Act
         var numberMath = SvgLengthTestSupport.Render(string.Format(Template, "dx='calc(1 + 1)' dy='min(1, 2)'"), 200, 200);
-        var plain = SvgLengthTestSupport.Render(string.Format(Template, string.Empty), 200, 200);
+        var literal = SvgLengthTestSupport.Render(string.Format(Template, "dx='2' dy='1'"), 200, 200);
+        var absent = SvgLengthTestSupport.Render(string.Format(Template, string.Empty), 200, 200);
 
         // Assert
-        AssertSurfacesEqual(plain, numberMath);
+        AssertSurfacesEqual(literal, numberMath);
+        Assert.False(SvgLengthTestSupport.AreIdentical(absent, numberMath));
     }
 
     /// <summary>
@@ -888,18 +1032,58 @@ public class SvgLengthUnitTests
         AssertSurfacesEqual(plain, math);
     }
 
-    /// <summary>Proves a number-typed math result is not a length, so under <c>userSpaceOnUse</c> the coordinate falls back like any unparseable one.</summary>
+    /// <summary>Proves a number-typed math result is user units in a <c>userSpaceOnUse</c> gradient coordinate, like the literal (SVG 2 Types 4.2).</summary>
     [Fact]
-    public void SvgCodec_Load_GradientUserSpaceNumberMath_FallsBackToDefault()
+    public void SvgCodec_Load_GradientUserSpaceNumberMath_IsUserUnits()
     {
         // Arrange / Act
         var numberMath = RenderGradient("linearGradient", "x2='calc(1 + 1)'", userSpace: true);
         var absent = RenderGradient("linearGradient", string.Empty, userSpace: true);
         var literal = RenderGradient("linearGradient", "x2='2'", userSpace: true);
 
-        // Assert: the default applies (not the literal 2 the math result would have been)
-        AssertSurfacesEqual(absent, numberMath);
-        Assert.False(SvgLengthTestSupport.AreIdentical(literal, numberMath));
+        // Assert: the literal 2 applies (not the default the unparseable value would have given)
+        AssertSurfacesEqual(literal, numberMath);
+        Assert.False(SvgLengthTestSupport.AreIdentical(absent, numberMath));
+    }
+
+    /// <summary>Proves a mixed-type math result in a <c>userSpaceOnUse</c> gradient coordinate is unparseable and falls back to the default.</summary>
+    [Fact]
+    public void SvgCodec_Load_GradientUserSpaceMixedTypeMath_FallsBackToDefault()
+    {
+        // Arrange / Act
+        var mixed = RenderGradient("linearGradient", "x2='calc(1 + 1px)'", userSpace: true);
+        var absent = RenderGradient("linearGradient", string.Empty, userSpace: true);
+
+        // Assert
+        AssertSurfacesEqual(absent, mixed);
+    }
+
+    /// <summary>Proves a number-typed math result is user units in a <c>userSpaceOnUse</c> pattern tile, like the literal.</summary>
+    [Fact]
+    public void SvgCodec_Load_PatternUserSpaceNumberMath_IsUserUnits()
+    {
+        // Arrange / Act
+        var numberMath = RenderPattern("x='0' y='0' width='calc(16 * 2)' height='min(16, 20)'", userSpace: true);
+        var literal = RenderPattern("x='0' y='0' width='32' height='16'", userSpace: true);
+        var other = RenderPattern("x='0' y='0' width='40' height='16'", userSpace: true);
+
+        // Assert
+        AssertSurfacesEqual(literal, numberMath);
+        Assert.False(SvgLengthTestSupport.AreIdentical(other, numberMath));
+    }
+
+    /// <summary>Proves a number-typed math result is user units in a <c>userSpaceOnUse</c> mask region, like the literal.</summary>
+    [Fact]
+    public void SvgCodec_Load_MaskRegionUserSpaceNumberMath_IsUserUnits()
+    {
+        // Arrange / Act: a region 20..80 wide over a shape spanning 20..120 (the default region shows all of it)
+        var numberMath = RenderUserSpaceMask("x='calc(10 + 10)' y='0' width='calc(30 + 30)' height='min(100, 200)'");
+        var literal = RenderUserSpaceMask("x='20' y='0' width='60' height='100'");
+        var absent = RenderUserSpaceMask(string.Empty);
+
+        // Assert
+        AssertSurfacesEqual(literal, numberMath);
+        Assert.False(SvgLengthTestSupport.AreIdentical(absent, numberMath));
     }
 
     /// <summary>Renders a 200x100 document with a pattern painted over a shape that is smaller than the viewport.</summary>

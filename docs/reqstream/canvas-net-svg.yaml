@@ -314,8 +314,8 @@ sections:
         title: >-
           The library shall accept CSS length units (px, pt, pc, in, cm, mm, Q, em, ex, ch, rem,
           lh, rlh, vw, vh, vmin, vmax), calc() and its min/max/clamp siblings on every SVG length
-          (a math result that is a number rather than a length being malformed where a length is
-          required)
+          (a math result that is a number being user units where SVG 2 allows a number, and a
+          mixed number-and-length result being malformed)
           and shall read font-size (lengths, keywords, and the font shorthand) from attributes,
           style, and stylesheets, converting each to user units rather than rejecting a document
           that uses them (for example font-size="10px"), with a consistent malformed-value policy.

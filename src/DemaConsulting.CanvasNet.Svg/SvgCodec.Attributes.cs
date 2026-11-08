@@ -54,8 +54,7 @@ public static partial class SvgCodec
         ///     An objectBoundingBox fraction (gradient, pattern and mask coordinates in their default
         ///     units mode): a <c>%</c> is a fraction of <c>1</c> (<c>50%</c> is <c>0.5</c>), and, as
         ///     the SVG grammar for these attributes is <c>&lt;number&gt; | &lt;percentage&gt;</c>, a
-        ///     math expression may resolve to either a number or a length/percentage. The only axis
-        ///     that accepts a number-typed math result.
+        ///     math expression may resolve to either a number or a length/percentage.
         /// </summary>
         Fraction
     }
@@ -153,9 +152,12 @@ public static partial class SvgCodec
     ///     attributes (see <see cref="ParseOpacityValue"/>), which are always basis-1 percentages of
     ///     a <c>[0, 1]</c> range, and gradient/pattern/mask coordinates and <c>stop</c>
     ///     <c>offset</c>, which resolve against their own coordinate space (see
-    ///     <see cref="PercentageAxis.Fraction"/>), this method is the strict (class S) length parser:
-    ///     a math expression that resolves to a number (<c>calc(1 + 1)</c>) is not a length and is
-    ///     rejected.
+    ///     <see cref="PercentageAxis.Fraction"/>), this method is the strict (class S) length parser.
+    ///     A math expression keeps its type: one that resolves to a number (<c>calc(1 + 1)</c>) is
+    ///     user units, like a literal number, because SVG 2 "Attribute syntax" (Types 4.2) inserts
+    ///     <c>&lt;number&gt;</c> into <c>&lt;length&gt;</c>/<c>&lt;length-percentage&gt;</c> for a
+    ///     presentation attribute; a mixed expression (<c>calc(1 + 1px)</c>, <c>calc(10% + 1)</c>)
+    ///     is rejected.
     /// </summary>
     /// <param name="raw">The raw attribute text.</param>
     /// <param name="attributeName">The attribute's name, used in the error message.</param>
@@ -317,9 +319,11 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Parses a <c>stroke-dasharray</c> attribute's whitespace/comma-separated length list.
-    ///     Each entry is a full <c>&lt;length&gt;</c> (a number, a number with a CSS unit, a
+    ///     Each entry is a full <c>&lt;length-percentage&gt; | &lt;number&gt;</c> (SVG 2 Painting: a
+    ///     number, a number with a CSS unit, a
     ///     percentage resolved against the SVG specification's "diagonal" basis - see
-    ///     <see cref="PercentageAxis.Diagonal"/> - or a math function), resolved through
+    ///     <see cref="PercentageAxis.Diagonal"/> - or a math function, where a number-typed result
+    ///     such as <c>calc(1 + 1)</c> is user units like a literal), resolved through
     ///     <see cref="TryResolveLength"/> so the dash array honors exactly the same units as every
     ///     other length. A distinct parsing path from <see cref="ParseNumberList"/> (used by
     ///     <c>viewBox</c>/transform-function arguments, neither of which is a <c>&lt;length&gt;</c>

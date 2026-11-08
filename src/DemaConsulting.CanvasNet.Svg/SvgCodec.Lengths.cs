@@ -266,6 +266,11 @@ public static partial class SvgCodec
     ///     <c>width</c>/<c>height</c>, whose oversized values are clamped later by the size
     ///     pipeline rather than rejected here.
     /// </param>
+    /// <param name="allowNumberResult">
+    ///     <see langword="true"/> (the default) to accept a math expression whose type is a number as
+    ///     user units, like a literal number; <see langword="false"/> only for a CSS-declared
+    ///     <c>font-size</c>, whose grammar has no <c>&lt;number&gt;</c>.
+    /// </param>
     /// <returns>
     ///     <see langword="true"/> when <paramref name="raw"/> is a valid length that resolves to a
     ///     finite value within <see cref="MaxCoordinateMagnitude"/>; <see langword="false"/> for
@@ -279,13 +284,25 @@ public static partial class SvgCodec
     ///     Unit conversions are evaluated in double precision and rounded to single precision once,
     ///     so equivalent absolute lengths (for example <c>1in</c>, <c>96px</c> and <c>2.54cm</c>)
     ///     resolve to the same float. A math expression keeps its type (CSS Values 4, "Type
-    ///     Checking"): one that resolves to a <em>number</em> is not a length and is rejected here
-    ///     (<c>calc(1 + 1)</c>, <c>min(1, 2)</c>), except under <see cref="PercentageAxis.Fraction"/>
-    ///     whose grammar is <c>&lt;number&gt; | &lt;percentage&gt;</c>.
+    ///     Checking"): one that resolves to a <em>number</em> (<c>calc(1 + 1)</c>, <c>min(1, 2)</c>)
+    ///     is accepted as user units, exactly like a literal number, because SVG 2 allows a
+    ///     <c>&lt;number&gt;</c> wherever this method is used - the property grammar of
+    ///     <c>stroke-width</c>, <c>stroke-dasharray</c> and <c>stroke-dashoffset</c> and, for a
+    ///     presentation attribute, SVG 2 "Attribute syntax" (Types 4.2), which inserts
+    ///     <c>&lt;number&gt;</c> next to <c>&lt;length&gt;</c> and <c>&lt;length-percentage&gt;</c>.
+    ///     Only a CSS-declared <c>font-size</c> passes <paramref name="allowNumberResult"/> as
+    ///     <see langword="false"/>. A mixed expression (<c>calc(1 + 1px)</c>, <c>calc(10% + 1)</c>)
+    ///     is always rejected, by the evaluator.
     /// </remarks>
     private static bool TryResolveLength(
-        string raw, RenderState state, PercentageAxis axis, out float value, out string? error, bool enforceMagnitude = true) =>
-        TryResolveLengthCore(raw, state, axis, axis == PercentageAxis.Fraction, out value, out _, out error, enforceMagnitude);
+        string raw,
+        RenderState state,
+        PercentageAxis axis,
+        out float value,
+        out string? error,
+        bool enforceMagnitude = true,
+        bool allowNumberResult = true) =>
+        TryResolveLengthCore(raw, state, axis, allowNumberResult, out value, out _, out error, enforceMagnitude);
 
     /// <summary>
     ///     Resolves a value that is either a <c>&lt;length&gt;</c>/<c>&lt;percentage&gt;</c> or a
@@ -319,9 +336,11 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded state supplying unit and percentage bases.</param>
     /// <param name="axis">Which basis a <c>%</c> resolves against.</param>
     /// <param name="allowNumberResult">
-    ///     <see langword="true"/> to accept a math expression whose type is a number; otherwise such
-    ///     a result is rejected, because CSS Values 4 never lets a number become a length inside a
-    ///     math function (<c>width: calc(0 + 5px)</c> is invalid). A <em>literal</em> bare number is
+    ///     <see langword="true"/> to accept a math expression whose type is a number as user units;
+    ///     <see langword="false"/> only for CSS-declared <c>font-size</c>, whose grammar has no
+    ///     <c>&lt;number&gt;</c>, so the result is rejected. A mixed expression
+    ///     (<c>calc(0 + 5px)</c>) is invalid regardless of this flag, because CSS Values 4 never
+    ///     lets a number become a length inside a math function. A <em>literal</em> bare number is
     ///     always accepted as user units regardless of this flag.
     /// </param>
     /// <param name="value">The resolved value when this method returns <see langword="true"/>.</param>

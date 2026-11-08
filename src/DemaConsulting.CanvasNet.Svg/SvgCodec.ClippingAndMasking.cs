@@ -482,7 +482,10 @@ public static partial class SvgCodec
     ///     <c>calc(10% + 5%)</c> and <c>calc(0.1 + 0.2)</c> work, while <c>calc(10% + 0.1)</c>
     ///     mixes a percentage and a number, is invalid and falls back to the default region). Under
     ///     <c>userSpaceOnUse</c> the value is an absolute local-space length and a percentage - plain
-    ///     or inside a math function - is relative to the current viewport on that attribute's axis
+    ///     or inside a math function - is relative to the current viewport on that attribute's axis;
+    ///     a number-typed math result (<c>calc(1 + 1)</c>) is user units like a literal, per SVG 2
+    ///     "Attribute syntax" (Types 4.2), and a mixed-type expression falls back to the default
+    ///     region
     ///     (see <see cref="ReadMaskRegionCoordinate"/>/<see cref="ReadMaskRegionExtent"/>).
     /// </remarks>
     private static Rect? ComputeMaskRegionLocalBounds(XElement maskElement, Rect bounds, RenderState state)
