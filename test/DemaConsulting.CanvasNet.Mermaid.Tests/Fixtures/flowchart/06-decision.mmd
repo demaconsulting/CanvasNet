@@ -1,0 +1,6 @@
+flowchart TD
+    Start([Start]) --> Check{Valid?}
+    Check -- yes --> Save[(Database)]
+    Check -- no --> Reject[/Reject/]
+    Save --> Done([Done])
+    Reject --> Done

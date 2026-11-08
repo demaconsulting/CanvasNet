@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
+using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -93,9 +94,8 @@ internal sealed record DiagramRenderContext(
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The registry is the one place a new diagram type is wired in. A supported type without a registered parser yet is
-///         served by <see cref="PendingDiagram"/>, which opens without error and fails at layout time with
-///         <see cref="MermaidDiagnosticCodes.RenderFailed"/>; this only exists while the flowchart pipeline is being built.
+///         The registry is the one place a new diagram type is wired in: the flowchart (<c>flowchart</c> and
+///         <c>graph</c>) is parsed by <see cref="FlowchartParser"/> into a <see cref="FlowchartModel"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -117,51 +117,8 @@ internal static class DiagramRegistry
         ArgumentNullException.ThrowIfNull(detected);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(limits);
-        if (!detected.IsSupported)
-        {
-            throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected));
-        }
-
-        // The flowchart parser is registered here once it exists; until then the type opens and fails at layout time
-        return new PendingDiagram(detected);
-    }
-}
-
-/// <summary>
-///     A supported diagram whose parser and layout are not wired in yet: it has no metadata and fails at layout time.
-/// </summary>
-/// <remarks>
-///     A temporary stand-in for the flowchart pipeline while it is being built; it lets the rest of the package (options,
-///     reports, the image source and the unsupported-type behavior) be complete and tested before the flowchart lands.
-/// </remarks>
-/// <param name="Detected">The detected type.</param>
-internal sealed record PendingDiagram(DetectedDiagram Detected) : IMermaidDiagram
-{
-    /// <inheritdoc />
-    public string? Title => null;
-
-    /// <inheritdoc />
-    public string? AccTitle => null;
-
-    /// <inheritdoc />
-    public string? Direction => null;
-
-    /// <inheritdoc />
-    public int NodeCount => 0;
-
-    /// <inheritdoc />
-    public int EdgeCount => 0;
-
-    /// <inheritdoc />
-    public int SubgraphCount => 0;
-
-    /// <inheritdoc />
-    public Scene Layout(DiagramRenderContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        throw new MermaidRenderException(
-            MermaidDiagnosticCodes.RenderFailed,
-            $"drawing {Detected.DiagramType} diagrams is not available in this build yet",
-            Detected.Location);
+        return detected.IsSupported && detected.DiagramType == "flowchart"
+            ? FlowchartParser.Parse(source, detected, limits)
+            : throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected));
     }
 }

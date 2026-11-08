@@ -1,0 +1,15 @@
+---
+title: Order handling
+---
+flowchart TB
+    accTitle: Order handling
+    start([New order]) --> stock{In stock?}
+    stock -- yes --> pack[[Pack]]
+    stock -- no --> reorder[/Reorder/]
+    reorder --> stock
+    subgraph ship [Shipping]
+        direction LR
+        pack --> label[Print label] --> send(((Send)))
+    end
+    classDef done fill:#cfc
+    class send done
