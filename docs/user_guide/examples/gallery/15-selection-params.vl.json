@@ -1,0 +1,37 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Parameters in their initial state: a variable parameter sets a threshold rule, and an interval selection draws a brush.",
+  "title": "A threshold and a brush",
+  "width": 320,
+  "height": 200,
+  "params": [
+    {"name": "limit", "value": 60}
+  ],
+  "data": {"sequence": {"start": 0, "stop": 40, "as": "i"}},
+  "transform": [
+    {"calculate": "50 + 35 * sin(datum.i * 0.31) + 12 * cos(datum.i * 1.7)", "as": "reading"}
+  ],
+  "layer": [
+    {
+      "params": [
+        {"name": "brush", "select": {"type": "interval"}, "value": {"x": [8, 20]}}
+      ],
+      "mark": {"type": "point", "filled": true, "size": 50},
+      "encoding": {
+        "x": {"field": "i", "type": "quantitative", "title": "Sample"},
+        "y": {"field": "reading", "type": "quantitative", "title": "Reading"},
+        "color": {
+          "condition": [
+            {"param": "brush", "value": "#1f77b4"},
+            {"test": "datum.reading > limit", "value": "#d62728"}
+          ],
+          "value": "lightgray"
+        }
+      }
+    },
+    {
+      "mark": {"type": "rule", "strokeDash": [4, 4], "color": "#555555"},
+      "encoding": {"y": {"datum": {"expr": "limit"}, "type": "quantitative"}}
+    }
+  ]
+}

@@ -3,6 +3,7 @@ using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
@@ -30,8 +31,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///     </para>
 ///     <para>
 ///         <b>Drawing.</b> The box is filled with the picture as a tile that is not repeated, so the edges of a box on fractional pixels are anti-aliased, a reduced picture is area-averaged and an
-///         enlarged one is interpolated (the core tile paint). The opacity of the item is multiplied into the alpha of a private copy of the picture. A picture that is not smoothed
-///         (<see cref="SceneImage.Smooth"/> false) is resampled to the nearest device size with nearest-neighbor sampling first. The surface of the loader is never changed.
+///         enlarged one is interpolated (the core tile paint). The opacity of the item is multiplied into the alpha of a copy of the picture. A picture that is not smoothed
+///         (<see cref="SceneImage.Smooth"/> false) is resampled to the nearest device size with nearest-neighbor sampling first. The surface of the loader is never changed; the copies are kept by
+///         the loader (<see cref="SceneImageSource.GetTile"/>) for the items that draw the same picture at the same size and opacity, so an icon for every point is resampled once, not once for every point.
+///         The pixels of the box of each picture (and of each copy that is made) are charged to <see cref="VegaLiteLimits.MaxPaintedPixels"/> before the work is done (see <c>ScenePainter.Budget.cs</c>).
 ///     </para>
 /// </remarks>
 internal sealed partial class ScenePainter
@@ -74,7 +77,7 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        DrawPicture(surface, box, image, local);
+        DrawPicture(surface, box, image, local, _images);
     }
 
     /// <summary>
@@ -174,7 +177,9 @@ internal sealed partial class ScenePainter
     /// <param name="box">The rectangle in the units of the enclosing group.</param>
     /// <param name="image">The picture item (the opacity and the smoothing).</param>
     /// <param name="local">The context of the enclosing group.</param>
-    private static void DrawPicture(Surface surface, (double X, double Y, double Width, double Height) box, SceneImage image, Context local)
+    /// <param name="images">The loader of the painting, which keeps the resampled copies of pictures that several items share.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown, located at the picture, when the picture is more than <see cref="VegaLiteLimits.MaxPaintedPixels"/> allows.</exception>
+    private static void DrawPicture(Surface surface, (double X, double Y, double Width, double Height) box, SceneImage image, Context local, SceneImageSource images)
     {
         // The rectangle in surface pixels (the transform is a uniform scale and a translation)
         var corner = Vector2.Transform(new Vector2((float)box.X, (float)box.Y), local.Transform);
@@ -185,25 +190,28 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        // The pixels the tile paint samples: the picture, or a nearest-neighbor copy at the device size, with the opacity folded into its alpha
-        Surface? work = null;
+        // The part of the box that lies on the target is painted: it is charged before the copy, the tile or the fill exists (a picture without a size is the size of the picture, which is not the author's to bound)
+        ChargeBox(local, corner.X, corner.Y, (double)corner.X + width, (double)corner.Y + height, image.Role, image.Source);
+
+        // The pixels the tile paint samples: the picture, or a nearest-neighbor copy at the device size, with the opacity folded into its alpha. The copy is shared by the items that
+        // draw the same picture at the same size and opacity (an icon for every point), so it is made once and not once per item
+        Surface? transient = null;
         try
         {
             var tile = surface;
-            if (!image.Smooth)
+            if (!image.Smooth || image.Opacity < 1)
             {
-                work = surface.Resize(
-                    Math.Clamp((int)Math.Round(width), 1, Surface.MaxDimension),
-                    Math.Clamp((int)Math.Round(height), 1, Surface.MaxDimension),
-                    ResamplingMode.Nearest);
-                tile = work;
-            }
-
-            if (image.Opacity < 1)
-            {
-                work ??= surface.Clone();
-                MultiplyAlpha(work, Math.Clamp(image.Opacity, 0, 1));
-                tile = work;
+                var tileWidth = image.Smooth ? surface.Width : Math.Clamp(NumericConversions.ToInt32Saturating(Math.Round(width)), 1, Surface.MaxDimension);
+                var tileHeight = image.Smooth ? surface.Height : Math.Clamp(NumericConversions.ToInt32Saturating(Math.Round(height)), 1, Surface.MaxDimension);
+                tile = images.GetTile(
+                    surface,
+                    image.Smooth,
+                    tileWidth,
+                    tileHeight,
+                    image.Opacity < 1 ? Math.Clamp(image.Opacity, 0, 1) : 1,
+                    pixels => ChargePixels(local, pixels, image.Role, image.Source),
+                    out var isTransient);
+                transient = isTransient ? tile : null;
             }
 
             var mapping = Matrix3x2.CreateScale(width / tile.Width, height / tile.Height) * Matrix3x2.CreateTranslation(corner);
@@ -212,24 +220,7 @@ internal sealed partial class ScenePainter
         }
         finally
         {
-            work?.Dispose();
-        }
-    }
-
-    /// <summary>
-    ///     Multiplies the alpha of every pixel of a surface by a factor.
-    /// </summary>
-    /// <param name="surface">The surface, which is changed (the straight alpha of the pixels is scaled; the colors stay).</param>
-    /// <param name="factor">The factor from 0 to 1.</param>
-    private static void MultiplyAlpha(Surface surface, double factor)
-    {
-        for (var y = 0; y < surface.Height; y++)
-        {
-            var row = surface.GetRowSpan(y);
-            for (var x = 0; x < row.Length; x++)
-            {
-                row[x].A = (byte)Math.Round(row[x].A * factor, MidpointRounding.AwayFromZero);
-            }
+            transient?.Dispose();
         }
     }
 
@@ -247,5 +238,5 @@ internal sealed partial class ScenePainter
     /// <returns>A value from 1 to <see cref="Surface.MaxDimension"/>.</returns>
     /// <remarks>A small tolerance is subtracted before rounding up, so a length that is whole up to floating-point noise does not gain a pixel.</remarks>
     private static int ToDevicePixels(double length) =>
-        double.IsNaN(length) ? 1 : (int)Math.Clamp(Math.Ceiling(length - 1e-3), 1d, Surface.MaxDimension);
+        double.IsNaN(length) ? 1 : NumericConversions.ToInt32Saturating(Math.Clamp(Math.Ceiling(length - 1e-3), 1d, Surface.MaxDimension));
 }

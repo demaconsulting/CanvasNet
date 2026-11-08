@@ -491,7 +491,7 @@ public class VegaLiteAggregationIntegrationTests
 
     /// <summary>
     ///     Validates that the aggregate, bin and stack of an encoding are drawn without a report (the color legend of the stacked bars is drawn too,
-    ///     so the fixtures report nothing), and that a part that is still unsupported next to them (a binned time unit) is reported once with its
+    ///     so the fixtures report nothing), and that a part that is still unsupported next to them (a custom guide encoding) is reported once with its
     ///     location, which strict mode turns into an exception.
     /// </summary>
     [Fact]
@@ -501,8 +501,8 @@ public class VegaLiteAggregationIntegrationTests
         var reported = new List<string>();
         var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add(u.Feature + " " + u.Location.Pointer) };
         var unsupported = Text("aggregate-bars.vl.json").Replace(
-            "\"type\": \"nominal\"",
-            "\"type\": \"nominal\", \"timeUnit\": \"binnedyearmonth\"",
+            "\"labelAngle\": 0",
+            "\"labelAngle\": 0, \"encode\": { \"labels\": {} }",
             StringComparison.Ordinal);
 
         // Act
@@ -519,7 +519,7 @@ public class VegaLiteAggregationIntegrationTests
 
         // Assert
         Assert.Empty(fixtureReports);
-        Assert.Equal(["vl-timeunit-binned /encoding/x/timeUnit"], reported);
-        Assert.Equal("vl-timeunit-binned", strict.Feature);
+        Assert.Equal(["vl-guide-encode /encoding/x/axis/encode"], reported);
+        Assert.Equal("vl-guide-encode", strict.Feature);
     }
 }

@@ -23,6 +23,15 @@ internal sealed record ExpandedLayers(LayerTree Layers, SpecTree Tree);
 internal sealed record CompositeAxis(string Channel, string Secondary, SpecNode Definition, string Field, string Alias, string Type);
 
 /// <summary>
+///     The channels of a composite mark that group its rows, and the transforms and measures that their definitions add.
+/// </summary>
+/// <param name="Channels">The channels the parts share, in order.</param>
+/// <param name="GroupBy">The field paths that group the rows.</param>
+/// <param name="Transforms">The transforms to run before the aggregate: the <c>bin</c> transforms, then the <c>timeUnit</c> transforms (Vega-Lite's <c>[...bins, ...timeUnits]</c>).</param>
+/// <param name="Measures">The measures that the <c>aggregate</c> of the channels adds to every aggregate transform of the mark.</param>
+internal sealed record CompositeGrouping(List<SpecNode> Channels, List<string> GroupBy, List<SpecNode> Transforms, List<SpecNode> Measures);
+
+/// <summary>
 ///     Writes the synthetic specification nodes of a composite mark expansion, and reads the properties that every composite mark shares.
 /// </summary>
 /// <remarks>
@@ -373,20 +382,41 @@ internal sealed class CompositeBuilder
     ///     Splits the encoding of a composite mark into the channels the parts share and the fields that group the rows.
     /// </summary>
     /// <remarks>
-    ///     Vega-Lite groups the rows by every channel that has a field (<c>extractTransformsFromEncoding</c> in <c>encoding.ts</c>). The <c>timeUnit</c> of such a channel (a unit that is
-    ///     not <c>binned</c>) becomes a <c>timeUnit</c> transform that runs before the aggregate, and the channel reads the derived field (named like <c>month_date</c>) with the default
-    ///     title of the original definition and, for a channel that is not temporal, the <c>formatType</c> <c>time</c> of its axis, legend or text; the derived field groups the rows.
-    ///     A <c>bin</c> of such a channel is not applied (the raw field groups the rows) and a channel that aggregates is left out: the feature catalog reports both as <c>vl-composite-grouping</c>.
-    ///     The channels of the measure (<c>x</c> or <c>y</c> and their second ends and errors) and the <c>tooltip</c> are not shared.
+    ///     <para>
+    ///         This is Vega-Lite's <c>extractTransformsFromEncoding</c> (<c>encoding.ts</c>, v6.5.0). A channel with a field groups the rows by that field, and the encoding can transform it first:
+    ///     </para>
+    ///     <list type="bullet">
+    ///         <item><description>
+    ///             An <c>aggregate</c> is a measure of the aggregate transform of the mark (<c>mean_age</c>, <c>__count</c>, <c>argmax_by</c>), the channel reads its result with the default title of the original definition, and
+    ///             the channel does not group the rows.
+    ///         </description></item>
+    ///         <item><description>
+    ///             A <c>bin</c> becomes a <c>bin</c> transform before the aggregate (the start is <c>bin_maxbins_10_f</c>, with <c>autoMaxBins</c> of the channel) and the start and the end group the rows; the channel
+    ///             reads the start as a quantitative field that is binned already, and a <c>x</c> or <c>y</c> channel gets the <c>x2</c> or <c>y2</c> channel that reads the end.
+    ///         </description></item>
+    ///         <item><description>
+    ///             A <c>timeUnit</c> that is not <c>binned</c> (a unit, or the <c>maxbins</c> form) becomes a <c>timeUnit</c> transform before the aggregate, and the channel reads the derived field (named like
+    ///             <c>month_date</c>) with the default title of the original definition and, for a channel that is not temporal, the <c>formatType</c> <c>time</c> of its axis, legend or text.
+    ///         </description></item>
+    ///         <item><description>
+    ///             A <c>bin</c> that is <c>"binned"</c> or false and a <c>binned</c> time unit leave the field as it is (the unit and the bin are dropped from the channel).
+    ///         </description></item>
+    ///     </list>
+    ///     <para>
+    ///         The channels of the measure (<c>x</c> or <c>y</c> and their second ends and errors) and the <c>tooltip</c> are not shared. An <c>aggregate</c> that is not an operation (a composite mark) leaves
+    ///         the channel out, as it has no field to read.
+    ///     </para>
     /// </remarks>
     /// <param name="encoding">The encoding object.</param>
     /// <param name="axis">The continuous axis.</param>
-    /// <returns>The shared channels in order, the fields to group by, and the <c>timeUnit</c> transforms to run before the aggregate.</returns>
-    public (List<SpecNode> Channels, List<string> GroupBy, List<SpecNode> TimeUnits) Grouping(SpecNode encoding, CompositeAxis axis)
+    /// <returns>The shared channels in order, the fields to group by, the transforms to run before the aggregate (the bins, then the time units) and the measures that the channels add to the aggregate.</returns>
+    public CompositeGrouping Grouping(SpecNode encoding, CompositeAxis axis)
     {
         var channels = new List<SpecNode>();
         var groupBy = new List<string>();
+        var bins = new List<SpecNode>();
         var timeUnits = new List<SpecNode>();
+        var measures = new List<SpecNode>();
         foreach (var channel in encoding.Properties)
         {
             if (channel.Name == axis.Channel || IsOwnChannel(channel.Name!))
@@ -400,18 +430,66 @@ internal sealed class CompositeBuilder
                 continue;
             }
 
-            if (channel["aggregate"] is { IsNull: false })
+            var source = channel["field"] is { IsString: true } field ? field.StringValue : null;
+            if (channel["aggregate"] is { IsNull: false } aggregate)
             {
+                if (Transforms.EncodingPlan.DescribeAggregate(aggregate, source) is { } measure)
+                {
+                    measures.Add(Obj(
+                        null,
+                        Str("op", measure.Op),
+                        measure.Field is null ? null : Str("field", measure.Field),
+                        Str("as", measure.As),
+                        measure.Param is { } parameter ? Num("param", parameter) : null));
+                    channels.Add(ComputedChannel(channel, source, measure.ChannelField));
+                }
+
                 continue;
             }
 
-            string? groupField = channel["field"] is { IsString: true } field ? field.StringValue : null;
+            var groupField = source;
             SpecNode shared;
-            if (channel["bin"] is null && channel["timeUnit"] is { } unitNode && groupField is not null && TimeUnitSpec.TryRead(unitNode, out var unit) && !unit.IsBinned && unit.Parts.Count > 0)
+            if (source is not null && Transforms.EncodingPlan.IsBinning(channel["bin"]) && channel["bin"] is { } binNode)
             {
-                var source = groupField;
-                groupField = unit.FieldName(source);
-                timeUnits.Add(Obj(null, unitNode, Str("field", source), Str("as", groupField)));
+                var maxBins = Transforms.EncodingPlan.AutoMaxBins(channel.Name!);
+                var start = Transforms.EncodingPlan.BinStartName(binNode, source, maxBins);
+                var parameters = new List<SpecNode?>();
+                if (binNode.IsObject)
+                {
+                    parameters.AddRange(binNode.Properties);
+                }
+
+                if (!binNode.IsObject || !binNode.Properties.Any(p => p.Name is "maxbins" or "step"))
+                {
+                    parameters.Add(Num("maxbins", maxBins));
+                }
+
+                bins.Add(Obj(null, ObjOf("bin", parameters), Str("field", source), Str("as", start)));
+                groupField = FieldPath.Escape(start);
+                if (!groupBy.Contains(groupField, StringComparer.Ordinal))
+                {
+                    groupBy.Add(groupField);
+                }
+
+                // The end of the bin follows from its start, so it adds no group, but the aggregate keeps it for the channel that spans the bin
+                if (!groupBy.Contains(FieldPath.Escape(start + "_end"), StringComparer.Ordinal))
+                {
+                    groupBy.Add(FieldPath.Escape(start + "_end"));
+                }
+
+                var position = channel.Name is "x" or "y";
+                shared = position
+                    ? ComputedChannel(channel, source, groupField, ("type", "quantitative"), ("bin", "binned"))
+                    : ComputedChannel(channel, source, groupField, ("type", "quantitative"));
+                if (position)
+                {
+                    channels.Add(Obj(channel.Name + "2", Str("field", FieldPath.Escape(start + "_end"))));
+                }
+            }
+            else if (channel["timeUnit"] is { IsNull: false } unitNode && source is not null && TimeUnitSpec.TryRead(unitNode, out var unit) && !unit.IsBinned)
+            {
+                groupField = FieldPath.Escape(unit.FieldName(source));
+                timeUnits.Add(Obj(null, unitNode, Str("field", source), Str("as", unit.FieldName(source))));
                 shared = TimeUnitChannel(channel, groupField, unit);
             }
             else if (channel["bin"] is not null || channel["timeUnit"] is not null)
@@ -430,7 +508,38 @@ internal sealed class CompositeBuilder
             }
         }
 
-        return (channels, groupBy, timeUnits);
+        return new CompositeGrouping(channels, groupBy, [.. bins, .. timeUnits], measures);
+    }
+
+    /// <summary>
+    ///     Writes the definition of a channel that reads a field that a transform computed: the aggregate of a channel, or the bin of one.
+    /// </summary>
+    /// <remarks>
+    ///     The title is the default title of the original definition unless the definition, its axis or its legend gives one (Vega-Lite's <c>isTitleDefined</c>); the properties are those of the original
+    ///     without the ones that the transform consumed, and <paramref name="replace"/> sets or replaces the others.
+    /// </remarks>
+    /// <param name="channel">The channel as written.</param>
+    /// <param name="source">The field as written, or null for a count.</param>
+    /// <param name="computed">The field path of the computed field.</param>
+    /// <param name="replace">The properties to set (a name and a string value) in place of the ones of the definition.</param>
+    /// <returns>The channel definition.</returns>
+    private SpecNode ComputedChannel(SpecNode channel, string? source, string computed, params (string Name, string Value)[] replace)
+    {
+        var drop = new HashSet<string>(["field", "aggregate", "bin", "timeUnit", .. replace.Select(r => r.Name)], StringComparer.Ordinal);
+        var properties = new List<SpecNode?> { Str("field", computed) };
+        var hasTitle = channel["title"] is not null || channel["axis"]?["title"] is not null || channel["legend"]?["title"] is not null;
+        if (!hasTitle)
+        {
+            properties.Add(Str("title", Transforms.EncodingPlan.DefaultFieldTitle(channel, source ?? string.Empty, Config)));
+        }
+
+        foreach (var (name, value) in replace)
+        {
+            properties.Add(Str(name, value));
+        }
+
+        properties.AddRange(channel.Properties.Where(p => !drop.Contains(p.Name!)));
+        return ObjOf(channel.Name, properties);
     }
 
     /// <summary>

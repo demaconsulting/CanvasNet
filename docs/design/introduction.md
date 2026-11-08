@@ -285,8 +285,8 @@ software items, specifically:
   and parsing with the English locale, Vega's multi-format, and JavaScript's `Date.parse`). The `Expressions` subsystem
   has three units: `ExpressionParser` (a bounded compiler of the Vega expression language into an immutable postfix
   program), `ExpressionEvaluator` (a culture-invariant interpreter with JavaScript coercion under a step budget), and
-  `ExpressionFunctions` (the closed table of 104 pure functions, including the date and time functions, the number
-  `format`, and the selection functions, with the safe
+  `ExpressionFunctions` (the closed table of 113 pure functions, including the date and time functions, the number
+  `format`, the selection functions, and the probability distribution functions, with the safe
   regular expression translation). The `Transforms` subsystem has five units: `RowTransforms` (the static parameter
   environment and the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and `timeUnit` transforms
   between the loader and the scales), `SelectionModel` (the initial state of the selection parameters: their stores and
@@ -1348,6 +1348,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ExpressionFunctions.Types.cs — ExpressionFunctions: type and conversion functions
 │   ├── ExpressionFunctions.Regex.cs — ExpressionFunctions: regexp, test, and the regular expression forms
 │   ├── ExpressionFunctions.Casing.cs — ExpressionFunctions: the case conversion of lower and upper
+│   ├── ExpressionFunctions.Distributions.cs — ExpressionFunctions: the density, cumulative, and quantile functions
 │   ├── ExpressionFunctions.Time.cs — ExpressionFunctions: the date and time functions
 │   ├── ExpressionFunctions.Selection.cs — ExpressionFunctions: data and the selection functions
 │   ├── SelectionStore.cs          — ExpressionFunctions: the tuples and stores of selections
@@ -1653,7 +1654,13 @@ unit (`MarkBuilder.Paths.cs`, `.Order.cs`, `.Overlays.cs`, `.Text.cs`, and `.Arc
 `MarkBuilderArcTests.cs`, and `MarkBuilderPolarTextTests.cs`), and the painting of the segment paths, arcs, and trails
 is in `ScenePainter.Paths.cs`, a partial file of the `ScenePainter` unit (with `ScenePainterPathTests.cs`). The
 attribution record and license texts of the ported algorithms are in
-`src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
+`src/DemaConsulting.CanvasNet.VegaLite/third-party/`. The developer artifacts of Phase 14 are not software items and
+have no companion artifacts of their own: the original gallery specifications and their two small SVG pictures are in
+`docs/user_guide/examples/gallery/` (drawn by the Pandoc filter, rendered strictly by
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs`, and shown in the montage
+`docs/images/vegalite-gallery.png`, which `docs/images/render-images.ps1` draws and checks), the Stopwatch benchmark
+harness is the project `benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run by
+hand), and the visual-diff scripts against Vega and Vega-Lite are in `benchmarks/visual-diff/` (run by hand, never in CI).
 
 ## References
 

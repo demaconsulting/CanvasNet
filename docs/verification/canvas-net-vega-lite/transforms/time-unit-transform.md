@@ -147,11 +147,18 @@ an empty table keeps its fields `u` and `u_end` and a table of nulls gets null f
 
 **Tests**: `TimeUnitTransformTests.TimeUnitTransform_NullAndInvalidAndStringDates_YieldNull`,
 `TimeUnitTransformTests.TimeUnitTransform_ImplicitParseReadsTextDates`,
-`TimeUnitTransformTests.TimeUnitTransform_BinnedUnit_KeepsTheValueAsTheStart`
+`TimeUnitTransformTests.TimeUnitTransform_BinnedUnitInTheTransform_FloorsLikeTheUnit`,
+`TimeUnitTransformTests.TimeUnitTransform_EndOnly_AddsTheEndOfTheValueAsItIs`
 
 Asserts the seven rows of the not-a-date vector (null, boolean, text with the parse off, 1e300, a missing field, 0, and
 -1e15) with the dates and the nulls described above; that the implicit parse reads `2024-03-17` and `Mar 17, 2024` as
-the same day and `not a date` as null; and that the binned unit keeps the value as the start and ends one month later.
+the same day and `not a date` as null; that the transform floors a binned unit like any other unit (Phase 14: Vega's
+`timeunit` ignores `binned`), so the 15th of March is floored to the first of March and ends on April 1; and that the
+end-only request
+of an encoding of a binned unit adds no start field and writes the end as one step of the smallest part after the value
+as it is (the 15th of March gives the 15th of April, an invalid value gives none, and, as Vega's `timeOffset` does,
+January 31 plus a
+month is March 2 and February 29 plus a year is March 1).
 
 ##### Zones And Utc Units
 

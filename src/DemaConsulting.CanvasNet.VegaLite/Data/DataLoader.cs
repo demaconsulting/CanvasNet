@@ -150,7 +150,7 @@ internal sealed class DataLoader
     public void ReserveDerivedRows(double rows, string what, VegaLiteLocation location)
     {
         Charge(rows, what, location);
-        _rowsLoaded += (long)rows;
+        _rowsLoaded += NumericConversions.ToInt64Saturating(rows);
     }
 
     /// <summary>
@@ -535,7 +535,7 @@ internal sealed class DataLoader
         length = TrimSequenceCount(start, stop, step, length);
         Charge(length, "generated sequence", location);
         var field = FieldPath.Escape(sequence["as"]?.AsString() ?? PrimitiveField);
-        var table = DataTable.Create([field], Generate(start, step, (long)length, location), _limits, location);
+        var table = DataTable.Create([field], Generate(start, step, NumericConversions.ToInt64Saturating(length), location), _limits, location);
         _rowsLoaded += table.RowCount;
         return table;
     }

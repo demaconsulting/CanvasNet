@@ -84,8 +84,10 @@ when used as paths):
 - time unit: the name of the unit and the field, `TimeUnitSpec.FieldName(field)`: `yearmonth_date` for the unit
   `yearmonth` of the field `date`, `month_step_2_date` for the object form with a `step`, `utcmonth_date` for a UTC
   unit, and `timeunit_maxbins_10_date` for the `maxbins` form; the end adds `_end` (`yearmonth_date_end`). A unit is
-  shared by the channels that name the same field and unit, and computed once. A unit that is `binned` is skipped (the
-  field is used as it is), and so is a definition that has an aggregate or a `bin` (the bin wins over the unit).
+  shared by the channels that name the same field and unit, and computed once. A unit that is `binned` reads the field
+  itself (Vega-Lite's `vgField` leaves a binned unit out of the name): its start name is the canonical path of the field,
+  its end `<field>_end`, and the end is computed only where a channel spans the unit. A definition that has an
+  aggregate or a `bin` has no unit (the bin wins over the unit).
 - stack: `<measure>_start` and `<measure>_end`, where the measure is the derived name of an aggregate or the
   field itself.
 
@@ -98,9 +100,20 @@ titles only).
 **Time-unit titles.** For a definition with a time unit (and no bin or aggregate; a bin wins, and the verbal title of a
 unit is tested before the aggregate one as in Vega-Lite): verbal `date (year-month)` (the field and the parts of the unit
 joined with a hyphen; the field alone for the `maxbins` form, which has no parts), functional `YEARMONTH(date)`
-(`UTCYEARMONTH(date)` for a UTC unit, and `TIMEUNIT(date)` for the `maxbins` form), and plain the field.
+(`UTCYEARMONTH(date)` for a UTC unit, and `TIMEUNIT(date)` for the `maxbins` form), and plain the field. A binned unit
+has the field alone in every mode.
 
-**`TimeUnitPlan`** `(StartName, EndName, SourceField, Spec, Node, HasBandEnd)`: the two literal names, the field of the
+**`DefaultFieldTitle`** (`EncodingPlan.DefaultFieldTitle(definition, source, config)`, internal) gives the same default
+title for
+a definition that is not a channel of the encoding (a facet field, a grouping channel of a composite mark) with
+Vega-Lite's
+order of tests (count, bin, time unit, aggregate); `IsBinning` is Vega-Lite's `isBinning`; `AggregateFieldPath` and
+`DescribeAggregate` give the field that `vgField` names for an aggregate and the transform entry
+(`CompositeAggregate`) that
+computes it for a composite mark.
+
+**`TimeUnitPlan`** `(StartName, EndName, SourceField, Spec, Node, HasBandEnd)`: the two literal names (for a binned unit
+the start name is the canonical path of the field), the `StartPath` and `EndPath` that the channels read, the field of the
 dates, the `TimeUnitSpec` as written (the `maxbins` form is resolved against the data when the transform runs and the
 resolved unit is handed over in `EncodingData.TimeUnits`), the `timeUnit` value of the first definition that asked for
 it (the location of failures), and whether any channel that shares it spans it (`HasBandEnd`). A unit **spans**
@@ -277,15 +290,24 @@ its facet fields; the document asks this part for the cells once the table of th
   ignored and the default order applies), the results are compared by `DataValue.Compare` (a null result first), the
   sort is **stable** (equal results keep the order of first appearance of the values), and `order: "descending"`
   reverses the comparison. The states are bounded by `TableLayout.MaxCells` (a located `VegaLiteRenderException`).
-  A **`timeUnit`** of the definition that has parts (Phase 13) is applied before the values are collected: `WithTimeUnits`
-  runs the `TimeUnitTransform` into a derived field named as Vega-Lite names it (`month_date`, for example) and the
-  cell value is the **start date of the unit**; the header label is then formatted with the time format of the unit (see
-  _VegaLiteDocument_). A binned unit and the `maxbins` form (a unit with no parts) are not applied, and neither are a
-  `bin` or an `aggregate` of the definition: the raw value of the field is the value of the cell (reported as
-  `vl-facet-field-transform`, whose message is narrowed to those cases; `vl-facet-sort` is retired). A sort array longer
+  A **`timeUnit`** of the definition (Phase 13; Phase 14 for the binned and `maxbins` forms) and its **`bin`** and
+  **`aggregate`** (Phase 14) are derived before the values are collected: `WithDerivedFields` follows Vega-Lite's facet
+  model (`compile/data/parse.ts`: the `BinNode`, then the `TimeUnitNode`; no `AggregateNode`) and names the field of a
+  definition as `vgField` does, where a `bin` wins over an `aggregate`, which wins over a unit. A `bin` runs
+  `BinFields` (the bins of the encoding, with `autoMaxBins`: 6 for `row` and `column`, 10 for `facet`) and the cell
+  value is the **start of the bin**, ordered numerically, with the text `start – end` as its label (`BinPlan.RangeName`,
+  formatted by the `format` of the header, else `config.numberFormat`, and the text `null` for a row without a bin; the
+  configuration reaches the transform through the optional `ResolvedConfig` of `Facet` and `FacetDomain`). An
+  `aggregate` is not computed: the cell reads the field of its name (`EncodingPlan.AggregateFieldPath`: `sum_v`,
+  `__count`), a null cell when the table has none. A `timeUnit` runs the `TimeUnitTransform` into a derived field named
+  as
+  Vega-Lite names it (`month_date`, for example; the `maxbins` form is resolved against the data) and the
+  cell value is the **start date of the unit**; a **binned** unit adds no field: the raw value is the cell. The header
+  label is then formatted with the time format of the unit (see _VegaLiteDocument_). `vl-facet-field-transform` and
+  `vl-facet-sort` are retired. A sort array longer
   than `MaxScaleDomainSize` is a located
   `VegaLiteRenderException`; an item that is not a string, a number, a boolean, or `null` matches no value.
-- `EncodingTransforms.Facet(facet, table, viewsPerCell, viewsOutside, context)` (static) - computes the domains,
+- `EncodingTransforms.Facet(facet, table, viewsPerCell, viewsOutside, context, config)` (static) - computes the domains,
   then the grid:
   a wrapped facet has one cell for each value (`RowCount` 1, `ColumnCount` the number of values; the `columns` of the
   layout wrap them later), the others have a cell for **every combination** of a row value and a column value, row-major
@@ -345,8 +367,8 @@ than `MaxViews`, when the rows of the cells exceed the row limit, or when a sort
 computed from the data), and a `bin` on `theta` or `radius` is not planned; a count is titled by `countTitle` in every
 `fieldTitle` mode; the name of an aggregate
 keeps the operation as written (`average_x`); a non-finite stack value is silently invalid, as in
-Vega-Lite; a `binned` time unit is skipped in an encoding (the field is used as it is; the catalog reports it as
-`vl-timeunit-binned`); a channel that spans its unit covers the whole unit (the geometry applies 0.5, so another
+Vega-Lite; a `binned` time unit adds the end only where a channel spans it and has no start field (as Vega-Lite does; the
+data is not floored again); a channel that spans its unit covers the whole unit (the geometry applies 0.5, so another
 `bandPosition` is reported by `vl-encoding-bandposition-rect`); the aggregate groups by the end of a unit that a
 channel spans (it adds no groups; see `AggregatePlan`); an imputed channel that aggregates is imputed through its
 derived name after the aggregate (Vega-Lite uses the raw field); and the impute that precedes a stack is skipped for a

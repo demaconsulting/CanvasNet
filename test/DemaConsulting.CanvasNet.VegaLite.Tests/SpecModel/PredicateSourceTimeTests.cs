@@ -173,8 +173,8 @@ public class PredicateSourceTimeTests
     }
 
     /// <summary>
-    ///     Validates the predicates that stay as they were: <c>valid</c> with a time unit tests the field itself, a <c>maxbins</c> unit and a binned unit
-    ///     are ignored, and an expression reference as a value is written in parentheses.
+    ///     Validates the predicates that stay as they were: <c>valid</c> with a time unit tests the field itself, a <c>maxbins</c> unit that names no unit compares the field as it is
+    ///     (Vega-Lite's <c>fieldFilterExpression</c> has no unit to build a part with), and an expression reference as a value is written in parentheses.
     /// </summary>
     [Fact]
     public void PredicateSource_UnitsThatApplyNothingAndExpressionValuesStayPlain()
@@ -182,18 +182,34 @@ public class PredicateSourceTimeTests
         // Act / Assert
         Assert.Equal("""isValid(datum["d"])""", Source("""{ "field": "d", "timeUnit": "year", "valid": true }"""));
         Assert.Equal("""(datum["d"] === 3)""", Source("""{ "field": "d", "timeUnit": { "maxbins": 10 }, "equal": 3 }"""));
-        Assert.Equal("""(datum["d"] === 3)""", Source("""{ "field": "d", "timeUnit": "binnedyearmonth", "equal": 3 }"""));
         Assert.Equal("""(datum["d"] === (1+1))""", Source("""{ "field": "d", "equal": { "expr": "1+1" } }"""));
     }
 
     /// <summary>
-    ///     Validates which predicates are written with the time functions, and that the reader of the unit ignores a binned unit and the maxbins form.
+    ///     Validates the predicates of a binned unit (Vega-Lite's <c>fieldFilterExpression</c>, <c>binned</c> branch): the field is compared as an instant, <c>time(field)</c>, without building
+    ///     the parts of the unit, and the values are read for the unit as for any other (a number below 10000 is the one part of a single unit, a date text is a date, a date-time object is its date).
+    /// </summary>
+    [Fact]
+    public void PredicateSource_BinnedUnitComparesTheInstantOfTheField()
+    {
+        // Act / Assert
+        Assert.Equal("""(time(datum["d"])===3)""", Source("""{ "field": "d", "timeUnit": "binnedyearmonth", "equal": 3 }"""));
+        Assert.Equal("""(time(datum["d"])===time(datetime("2024-03-01")))""", Source("""{ "field": "d", "timeUnit": "binnedyearmonth", "equal": "2024-03-01" }"""));
+        Assert.Equal("""(time(datum["d"])>=time(datetime(2024, 2, 1, 0, 0, 0, 0)))""", Source("""{ "field": "d", "timeUnit": { "unit": "yearmonth", "binned": true }, "gte": { "year": 2024, "month": "march" } }"""));
+        Assert.Equal("""(time(datum["d"])===time(datetime(2020, 0, 1, 0, 0, 0, 0)))""", Source("""{ "field": "d", "timeUnit": "binnedyear", "equal": 2020 }"""));
+        Assert.Equal("""(indexof([time(datetime(2020, 0, 1, 0, 0, 0, 0)), time(datetime(5, 0, 1, 0, 0, 0, 0))], time(datum["d"])) !== -1)""", Source("""{ "field": "d", "timeUnit": "binnedutcyear", "oneOf": [ 2020, 5 ] }"""));
+        Assert.Equal("""isValid(datum["d"])""", Source("""{ "field": "d", "timeUnit": "binnedyear", "valid": true }"""));
+    }
+
+    /// <summary>
+    ///     Validates which predicates are written with the time functions, and that the reader of the unit returns a binned unit and ignores the maxbins form.
     /// </summary>
     [Fact]
     public void PredicateSource_IsTimeAware_AndReadUnit()
     {
         // Act / Assert
         Assert.True(PredicateSource.IsTimeAware(Predicate("""{ "field": "d", "timeUnit": "year", "equal": 2020 }""")));
+        Assert.True(PredicateSource.IsTimeAware(Predicate("""{ "field": "d", "timeUnit": "binnedyear", "equal": 2020 }""")));
         Assert.True(PredicateSource.IsTimeAware(Predicate("""{ "field": "d", "equal": { "year": 2020 } }""")));
         Assert.True(PredicateSource.IsTimeAware(Predicate("""{ "field": "d", "oneOf": [ 1, { "year": 2020 } ] }""")));
         Assert.False(PredicateSource.IsTimeAware(Predicate("""{ "field": "d", "equal": 2020 }""")));
@@ -202,7 +218,8 @@ public class PredicateSourceTimeTests
         Assert.False(PredicateSource.IsTimeAware(Predicate("\"datum.d > 1\"")));
         Assert.Equal(["year", "month"], PredicateSource.ReadUnit(Predicate("""{ "field": "d", "timeUnit": "yearmonth", "equal": 1 }"""))!.Parts);
         Assert.Null(PredicateSource.ReadUnit(Predicate("""{ "field": "d", "equal": 1 }""")));
-        Assert.Null(PredicateSource.ReadUnit(Predicate("""{ "field": "d", "timeUnit": "binnedyearmonth", "equal": 1 }""")));
+        Assert.True(PredicateSource.ReadUnit(Predicate("""{ "field": "d", "timeUnit": "binnedyearmonth", "equal": 1 }"""))!.IsBinned);
+        Assert.Null(PredicateSource.ReadUnit(Predicate("""{ "field": "d", "timeUnit": { "maxbins": 3 }, "equal": 1 }""")));
     }
 
     /// <summary>

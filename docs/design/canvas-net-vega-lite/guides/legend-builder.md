@@ -59,7 +59,7 @@ unit's behavior is specified by the `CanvasNetVegaLite-Guides-LegendBuilder-*` r
   unit view of the first layer of the legend, and `LegendSpec.Dimming` carries it (null when no selection is bound).
 Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-title`; the entry group contains
 `legend-symbol` and `legend-label` pairs, or `legend-gradient` and `legend-label`s, or `legend-band`s and
-`legend-label`s.
+`legend-label`s; with a `clipHeight` the `legend-symbol` of an entry sits in a clipping group `legend-symbol-clip`.
 
 #### Key Methods
 
@@ -140,7 +140,18 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   range label (`< hi`, `lo – hi`, `≥ lo`, with the format of the thresholds for ten ticks per class). An entry has the
   size `max(ceil(sqrt(symbolSize) + strokeWidth), labelFontSize)`; the symbol is centered at half the entry size
   (half the largest entry size with columns) plus `symbolOffset`, and its label starts after the entry plus `symbolOffset`
-  and `labelOffset`. The symbol look combines the scales of the members (fill, stroke, shape, size, stroke width,
+  and `labelOffset`. **`clipHeight`** (Phase 14; the legend property or `config.legend`, a symbol legend only; a
+  gradient legend ignores it, as Vega does, although Vega-Lite passes 20 for gradients): when it is greater than 0,
+  the symbol and the label of each entry sit at half of `clipHeight` instead of half of the entry size (so `clipHeight`
+  sets the pitch of the entries), the box of the entry group is the box of the label united with the rectangle from
+  (0, 0) to (0, `clipHeight`) (the symbol, clipped to the zero-width entry group when the bounds are taken, adds
+  nothing: vega-scenegraph `boundClip`), and each symbol is wrapped in a clipping group (`legend-symbol-clip`) at the
+  origin of its entry whose clip rectangle is as wide as the widest entry of its column and as high as the bottom edge
+  of the entry (`bounds.y2 - y`); the label is not clipped. A `clipHeight` of 0 or less is ignored. The wrapping group
+  is charged to the item budget with the symbol and the label (three items for each entry). The port follows
+  vega-parser `legend-symbol-groups.js`, vega-scenegraph `group.js` and `boundClip.js`, and `legendEntryLayout` of
+  vega-view-transforms `layout/legend.js`, and the pitch, positions, and clip rectangles agree with Vega 6.4. The
+  symbol look combines the scales of the members (fill, stroke, shape, size, stroke width,
   dash, opacity) with the fixed paints of the mark and the base paints of the legend configuration, as described in
   the requirements. Entry boxes are the union of the symbol box (the shape box grown by two stroke widths for a
   stroked symbol, Vega's miter allowance) and the label box; the grid layout (`GridLayout`, a port of Vega's `layout`
@@ -291,8 +302,8 @@ stop its position along the transformed domain (Vega's `scaleFraction`; the file
 read, so the
 log, pow, and symlog fractions are derived from the d3 transforms). The canonical scale of a merged continuous
 legend is the first channel in Vega-Lite's order
-(Vega picks by its own order of scale names). Every `titleOrient` is drawn since Phase 13, while `clipHeight`,
-`encode`, and custom format
+(Vega picks by its own order of scale names). Every `titleOrient` is drawn since Phase 13 and every `clipHeight` of a
+symbol legend since Phase 14, while `encode` and custom format
 types (a `formatType` other than `number`, `time`, and `utc`) are not drawn and are reported by the
 feature catalog. A `symbolType` that is SVG path data is drawn by the `SymbolPathParser` and has the bounds of its
 drawing (`SymbolBounds`), not a square around the center. The `datum.size` and `datum.offset` of a symbol legend that

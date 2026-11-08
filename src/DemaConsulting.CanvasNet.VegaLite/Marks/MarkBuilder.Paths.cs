@@ -229,10 +229,12 @@ internal sealed partial class MarkBuilder
             var count = _table.RowCount;
             var isArea = _type == "area";
             var isTrail = _type == "trail";
-            var horizontal = _orient == "horizontal";
-            var vertical = !horizontal;
             var x = Get("x");
             var y = Get("y");
+
+            // A ranged offset makes its position the measure axis of an area whatever the orientation (Vega-Lite's xRangeFromOffset and yRangeFromOffset of mark/area.ts; y wins when both are ranged)
+            var horizontal = y?.Offset is not { Ranged: true } && (x?.Offset is { Ranged: true } || _orient == "horizontal");
+            var vertical = !horizontal;
 
             // An area is a range along its measure axis: without the measure channel there is nothing to span
             var measure = vertical ? y : x;

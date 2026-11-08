@@ -456,7 +456,7 @@ public class FeatureCatalogTests
 
     /// <summary>
     ///     Validates the legend rule: legends are drawn, so they are not reported; only the parts of a legend that are not drawn are
-    ///     (a clip height, an encode, a custom format type; the title orient and a valid custom symbol path are drawn; the label expression is evaluated and
+    ///     (an encode, a custom format type; the clip height (Phase 14), the title orient and a valid custom symbol path are drawn; the label expression is evaluated and
     ///     reports only a function the engine does not have), at the exact property, and never for a position channel or a channel without a legend.
     /// </summary>
     [Fact]
@@ -480,7 +480,6 @@ public class FeatureCatalogTests
         // Assert: in document order; the legend of the size channel and the plain ones draw without a report
         Assert.Equal(
             [
-                ("vl-guide-legend-clipheight", "/encoding/color/legend/clipHeight"),
                 ("vl-expr-function-luminance", "/encoding/color/legend/labelExpr"),
                 ("vl-format-type-custom", "/encoding/color/legend/formatType"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
@@ -1198,7 +1197,7 @@ public class FeatureCatalogTests
     /// <summary>
     ///     Validates the parts of the supported transforms that are not supported: a lookup in a parameter
     ///     and a remote lookup source; that a filter on a selection and a pivot with any aggregate operation are supported (the identifier <c>vl-transform-pivot-op</c> is retired); and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
-    ///     and a binned unit are reported, at the time unit).
+    ///     are reported, at the time unit; a binned unit and the maxbins form, in a predicate and in the <c>timeUnit</c> transform, are applied and not reported).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported()
@@ -1237,9 +1236,6 @@ public class FeatureCatalogTests
                 ("vl-transform-lookup-param", "/transform/7/from/param"),
                 ("vl-data-remote-url", "/transform/8/from/data"),
                 ("vl-predicate-timeunit-part", "/transform/9/filter/timeUnit"),
-                ("vl-timeunit-maxbins", "/transform/10/filter/timeUnit"),
-                ("vl-timeunit-binned", "/transform/11/filter/timeUnit"),
-                ("vl-timeunit-binned", "/transform/12/timeUnit"),
             ],
             reports);
     }
@@ -1543,7 +1539,7 @@ public class FeatureCatalogTests
 
     /// <summary>
     ///     Validates that a time unit or a date-time object in the predicate of a test is evaluated and not reported, that the parts a predicate does not
-    ///     apply are the warning <c>vl-predicate-timeunit-part</c> at the time unit, and that a binned unit is reported once.
+    ///     apply are the warning <c>vl-predicate-timeunit-part</c> at the time unit, and that a binned unit is not reported (the field is compared as an instant).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported()
@@ -1553,12 +1549,14 @@ public class FeatureCatalogTests
         var date = VisitColor("""{"condition":{"test":{"or":[{"field":"q","gt":1},{"field":"q","equal":{"year":2020}}]},"value":"red"}}""");
         var part = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"yearweek","equal":2020},"value":"red"}}""");
         var binned = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"binnedyearmonth","equal":2020},"value":"red"}}""");
+        var binnedWeek = VisitColor("""{"condition":{"test":{"field":"q","timeUnit":"binnedyearweek","equal":2020},"value":"red"}}""");
 
-        // Assert
+        // Assert: a binned unit builds no part, so even the week of a binned yearweek is not a warning
         Assert.Empty(timeUnit);
         Assert.Empty(date);
         Assert.Equal([("vl-predicate-timeunit-part", "/encoding/color/condition/test/timeUnit")], part);
-        Assert.Equal([("vl-timeunit-binned", "/encoding/color/condition/test/timeUnit")], binned);
+        Assert.Empty(binned);
+        Assert.Empty(binnedWeek);
     }
 
     /// <summary>

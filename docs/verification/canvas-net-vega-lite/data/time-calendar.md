@@ -529,3 +529,7 @@ as a date, `utc(...)` for a UTC object, and the invariant text of a fractional s
 the same instant as `ToMilliseconds` (checked in UTC and at +05:30, where 08:00 local is 5 h 30 min earlier in UTC); and
 the source of a single part of a unit (month 3 is index 2, `Mar` is the same, `Fri` is the date 6, quarter 2 is month
 index 3, hours 5, `week` the default) and none for an invalid name or no value.
+
+Phase 14 hardening: the time-calendar casts are saturating (`NumericConversions`) and `MakeDay` refuses a NaN day; the
+numeric-edge corpus of the determinism tests (`VegaLiteDeterminismTests`) and the checked-arithmetic fuzz run exercise
+those paths on every target framework.

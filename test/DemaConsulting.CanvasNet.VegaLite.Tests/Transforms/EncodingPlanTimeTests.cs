@@ -207,8 +207,8 @@ public class EncodingPlanTimeTests
     }
 
     /// <summary>
-    ///     Validates that a bin wins over a time unit on the same definition, that an aggregate of the field replaces the unit (the unit applies to a field that is read as it
-    ///     is), and that a binned unit is ignored (the field is used as it is).
+    ///     Validates that a bin wins over a time unit on the same definition, and that an aggregate of the field replaces the unit (the unit applies to a field that is read as it
+    ///     is).
     /// </summary>
     [Fact]
     public void EncodingPlan_Create_BinWinsOverTimeUnit()
@@ -216,7 +216,6 @@ public class EncodingPlanTimeTests
         // Act
         var binned = Create("""{"x":{"field":"a","type":"quantitative","bin":true,"timeUnit":"month"}}""");
         var aggregated = Create("""{"y":{"field":"a","type":"quantitative","aggregate":"max","timeUnit":"month"}}""");
-        var ignored = Create("""{"x":{"field":"date","type":"temporal","timeUnit":"binnedyearmonth"}}""");
 
         // Assert
         Assert.Empty(binned.TimeUnits);
@@ -224,9 +223,51 @@ public class EncodingPlanTimeTests
         Assert.Equal("bin_maxbins_10_a", binned.Channel("x")!.ValueField);
         Assert.Empty(aggregated.TimeUnits);
         Assert.Equal("max_a", aggregated.Channel("y")!.ValueField);
-        Assert.Empty(ignored.TimeUnits);
-        Assert.Equal("date", ignored.Channel("x")!.ValueField);
-        Assert.True(ignored.IsIdentity);
+    }
+
+    /// <summary>
+    ///     Validates the plan of a binned unit (Vega-Lite's <c>TimeUnitNode.makeFromEncoding</c> and <c>vgField</c>): the channel reads the field itself (the data is floored already), its end
+    ///     <c>date_end</c> exists only where a channel spans the unit (a bar, which has a band position by default), the title is the field alone, and a mark without a band position has nothing to compute.
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_BinnedUnitReadsTheFieldAndHasAnEndOnlyWhereItSpans()
+    {
+        // Act
+        var bar = Create("""{"x":{"field":"date","type":"temporal","timeUnit":"binnedyearmonth"},"y":{"aggregate":"count","type":"quantitative"}}""");
+        var flagged = Create("""{"x":{"field":"date","type":"temporal","timeUnit":{"unit":"month","binned":true}}}""");
+        var point = Create("""{"x":{"field":"date","type":"temporal","timeUnit":"binnedyearmonth"}}""", "\"point\"");
+        var pointBand = Create("""{"x":{"field":"date","type":"temporal","timeUnit":"binnedyearmonth","bandPosition":0.5}}""", "\"point\"");
+
+        // Assert
+        var x = bar.Channel("x")!;
+        Assert.Equal(("date", "date", "date", "date_end"), (x.ValueField, x.FieldPath, x.RawField, x.Field2Path));
+        Assert.Equal("date", x.Title);
+        Assert.True(x.HasBandEnd);
+        var unit = Assert.Single(bar.TimeUnits);
+        Assert.Equal(("date", "date_end", "date", "date", "date_end"), (unit.StartName, unit.EndName, unit.SourceField, unit.StartPath, unit.EndPath));
+        Assert.True(unit.Spec.IsBinned);
+        Assert.Single(flagged.TimeUnits);
+        Assert.Equal("date_end", flagged.Channel("x")!.Field2Path);
+        Assert.Empty(point.TimeUnits);
+        Assert.True(point.IsIdentity);
+        Assert.Equal(("date", null, "date"), (point.Channel("x")!.ValueField, point.Channel("x")!.Field2Path, point.Channel("x")!.Title));
+        Assert.Equal("date_end", pointBand.Channel("x")!.Field2Path);
+    }
+
+    /// <summary>
+    ///     Validates that the aggregate of an encoding with a binned unit groups by the field and, for a bar, by its end, and that the unit of a nested field reads its canonical path.
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_BinnedUnitGroupsTheAggregateByTheFieldAndItsEnd()
+    {
+        // Act
+        var bar = Create("""{"x":{"field":"date","type":"temporal","timeUnit":"binnedyearmonth"},"y":{"aggregate":"count","type":"quantitative"}}""");
+        var nested = Create("""{"x":{"field":"a.b","type":"temporal","timeUnit":"binnedyearmonth"},"y":{"aggregate":"count","type":"quantitative"}}""");
+
+        // Assert
+        Assert.Equal(["date", "date_end"], bar.Aggregate!.GroupBy);
+        Assert.Equal("a.b", nested.Channel("x")!.ValueField);
+        Assert.Equal(["a.b", "a\\.b_end"], nested.Aggregate!.GroupBy);
     }
 
     /// <summary>

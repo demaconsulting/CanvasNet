@@ -89,8 +89,9 @@ a name or alias of a command of the default registry, `help`, or `topics`.
 
 **HelpTopics_Text_HasNoUnresolvedTokens**: no string of any topic contains `{{`; the token table holds the live values
 of `Surface.MaxDimension`, `ScadLimits.Default.MaxTriangles`, `ArgumentReader.MaxDpi`, and
-`ResultWriter.SchemaVersion`; and the `limits` topic quotes the image size, the triangle budget, the number of data
-files, and the quality range from the constants.
+`ResultWriter.SchemaVersion`, and `VegaLiteLimits.Default.MaxPaintedPixels`; and the `limits` topic quotes the image
+size, the triangle budget, the number of data
+files, the painted pixels, and the quality range from the constants.
 
 **HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples**: each of the seven format
 topics has the five filled sections and at least two examples.

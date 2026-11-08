@@ -331,4 +331,26 @@ public class ViewLayoutTests
         var huge = ViewLayout.Measure(request with { DataWidth = 1e12 }, default);
         Assert.Equal(int.MaxValue, huge.NaturalSize.Width);
     }
+
+    /// <summary>
+    ///     Validates defect B3 at its source: a canvas dimension that is not a finite number has a defined whole-pixel size on every runtime (NaN and negative infinity are 0, positive infinity
+    ///     and every value beyond the integers are <see cref="int.MaxValue"/>). The plain cast gave <see cref="int.MinValue"/> for NaN on .NET 8 and 0 on later runtimes, and a <see langword="checked"/>
+    ///     build threw.
+    /// </summary>
+    [Fact]
+    public void ViewLayout_NaturalSize_NonFiniteDimensions_AreDefinedAndTheSameOnEveryRuntime()
+    {
+        // Arrange
+        var measure = Layout("{}").Measure;
+
+        // Act
+        var notANumber = (measure with { Width = double.NaN, Height = double.NaN }).NaturalSize;
+        var negativeInfinity = (measure with { Width = double.NegativeInfinity, Height = -1e300 }).NaturalSize;
+        var positiveInfinity = (measure with { Width = double.PositiveInfinity, Height = 1e300 }).NaturalSize;
+
+        // Assert
+        Assert.Equal(new VegaLiteSize(0, 0), notANumber);
+        Assert.Equal(new VegaLiteSize(0, 0), negativeInfinity);
+        Assert.Equal(new VegaLiteSize(int.MaxValue, int.MaxValue), positiveInfinity);
+    }
 }

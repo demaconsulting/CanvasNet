@@ -121,6 +121,16 @@ documented above as machine-dependent is not a failure.
   `LegendBuilderTests.LegendBuilder_Build_CancellationAndInvalidFormat` — too many values, ticks, characters, or scene
   items is a render error that names the limit and points into the specification, an invalid format a specification
   error, and cancellation is honored.
+- **Clip Heights And Ranged Offsets Are Laid Out As Vega Lays Them Out (Phase 14)**:
+  `LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_TallerThanTheSymbolsSetsThePitchAndTheClipBox`,
+  `LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_AGradientLegendIgnoresIt`,
+  `AxisBuilderRangedOffsetTests.AxisBuilder_Build_RangedYOffsetPutsTicksAndLabelsAtTheBandEnd`,
+  `AxisBuilderRangedOffsetTests.AxisBuilder_Build_ExplicitBandPositionWinsOverTheRangedDefault`,
+  `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightClipsTheSymbolsToTheirEntries` — a
+  symbol legend with a `clipHeight` has its entries at the pitch that Vega gives them (the height plus the row padding)
+  with each symbol in a clipping group, and the clip reaches the pixels, while a gradient legend ignores the property; the
+  axis of a band position that holds a ranged offset has its ticks and labels at the band end for `y` and the band start
+  for `x`, an explicit `bandPosition` winning over that default.
 - **Fonts Do Not Depend On The Machine**:
   `TextMeasurerTests.TextMeasurer_Resolve_DefaultUsesBundledFonts`,
   `CanvasNetVegaLite_SystemIntegration_Fonts_DefaultUsesBundledLiberation` — layout and pixels of text are identical

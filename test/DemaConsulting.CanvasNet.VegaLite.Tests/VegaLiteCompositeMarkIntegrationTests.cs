@@ -380,11 +380,12 @@ public class VegaLiteCompositeMarkIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the box plot reports nothing for the features it supports, even in strict mode, and that a bin, a time unit or an aggregate on a grouping channel is
-    ///     reported as <c>vl-composite-grouping</c> while the chart is still drawn (the retired <c>vl-mark-boxplot</c> is never produced).
+    ///     Validates that the box plot reports nothing for the features it supports, even in strict mode, and that a bin on a grouping channel is applied (Phase 14; the identifier
+    ///     <c>vl-composite-grouping</c> and the retired <c>vl-mark-boxplot</c> are never produced): the values 1 to 15 and 30 fall in five bins of 5 (the bins starting at 0, 5, 10, 15 and 30), each
+    ///     with its box, and the axis of the bins carries the title of a binned field.
     /// </summary>
     [Fact]
-    public void CanvasNetVegaLite_CompositeMark_BoxPlot_ReportsOnlyUnsupportedGrouping()
+    public void CanvasNetVegaLite_CompositeMark_BoxPlot_BinOfAGroupingChannelIsApplied()
     {
         // Arrange
         var plain = VegaLiteDocument.Parse(Spec("\"boxplot\"", VerticalEncoding));
@@ -392,14 +393,43 @@ public class VegaLiteCompositeMarkIntegrationTests
         var unsupported = new List<string>();
         var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
 
-        // Act: strict mode does not throw for the plain box plot
+        // Act: strict mode does not throw for either box plot
         using var surface = plain.Render(strict, Ct);
-        using var drawn = binned.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => unsupported.Add(u.Feature) }, Ct);
+        using var drawn = binned.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => unsupported.Add(u.Feature) }, Ct);
+        var scene = binned.BuildScene(strict, Ct);
 
         // Assert
         Assert.NotNull(surface);
-        Assert.Equal(["vl-composite-grouping"], unsupported);
+        Assert.Empty(unsupported);
         Assert.NotNull(drawn);
+        Assert.Equal(5, Items<SceneRect>(scene, "mark-bar").Count);
+        Assert.Equal(["v (binned)", "v"], Texts(scene, "axis-title"));
+
+        // Assert: the whiskers are vertical rules at the middle of their bin (a bin that is binned already with its end is not a range of the rule, Vega-Lite's orient of a rule)
+        var rules = Items<SceneRule>(scene, "mark-rule");
+        Assert.NotEmpty(rules);
+        Assert.All(rules, r => Assert.Equal(r.X, r.X2, 6));
+    }
+
+    /// <summary>
+    ///     Validates that a channel that aggregates is a measure of the aggregate of the mark and that its result is read by the channel (Vega-Lite's <c>extractTransformsFromEncoding</c>): the error bar
+    ///     of the two groups with a <c>count</c> on its <c>color</c> is drawn with a legend titled <c>Count of Records</c> and one rule for each group, in strict mode.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_CompositeMark_ErrorBar_AggregateOfAGroupingChannelIsAMeasure()
+    {
+        // Arrange
+        var json = Spec("\"errorbar\"", """
+            "encoding": { "x": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" }, "color": { "aggregate": "count", "type": "quantitative" } }
+            """);
+
+        // Act
+        var scene = SceneOf(json);
+        using var surface = VegaLiteDocument.Parse(json).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+
+        // Assert
+        Assert.Equal(["Count of Records"], Texts(scene, "legend-title"));
+        Assert.Equal(2, Items<SceneRule>(scene, "mark-rule").Count);
     }
 
     /// <summary>

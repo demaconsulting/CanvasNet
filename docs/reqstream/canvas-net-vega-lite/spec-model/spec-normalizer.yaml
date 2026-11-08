@@ -329,7 +329,8 @@ sections:
                   - SpecNormalizer_Expand_HorizontalBoxPlotUsesXAndX2
                   - SpecNormalizer_Expand_TitleOfTheMeasureDefaultsToTheField
                   - SpecNormalizer_Expand_SharedChannelsFollowVegaLite
-                  - SpecNormalizer_Expand_GroupingChannelsDropBinAndAggregateAndApplyTimeUnit
+                  - SpecNormalizer_Expand_GroupingChannelsAddBinTimeUnitAndAggregateTransforms
+                  - SpecNormalizer_Expand_GroupingFormsThatKeepTheFieldAndTheLessCommonAggregates
                   - SpecNormalizer_Expand_TimeUnitOfAnOrdinalGroupingChannelFormatsAsTime
                   - SpecNormalizer_Expand_SingleBoxHasNoGroupBy
 

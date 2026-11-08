@@ -215,8 +215,10 @@ sections:
               (the scene-item limit counts every item of the scene, groups included, before the item is created, so a
               limit of N allows exactly N items; the data limits of rows, fields, files, and bytes apply per call and
               before any scene item is charged; the limits of the number of views and of the nesting depth of layers
-              apply to the views of the specification before any data is read) and observe the cancellation token so
-              that an exceeded limit fails
+              apply to the views of the specification before any data is read; the paint limit counts the device
+              pixels of every item before the item is painted, and a size of the chart that is not a finite number
+              is a located failure, never an unlocated argument exception) and observe the cancellation token,
+              also while the transforms and the painter run, so that an exceeded limit fails
               closed with a located exception and a canceled token stops Measure and both Render overloads with an
               unwrapped OperationCanceledException.
             justification: |
@@ -236,15 +238,21 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Limits_AxisChargesEveryItemBeforeCreatingIt
               - CanvasNetVegaLite_SystemIntegration_Limits_TitleChargesGroupAndTextsBeforeCreatingThem
               - CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept
+              - CanvasNetVegaLite_SystemIntegration_Limits_PaintedPixelsStopsExpensivePaintingAtTheMark
+              - CanvasNetVegaLite_SystemIntegration_Limits_NonFiniteLayoutSizeFailsWithALocation
+              - CanvasNetVegaLite_SystemIntegration_Limits_QuantileStepBeyondTheIntegersFailsLocatedAtTheRowLimit
+              - CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns
               - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
               - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
+              - CanvasNetVegaLite_SystemIntegration_Cancellation_IsHonoredWhileTheTransformsAndThePainterRun
               - CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced
 
           - id: CanvasNetVegaLite-VegaLiteDocument-Determinism
             title: >-
               The VegaLiteDocument unit shall hold no state between calls, so that repeated and
               concurrent Measure and Render calls on one document, with any font options that use
-              the bundled fonts, return byte-identical surfaces and identical reports.
+              the bundled fonts, return pixel-identical surfaces (not necessarily byte-identical
+              encoded files) and identical reports.
             justification: |
               Reproducibility is required for golden tests and caching, and a shared document must be
               safe to render from several threads.
@@ -519,8 +527,11 @@ sections:
               by the distinct values of its fields and the template below it copied for each cell (a view with data
               of its own reads that data in every cell and is not partitioned; a facet is instantiated even when no
               mark below it is drawn, the cells then empty), the aggregate, bin, and stack of each cell run on the
-              rows of the cell, the scales of the cells shared as the union of their domains (a step size from the
-              union of the categories, independent scales sizing each cell by its own); the cells placed in a
+              rows of the cell, the bin of a facet field (its cell being the start of the bin, labeled with the
+              range, null a cell of its own), its aggregate, and its time unit (also binned and maxbins) the cells
+              that Vega-Lite's facet model gives, the scales of the cells shared as the union of their domains (a
+              step size from the union
+              of the categories, independent scales sizing each cell by its own); the cells placed in a
               grid with the headers, footers, and titles of the row, column, and facet fields (the label of a value
               in the header of its row or column, in the title of its cell for a wrapped facet, the title of the
               field ten pixels outside the headers, the default sides along the channel and the sides that the
@@ -546,6 +557,10 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Facet_SharedScaleUsesTheUnionOfAllCellsAndStepWidthTheirCategories
               - CanvasNetVegaLite_SystemIntegration_Facet_IndependentStepSizesCellsByOwnCategoriesAndAlignFollowsTheScale
               - CanvasNetVegaLite_SystemIntegration_Facet_AggregateRunsPerCell
+              - CanvasNetVegaLite_SystemIntegration_Facet_BinOfTheFieldGivesACellPerBinWithRangeLabels
+              - CanvasNetVegaLite_SystemIntegration_Facet_BinLabelsUseTheHeaderFormatAndNullIsItsOwnCell
+              - CanvasNetVegaLite_SystemIntegration_Facet_BinnedAndMaxBinsTimeUnitsAreDrawn
+              - CanvasNetVegaLite_SystemIntegration_Facet_AggregateOfTheFieldReadsTheFieldOfItsName
               - CanvasNetVegaLite_SystemIntegration_Facet_StackRunsPerCell
               - CanvasNetVegaLite_SystemIntegration_Facet_SharedLegendIsOutsideTheGrid
               - CanvasNetVegaLite_SystemIntegration_Facet_LayerSpecBody

@@ -216,16 +216,13 @@ internal static class StatisticsPrimitives
     /// <param name="start">The first value.</param>
     /// <param name="stop">The exclusive end.</param>
     /// <param name="step">The step.</param>
-    /// <returns>The number of values: <c>max(0, ceil((stop - start) / step))</c>, truncated to an int32 as d3 does; zero when the quotient is NaN.</returns>
+    /// <returns>The number of values: <c>max(0, ceil((stop - start) / step))</c>, saturating at <see cref="long.MaxValue"/> for a quotient that no integer can hold; zero when the quotient is NaN.</returns>
     public static long RangeCount(double start, double stop, double step)
     {
         var count = Math.Max(0, Math.Ceiling((stop - start) / step));
-        if (double.IsNaN(count))
-        {
-            return 0;
-        }
 
-        // d3 writes `| 0`, which wraps modulo 2^32; the callers bound the count long before it matters, so the exact quotient is kept
-        return double.IsInfinity(count) ? long.MaxValue : (long)count;
+        // d3 writes `| 0`, which wraps modulo 2^32; the callers bound the count long before it matters, so the exact quotient is kept,
+        // saturated (the same on every runtime: a plain cast of an out-of-range number is not defined) and NaN (a zero step of zero) is empty
+        return NumericConversions.ToInt64Saturating(count);
     }
 }

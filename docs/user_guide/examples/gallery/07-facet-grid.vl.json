@@ -1,0 +1,25 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A facet: one small chart of rainfall per orchard and season, the rows and columns of the grid come from two fields.",
+  "title": "Rainfall by orchard and season",
+  "data": {"sequence": {"start": 0, "stop": 48, "as": "i"}},
+  "transform": [
+    {"calculate": "['Spring', 'Summer', 'Autumn', 'Winter'][floor(datum.i / 12)]", "as": "season"},
+    {"calculate": "datum.i % 12", "as": "week"},
+    {"calculate": "['North', 'South'][datum.i % 2]", "as": "orchard"},
+    {"calculate": "12 + (datum.i % 24 < 12 ? 6 : -2) * sin(datum.i * 0.9) + floor(datum.i / 12) * 4 + (datum.orchard == 'South' ? 8 : 0)", "as": "mm"}
+  ],
+  "facet": {
+    "row": {"field": "orchard", "type": "nominal", "title": "Orchard"},
+    "column": {"field": "season", "type": "nominal", "title": null, "sort": ["Spring", "Summer", "Autumn", "Winter"]}
+  },
+  "spec": {
+    "width": 90,
+    "height": 70,
+    "mark": {"type": "bar", "color": "#4c78a8"},
+    "encoding": {
+      "x": {"field": "week", "type": "ordinal", "title": "Week", "axis": {"labelAngle": 0, "values": [0, 6]}},
+      "y": {"field": "mm", "type": "quantitative", "title": "Rain (mm)"}
+    }
+  }
+}

@@ -366,6 +366,7 @@ ones, so 6 stay counted) and keeps them counted when the caller still uses the i
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_GroupsTimesKeysIsBoundedBeforeAllocation`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_HugeKeySequencesAreRejectedUpFront`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_LongKeyListsAreRejected`,
+`AggregateTransformsImputeTests.AggregateTransforms_Impute_KeyCountBeyondTheIntRangeIsRefusedWhateverTheRowLimit`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_FieldAndStringLimitsAreLocated`
 
 Asserts the exact boundaries above, each failure located at `/transform/0` and naming its limit (`(MaxDataRows)`,
@@ -375,7 +376,11 @@ released and 8 when the caller keeps the input; that the cumulative `values` arr
 row limit of 1,000 while one shared array of the whole partition fits; that sequences of 1e12 and 1e300 / 1e-300 keys
 are refused with `the limit of 1000000 (MaxDataRows)` before they are materialized, and 2,000 keys under a limit of
 1,000 as well; and that more output fields than the field limit and a text longer than the string limit are refused
-before any row is read.
+before any row is read. A key count beyond the range of an int is refused with `the limit of 2147483647 (MaxDataRows)`
+even when the row limit is `long.MaxValue` (regression of a defect that the audit found: the count was cast to an int for
+the loop, a wrapped number on .NET 8), and an aggregate whose group-by field is not a valid field name (an empty field
+name on the channel of a boxplot) is a located `VegaLiteRenderException`, covered by the fuzz regression corpus
+(`VegaLiteFuzzTests.CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed`).
 
 ##### Work Is Charged To The Step Budget
 

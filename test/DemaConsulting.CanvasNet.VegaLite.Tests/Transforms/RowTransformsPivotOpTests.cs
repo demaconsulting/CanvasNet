@@ -85,6 +85,26 @@ public class RowTransformsPivotOpTests
     }
 
     /// <summary>
+    ///     Validates defect B2: a <c>limit</c> that no 64-bit integer can hold (9.3e18, 1.79e308) means "every pivot value" on every runtime. The plain cast gave the smallest long on .NET 8 and the largest
+    ///     one on .NET 9 and later (and an <see cref="OverflowException"/> in a checked build), so the same specification gave a different table on two runtimes.
+    /// </summary>
+    /// <param name="limit">The limit as JSON text.</param>
+    [Theory]
+    [InlineData("9.3e18")]
+    [InlineData("1e30")]
+    [InlineData("1.7976931348623157E+308")]
+    public void RowTransforms_Apply_PivotLimitBeyondLong_KeepsEveryPivotValue(string limit)
+    {
+        // Arrange / Act
+        var huge = Pivot(null, ",\"limit\":" + limit);
+        var unlimited = Pivot(null);
+
+        // Assert
+        Assert.Equal(unlimited.Fields, huge.Fields);
+        Assert.Equal(AggregateTestSupport.Rows(unlimited, "g", "x", "y"), AggregateTestSupport.Rows(huge, "g", "x", "y"));
+    }
+
+    /// <summary>
     ///     Validates the pivot without group fields: one row of the operation over every row of each value (the maximum of x is 8 and of y is 10).
     /// </summary>
     [Fact]

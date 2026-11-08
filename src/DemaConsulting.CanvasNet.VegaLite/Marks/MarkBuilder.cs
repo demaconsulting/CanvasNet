@@ -59,7 +59,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         positions, and a bar, an arc, a symbol or a label of a null slice is not drawn (Vega-Lite's filter runs after the stack) and a stacked area breaks its path there. A null in a discrete field is the category <c>null</c> and is drawn; a value outside an explicit
 ///         discrete domain is not. With <c>invalid: "show"</c> (or null) a row whose value is not a number is drawn: the channel takes the value zero when the domain holds zero (not on a time or
 ///         log scale), else the first value of the domain (Vega-Lite's <c>scaledZeroOrMinOrMax</c>); a stacked row of a null is drawn at its position in the stack (a deviation), and
-///         <c>config.scale.invalid</c> is not read.
+///         <c>config.scale.invalid</c> (Phase 14: an entry <c>"zero-or-min"</c> or <c>{"value": ...}</c> per channel) makes the rows of that channel valid whatever the mode, with that output.
 ///     </para>
 ///     <para>
 ///         <b>Path marks.</b> A <c>line</c>, <c>area</c> or <c>trail</c> draws one path per group of rows (the fields of <see cref="EncodingPlan.PathGroupFields"/>, in order of first
@@ -212,10 +212,13 @@ internal sealed partial class MarkBuilder
         var run = new Run(this, type, markNode is { IsObject: true } ? markNode : null, view, table, scales, width, height, cancellationToken);
         var items = run.Build();
         var clip = markNode?["clip"] is { IsBoolean: true, BoolValue: true } || scales["x"]?.ClipMarks == true || scales["y"]?.ClipMarks == true;
+
+        // The group carries the location of the mark, which is where the painter reports a failure of an item that has no location of its own
         return new SceneGroup("marks", 0, 0)
         {
             Children = items,
             Clip = clip ? new SceneClip(0, 0, width, height) : null,
+            Source = (view["mark"] ?? view).GetLocation(_sourceName),
         };
     }
 
@@ -285,8 +288,11 @@ internal sealed partial class MarkBuilder
         /// <summary>Gets the resolved scale, or null.</summary>
         public ResolvedScale? Scale { get; }
 
-        /// <summary>Gets the scale model, or null.</summary>
-        public ScaleModel? Model { get; }
+        /// <summary>Gets or sets the scale model, or null; the <c>invalid</c> handling replaces it with a copy that has an output for a value that is not a number.</summary>
+        public ScaleModel? Model { get; set; }
+
+        /// <summary>Gets or sets a value indicating whether the channel is valid whatever its value (Vega-Lite's <c>show</c> invalid mode of the channel): a value that is not a number reads as the fallback or takes the output of <c>config.scale.invalid</c>, and no row is dropped for it.</summary>
+        public bool ShowsInvalid { get; set; }
 
         /// <summary>Gets the index of the field in the table, or -1.</summary>
         public int FieldIndex { get; }
@@ -586,7 +592,7 @@ internal sealed partial class MarkBuilder
 
             AttachOffsets(encoding);
             ApplyShowInvalid();
-            _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain && !c.Value.IsFieldConditional).Select(c => c.Value)];
+            _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain && !c.Value.IsFieldConditional && !c.Value.ShowsInvalid).Select(c => c.Value)];
             ResolvePaint();
             foreach (var dash in Get("strokeDash")?.Scale?.DashRange ?? [])
             {
@@ -595,29 +601,58 @@ internal sealed partial class MarkBuilder
         }
 
         /// <summary>
-        ///     Makes a value that is not a number read as Vega-Lite's <c>zeroOrMin</c> in the <c>show</c> invalid mode (the <c>invalid</c> of the mark, or of the configuration, is <c>"show"</c> or null).
+        ///     Makes a value that is not a number read as Vega-Lite's <c>zeroOrMin</c> in the <c>show</c> invalid mode (the <c>invalid</c> of the mark, or of the configuration, is <c>"show"</c> or null), and
+        ///     gives a channel that <c>config.scale.invalid</c> names the output that it names, whatever the mode.
         /// </summary>
         /// <remarks>
-        ///     Source: <c>compile/mark/encode/invalid.ts</c> (<c>getConditionalValueRefForIncludingInvalidValue</c>), <c>compile/invalid/ScaleInvalidDataMode.ts</c> and
-        ///     <c>compile/mark/encode/scaledZeroOrMinOrMax.ts</c>. A channel on a scale with a continuous domain has the test <c>!isValid(datum.field) || !isFinite(+datum.field)</c>, and a row that
-        ///     passes it is placed where the scale maps zero (when the domain has it) or the first value of the domain; scaling that data value gives the same position, size, opacity or color as
-        ///     scaling zero or the minimum in Vega. Time and log scales never have zero (<c>domainHasZero</c>). <c>config.scale.invalid</c> (a value per channel) is not read.
+        ///     <para>
+        ///         Source: <c>compile/mark/encode/invalid.ts</c> (<c>getConditionalValueRefForIncludingInvalidValue</c>), <c>compile/invalid/ScaleInvalidDataMode.ts</c> and
+        ///         <c>compile/mark/encode/scaledZeroOrMinOrMax.ts</c>, with <c>invalid.ts</c> of Vega-Lite 6.5.0. A channel on a scale with a continuous domain has the test
+        ///         <c>!isValid(datum.field) || !isFinite(+datum.field)</c>, and a row that passes it is placed where the scale maps zero (when the domain has it) or the first value of the domain;
+        ///         scaling that data value gives the same position, size, opacity or color as scaling zero or the minimum in Vega. Time and log scales never have zero (<c>domainHasZero</c>).
+        ///     </para>
+        ///     <para>
+        ///         <c>config.scale.invalid</c> has an entry for a scale channel: <c>"zero-or-min"</c> (that same output) or <c>{"value": ...}</c> (the value is the output of the mark property as it is, not
+        ///         scaled). <c>getScaleInvalidDataMode</c> returns <c>show</c> for such a channel whatever the <c>invalid</c> of the mark is ("if any channel's scale has an output for invalid values ... all
+        ///         values are valid, not filtered, no path breaks"), so its rows are drawn and the other channels keep the mode of the mark. A channel with a count aggregate, a discrete scale, a stacked
+        ///         channel (its rows are decided on the value that is stacked) and an entry that is neither <c>"zero-or-min"</c> nor a number or text value (an expression, <c>null</c>, a boolean) are left alone.
+        ///     </para>
         /// </remarks>
         private void ApplyShowInvalid()
         {
-            if (Prop("invalid") is not ({ Kind: ConfigNodeKind.Null } or { Kind: ConfigNodeKind.String, StringValue: "show" }))
+            var showAll = Prop("invalid") is { Kind: ConfigNodeKind.Null } or { Kind: ConfigNodeKind.String, StringValue: "show" };
+            foreach (var (name, channel) in _channels)
             {
-                return;
-            }
+                if (channel.FieldIndex < 0 || !channel.HasContinuousDomain || channel.Model is not { } model)
+                {
+                    continue;
+                }
 
-            foreach (var channel in _channels.Values)
-            {
-                if (channel.FieldIndex >= 0 && channel.HasContinuousDomain && channel.Model is { } model && InvalidFallbackOf(model) is { } fallback)
+                var configured = _owner._config.Get("scale.invalid." + name);
+                if (configured is { Kind: ConfigNodeKind.Object } && configured.Get("value") is { } output && ScaleInvalidOutputOf(output) is { } invalidOutput && !channel.IsStacked)
+                {
+                    channel.Model = model.WithInvalidOutput(invalidOutput);
+                    channel.ShowsInvalid = true;
+                }
+                else if ((showAll || configured is { Kind: ConfigNodeKind.String, StringValue: "zero-or-min" }) && InvalidFallbackOf(model) is { } fallback)
                 {
                     channel.InvalidFallback = fallback;
+                    channel.ShowsInvalid = true;
                 }
             }
         }
+
+        /// <summary>
+        ///     Reads the <c>value</c> of an entry of <c>config.scale.invalid</c>.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns>The output: a number is the output of a number channel, a text that of a text channel (and of a number channel when it reads as a number); null for any other kind of value.</returns>
+        private static ScaleInvalidOutput? ScaleInvalidOutputOf(ConfigNode value) => value.Kind switch
+        {
+            ConfigNodeKind.Number => new ScaleInvalidOutput(value.NumberValue, null),
+            ConfigNodeKind.String => new ScaleInvalidOutput(double.IsNaN(ExpressionEvaluator.ToNumber(value.StringValue!)) ? null : ExpressionEvaluator.ToNumber(value.StringValue!), value.StringValue),
+            _ => null,
+        };
 
         /// <summary>
         ///     Gets the data value that scales to Vega-Lite's <c>zeroOrMin</c>.
@@ -1381,6 +1416,12 @@ internal sealed partial class MarkBuilder
                 return whole;
             }
 
+            // A ranged offset spans from the zero of its offset scale to its value, both inside the band of the position (Vega-Lite's rangePosition with the offset of the in-band zero as y2)
+            if (channel is { Offset: { Ranged: true } ranged, Model: { Kind: ScaleKind.Band or ScaleKind.Point } bandModel })
+            {
+                return bandModel.Map(channel.Read(_table, row)) is { } start && ranged.Range(_table, row) is { } span ? (start + span.Value, start + span.Zero) : null;
+            }
+
             if (channel.Model is { } model)
             {
                 if (channel.IsStacked || channel.HasRange)
@@ -1465,6 +1506,13 @@ internal sealed partial class MarkBuilder
         {
             var extent = isX ? _width : _height;
             var model = channel?.Model;
+
+            // A ranged offset spans from the zero of the offset scale to its value inside the band
+            if (channel is { Offset.Ranged: true })
+            {
+                return RangePair(isX, channel, row) is { } ranged ? (Math.Min(ranged.Main, ranged.Other), Math.Abs(ranged.Main - ranged.Other)) : null;
+            }
+
             if (model is { Kind: ScaleKind.Band or ScaleKind.Point })
             {
                 return BandSpan(channel!, model, sizing, row);
@@ -1736,10 +1784,26 @@ internal sealed partial class MarkBuilder
                 return [];
             }
 
-            // A range on one channel (x2 or y2) decides the direction of the rule, as a stack does for its measure axis
+            // A range on one channel (x2 or y2) decides the direction of the rule, as a stack does for its measure axis. A channel whose data is binned already (bin: "binned") with its end is not
+            // a range of the rule (Vega-Lite's orient of a rule, mark/init.ts): a rule that has such an x and a range on y is vertical, at the middle of the bin
             var xRange = x is { HasRange: true };
             var yRange = y is { HasRange: true };
-            var vertical = xRange == yRange ? _orient != "horizontal" : yRange;
+            var xBinned = x?.Scale is { Bin: BinKind.Binned };
+            var yBinned = y?.Scale is { Bin: BinKind.Binned };
+            var segment = xRange && !xBinned && yRange && !yBinned;
+            bool vertical;
+            if (yRange)
+            {
+                vertical = !yBinned;
+            }
+            else if (xRange)
+            {
+                vertical = xBinned;
+            }
+            else
+            {
+                vertical = _orient != "horizontal";
+            }
             var widthDefault = Def("strokeWidth")?.AsNumber() ?? Def("size")?.AsNumber() ?? Prop("strokeWidth", vega: true)?.AsNumber();
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
             var rows = MarkRows();
@@ -1763,7 +1827,7 @@ internal sealed partial class MarkBuilder
                 }
 
                 (double X, double Y, double X2, double Y2)? line = null;
-                if (xRange && yRange)
+                if (segment)
                 {
                     // Both channels span a range: the rule is the segment from (x, y) to (x2, y2)
                     if (RangePair(isX: true, x, row) is { } both && RangePair(isX: false, y, row) is { } other)

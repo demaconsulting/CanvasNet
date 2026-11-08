@@ -223,17 +223,21 @@ sections:
           - id: CanvasNetVegaLite-Marks-InvalidDataAndOrder
             title: >-
               The Marks subsystem shall break (or, in the filter mode, connect) a path at a row that has no
-              number on a continuous channel, keep such rows in the domains of the scales, and draw the items of
+              number on a continuous channel, keep such rows in the domains of the scales, draw the rows of a
+              channel that config.scale.invalid names at the output that it gives them whatever the invalid
+              mode of the mark is, and draw the items of
               every mark in the order of the order channel.
             justification: |
               A gap in the data must show as a gap, and the order of drawing decides which mark is on top.
             children:
               - CanvasNetVegaLite-Marks-CurveBuilder-DefinedGaps
               - CanvasNetVegaLite-Marks-MarkBuilder-InvalidData
+              - CanvasNetVegaLite-Marks-MarkBuilder-ScaleInvalid
               - CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
             tests:
               - CurveBuilder_Line_UndefinedPointsStartNewSubpaths
               - MarkBuilder_Build_DefaultInvalidModeBreaksThePath
+              - MarkBuilder_Build_ScaleInvalidValuesAreTheOutputOfTheChannel
               - MarkBuilder_Build_OrderChannelSortsTheDrawOrderOfAnyMark
 
           - id: CanvasNetVegaLite-Marks-TextMarks
@@ -272,18 +276,22 @@ sections:
               The Marks subsystem shall draw the marks of the xOffset and yOffset channels of Vega-Lite - grouped
               bars and offset points, lines, text, rules, and ticks - at the position of their group and offset,
               with the width of the offset band for bars, stacked within a group only, inside the unit of a
-              temporal position with a time unit, and without drawing a row
+              temporal position with a time unit, and, for a bar or an area with a ranged offset (an unbinned
+              quantitative offset of a nominal or ordinal position), spanning inside the band from the zero of
+              the offset scale to the offset value, and without drawing a row
               that has no valid offset.
             justification: |
               Grouped bars are one of the most common bar charts; the marks of a subgroup must stand side by
               side in the band of their group or inside their month.
             children:
               - CanvasNetVegaLite-Marks-MarkBuilder-Offsets
+              - CanvasNetVegaLite-Marks-MarkBuilder-RangedOffsets
             tests:
               - MarkBuilder_Build_GroupedBarsHaveTheOffsetBandWidthAtTheOffsetPosition
               - MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth
               - MarkBuilder_Build_PointsSitAtTheBandStartPlusTheOffsetPoint
               - MarkBuilder_Build_RowWithInvalidOffsetIsNotDrawn
+              - MarkBuilder_Build_YOffsetBarsSpanFromTheBaselineToTheOffsetValue
 
           - id: CanvasNetVegaLite-Marks-ImageMarks
             title: >-

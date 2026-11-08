@@ -3,12 +3,14 @@
 ![Expressions Structure](VegaLiteExpressionsView.svg)
 
 The `ExpressionFunctions` unit is the third software unit in the `Expressions` subsystem. It
-comprises twelve source files in
+comprises thirteen source files in
 the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 
 - `ExpressionFunctions.cs` - `ExpressionFunctions` (static partial class): the frozen function table, `Names`, `TryGet`,
   `Invoke`, and the math functions
 - `ExpressionFunctions.Text.cs` - the string and array functions
+- `ExpressionFunctions.Casing.cs` - the case conversion of `lower` and `upper`
+- `ExpressionFunctions.Distributions.cs` - the nine probability distribution functions (`AddDistributions`)
 - `ExpressionFunctions.Types.cs` - the type-checking and conversion functions (including `toDate`)
 - `ExpressionFunctions.Regex.cs` - `regexp`, `test`, and the regular expression forms of `replace` and `split`
 - `ExpressionFunctions.Time.cs` - the date and time functions (`AddTime`)
@@ -27,13 +29,18 @@ the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 context that bounds their work. It exists so that the security boundary of the expression language is one frozen list: a
 function is callable only if it is in this table, and every function in it is deterministic,
 culture-invariant, free of side
-effects, and bounded in time and memory. Color, geographic, scale, statistical, and data-flow
+effects, and bounded in time and memory. Color, geographic, scale, and data-flow
 functions are not in the table (they are reported by the `FeatureCatalog` and evaluate to null; `luminance`, `geoarea`,
 and `now` are examples), and there is no
 `random` function and no `now` function (the clock is not an input of a pure expression; `now` is reported as
 `vl-expr-function-now` and evaluates to null). The date and time functions are in the table; they compute with the
 calendar of the evaluation (see _Time Calendar Design_ and _Time Format Design_), never with the host's zone, clock, or
-culture. So is the number `format` function, which formats with the en-US d3-format of the `NumberFormat` unit.
+culture. So is the number `format` function, which formats with the en-US d3-format of the `NumberFormat` unit. Of
+Vega's statistical functions the nine **distribution functions** are in the table (Phase 14); the four **sampling
+functions** `random`, `sampleNormal`, `sampleLogNormal`, and `sampleUniform` are **not**: an expression must be a pure
+deterministic function of its datum and parameters, and Vega's `random` is the unseeded `Math.random`, so a sampling
+function would make a picture depend on something else. They are reported (`vl-expr-function-random`,
+`vl-expr-function-samplenormal`, ...) and evaluate to null, like `now`.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-ExpressionFunctions-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/expressions/expression-functions.yaml`.
@@ -45,7 +52,7 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-Expressio
 `(ReadOnlySpan<DataValue> arguments, ExpressionFunctionContext context) -> DataValue`; an
 argument that is not supplied is simply missing (JavaScript's `undefined`: NaN as a number, the
 text `undefined` as text), and
-an optional argument that is null counts as not supplied. The 104 functions are:
+an optional argument that is null counts as not supplied. The 113 functions are:
 
 - **Math (27)**: `abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `ceil`, `clamp`, `cos`, `cosh`, `exp`,
   `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`,
@@ -77,6 +84,9 @@ an optional argument that is null counts as not supplied. The 104 functions are:
   `utcParse`; and the name formatters `monthFormat`, `monthAbbrevFormat`, `dayFormat`, and `dayAbbrevFormat`. With
   `toDate` these are the 42 functions that Phase 8 added. `now` is deliberately not among them.
 - **Number formatting (1)**: `format(value, specifier)`, Vega's number format (see _Number formatting_ below).
+- **Distributions (9)**: `densityNormal`, `cumulativeNormal`, `quantileNormal`, `densityLogNormal`,
+  `cumulativeLogNormal`, `quantileLogNormal`, `densityUniform`, `cumulativeUniform`, and `quantileUniform`, the
+  functions of `vega-statistics` 2.0.0 (see _Distribution Functions_ below).
 
 **Date and time rules.** A date value is an instant in whole milliseconds since the Unix epoch (`DataValue.FromDate`),
 valid in the years 1 to 9999 (`TimeCalendar.IsValid`); where JavaScript gives an `Invalid Date` a function gives null for
@@ -144,6 +154,24 @@ budget and a result longer than `MaxStringLength` is a runtime error. The specia
 cases are those of `NumberFormat`: `d` of an infinity is the infinity sign U+221E, and `f` of 1e21 is `1e+21` (as
 JavaScript's `toFixed`).
 
+**Distribution Functions.** `ExpressionFunctions.Distributions.cs` ports `normal.js`, `lognormal.js`, and `uniform.js`
+of `vega-statistics` 2.0.0 (Vega 6.4) operation by operation, so the results are those of the reference up to the
+host's `exp` and `log`. The cumulative normal is West's (2009) approximation, shared with the kernel density
+(`KernelDensity.NormalCdf`); the normal quantile uses the inverse error function of Giles in the double-precision form
+of Apache Commons Math that Vega ports (infinite at plus and minus one); `densityNormal` and `densityLogNormal` use
+`StatisticsPrimitives.SqrtTwoPi`; the log-normal functions are the normal ones of the logarithm and the exponential. A
+quantile of a probability outside 0 to 1 is NaN. The functions reproduce JavaScript's defaults and coercions, as the
+reference code evaluates them: the mean (and the minimum of a uniform) is `mean || 0`, so a falsy one (0, NaN, null, a
+missing argument, the empty text, false) is 0; the deviation is `stdev == null ? 1 : stdev`; a uniform function
+without a maximum takes the minimum as the maximum and 0 as the minimum (without a minimum too, the interval is 0 to
+1); the arguments of the arithmetic are read as JavaScript reads them (null is 0, a missing argument is NaN, a text is
+parsed); the comparisons of the uniform functions and of `quantileNormal` are JavaScript's relational comparison (two
+texts compare as texts, a comparison with NaN is false); and a text mean of `quantileNormal`, or a text minimum of
+`quantileUniform`, gives the concatenation of JavaScript's `+` (bounded by `MaxStringLength`). Each call is a constant
+amount of work. `densityLogNormal` of a value of 0 or less is 0 (a NaN value is not). The oracle of the unit tests is
+`vega-statistics` 2.0.0 itself (relative tolerance 1e-12), plus the closed forms and the numerical integral of the
+density; the notices of Vega and Apache Commons Math are in `third-party/README.md`.
+
 **`ExpressionFunctionContext`** is the per-evaluation state: the step counter and budget (`MaxEvaluationSteps`), the
 string limit (`MaxStringLength`), `MaxArrayLength` (the most elements a function may build into one array, which is the
 `MaxScaleDomainSize` limit and bounds the date sequences), `Calendar` (the `TimeCalendar` of the date and time
@@ -205,12 +233,12 @@ number 0 as in Vega). The functions charge the step budget by the work they do.
 
 #### Key Methods
 
-- `Names()` - the 104 names in ordinal order; `TryGet(name, out function)` - a case-sensitive lookup used by the
+- `Names()` - the 113 names in ordinal order; `TryGet(name, out function)` - a case-sensitive lookup used by the
   parser to
   decide whether a call is supported; `Invoke(name, arguments, context)` - calls a function (a name that is not in the table
   is an `ArgumentException`, a programming error because the parser never compiles such a call).
 - Each family registers its functions in one method (`AddMath`, `AddText`, `AddTypes`,
-  `AddRegex`, `AddTime`, `AddNumber`, `AddSelection`); `BuildTable` freezes the
+  `AddRegex`, `AddTime`, `AddNumber`, `AddSelection`, `AddDistributions`); `BuildTable` freezes the
   result. The helpers convert arguments the JavaScript way (`Num`, `Text`, an integer-or-infinity conversion, a position
   clamp, and a position that counts from the end) and check results against `MaxStringLength` before a string is built.
 - `Instant`, `Components`, `OffsetDate`, `Sequence`, `FormatTime`, and `ParseTime` (private, in the time file) - the
@@ -257,6 +285,7 @@ number); a `TimeRangeLimitException` and a `TimeFormatTooLongException` of the `
 
 `ExpressionParser` calls `TryGet` to decide whether a call is supported and stores the function in the program;
 `ExpressionEvaluator` invokes the function delegates of a program and owns the `ExpressionFunctionContext`. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTests.cs` and `ExpressionFunctionsTimeTests.cs`
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTests.cs`, `ExpressionFunctionsTimeTests.cs`,
+and `ExpressionFunctionsDistributionTests.cs`
 call `Names`, `Invoke`, and the context
 directly through `InternalsVisibleTo`.

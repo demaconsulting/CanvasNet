@@ -228,7 +228,7 @@ internal sealed partial class TimeCalendar
             return 0;
         }
 
-        return (int)FloorMod(DaysFromCivil((long)Math.Truncate(year), 1, 1) + 4, 7);
+        return (int)FloorMod(DaysFromCivil(NumericConversions.ToInt64Saturating(year), 1, 1) + 4, 7);
     }
 
     /// <summary>
@@ -297,7 +297,7 @@ internal sealed partial class TimeCalendar
     /// <returns>The parts of a valid result.</returns>
     private static DateParts PartsFromWall(double wall, double offset)
     {
-        var milliseconds = (long)wall;
+        var milliseconds = NumericConversions.ToInt64Saturating(wall);
         var days = FloorDiv(milliseconds, 86_400_000L);
         var msOfDay = (int)(milliseconds - (days * 86_400_000L));
         CivilFromDays(days, out var year, out var month, out var day);
@@ -325,14 +325,14 @@ internal sealed partial class TimeCalendar
     /// <returns>The day number from 1970-01-01, or NaN when the arguments are too large to matter.</returns>
     private static double MakeDay(double year, double month, double date)
     {
-        // The month carries into the year; the magnitudes are limited so that the integer arithmetic cannot overflow
+        // The month carries into the year; the magnitudes are limited so that the integer arithmetic cannot overflow (written so that NaN is refused too)
         var carriedYear = year + Math.Floor(month / 12.0);
-        if (Math.Abs(carriedYear) > MaxMagnitude || Math.Abs(date) > MaxDayMagnitude)
+        if (!(Math.Abs(carriedYear) <= MaxMagnitude) || !(Math.Abs(date) <= MaxDayMagnitude))
         {
             return double.NaN;
         }
 
-        var monthIndex = (int)(month - (12.0 * Math.Floor(month / 12.0)));
-        return DaysFromCivil((long)carriedYear, monthIndex + 1, (long)date);
+        var monthIndex = NumericConversions.ToInt32Saturating(month - (12.0 * Math.Floor(month / 12.0)));
+        return DaysFromCivil(NumericConversions.ToInt64Saturating(carriedYear), monthIndex + 1, NumericConversions.ToInt64Saturating(date));
     }
 }

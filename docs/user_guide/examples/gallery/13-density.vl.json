@@ -1,0 +1,19 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "Kernel density estimates of two invented groups, computed by the density transform and drawn as areas.",
+  "title": "Distribution of reaction times",
+  "width": 320,
+  "height": 180,
+  "data": {"sequence": {"start": 0, "stop": 160, "as": "i"}},
+  "transform": [
+    {"calculate": "datum.i % 2 == 0 ? 'Rested' : 'Tired'", "as": "group"},
+    {"calculate": "(datum.group == 'Rested' ? 280 : 340) + (datum.group == 'Rested' ? 28 : 45) * (sin(datum.i * 1.37) + cos(datum.i * 0.61) + sin(datum.i * 4.1)) / 2", "as": "ms"},
+    {"density": "ms", "groupby": ["group"], "as": ["ms", "density"]}
+  ],
+  "mark": {"type": "area", "opacity": 0.55, "line": true},
+  "encoding": {
+    "x": {"field": "ms", "type": "quantitative", "title": "Reaction time (ms)"},
+    "y": {"field": "density", "type": "quantitative", "stack": null, "title": "Density"},
+    "color": {"field": "group", "type": "nominal", "title": "State"}
+  }
+}

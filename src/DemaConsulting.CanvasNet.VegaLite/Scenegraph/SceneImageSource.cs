@@ -29,6 +29,9 @@ internal sealed class SceneImageSource : IDisposable
     /// <summary>The identifier of the warning for a link that the resolver did not resolve.</summary>
     public const string UnresolvedId = "vl-mark-image-unresolved";
 
+    /// <summary>The most pixels of the copies that <see cref="GetTile"/> keeps in all: 8,388,608, which is 32 MiB of pixels.</summary>
+    internal const long MaxTilePixels = 8_388_608;
+
     /// <summary>The most characters of a link that a message shows.</summary>
     private const int MaxShownUrl = 200;
 
@@ -46,6 +49,12 @@ internal sealed class SceneImageSource : IDisposable
 
     /// <summary>The number of resolver calls made so far.</summary>
     private int _calls;
+
+    /// <summary>The resampled and translucent copies of pictures that are kept for the items that draw them again (see <see cref="GetTile"/>).</summary>
+    private readonly Dictionary<(Surface Picture, bool Smooth, int Width, int Height, double Opacity), Surface> _tiles = [];
+
+    /// <summary>The pixels of the copies in <see cref="_tiles"/>.</summary>
+    private long _tilePixels;
 
     /// <summary>
     ///     Initializes a source of pictures.
@@ -142,6 +151,73 @@ internal sealed class SceneImageSource : IDisposable
     }
 
     /// <summary>
+    ///     Gets the pixels that a picture is sampled from when the item draws it resampled or translucent: the nearest-neighbor copy of a picture that is not smoothed, with the opacity folded into the alpha.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The copy is made once for every picture, size and opacity and shared by the items that ask for the same (an icon for every point), so the work and the memory are those of one copy
+    ///         and not of one per item. The copies that are kept are bounded (<see cref="MaxTilePixels"/> pixels in all): a copy that does not fit is made for the one item and handed out as
+    ///         <paramref name="isTransient"/>, which the caller disposes, so a chart whose items all have a different opacity cannot keep one copy of the picture for each of them.
+    ///     </para>
+    ///     <para>
+    ///         The pixels that the copy works on are reported to <paramref name="charge"/> before it is made (the pixels of the new picture for a smoothed picture with an opacity, the pixels of the
+    ///         resampled picture otherwise), so the painter can count them against <see cref="VegaLiteLimits.MaxPaintedPixels"/>; a copy that is found is not charged again.
+    ///     </para>
+    /// </remarks>
+    /// <param name="picture">The picture of <see cref="Get(string, int, int, VegaLiteLocation, out bool?)"/>, which is not changed.</param>
+    /// <param name="smooth">Whether the picture is smoothed: <see langword="false"/> resamples it to <paramref name="width"/> by <paramref name="height"/> with nearest-neighbor sampling; <see langword="true"/> keeps its size.</param>
+    /// <param name="width">The width of the resampled copy (the width of the picture when it is smoothed).</param>
+    /// <param name="height">The height of the resampled copy (the height of the picture when it is smoothed).</param>
+    /// <param name="opacity">The opacity from 0 to 1 that is multiplied into the alpha of the copy.</param>
+    /// <param name="charge">Told the number of pixels that the work of a copy that is made covers; may throw to refuse the work.</param>
+    /// <param name="isTransient"><see langword="true"/> when the caller owns the surface and must dispose it; <see langword="false"/> when it belongs to this instance.</param>
+    /// <returns>The pixels to sample; the picture itself when it is smoothed and opaque.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="picture"/> or <paramref name="charge"/> is null.</exception>
+    public Surface GetTile(Surface picture, bool smooth, int width, int height, double opacity, Action<long> charge, out bool isTransient)
+    {
+        ArgumentNullException.ThrowIfNull(picture);
+        ArgumentNullException.ThrowIfNull(charge);
+        isTransient = false;
+        if (smooth && opacity >= 1)
+        {
+            return picture;
+        }
+
+        var key = (picture, smooth, width, height, opacity);
+        if (_tiles.TryGetValue(key, out var kept))
+        {
+            return kept;
+        }
+
+        // The copy is charged before it exists, then made
+        charge((long)width * height);
+        var tile = smooth ? picture.Clone() : picture.Resize(width, height, ResamplingMode.Nearest);
+        try
+        {
+            if (opacity < 1)
+            {
+                MultiplyAlpha(tile, opacity);
+            }
+
+            // Kept for the next item when it fits the bound; else it is the one item's
+            if (_tilePixels + ((long)tile.Width * tile.Height) > MaxTilePixels)
+            {
+                isTransient = true;
+                return tile;
+            }
+
+            _tilePixels += (long)tile.Width * tile.Height;
+            _tiles[key] = tile;
+            return tile;
+        }
+        catch
+        {
+            tile.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
     ///     Disposes every surface that the resolver returned.
     /// </summary>
     public void Dispose()
@@ -152,6 +228,30 @@ internal sealed class SceneImageSource : IDisposable
         }
 
         _cache.Clear();
+        foreach (var tile in _tiles.Values)
+        {
+            tile.Dispose();
+        }
+
+        _tiles.Clear();
+        _tilePixels = 0;
+    }
+
+    /// <summary>
+    ///     Multiplies the alpha of every pixel of a surface by a factor.
+    /// </summary>
+    /// <param name="surface">The surface, which is changed (the straight alpha of the pixels is scaled; the colors stay).</param>
+    /// <param name="factor">The factor from 0 to 1.</param>
+    private static void MultiplyAlpha(Surface surface, double factor)
+    {
+        for (var y = 0; y < surface.Height; y++)
+        {
+            var row = surface.GetRowSpan(y);
+            for (var x = 0; x < row.Length; x++)
+            {
+                row[x].A = (byte)Math.Round(row[x].A * factor, MidpointRounding.AwayFromZero);
+            }
+        }
     }
 
     /// <summary>

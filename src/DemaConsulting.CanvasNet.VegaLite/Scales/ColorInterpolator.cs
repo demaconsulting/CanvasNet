@@ -1,6 +1,7 @@
 // Portions derived from d3-interpolate and d3-color (ISC, Mike Bostock) and Vega (BSD-3-Clause); see third-party/README.md
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 
@@ -797,7 +798,7 @@ internal sealed class ColorRamp
         }
 
         var scaled = t * n;
-        var i = (int)Math.Max(0, Math.Min(n - 1, Math.Floor(scaled)));
+        var i = NumericConversions.ToInt32Saturating(Math.Max(0, Math.Min(n - 1, Math.Floor(scaled))));
         return ColorInterpolator.FromSpace(
             _space,
             ColorInterpolator.Mix(_space, _stops[i], _stops[i + 1], scaled - i, _gamma));

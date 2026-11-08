@@ -545,7 +545,7 @@ internal sealed partial class SpecParser
         }
 
         var description = message.Contains("depth", StringComparison.OrdinalIgnoreCase)
-            ? $"The specification is nested deeper than the limit of {_limits.MaxJsonDepth} levels."
+            ? $"The specification is nested deeper than the limit of {_limits.MaxJsonDepth} levels (VegaLiteLimits.MaxJsonDepth)."
             : "Malformed JSON: " + message;
         return new VegaLiteSpecException(description, location, ex);
     }

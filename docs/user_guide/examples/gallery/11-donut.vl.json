@@ -1,0 +1,25 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A donut chart: arcs with an inner radius and a text label at the middle of each slice. The rows are in the reverse order of the legend, because the text layer has no color field and stacks the rows in reverse order.",
+  "title": "Share of a market stall's takings",
+  "width": 220,
+  "height": 220,
+  "data": {"values": [
+    {"item": "Vegetables", "share": 27}, {"item": "Honey", "share": 11}, {"item": "Fruit", "share": 38},
+    {"item": "Flowers", "share": 6}, {"item": "Cheese", "share": 18}
+  ]},
+  "encoding": {
+    "theta": {"field": "share", "type": "quantitative", "stack": true},
+    "color": {"field": "item", "type": "nominal", "scale": {"scheme": "tableau10"}, "title": "Item"}
+  },
+  "layer": [
+    {"mark": {"type": "arc", "innerRadius": 50, "outerRadius": 100, "stroke": "white"}},
+    {
+      "mark": {"type": "text", "radius": 78, "fontSize": 12, "fontWeight": "bold"},
+      "encoding": {
+        "text": {"field": "share", "type": "quantitative"},
+        "color": {"value": "white"}
+      }
+    }
+  ]
+}

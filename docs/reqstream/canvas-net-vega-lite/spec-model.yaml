@@ -137,6 +137,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-OffsetReports
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-ScaleInvalidReports
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
@@ -145,13 +146,14 @@ sections:
               - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
               - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
               - FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning
-              - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
+              - FeatureCatalog_Visit_BinnedTimeUnitIsNotReported
               - FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing
               - FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot
               - FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated
               - FeatureCatalog_Visit_LayerCompositionIsNeverReported
               - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
               - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
+              - FeatureCatalog_Visit_UnreadableScaleInvalidEntriesAreReported
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
 
           - id: CanvasNetVegaLite-SpecModel-LayerValidation

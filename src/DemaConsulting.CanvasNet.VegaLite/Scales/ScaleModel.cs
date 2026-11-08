@@ -309,6 +309,13 @@ internal sealed class ScaleTransform
 }
 
 /// <summary>
+///     The output of a scale for a value that is not a number: Vega-Lite's <c>config.scale.invalid</c> value of a channel (<c>{"value": ...}</c>).
+/// </summary>
+/// <param name="Number">The output of a number channel (a position in pixels, a size, an opacity, a stroke width, an angle), or null when the value is not a number.</param>
+/// <param name="Text">The output of a text channel (a color), or null when the value is not a text.</param>
+internal sealed record ScaleInvalidOutput(double? Number, string? Text);
+
+/// <summary>
 ///     An immutable scale: the mapping from data values to positions, sizes, opacities or colors.
 /// </summary>
 /// <remarks>
@@ -401,6 +408,33 @@ internal sealed class ScaleModel
 
     /// <summary>Gets the kind of scale.</summary>
     public ScaleKind Kind { get; }
+
+    /// <summary>
+    ///     Gets the output that a value that is not a number has, or null when there is none (the value has no output).
+    /// </summary>
+    /// <remarks>
+    ///     It is Vega-Lite's <c>config.scale.invalid</c> value of the channel (<c>{"value": ...}</c>): a constant that the mark property takes as it is (a position in pixels, a size, an opacity, a color text),
+    ///     not passed through the scale. It is set by <see cref="WithInvalidOutput"/> and only for a scale with a continuous domain (a discrete scale has an output for every value).
+    /// </remarks>
+    public ScaleInvalidOutput? InvalidOutput { get; private set; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the scale has a continuous domain (Vega-Lite's <c>hasContinuousDomain</c>): a linear, time, UTC, sequential, diverging, quantize, quantile or threshold scale.
+    /// </summary>
+    public bool HasContinuousDomain => Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc or ScaleKind.Sequential or ScaleKind.Diverging or ScaleKind.Quantize or ScaleKind.Quantile or ScaleKind.Threshold;
+
+    /// <summary>
+    ///     Creates a copy of the model that gives a value that is not a number an output.
+    /// </summary>
+    /// <param name="output">The output.</param>
+    /// <returns>The copy; the model itself does not change.</returns>
+    public ScaleModel WithInvalidOutput(ScaleInvalidOutput output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        var copy = (ScaleModel)MemberwiseClone();
+        copy.InvalidOutput = output;
+        return copy;
+    }
 
     /// <summary>Gets the start of the numeric domain of a linear scale (the first entry of the complete domain).</summary>
     public double DomainStart { get; private init; }
@@ -919,6 +953,12 @@ internal sealed class ScaleModel
     /// <returns>The mapped number, or <see langword="null"/> when the value is invalid or outside the domain.</returns>
     public double? Map(DataValue value)
     {
+        // The output of Vega-Lite's config.scale.invalid for a value that is not a number: the channel is valid and takes it as it is
+        if (InvalidOutput is { } invalid && HasContinuousDomain && !value.TryGetQuantitative(out _))
+        {
+            return invalid.Number;
+        }
+
         switch (Kind)
         {
             case ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc:
@@ -951,6 +991,11 @@ internal sealed class ScaleModel
     /// <returns>The text, or <see langword="null"/> when the value has none or the scale does not output texts.</returns>
     public string? MapText(DataValue value)
     {
+        if (InvalidOutput is { } invalid && HasContinuousDomain && !value.TryGetQuantitative(out _))
+        {
+            return invalid.Text;
+        }
+
         switch (Kind)
         {
             case ScaleKind.Sequential or ScaleKind.Diverging:

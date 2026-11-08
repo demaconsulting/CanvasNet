@@ -418,6 +418,7 @@ public sealed partial class VegaLiteDocument
         // The root is zero by zero and its "guides" are the bounds of the content, so the canvas is the content plus the padding
         var extents = LegendLayout.Combine(default, content.Bounds, 0, 0);
         var measure = ViewLayout.Measure(request, extents);
+        RequireFiniteSize(measure);
         return new ChartPlan(measure.NaturalSize, ViewLayout.Build(request, measure, [content.Group]), measurer);
     }
 
@@ -762,14 +763,14 @@ public sealed partial class VegaLiteDocument
                 var settings = HeaderSettings.Read(_config, definition["header"], channel, honoredOrientsOnly: true);
                 var location = definition.GetLocation(_sourceName);
                 var calendar = _layers.Count > 0 ? _layers[0].Data.Evaluation.Calendar : null;
-                var unit = definition["timeUnit"] is { } unitNode && TimeUnitSpec.TryRead(unitNode, out var parsedUnit) && !parsedUnit.IsBinned && parsedUnit.Parts.Count > 0 ? parsedUnit : null;
+                var unit = definition["timeUnit"] is { } unitNode && TimeUnitSpec.TryRead(unitNode, out var parsedUnit) && parsedUnit.Parts.Count > 0 ? parsedUnit : null;
                 Func<DataValue, IReadOnlyList<string>>? label = settings.ShowLabels
                     ? WithLabelExpression(
                         settings,
                         settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), unit, calendar, _limits.MaxStringLength, location), _sourceName),
                         location)
                     : null;
-                created = new FacetChannel(settings, label, TitleLinesOf(definition, settings), location);
+                created = new FacetChannel(settings, label, TitleLinesOf(definition, settings, _config), location);
             }
 
             _facetChannels[(facet, channel)] = created;
@@ -804,12 +805,14 @@ public sealed partial class VegaLiteDocument
         }
 
         /// <summary>
-        ///     Gets the lines of the title of a facet channel: the title of the header, else the title of the field definition, else the name of the field.
+        ///     Gets the lines of the title of a facet channel: the title of the header, else the title of the field definition, else the default title of the field (Vega-Lite's <c>title</c> of a
+        ///     field definition: <c>Sum of f</c>, <c>f (binned)</c>, <c>f (year-month)</c>, or the name of the field).
         /// </summary>
         /// <param name="definition">The field definition of the channel.</param>
         /// <param name="settings">The header properties of the channel.</param>
+        /// <param name="config">The effective configuration (<c>fieldTitle</c>, <c>countTitle</c>).</param>
         /// <returns>The lines; none when the title is switched off (<c>null</c>, or <c>header: null</c>).</returns>
-        private static IReadOnlyList<string> TitleLinesOf(SpecNode definition, HeaderSettings settings)
+        private static IReadOnlyList<string> TitleLinesOf(SpecNode definition, HeaderSettings settings, ResolvedConfig config)
         {
             if (settings.Hidden)
             {
@@ -827,7 +830,7 @@ public sealed partial class VegaLiteDocument
                 return written.IsArray ? [.. written.Items.Where(i => i.IsString).Select(i => i.StringValue!)] : [];
             }
 
-            return settings.IncludeDefaultTitle && definition["field"]?.AsString() is { } field ? [field] : [];
+            return settings.IncludeDefaultTitle && definition["field"]?.AsString() is { } field ? [EncodingPlan.DefaultFieldTitle(definition, field, config)] : [];
         }
 
         /// <summary>

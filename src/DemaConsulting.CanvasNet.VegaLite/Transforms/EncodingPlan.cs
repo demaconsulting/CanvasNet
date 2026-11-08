@@ -41,6 +41,16 @@ internal sealed record BinPlan(
     string Format);
 
 /// <summary>
+///     The transform entry that computes the <c>aggregate</c> of a channel of a composite mark, and the field the channel then reads.
+/// </summary>
+/// <param name="Op">The operation as written (<c>mean</c>, <c>count</c>, <c>argmax</c>, <c>exponential</c>, ...).</param>
+/// <param name="Field">The field the operation reads (the compared field of an <c>argmax</c>); null for a count.</param>
+/// <param name="As">The literal name of the field that receives the result (<c>mean_age</c>, <c>__count</c>, <c>argmax_by</c>).</param>
+/// <param name="Param">The weighting parameter of an exponential operation; null otherwise.</param>
+/// <param name="ChannelField">The field path the channel reads: <paramref name="As"/> escaped, or the member of the row an <c>argmax</c> returns (<c>argmax_by.field</c>).</param>
+internal sealed record CompositeAggregate(string Op, string? Field, string As, double? Param, string ChannelField);
+
+/// <summary>
 ///     The implicit time unit of a field that one or more encoding channels share (Vega-Lite names it by its unit and field, not by its channel).
 /// </summary>
 /// <param name="StartName">The literal name of the field that receives the start of the unit (<c>yearmonth_date</c>).</param>
@@ -55,7 +65,17 @@ internal sealed record TimeUnitPlan(
     string SourceField,
     TimeUnitSpec Spec,
     SpecNode Node,
-    bool HasBandEnd);
+    bool HasBandEnd)
+{
+    /// <summary>
+    ///     Gets the field path of the start of the unit: the derived field (the escaped <see cref="StartName"/>), or for a <c>binned</c> unit the field itself, which already holds the start
+    ///     (Vega-Lite's <c>vgField</c> leaves a binned unit out of the name; <see cref="StartName"/> is then the canonical path of the field).
+    /// </summary>
+    public string StartPath => Spec.IsBinned ? StartName : FieldPath.Escape(StartName);
+
+    /// <summary>Gets the field path of the end of the unit.</summary>
+    public string EndPath => FieldPath.Escape(EndName);
+}
 
 /// <summary>
 ///     One channel definition of an encoding and what the implicit pipeline makes of it.
@@ -343,6 +363,9 @@ internal sealed class EncodingPlan
             BinPlan = c.BinPlan is { } shared ? finalBins[shared.StartName] : null,
             TimeUnit = c.TimeUnit is { } sharedUnit ? finalUnits[sharedUnit.StartName] : null,
         })];
+
+        // A binned unit has nothing to compute unless a channel reads its end (the field is the start already)
+        unitPlans = [.. unitPlans.Where(u => !u.Spec.IsBinned || u.HasBandEnd)];
         var decision = StackRules.Decide(markType, orient, encoding);
         var stack = decision is null ? null : PlanStack(decision, encoding, channels);
         if (stack is not null)
@@ -498,11 +521,12 @@ internal sealed class EncodingPlan
         TimeUnitPlan? timeUnitPlan = null;
         var hasBandEnd = false;
         if (bin == BinKind.None && aggregate is null && source is not null && !StackRules.IsEnabled(fieldDefinition["bin"])
-            && fieldDefinition["timeUnit"] is { IsNull: false } unitNode && TimeUnitSpec.TryRead(unitNode, out var unit) && !unit.IsBinned)
+            && fieldDefinition["timeUnit"] is { IsNull: false } unitNode && TimeUnitSpec.TryRead(unitNode, out var unit))
         {
-            // The field the channel reads is the start of its time unit; a bar or rect also reads the end, as the second end of its position
-            var start = unit.FieldName(source);
+            // The field the channel reads is the start of its time unit; a bar or rect also reads the end, as the second end of its position.
+            // A binned unit (the data is floored already) reads the field itself and has an end only where a channel spans the unit (Vega-Lite's TimeUnitNode.makeFromEncoding)
             hasBandEnd = SpansUnit(channel, fieldDefinition, time, config);
+            var start = unit.IsBinned ? FieldPath.Canonicalize(source)! : unit.FieldName(source);
             if (!time.Units.TryGetValue(start, out var unitBuilder))
             {
                 unitBuilder = new TimeUnitBuilder(start, source, unit, unitNode);
@@ -510,13 +534,15 @@ internal sealed class EncodingPlan
             }
 
             unitBuilder.HasBandEnd |= hasBandEnd;
-            valueField = EscapeName(start);
-            rawField = valueField;
-            field2 = hasBandEnd ? EscapeName(start + "_end") : null;
             timeUnitPlan = unitBuilder.Build();
+            valueField = timeUnitPlan.StartPath;
+            rawField = valueField;
+            field2 = hasBandEnd ? timeUnitPlan.EndPath : null;
         }
 
-        var title = valueField is null ? null : DefaultTitle(source, aggregate, bin == BinKind.Binning, timeUnitPlan?.Spec, config);
+        // A binned unit leaves the title as the field (Vega-Lite's verbal and functional formatters skip it)
+        var titleUnit = timeUnitPlan is { Spec.IsBinned: false } ? timeUnitPlan.Spec : null;
+        var title = valueField is null ? null : DefaultTitle(source, aggregate, bin == BinKind.Binning, titleUnit, config);
         return new ChannelPlan(
             channel,
             definition,
@@ -594,7 +620,7 @@ internal sealed class EncodingPlan
     /// (there are five dash patterns), else 10.</returns>
     internal static double AutoMaxBins(string channel) => channel switch
     {
-        "color" or "fill" or "stroke" or "size" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeWidth" or "shape" => 6,
+        "color" or "fill" or "stroke" or "size" or "opacity" or "fillOpacity" or "strokeOpacity" or "strokeWidth" or "shape" or "row" or "column" => 6,
         "strokeDash" => 4,
         _ => DefaultPositionMaxBins,
     };
@@ -705,10 +731,10 @@ internal sealed class EncodingPlan
         else if (plan.TimeUnit is { } unit)
         {
             // The end of a unit follows from its start, so it adds no group; the aggregate keeps it for the marks that span the unit
-            yield return EscapeName(unit.StartName);
+            yield return unit.StartPath;
             if (plan.HasBandEnd)
             {
-                yield return EscapeName(unit.EndName);
+                yield return unit.EndPath;
             }
         }
         else if (plan.SourceField is { } field)
@@ -752,7 +778,7 @@ internal sealed class EncodingPlan
             }
             else if (plan.HasBandEnd)
             {
-                groupBy.Add(EscapeName(plan.TimeUnit!.EndName));
+                groupBy.Add(plan.TimeUnit!.EndPath);
             }
         }
 
@@ -983,6 +1009,81 @@ internal sealed class EncodingPlan
     /// <returns>The title.</returns>
     internal static string DefaultTimeUnitTitle(string source, TimeUnitSpec unit, ResolvedConfig config) =>
         TimeUnitTitle(source, unit, config.GetString("fieldTitle") ?? "verbal");
+
+    /// <summary>
+    ///     Tells whether a <c>bin</c> value asks Vega-Lite to bin the data (<c>isBinning</c> of <c>bin.ts</c>): <c>true</c> or an object whose <c>binned</c> is not true.
+    /// </summary>
+    /// <param name="bin">The <c>bin</c> value, or null.</param>
+    /// <returns><see langword="true"/> for <c>true</c> and for parameters that do not say <c>binned: true</c>; false for <c>false</c>, <c>null</c>, <c>"binned"</c> and <c>{"binned": true}</c>.</returns>
+    internal static bool IsBinning(SpecNode? bin) =>
+        bin is { IsBoolean: true, BoolValue: true } || (bin is { IsObject: true } && bin["binned"] is not { IsBoolean: true, BoolValue: true });
+
+    /// <summary>
+    ///     Gets the field that an <c>aggregate</c> in a field definition names when no transform computes it (Vega-Lite's <c>vgField</c> with an <c>aggregate</c>: <c>sum_field</c>, <c>__count</c>,
+    ///     <c>argmax_by.field</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Vega-Lite computes the <c>aggregate</c> of a unit view's encoding only (<c>AggregateNode.makeFromEncoding</c> takes a unit model), so a facet field that aggregates reads the field of that
+    ///     name from the data: one that an <c>aggregate</c> or <c>window</c> transform wrote, else nothing (a single null cell).
+    /// </remarks>
+    /// <param name="aggregate">The <c>aggregate</c> value, or null.</param>
+    /// <param name="source">The field path as written.</param>
+    /// <returns>The canonical field path; null when the definition does not aggregate (or names an operation that is not one).</returns>
+    internal static string? AggregateFieldPath(SpecNode? aggregate, string source) =>
+        ParseAggregate(aggregate, source) is { } measure ? measure.ArgOutput ?? EscapeName(measure.Spec.Name) : null;
+
+    /// <summary>
+    ///     Describes the <c>aggregate</c> of a channel of a composite mark as the transform entry that computes it (Vega-Lite's <c>extractTransformsFromEncoding</c>).
+    /// </summary>
+    /// <param name="aggregate">The <c>aggregate</c> value.</param>
+    /// <param name="source">The field path as written, or null for a count.</param>
+    /// <returns>The entry; null when the value is not an aggregate that applies to the field.</returns>
+    internal static CompositeAggregate? DescribeAggregate(SpecNode aggregate, string? source)
+    {
+        if (ParseAggregate(aggregate, source) is not { } measure)
+        {
+            return null;
+        }
+
+        var field = measure.Spec.Op == AggregateOp.Count ? null : measure.ArgField ?? source;
+        double? parameter = AggregateMeasures.IsExponential(measure.Spec.Op) ? measure.Spec.Param : null;
+        return new CompositeAggregate(measure.Text, field, measure.Spec.Name, parameter, measure.ArgOutput ?? EscapeName(measure.Spec.Name));
+    }
+
+    /// <summary>
+    ///     Gets the default title of a field definition (Vega-Lite's <c>title</c> of a field definition: the verbal, plain or functional text of its count, bin, time unit or aggregate).
+    /// </summary>
+    /// <param name="definition">The field definition (a facet field, or a channel of a composite mark).</param>
+    /// <param name="source">The field path as written.</param>
+    /// <param name="config">The configuration (<c>fieldTitle</c>, <c>countTitle</c>).</param>
+    /// <returns>The title; the field when the definition has no transform.</returns>
+    internal static string DefaultFieldTitle(SpecNode definition, string source, ResolvedConfig config)
+    {
+        var aggregate = ParseAggregate(definition["aggregate"], source);
+        var binning = IsBinning(definition["bin"]);
+        var unit = definition["timeUnit"] is { IsNull: false } unitNode && TimeUnitSpec.TryRead(unitNode, out var parsed) && !parsed.IsBinned ? parsed : null;
+
+        // Vega-Lite's verbalTitleFormatter tests the count, then the bin, then the time unit, then the other aggregates
+        string? title;
+        if (aggregate is { Spec.Op: AggregateOp.Count })
+        {
+            title = DefaultTitle(source, aggregate, false, null, config);
+        }
+        else if (binning)
+        {
+            title = DefaultTitle(source, null, true, null, config);
+        }
+        else if (unit is not null)
+        {
+            title = DefaultTitle(source, null, false, unit, config);
+        }
+        else
+        {
+            title = DefaultTitle(source, aggregate, false, null, config);
+        }
+
+        return title ?? source;
+    }
 
     /// <summary>
     ///     Builds the default title of a channel definition (Vega-Lite's <c>defaultTitle</c> for a field definition).

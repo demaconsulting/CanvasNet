@@ -216,6 +216,8 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels
           - CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair
           - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
+          - CanvasNetVegaLite_SystemIntegration_Gallery_HoldsDescribedSpecifications
+          - CanvasNetVegaLite_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
       - id: CanvasNetVegaLite-InlineData
         title: >-
@@ -431,10 +433,14 @@ sections:
         title: >-
           The library shall bound every resource a specification can consume - source length, JSON
           nesting, data rows, fields, files, and bytes, scale domain size, ticks, scene items, views,
-          the nesting depth of layers, and
-          reports - and shall fail closed with a located exception when a limit is exceeded, accepting
-          exactly the limit, and shall observe a cancellation token before and during measuring and
-          rendering by stopping with an unwrapped OperationCanceledException.
+          the nesting depth of layers, the pixels painted (so that marks of a huge size or stroke
+          width, and pictures without a size, cannot make painting run without bound), the work of the
+          transforms (weighted so that the default budget stops each family in about ten seconds), and
+          reports - and shall fail closed with a located exception that names the limit when a limit is
+          exceeded (a chart whose size is not a finite number included), accepting exactly the limit,
+          shall give the same answer for a number beyond the range of an integer on every runtime, and shall
+          observe a cancellation token before and during measuring and rendering, also while the
+          transforms and the painter run, by stopping with an unwrapped OperationCanceledException.
         tags: [system]
         justification: |
           Rendering untrusted specifications must not be able to exhaust memory or time, and callers need
@@ -445,11 +451,21 @@ sections:
           - CanvasNetVegaLite-SpecModel-SpecNormalizer-Limits
           - CanvasNetVegaLite-Data-Limits
           - CanvasNetVegaLite-Marks-Limits
+          - CanvasNetVegaLite-Scenegraph-ScenePainter-PaintBudget
+          - CanvasNetVegaLite-Data-DataTable-NumericConversions
+          - CanvasNetVegaLite-Transforms-StatTransforms-Budgets
         tests:
           - CanvasNetVegaLite_SystemIntegration_Limits_OversizedSourceAndDepthFailClosed
           - CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations
+          - CanvasNetVegaLite_SystemIntegration_Limits_PaintedPixelsStopsExpensivePaintingAtTheMark
+          - CanvasNetVegaLite_SystemIntegration_Limits_NonFiniteLayoutSizeFailsWithALocation
+          - CanvasNetVegaLite_SystemIntegration_Limits_QuantileStepBeyondTheIntegersFailsLocatedAtTheRowLimit
+          - CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns
           - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
           - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
+          - CanvasNetVegaLite_SystemIntegration_Cancellation_IsHonoredWhileTheTransformsAndThePainterRun
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_CostIsRefusedLocatedAndBeforeAllocation
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_CancellationIsHonoredWhileTheStageRuns
           - CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced
           - CanvasNetVegaLite_SystemIntegration_Composition_CancellationIsHonored
           - CanvasNetVegaLite_SystemIntegration_Composition_ViewLimitIsEnforcedForEveryKind
@@ -458,8 +474,12 @@ sections:
       - id: CanvasNetVegaLite-Determinism
         title: >-
           The library shall be deterministic: the same specification and options shall render
-          byte-identical images and give identical reports on every platform, in every culture, on every
-          thread, and for repeated and concurrent renders.
+          pixel-identical surfaces (an encoded PNG is not byte-stable across .NET versions, so
+          determinism is a property of the pixels) and give identical reports on every .NET version the
+          package targets, in every culture, on every thread, in every insertion order of the caller's
+          dictionaries, and for repeated and concurrent renders, with at most the last-bit differences
+          of the floating point library between operating systems (an anti-aliased pixel moves), and it
+          shall read no clock, local time zone, culture, environment variable or random source.
         tags: [system]
         justification: |
           Reproducibility is required for golden tests, caching, and trustworthy use of the results, and a
@@ -472,6 +492,55 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Composition_NestedCompositionsAreDeterministicAndMeasureEqualsRender
           - CanvasNetVegaLite_SystemIntegration_Composition_CultureDoesNotChangeTheScenesOrThePixels
           - VegaLiteDocument_Render_TitledViewIsDeterministicAcrossThreadsAndFontOptions
+          - CanvasNetVegaLite_SystemIntegration_Determinism_ExactPixelPinsAreCurrent
+          - CanvasNetVegaLite_SystemIntegration_Determinism_TolerantChartMatchesItsGolden
+          - CanvasNetVegaLite_SystemIntegration_Determinism_SameSpecificationGivesIdenticalPixelsTwice
+          - CanvasNetVegaLite_SystemIntegration_Determinism_ConcurrentRenderingsGiveTheSamePixels
+          - CanvasNetVegaLite_SystemIntegration_Determinism_CultureOfTheThreadChangesNothing
+          - CanvasNetVegaLite_SystemIntegration_Determinism_NoTimeZoneMeansUtc
+          - CanvasNetVegaLite_SystemIntegration_Determinism_InsertionOrderOfInputsChangesNothing
+          - CanvasNetVegaLite_SystemIntegration_Determinism_NumericEdgeOutcomeIsTheSameOnEveryRuntime
+          - CanvasNetVegaLite_SystemIntegration_SourceGuard_NoMachineInputsAreRead
+
+      - id: CanvasNetVegaLite-Hardening
+        title: >-
+          The library shall be hardened against hostile input beyond the individual limits: for
+          every specification that a seeded, schema-shaped generator or a mutation of the repository's
+          fixtures produces, measuring and rendering under tight limits shall either succeed or fail with
+          a documented exception that carries a location (never an unhandled exception type, an exception
+          without a location, or a hang), shall allocate a bounded amount of memory, and shall give the same
+          outcome when repeated; every input-controlled cost shall be listed in an audit table with
+          the limit that bounds it, refused with a located error that names the limit before the
+          memory it asked for is allocated, and stopped by cancellation while its stage runs; and no
+          conversion of a number of the specification or of its data to an integer shall depend on the
+          runtime (every narrowing cast of a double is either routed through the saturating helpers or
+          audited).
+        tags: [system]
+        justification: |
+          Specifications and data are untrusted input. The individual limits are only as good as their
+          coverage, so the whole input space is exercised by generated and mutated specifications and the
+          inventory of costs is kept executable, so that a new feature cannot add an unbounded cost, a
+          platform-dependent conversion or an unlocated failure without a test failing.
+        children:
+          - CanvasNetVegaLite-Data-DataTable-NumericConversions
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Fuzz_GeneratorIsSeededAndDeterministic
+          - CanvasNetVegaLite_SystemIntegration_Fuzz_GeneratedSpecificationsReachTheRenderer
+          - CanvasNetVegaLite_SystemIntegration_Fuzz_MutatedFixturesFailOnlyInDocumentedWays
+          - CanvasNetVegaLite_SystemIntegration_Fuzz_MutatedGeneratedSpecificationsFailOnlyInDocumentedWays
+          - CanvasNetVegaLite_SystemIntegration_Fuzz_FoundDefectsStayFixed
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_CostIsRefusedLocatedAndBeforeAllocation
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_BoundedCostCompletes
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_CanceledTokenIsHonored
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_CancellationIsHonoredWhileTheStageRuns
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_ReportsAreCappedByTheDiagnosticsLimit
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_EveryLimitPropertyHasARow
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_ImputeKeysBeyondTheIntRangeAreRefusedWhateverTheRowLimit
+          - CanvasNetVegaLite_SystemIntegration_LimitAudit_InfinitePaddingOfAChartWithoutDataIsLocated
+          - CanvasNetVegaLite_SystemIntegration_SourceGuard_EveryNarrowingCastOfADoubleIsAudited
+          - CanvasNetVegaLite_SystemIntegration_SourceGuard_EveryAuditedCastHasAReason
+          - CanvasNetVegaLite_SystemIntegration_SourceGuard_ScanFlagsDoubleCastsOnly
+          - Ticks_Ticks_StepBeyondTheDenormalRangeHasNoTicks
 
       - id: CanvasNetVegaLite-BundledFonts
         title: >-
@@ -616,7 +685,9 @@ sections:
           opacity channels of a chart with legends as Vega-Lite does - a symbol legend with an entry per
           value, a color gradient for a continuous color scale, and bands for a discretizing one - merging the
           legends of channels that share a domain, titling them like the axes, honoring the documented legend
-          properties and configuration, thinning overlapping labels, and bounding every legend by the limits
+          properties and configuration (the clipHeight of a symbol legend included, which sets the pitch of the
+          entries and clips each symbol to its entry as Vega does and which a gradient legend ignores),
+          thinning overlapping labels, and bounding every legend by the limits
           of the library and the cancellation token.
         tags: [system]
         justification: |
@@ -638,6 +709,8 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Legend_SharedFieldsMergeAndOthersStack
           - CanvasNetVegaLite_SystemIntegration_Legend_NullSwitchesTheLegendOff
           - CanvasNetVegaLite_SystemIntegration_Legend_UnsupportedPropertiesAreReportedWithLocations
+          - CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightClipsTheSymbolsToTheirEntries
+          - CanvasNetVegaLite_SystemIntegration_Legend_ClipHeightIsChargedToTheSceneBudget
           - CanvasNetVegaLite_SystemIntegration_Legend_LimitsAndCancellationApply
           - CanvasNetVegaLite_SystemIntegration_Legend_RendersAreDeterministicAcrossThreads
           - CanvasNetVegaLite_SystemIntegration_Legend_TrailSizeLegendIsPaintedWithTheStrokeWidth
@@ -742,7 +815,9 @@ sections:
           JavaScript coercion, array and object values, and a closed list of pure functions - once per row
           for the calculate and filter transforms and for the row-bound color, opacity, width, and size
           values of marks and encodings, so that an expression selects and computes exactly what the same
-          expression does in Vega, with no access to the host.
+          expression does in Vega (the probability distribution functions of vega-statistics included, and
+          not the sampling functions, which would make a picture depend on a random source), with no access
+          to the host.
         tags: [system]
         justification: |
           Calculated fields and filters are how most real charts derive what they draw; the semantics must
@@ -756,6 +831,7 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
           - CanvasNetVegaLite_SystemIntegration_Expressions_RowBoundMarkValuesAreEvaluatedPerRow
+          - CanvasNetVegaLite_SystemIntegration_Expressions_DistributionFunctionsDrawTheirResults
 
       - id: CanvasNetVegaLite-ExpressionSafety
         title: >-
@@ -1155,7 +1231,8 @@ sections:
           at the offending value and naming the offset inside the expression for an expression syntax error,
           an undeclared parameter reference, an invalid or cyclic parameter, or a malformed transform; shall
           report as unsupported features, with the stable identifiers vl-expr-function-name (the name lower-cased),
-          vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run;
+          vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run (the
+          sampling functions random, sampleNormal, sampleLogNormal, and sampleUniform among them);
           shall keep reporting the transforms, parameters that are not drawn, and functions of later
           phases; and shall let strict mode abort at the first such report.
         tags: [system]
@@ -1171,6 +1248,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened
           - CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode
           - CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported
+          - CanvasNetVegaLite_SystemIntegration_Expressions_SamplingFunctionsAreStillReported
 
       - id: CanvasNetVegaLite-TimeZone
         title: >-
@@ -1228,8 +1306,9 @@ sections:
           start of its unit in the time zone of the chart (the year 2012 for a unit without a year), giving
           each row the start and the end of its unit, naming the derived fields and titles as Vega-Lite
           does, reading the datetime objects of Vega-Lite, and filtering by a time unit or a datetime
-          object, without reporting any of them as unsupported (except the binned units, which are
-          reported).
+          object, without reporting any of them as unsupported (the binned units included: an encoding reads
+          the field of a binned unit as it is and ends the bars of it, a predicate compares its instant, and the
+          transform floors it).
         tags: [system]
         justification: |
           A count per month, per weekday, or per hour is the most common time chart, and the filter by a
@@ -1243,6 +1322,10 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
           - CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject
           - CanvasNetVegaLite_SystemIntegration_Time_OrdinalTimeUnitUsesABandScale
+          - CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitDrawsTheBarsOfTheUnitAndDoesNotFloor
+          - CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitOfAPointSitsAtTheDate
+          - CanvasNetVegaLite_SystemIntegration_Time_PredicatesOfBinnedAndMaxBinsUnitsCompareTheField
+          - CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitInTheTransformFloors
           - TimeUnitSpec_Floor_UsesReferenceYear2012_ForUnitsWithoutYear
           - TimeUnitTransform_YearMonth_StartAndEnd
 
@@ -1365,11 +1448,12 @@ sections:
       - id: CanvasNetVegaLite-TimeUnsupportedFeatures
         title: >-
           The library shall report, with stable identifiers, the parts of the time phase it does not draw
-          (a binned time unit, the maxbins form in a predicate, a band position other than one half on a
-          bar or rect of a time unit, a datetime object as a datum, and a custom format type), shall warn
+          (a band position other than one half on a bar or rect of a time unit, a datetime object as a
+          datum, and a custom format type), shall warn
           about the week and day-of-year parts of a predicate unit, a time interval on a scale that is not a
           time scale, a zero property of a time scale, and a scale type that a temporal field cannot use, and
-          shall no longer report the temporal type, the time unit, the timeUnit transform, the time scale
+          shall no longer report the temporal type, the time unit, the binned time unit, the maxbins form in a
+          predicate, the timeUnit transform, the time scale
           types, the time unit and datetime object tests, and a custom date format.
         tags: [system]
         justification: |
@@ -1378,9 +1462,10 @@ sections:
         children:
           - CanvasNetVegaLite-SpecModel-FeatureReporting
         tests:
-          - CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition
+          - CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsRectBandPositionAndNotBinnedTimeUnit
           - FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows
-          - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
+          - FeatureCatalog_Visit_BinnedTimeUnitIsNotReported
+          - FeatureCatalog_Visit_MaxBinsTimeUnitIsNotReported
           - FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported
 
       - id: CanvasNetVegaLite-TimeLimits
@@ -1521,7 +1606,11 @@ sections:
           The library shall break a line, area, or trail at a row that has no number on a continuous channel
           (and connect its neighbors in the filter mode), keep such rows in the scale domains, draw a row of
           the show and null modes at the output of the scale for zero (or for the first value of the domain),
-          and report the filter modes that should leave the rows
+          read the config.scale.invalid of a channel (zero-or-min, or a number or text value that is the
+          output of the channel as it is) as the show mode of that channel whatever the invalid mode of the
+          mark is, leaving the other channels in the mode of the mark, report the entries of the
+          configuration of the specification that are neither (vl-scale-invalid-value) and ignore them, and
+          report the filter modes that should leave the rows
           out of the domains, and report the unsupported interpolation that the
           configuration of the specification gives a mark, at the configuration.
         tags: [system]
@@ -1532,9 +1621,12 @@ sections:
           - CanvasNetVegaLite-Marks-MarkBuilder-InvalidData
           - CanvasNetVegaLite-Marks-InvalidDataAndOrder
           - CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-ScaleInvalidReports
         tests:
           - CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowDrawsAtZero
           - CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig
+          - CanvasNetVegaLite_SystemIntegration_ScaleInvalid_RowsWithoutAValueTakeTheConfiguredOutput
+          - CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported
 
       - id: CanvasNetVegaLite-CustomShapes
         title: >-
@@ -2026,10 +2118,9 @@ sections:
 
       - id: CanvasNetVegaLite-CompositeMarkReports
         title: >-
-          The library shall not report the composite marks or their channels as unsupported, shall report, with a
-          stable identifier at the channel, a bin, time unit, or aggregate of a channel that groups the rows of a
-          composite mark (which it does not apply), and shall report the error channels of a mark that does not
-          use them.
+          The library shall not report the composite marks or their channels as unsupported, shall not report a
+          bin, time unit, or aggregate of a channel that groups the rows of a composite mark (which it applies as
+          Vega-Lite does), and shall report the error channels of a mark that does not use them.
         tags: [system]
         justification: |
           A supported composite mark must not make every chart noisy, but the parts of it that the renderer does
@@ -2037,7 +2128,8 @@ sections:
         children:
           - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
         tests:
-          - CanvasNetVegaLite_CompositeMark_BoxPlot_ReportsOnlyUnsupportedGrouping
+          - CanvasNetVegaLite_CompositeMark_BoxPlot_BinOfAGroupingChannelIsApplied
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_AggregateOfAGroupingChannelIsAMeasure
           - CanvasNetVegaLite_CompositeMark_ErrorBar_ReportsOnlyWhatItDoesNotUse
 
       - id: CanvasNetVegaLite-LabelExpressions
@@ -2088,9 +2180,13 @@ sections:
           and, for a
           temporal position with a time unit (not day or weekday, binned,
           or maxbins; not a rect mark), the marks of a subgroup side by side inside one unit of the time scale,
-          which stays a time scale - and shall report, ignoring the offset, one that cannot be nested (no
+          which stays a time scale, and, for an unbinned quantitative offset of a bar or an area over a nominal
+          or ordinal position without a secondary channel (Vega-Lite's ranged offset), the mark spanning inside
+          the band from the zero of the offset scale to the offset value, with the ticks and labels of the
+          position at the baseline - and shall report, ignoring the offset, one that cannot be nested (no
           discrete position and no supported time unit, vl-offset-position) and a continuous offset of a bar
-          or an area (vl-offset-ranged), and not report an offset that is drawn.
+          or an area that is not a ranged offset (a temporal or binned offset, a position with a secondary
+          channel or a time unit; vl-offset-ranged), and not report an offset that is drawn.
         tags: [system]
         justification: |
           Grouped bars are among the most used bar charts; the groups, the gaps, and the size of the bars must be
@@ -2114,6 +2210,9 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide
           - CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars
           - CanvasNetVegaLite_SystemIntegration_Offset_NominalTimeUnitGroupedBars
+          - CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsBarsFromTheBaseline
+          - CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsAnAreaBetweenTheValuesAndTheBaseline
+          - CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported
 
       - id: CanvasNetVegaLite-ImageSource
         title: >-

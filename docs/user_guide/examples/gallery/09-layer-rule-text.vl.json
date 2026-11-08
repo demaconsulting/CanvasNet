@@ -1,0 +1,33 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A layer of bars, a rule at the mean, and a text label on each bar.",
+  "title": "Visitors per day of the week",
+  "width": 320,
+  "height": 190,
+  "data": {"values": [
+    {"day": "Mon", "visitors": 32}, {"day": "Tue", "visitors": 41}, {"day": "Wed", "visitors": 38},
+    {"day": "Thu", "visitors": 55}, {"day": "Fri", "visitors": 73}, {"day": "Sat", "visitors": 96},
+    {"day": "Sun", "visitors": 81}
+  ]},
+  "layer": [
+    {
+      "mark": {"type": "bar", "color": "#7fb2d8"},
+      "encoding": {
+        "x": {"field": "day", "type": "ordinal", "sort": null, "title": null, "axis": {"labelAngle": 0}},
+        "y": {"field": "visitors", "type": "quantitative", "title": "Visitors"}
+      }
+    },
+    {
+      "mark": {"type": "text", "dy": -6, "fontSize": 11},
+      "encoding": {
+        "x": {"field": "day", "type": "ordinal", "sort": null},
+        "y": {"field": "visitors", "type": "quantitative"},
+        "text": {"field": "visitors", "type": "quantitative"}
+      }
+    },
+    {
+      "mark": {"type": "rule", "color": "#c0392b", "strokeDash": [5, 3], "strokeWidth": 1.5},
+      "encoding": {"y": {"field": "visitors", "type": "quantitative", "aggregate": "mean"}}
+    }
+  ]
+}

@@ -118,7 +118,8 @@ internal sealed partial class AggregateTransforms
             return;
         }
 
-        var limit = _context.Limits.MaxDataRows;
+        // A table holds at most int.MaxValue rows, so a row limit above that is no use here: the count of key values is converted to an int below, and a count beyond the range would wrap (.NET 8) or saturate (.NET 9 and later)
+        var limit = Math.Min(_context.Limits.MaxDataRows, int.MaxValue);
         double count;
         double start = 0, step = 1;
         if (keyValues.IsArray)

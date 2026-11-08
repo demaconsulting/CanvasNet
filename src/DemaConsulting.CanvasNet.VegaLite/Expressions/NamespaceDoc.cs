@@ -12,7 +12,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///         the arithmetic, comparison, logical and conditional operators and calls of whitelisted pure functions;
 ///         there is no reflection, <c>eval</c>, assignment, <c>new</c>, function expression, file or network access,
 ///         random number source or clock. The date and time functions use the calendar of the render (UTC unless a time zone
-///         is given) and <c>format</c> formats numbers as d3-format does; color, geographic, scale, statistical and data-flow functions are deferred to
+///         is given) and <c>format</c> formats numbers as d3-format does; color, geographic, scale, data-flow and sampling (<c>random</c>, <c>sample*</c>) functions are deferred to
 ///         later phases, and so is the clock function <c>now</c>; calls of them, view state (<c>signal</c>, <c>event</c>,
 ///         <c>item()</c>) and the bitwise operators are parsed and collected so that the feature catalog can report them
 ///         with stable identifiers, and they evaluate to null.

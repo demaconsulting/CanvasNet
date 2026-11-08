@@ -35,8 +35,8 @@ internal sealed record WindowSpec(WindowOp? Window, AggregateOp Aggregate, strin
 /// </content>
 internal sealed partial class AggregateTransforms
 {
-    /// <summary>The number of elements the work of recomputing one row of a frame is charged for each row of the frame (one step per 16 rows).</summary>
-    private const int FrameRowCost = 4;
+    /// <summary>The number of work elements that one element of the work of recomputing one row of a frame is charged as (see <see cref="WorkMeter"/>): measured at about 6 nanoseconds per element of the frame and aggregate for the means and extremes and up to about 45 for a median (which sorts the frame), so twenty at about three nanoseconds an element stops a frame in about ten seconds.</summary>
+    private const long FrameRowCost = 20;
 
     /// <summary>
     ///     Reads the operations of a <c>window</c> transform.
@@ -123,7 +123,7 @@ internal sealed partial class AggregateTransforms
             return (null, 0);
         }
 
-        int? Bound(SpecNode node) => node.AsNumber() is { } n ? (int)n : null;
+        int? Bound(SpecNode node) => node.AsNumber() is { } n ? NumericConversions.ToInt32Saturating(n) : null;
         return (Bound(frame.Items[0]), Bound(frame.Items[1]));
     }
 
@@ -455,7 +455,7 @@ internal sealed partial class AggregateTransforms
                     {
                         Array.Clear(cells);
                         var length = Math.Max(0, i1 - i0);
-                        _owner._meter.Add((long)FrameRowCost * length * _aggregates.Length);
+                        _owner._meter.Add(FrameRowCost * length * _aggregates.Length);
                         for (var q = i0; q < i1; q++)
                         {
                             AddRow(cells, _order[_base + q]);
@@ -548,7 +548,7 @@ internal sealed partial class AggregateTransforms
         /// <returns>The result.</returns>
         private DataValue WindowValue(WindowOp window, int op, int p, int i0, int i1)
         {
-            var param = (long)_ops[op].Param;
+            var param = NumericConversions.ToInt64Saturating(_ops[op].Param);
             switch (window)
             {
                 case WindowOp.RowNumber:

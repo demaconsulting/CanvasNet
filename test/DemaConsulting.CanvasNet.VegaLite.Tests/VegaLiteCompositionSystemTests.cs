@@ -141,7 +141,7 @@ public class VegaLiteCompositionSystemTests
 
     /// <summary>
     ///     Validates that strict mode throws, with the identifier and the pointer of the construct, for the features of a composition that are still not drawn: a transform that is not supported
-    ///     in a child, a mark that is not supported in a child, and the parts of a facet that are reported (a binned field, a maxbins time unit, and a side that a header does not draw on).
+    ///     in a child, a mark that is not supported in a child, and a side that a facet header does not draw on.
     /// </summary>
     /// <param name="child">The text of the composition, with <c>%DATA%</c> and <c>%BARS%</c>.</param>
     /// <param name="feature">The identifier of the first unsupported feature.</param>
@@ -149,8 +149,6 @@ public class VegaLiteCompositionSystemTests
     [Theory]
     [InlineData("{ %DATA%, \"hconcat\": [ %BARS%, { \"transform\": [ { \"lookup\": \"crates\", \"from\": { \"param\": \"p\" } } ], \"mark\": \"point\" } ] }", "vl-transform-lookup-param", "/hconcat/1/transform/0/from/param")]
     [InlineData("{ %DATA%, \"vconcat\": [ %BARS%, { \"mark\": \"geoshape\" } ] }", "vl-mark-geoshape", "/vconcat/1/mark")]
-    [InlineData("{ %DATA%, \"facet\": { \"field\": \"crates\", \"type\": \"quantitative\", \"bin\": true }, \"spec\": %BARS% }", "vl-facet-field-transform", "/facet/bin")]
-    [InlineData("{ %DATA%, \"facet\": { \"row\": { \"field\": \"month\", \"type\": \"ordinal\", \"timeUnit\": { \"maxbins\": 4 } } }, \"spec\": %BARS% }", "vl-facet-field-transform", "/facet/row/timeUnit")]
     [InlineData("{ %DATA%, \"facet\": { \"row\": { \"field\": \"month\", \"type\": \"ordinal\", \"header\": { \"labelOrient\": \"top\" } } }, \"spec\": %BARS% }", "vl-header-orient", "/facet/row/header/labelOrient")]
     public void CanvasNetVegaLite_SystemIntegration_Composition_StrictModeThrowsAtTheFirstRemainingUnsupportedFeature(string child, string feature, string pointer)
     {

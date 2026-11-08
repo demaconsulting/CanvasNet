@@ -20,7 +20,7 @@ internal sealed partial class RowTransforms
     /// <returns>The table of the sampled rows in source order; the input itself when the size is not less than the number of rows.</returns>
     private DataTable Sample(DataTable input, SpecNode entry, SpecNode operation)
     {
-        var size = (int)Math.Min(Math.Floor(operation.NumberValue), int.MaxValue);
+        var size = NumericConversions.ToInt32Saturating(Math.Floor(operation.NumberValue));
         if (size >= input.RowCount)
         {
             return input;

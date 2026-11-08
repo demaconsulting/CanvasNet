@@ -194,6 +194,7 @@ sections:
               callers need to abandon a long load.
             children:
               - CanvasNetVegaLite-Data-DataTable-Limits
+              - CanvasNetVegaLite-Data-DataTable-NumericConversions
               - CanvasNetVegaLite-Data-DataLoader-Limits
               - CanvasNetVegaLite-Data-DataLoader-Cancellation
               - CanvasNetVegaLite-Data-DataFileResolver-FileLimit

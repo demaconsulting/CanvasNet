@@ -337,7 +337,8 @@ mark for every part, then the part's own object).
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_HorizontalBoxPlotUsesXAndX2`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_TitleOfTheMeasureDefaultsToTheField`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_SharedChannelsFollowVegaLite`,
-`SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_GroupingChannelsDropBinAndAggregateAndApplyTimeUnit`,
+`SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_GroupingChannelsAddBinTimeUnitAndAggregateTransforms`,
+`SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_GroupingFormsThatKeepTheFieldAndTheLessCommonAggregates`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_TimeUnitOfAnOrdinalGroupingChannelFormatsAsTime`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_SingleBoxHasNoGroupBy`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_UndecidableBoxPlotIsASpecificationError`
@@ -349,12 +350,19 @@ measure is the
 field when none is written, on every part; that the color and the size go to the box (the median takes the size and a
 conditional color), the outliers get the color, the whiskers neither, a grouping channel is added to the group fields
 and the
-tooltip is left out; that a bin or an aggregate on a grouping channel is not applied (the raw field groups
-the
-rows, the bin is not in the encoding of the parts, and an aggregating channel is left out) while a `year` time unit on
-a temporal `color` channel is applied: the box plot has a `timeUnit` transform of `year` on `t` as `year_t` as the first
-transform of both the quartile and the box view, before the aggregate, the aggregate groups by `g` and `year_t`, and the
-channel reads `year_t` with no time unit and the default title `t (year)`; and for an ordinal `x` with a `month` unit
+tooltip is left out; that the grouping channels are transformed as Vega-Lite's `extractTransformsFromEncoding` does
+(Phase 14): for an ordinal `x` with `bin: true`, a `year` time unit on a temporal `color`, and a `mean` aggregate on
+`size`, the box view starts with a `bin` transform of `g` (`maxbins` 10, the `autoMaxBins` of `x`, as `bin_maxbins_10_g`),
+then the `timeUnit` transform of `year` on `t` as `year_t`, then the aggregate that groups by `bin_maxbins_10_g`,
+`bin_maxbins_10_g_end`, and `year_t` and has the measure `mean z` as `mean_z`; the quartile view starts with the same two
+transforms; the binned channel reads `bin_maxbins_10_g` as quantitative data with `bin: "binned"`, the end
+`bin_maxbins_10_g_end` as `x2`, and the title `g (binned)`; the time unit channel reads `year_t` with no time unit and
+the title `t (year)`; the aggregated channel reads `mean_z` with the title `Mean of z`; that a `bin` of `"binned"`,
+and a
+binned time unit are dropped and the raw fields group the rows (`g` and `t`); that a `bin: false` next to a `maxbins`
+time unit is a `timeUnit` transform with `maxbins` 4 as `timeunit_maxbins_4_d`, a `count` aggregate reads
+`__count` (the title `Count of Records`) and an `argmax` reads `argmax_w.z`, each adding its measure to the aggregate, and
+the `bin` of a `size` channel reads `bin_maxbins_3_q` without a second channel; and for an ordinal `x` with a `month` unit
 the derived field is `month_d`, its axis gets the `formatType` `time` while keeping `labelAngle` 0, the title is
 `d (month)`, a nominal `color` with a `year` unit gets the legend `formatType` `time`, and a written title (`Own`) wins
 over the default; that a box plot without a grouping channel groups by nothing; and the

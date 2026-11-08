@@ -258,7 +258,7 @@ internal sealed partial class LegendBuilder
         var spec = c.Spec;
         var set = DescribeValues(c);
         var values = set.Values;
-        var limit = (int)Math.Min(int.MaxValue, Math.Max(0, s.Number("symbolLimit") ?? 0));
+        var limit = NumericConversions.ToInt32Saturating(Math.Max(0, s.Number("symbolLimit") ?? 0));
         var items = values;
         var sliced = false;
         var ellipsis = false;
@@ -298,8 +298,13 @@ internal sealed partial class LegendBuilder
             entries.Add((values[items.Count], Labeled(c, values[items.Count], more, items.Count)));
         }
 
-        // Every item is charged before it is created: a symbol and a label per entry
-        c.Budget.Add(2L * entries.Count, spec.Location);
+        // vega-parser legend-symbol-groups.js: height = _('clipHeight') and, when it is truthy, the symbol and the label sit at half of it
+        // (not at half of the entry size), the symbols are clipped to the entry group and the entry group has that height and counts in its bounds
+        var clipHeight = s.Number("clipHeight") ?? 0;
+        var clipped = clipHeight > 0 && double.IsFinite(clipHeight);
+
+        // Every item is charged before it is created: a symbol and a label per entry (and the clipping group of the symbol)
+        c.Budget.Add((clipped ? 3L : 2L) * entries.Count, spec.Location);
 
         // Every symbol carries its own copy of its dash pattern, so a long pattern is an error, as it is for a mark
         CheckDashLength(c, s.NumberArray("symbolDash")?.Count ?? 0);
@@ -328,7 +333,7 @@ internal sealed partial class LegendBuilder
         }
 
         // More columns than entries would only be empty columns
-        var columns = (int)Math.Min(entries.Count, Math.Max(0, s.Number("columns") ?? (spec.Vertical ? 1 : 0)));
+        var columns = NumericConversions.ToInt32Saturating(Math.Min(entries.Count, Math.Max(0, s.Number("columns") ?? (spec.Vertical ? 1 : 0))));
         var symbolOffset = s.Number("symbolOffset") ?? 0;
         var labelOffset = s.Number("labelOffset") ?? 0;
         var align = s.Text("labelAlign") ?? "left";
@@ -337,6 +342,7 @@ internal sealed partial class LegendBuilder
         var symbols = new List<SceneSymbol>(entries.Count);
         var labels = new List<SceneText>(entries.Count);
         var boxes = new List<SceneBounds>(entries.Count);
+
         for (var i = 0; i < entries.Count; i++)
         {
             if (i % CancellationInterval == 0)
@@ -345,7 +351,7 @@ internal sealed partial class LegendBuilder
             }
 
             var reference = columns != 0 ? offset : sizes[i];
-            var y = sizes[i] * 0.5;
+            var y = (clipped ? clipHeight : sizes[i]) * 0.5;
             var look = looks[i];
             var symbol = new SceneSymbol("legend-symbol", (reference * 0.5) + symbolOffset, y)
             {
@@ -362,7 +368,13 @@ internal sealed partial class LegendBuilder
             var label = MakeLabel(c, reference + symbolOffset + labelOffset, y, entries[i].Label.Text, align, baseline, limitWidth, entries[i].Label.Lines, entries[i].Value);
             symbols.Add(symbol);
             labels.Add(label);
-            boxes.Add(SymbolBounds(symbol).Union(_measurer.GetBounds(label)));
+
+            // The bounds of a clipped entry: the symbol mark is clipped to the entry group, whose width is still zero when the bounds are taken
+            // (vega-scenegraph boundClip intersects the bounds of the mark with 0,0 to the width and height of the group), so the symbol adds
+            // nothing beyond the group's own box (0, 0 to 0, clipHeight: group.js bound adds it unless the group is noBound); the label is not clipped
+            boxes.Add(clipped
+                ? _measurer.GetBounds(label).Union(new SceneBounds(0, 0, 0, clipHeight))
+                : SymbolBounds(symbol).Union(_measurer.GetBounds(label)));
         }
 
         // The grid: a vertical legend with several columns fills them from top to bottom
@@ -391,12 +403,39 @@ internal sealed partial class LegendBuilder
                 CenterColumns: false,
                 CenterRows: true));
         var children = new List<SceneItem>(2 * count);
+
+        // legendEntryLayout (vega-view-transforms layout/legend.js): the width of an entry group is the widest entry of its column, the height its own
+        var columnCount = columns > 0 ? Math.Min(columns, count) : count;
+        var columnWidth = new double[Math.Max(1, columnCount)];
+        if (clipped)
+        {
+            for (var slot = 0; slot < count; slot++)
+            {
+                columnWidth[slot % columnWidth.Length] = Math.Max(columnWidth[slot % columnWidth.Length], slots[slot].X2);
+            }
+        }
+
         for (var slot = 0; slot < count; slot++)
         {
             var entry = order[slot];
             var dx = grid.Dx[slot];
             var dy = grid.Dy[slot];
-            children.Add(MoveSymbol(symbols[entry], dx, dy));
+            if (clipped)
+            {
+                // The symbol is drawn inside the entry group, clipped to its box
+                children.Add(new SceneGroup("legend-symbol-clip", dx, dy)
+                {
+                    Width = columnWidth[slot % columnWidth.Length],
+                    Height = slots[slot].Y2,
+                    Clip = new SceneClip(0, 0, columnWidth[slot % columnWidth.Length], slots[slot].Y2),
+                    Children = [symbols[entry]],
+                });
+            }
+            else
+            {
+                children.Add(MoveSymbol(symbols[entry], dx, dy));
+            }
+
             children.Add(MoveLabel(labels[entry], dx, dy));
         }
 

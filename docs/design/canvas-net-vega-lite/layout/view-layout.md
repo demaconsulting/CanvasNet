@@ -39,7 +39,9 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Layout-ViewLayout-*` 
 - **`ViewMeasure`** - the final data rectangle, the bounds of everything in the view's coordinates, the padding, the
   origin of the data rectangle on the canvas, the canvas `Width` and `Height` (possibly fractional), the placed title
   group and its bounds, and `NaturalSize`, the canvas size in whole pixels (rounded half away from zero, clamped to the
-  range of an integer) as a `VegaLiteSize`.
+  range of an integer by `NumericConversions`, so NaN and negative infinity are 0 on every runtime) as a
+  `VegaLiteSize`. A size that is not a finite number never gets here: the document refuses it with a located
+  `VegaLiteRenderException` when the view is measured (phase 14).
 - **`ViewLayoutResult`** - the `ViewMeasure` and the `Scene`.
 
 **Resolution rules.** The data rectangle is the number in `width` and `height`; a `"container"` size takes the container

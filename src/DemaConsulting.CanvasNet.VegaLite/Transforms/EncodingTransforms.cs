@@ -176,7 +176,7 @@ internal sealed partial class EncodingTransforms
     {
         var bins = new Dictionary<string, BinSpec>(StringComparer.Ordinal);
         var units = new Dictionary<string, TimeUnitSpec>(StringComparer.Ordinal);
-        var raw = plan.Bins.Count > 0 ? BinFields(plan, table, bins) : table;
+        var raw = plan.Bins.Count > 0 ? BinFields(plan.Bins, table, bins) : table;
         if (plan.TimeUnits.Count > 0)
         {
             raw = TimeUnitFields(plan, raw, units);
@@ -284,7 +284,7 @@ internal sealed partial class EncodingTransforms
     /// <returns>The table with the unit fields added; the rows keep their order.</returns>
     private DataTable TimeUnitFields(EncodingPlan plan, DataTable input, Dictionary<string, TimeUnitSpec> units)
     {
-        var requests = plan.TimeUnits.Select(u => new TimeUnitRequest(u.SourceField, u.StartName, u.EndName, u.Spec, u.Node)).ToArray();
+        var requests = plan.TimeUnits.Select(u => new TimeUnitRequest(u.SourceField, u.StartName, u.EndName, u.Spec, u.Node, EndOnly: u.Spec.IsBinned)).ToArray();
         var resolved = new TimeUnitSpec[requests.Length];
         var table = TimeUnitTransform.Apply(input, requests, _context, _context.Locate(requests[0].Node), resolved);
         for (var i = 0; i < requests.Length; i++)
@@ -298,29 +298,29 @@ internal sealed partial class EncodingTransforms
     /// <summary>
     ///     Computes the bins and writes them to the table.
     /// </summary>
-    /// <param name="plan">The plan.</param>
+    /// <param name="bins">The bins to compute (the bins of an encoding, or those of the fields of a facet).</param>
     /// <param name="input">The input table.</param>
     /// <param name="specs">Receives the bins by start name.</param>
     /// <returns>The table with the bin fields added; the rows keep their order.</returns>
-    private DataTable BinFields(EncodingPlan plan, DataTable input, Dictionary<string, BinSpec> specs)
+    private DataTable BinFields(IReadOnlyList<BinPlan> bins, DataTable input, Dictionary<string, BinSpec> specs)
     {
-        var location = _context.Locate(plan.Bins[0].Node);
+        var location = _context.Locate(bins[0].Node);
         try
         {
             var evaluation = _context.Evaluator.Context;
-            var readers = plan.Bins.Select(b => new FieldReader(input, b.SourceField)).ToArray();
-            var resolved = new BinSpec?[plan.Bins.Count];
-            for (var b = 0; b < plan.Bins.Count; b++)
+            var readers = bins.Select(b => new FieldReader(input, b.SourceField)).ToArray();
+            var resolved = new BinSpec?[bins.Count];
+            for (var b = 0; b < bins.Count; b++)
             {
-                resolved[b] = ResolveBin(plan.Bins[b], readers[b], input.RowCount, evaluation);
+                resolved[b] = ResolveBin(bins[b], readers[b], input.RowCount, evaluation);
                 if (resolved[b] is { } found)
                 {
-                    specs[plan.Bins[b].StartName] = found;
+                    specs[bins[b].StartName] = found;
                 }
             }
 
             var names = new List<string>();
-            foreach (var bin in plan.Bins)
+            foreach (var bin in bins)
             {
                 names.Add(TableLayout.Canonical(bin.StartName));
                 names.Add(TableLayout.Canonical(bin.EndName));
@@ -333,18 +333,18 @@ internal sealed partial class EncodingTransforms
             var layout = new TableLayout(input, names, keepInput: true, _context.Limits, location);
             var cells = layout.Allocate(input.RowCount);
             var width = layout.Fields.Length;
-            var formats = plan.Bins.Select(b => b.RangeName is null ? null : CreateFormat(b.Format)).ToArray();
-            var labels = plan.Bins.Select(b => b.RangeName is null ? null : new Dictionary<double, string>()).ToArray();
+            var formats = bins.Select(b => b.RangeName is null ? null : CreateFormat(b.Format)).ToArray();
+            var labels = bins.Select(b => b.RangeName is null ? null : new Dictionary<double, string>()).ToArray();
             for (var row = 0; row < input.RowCount; row++)
             {
                 _context.Tick(row);
-                _meter.Add(plan.Bins.Count);
+                _meter.Add(bins.Count);
                 layout.CopyRow(input, row, cells, row);
                 var offset = (long)row * width;
                 var slot = 0;
-                for (var b = 0; b < plan.Bins.Count; b++)
+                for (var b = 0; b < bins.Count; b++)
                 {
-                    var hasRange = plan.Bins[b].RangeName is not null;
+                    var hasRange = bins[b].RangeName is not null;
                     var number = 0.0;
                     if (resolved[b] is { } spec && readers[b].Read(row, evaluation).TryGetQuantitative(out number))
                     {

@@ -2,10 +2,14 @@
 
 ![Data Structure](VegaLiteDataView.svg)
 
-The `DataTable` unit is the first software unit in the `Data` subsystem. It comprises two source files in the
+The `DataTable` unit is the first software unit in the `Data` subsystem. It comprises three source files in the
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace: `DataTable.cs` defines five `internal` types, `DataValueKind`
 (enumeration), `DataValue` (readonly struct), `JsNumber` (static class), `FieldPath` (static class), and `DataTable`
-(sealed class); `DataObject.cs` defines `DataObject` (sealed class) and `DataArray` (sealed class), the immutable payloads
+(sealed class); `NumericConversions.cs` (phase 14) defines `NumericConversions` (static class: `ToInt32Saturating` and
+`ToInt64Saturating`, the one place where a `double` becomes a count, size, step or index: truncation toward zero,
+saturation at the range of the integer, NaN is zero, the same on every runtime, where a plain cast gave the smallest
+value on .NET 8 and saturated on .NET 9 and later); `DataObject.cs` defines `DataObject` (sealed class) and `DataArray`
+(sealed class), the immutable payloads
 of the composite values, and `FlatRowNode` (sealed class), the tree that rebuilds an array or an object from the flattened
 fields of a table row (an array when the names below a path are exactly the indexes 0 to n-1, with trailing nulls dropped;
 an object otherwise; shared by the field reader of the transforms and the datum of the expression evaluator, with an optional

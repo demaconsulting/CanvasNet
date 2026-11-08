@@ -29,6 +29,14 @@ words:
   - deskew
   - titleorient
   - clipheight
+  - samplenormal
+  - lognormal
+  - densitynormal
+  - cumulativenormal
+  - quantilenormal
+  - erfinv
+  - goldens
+  - venv
   - davehoward
   - extensionless
   - Visio
@@ -748,8 +756,12 @@ words:
   - binnedhours
   - binnedmonth
   - binnedutcyearmonthdate
+  - binnedutcyear
   - binnedyear
   - binnedyearmonth
+  - binnedyearmonthdate
+  - binnedyearweek
+  - unfloored
   - dayhours
   - dayhoursminutes
   - dayhoursminutesseconds
@@ -826,6 +838,8 @@ words:
   - mousedown
   - mouseup
   - mousemove
+  - denormal
+  - slnx
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

@@ -75,6 +75,28 @@ Asserts that three rows over a `MaxDataRows` of two, and three fields (or record
 are rejected with `ArgumentException` types, and out-of-range row, field, and column positions with
 `ArgumentOutOfRangeException`.
 
+##### Numeric Conversions Are Saturating And Defined For NaN
+
+**Tests**: `NumericConversionsTests.NumericConversions_ToInt32Saturating_TruncatesSaturatesAndMapsNaNToZero`,
+`NumericConversionsTests.NumericConversions_ToInt64Saturating_TruncatesSaturatesAndMapsNaNToZero` (theories),
+`StatisticsPrimitivesTests.StatisticsPrimitives_RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue`,
+`StatTransformsQuantileTests.StatTransforms_Quantile_StepWithACountBeyondLong_FailsLocatedAtTheRowBudget`,
+`StatTransformsQuantileTests.StatTransforms_Quantile_StepBeyondTheCellLimitWithAnUnboundedRowBudget_FailsLocatedAtTheCellLimit`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotLimitBeyondLong_KeepsEveryPivotValue`,
+`ViewLayoutTests.ViewLayout_NaturalSize_NonFiniteDimensions_AreDefinedAndTheSameOnEveryRuntime`
+
+Asserts that the 32-bit conversion truncates toward zero (1.9 is 1, -1.9 is -1), saturates at 2,147,483,647 and
+-2,147,483,648 for the values at and beyond the range, for 1e300, for the largest double and for the infinities, and
+gives 0 for NaN and for 5e-324; that the 64-bit conversion does the same around 2^63 (the largest representable double
+below it, 9223372036854774784, is exact, 2^63 and beyond are `long.MaxValue`); that the callers that matter use it, with
+the results that the plain cast gave differently on .NET 8 and .NET 9: a range of 5e299 values is counted as
+`long.MaxValue` (never the smallest value), a quantile whose step makes such a count is refused at `MaxDataRows` and,
+with the row limit raised to its maximum, at `TableLayout.MaxCells` and never allocates, a pivot `limit` of 9.3e18, 1e30
+or 1.79e308 keeps every pivot value, and the whole-pixel size of a canvas dimension that is NaN or negative infinity is
+0 and that of positive infinity or 1e300 is `int.MaxValue`. The test project is also run with
+`CheckForOverflowUnderflow` on the library (a temporary project setting): every test passes, which is the oracle for a
+cast that was missed.
+
 ##### Field Paths
 
 **Tests**: `DataTableTests.DataTable_FindField_SupportsDottedBracketedAndEscapedPaths`,

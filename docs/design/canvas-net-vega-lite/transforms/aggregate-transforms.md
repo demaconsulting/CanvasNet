@@ -108,7 +108,9 @@ The imputed field is the `value` (default 0; an explicit null is honored) or, fo
 `max`, that operation over the `frame` (default `[null, null]`) of the group in data order, and replaces every
 null of the field, including the nulls that were already in the rows (the pair of a window and a formula in
 Vega-Lite). The same engine serves the `impute` property of an encoding and the implicit impute of a stacked line or
-area (see _EncodingPlan_); it does not know where its parameters come from.
+area (see _EncodingPlan_); it does not know where its parameters come from. The number of `keyvals` is checked against
+the row limit capped at the largest row count of a table (`int.MaxValue`) before it is converted to an int, so a row
+limit above that range cannot make a count beyond it wrap (.NET 8) or saturate (.NET 9 and later) in the loop.
 
 **Bin.** `BinSettings` holds the parameters (`maxbins` 20 when the algorithm is used raw, `base` 10, `divide`
 `[5, 2]`, `step`, `steps`, `minstep`, `nice` true, `anchor`, `extent`, `span`; the `bin` transform and the position
@@ -156,7 +158,10 @@ clock, the environment, a random source, or the current culture.
 - `Aggregate(input, groupBy, measures, location, seed, releaseInput)` (internal) - the engine of `aggregate` and
   of the implicit aggregate of an encoding. Pass 1 (`GroupRows`) assigns every row to a group with `BuildKey`;
   pass 2 (`AccumulateGroups`) feeds each row to the `MeasureCell` of every measure of its group; pass 3 writes
-  one output row per group (the group fields, then one field per measure; a later field of the same name wins).
+  one output row per group (the group fields, then one field per measure; a later field of the same name wins). A
+  group-by field that is not a valid field path (an empty field name on the channel of a boxplot, an error bar or an
+  error band, which write their aggregate from the encoding) is a located `VegaLiteRenderException` at the transform
+  (the explicit `groupby` of a transform is validated when the specification is opened).
   `joinaggregate` runs the first two passes, computes the result of every group **once**, and writes it to every
   row of the group (so a `values` array, or an `argmin` row, is the same shared value for all rows of the group);
   rows and their order are unchanged.

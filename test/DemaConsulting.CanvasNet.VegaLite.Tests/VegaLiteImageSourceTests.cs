@@ -146,8 +146,8 @@ public class VegaLiteImageSourceTests
     [Fact]
     public void VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict()
     {
-        // Arrange: a binned time unit is reported as unsupported
-        var unsupported = BarChart.Replace("\"type\": \"nominal\"", "\"type\": \"nominal\", \"timeUnit\": \"binnedyearmonth\"", StringComparison.Ordinal);
+        // Arrange: a custom guide encoding is reported as unsupported
+        var unsupported = BarChart.Replace("\"type\": \"nominal\"", "\"type\": \"nominal\", \"axis\": {\"encode\": {\"labels\": {}}}", StringComparison.Ordinal);
         var source = new VegaLiteImageSource();
 
         // Act
@@ -163,7 +163,7 @@ public class VegaLiteImageSourceTests
 
         // Assert
         var note = Assert.Single(result.Diagnostics, d => d.Severity == ImageDiagnosticSeverity.Unsupported);
-        Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Unsupported, "vl-timeunit-binned"), (note.Source, note.Severity, note.Code));
+        Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Unsupported, "vl-guide-encode"), (note.Source, note.Severity, note.Code));
         Assert.Throws<VegaLiteUnsupportedFeatureException>(() => source.Render(strict));
     }
 

@@ -472,6 +472,8 @@ title modes give `date (year-month)`, `YEARMONTH(date)`, and `date` for `yearmon
 
 **Tests**: `EncodingPlanTimeTests.EncodingPlan_Create_AggregateGroupsByTimeUnitStart`,
 `EncodingPlanTimeTests.EncodingPlan_Create_BinWinsOverTimeUnit`,
+`EncodingPlanTimeTests.EncodingPlan_Create_BinnedUnitReadsTheFieldAndHasAnEndOnlyWhereItSpans`,
+`EncodingPlanTimeTests.EncodingPlan_Create_BinnedUnitGroupsTheAggregateByTheFieldAndItsEnd`,
 `EncodingPlanTimeTests.EncodingPlan_Create_SharedAndDistinctUnits`,
 `EncodingPlanTimeTests.EncodingPlan_Create_StackUsesTheTimeUnitFields`,
 `EncodingPlanTimeTests.EncodingPlan_Create_WithoutAnEncodingThereAreNoUnits`
@@ -481,8 +483,13 @@ Asserts that an implicit count grouped by the unit of a bar groups by the start 
 aggregate), that the same encoding on a point groups by the start only, that an ordinal `month` unit groups by
 `month_date` only, and that the measure of the bar is `__count`; that a bin wins over a unit on the same definition (no
 unit in the plan, the
-field `bin_maxbins_10_a`), that an aggregate of the field replaces the unit (`max_a`), and that a binned unit is ignored
-(no unit, the field `date` as it is, the plan an identity); that two channels with the same field and unit share one
+field `bin_maxbins_10_a`), that an aggregate of the field replaces the unit (`max_a`), and that a binned unit (Phase 14,
+Vega-Lite's `TimeUnitNode.makeFromEncoding` and `vgField`) reads the field itself: for a bar the channel has the value
+field, path, and raw field `date`, the end `date_end`, the title `date` alone, the band end, and one unit whose start
+and end names are `date` and `date_end` with the binned spec, a `{unit: month, binned: true}` object gives the same,
+while a point has no unit (the plan an identity, no end, the title `date`) unless it has a `bandPosition`, when it has the
+end `date_end`; that the aggregate of a binned bar groups by `date` and `date_end` (a nested field `a.b` groups by
+`a.b` and `a\.b_end`); that two channels with the same field and unit share one
 unit (which spans because the position channel does, while the color channel does not) and that another unit of the same
 field is another one (`month_date` and `year_date`); that a stack whose layers are a time unit orders them by the unit
 start descending on `y` (`month_date`) and that a time unit on the position channel is a group of the stack with its end
@@ -533,7 +540,11 @@ Verification Design_.
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortByAggregateOrdersTheCells`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`,
-`EncodingTransformsFacetTests.EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_BinnedTimeUnitIsTheRawValue`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_MaxBinsTimeUnitIsResolvedAgainstTheData`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_BinOfTheFieldIsTheCellWithItsRangeAsText`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_BinNamesFollowAutoMaxBinsAndOrderIsNumeric`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_AggregateOfTheFieldReadsTheFieldOfItsName`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_RowOnlyHasOneColumnAndColumnOnlyOneRow`,
@@ -563,9 +574,29 @@ sort object that has neither a `field` nor the operation `count` is not an aggre
 facet field makes the start of the unit the cell: the rows of 2024-01-15, 2024-02-20, and 2024-01-30 (the millisecond
 values 1705276800000, 1708387200000, and 1706572800000) give the two cells 2024-01-01 (1704067200000) with the rows
 v = 1 and 3 and 2024-02-01 (1706745600000) with v = 2, as dates in ascending order, and the cell tables hold the derived
-field `yearmonth_t` (`EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`); and that a `maxbins` unit and a binned
-`month` unit are not applied, so the two distinct raw values 1705276800000 and 1708387200000 are the cells
-(`EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied`); that a missing value and a null are one null cell,
+field `yearmonth_t` (`EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell`); that a binned `month` unit leaves the raw
+value as the cell, so the two distinct raw values 1705276800000 and 1708387200000 are the cells and the table gets no
+field
+(`EncodingTransforms_Facet_BinnedTimeUnitIsTheRawValue`, Vega-Lite's `makeFromEncoding` adds nothing for a binned
+unit); that a `maxbins` unit of 3 over the same
+dates resolves against the data to Vega's `timeBin` unit `yearweek` (derived with vega-time: the weeks starting Sunday
+2024-01-14, 1705190400000, and
+2024-02-18, 1708214400000), the cells are those two starts with the rows v = 1 and 3, and v = 2, and the field
+`timeunit_maxbins_3_t` is derived (`EncodingTransforms_Facet_MaxBinsTimeUnitIsResolvedAgainstTheData`); that the `bin`
+of a facet field (Phase 14, `bin: {maxbins: 3}` over the values 25, 2, 12, "x", 3, and a missing value) makes the start
+of the bin the cell with the range as text, ascending with the null cell first: `null`, `0 – 10`, `10 – 20`, `20 – 30`
+with the rows v = 4 and 6, 2 and 5, 3, and 1, and the fields `bin_maxbins_3_c` and `bin_maxbins_3_c_end`
+(`EncodingTransforms_Facet_BinOfTheFieldIsTheCellWithItsRangeAsText`); that the default number of bins is that of
+`autoMaxBins` (`bin: true` over 0 to 20 gives four bins of 5 for a column: `0 – 5` to `15 – 20`, named
+`bin_maxbins_6_c`, and ten bins of 2 for a
+wrapped facet: `2 – 4` is the second and `10 – 12` the sixth, named `bin_maxbins_10_c`), in numeric order and with the
+maximum in the last bin
+(`EncodingTransforms_Facet_BinNamesFollowAutoMaxBinsAndOrderIsNumeric`); and that the `aggregate` of a facet field is
+not computed
+(Vega-Lite's `AggregateNode.makeFromEncoding` takes a unit model only) and the cell reads the field of the name that
+`vgField` gives:
+`sum_v` (10 and 20), `__count` for a count (1 and 2), and the one null cell when the table has no such field (`max_c`)
+(`EncodingTransforms_Facet_AggregateOfTheFieldReadsTheFieldOfItsName`); that a missing value and a null are one null cell,
 first, holding the rows with v = 2 and 3,
 and that a field no row has is one cell of nulls with all six rows; that the sort array of a temporal field (rows of
 2022, 2020, 2021, and 2019) that lists the date-time objects 2021 (UTC) and 2022 gives the cells 2021, 2022, 2020,

@@ -81,6 +81,14 @@ internal static partial class Ticks
         }
 
         var n = spec.I2 - spec.I1 + 1;
+
+        // A step that the interval cannot express (the reciprocal of a denormal step overflows) leaves both indexes infinite, and the count of their difference is not a number: no ticks, the same on every runtime
+        // (the cast of NaN to an array length wraps to a negative number on .NET 8 and overflows in a checked context)
+        if (double.IsNaN(n))
+        {
+            return [];
+        }
+
         if (n > maxTicks)
         {
             throw new VegaLiteRenderException(

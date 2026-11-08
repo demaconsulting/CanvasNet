@@ -106,7 +106,9 @@ The output fields are `value` and `density` by default.
 are sorted, and every probability `p` gives the R-7 quantile of `d3-array` (`quantileSorted`: linear interpolation at
 `(n - 1) p`), null for no numbers. The probabilities are `probs` or `range(step / 2, 1 - 1e-14, step)` (the default
 step
-0.01 gives the 100 probabilities 0.005, 0.015, ..., 0.995, counted by `StatisticsPrimitives.RangeCount`). The output
+0.01 gives the 100 probabilities 0.005, 0.015, ..., 0.995, counted by `StatisticsPrimitives.RangeCount`, which saturates
+at `long.MaxValue` for a quotient that no integer holds, so the count is checked against the row budget and then
+against `TableLayout.MaxCells` before the array is allocated). The output
 fields are `prob` and `value`.
 
 **Extent.** `StatisticsPrimitives.Extent` is the minimum and maximum of the field by `vega-util`'s `extent` (null and
@@ -117,9 +119,12 @@ returned unchanged, and the input rows are not released.
 **Budgets.** Every output row is reserved in the row budget of the loader before it is written (`ReserveDerivedRows`);
 the points of a curve are reserved as they are found (a callback of the sampler), and the grid of a density and the
 probabilities of a quantile are reserved before they are computed. The rows of the input are released (`ReleaseRows`)
-when the output is complete. The work is charged to the step budget through the `WorkMeter` (one step per 64 elements):
-`n` times the coefficients for a fit, `LoessFit.Cost` (points times window times iterations) up front for a loess, the
-rows for every density sample point, and the sort for a quantile. The token is polled through `TransformContext.Tick`
+when the output is complete. The work is charged to the step budget through the `WorkMeter` (one step per 64 elements,
+an element weighted to about three nanoseconds, so that the default budget stops each transform in about ten seconds,
+phase 14): `n` times (the coefficients squared plus 8) times 16 for a fit, `LoessFit.Cost` (points times window times
+iterations times 3, plus 16 a point for the sort) up front for a loess, the
+rows times 4 for every density sample point, and the sort for a quantile. The token is polled through
+`TransformContext.Tick`
 every 1,024 rows and in the long loops.
 
 #### Key Methods

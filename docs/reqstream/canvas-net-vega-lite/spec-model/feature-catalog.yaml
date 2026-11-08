@@ -207,8 +207,9 @@ sections:
                   (the warning vl-shape-path-invalid; the stable identifiers vl-scale-interpolate-cubehelix and
                   vl-shape-path are retired because the cubehelix interpolations and the custom path shapes are
                   drawn), the legend
-                  properties that the legend builder does not draw (encode, a format type other than
-                  number, time, and utc, and clipHeight), and the guide properties and
+                  properties that the legend builder does not draw (encode and a format type other than
+                  number, time, and utc; the stable identifier vl-guide-legend-clipheight is retired and never
+                  reused: a clipHeight is drawn), and the guide properties and
                   encode blocks that the axis builder does not honor (the stable identifiers vl-guide-axis-labelbound,
                   -tickband, -tickextra, -position, -translate, -bandposition, -titlex, and -titley and
                   vl-guide-legend-titleorient are retired: they are drawn), shall warn (vl-scale-type-ignored) about
@@ -276,20 +277,20 @@ sections:
                   channel (the stable identifier vl-composition-facet is retired), shall report a row, column, or
                   facet channel only of a unit view that cannot be faceted (a layer, a layered view whose encoding
                   holds it, or the spec of a facet) as vl-channel-row, vl-channel-column, or vl-channel-facet, and
-                  shall report, at the property, a bin or aggregate of a facet field and a binned or maxbins time
-                  unit of it (vl-facet-field-transform; a time unit with parts and a sort by an aggregate are drawn,
-                  and the stable identifier vl-facet-sort is retired), a header labelOrient
+                  shall not report a bin, aggregate, or time unit of a facet field (the stable identifiers
+                  vl-facet-field-transform and vl-facet-sort are retired; they are drawn), shall report, at the
+                  property, a header labelOrient
                   or titleOrient on a side that the header does not draw (vl-header-orient), a custom header
                   formatType (vl-format-type-custom), and an expression in a facet (vl-expr-ref), and shall not report a
                   header labelExpr (it is drawn; only its unsupported constructs are reported at its text).
                 justification: |
-                  A facet whose field is binned, sorted by an aggregate, or whose header is placed on a side that
+                  A facet whose header is placed on a side that
                   is not drawn would otherwise look as if the author's setting took effect; the catalog is the single
                   place that names it.
                 tests:
                   - FeatureCatalog_Visit_FacetAndFacetedUnitViewAreNotReported
                   - FeatureCatalog_Visit_RowColumnChannelInLayerOrFacetSpecStillReported
-                  - FeatureCatalog_Visit_FacetFieldTransformIsReported
+                  - FeatureCatalog_Visit_FacetFieldTransformIsNotReported
                   - FeatureCatalog_Visit_FacetSortByAggregateIsNotReported
                   - FeatureCatalog_Visit_HeaderOrientExprAndFormatTypeAreReported
 
@@ -340,9 +341,9 @@ sections:
                   identifiers vl-mark-boxplot, vl-mark-errorbar, and vl-mark-errorband are retired) or their
                   channels (the x2 and y2 ends of the two error marks, the xError, xError2, yError, and yError2
                   channels of them, and the shape, angle, and strokeDash channels of the outliers of a boxplot),
-                  shall report a bin, an aggregate, or a binned or maxbins time unit of a channel that groups the
-                  rows of a composite mark (vl-composite-grouping, at the channel; a time unit with parts is
-                  applied and not reported), shall report the error channels of any
+                  shall not report a bin, an aggregate, or a time unit of a channel that groups the
+                  rows of a composite mark (the stable identifier vl-composite-grouping is retired; the expansion
+                  applies them as Vega-Lite does), shall report the error channels of any
                   other mark as ignored (vl-channel-xerror, vl-channel-xerror2, vl-channel-yerror, and
                   vl-channel-yerror2), and shall report the size channel of an errorbar as not drawn.
                 justification: |
@@ -351,14 +352,13 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
                   - FeatureCatalog_Visit_TimeUnitOfAGroupingChannelIsNotReported
-                  - FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported
-                  - FeatureCatalog_Visit_AggregateOfAGroupingChannelIsReportedButNotTheMeasure
-                  - FeatureCatalog_Visit_GroupingReportFollowsTheOrientationAndLayers
+                  - FeatureCatalog_Visit_BinOrTimeUnitOrAggregateOfAGroupingChannelIsNotReported
+                  - FeatureCatalog_Visit_GroupingFormsAreNotReportedWhateverTheOrientationAndLayers
                   - FeatureCatalog_Visit_UndecidableBoxPlotAndRetiredIdentifier
                   - FeatureCatalog_Visit_ErrorBarAndErrorBandAreSupportedWithTheirChannels
                   - FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported
                   - FeatureCatalog_Visit_ErrorBarReportsTheChannelsItDoesNotDraw
-                  - FeatureCatalog_Visit_ErrorBarGroupingIsReportedAtTheGroupingChannel
+                  - FeatureCatalog_Visit_ErrorBarGroupingIsNotReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
                 title: >-
@@ -493,21 +493,22 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TimeIds
                 title: >-
                   The FeatureCatalog unit shall report, with stable identifiers and through the same sink, the
-                  parts of the time phase that the renderer does not draw - a binned time unit (a name that starts
-                  with binned, or binned true) as vl-timeunit-binned at the value, the maxbins form of a time
-                  unit in a predicate as vl-timeunit-maxbins, a band position or a time unit band position
+                  parts of the time phase that the renderer does not draw - a band position or a time unit band position
                   other than one half on a bar or rect with a time unit as vl-encoding-bandposition-rect, a
                   band position on a field with neither a time unit nor a bin as vl-encoding-bandposition, a
                   datetime object as the datum of a channel as vl-encoding-datum-datetime, and a format type
                   other than number, time, and utc as vl-format-type-custom - and shall warn, without ever
-                  failing in strict mode, about a week or day-of-year part of the time unit of a predicate
+                  failing in strict mode, about a week or day-of-year part of the (not binned) time unit of a predicate
                   (vl-predicate-timeunit-part), a time interval as nice or as the tick count on a scale that
                   is not a time scale (vl-scale-nice-interval and vl-guide-axis-tickcount-interval), a zero
                   property of a time scale (vl-scale-zero-ignored), and a scale type that a temporal field
                   cannot use (vl-scale-type-ignored); and shall no longer report the temporal type, a time unit
-                  in an encoding, the timeUnit transform of the drawn view, the time scale types, a time unit
+                  in an encoding, a binned time unit or the maxbins form in a predicate, the timeUnit transform of
+                  the drawn
+                  view, the time scale types, a time unit
                   or datetime object in a filter predicate or condition test, and a custom date format
                   (the identifiers vl-type-temporal, vl-encoding-timeunit, vl-transform-timeunit,
+                  vl-timeunit-binned, vl-timeunit-maxbins,
                   vl-scale-time, vl-scale-utc, vl-transform-filter-timeunit, vl-transform-filter-datetime,
                   vl-encoding-condition-test, and vl-data-parse-date-format are retired).
                 justification: |
@@ -516,8 +517,8 @@ sections:
                   to, so the retired ones must be gone and the new ones stable.
                 tests:
                   - FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported
-                  - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
-                  - FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly
+                  - FeatureCatalog_Visit_BinnedTimeUnitIsNotReported
+                  - FeatureCatalog_Visit_MaxBinsTimeUnitIsNotReported
                   - FeatureCatalog_Visit_BandPositionIdentifiers
                   - FeatureCatalog_Visit_DatumDatetimeIsReported
                   - FeatureCatalog_Visit_IntervalsOnScalesThatAreNotTimeScales
@@ -534,11 +535,15 @@ sections:
                   (the offset of a nominal or ordinal position, with or without a time unit, or of a temporal
                   position with
                   a
-                  supported time unit, a continuous offset of the marks other than bar and area), shall report at the
+                  supported time unit, a continuous offset of the marks other than bar and area, and a ranged
+                  offset: an unbinned quantitative offset of a bar or an area over a nominal or ordinal position
+                  without a secondary channel), shall report at the
                   channel, with vl-offset-position, an offset whose position channel is missing, is quantitative,
                   is temporal without a time unit or with a day,
                   weekday, binned, or maxbins unit, or belongs to a rect mark, and, with vl-offset-ranged, a
-                  continuous (quantitative or temporal) offset of a bar or an area, each ignored when drawn, and
+                  continuous (quantitative or temporal) offset of a bar or an area that is not a ranged offset (a
+                  temporal or binned offset, a position with a secondary channel, or a temporal position with a
+                  time unit), each ignored when drawn, and
                   shall warn with vl-scale-type-ignored about a point scale type given to a position that holds an
                   offset.
                 justification: |
@@ -548,6 +553,24 @@ sections:
                   - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
                   - FeatureCatalog_Visit_PointScaleOnAPositionWithOffsetWarns
                   - FeatureCatalog_Visit_PointScaleOnADiscreteTimeUnitPositionWithOffsetWarns
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScaleInvalidReports
+                title: >-
+                  The FeatureCatalog unit shall not report an entry of the config.scale.invalid of the
+                  specification that is the text zero-or-min or an object whose value is a number or a text (the
+                  forms of Vega-Lite 6.5.0's invalid.ts, which the mark builder draws), and shall report every
+                  other entry (null, a boolean, or a list as the value, or an entry of another
+                  shape; an expression reference is reported by vl-expr-ref at its value instead) once with
+                  vl-scale-invalid-value
+                  at the entry, saying that it is ignored and that the
+                  invalid mode of the mark handles the invalid values of that channel; the entries of the
+                  configuration that the caller passes in the render options are not reported.
+                justification: |
+                  An entry that the renderer cannot read would leave the invalid rows of its channel filtered while
+                  the author expects them drawn; the catalog must name it, and a readable entry must not make the
+                  chart noisy.
+                tests:
+                  - FeatureCatalog_Visit_UnreadableScaleInvalidEntriesAreReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ImageReports
                 title: >-

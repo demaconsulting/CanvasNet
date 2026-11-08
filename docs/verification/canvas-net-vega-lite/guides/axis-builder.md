@@ -375,6 +375,27 @@ label is hidden without a label overlap method (`labelOverlap: false`), for fals
 the boxes are bound along y: "0" at the bottom and "50" at the top of the range of 200 pixels pass it by about half
 their height (5 pixels) and are hidden with a tolerance of 1.
 
+##### Ranged Offsets Move The Ticks And Labels To The Baseline
+
+**Tests**: `AxisBuilderRangedOffsetTests.AxisBuilder_Build_RangedYOffsetPutsTicksAndLabelsAtTheBandEnd`,
+`AxisBuilderRangedOffsetTests.AxisBuilder_Build_RangedXOffsetPutsTicksAndLabelsAtTheBandStart`,
+`AxisBuilderRangedOffsetTests.AxisBuilder_Build_ExplicitBandPositionWinsOverTheRangedDefault`,
+`AxisBuilderRangedOffsetTests.AxisBuilder_Build_OtherAxesStayInTheMiddleOfTheBand`
+
+The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the ticks and labels of
+the SVG of `vega.View.toSVG`), read once and written out in the tests; the data rectangle is 150 by 100. The first chart
+is a bar over an ordinal `x` (three quarters) and a nominal `y` with one category, with a quantitative `yOffset`: the
+band of `y` starts at 16.67 and is 66.67 high, and the axis of `y` (a ranged position, which defaults its
+`bandPosition` to 1) has one tick at **83** (the band end, 83.33, as Vega draws it with the half-pixel translate of the
+axis) and one label, the text `A`, at y = 83.333333333 (the labels are at the band position of the axis, not in the
+middle). The second chart has the roles exchanged (a bar over an ordinal `y` and a nominal `x` of two categories, with a
+quantitative `xOffset`): the axis of `x` has its ticks at the band starts, **13** and **81**, and its labels `A` and `B`
+at x = 13.636363636 and 81.818181818 (the default `bandPosition` of `x` is 0). An explicit `bandPosition` wins: 0.5 on
+the first chart leaves the label in the middle of the band (y = 49.5, with the tick at 50), and 0 puts it at the start of
+the band (y = 16.666666667, without the tick offset). The other axes stay in the middle of the band: the `x` axis of
+the first chart (the quarters, whose bars span their whole bands) has its labels at 24.5, 74.5, and 124.5, and the `x`
+axis of an ordinary grouped bar chart (a nominal `xOffset`, which is not ranged) has its one label at 74.5.
+
 ##### Label Expressions Replace The Tick Labels
 
 **Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprAppendsPercent`,

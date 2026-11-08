@@ -373,7 +373,8 @@ internal static class PredicateSource
     }
 
     /// <summary>
-    ///     Reads the time unit of a predicate when it keeps a part (the <c>binned</c> units and the <c>maxbins</c> form keep none and are ignored).
+    ///     Reads the time unit of a predicate when it keeps a part: a unit with parts, including a <c>binned</c> one (whose field is compared as it is, the data being floored already);
+    ///     the <c>maxbins</c> form keeps none and is ignored (the field is compared as it is, as Vega-Lite's <c>fieldFilterExpression</c> does for a unit that names no <c>unit</c>).
     /// </summary>
     /// <param name="predicate">The predicate object.</param>
     /// <returns>The unit, or null when the predicate has none that applies.</returns>
@@ -385,7 +386,7 @@ internal static class PredicateSource
             return null;
         }
 
-        return parsed is { IsBinned: false, Parts.Count: > 0 } ? parsed : null;
+        return parsed.Parts.Count > 0 ? parsed : null;
     }
 
     /// <summary>
@@ -572,6 +573,12 @@ internal static class PredicateSource
     /// <returns>The expression.</returns>
     private static string UnitInstant(TimeUnitSpec unit, string field)
     {
+        // A binned unit's field holds the start of the unit already: Vega-Lite compares time(rawField) (fieldFilterExpression, src/predicate.ts, binned branch)
+        if (unit.IsBinned)
+        {
+            return "time(" + field + ")";
+        }
+
         var prefix = unit.Utc ? "utc" : string.Empty;
         string Part(string name) => name == "quarter" ? "(" + prefix + "quarter(" + field + ")-1)" : prefix + name + "(" + field + ")";
         bool Has(string name) => unit.Parts.Contains(name);
@@ -631,9 +638,9 @@ internal static class PredicateSource
                 operand = "time(" + date.ToExpression() + ")";
                 return true;
             case SpecNodeKind.Number:
-                if (unit is { IsSingleLocalUnit: true } && value.NumberValue < 10000)
+                if (IsSingleUnit(unit) && value.NumberValue < 10000)
                 {
-                    return DateTimeObject.TryUnitPartExpression(unit.Parts[0], value.NumberValue, null, out var part) && Wrap(part, out operand);
+                    return DateTimeObject.TryUnitPartExpression(unit!.Parts[0], value.NumberValue, null, out var part) && Wrap(part, out operand);
                 }
 
                 operand = Literal(value);
@@ -642,7 +649,7 @@ internal static class PredicateSource
                 var text = value.StringValue!;
                 if (!JsDateParser.TryParse(text, TimeCalendar.Utc, out _))
                 {
-                    if (unit is { IsSingleLocalUnit: true } && DateTimeObject.TryUnitPartExpression(unit.Parts[0], double.NaN, text, out var named))
+                    if (IsSingleUnit(unit) && DateTimeObject.TryUnitPartExpression(unit!.Parts[0], double.NaN, text, out var named))
                     {
                         return Wrap(named, out operand);
                     }
@@ -658,6 +665,14 @@ internal static class PredicateSource
                 return true;
         }
     }
+
+    /// <summary>
+    ///     Tells whether a number or a text compared with a unit stands for the one part of the unit (Vega-Lite's <c>isLocalSingleTimeUnit</c> of the normalized unit): a single local unit, or the
+    ///     single part of a <c>binned</c> unit (<c>binnedyear</c>), whose <c>utc</c> flag the normalization removes.
+    /// </summary>
+    /// <param name="unit">The unit, or null.</param>
+    /// <returns><see langword="true"/> when the unit keeps one part and is local (or binned).</returns>
+    private static bool IsSingleUnit(TimeUnitSpec? unit) => unit is { IsSingleLocalUnit: true } or { IsBinned: true, Parts.Count: 1 };
 
     /// <summary>
     ///     Wraps a <c>datetime(...)</c> call in <c>time(...)</c>.

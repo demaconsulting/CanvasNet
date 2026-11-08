@@ -251,6 +251,24 @@ public class AggregateTransformsImputeTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that the audit found: with a row limit above the range of an int, a count of key values beyond that range was converted to an int for the loop (a wrapped negative number on .NET 8, which
+    ///     silently imputed nothing, and a saturated one on .NET 9 and later); the count is now bounded by the largest table, the same refusal on every runtime.
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_Impute_KeyCountBeyondTheIntRangeIsRefusedWhateverTheRowLimit()
+    {
+        // Arrange: three billion keys and a row limit that would let them pass
+        var json = Spec(Series, "[{\"impute\":\"y\",\"key\":\"x\",\"keyvals\":{\"start\":0,\"stop\":3e9}}]");
+
+        // Act
+        var exception = Assert.Throws<VegaLiteRenderException>(() => Run(json, new VegaLiteLimits { MaxDataRows = long.MaxValue }));
+
+        // Assert
+        Assert.Equal("/transform/0", exception.Location.Pointer);
+        Assert.Contains("the limit of 2147483647 (MaxDataRows)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a list of key values longer than the row limit is rejected too.
     /// </summary>
     [Fact]

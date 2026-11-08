@@ -35,8 +35,8 @@ internal static partial class SpecNormalizer
     {
         var orient = b.Orient(encoding);
         var axis = b.ContinuousAxis(encoding, orient);
-        var (shared, groupBy, timeUnits) = b.Grouping(encoding!, axis);
-        var plot = new BoxPlotLayers(b, axis, orient, shared, groupBy, timeUnits);
+        var grouping = b.Grouping(encoding!, axis);
+        var plot = new BoxPlotLayers(b, axis, orient, grouping);
         return plot.Create();
     }
 
@@ -66,8 +66,11 @@ internal static partial class SpecNormalizer
         /// <summary>The fields that group the rows.</summary>
         private readonly List<string> _groupBy;
 
-        /// <summary>The <c>timeUnit</c> transforms of the grouping channels, which run before the aggregates.</summary>
+        /// <summary>The transforms of the grouping channels (the bins, then the time units), which run before the aggregates.</summary>
         private readonly List<SpecNode> _timeUnits;
+
+        /// <summary>The measures that the aggregating channels add to the aggregates.</summary>
+        private readonly List<SpecNode> _measures;
 
         /// <summary>The <c>invalid</c> of the mark definition, or null.</summary>
         private readonly SpecNode? _invalid;
@@ -78,19 +81,18 @@ internal static partial class SpecNormalizer
         /// <param name="b">The builder of the composite mark.</param>
         /// <param name="axis">The continuous axis.</param>
         /// <param name="orient">The orientation.</param>
-        /// <param name="shared">The channels the parts share.</param>
-        /// <param name="groupBy">The fields that group the rows.</param>
-        /// <param name="timeUnits">The <c>timeUnit</c> transforms of the grouping channels.</param>
-        public BoxPlotLayers(CompositeBuilder b, CompositeAxis axis, string orient, List<SpecNode> shared, List<string> groupBy, List<SpecNode> timeUnits)
+        /// <param name="grouping">The channels that group the rows, and what their definitions add.</param>
+        public BoxPlotLayers(CompositeBuilder b, CompositeAxis axis, string orient, CompositeGrouping grouping)
         {
             _b = b;
             _axis = axis;
             _orient = orient;
             _ticksOrient = orient == "vertical" ? "horizontal" : "vertical";
-            _shared = shared;
-            _withoutSizeAndColor = [.. shared.Where(c => c.Name is not ("size" or "color"))];
-            _groupBy = groupBy;
-            _timeUnits = timeUnits;
+            _shared = grouping.Channels;
+            _withoutSizeAndColor = [.. grouping.Channels.Where(c => c.Name is not ("size" or "color"))];
+            _groupBy = grouping.GroupBy;
+            _timeUnits = grouping.Transforms;
+            _measures = grouping.Measures;
             _invalid = b.Definition?["invalid"];
         }
 
@@ -200,7 +202,7 @@ internal static partial class SpecNormalizer
         /// </summary>
         /// <param name="measures">The measures.</param>
         /// <returns>The transform entry.</returns>
-        private SpecNode Aggregate(params SpecNode[] measures) => _b.Obj(null, _b.Arr("aggregate", measures), GroupByNode());
+        private SpecNode Aggregate(params SpecNode[] measures) => _b.Obj(null, _b.Arr("aggregate", [.. measures, .. _measures]), GroupByNode());
 
         /// <summary>
         ///     Writes a view of layers with transforms of its own.

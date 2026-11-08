@@ -105,7 +105,13 @@ internal sealed record LegendResult(
 ///         legend of a temporal color or of a size or an opacity over dates has the time ticks of its domain (see <c>LegendBuilder.Time.cs</c>).
 ///     </para>
 ///     <para>
-///         <b>Not drawn.</b> <c>clipHeight</c>, <c>encode</c> and custom format types
+///         <b>Clip height.</b> A symbol legend whose <c>clipHeight</c> is more than zero (Vega's <c>legend-symbol-groups.js</c>: <c>height = _('clipHeight')</c>) puts the symbol and the label of
+///         an entry at half of that height instead of half of the entry size, gives the entry the height (the box of an entry is its label's box and the rectangle from 0, 0 to 0 by the height) and clips the
+///         symbol to the entry: a rectangle as wide as the widest entry of the column (<c>legendEntryLayout</c>) and as high as the entry's bottom edge. The symbol therefore adds nothing to the box of the
+///         entry (<c>boundClip</c> cuts it to the width of the group, which is still zero when the bounds are taken). The label is not clipped. A gradient legend ignores the property.
+///     </para>
+///     <para>
+///         <b>Not drawn.</b> <c>encode</c> and custom format types
 ///         (the feature catalog reports them); the symbols of the <c>arrow</c>, <c>wedge</c> and <c>triangle</c> shapes use the box of their path.
 ///     </para>
 ///     <para>

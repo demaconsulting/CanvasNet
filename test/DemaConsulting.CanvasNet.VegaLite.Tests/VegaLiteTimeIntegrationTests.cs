@@ -336,11 +336,121 @@ public class VegaLiteTimeIntegrationTests
     }
 
     /// <summary>
-    ///     Validates the strict mode: temporal fields, time units and date parse directives are supported and not reported, while a binned time unit and a band position other than
-    ///     one half on a bar with a time unit are reported with their ids and places.
+    ///     Validates a binned time unit on a bar (Vega-Lite's <c>TimeUnitNode.makeFromEncoding</c> and <c>rectBinPosition</c>): the data is floored already, so the field is read as it is and its end is
+    ///     one month after it; the bars have the geometry of the same chart with the unit <c>yearmonth</c>, and a field that is not floored (the 15th of each month) is not floored either (the bars of the
+    ///     months from the 15th keep the lengths of the months, so they are the same), in strict mode.
     /// </summary>
     [Fact]
-    public void CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition()
+    public void CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitDrawsTheBarsOfTheUnitAndDoesNotFloor()
+    {
+        // Arrange
+        const string Template = """
+            { "width": 300, "height": 100,
+              "data": { "values": [ { "d": "DATE1", "v": 4 }, { "d": "DATE2", "v": 7 }, { "d": "DATE3", "v": 3 }, { "d": "DATE4", "v": 9 } ] },
+              "mark": "bar",
+              "encoding": { "x": { "field": "d", "type": "temporal", "timeUnit": "UNIT" }, "y": { "field": "v", "type": "quantitative" } } }
+            """;
+        string Make(string unit, string day) => Template.Replace("UNIT", unit, StringComparison.Ordinal)
+            .Replace("DATE1", "2024-01-" + day, StringComparison.Ordinal).Replace("DATE2", "2024-02-" + day, StringComparison.Ordinal)
+            .Replace("DATE3", "2024-03-" + day, StringComparison.Ordinal).Replace("DATE4", "2024-04-" + day, StringComparison.Ordinal);
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+        // Act
+        var unit = VegaLiteDocument.Parse(Make("yearmonth", "01")).BuildScene(strict, Ct);
+        var floored = VegaLiteDocument.Parse(Make("binnedyearmonth", "01")).BuildScene(strict, Ct);
+        var raw = VegaLiteDocument.Parse(Make("binnedyearmonth", "15")).BuildScene(strict, Ct);
+        using var surface = VegaLiteDocument.Parse(Make("binnedyearmonth", "01")).Render(strict, Ct);
+
+        // Assert: four bars with the geometry of the unit (the end of each is one month later), and the heights follow the values
+        static List<(double X, double Y, double Width, double Height)> Bars(Scene scene) =>
+            [.. scene.FindAll("mark-bar").Select(e => (SceneRect)e.Item).Select(r => (Math.Round(r.X, 6), Math.Round(r.Y, 6), Math.Round(r.Width, 6), Math.Round(r.Height, 6)))];
+        Assert.Equal(4, Bars(unit).Count);
+        Assert.Equal(Bars(unit), Bars(floored));
+        Assert.Equal(Bars(unit), Bars(raw));
+        Assert.Equal(300.0 * 31 / 121, Bars(floored)[0].Width + 1, 6);
+        Assert.True(Bars(floored)[3].Height > Bars(floored)[1].Height && Bars(floored)[1].Height > Bars(floored)[0].Height);
+
+        // Assert: the title is the field alone (a binned unit is not in the title) and the labels are those of the unit
+        Assert.Equal(["d (year-month)"], Texts(unit, "axis-title").Where(t => t.StartsWith('d')));
+        Assert.Equal(["d"], Texts(floored, "axis-title").Where(t => t.StartsWith('d')));
+    }
+
+    /// <summary>
+    ///     Validates the binned unit of a mark without a band position (a point): the point sits at the date as it is, there is no end to compute, and the chart is the one without a unit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitOfAPointSitsAtTheDate()
+    {
+        // Arrange
+        var plain = Chart(["2024-01-01", "2024-01-06", "2024-01-11"], 300);
+        var binned = Chart(["2024-01-01", "2024-01-06", "2024-01-11"], 300, ", \"timeUnit\": \"binnedyearmonthdate\"");
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+        // Act
+        var plainScene = VegaLiteDocument.Parse(plain).BuildScene(strict, Ct);
+        var binnedScene = VegaLiteDocument.Parse(binned).BuildScene(strict, Ct);
+
+        // Assert: the points are at days 0, 5 and 10 of 10, as without the unit
+        Assert.Equal([0.0, 150, 300], Xs(binnedScene, "mark-point").Select(x => Math.Round(x, 6)));
+        Assert.Equal(Xs(plainScene, "mark-point"), Xs(binnedScene, "mark-point"));
+    }
+
+    /// <summary>
+    ///     Validates the predicates of a binned unit and of the maxbins form (Vega-Lite's <c>fieldFilterExpression</c>): a binned unit compares the instant of the field with the date the value
+    ///     names (the date-time object of February 2024), so the three months from February are kept; a maxbins unit names no unit, so the field is compared as it is (a number is compared as a number).
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Time_PredicatesOfBinnedAndMaxBinsUnitsCompareTheField()
+    {
+        // Arrange
+        const string Template = """
+            { "width": 300, "height": 100,
+              "data": { "values": [ { "d": "2024-01-01", "v": 1 }, { "d": "2024-02-01", "v": 2 }, { "d": "2024-03-01", "v": 3 }, { "d": "2024-04-01", "v": 4 } ] },
+              "transform": [ { "filter": FILTER } ],
+              "mark": "bar",
+              "encoding": { "x": { "field": "d", "type": "temporal", "timeUnit": "binnedyearmonth" }, "y": { "field": "v", "type": "quantitative" } } }
+            """;
+        var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+        int Count(string filter) => VegaLiteDocument.Parse(Template.Replace("FILTER", filter, StringComparison.Ordinal)).BuildScene(strict, Ct).FindAll("mark-bar").Count();
+
+        // Act / Assert: the instant of the field is compared with February 1, 2024 (UTC)
+        Assert.Equal(3, Count("""{ "field": "d", "timeUnit": "binnedyearmonth", "gte": { "year": 2024, "month": "feb" } }"""));
+        Assert.Equal(1, Count("""{ "field": "d", "timeUnit": "binnedyearmonth", "equal": "2024-03-01" }"""));
+        Assert.Equal(2, Count("""{ "field": "d", "timeUnit": "binnedyearmonth", "oneOf": [ "2024-01-01", { "year": 2024, "month": "apr" } ] }"""));
+
+        // Assert: the maxbins form names no unit, so the numeric field v is compared as a number
+        Assert.Equal(2, Count("""{ "field": "v", "timeUnit": { "maxbins": 10 }, "lt": 3 }"""));
+    }
+
+    /// <summary>
+    ///     Validates the timeUnit transform of a binned unit (Vega's <c>timeunit</c> has no <c>binned</c> parameter, so the unit floors): the transform floors the 15th of each month to
+    ///     the first, and the chart of the derived field has the bars of the months.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Time_BinnedUnitInTheTransformFloors()
+    {
+        // Arrange
+        const string Spec = """
+            { "width": 300, "height": 100,
+              "data": { "values": [ { "d": "2024-01-15", "v": 4 }, { "d": "2024-02-20", "v": 7 }, { "d": "2024-02-25", "v": 3 } ] },
+              "transform": [ { "timeUnit": "binnedyearmonth", "field": "d", "as": "m" } ],
+              "mark": "point",
+              "encoding": { "x": { "field": "m", "type": "temporal" }, "y": { "field": "v", "type": "quantitative" } } }
+            """;
+
+        // Act
+        var scene = VegaLiteDocument.Parse(Spec).BuildScene(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+
+        // Assert: the three points are at January 1, February 1 and February 1 (the 15th, 20th and 25th are floored): 0, 31 days of 31, 31 of 31
+        Assert.Equal([0.0, 300, 300], Xs(scene, "mark-point").Select(x => Math.Round(x, 6)));
+    }
+
+    /// <summary>
+    ///     Validates the strict mode: temporal fields, time units (also binned ones) and date parse directives are supported and not reported, while a band position other than
+    ///     one half on a bar with a time unit is reported with its id and place.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsRectBandPositionAndNotBinnedTimeUnit()
     {
         // Arrange
         var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
@@ -349,15 +459,14 @@ public class VegaLiteTimeIntegrationTests
         Assert.Contains("binnedyearmonth", binned, StringComparison.Ordinal);
         Assert.Contains("timeUnitBandPosition", rect, StringComparison.Ordinal);
 
-        // Act: the supported fixtures render without a report
+        // Act: the supported fixtures render without a report, the binned one too (Phase 14)
         using var bars = Open("time-bars.vl.json").Render(strict, Ct);
         using var parsed = Open("time-parse.vl.json").Render(strict, Ct);
-        var binnedError = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => VegaLiteDocument.Parse(binned).Render(strict, Ct));
+        using var binnedBars = VegaLiteDocument.Parse(binned).Render(strict, Ct);
         var rectError = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => VegaLiteDocument.Parse(rect).Render(strict, Ct));
 
         // Assert
-        Assert.Equal("vl-timeunit-binned", binnedError.Feature);
-        Assert.True(binnedError.Location.Line > 0);
+        Assert.True(binnedBars.Width > 0);
         Assert.Equal("vl-encoding-bandposition-rect", rectError.Feature);
         Assert.True(rectError.Location.Line > 0);
     }

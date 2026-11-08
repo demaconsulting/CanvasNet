@@ -2,15 +2,17 @@
 
 ![Scenegraph Structure](VegaLiteScenegraphView.svg)
 
-The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It comprises four source files in the
+The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It comprises five source files in the
 `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace: `ScenePainter.cs`, `ScenePainter.Paths.cs`,
-`ScenePainter.Images.cs` (phase 13), and `SceneImageSource.cs` (phase 13). `ScenePainter` is a `partial` class, so the
-three painter files are one type; together they define three `internal` types: `ScenePainter` (sealed class),
+`ScenePainter.Images.cs` (phase 13), `ScenePainter.Budget.cs` (phase 14), and `SceneImageSource.cs` (phase 13).
+`ScenePainter` is a `partial` class, so the
+four painter files are one type; together they define three `internal` types: `ScenePainter` (sealed class),
 `ScenePlacement` (readonly record struct, in `ScenePainter.cs`), and `SceneImageSource` (sealed class, the loader of the
 pictures of one painting). `ScenePainter.cs` has
 the placement, the painting of the groups, rectangles, rules, polylines, symbols, and text, and the fills and strokes;
 `ScenePainter.Paths.cs` has the painting of paths made of segments, arcs, and trails, and the miter limit;
-`ScenePainter.Images.cs` has the painting of pictures. The painter files carry the provenance header comment for the
+`ScenePainter.Images.cs` has the painting of pictures; `ScenePainter.Budget.cs` has the paint budget (below). The
+painter files carry the provenance header comment for the
 Vega
 rendering behavior they port (the second one also names d3-shape, d3-path, and Vega-Lite; the third the image mark of
 vega-scenegraph).
@@ -33,9 +35,31 @@ largest factor that fits and centers it (a scene without area is not scaled).
 
 **`ScenePainter`** (stateless, thread-safe unless it was given a picture loader) holds the `TextMeasurer` that resolves
 fonts and produces the lines
-to draw, and an optional **`SceneImageSource`** for the pictures (below). A private context carries the target surface,
+to draw, an optional **`SceneImageSource`** for the pictures (below), and the limit of painted pixels (`maxPaintedPixels`,
+`long.MaxValue` for none; `VegaLiteDocument` passes `VegaLiteLimits.MaxPaintedPixels`). A private context carries the
+target surface,
 the current transform (a `Matrix3x2` holding the uniform scale and
-translations), and the scale.
+translations), the scale, the **paint meter** of the painting (null without a limit), and the location of the nearest
+enclosing group that has one.
+
+**Paint budget** (phase 14, `ScenePainter.Budget.cs`). Before the work of every item, the painter charges the device
+pixels the work covers to the paint meter, a counter that exists for one `Paint` call and throws a
+`VegaLiteRenderException` that names `VegaLiteLimits.MaxPaintedPixels` when a charge would pass the limit, so the
+painter is stopped before the item that did not fit is painted. `ChargePath` takes the box of the control points of a
+path in the item's units (curves lie inside the hull of their control points; an arc is the end point grown by its
+radius), maps its four corners with the item's matrix in double precision (a symbol is rotated), grows the box by half
+the stroke width in surface pixels for a stroke (`StrokeOnly` charges after the width test, before the outline is
+made), and charges the part of it that lies on the target (the surface, or the clip layer when the item is inside a
+clipped group, so a huge rectangle in a small clip costs the clip); a fill and a stroke are two charges, a box with a
+NaN is the whole target and a box outside it is nothing. `ChargeText` estimates the box of a text item from its longest
+line (0.6 of the font size a character), its lines times the line height and its limit, cut to the target (measuring the
+text would be the work being charged). The layer of a clipped group, the layers of a translucent trail, the box of a
+picture and the pixels of every resampled copy (`SceneImageSource.GetTile` reports the work through a callback before
+it allocates) are charged the same way. The failure is located at the `SceneItem.Source` of the item (text and
+pictures carry their mark) or at the nearest enclosing group that has one: `MarkBuilder` gives the `marks` group of a
+mark the location of the mark, and `PaintGroup` carries it down in the context. The measured cost of one painted pixel
+(8 nanoseconds for a rectangle, 20 to 40 for large symbols and strokes) sets the default of 250,000,000 pixels: about ten
+seconds in the worst case.
 
 **Painting rules.**
 
@@ -227,11 +251,16 @@ through
 the core `PathFiller` with a `TilePaint` of the picture (not repeated), so the edges of a box on fractional pixels are
 anti-aliased, a reduced picture is area-averaged and an enlarged one interpolated by the core tile evaluator; the
 opacity of
-the item is multiplied into the alpha of a private copy of the picture, and a picture with `Smooth` off is first
+the item is multiplied into the alpha of a copy of the picture, and a picture with `Smooth` off is first
 resampled
-to the rounded device size with nearest-neighbor sampling. An item with no resolver behind it, an empty link, a position
+to the rounded device size with nearest-neighbor sampling; both copies are made once by `SceneImageSource.GetTile` for
+the items that draw the same picture at the same size and opacity (an icon for every point), within
+`MaxTilePixels` (8,388,608) kept pixels, and a copy beyond that is the one item's and is disposed (before phase 14 a
+copy was allocated for every item: 200 rows 1.3 seconds, 20,000 rows 87 seconds). The pixels of the box of every picture
+(defect B4: a picture without a size is the size of the picture) and of every copy that is made are charged to the paint
+budget first. An item with no resolver behind it, an empty link, a position
 beyond the magnitude bound, a negative or non-finite size, or no opacity is neither asked for nor drawn.
-*`SceneImageSource`* (one painting, one thread, `IDisposable`): `Get(url, pixelWidth, pixelHeight, location)` asks the
+`SceneImageSource` (one painting, one thread, `IDisposable`): `Get(url, pixelWidth, pixelHeight, location)` asks the
 host's
 `IImageResolver` once for each distinct `(url, width, height)` and shares the answer (the resolver contract allows no
 cache and returns a fresh surface per call, so a chart that shows one icon for every point would otherwise ask once per

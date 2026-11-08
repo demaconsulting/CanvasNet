@@ -6,8 +6,9 @@ This document describes the subsystem-level verification strategy for the `Expre
 and datum files), and `ExpressionFunctions` (together with the function context and the regular-expression
 translation). The subsystem implements the supported subset of the Vega expression language: the parser compiles the
 text of an expression into an immutable postfix program, the evaluator runs the program for one row, one parameter
-environment, or no datum at all, and the function table holds the 100 whitelisted functions (the math, text, type,
-regular-expression, date and time, and number formatting functions). It performs no input or
+environment, or no datum at all, and the function table holds the 113 whitelisted functions (the math, text, type,
+regular-expression, date and time, number formatting, selection, and probability distribution functions). It performs no
+input or
 output, reads no clock (there is no `now`), and uses no random source; the date and time functions use the calendar of
 the evaluation, never the host's time zone.
 
@@ -76,7 +77,8 @@ runs constitutes a failure.
   `ExpressionFunctionsTests.ExpressionFunctions_Math_ExactValuesAndSpecialCases`,
   `ExpressionFunctionsTests.ExpressionFunctions_Text_FollowJavaScriptAndVega`,
   `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_MatchesD3`,
-  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged` — the calls of the 104 names
+  `ExpressionFunctionsDistributionTests.ExpressionFunctionsDistribution_Functions_MatchVegaStatistics`,
+  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged` — the calls of the 113 names
   compile like any other call, run through the evaluator, and give the hand-derived values, while a call of any other
   name is an unsupported function, and the work of a function over a long text is charged to the same budget as the
   instructions (the instructions plus one step per 64 characters).

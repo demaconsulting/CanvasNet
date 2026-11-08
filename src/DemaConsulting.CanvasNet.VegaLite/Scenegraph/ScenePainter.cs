@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Rendering;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 using RenderCanvas = DemaConsulting.CanvasNet.Rendering.Canvas;
@@ -143,17 +144,24 @@ internal sealed partial class ScenePainter
     /// <summary>The loader of the pictures of <see cref="SceneImage"/> items, or null when the painter draws no pictures.</summary>
     private readonly SceneImageSource? _images;
 
+    /// <summary>The most device pixels one painting may fill, stroke or draw (<see cref="VegaLiteLimits.MaxPaintedPixels"/>); <see cref="long.MaxValue"/> for no limit.</summary>
+    private readonly long _maxPaintedPixels;
+
     /// <summary>
     ///     Initializes a painter.
     /// </summary>
     /// <param name="measurer">The measurer that resolves the fonts and measures the text.</param>
     /// <param name="images">The loader of the pictures of the <see cref="SceneImage"/> items, which the caller disposes after the painting; null draws no pictures (the items are skipped).</param>
+    /// <param name="maxPaintedPixels">The most device pixels one painting may paint (see <see cref="VegaLiteLimits.MaxPaintedPixels"/> and <c>ScenePainter.Budget.cs</c>); no limit by default.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> is null.</exception>
-    public ScenePainter(TextMeasurer measurer, SceneImageSource? images = null)
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxPaintedPixels"/> is less than one.</exception>
+    public ScenePainter(TextMeasurer measurer, SceneImageSource? images = null, long maxPaintedPixels = long.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(measurer);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxPaintedPixels, 1L);
         _measurer = measurer;
         _images = images;
+        _maxPaintedPixels = maxPaintedPixels;
     }
 
     /// <summary>
@@ -203,7 +211,7 @@ internal sealed partial class ScenePainter
 
         surface.Clear(CssColor.TryParse(scene.Background, out var background) ? background : new Rgba32(0, 0, 0, 0));
         var transform = Matrix3x2.CreateScale(placement.PaintScale) * Matrix3x2.CreateTranslation((float)placement.OffsetX, (float)placement.OffsetY);
-        PaintGroup(scene.Root, new Context(surface, transform, placement.PaintScale), cancellationToken);
+        PaintGroup(scene.Root, new Context(surface, transform, placement.PaintScale, CreateMeter()), cancellationToken);
     }
 
     /// <summary>The names of the symbol shapes that <see cref="SymbolPath"/> draws; any other name is drawn as a circle.</summary>
@@ -319,7 +327,11 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        var local = parent with { Transform = Matrix3x2.CreateTranslation((float)group.X, (float)group.Y) * parent.Transform };
+        var local = parent with
+        {
+            Transform = Matrix3x2.CreateTranslation((float)group.X, (float)group.Y) * parent.Transform,
+            Location = group.Source.IsKnown ? group.Source : parent.Location,
+        };
         PaintGroupBackground(group, local);
 
         if (group.Clip is { } clip)
@@ -408,13 +420,15 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        var boxX = (int)Math.Floor(left);
-        var boxY = (int)Math.Floor(top);
-        var boxWidth = (int)Math.Ceiling(right) - boxX;
-        var boxHeight = (int)Math.Ceiling(bottom) - boxY;
+        var boxX = NumericConversions.ToInt32Saturating(Math.Floor(left));
+        var boxY = NumericConversions.ToInt32Saturating(Math.Floor(top));
+        var boxWidth = NumericConversions.ToInt32Saturating(Math.Ceiling(right)) - boxX;
+        var boxHeight = NumericConversions.ToInt32Saturating(Math.Ceiling(bottom)) - boxY;
 
+        // The layer is allocated, painted into and composited: its pixels are charged before it exists
+        ChargePixels(local, (long)boxWidth * boxHeight, group.Role);
         using var layer = new Surface(boxWidth, boxHeight);
-        var layerContext = new Context(layer, local.Transform * Matrix3x2.CreateTranslation(-boxX, -boxY), local.Scale);
+        var layerContext = local with { Target = layer, Transform = local.Transform * Matrix3x2.CreateTranslation(-boxX, -boxY) };
         PaintChildren(group, layerContext, cancellationToken);
 
         // The coverage of each pixel column and row by the clip rectangle: 1 inside, the overlap at a fractional edge
@@ -605,6 +619,7 @@ internal sealed partial class ScenePainter
         }
 
         var size = (float)(text.FontSize * local.Scale);
+        ChargeText(local, text);
         var limit = Math.Min(text.Limit, MaxMagnitude);
         var font = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
         var face = _measurer.Resolve(font).Font;
@@ -670,6 +685,7 @@ internal sealed partial class ScenePainter
         if (!TryFillWithGradient(path, item, context, transform)
             && CssPaint.TryResolvePaint(item.Fill, item.FillOpacity * item.Opacity, out var fill))
         {
+            ChargePath(context, path, transform, 0, item);
             PathFiller.Fill(context.Target, path.Transform(transform), fill, FillRule.NonZero, FlattenTolerance);
         }
 
@@ -737,6 +753,7 @@ internal sealed partial class ScenePainter
             return true;
         }
 
+        ChargePath(context, path, transform, 0, item);
         PathFiller.Fill(context.Target, path.Transform(transform), new LinearGradient(start, end, stops), FillRule.NonZero, FlattenTolerance);
         return true;
     }
@@ -802,6 +819,9 @@ internal sealed partial class ScenePainter
             ResolveMiterLimit(item.StrokeMiterLimit),
             DashArray(item.StrokeDash, path, context.Scale),
             float.IsFinite(dashOffset) ? dashOffset : 0f);
+
+        // The stroke covers the box of the path grown by half its width on each side (in surface pixels); it is charged before the outline is made
+        ChargePath(context, path, transform, width * context.Scale / 2, item);
 
         // The outline is made in the item's units and then transformed, so widths and dashes scale with the chart
         var tolerance = FlattenTolerance / Math.Max(context.Scale, 1e-3f);
@@ -925,10 +945,12 @@ internal sealed partial class ScenePainter
         Array.TrueForAll(values, v => double.IsFinite(v) && Math.Abs(v) * scale <= MaxMagnitude);
 
     /// <summary>
-    ///     The drawing state: the target, the matrix from the current group's units to target pixels and the uniform scale.
+    ///     The drawing state: the target, the matrix from the current group's units to target pixels, the uniform scale, the paint meter of the painting and the location that a failure is reported at.
     /// </summary>
     /// <param name="Target">The surface drawn on.</param>
     /// <param name="Transform">The matrix from the current coordinate system to target pixels.</param>
     /// <param name="Scale">The uniform scale of the matrix.</param>
-    private readonly record struct Context(Surface Target, Matrix3x2 Transform, float Scale);
+    /// <param name="Meter">The meter that counts the painted pixels of the painting against the limit, or null for no limit.</param>
+    /// <param name="Location">The location of the nearest enclosing group that has one (the mark of the items inside it); unknown when none has.</param>
+    private readonly record struct Context(Surface Target, Matrix3x2 Transform, float Scale, PaintMeter? Meter = null, VegaLiteLocation Location = default);
 }

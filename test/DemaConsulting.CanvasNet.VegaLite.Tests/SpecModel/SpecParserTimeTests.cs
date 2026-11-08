@@ -90,6 +90,8 @@ public class SpecParserTimeTests
     [InlineData("""{"unit":"month","utc":true,"step":2}""", null)]
     [InlineData("""{"maxbins":10}""", null)]
     [InlineData("""{"unit":"yearmonth","binned":true}""", null)]
+    [InlineData("""{"unit":"month","binned":false,"maxbins":4}""", null)]
+    [InlineData("""{"maxbins":10,"binned":true}""", "/binned")]
     [InlineData("""{"unit":"month","step":0}""", "/step")]
     [InlineData("""{"unit":"month","step":-1}""", "/step")]
     [InlineData("""{"unit":"month","step":"2"}""", "/step")]
@@ -136,19 +138,21 @@ public class SpecParserTimeTests
     }
 
     /// <summary>
-    ///     Validates that a binned unit (a name or the flag) parses, and that the plan and the catalog treat it as the unit that is ignored and reported.
+    ///     Validates that a binned unit (a name or the flag) parses, is reported as nothing, and that the plan applies it (the field is read as it is).
     /// </summary>
     [Fact]
-    public void SpecParser_TimeUnit_Binned_ParsesAndIsReported()
+    public void SpecParser_TimeUnit_Binned_ParsesAndIsApplied()
     {
         // Act
         var named = ParseX("{\"field\":\"d\",\"type\":\"temporal\",\"timeUnit\":\"binnedyearmonth\"}");
         var flagged = ParseX("{\"field\":\"d\",\"type\":\"temporal\",\"timeUnit\":{\"unit\":\"yearmonth\",\"binned\":true}}");
 
         // Assert
-        Assert.Equal([("vl-timeunit-binned", "/encoding/x/timeUnit")], FeatureCatalog.Visit(named).Select(r => (r.Id, r.Location.Pointer)));
-        Assert.Equal([("vl-timeunit-binned", "/encoding/x/timeUnit")], FeatureCatalog.Visit(flagged).Select(r => (r.Id, r.Location.Pointer)));
-        Assert.Empty(EncodingPlan.Create(named.Root, ConfigResolver.Resolve(named, null)).TimeUnits);
+        Assert.Empty(FeatureCatalog.Visit(named));
+        Assert.Empty(FeatureCatalog.Visit(flagged));
+        var plan = EncodingPlan.Create(named.Root, ConfigResolver.Resolve(named, null));
+        Assert.Equal("d", plan.Channel("x")!.ValueField);
+        Assert.True(plan.Channel("x")!.TimeUnit!.Spec.IsBinned);
     }
 
     /// <summary>

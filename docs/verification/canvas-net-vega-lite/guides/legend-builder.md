@@ -216,6 +216,40 @@ the entries after the title on the left and the title past the entries on the ri
 `titleBaseline` of `bottom` win over the defaults of the orient. The report of the title orient is no longer made by
 the catalog (see the FeatureCatalog unit verification design).
 
+##### Clip Height
+
+**Tests**: `LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_AbsentLeavesTheSymbolsUnclipped`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_TallerThanTheSymbolsSetsThePitchAndTheClipBox`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_SmallerThanTheSymbolsClipsThemToTheEntry`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_ALabelTallerThanTheEntryWidensTheClipBox`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_ColumnsShareTheWidthOfTheWidestEntry`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_WithASymbolSizeAndRowPaddingMatchesVega`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_AGradientLegendIgnoresIt`,
+`LegendBuilderClipHeightTests.LegendBuilder_ClipHeight_ZeroIsIgnoredAndTheConfigurationApplies`
+
+The vertical numbers (the pitch of the entries, the positions of the symbols and labels, the heights of the clip
+rectangles) are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the translations of the entry
+groups, the positions of the symbols, and the `clipPath` rectangles of the SVG of `vega.View.toSVG`), read once and
+written out in the tests; the widths depend on the measured text (Vega's headless estimate differs from the bundled
+font), so the tests work them out from the measured labels. Three nominal values (the labels `x`, `yy`, and `zzz`) on a
+point mark are the subject. Without `clipHeight` there is no clipping group, the symbols are direct children of the
+entry group at 6, 24, and 42 (the pitch of 18 above), and the roles are `legend-symbol` and `legend-label` in turn. With
+a `clipHeight` of 30 (taller than the 12-pixel symbols) the entry groups, which are the `legend-symbol-clip` groups, are
+at 0, 32, and 64 (the height plus the row padding of 2), each symbol is at (6, 15) in its group, the labels at (16, 15),
+(16, 47), and (16, 79), the clip rectangle of each is (0, 0) to the width of the widest label and 30 high, and the legend
+is as high as its entry origin plus 94 (64 + 30). With 10 (smaller than the symbols) the groups are at 0, 12, and 24, the
+symbols at (6, 5), the clip rectangles 10 high, and the legend 34 below the origin of the entries. With 4 the label (10
+high, centered at 2) reaches below the group, so the bounds of the entry are the label's united with the rectangle from
+(0, 0) to (0, 4) and the clip rectangle is as high as the bottom edge of those bounds (`bounds.y2 - y` = 7, the label
+not clipped), the pitch is 12 and the legend 31 below the origin. With `columns: 2` and `orient: top` the first column
+holds the entries 0 and 2 and the second the entry 1: the entries are at (0, 0), (ceil(first column width) + 10, 0), and
+(0, 12), and the clip width of an entry is the width of the widest entry of its column (the entry 2, `zzz`, for the
+first). With `symbolSize: 900`, `rowPadding: 5`, and `clipHeight: 20` the symbol is 32 wide at (16, 10), the labels
+start at 36, the pitch is 25 (0, 25, 50), and the legend is 70 below the origin. A gradient legend with a `clipHeight` of
+50 has the same size as without it and no clipping group (Vega-Lite passes 20 for a gradient and the gradient parser
+never reads it). A `clipHeight` of 0 is not truthy and draws the legend as without it, and the `clipHeight` of
+`config.legend` (30) is read and gives the entries at 0, 32, and 64.
+
 ##### Limits, Cancellation, And Determinism
 
 **Tests**: `LegendBuilderTests.LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated`,

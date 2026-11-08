@@ -98,6 +98,29 @@ public class TicksTests
     }
 
     /// <summary>
+    ///     Validates the regression of a defect that the structured fuzz suite found: a step so small that the reciprocal of its denormal power of ten overflows to infinity gives infinite tick indexes whose
+    ///     count is not a number, and the cast of that count to an array length wrapped to a negative size (an unhandled <see cref="OverflowException"/> on .NET 8, an overflow in a checked context)
+    ///     instead of giving no ticks. The answer is the same on every runtime.
+    /// </summary>
+    [Fact]
+    public void Ticks_Ticks_StepBeyondTheDenormalRangeHasNoTicks()
+    {
+        // Arrange: a span of 1e-300 asked to hold ten billion ticks has a step of 1e-310 (a denormal); the same for a reversed interval
+        var cases = new (double Start, double Stop, double Count)[]
+        {
+            (5e-324, 1e-300, 1e10),
+            (1e-300, 5e-324, 1e10),
+            (5e-324, 1e-300, double.MaxValue),
+        };
+
+        // Act / Assert
+        foreach (var (start, stop, count) in cases)
+        {
+            Assert.Empty(Ticks.GetTicks(start, stop, count));
+        }
+    }
+
+    /// <summary>
     ///     Validates that a span that overflows a double, or an infinite end, has no ticks and never yields a
     ///     non-finite tick value.
     /// </summary>

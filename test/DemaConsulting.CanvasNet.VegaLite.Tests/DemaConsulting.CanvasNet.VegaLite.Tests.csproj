@@ -74,6 +74,13 @@
     </None>
   </ItemGroup>
 
+  <!-- The documentation gallery (original specifications of the user guide), copied so that a test renders each of them -->
+  <ItemGroup>
+    <None Include="..\..\docs\user_guide\examples\gallery\**" Link="Gallery\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <!-- The third-party notices that ship with the package, copied so that a test can check that they exist and name
        every license of the color schemes -->
   <ItemGroup>

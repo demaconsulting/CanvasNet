@@ -39,7 +39,7 @@ internal sealed partial class TimeCalendar
 
         // The probe is clamped so that the DateTime can always be built and the zone never sees its own edges
         var probe = Math.Clamp(Math.Truncate(utcMs), MinProbeMilliseconds, MaxProbeMilliseconds);
-        var ticks = UnixEpochTicks + ((long)probe * TimeSpan.TicksPerMillisecond);
+        var ticks = UnixEpochTicks + (NumericConversions.ToInt64Saturating(probe) * TimeSpan.TicksPerMillisecond);
         return Zone!.GetUtcOffset(new DateTime(ticks, DateTimeKind.Utc)).TotalMilliseconds;
     }
 
@@ -62,8 +62,8 @@ internal sealed partial class TimeCalendar
         }
 
         // Without a transition nearby both probes agree and the answer is unique (offsets are whole milliseconds)
-        var before = (long)UtcOffsetMilliseconds(wall - MillisecondsPerDay);
-        var after = (long)UtcOffsetMilliseconds(wall + MillisecondsPerDay);
+        var before = NumericConversions.ToInt64Saturating(UtcOffsetMilliseconds(wall - MillisecondsPerDay));
+        var after = NumericConversions.ToInt64Saturating(UtcOffsetMilliseconds(wall + MillisecondsPerDay));
         if (before == after)
         {
             return wall - before;
@@ -72,8 +72,8 @@ internal sealed partial class TimeCalendar
         // A transition lies within a day of the wall time: test each offset as a solution
         var early = wall - before;
         var late = wall - after;
-        var earlyHolds = (long)UtcOffsetMilliseconds(early) == before;
-        var lateHolds = (long)UtcOffsetMilliseconds(late) == after;
+        var earlyHolds = NumericConversions.ToInt64Saturating(UtcOffsetMilliseconds(early)) == before;
+        var lateHolds = NumericConversions.ToInt64Saturating(UtcOffsetMilliseconds(late)) == after;
         if (earlyHolds && lateHolds)
         {
             return Math.Min(early, late);

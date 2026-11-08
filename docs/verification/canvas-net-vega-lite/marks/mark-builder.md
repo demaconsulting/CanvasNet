@@ -734,6 +734,39 @@ The system test
 `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowDrawsAtZero`
 asserts the same chain from a specification text.
 
+##### Scale Invalid Entries Draw The Rows Without A Value
+
+**Tests**: `MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidValuesAreTheOutputOfTheChannel`,
+`MarkBuilderScaleInvalidTests.MarkBuilder_Build_AChannelWithoutAnEntryStillFiltersItsInvalidRows`,
+`MarkBuilderScaleInvalidTests.MarkBuilder_Build_WithoutScaleInvalidTheRowsAreFiltered`,
+`MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidWinsOverTheInvalidModeOfTheMark`,
+`MarkBuilderScaleInvalidTests.MarkBuilder_Build_ScaleInvalidKeepsAPathUnbroken`,
+`MarkBuilderScaleInvalidTests.MarkBuilder_Build_UnreadableScaleInvalidEntriesAreIgnored`
+
+The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the SVG of
+`vega.View.toSVG`), read once and written out in the tests; the data rectangle is 200 by 100. The scatter plot has four
+rows over `a`, `b`, and `c` (the color, the size, and the opacity read `c`), with a null `c` in the second row and a null
+`a` in the third. With `config.scale.invalid` of `{"color": {"value": "#aaa"}, "x": {"value": 5}, "size":
+"zero-or-min", "opacity": {"value": 0.25}}` all four rows are drawn: the positions are (50, 66.667), (100, 50), (5,
+33.333), and (200, 0) (the second row has a valid x, the third has the pixel position 5 given by the entry and not passed
+through the scale), the strokes are `#6daed5`, `#aaa` (the value of the entry as it is), `#0a4a90`, and `#cfe1f2`, the
+opacities 0.514, 0.25 (the entry), 0.8, and 0.3, and the radii of the symbols 7.112, 1 (the size of the row at the zero
+of the size domain, `zero-or-min`), 9.5, and 4.564. A channel without an entry keeps the mode of the mark: when the
+`b` of
+the second row is null as well, that row is not drawn and the other three are (the third at x = 5). Without the
+configuration the rows with a null color (the second) and a null x (the third) are not drawn, and only the first and
+fourth remain, which is the output of Phase 13. An entry beats the `invalid` mode of the mark: with `"invalid":
+"filter"` on the mark and an entry for every channel that has a missing value, all four rows are drawn and the second
+has the stroke `#aaa`. For a line over `a` and `c` with a null `c` in the second of four rows, `"y": "zero-or-min"`
+draws the path through the baseline, `M0,44.444 L66.667,100 L133.333,0 L200,77.778`, as Vega does, while without the
+entry the path breaks at the row (`M0,44.444 Z M133.333,0 L200,77.778`). The entries that are not read (a `null` or a
+boolean `value`, the text `other`, an `{"expr": ...}`) leave the channels in the mode of the mark: with them the rows
+with a null color and a null x are filtered (two points remain), and the readable entry of the channel `y`, which has no
+missing value, changes nothing. The system tests
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_RowsWithoutAValueTakeTheConfiguredOutput`
+and `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_ScaleInvalid_AnUnreadableEntryIsReported` assert the
+chain from a specification text.
+
 ##### Stroke Properties Reach Every Item
 
 **Tests**: `MarkBuilderPathTests.MarkBuilder_Build_StrokeDashCapJoinMiterAndOffsetReachEveryItemType`
@@ -996,6 +1029,35 @@ Asserts that the segments of the color field stack inside each group of the offs
 group has the segments at y = 0 and 40 with the heights 40 and 60 and the second one segment of the height 20, each
 group starting at zero), and that an aggregated grouped bar chart whose color is the offset field is not stacked: the
 bars have the heights 20, 40, 60, 80, and 100 and start at the baseline, at x = 10, 30, 60, 80, and 110.
+
+##### Ranged Offsets Span From The Baseline To The Value
+
+**Tests**: `MarkBuilderRangedOffsetTests.MarkBuilder_Build_YOffsetBarsSpanFromTheBaselineToTheOffsetValue`,
+`MarkBuilderRangedOffsetTests.MarkBuilder_Build_XOffsetBarsSpanFromTheBaselineToTheOffsetValue`,
+`MarkBuilderRangedOffsetTests.MarkBuilder_Build_YOffsetAreaSpansFromTheBaselineToTheOffsetValue`,
+`MarkBuilderRangedOffsetTests.MarkBuilder_Build_PointMarksAreNotRanged`,
+`MarkBuilderRangedOffsetTests.MarkBuilder_Build_ASecondaryChannelIsNotARangedOffset`
+
+The expected numbers are those of Vega 6.4 with Vega-Lite 6.5.0 for the same specifications (the paths and rectangles of
+`vega.View.toSVG`), read once and written out in the tests; the data rectangle is 150 by 100. The first chart has three
+quarters of one team (`x` ordinal, `y` nominal with one category) and a quantitative `yOffset` of 12, -9, and 4: the
+band of `y` starts at 16.667 and is 66.667 high, the offset scale maps the domain -9 to 12 (zero is included) to 66.667
+down to 0, so the baseline is at 38.095 inside the band, and the bars are 45 wide at x = 2.5, 52.5, and 102.5 with the
+y and height (16.667, 38.095) for the value 12 (from the top of the band to the baseline), (54.762, 28.571) for -9 (from
+the baseline to the bottom of the band, hanging on the other side), and (42.063, 12.698) for 4 (from the value to the
+baseline). The second chart has two teams over three quarters with a quantitative `xOffset`: the bars of the team A start
+at the baseline x = 37.013 and run to the value (31.169 wide for 12, 10.390 wide for 4, and, for -9, from 13.636 to the
+baseline, 23.377 wide) and those of B start at 105.195 (7.792, 18.182, and 20.779 wide for 3, 7, and 8), 30 high at
+y = 1.667, 35, and 68.333. The area of the first chart is the path `M25,16.667 L75,83.333 L125,42.063 L125,54.762 L75,54.762
+L25,54.762 Z`: the top edge follows the offset values along the points of `x`, and the lower edge is the baseline inside
+the band (the measure axis of the area is `y` because of the ranged `yOffset`). A point mark with the same encoding is not
+ranged: it has one symbol per row at distinct y inside the band (from 16.667 to 83.333). A bar with a `y2` channel is
+not a
+ranged offset: `DecideOffset` gives `UnsupportedContinuous`. The system tests
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsBarsFromTheBaseline`,
+`VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_RangedYOffsetDrawsAnAreaBetweenTheValuesAndTheBaseline`,
+and `VegaLitePhase14SystemTests.CanvasNetVegaLite_SystemIntegration_Offset_ATemporalOffsetOfABarIsStillReported` assert
+the chain from a specification text.
 
 ##### Brush Marks Of An Interval Selection
 

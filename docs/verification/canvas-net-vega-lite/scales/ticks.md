@@ -114,6 +114,14 @@ Asserts that `GetTicks` and `AxisTicks` return no ticks, rather than a NaN tick,
 is infinite as a double), 1e308 to -1e308, negative infinity to 10, 0 to positive infinity, and positive infinity to
 itself, and that -1e307 to 1e307 (the span is finite) still gives ticks that are all finite.
 
+##### Step Beyond The Denormal Range Has No Ticks
+
+**Tests**: `TicksTests.Ticks_Ticks_StepBeyondTheDenormalRangeHasNoTicks`
+
+Regression of a defect that the fuzz suite found: asserts that `GetTicks` returns no ticks for 5e-324 to 1e-300 with a
+count of 1e10, for the reversed interval, and for the largest count (the tick indexes are infinite and their count is
+NaN), the same on every runtime.
+
 ##### Tick Step And Increment
 
 **Tests**: `TicksTests.Ticks_TickStep_UsesHandDerivedExpectedStep`

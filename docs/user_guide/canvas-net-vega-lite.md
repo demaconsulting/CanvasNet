@@ -129,13 +129,14 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `ThrowOnUnsupportedFeature` | `false` | Turns the first unsupported feature into a `VegaLiteUnsupportedFeatureException` (strict mode) |
 <!-- markdownlint-enable MD013 -->
 
-`VegaLiteLimits` bounds every resource of a call. Its seventeen properties are init-only, each at least 1 (the depth
+`VegaLiteLimits` bounds every resource of a call. Its eighteen properties are init-only, each at least 1 (the depth
 limits have an upper ceiling too), and the defaults are `MaxSourceLength` 4,194,304 characters, `MaxJsonDepth` 64,
 `MaxDataFiles` 64, `MaxDataBytes` 64 MiB, `MaxDataRows` 1,000,000, `MaxFieldCount` 1,024, `MaxViews` 1,000,
 `MaxCompositionDepth` 16, `MaxSceneItems` 2,000,000, `MaxScaleDomainSize` 100,000, `MaxTicks` 1,000,
 `MaxExpressionLength` 4,096 (the expressions that you write), `MaxExpressionDepth` 64, `MaxEvaluationSteps` 50,000,000,
 `MaxStringLength` 1,048,576, `MaxImages` 256 (the number of different pictures, by link and size, that the resolver is
-asked for in one render; see *Vega-Lite Image Marks*), and
+asked for in one render; see *Vega-Lite Image Marks*), `MaxPaintedPixels` 250,000,000 (the device pixels that one
+render fills, strokes and draws, see below), and
 `MaxDiagnostics` 1,000 (the first report beyond it becomes a single `vl-diagnostics-suppressed` warning). `MaxViews`
 and `MaxCompositionDepth` are checked when the views of a specification are normalized, before any data is read:
 `MaxViews` counts the top-level view, every layer (nested ones too), every child of a concatenation, every copy of a
@@ -161,6 +162,27 @@ document is opened (with `VegaLiteOpenOptions.Limits`); `MaxEvaluationSteps` is 
 call** that the parameters, the transforms, and the row-bound mark values share, and `MaxStringLength` also bounds every
 text that an expression builds. The fields and rows that the row transforms derive count against `MaxFieldCount` and
 `MaxDataRows` as well (see *Vega-Lite Expressions* and *Vega-Lite Transforms* for the details).
+
+`MaxSceneItems` counts items, not the area they cover, and the cost of painting an item grows with its area: a few
+thousand rectangles that cover the whole image, symbols of a million square pixels, strokes thousands of pixels wide
+and pictures without a size are cheap to write and slow to paint. `MaxPaintedPixels` bounds that work. Before the
+painter paints an item it counts the pixels of the item's box on the image (a fill and a stroke count once each, the
+stroke grown by half its width; the text is estimated from its characters and font size; a picture counts its box; the
+layer of a clipped group and the layers of a translucent trail count their size), never more than the image itself, and
+nothing for an item outside it, and it fails when the total would pass the limit. The failure is a
+`VegaLiteRenderException` whose message names `VegaLiteLimits.MaxPaintedPixels`, located at the mark (the `/mark` of a
+unit view) whose item did not fit, and no pixel of that item has been painted. The count is of the image after
+`VegaLiteRenderOptions.Scale`, `Measure` paints nothing and is not affected, and a realistic chart (a few layers that
+each cover the image) uses a small share of the default, which stops the slowest painting that a specification can
+ask for in about ten seconds. The same measure applies to the work of the transforms: `MaxEvaluationSteps` counts the
+work of a loess, a density, a polynomial regression, a bootstrap and a window frame in units that stand for about three
+nanoseconds, so the default stops each of them in about ten seconds (a loess of 20,000 rows with a bandwidth of 1 is
+refused when the transform starts). The limits bound the work, not the clock: a render that stays within them can
+take longer on a slower machine, and the cancellation token of the call is the only wall-clock bound. A number that
+does not fit an integer (a quantile `step` of `1e-300`, a pivot `limit` of `1e308`) gives the same result on every
+.NET version: it is clamped to the largest or smallest integer, and the limits then refuse it, and a chart whose
+size is not a finite number (a `pow` scale with an exponent of `1e300`, for example) is a located
+`VegaLiteRenderException`.
 
 ### Vega-Lite Data
 
@@ -324,13 +346,13 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (an object of legend properties, or `null`), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `timeUnit` (the 40 Vega-Lite time units, their `utc` forms, and the object form; see *Vega-Lite Time and Time Zones*), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`; also on `theta` and `radius`), `impute` (on `x` and `y`: an object of `keyvals`, `method`, `value`, and `frame`, or `null` to switch off the implicit impute of a stacked path mark), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field), and `condition` on the `color`, `fill`, `stroke`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle` channels (a `test` that is an expression or a predicate; the first condition that holds gives the mark its `value` or the scale of its field; see *Vega-Lite Conditional Encodings*); see *Vega-Lite Aggregation, Binning, and Stacking* |
 | Scales | The types linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, as Vega-Lite accepts them for a channel and a field type (a scale type that the channel or the field cannot use is replaced by the default one with the warning `vl-scale-type-ignored`); a diverging color scale is a sequential one with a `domainMid`. A temporal field gets a `time` scale (a `utc` scale for a `utc` time unit), see *Vega-Lite Time and Time Zones*. The polar channels `theta` and `radius` have the ranges 0 to a full turn and 0 to half of the smaller side of the view, see *Vega-Lite Line, Area, Text, and Arc Marks*. A binned quantitative color gets the bin-ordinal scale (one color per bin, and a legend of the ranges of the bins). A log scale takes `base`, a pow scale `exponent`, and a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data. The properties are `type`, `domain` (an array, or `{"param": ...}` of a variable or a selection parameter), `domainRaw`, `domainMid`, `domainMin`, `domainMax`, `range` (a list, or the name of an entry of `config.range`), `rangeMin`, `rangeMax`, `scheme`, `interpolate`, `zero`, `nice` (also a time interval for a time scale), `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, `base`, `exponent`, and `constant`; see *Vega-Lite Legends, Color Schemes, and Scales*. A quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount` (a number, and for a time scale a time interval), `tickMinStep`, `values`, a d3 number or time `format` (a text, or for dates an object of multi-format levels), `formatType` of `number`, `time`, or `utc`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, `titleX`, `titleY`, `zindex`, `translate`, `position`, `bandPosition`, `tickBand`, `tickExtra`, `labelBound`, and `labelExpr` (see *Vega-Lite Label Expressions*), with the configuration precedence of Vega-Lite (including `config.axisTemporal`); `axis.encode` and a custom `formatType` are reported and not drawn |
-| Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and `config.legend`; `legend: null` switches one off, and the legend of a chart makes the picture larger (see *Vega-Lite Legends, Color Schemes, and Scales*). A temporal field gets date labels (see *Vega-Lite Time and Time Zones*). The `labelExpr` of a legend is evaluated (see *Vega-Lite Label Expressions*). `legend.encode`, a `formatType` other than `number`, `time`, or `utc`, and `clipHeight` are reported and not drawn; every `titleOrient` is drawn |
+| Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and `config.legend`; `legend: null` switches one off, and the legend of a chart makes the picture larger (see *Vega-Lite Legends, Color Schemes, and Scales*). A temporal field gets date labels (see *Vega-Lite Time and Time Zones*). The `labelExpr` of a legend is evaluated (see *Vega-Lite Label Expressions*). `legend.encode` and a `formatType` other than `number`, `time`, or `utc` are reported and not drawn; every `titleOrient` and the `clipHeight` of a symbol legend are drawn |
 | Color schemes | The 68 color schemes of Vega by name (`scale.scheme` and `config.range`, lower or upper case), a list of colors, or `{"name", "count", "extent"}`, with `interpolate` (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`, `cubehelix`, `cubehelix-long`, and a `gamma` for sRGB and the cubehelix types) for a list of colors; an unknown scheme name is an error |
 | Shapes | The symbol names `circle`, `square`, `cross`, `diamond`, `triangle-up`, `triangle-down`, `triangle-right`, `triangle-left`, `stroke`, `arrow`, `wedge`, and `triangle` for the `shape` channel, a `shape` property, and `legend.symbolType`, and a custom SVG path (scaled by the size of the symbol as Vega does; a path that does not parse is the warning `vl-shape-path-invalid` and a circle is drawn) |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
 | Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad`, `none`, `fit`, `fit-x`, and `fit-y` (with `contains`), also implied by a `"container"` size, for a single or a layered view (see *Vega-Lite Autosize and Container Sizes*); `background`; the `view` configuration (size, fill, and stroke). Of a layered view only the top-level `width`, `height`, `padding`, `autosize`, and `background` count, and a `step` is applied to the merged discrete scale of the layers (the union of their categories times the step). A composition is laid out as a grid with `spacing` (20 pixels by default), `columns`, `align`, `center`, and `bounds`, and takes the size of the views inside it (see *Vega-Lite Composition*) |
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism; the `boxplot`, `errorbar`, and `errorband` entries of the composite marks (see *Vega-Lite Layers and Composite Marks*); the `concat` and `facet` entries (`spacing`, `columns`) and the `header`, `headerRow`, `headerColumn`, and `headerFacet` entries of the facet headers (see *Vega-Lite Composition*). Only the top-level `config` counts in a layered view or a composition |
-| Expressions | A subset of the Vega expression language with 104 functions (math, string, array, type, regular expression, number format, date and time, and the selection functions `data`, `vlSelectionTest`, `vlSelectionIdTest`, and `vlSelectionResolve`), in the `calculate` and `filter` transforms, the `expr` of a parameter, the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row, and the `labelExpr` of axes, legends, and facet headers; see *Vega-Lite Expressions* and *Vega-Lite Label Expressions* |
+| Expressions | A subset of the Vega expression language with 113 functions (math, string, array, type, regular expression, number format, date and time, the distribution functions `densityNormal`, `cumulativeNormal`, `quantileNormal`, and their `LogNormal` and `Uniform` forms, and the selection functions `data`, `vlSelectionTest`, `vlSelectionIdTest`, and `vlSelectionResolve`), in the `calculate` and `filter` transforms, the `expr` of a parameter, the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row, and the `labelExpr` of axes, legends, and facet headers; see *Vega-Lite Expressions* and *Vega-Lite Label Expressions* |
 | Parameters | Static **variable** parameters of the single or top-level view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions, by expression references (`{"expr": ...}`, evaluated once), by the `param` filter predicate, and by a scale `domain` of the form `{"param": ...}`; see *Vega-Lite Parameters*. **Selection parameters** (`select` of `point` or `interval`, and the legacy `selection`) are drawn in their **initial state** (the `value`, or the caller's override) and read by the `condition` of a channel, by the `filter` transform, by a scale `domain` or a `bin` `extent` of the form `{"param": ...}`, and by `"bind": "scales"`, with `empty`; an interval selection with a `value` also draws its **brush**, and a legend that a selection is bound to (`"bind": "legend"`) **dims** the entries the selection does not hold, as Vega-Lite does; the events, the input widgets, and the other interaction properties have no meaning in a still picture. A variable parameter declared inside a layer or a composition is ignored, as Vega-Lite itself declares no signal for it, and is reported (`vl-param-variable`) |
 | Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot` (every aggregate operation), `lookup`, `timeUnit`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `regression`, `loess`, `density`, `quantile`, and `extent`, run in the order of the specification on the rows before the scales are built, where the `transform` of a layered view or a composition is applied first and then the `transform` of each layer or child (see *Vega-Lite Layers and Composite Marks* and *Vega-Lite Composition*); see *Vega-Lite Transforms* (with *Statistical transforms*), *Vega-Lite Time and Time Zones*, and *Vega-Lite Aggregation, Binning, and Stacking* |
 | Time | Temporal fields with implicit date parsing, the `parse` directives `date`, `date:'...'`, and `utc:'...'`, the time units, date-time objects, time and UTC scales with calendar ticks and `nice` intervals, date labels on axes and legends, the date and time expression functions, and the render option `TimeZone`; see *Vega-Lite Time and Time Zones* |
@@ -528,10 +550,29 @@ selections** of the call (see *Selection parameters* in *Vega-Lite Parameters*):
 | `vlSelectionResolve(store[, op, isPoint, vegaLite5])` | The value of the selection: an object with the values or the range of each field (and `vlPoint`, the query of the tuples, for a point selection); an empty object for an empty store |
 <!-- markdownlint-enable MD013 -->
 
+The distribution functions are the pure functions of `vega-statistics` that Vega's expression language exposes; they
+follow the reference operation by operation, so the results are those of Vega up to the last bits of the host's `exp`
+and `log`:
+
+<!-- markdownlint-disable MD013 -->
+| Distributions (9) | Meaning |
+| ----------------- | ------- |
+| `densityNormal(value[, mean, stdev])`, `cumulativeNormal(value[, mean, stdev])`, `quantileNormal(p[, mean, stdev])` | The density, the cumulative distribution (the approximation of West, 2009; exactly 1 and 0 beyond 37 deviations), and the quantile (the inverse of the cumulative distribution through an inverse error function approximation) of the normal distribution with the mean 0 and the deviation 1 by default. A `mean` that is falsy (`0`, `NaN`, `null`, `''`, false) is 0, and a `stdev` that is missing or `null` is 1. A quantile of a `p` outside 0 to 1 is `NaN`, of 0 `-Infinity`, and of 1 `Infinity` |
+| `densityLogNormal(value[, mean, stdev])`, `cumulativeLogNormal(value[, mean, stdev])`, `quantileLogNormal(p[, mean, stdev])` | The same for the log-normal distribution: the density of a value that is not positive is 0, the cumulative distribution of the logarithm of a negative value is `NaN`, and the quantile is the exponential of the normal quantile |
+| `densityUniform(value[, min, max])`, `cumulativeUniform(value[, min, max])`, `quantileUniform(p[, min, max])` | The same for the uniform distribution: with one bound the interval is 0 to that bound, with none it is 0 to 1; a degenerate interval gives `Infinity` for the density and `NaN` for the cumulative distribution |
+<!-- markdownlint-enable MD013 -->
+
+The arguments follow JavaScript: `null` is 0, a missing value is `NaN`, a text is read as a number (two texts compare as
+texts in the uniform functions, and a non-empty text `mean` or `min` makes the sum of a quantile a text, as JavaScript's
+`+` does). Every call is a constant amount of work. Verified numbers: `cumulativeNormal(1.96)` is `0.9750021048517795`,
+`quantileNormal(0.975)` is `1.959963984540054`, and `densityNormal(0)` is `0.3989422804014327`.
+
 The functions of the color (`rgb`, `hsl`, ...), scale (`scale`), and
 geographic families, and the other functions of Vega, are reported as unsupported (`vl-expr-function-<name>`, for
-example `vl-expr-function-geoarea`) and give `null`. `now` and `random` are not available by design: an expression has
-no clock and no random source, so `now()` is reported as `vl-expr-function-now`, and `datetime()` gives `null`.
+example `vl-expr-function-geoarea`) and give `null`. `now` and the random functions `random`, `sampleNormal`,
+`sampleLogNormal`, and `sampleUniform` are not available by design: an expression is a pure function of its row and
+its parameters (it has no clock and no random source, because Vega's `random` is the unseeded `Math.random`), so
+`now()` is reported as `vl-expr-function-now`, `random()` as `vl-expr-function-random`, and `datetime()` gives `null`.
 
 **Regular expressions** are JavaScript regular expressions run by the .NET engine, so a few details follow .NET: `\d`,
 `\D`, `\w`, and `\W` are ASCII classes (also inside a character class), `\s` and `\S` are the JavaScript white space,
@@ -1226,12 +1267,20 @@ Vega-Lite.
 Every property can also be set for all legends in `config.legend` (with the `config.legend.layout` object for the
 placement of the groups of legends, and the defaults of Vega-Lite and Vega). `legend.labelExpr` is evaluated (see
 *Vega-Lite Label Expressions*; there is no `config.legend.labelExpr`, as in Vega-Lite 6). `legend.encode`, a
-`legend.formatType` other than `number`, `time`, and `utc`, and `clipHeight` are
+`legend.formatType` other than `number`, `time`, and `utc` are
 accepted, **reported**
-(`vl-guide-encode`, `vl-format-type-custom`, `vl-guide-legend-clipheight`), and not drawn. Every `titleOrient`
+(`vl-guide-encode`, `vl-format-type-custom`), and not drawn. Every `titleOrient`
 (`top`, `bottom`, `left`, and `right`) is drawn as Vega does: the entries move below, above, right of, or left of the
 title, a title at a side is centered along the entries (`titleAnchor` moves it), and the title of a gradient bar is turned
 at the sides (`vl-guide-legend-titleorient` is retired in Phase 13).
+
+**Clip height (Phase 14).** The `clipHeight` of a symbol legend (`legend.clipHeight` or `config.legend.clipHeight`, more
+than 0) is drawn as Vega does: the symbol and the label of an entry sit at half of that height instead of half of the
+size of the symbol, the entry is that high (the rows are `clipHeight` plus `rowPadding` apart), and the symbol is
+**clipped** to a rectangle as wide as the widest entry of its column and as high as the entry, so a symbol larger than the
+height is cut off at the top and the bottom. The label is not clipped (a label taller than the height still counts in the
+height of the entry). A gradient legend ignores the property, as Vega does. `vl-guide-legend-clipheight` is retired in
+Phase 14 and will not be reused.
 
 **Axis properties added in Phase 13.** Beside the properties of the table of the supported subset, an axis draws these as
 Vega's axis parser does: `translate` (the offset of the axis group in pixels, 0.5 by default), `position` (moves the axis
@@ -1340,7 +1389,7 @@ the canonical scale of a legend that merges several continuous channels is the f
 
 The `labelExpr` of an axis, a legend, and a facet header replaces the text of every label with the result of an
 expression, as in Vega-Lite 6. The expression runs on the same engine as every other expression (see *Vega-Lite
-Expressions*: the same 104 functions and parameters, and the same `MaxEvaluationSteps`, `MaxStringLength`, and
+Expressions*: the same 113 functions and parameters, and the same `MaxEvaluationSteps`, `MaxStringLength`, and
 cancellation), once for every label and **before the labels are measured, laid out, and thinned**, so a longer text
 makes the axis or the legend wider, and a blank text takes no room and no part in the removal of overlapping labels.
 The `labelExpr` of the configuration applies to every guide that has none of its own: `config.axis` and the other axis
@@ -1460,9 +1509,9 @@ The rules are those of Vega-Lite:
 `yearmonthdate`, `hours`, ...) can have an offset too. The position then **stays a time scale**, and only the offset
 gets
 a scale of its own (a band scale for `bar`, `rect`, `image`, `rule`, and `tick` with no paddings, a point scale for the
-other marks; a quantitative or temporal offset is a linear or time scale, and a continuous offset of a `bar` or an
-`area`
-stays `vl-offset-ranged`). The marks read the position at the **start** of the unit and add the offset. The range of the
+other marks; a quantitative or temporal offset is a linear or time scale, and a temporal offset of a `bar` or an
+`area` stays `vl-offset-ranged`). The marks read the position at the **start** of the unit and add the offset. The
+range of the
 offset scale is a share of the length of **one reference unit** on the time scale, as Vega-Lite computes it: the length
 is the distance between 2001-01-01 and one step of the smallest part of the unit later, measured on the position scale
 (the same for every unit of the chart, so a month is the 31 days of January 2001 and a year is 365 days, and the length
@@ -1496,8 +1545,34 @@ with daylight saving time); a `bandPosition` other than 0.5 on a `bar` does not 
 its
 center. The unit `month` without a year puts every date into the leap year 2012, while `yearmonth` uses the real year.
 
+**Ranged offsets (Phase 14).** A `bar` or an `area` whose `x` (or `y`) is a **nominal or ordinal** field and whose
+`xOffset` (or `yOffset`) is an **unbinned quantitative** field or number datum, with no `x2` (or `y2`), spans **from the
+zero of the offset scale to the offset value inside the band** of its position, as Vega-Lite 6.5 draws it (its "ranged
+offset"). The offset scale is a linear scale that always includes zero (the other offset scales never do) over the
+bandwidth of the position scale (a `yOffset` runs upward), so every mark of a band shares the baseline, a negative value
+hangs on the other side of it, and a bar keeps the full width (or height) of its other band. The step stays on the
+position unless the offset is discrete (`for: "offset"` is the default only for a discrete offset). An area follows
+the points of the other position with its top edge at the offset values and its baseline at the zero. The axis of the
+position puts its ticks and grid lines at the baseline (`bandPosition` 0 for `x`, 1 for `y`) **and its labels there too**
+(an explicit `axis.bandPosition` wins; 0.5 keeps the labels in the middle):
+
+```json
+{ "data": { "values": [
+    { "quarter": "Q1", "team": "A", "score": 12 }, { "quarter": "Q2", "team": "A", "score": -9 },
+    { "quarter": "Q3", "team": "A", "score": 4 } ] },
+  "width": 150, "height": 100,
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "quarter", "type": "ordinal" },
+    "y": { "field": "team", "type": "nominal" },
+    "yOffset": { "field": "score", "type": "quantitative" } } }
+```
+
 **Not drawn, and reported.** An offset without a supported position (`vl-offset-position`) and a continuous offset of a
-`bar` or an `area` (a ranged offset, `vl-offset-ranged`) are ignored and the marks are drawn at their position. The
+`bar` or an `area` that is not a ranged offset (`vl-offset-ranged`: a temporal or binned offset, a position with an `x2`
+or `y2`, or a position with a time unit) are ignored and the marks are drawn at their position. A ranged offset whose
+position channel is missing is `vl-offset-position`: Vega-Lite hangs the marks from the top of the view and from the
+middle of its height in that case, and this renderer does not reproduce that. The
 position is not supported when the `x` (or `y`) channel is missing, is quantitative, or is temporal without a
 `timeUnit`; when its unit is `day`, `weekday`, or `yearweekday` (the smallest part is the day of the week), a `maxbins`
 unit, or a binned one; when the mark is a `rect` with a temporal time unit. A nominal or ordinal field with a
@@ -1635,8 +1710,17 @@ The object `{"maxbins": 10}` without a `unit` lets the data choose the unit: it 
 step of this list whose length is nearest to the extent divided by `maxbins`: 1, 5, 15, or 30 seconds; 1, 5, 15, or 30
 minutes; 1, 3, 6, or 12 hours; 1 day; 1 week; 1 or 3 months; 1 year; milliseconds with a round step for a shorter
 extent and years with a round step for a longer one. A `maxbins` above `MaxScaleDomainSize` fails the render with a
-located error. The `binned*` units (`binnedyearmonth`, ...) and `"binned": true` are **not supported**: they are
-reported (`vl-timeunit-binned`), the unit is ignored, and the field is used as it is.
+located error.
+
+*Binned units.* The `binned*` units (`binnedyearmonth`, ...) and `{"unit": "yearmonth", "binned": true}` say that the
+data **is already floored** to the unit, as Vega-Lite 6.5 reads them (`binned: true` needs a `unit`: `{"maxbins": 4,
+"binned": true}` is a `VegaLiteSpecException`). In an encoding the field is read **as it is** (no start field is added
+and the title is the field alone) and a mark that spans its unit (a `bar` or `rect`, or any mark with a band position)
+gets only the **end**, one step of the smallest part after the value as it is (so a value that is not the start of its
+unit is not floored: 15 March ends on 15 April). A mark that does not span has nothing to compute and sits at the date.
+The scale, the axis, and the labels are those of the unit. In a predicate the instant of the field is compared,
+`time(field)`, with the value read for the unit. In the `timeUnit` **transform** a binned unit **floors** like any
+other unit: Vega's `timeunit` has no `binned` parameter.
 
 *What a time unit adds to the rows.* A channel with a `timeUnit` reads a **derived field** that holds the start of the
 unit as a date, and a channel that spans its unit also reads the end. The names are those of Vega-Lite: `yearmonth_date`
@@ -1696,8 +1780,10 @@ is compared with a field that has a **single** local unit and is below 10,000 st
 is March, `5` against `hours` is 05:00), any other number is milliseconds, and a text is read as a date or, for a
 single unit, as a month or weekday name (`"Mar"`). A `utc` unit compares in UTC (Vega-Lite ignores its `utc` flag in a
 predicate). The `week` and `dayofyear` parts are **not applied** by a predicate, as in Vega-Lite, and the warning
-`vl-predicate-timeunit-part` says so; the `timeUnit` transform and the encoding do apply them. A `binned` unit (or the
-`maxbins` form without a unit) in a predicate is reported and ignored. A time-aware `oneOf` list, and a predicate that
+`vl-predicate-timeunit-part` says so (not for a binned unit, which builds no part); the `timeUnit` transform and the
+encoding do apply them. A `binned` unit compares the
+instant of the field, and the `maxbins` form without a unit names no unit in a predicate, so the field is compared as it
+is, as in Vega-Lite. A time-aware `oneOf` list, and a predicate that
 is the `test` of a condition, is compiled into an
 expression that the renderer writes (not one that you write), so it is not bound by `MaxExpressionLength`: a list may
 have `MaxScaleDomainSize` entries (100,000), a `oneOf` of a thousand values or an
@@ -1878,7 +1964,7 @@ built with `CreateCustomTimeZone` gives the same picture on every operating syst
 | Supported | Not supported (reported unless noted) |
 | --------- | ------------------------------------- |
 | Temporal fields with implicit parsing; `parse` of `date`, `date:'...'`, and `utc:'...'`; ISO 8601 text and the documented legacy forms | The rest of the forms of `Date.parse`; a locale other than English (not reported) |
-| The 40 local time units, their `utc` forms, the object form with `step`, `utc`, and `maxbins`, and the `timeUnit` transform | `binned*` units and `"binned": true` (`vl-timeunit-binned`); a `maxbins` unit in a predicate (`vl-timeunit-maxbins`) |
+| The 40 local time units, their `utc` forms, the object form with `step`, `utc`, and `maxbins`, the `binned*` units, and the `timeUnit` transform | The `week` and `dayofyear` parts of a predicate (`vl-predicate-timeunit-part`, a warning, as in Vega-Lite) |
 | Date-time objects in domains, `values`, predicates, and sort arrays | A date-time object as a `datum` (`vl-encoding-datum-datetime`) |
 | Time and UTC scales, calendar ticks, `nice` and `tickCount` intervals, bands of bars, rects, and ticks, and the axis `bandPosition`, `tickBand`, and `tickExtra` | A `bandPosition` other than 0.5 on a bar or rect (`vl-encoding-bandposition-rect`) |
 | Date labels: `format` text and object, unit specifiers, the multi-format, `formatType` of `number`, `time`, and `utc`, `config.axisTemporal`, and `config.timeFormat` in legends | Custom format types (`vl-format-type-custom`); `config.customFormatTypes` and `timeFormatType` (not reported) |
@@ -1989,8 +2075,19 @@ and `filter` **drops** the row, so the path connects its neighbors. The modes `s
 value that is not a number takes the output of its scale for **zero** when the domain holds zero (a time or log scale never
 does), and for the first value of the domain otherwise, as Vega-Lite's `scaledZeroOrMinOrMax` does, so a null `y`
 is a point on the zero line, a null `size` the smallest size, and a null color the first color of the ramp
-(`vl-mark-invalid-show` is retired in Phase 13). Two limits: a stacked row of a null in the show mode is drawn at its place
-in the stack, and `config.scale.invalid` is not read. The scale domains of
+(`vl-mark-invalid-show` is retired in Phase 13). One limit: a stacked row of a null in the show mode is drawn at its place
+in the stack. **`config.scale.invalid` (Phase 14)** names, for a scale channel (`x`, `y`, `color`, `fill`, `stroke`,
+`opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `size`, `angle`, ...), what its invalid values are drawn as:
+`"zero-or-min"` (the zero or first-value output above) or `{"value": ...}` (a number or a text, which is the output of
+the mark property as it is: a position in pixels, a symbol size, an opacity, a color such as `"#aaa"`; it is not passed
+through the scale). Vega-Lite treats a channel with an entry as valid whatever the `invalid` mode of the mark is ("if
+any channel's scale has an output for invalid values, all values are valid, not filtered, no path breaks"), and so does
+this renderer: the rows of that channel are not dropped and do not break a path, while the other channels keep the mode
+of the mark. A stacked channel ignores its entry (its rows are decided on the value that is stacked), the entry of a
+channel with a discrete scale has no effect (a discrete scale has an output for every value), and an entry that cannot
+be read is reported (`vl-scale-invalid-value`) and ignored. For example, with
+`"config": { "scale": { "invalid": { "color": { "value": "#aaa" } } } }` a point whose color field is null is drawn
+in grey instead of being dropped. The scale domains of
 this renderer **always include the rows of invalid values**, so `filter` and `break-paths-filter-domains` are reported
 with the warning `vl-mark-invalid-domains`. A mark that is not a path drops the rows that have an invalid value, as
 before. **A stacked channel** (the default for a `bar`, an `area`, and an `arc`) works as in Vega-Lite: the stack counts
@@ -2106,7 +2203,7 @@ and the tests compare with a tolerance.
 | --------- | ------------------------------------- |
 | `line`, `area`, `trail`, `text`, and `arc` marks, grouped by the grouping channels, with the `order` channel | `geoshape` (`vl-mark-<type>`) |
 | The 15 `interpolate` names and `tension`; `point` and `line` overlays | `bundle` for an area (`vl-mark-interpolate-bundle-area`); `catmull-rom-open` and `-closed` (an error) |
-| The invalid modes `break-paths-*`, `filter`, `show`, and `null`; the null slice of a stack is not drawn (a bar, an arc, a point, a label) and breaks a stacked area | Domains that leave the invalid rows out (`vl-mark-invalid-domains`), so a category that occurs only in null rows of a stacked chart stays on the axis and in the legend (Vega-Lite drops it); `config.scale.invalid` (not read, not reported) |
+| The invalid modes `break-paths-*`, `filter`, `show`, and `null`; the null slice of a stack is not drawn (a bar, an arc, a point, a label) and breaks a stacked area | Domains that leave the invalid rows out (`vl-mark-invalid-domains`), so a category that occurs only in null rows of a stacked chart stays on the axis and in the legend (Vega-Lite drops it); a stacked channel's `config.scale.invalid` entry (ignored, as is an unreadable entry in the `Config` of the render options) |
 | Stack, impute, and `impute` on `x` and `y` | A binned dimension of a stacked path (`vl-encoding-stack-impute-bin`) |
 | Polar `theta`, `radius`, `theta2`, and `radius2` of an arc, and `theta` and `radius` of a text | A `bin` of `theta` or `radius` (`vl-encoding-bin`); a custom `formatType` of a text (`vl-format-type-custom`) |
 | `padAngle`, `cornerRadius`, `innerRadius`, and `outerRadius` of an arc | `startAngle`, `endAngle`, and `padRadius` (`vl-unknown-property`, a warning) |
@@ -2313,11 +2410,10 @@ on `y`); otherwise the continuous channel is the measure (a continuous `y` next 
 continuous `x` next to a discrete `y` is horizontal), and when both are continuous the mark is vertical unless only `y`
 is temporal. A mark that has no continuous channel is a `VegaLiteSpecException`. The other channels of the encoding
 (`x` or `y` of the groups, `color`, `fill`, `stroke`, `opacity`, `shape`, `detail`, and so on) are shared by all the
-parts, so a `color` field draws one box or bar per group and a legend. A grouping channel with a `timeUnit` that has parts
-is applied before the rows are grouped (a `timeUnit` transform and a derived field, titled and formatted like the
-`timeUnit` of any channel). A grouping channel with a `bin`, an `aggregate`, or a binned or `maxbins` `timeUnit`
-is reported (`vl-composite-grouping`): the rows are grouped by the field as it is and a channel that
-aggregates is left out. The shorthand `"aggregate": "boxplot"` (and `"errorbar"`, `"errorband"`) of Vega-Lite is not
+parts, so a `color` field draws one box or bar per group and a legend. A grouping channel with a `bin`, a `timeUnit`
+(also a binned or `maxbins` one), or an `aggregate` is **transformed first** (a `bin` or `timeUnit` transform and a derived
+field, an aggregate as a measure of the aggregate that the channel reads; titled and formatted like the `bin` or
+`timeUnit` of any channel). The shorthand `"aggregate": "boxplot"` (and `"errorbar"`, `"errorband"`) of Vega-Lite is not
 accepted; write the composite mark as the `mark`. The `title`, `scale`, and `axis` that are written on the measure are
 used for its axis, and the field name is the default title.
 
@@ -2375,8 +2471,14 @@ marks (as `rule` marks for a one-dimensional band).
 **Deviations from Vega-Lite.** The package differs in these documented ways:
 
 - **Tooltips** of the parts are omitted, and the `tooltip` channel is ignored without a report.
-- **`bin` and `aggregate` on a grouping channel**, and a binned or `maxbins` `timeUnit` there, are reported
-  (`vl-composite-grouping`) and not applied; Vega-Lite would bin or aggregate first. A `timeUnit` with parts is applied.
+- **A `bin` on a grouping channel** is a `bin` transform before the aggregate, as Vega-Lite's
+  `extractTransformsFromEncoding` does: the start and end of the bin group the rows, the channel reads the start as
+  binned data (with the end as `x2` or `y2`) and is titled `field (binned)`; an `aggregate` there is a measure of the
+  aggregate that the channel reads; a `timeUnit` (the `maxbins` form included) is a `timeUnit` transform. A **known
+  difference**: Vega-Lite 6.5 draws the box of a `boxplot` over a binned `x` from the **middle** of the bin to its end
+  (the box takes the bin midpoint as its position and the bin end as its second end); this package draws the box
+  across the
+  whole bin. The whiskers, the median, and the outliers are at the middle of the bin as in Vega-Lite.
 - **Log messages** of Vega-Lite that only warn (a `center` of `median` with an extent other than `iqr`, a `center` or
   `extent` next to a range or errors, an `interpolate` on a one-dimensional band, an aggregate on the measure that the
   composite mark replaces) are not reproduced.
@@ -2507,8 +2609,17 @@ A wrapped facet has no row or column headers: the label of a cell is a title abo
 the other label properties style it; `labels: false` removes it and the cell keeps its chart's own title), and the title
 of the field is one title above the whole grid. The `labelExpr` of a header is evaluated over the value of the cell
 (`datum.value`) and its formatted label (`datum.label`; see *Vega-Lite Label Expressions*), and a custom `formatType` is
-reported (`vl-format-type-custom`); a `bin` or `aggregate` on the facet field, and a binned or `maxbins` `timeUnit` of it,
-are not applied and the raw value is the cell (`vl-facet-field-transform`).
+reported (`vl-format-type-custom`). A **`bin`** of the facet field makes the **start of the bin** the cell, in numeric
+order (`row` and `column` default to 6 bins as `maxbins`, a wrapped `facet` to 10, as Vega-Lite's `autoMaxBins`), with
+the header labeled by the range, `0 – 10` (en dash), formatted by the `format` of the header or else `config.numberFormat`,
+a row without a number being the cell `null`, and the default title `c (binned)`. An **`aggregate`** of a facet field is
+**not computed** (Vega-Lite's facet model has no aggregate node): the cell reads the field of the name that Vega-Lite
+gives it (`sum_v`, `__count`), which an `aggregate` **transform** of the specification can write, and is `null` when the
+rows have none; the title is the default title of the definition (`Sum of v`). A **`timeUnit`** is the start of the
+unit as a date; the `maxbins` form is resolved against the data and a `binned` unit leaves the raw value as the cell.
+The header
+title of a field with a time unit is its default title (`d (year-month)`, as Vega-Lite's `fieldDefTitle`; `d` for a
+binned unit).
 
 **`repeat`.** A repeat draws its `spec` once for each value of a list, and a reference `{"repeat": "row"}`,
 `{"repeat": "column"}`, `{"repeat": "repeat"}`, or `{"repeat": "layer"}` in the spec is replaced by the value of the
@@ -2589,8 +2700,11 @@ dimensions stepped make the view `pad`; `fit-x` with a step width becomes `fit-y
 
 ### Time Zone, Fonts, and Determinism
 
-Rendering is **deterministic**: two renders of one document with the same options are byte-identical, for every
-degree of parallelism, on every machine and in every culture. This holds because the package consults no wall clock,
+Rendering is **deterministic**: two renders of one document with the same options give identical pixels (the same
+`Surface`), for every
+degree of parallelism, on every machine and in every culture. An encoded PNG file is not byte-stable across .NET
+versions (the deflate encoder of .NET 9 and later produces a different stream for the same pixels), so compare the
+pixels of the surface, not the bytes of the file. This holds because the package consults no wall clock,
 environment variable, or locale (numbers are formatted with the d3 `en-US` locale and the minus sign U+2212,
 culture-invariant), the time zone defaults to UTC, and only the **bundled fonts** are used unless you say otherwise.
 
@@ -2624,6 +2738,21 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   transcendental result (`sin`, `exp`, `log`, ...) can differ in the last bit between platforms or from a browser. A
   regular expression that only a backtracking engine can run (look-around, back-references) is stopped after 100 ms and
   fails the render, which is the only wall-clock bound; patterns that the linear-time engine runs have none.
+- **How far the promise reaches.** The pixels of a chart are the same on every .NET version the package targets (8, 9 and
+  10), in every culture, on every thread, and whatever the insertion order of the dictionaries you pass in
+  `Datasets` and `Parameters`. Between operating systems the arithmetic of a chart is exact where it uses only
+  additions, multiplications and divisions (bars, rules, ticks, text, linear axes); where a chart goes through the math
+  library of the platform (the circle of a symbol, curves, arcs, logarithmic scales, density and regression) a last-bit
+  difference can move a few anti-aliased pixels, so compare such pictures with a small tolerance (the repository's own
+  committed images use a root-mean-square difference of one color level and at most 0.1% of the pixels more than eight
+  levels apart) and never compare the bytes of an encoded PNG.
+- **Hardening.** The renderer is exercised by a seeded fuzz suite (generated specifications and mutations of the test
+  fixtures, 300 cases in every build) that requires every case to succeed or to fail with a documented, located
+  exception, to finish within its limits and to give the same result twice. To run a larger campaign yourself, set the
+  environment variables `CANVASNET_VL_FUZZ_CASES` (the number of cases, for example `5000`), `CANVASNET_VL_FUZZ_SEED`
+  and `CANVASNET_VL_FUZZ_DUMP_DIR` (a folder that receives each failing specification) and run
+  `dotnet test test/DemaConsulting.CanvasNet.VegaLite.Tests`. Report a failing specification together with its seed and
+  index.
 - **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, an absolute path, or a
   network path is reported as `vl-data-remote-url` and is **never fetched, opened, or given to your `FileResolver`**;
   the chart is drawn with an empty dataset (strict mode throws). Download such a file next to the specification and
@@ -2661,7 +2790,6 @@ thread, after the work finished and before the method returns or throws.
 | `vl-channel-<name>` | Unsupported | A channel other than x, y, xOffset, yOffset, theta, radius, theta2, radius2, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, order, and detail (tooltip, href, description, and key are ignored); `shape` is drawn by a point mark and by the overlay points of a line, area, trail, or rule that has a point overlay (an `encoding.shape` switches the overlay on unless `point` is `false` or `null`, so a `shape` is reported only on a path mark whose overlay is off), `angle` by a point, circle, square, or text, `text` by a text mark, `theta` and `radius` by an arc or text mark, `theta2` and `radius2` by an arc, `size` by every mark but a rect, area, and arc, and `strokeDash` by every mark but a rect, area, trail, text, and arc, and the channel is reported and ignored on any other mark (an `angle`, `strokeDash`, or `size` that only the overlay points of a path mark, or the line overlay of an area, draw is reported with a message that names the overlay) (a `boxplot` draws `shape`, `angle`, and `strokeDash` with its outliers, and an `errorbar` draws `strokeDash` with its rule). `x2` and `y2` are supported on a bar, rect, rule, or area that has the `x` or `y` they extend, and on an errorbar or errorband, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it. `xError`, `xError2`, `yError`, and `yError2` are supported on an errorbar or errorband and are reported (`vl-channel-xerror`, `vl-channel-xerror2`, `vl-channel-yerror`, `vl-channel-yerror2`) on any other mark; the `size` channel of an errorbar is reported (`vl-channel-size`). `order` and `detail` are accepted by every mark |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
 | `vl-channel-row`, `-column`, `-facet` | Unsupported | A `row`, `column`, or `facet` channel of a view that cannot be faceted: a layer of a layered view, a layered view whose encoding has the channel, or the `spec` of a `facet` (the channel is ignored; use the `facet` operator). The channels of a unit view that is faceted are drawn and are not reported |
-| `vl-facet-field-transform` | Unsupported | A `bin` or `aggregate` of a facet field, or a binned or `maxbins` `timeUnit` of it (the `facet` operator, or the `row`, `column`, and `facet` channels): the raw value of the field is the cell. A `timeUnit` with parts and a `sort` by `{"field", "op"}` are applied |
 | `vl-header-orient` | Unsupported | A `header.labelOrient` or `titleOrient` on a side that the header does not draw on (a row draws at the `left` and `right`, a column at the `top` and `bottom`, the label of a wrapped facet on any side and its title `top` and `bottom`): the default side is used |
 | `vl-type-geojson` | Unsupported | The `type` of a channel |
 | `vl-shape-path-invalid` | Warning | A shape that is neither a symbol name nor SVG path data that parses (the `shape` of a mark, the `value` of a `shape` channel, an entry of its `scale.range`, or a `legend.symbolType`): a circle is drawn for a path that does not parse, and nothing for a text without any command letter. A path that parses is drawn and not reported |
@@ -2670,9 +2798,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-scale-nice-interval` | Warning | A time interval (`"month"` or `{"interval": "month", "step": 3}`) as the `scale.nice` of a scale that is not a time scale; it is ignored |
 | `vl-encoding-bandposition`, `-bandposition-rect`, `-datum-datetime` | Unsupported | That property of a supported channel: `-bandposition` is a `bandPosition` on a field that has neither a `timeUnit` nor a `bin`, or has a `bin` (not the `bandPosition` of a stacked `theta` or `radius` of a text mark, which places the label in its slice); `-bandposition-rect` is a `bandPosition` or `timeUnitBandPosition` other than 0.5 on a `bar` or `rect` whose field has a `timeUnit` (0.5 is used); `-datum-datetime` is a date-time object as the `datum` of a channel (the channel is ignored) |
 | `vl-encoding-stack-impute-bin` | Warning | The binned dimension of a stacked `line`, `area`, or `trail` with a color or another group (and without `impute: null`): a layer that lacks a bin has no point there (no zero is imputed) |
-| `vl-timeunit-binned` | Unsupported | A `binned` time unit (a name that starts with `binned`, or `"binned": true`) in an encoding, a condition, a predicate, or the `timeUnit` transform; the unit is ignored and the field is used as it is |
-| `vl-timeunit-maxbins` | Unsupported | The `{"maxbins": n}` time unit form without a `unit` in a filter or condition predicate; the unit is ignored and the field is compared as it is (an encoding and the transform apply it) |
-| `vl-predicate-timeunit-part` | Warning | The `timeUnit` of a filter or condition predicate whose unit has a `week` or `dayofyear` part: like Vega-Lite, the predicate does not apply those parts |
+| `vl-predicate-timeunit-part` | Warning | The `timeUnit` of a filter or condition predicate whose (not binned) unit has a `week` or `dayofyear` part: like Vega-Lite, the predicate does not apply those parts |
 | `vl-encoding-condition` | Unsupported | A `condition` on a channel that takes none (`x`, `y`, the secondary channels, `order`); the condition is ignored |
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel that cannot bin (`order`, the secondary channels `x2` and `y2`, and `theta` and `radius`), and `bin: "binned"` (data that is binned already) on a channel other than `x` and `y`, unless it is false or null; the channel is not binned |
 | `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate` (the message names the channel), or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the categories are sorted ascending |
@@ -2682,14 +2808,15 @@ thread, after the work finished and before the method returns or throws.
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal (that is `identity`) |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list (see the Scales row of *Supported Vega-Lite Subset*; `bins` is an example that is not supported). An unknown color scheme name is not reported but is an error |
 | `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
-| `vl-guide-legend-clipheight` | Unsupported | A `legend.clipHeight` (the entries are not clipped) |
+| `vl-guide-legend-clipheight` | Retired | Reported by Phase 13 and earlier for a `legend.clipHeight`; since Phase 14 the `clipHeight` of a symbol legend is drawn (see *Vega-Lite Legends, Color Schemes, and Scales*). Never produced again |
 | `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
 | `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, `header.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
 | `vl-scale-domain-raw` | Warning | The value of the parameter that a scale `domain` names, or a `domainRaw`, that cannot be a domain: not an array, fewer than two numbers or dates for a continuous scale (none for a band, point, or ordinal scale), or an entry that is not a number or a date (a text, an object, `NaN`); the scale keeps its own domain (see *A parameter as the domain of a scale* in *Vega-Lite Parameters*) |
 | `vl-expr-ref` | Unsupported or warning | An `{"expr": ...}` value that is not evaluated: at a property that Vega-Lite's schema does not allow one at (`width`, `height`, a `facet` field definition, and the like), at a static site that reads `datum` (a static site has no row; the property keeps its default), in a selection (its brush `mark`, events, projection or initial value, where the schema allows none), or in the `Config` of the render options (unsupported); and, as a **warning**, an expression at a static site whose value is a date (or a regular expression) where the property takes none. The value is not used |
 | `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no position to nest in: the `x` (or `y`) channel is missing, is quantitative, or is temporal without a `timeUnit`; or its time unit is `day`, `weekday`, `yearweekday`, binned, or `maxbins`; or the mark is a `rect` with a temporal time unit. A nominal or ordinal field with a `timeUnit` is an ordinary band parent and is drawn (not reported). A temporal field with another time unit is nested in and not reported. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
-| `vl-offset-ranged` | Unsupported | A continuous (quantitative or temporal) `xOffset` or `yOffset` of a `bar` or an `area`, which Vega-Lite draws as a range from the start of the band (a ranged offset). The offset is ignored and the marks are drawn at their position; the continuous offset of a point-like mark is drawn |
-| `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 104 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |
+| `vl-offset-ranged` | Unsupported | A continuous `xOffset` or `yOffset` of a `bar` or an `area` that is not a ranged offset: a temporal offset, a binned offset, a position with an `x2` or `y2`, or a position with a time unit (Vega-Lite draws the mark at the offset value as for a point). An unbinned quantitative offset of a `bar` or `area` whose position is a nominal or ordinal field is a ranged offset and is drawn since Phase 14. The offset is ignored and the marks are drawn at their position; the continuous offset of a point-like mark is drawn |
+| `vl-scale-invalid-value` | Unsupported | An entry of `config.scale.invalid` of the specification that is neither `"zero-or-min"` nor an object whose `value` is a number or a text (`null`, a boolean, or a list; an expression reference is reported by `vl-expr-ref` at its value instead): the channel is treated as without an entry, so the `invalid` mode of the mark decides what happens to its invalid rows. An entry in the `Config` of the render options is not reported |
+| `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 113 supported ones (`now`, `random`, `sampleNormal`, `sampleLogNormal`, and `sampleUniform` among them), once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
@@ -2702,7 +2829,6 @@ thread, after the work finished and before the method returns or throws.
 | `vl-repeat-ref-unresolved` | Warning | A `{"repeat": ...}` reference that the enclosing repeat does not define; the channel is dropped, as in Vega-Lite |
 | `vl-layer-property-ignored` | Warning | A `width`, `height`, `autosize`, `padding`, `background`, `config`, `datasets`, or `title` of a view inside a layered view (a layer, or a nested layered view); only the top-level view decides them and the value is not used |
 | `vl-layer-scale-conflict` | Warning | Layers whose scales of one channel cannot be shared (a continuous scale with a discrete one, a linear scale with a log, pow, or time scale, or different discretizing scales), reported at the channel of the layer that is left out; that layer keeps a scale of its own |
-| `vl-composite-grouping` | Unsupported | A grouping channel of a `boxplot`, `errorbar`, or `errorband` (every channel but the measure, its second end or errors, and the tooltip) that has a `bin`, an `aggregate`, or a binned or `maxbins` `timeUnit`: the rows are grouped by the field as it is, and a channel that aggregates is left out (a `timeUnit` with parts is applied) |
 | `vl-channel-xerror`, `-xerror2`, `-yerror`, `-yerror2` | Unsupported | An `xError`, `xError2`, `yError`, or `yError2` channel on a mark other than `errorbar` and `errorband`, which use them (the channel is ignored) |
 | `vl-param-selection-layer`, `-id`, `-animation` | Unsupported | A selection that is not drawn as Vega-Lite does: `-layer` is a selection that two or more layers of one layered view receive (a top-level selection of a layered view without `views`, or with `views` that name both), which Vega rejects as a duplicate signal; it is applied as an empty selection (name one layer in `views`); `-id` is a point selection over the identity of the rows (no `fields`, no `encodings`, no key in the `value`) that has an initial `value`, or a value of the host: a still chart has no row identity, so it is applied as empty; `-animation` is a selection with a timer in `on`, or with the `time` encoding: it is drawn in its initial state |
 | `vl-param-selection-projection` | Warning | A selection projection or use that cannot be built: a channel in `encodings` that has no field or an aggregate is skipped, an interval initialized with a key that is not a channel uses the default encodings, a selection used as the `domain` of a scale or the `extent` of a bin that names no field (or an encoding that is not projected exactly once) while it projects several uses the first field, and a selection bound to the scales that projects a channel without a continuous scale does not bind it, and a selection bound to a legend that does not project exactly one field (or encoding) does not bind it (see *Selection parameters* in *Vega-Lite Parameters*) |
@@ -2772,8 +2898,9 @@ Layers and Composite Marks*); the identifiers are retired and will not be reused
 its layers is now applied and is not reported, and the identifiers `vl-transform-<name>` for the transforms
 `regression`, `loess`, `density`, `quantile`, and `extent` and `vl-transform-pivot-op` are retired in Phase 13 (see
 below); only `vl-transform-lookup-param` and `vl-transform-runtime` remain. The identifiers
-`vl-layer-property-ignored`, `vl-layer-scale-conflict`, `vl-composite-grouping`, `vl-channel-xerror`, `-xerror2`,
-`-yerror`, and `-yerror2` are new. A build that matched one of the retired identifiers should stop doing so.
+`vl-layer-property-ignored`, `vl-layer-scale-conflict`, `vl-channel-xerror`, `-xerror2`,
+`-yerror`, and `-yerror2` are new. (`vl-composite-grouping`, which was new with them, is retired in Phase 14, see
+below.) A build that matched one of the retired identifiers should stop doing so.
 The identifiers `vl-composition-concat`, `-hconcat`, `-vconcat`, `-facet`, and `-repeat` (the whole family
 `vl-composition-<name>` of the unsupported compositions) and `vl-layout-autosize-fit`, `-fit-x`, and `-fit-y` (the
 family
@@ -2783,7 +2910,7 @@ they are retired and will not be reused. The message of `vl-transform-<name>` th
 the view is a composition" is retired with them, because the views of every composition are drawn and their transforms
 applied, and `vl-channel-row`, `-column`, and `-facet` are now produced only for a view that cannot be faceted. The
 identifiers `vl-composition-property-ignored`, `vl-concat-axis-shared`, `vl-composition-columns-ignored`,
-`vl-repeat-ref-unresolved`, `vl-layout-fit-step`, `vl-facet-field-transform`, and `vl-header-orient`
+`vl-repeat-ref-unresolved`, `vl-layout-fit-step`, `vl-facet-field-transform` (retired in Phase 14), and `vl-header-orient`
 are new (`vl-composition-property-ignored` is not one of the retired `vl-composition-<name>` identifiers: it names a
 property that is ignored in a drawn composition). A build that matched one of the retired identifiers should stop
 doing so.
@@ -2795,6 +2922,10 @@ and `-yoffset` are no longer produced because the offset channels are drawn (see
 Bars)*); they are retired with it, and `vl-offset-position` and `vl-offset-ranged` are new (`vl-offset-position` is no
 longer reported for a temporal position with a supported time unit, which is nested in now). The identifier
 `vl-expr-function-format` is no longer reported either, because `format()` is supported (see *Vega-Lite Expressions*).
+The nine distribution functions (`vl-expr-function-densitynormal`, `-cumulativenormal`, `-quantilenormal`, and the
+`lognormal` and `uniform` forms) are no longer reported either since Phase 14, and `vl-guide-legend-clipheight` is
+retired; `vl-scale-invalid-value` is new and `vl-offset-ranged` is narrowed to the continuous offsets of bars and
+areas that are not ranged offsets.
 The identifiers `vl-param-selection`, `vl-encoding-condition-param`, `vl-transform-filter-param`,
 `vl-encoding-bin-extent-param`, and `vl-transform-bin-extent-param` are retired in
 Phase 12: selections are drawn in their initial state, and a bin `extent` that is a parameter sets the span of the bins,
@@ -2815,25 +2946,32 @@ not parse), `vl-scale-interpolate-cubehelix`, `vl-encoding-impute`, `vl-mark-inv
 releases and are **retired in Phase 13**: custom SVG path shapes, the cubehelix interpolations, the invalid modes `show`
 and `null`, every legend `titleOrient`, the facet sort by an aggregate, and those axis properties are drawn now, and the
 `impute` of a channel other than `x` and `y` is ignored as in Vega-Lite; they are never produced again and will not be
-reused. The messages of `vl-facet-field-transform` (a `timeUnit` with parts is applied now) and of
-`vl-composite-grouping` (so is the `timeUnit` of a grouping channel) are narrower. A build that matched one of the
-retired identifiers should stop doing so.
+reused. A build that matched one of the retired identifiers should stop doing so.
+The identifiers `vl-timeunit-binned`, `vl-timeunit-maxbins`, `vl-facet-field-transform`, and `vl-composite-grouping`
+were reported by earlier releases and are **retired in Phase 14**: the `binned*` time units and `binned: true` (an
+encoding reads the field as it is and ends the bars of a rect, a predicate compares its instant, the `timeUnit`
+transform floors it), the `maxbins` form of a time unit in a predicate (the field is compared as it is, as in
+Vega-Lite), the `bin`, `aggregate`, and `timeUnit` of a facet field, and the `bin`, `aggregate`, and `timeUnit` of a
+grouping channel of a composite mark are applied now (see *Vega-Lite Time Units*, *Vega-Lite Composition*, and
+*Vega-Lite Layers and Composite Marks*); they are never produced again and will not be reused. A build that matched
+one of them should stop doing so.
 
-**Deferred to Phase 14 or the backlog.** These parts of Vega-Lite are still reported (or, where noted, not read) with the
+**Deferred to the backlog.** These parts of Vega-Lite are still reported (or, where noted, not read) with the
 identifiers above, and a still chart that needs one differs from Vega-Lite's:
 
-- `axis.encode` and `legend.encode` (`vl-guide-encode`), custom format types (`vl-format-type-custom`), and
-  `legend.clipHeight` (`vl-guide-legend-clipheight`);
-- the binned time units `binned*` (`vl-timeunit-binned`) and the `maxbins` form of a time unit in a predicate
-  (`vl-timeunit-maxbins`);
-- a continuous `xOffset` or `yOffset` of a bar or area (`vl-offset-ranged`);
-- the `bin` or `aggregate` of a facet field and a binned or `maxbins` `timeUnit` of it (`vl-facet-field-transform`), and
-  the `bin`, `aggregate`, and binned `timeUnit` of the grouping channel of a composite mark
-  (`vl-composite-grouping`);
+- `axis.encode` and `legend.encode` (`vl-guide-encode`) and custom format types (`vl-format-type-custom`);
+- a temporal, binned, or `x2`/`y2`-ranged continuous `xOffset` or `yOffset` of a bar or area (`vl-offset-ranged`), and
+  the offset of a binned or `maxbins` time unit or of a missing position (`vl-offset-position`);
+- a `header.labelOrient` or `titleOrient` on a side that the header does not draw (`vl-header-orient`);
 - `geoshape`, `projection`, `longitude` and `latitude`, and the `geojson` type (`vl-mark-geoshape`, `vl-projection`,
   `vl-channel-geo`, and `vl-type-geojson`);
-- `config.scale.invalid` (not read), and the distribution functions of the expression language (reported with
-  `vl-expr-function-<name>`).
+- the sampling functions of the expression language (`random`, `sampleNormal`, `sampleLogNormal`, `sampleUniform`:
+  reported with `vl-expr-function-<name>` by design, an expression is a pure function of its row and parameters), and
+  an entry of `config.scale.invalid` that is not `"zero-or-min"` or a number or text `value` (`vl-scale-invalid-value`).
+
+The `clipHeight` of a symbol legend (`vl-guide-legend-clipheight`), the ranged offsets of bars and areas, the entries
+of `config.scale.invalid`, and the nine distribution functions of the expression language were deferred in Phase 13 and
+are drawn since Phase 14.
 Planned later releases add, among other things, the color functions of the expression language, expressions in more
 places; until then the constructs are
 reported with the identifiers above. Geographic constructs (`projection`, `geoshape`, `longitude` and `latitude`,
@@ -3436,7 +3574,7 @@ var left = VegaLiteDocument.Parse("""
       "mark": "point",
       "encoding": {
         "x": { "field": "a", "type": "quantitative" },
-        "color": { "field": "b", "type": "nominal", "legend": { "clipHeight": 100 } }
+        "color": { "field": "b", "type": "nominal", "legend": { "encode": {} } }
       }
     }
     """);
@@ -3447,7 +3585,7 @@ try
 }
 catch (VegaLiteUnsupportedFeatureException ex)
 {
-    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-guide-legend-clipheight /encoding/color/legend/clipHeight
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-guide-encode /encoding/color/legend/encode
 }
 
 // 5. A scheme name that does not exist is an error (as in Vega), not a silent change of colors
@@ -3565,8 +3703,9 @@ using var visitsPicture = visits.Render(new VegaLiteRenderOptions { WarningHandl
 Console.WriteLine(warnings.Count); // Output: 0
 PngCodec.Save(visitsPicture, "visits.png");
 
-// 5. A construct that is not supported is reported, as everywhere in the package: a binned time unit (the data is
-//    already floored) is ignored, and strict mode refuses it
+// 5. A binned time unit says that the data is already floored: the field is read as it is, the bars span the month, and
+//    strict mode accepts it. A construct that is not supported is reported, as everywhere in the package, and strict
+//    mode refuses it: here a custom axis encoding
 var binned = VegaLiteDocument.Parse("""
     {
       "data": { "values": [ { "month": "2024-03-01", "n": 3 } ] },
@@ -3577,14 +3716,26 @@ var binned = VegaLiteDocument.Parse("""
       }
     }
     """);
+using var binnedPicture = binned.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true });
+
+var custom = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "month": "2024-03-01", "n": 3 } ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "month", "type": "temporal", "timeUnit": "yearmonth", "axis": { "encode": { "labels": {} } } },
+        "y": { "field": "n", "type": "quantitative" }
+      }
+    }
+    """);
 
 try
 {
-    using var never = binned.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true });
+    using var never = custom.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true });
 }
 catch (VegaLiteUnsupportedFeatureException ex)
 {
-    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-timeunit-binned /encoding/x/timeUnit
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-guide-encode /encoding/x/axis/encode
 }
 ```
 
@@ -3912,8 +4063,8 @@ using var ignoredPicture = ignored.Render(new VegaLiteRenderOptions { WarningHan
 Console.WriteLine(warnings.Count);                                                  // Output: 1
 Console.WriteLine(warnings[0].Message.StartsWith("vl-layer-property-ignored:"));    // Output: True
 
-// 7. Binning the grouping channel of a box plot is not supported: strict mode throws, and without it the rows are
-//    grouped by the field as it is
+// 7. Binning the grouping channel of a box plot is applied as Vega-Lite does (a bin transform before the quartiles, the
+//    boxes over the bins, the axis titled "g (binned)"), so strict mode accepts it
 var grouped = VegaLiteDocument.Parse("""
     {
       "data": { "values": [ { "g": 1, "v": 1 }, { "g": 1, "v": 3 }, { "g": 2, "v": 2 }, { "g": 2, "v": 5 } ] },
@@ -3924,14 +4075,8 @@ var grouped = VegaLiteDocument.Parse("""
       }
     }
     """);
-try
-{
-    using var groupedPicture = grouped.Render(strict);
-}
-catch (VegaLiteUnsupportedFeatureException ex)
-{
-    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-composite-grouping /encoding/x
-}
+using var groupedPicture = grouped.Render(strict);
+PngCodec.Save(groupedPicture, "box-binned.png");
 ```
 
 ### Example 44: Concatenated Charts with a Shared Legend
@@ -4116,8 +4261,8 @@ var wrapped = VegaLiteDocument.Parse("""
 var wrappedSize = wrapped.Measure();
 Console.WriteLine($"{wrappedSize.Width}x{wrappedSize.Height}"); // Output: 268x308
 
-// 3. Binning the facet field is not supported: the raw value of the field is the cell, the feature is reported at the
-//    property, and strict mode refuses it
+// 3. Binning the facet field makes the start of each bin the cell, and the header says its range (a bin of a facet
+//    field has 6 bins by default for a row or a column and 10 for the wrapped facet); strict mode accepts it
 var binned = VegaLiteDocument.Parse("""
     {
       "data": { "values": [ { "g": 1, "v": 1 }, { "g": 2, "v": 3 }, { "g": 3, "v": 2 } ] },
@@ -4132,14 +4277,8 @@ var binned = VegaLiteDocument.Parse("""
       }
     }
     """);
-try
-{
-    using var binnedPicture = binned.Render(strict);
-}
-catch (VegaLiteUnsupportedFeatureException ex)
-{
-    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-facet-field-transform /facet/bin
-}
+using var binnedPicture = binned.Render(strict);
+PngCodec.Save(binnedPicture, "facet-binned.png");
 ```
 
 ### Example 46: Repeated Charts
@@ -4501,3 +4640,111 @@ PngCodec.Save(surface, "image-marks.png");
 ```
 
 ![Pictures as marks](examples/image-marks.vl.json){scale=2 width=60%}
+
+### Example 51: The Vega-Lite Gallery
+
+The gallery is a set of 18 small charts that together use the major features of the package, from the marks of
+Phase 1 to the time units, the ranged offsets, and the legend `clipHeight` of Phase 14. Every specification is
+**original to this repository** (the data is invented and inline, or made by a `sequence` and `calculate`; no example of
+the Vega-Lite project and no Vega dataset is copied), lies in `docs/user_guide/examples/gallery`, and is drawn below by
+the Pandoc filter, so the pictures are always those of the version of the library that built this guide. A test
+(`VegaLiteGalleryTests`) renders every file of the folder with `ThrowOnUnsupportedFeature = true` and fails on any
+warning, so a chart of the gallery can not use a feature that is only reported. The same files can be drawn with the
+tool, `canvasnet render docs/user_guide/examples/gallery/06-heatmap.vl.json --strict --scale 2 -o heatmap.png`, or with
+the library:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// Every chart of the gallery renders in strict mode: nothing in it is reported as unsupported
+var chart = VegaLiteDocument.Open("examples/gallery/06-heatmap.vl.json");
+using var surface = chart.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true });
+PngCodec.Save(surface, "heatmap.png");
+```
+
+*Scatter and shape.* Points with a color, a shape, and a size channel, made from a `sequence` and `calculate`
+transforms:
+
+![A scatter plot with color, shape, and size](examples/gallery/01-scatter.vl.json){scale=2 width=60%}
+
+*Lines and time.* Three series folded from columns, a `yearmonth` time unit on a temporal axis, and points on the
+lines:
+
+![Monthly temperature of three towns](examples/gallery/02-line-series.vl.json){scale=2 width=60%}
+
+*Stacked area.* Three folded series stacked with `stack: zero`, ordered by the `order` channel:
+
+![A stacked area chart](examples/gallery/03-area-stacked.vl.json){scale=2 width=60%}
+
+*Stacked bars.* Horizontal bars sorted by their total, with an aggregate on the length and a custom color range:
+
+![Stacked horizontal bars](examples/gallery/04-bar-stacked.vl.json){scale=2 width=60%}
+
+*Grouped bars.* The `xOffset` channel nests the years in each quarter, and a `labelExpr` names the quarters:
+
+![Grouped bars](examples/gallery/05-bar-grouped.vl.json){scale=2 width=60%}
+
+*Binned heat map.* Two quantities binned with a `step` and the rows of each cell counted on a color scale:
+
+![A binned heat map](examples/gallery/06-heatmap.vl.json){scale=2 width=60%}
+
+*Facet.* A grid of small charts, one for each orchard and season, with headers:
+
+![A facet of bar charts](examples/gallery/07-facet-grid.vl.json){scale=2 width=70%}
+
+*Repeat.* A scatter-plot matrix of three measurements, each pair a cell of the grid:
+
+![A repeated scatter-plot matrix](examples/gallery/08-repeat-matrix.vl.json){scale=2 width=60%}
+
+*Layers, rule, and text.* Bars, a label on each bar, and a dashed rule at the mean:
+
+![Layered bars, text, and a rule](examples/gallery/09-layer-rule-text.vl.json){scale=2 width=60%}
+
+*Composite marks.* A box plot with an outlier and an error band around a mean line, side by side in an `hconcat`:
+
+![A box plot and an error band](examples/gallery/10-boxplot-errorband.vl.json){scale=2 width=70%}
+
+*Donut.* An `arc` mark with an inner radius and a text label in the middle of each slice. The label is white, from a
+`color` value (the `color` field of the arcs would paint it in the color of its slice); a layer without a `color`
+field stacks its rows in reverse order, in Vega-Lite and here, so the rows are listed in the reverse order of the
+legend and the labels meet their slices:
+
+![A donut chart](examples/gallery/11-donut.vl.json){scale=2 width=50%}
+
+*Regression and loess.* A polynomial `regression` and a `loess` smoother over the points, both computed by
+transforms:
+
+![Regression and loess lines](examples/gallery/12-regression-loess.vl.json){scale=2 width=60%}
+
+*Density.* A kernel density estimate for each of two groups, drawn as overlapping areas:
+
+![Two density estimates](examples/gallery/13-density.vl.json){scale=2 width=60%}
+
+*Pictures as marks.* The `image` mark with two SVG pictures that lie next to the specification (the tool, the Viewer,
+and the Pandoc filter wire a resolver rooted at its folder):
+
+![Image marks](examples/gallery/14-image-marks.vl.json){scale=2 width=60%}
+
+*Parameters and selections in their initial state.* A variable parameter that sets a threshold rule and an interval
+selection whose brush is drawn:
+
+![A threshold parameter and a brush](examples/gallery/15-selection-params.vl.json){scale=2 width=60%}
+
+*Time units.* Daily rows grouped into months by a `timeUnit`, and dates that are already floored to the month read
+with a binned unit:
+
+![Time units](examples/gallery/16-time-binned.vl.json){scale=2 width=70%}
+
+*Ranged offsets and the legend `clipHeight`.* Bars that run from zero to the `yOffset` value inside the band of their
+team, and a symbol legend whose entries are 24 pixels high:
+
+![A ranged offset and a legend with a clip height](examples/gallery/17-ranged-offset-legend.vl.json){scale=2 width=60%}
+
+*A configuration theme.* A dark background, light axes, a custom color range, and rounded line caps, all from the
+`config` of the specification:
+
+![A dark theme](examples/gallery/18-dark-theme.vl.json){scale=2 width=60%}
+
+`docs/images/vegalite-gallery.png` (see `docs/images/README.md`) is a montage of six of these charts for the README;
+`pwsh docs/images/render-images.ps1 -Check` fails when it no longer matches what the tool draws.

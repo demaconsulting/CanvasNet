@@ -175,6 +175,29 @@ sections:
                   - LegendBuilder_Build_TitleOfAHorizontalGradientIsCenteredOnTheBar
                   - LegendBuilder_Build_TitleAlignAndBaselineOverrideTheOrientDefaults
 
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-ClipHeight
+                title: >-
+                  The LegendBuilder unit shall, for a symbol legend whose clipHeight (of the legend or of
+                  config.legend) is greater than 0, put the symbol and the label of each entry at half of the
+                  clipHeight instead of half of the entry size, give the entry group the box of the label united
+                  with the rectangle from (0, 0) to (0, clipHeight), and wrap each symbol in a clipping group at
+                  the origin of its entry whose clip rectangle is as wide as the widest entry of its column and as
+                  high as the bottom edge of the entry, leaving the label unclipped, as vega-parser, vega-scenegraph,
+                  and vega-view-transforms lay it out; and shall leave a legend without a clipHeight, with a
+                  clipHeight of 0 (the configuration then applying), and a gradient legend unclipped.
+                justification: |
+                  clipHeight is part of the Vega-Lite legend schema; it sets the pitch of the entries and clips the
+                  symbols, so a chart that sets it must draw the entries where Vega draws them.
+                tests:
+                  - LegendBuilder_ClipHeight_AbsentLeavesTheSymbolsUnclipped
+                  - LegendBuilder_ClipHeight_TallerThanTheSymbolsSetsThePitchAndTheClipBox
+                  - LegendBuilder_ClipHeight_SmallerThanTheSymbolsClipsThemToTheEntry
+                  - LegendBuilder_ClipHeight_ALabelTallerThanTheEntryWidensTheClipBox
+                  - LegendBuilder_ClipHeight_ColumnsShareTheWidthOfTheWidestEntry
+                  - LegendBuilder_ClipHeight_WithASymbolSizeAndRowPaddingMatchesVega
+                  - LegendBuilder_ClipHeight_AGradientLegendIgnoresIt
+                  - LegendBuilder_ClipHeight_ZeroIsIgnoredAndTheConfigurationApplies
+
               - id: CanvasNetVegaLite-Guides-LegendBuilder-Limits
                 title: >-
                   The LegendBuilder unit shall fail with a located VegaLiteRenderException that names the limit when

@@ -177,7 +177,7 @@ internal sealed partial class RowTransforms
     {
         var location = Locate(entry);
         var pivotPath = operation.StringValue!;
-        var limit = entry["limit"] is { IsNumber: true } limitNode ? (long)Math.Floor(limitNode.NumberValue) : 0;
+        var limit = entry["limit"] is { IsNumber: true } limitNode ? NumericConversions.ToInt64Saturating(Math.Floor(limitNode.NumberValue)) : 0;
         var pivotReader = new FieldReader(input, pivotPath);
         var valueReader = new FieldReader(input, entry["value"]!.StringValue);
         var groupPaths = entry["groupby"] is { IsArray: true } groupBy ? groupBy.Items.Select(g => g.StringValue!).ToArray() : [];

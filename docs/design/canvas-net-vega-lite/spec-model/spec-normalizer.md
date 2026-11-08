@@ -226,15 +226,24 @@ band opacity from the configuration and the `interpolate` and `tension` of a two
 merged title of a layered axis reads as Vega-Lite's: the title of a part counts as written, and wins over a title that
 another layer derives (the document merges the titles). `scale` and `axis` of the
 measure are copied to the primary channel of every part. Grouping channels are the remaining channels that have a field
-(`CompositeBuilder.Grouping` returns the shared channels, the fields to group by, and the `timeUnit` transforms). A
-**`timeUnit` with parts** on a grouping channel that is not binned (Phase 13) becomes a `timeUnit` transform
+(`CompositeBuilder.Grouping` returns a `CompositeGrouping`: the shared channels, the fields to group by, the transforms
+to run before the aggregate, and the measures that the channels add to it). It is Vega-Lite's
+`extractTransformsFromEncoding`: a **`timeUnit`** that is not binned (a unit, or the `maxbins` form) becomes a
+`timeUnit` transform
 (`field` read, `as` the derived field named as Vega-Lite names it, for example `month_date`) that runs **before** the
 aggregate, and the channel reads the derived field, with the default title of the original definition
 (`EncodingPlan.DefaultTimeUnitTitle`) and, for a channel that is not temporal, the `formatType` `time` of its axis,
-legend, or text; the derived field groups the rows (Vega-Lite's `extractTransformsFromEncoding`). The transforms are
-prepended to the top-level view transforms in `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs`. A `bin`
-or an `aggregate` on a grouping channel, and a binned or `maxbins` time unit, are not applied (the catalog reports them
-as `vl-composite-grouping`): the rows are grouped by the raw field and an aggregating channel is left out.
+legend, or text; the derived field groups the rows. A **`bin`** (Phase 14) becomes a `bin` transform (the bins of the
+encoding, with `autoMaxBins` of the channel: 10 for `x` and `y`, 6 for the others) that runs before the time units, whose
+start and end group the rows; the channel reads the start as quantitative data that is binned already, with the end as
+the `x2` or `y2` channel of a position channel, and the default title `g (binned)`. An **`aggregate`** (Phase 14) is a
+measure (`EncodingPlan.DescribeAggregate`: `mean_age`, `__count`, `argmax_by`, with the `param` of the exponential
+operations) added to every aggregate transform of the mark, which the channel reads (`argmax_by.field` for an `argmax`)
+with the default title of its definition; the channel does not group the rows. A `bin` that is `"binned"` or false and a
+binned unit leave the field as it is (the property is dropped). The transforms are
+prepended to the top-level view transforms in `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs`; an error bar
+of aggregated input (`upper` and `lower`, or errors) adds the `{aggregate, groupby}` only when a channel aggregates, as
+Vega-Lite does. The identifier `vl-composite-grouping` is retired.
 
 #### Error Handling
 

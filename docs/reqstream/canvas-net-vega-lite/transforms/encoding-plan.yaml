@@ -213,7 +213,9 @@ sections:
                   unit, group an aggregate by the start (and the end when it spans), and place the time unit
                   step between the bin and the aggregate of the pipeline (bin, time unit, aggregate,
                   stack) in the time calendar of the chart, handing the resolved unit of a maxbins form to
-                  the scales and marks.
+                  the scales and marks, and, for a binned unit, read the field as it is (the canonical path of the
+                  field is the start, no start is derived, the title is that of the field) with an end only where its
+                  mark spans the unit.
                 justification: |
                   Scales, marks, and axes must agree on which derived field a time unit channel draws and
                   on whether the bar spans its unit; Vega-Lite specifies the names, the titles, and the order.
@@ -227,6 +229,8 @@ sections:
                   - EncodingPlan_Create_TitlesVerbalFunctionalPlain
                   - EncodingPlan_Create_AggregateGroupsByTimeUnitStart
                   - EncodingPlan_Create_BinWinsOverTimeUnit
+                  - EncodingPlan_Create_BinnedUnitReadsTheFieldAndHasAnEndOnlyWhereItSpans
+                  - EncodingPlan_Create_BinnedUnitGroupsTheAggregateByTheFieldAndItsEnd
                   - EncodingPlan_Create_SharedAndDistinctUnits
                   - EncodingPlan_Create_StackUsesTheTimeUnitFields
                   - EncodingPlan_Create_WithoutAnEncodingThereAreNoUnits
@@ -347,8 +351,10 @@ sections:
                   unlisted values in order of first appearance (none dropped), and
                   for a sort by an aggregate (a field and an operation, the operation min by default, count
                   without a field, the descending order for an order of descending, ties in first-appearance
-                  order) by the aggregated value of each cell - and, for a facet field with a time unit that has
-                  parts, with the cells being the start of the unit - shall make the grid of
+                  order) by the aggregated value of each cell - and, for a facet field with a bin (the cell being the
+                  start of the bin, labeled with its range, a missing value being the cell null), an aggregate (the
+                  field of the name that Vega-Lite gives it), or a time unit (the start of the unit, the maxbins form
+                  resolved against the data, a binned unit leaving the raw value) - shall make the grid of
                   every combination of a row value and a column value in row-major order (one column for a
                   facet without a column field, one row for one without a row field, the combinations that no
                   row has as cells without rows) or, for a wrapped facet, one cell for each value, and shall build
@@ -364,7 +370,11 @@ sections:
                   - EncodingTransforms_FacetDomain_SortByAggregateOrdersTheCells
                   - EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition
                   - EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell
-                  - EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied
+                  - EncodingTransforms_Facet_BinnedTimeUnitIsTheRawValue
+                  - EncodingTransforms_Facet_MaxBinsTimeUnitIsResolvedAgainstTheData
+                  - EncodingTransforms_Facet_BinOfTheFieldIsTheCellWithItsRangeAsText
+                  - EncodingTransforms_Facet_BinNamesFollowAutoMaxBinsAndOrderIsNumeric
+                  - EncodingTransforms_Facet_AggregateOfTheFieldReadsTheFieldOfItsName
                   - EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell
                   - EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations
                   - EncodingTransforms_Facet_RowOnlyHasOneColumnAndColumnOnlyOneRow

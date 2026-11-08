@@ -32,6 +32,7 @@ public class VegaLiteLimitsTests
         Assert.Equal(1_048_576, limits.MaxStringLength);
         Assert.Equal(1_000, limits.MaxDiagnostics);
         Assert.Equal(256, limits.MaxImages);
+        Assert.Equal(250_000_000L, limits.MaxPaintedPixels);
     }
 
     /// <summary>
@@ -70,6 +71,7 @@ public class VegaLiteLimitsTests
         Assert.Equal(1, limits.MaxDataBytes);
         Assert.Equal(5, limits.MaxDiagnostics);
         Assert.Equal(7, new VegaLiteLimits { MaxImages = 7 }.MaxImages);
+        Assert.Equal(long.MaxValue, new VegaLiteLimits { MaxPaintedPixels = long.MaxValue }.MaxPaintedPixels);
     }
 
     /// <summary>
@@ -94,6 +96,7 @@ public class VegaLiteLimitsTests
     [InlineData("MaxStringLength")]
     [InlineData("MaxDiagnostics")]
     [InlineData("MaxImages")]
+    [InlineData("MaxPaintedPixels")]
     public void VegaLiteLimits_ZeroOrNegative_Throws(string property)
     {
         // Arrange / Act
@@ -149,6 +152,7 @@ public class VegaLiteLimitsTests
         "MaxStringLength" => new VegaLiteLimits { MaxStringLength = value },
         "MaxDiagnostics" => new VegaLiteLimits { MaxDiagnostics = value },
         "MaxImages" => new VegaLiteLimits { MaxImages = value },
+        "MaxPaintedPixels" => new VegaLiteLimits { MaxPaintedPixels = value },
         _ => throw new ArgumentException("Unknown property " + property, nameof(property)),
     };
 }

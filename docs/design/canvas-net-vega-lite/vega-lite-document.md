@@ -102,7 +102,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
 - **`VegaLiteFontOptions`** (sealed class) - `UseSystemFonts` (default false) and `AdditionalDirectories`
   (`IReadOnlyList<string>`, empty by default; a null list throws `ArgumentNullException`, a null, empty, or whitespace
   entry throws `ArgumentException`; copied into a read-only array).
-- **`VegaLiteLimits`** (sealed class, init-only) - the seventeen limits (`MaxImages`, phase 13: the distinct questions
+- **`VegaLiteLimits`** (sealed class, init-only) - the eighteen limits (`MaxPaintedPixels`, phase 14: the device
+  pixels that one `Render` fills, strokes and draws, default 250,000,000, at least 1, charged by the painter before
+  each item is painted, a located `VegaLiteRenderException` that names `VegaLiteLimits.MaxPaintedPixels`; `MaxImages`,
+  phase 13: the distinct questions
   to the
   image resolver of one `Render`, default 256, at least 1, enforced by the painter with a located
   `VegaLiteRenderException`)

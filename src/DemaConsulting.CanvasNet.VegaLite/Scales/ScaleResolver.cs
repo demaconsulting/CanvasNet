@@ -1016,7 +1016,7 @@ internal static partial class ScaleResolver
         var definition = plan?.FieldDef ?? channelDefinition;
 
         // An offset scale exists only inside the band of a discrete position scale or the time unit of a temporal one; the other offsets are reported by the feature catalog and ignored
-        if (GroupOf(channel) == ChannelGroup.Offset && DecideOffset(channel, context.Encoding, context.MarkType) is OffsetDecision.NoDiscreteParent or OffsetDecision.Ranged)
+        if (GroupOf(channel) == ChannelGroup.Offset && DecideOffset(channel, context.Encoding, context.MarkType) is OffsetDecision.NoDiscreteParent or OffsetDecision.UnsupportedContinuous)
         {
             return null;
         }
@@ -1781,6 +1781,12 @@ internal static partial class ScaleResolver
         if (input.Channel == "size")
         {
             return kind != ScaleKind.Quantize;
+        }
+
+        // The offset scale of a ranged offset includes zero, so that every mark of a band shares the baseline; the other offset scales never do (Vega-Lite's zero(): isXorYOffset(channel) returns hasRangedOffset)
+        if (input.Channel is "xOffset" or "yOffset")
+        {
+            return HasRangedOffset(input.Channel == "xOffset" ? "x" : "y", context.Encoding, context.MarkType);
         }
 
         // Only unbinned position and polar scales are subject to the position rules; every other channel does not include zero

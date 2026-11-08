@@ -1,0 +1,26 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A repeat: every pair of three invented measurements of a pebble is a small scatter plot.",
+  "title": "Pebble measurements",
+  "data": {"sequence": {"start": 0, "stop": 40, "as": "i"}},
+  "transform": [
+    {"calculate": "20 + 12 * sin(datum.i * 0.8)", "as": "length"},
+    {"calculate": "10 + datum.length * 0.4 + 3 * cos(datum.i * 1.9)", "as": "width"},
+    {"calculate": "30 - datum.length * 0.5 + 5 * sin(datum.i * 2.7)", "as": "mass"},
+    {"calculate": "['Quartz', 'Slate'][datum.i % 2]", "as": "rock"}
+  ],
+  "repeat": {
+    "row": ["length", "width", "mass"],
+    "column": ["length", "width", "mass"]
+  },
+  "spec": {
+    "width": 90,
+    "height": 90,
+    "mark": {"type": "point", "filled": true, "size": 24},
+    "encoding": {
+      "x": {"field": {"repeat": "column"}, "type": "quantitative"},
+      "y": {"field": {"repeat": "row"}, "type": "quantitative"},
+      "color": {"field": "rock", "type": "nominal", "title": "Rock"}
+    }
+  }
+}

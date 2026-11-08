@@ -322,7 +322,8 @@ public class ScaleResolverOffsetTests
     }
 
     /// <summary>
-    ///     Validates the decision of <see cref="ScaleResolver.DecideOffset"/> for every case, with the marks that cannot draw a continuous offset.
+    ///     Validates the decision of <see cref="ScaleResolver.DecideOffset"/> for every case, with the marks that cannot draw a continuous offset (a ranged offset of a bar or area is drawn since Phase 14: an unbinned
+    ///     quantitative offset of a discrete position without a secondary channel; <c>isRangedOffset</c> of Vega-Lite 6.5.0).
     /// </summary>
     [Theory]
     [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "Supported")]
@@ -338,7 +339,11 @@ public class ScaleResolverOffsetTests
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "hours" }, "xOffset": { "field": "g", "type": "nominal" } }""", "tick", "TimeUnitParent")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": { "unit": "month", "step": 2 } }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "TimeUnitParent")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "point", "TimeUnitParent")]
-    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "bar", "Ranged")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "bar", "UnsupportedContinuous")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "temporal" } }""", "bar", "UnsupportedContinuous")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "quantitative", "bin": true } }""", "bar", "UnsupportedContinuous")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "x2": { "field": "w" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "bar", "UnsupportedContinuous")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "quantitative", "aggregate": "sum" } }""", "area", "Ranged")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "day" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "yearmonthdate" }, "xOffset": { "field": "g", "type": "nominal" } }""", "rect", "NoDiscreteParent")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": { "maxbins": 10 } }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]

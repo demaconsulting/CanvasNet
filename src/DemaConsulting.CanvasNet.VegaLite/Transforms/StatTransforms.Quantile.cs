@@ -53,6 +53,15 @@ internal sealed partial class StatTransforms
             var step = StatisticsPrimitives.IsTruthy(given) ? given : DefaultQuantileStep;
             var count = StatisticsPrimitives.RangeCount(step / 2, 1 - QuantileEpsilon, step);
             CheckRows(Math.Max(1, groups.Count) * (double)count, "quantile transform output", location);
+
+            // The row budget can be raised by the caller, but the probabilities are held in one array: never allocate more than the cell limit
+            if (count > TableLayout.MaxCells)
+            {
+                throw new VegaLiteRenderException(
+                    string.Create(System.Globalization.CultureInfo.InvariantCulture, $"The quantile transform would generate {count} probabilities, more than the limit of {TableLayout.MaxCells} values (TableLayout.MaxCells)."),
+                    location);
+            }
+
             probabilities = new double[count];
             for (var i = 0; i < probabilities.Length; i++)
             {

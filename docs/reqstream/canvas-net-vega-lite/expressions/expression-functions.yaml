@@ -8,9 +8,10 @@
 # per-evaluation context that charges their work, carries the time calendar and the selection stores, the stores and
 # the port of the selection tests that the selection functions use, and the translation of a JavaScript regular
 # expression into a bounded .NET one. The unit comprises ExpressionFunctions.cs, ExpressionFunctions.Text.cs,
-# ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs, ExpressionFunctions.Time.cs,
-# ExpressionFunctions.Number.cs, ExpressionFunctions.Selection.cs, ExpressionFunctionContext.cs, SelectionStore.cs,
-# SelectionTestSemantics.cs, and ExpressionRegex.cs. See
+# ExpressionFunctions.Casing.cs, ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs,
+# ExpressionFunctions.Time.cs, ExpressionFunctions.Number.cs, ExpressionFunctions.Selection.cs,
+# ExpressionFunctions.Distributions.cs (the nine probability distribution functions, from Phase 14),
+# ExpressionFunctionContext.cs, SelectionStore.cs, SelectionTestSemantics.cs, and ExpressionRegex.cs. See
 # docs/verification/canvas-net-vega-lite/expressions/expression-functions.md for the test-evidence mapping.
 
 sections:
@@ -29,8 +30,12 @@ sections:
                   length, isArray, isBoolean, isDate, isFinite, isNaN, isNumber, isObject, isRegExp, isString,
                   isValid, toBoolean, toDate, toNumber, toString, regexp, test, and format, the date and
                   time functions named in the requirements of the date and time group below, and the selection
-                  functions data, vlSelectionTest, vlSelectionIdTest, and vlSelectionResolve (104 functions in
-                  all) - with no random, clock (so no now), reflection, file, or network function, and shall
+                  functions data, vlSelectionTest, vlSelectionIdTest, and vlSelectionResolve, and the
+                  probability distribution functions densityNormal, cumulativeNormal, quantileNormal,
+                  densityLogNormal, cumulativeLogNormal, quantileLogNormal, densityUniform, cumulativeUniform,
+                  and quantileUniform (113 functions in
+                  all) - with no sampling function (random, sampleNormal, sampleLogNormal, or sampleUniform),
+                  clock (so no now), reflection, file, or network function, and shall
                   refuse to invoke a name outside the table.
                 justification: |
                   A closed, enumerable table is what makes an expression engine safe to run on untrusted
@@ -38,6 +43,7 @@ sections:
                 tests:
                   - ExpressionFunctions_Names_AreTheWhitelistedFunctions
                   - ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException
+                  - ExpressionFunctionsDistribution_Sampling_IsNotInTheTable
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
                 title: >-
@@ -317,6 +323,35 @@ sections:
                 tests:
                   - ExpressionFunctions_Repeated_ResultsAreIdentical
                   - ExpressionFunctions_Names_AreTheWhitelistedFunctions
+                  - ExpressionFunctionsDistribution_Repeated_ResultsAreIdentical
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Distributions
+                title: >-
+                  The ExpressionFunctions unit shall provide the nine probability distribution functions of
+                  Vega's expression language - densityNormal, cumulativeNormal, quantileNormal,
+                  densityLogNormal, cumulativeLogNormal, quantileLogNormal, densityUniform, cumulativeUniform,
+                  and quantileUniform - with the results of vega-statistics 2.0.0 (the cumulative normal of
+                  West's 2009 approximation, the normal quantile of the inverse error function of Giles in the
+                  Apache Commons Math form that Vega ports, a quantile of a probability outside 0 to 1 being
+                  NaN), with the JavaScript defaults and coercions of that code (a falsy mean or minimum is 0,
+                  a missing or null deviation is 1, a uniform without a maximum is the interval from 0 to its
+                  minimum, relational comparison semantics, and the concatenation of the + operator when a text
+                  mean or minimum is given to a quantile), as pure functions that do the same work on every
+                  call, and shall leave the sampling functions random, sampleNormal, sampleLogNormal, and
+                  sampleUniform out of the table, so that they stay reported and give null.
+                justification: |
+                  The densities and quantiles are the part of Vega's statistical functions that is a pure
+                  function of its arguments, so charts can use them; Vega's random is the unseeded
+                  Math.random, so the sampling functions would make a picture depend on something other than
+                  its datum and parameters and stay unsupported.
+                tests:
+                  - ExpressionFunctionsDistribution_Functions_MatchVegaStatistics
+                  - ExpressionFunctionsDistribution_ClosedForms_Hold
+                  - ExpressionFunctionsDistribution_Density_IntegratesToTheCumulativeDistribution
+                  - ExpressionFunctionsDistribution_Arguments_FollowJavaScript
+                  - ExpressionFunctionsDistribution_TextOperands_FollowJavaScriptOperators
+                  - ExpressionFunctionsDistribution_Sampling_IsNotInTheTable
+                  - ExpressionFunctionsDistribution_Repeated_ResultsAreIdentical
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-SelectionFunctions
                 title: >-

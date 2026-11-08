@@ -37,10 +37,12 @@ the same name and the fields nested below it, `MaxFieldCount` and the 2^25 cells
 
 **`TimeUnitRequest`** is one unit to compute: `Field` (the field path of the dates as written), `StartName` and
 `EndName` (the literal names of the two fields that receive the start and the end, the end exclusive), `Spec` (the
-`TimeUnitSpec`, whose `maxbins` form is resolved against the data), and `Node` (the node of the specification that asked
-for the unit, the location of a failure when the call has none of its own). The `timeUnit` transform of the
+`TimeUnitSpec`, whose `maxbins` form is resolved against the data), `Node` (the node of the specification that asked
+for the unit, the location of a failure when the call has none of its own), and `EndOnly` (a binned unit of an
+encoding: only the end is written and `StartName`
+names the field that holds the start already). The `timeUnit` transform of the
 specification gives the request `as` and `as_end` (the end name is the start name with `_end` appended); the encoding
-gives the names of its plan (`yearmonth_date` and `yearmonth_date_end`).
+gives the names of its plan (`yearmonth_date` and `yearmonth_date_end`; `date` and `date_end` for a binned unit).
 
 **What a row gets.** The dates are those of the calendar of the chart (`ExpressionFunctionContext.Calendar`, the zone of
 `VegaLiteRenderOptions.TimeZone`, UTC by default), except for a `utc` unit, which uses UTC. The value of a row is read as
@@ -48,8 +50,12 @@ a date when it is a date or a finite number (milliseconds since the epoch, trunc
 that the calendar cannot place (outside the years 1 to 9999) give **null in both fields**. The start is `TimeUnitSpec.Floor`
 (Vega's `timeFloor` or `utcFloor`) and the end is `TimeUnitSpec.End` (one step of the smallest part later; a day unit is
 23, 24, or 25 hours long across a daylight saving change); both are written as dates, and an end that falls outside the
-range is null with a valid start. A **`binned` unit does not floor**: the value is the start and the end follows it one
-step later (Vega-Lite's behavior; the encoding skips a binned unit and reports `vl-timeunit-binned`).
+range is null with a valid start. A **`binned` unit floors in the transform** like any other unit: Vega's `timeunit`
+transform has no `binned` parameter (Vega-Lite's `TimeUnitNode.assemble` passes it through, Vega ignores it). The
+**encoding of a binned unit** is the **end-only request** (`TimeUnitRequest.EndOnly`, Vega-Lite's `timeOffset(part, field,
+step)` formula of the same `assemble`): the field is the start already, so the start field is not added (its name is the
+field) and the end is `TimeUnitSpec.End` of the value **as it is**, not floored (the 15th of March ends on the 15th of April;
+an overflowing day rolls over like d3's offsets, so January 31 plus a month is March 2).
 
 **The `maxbins` pre-pass.** A unit written as `{"maxbins": 10}` names no unit, so it is resolved first: one pass over the
 rows finds the extent of the valid dates, and `TimeUnitSpec.ResolveMaxBins` (Vega's `timeBin`) chooses the unit and the
@@ -133,8 +139,9 @@ unit performs no I/O.
 1. **Range**: a date outside the years 1 to 9999 is null (the NaN policy of _TimeCalendar_).
 2. **Aggregate group-by includes the end** of a channel that spans its unit, where Vega-Lite groups by the start
    only, because the end field would otherwise vanish after the aggregate.
-3. **A binned unit** in the transform gives the start and an end one step later; in an encoding it is skipped and
-   reported.
+3. **A binned unit** in the encoding is the end-only request (the field is the start) and is not reported; in the
+   transform it
+   floors like any other unit (Phase 14; Phase 13 kept the value as the start).
 4. **`maxbins` of an empty or dateless table** gives null fields (Vega would give NaN steps).
 
 #### Dependencies

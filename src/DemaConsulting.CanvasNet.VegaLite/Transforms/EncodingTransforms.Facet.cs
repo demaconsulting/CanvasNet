@@ -74,17 +74,18 @@ internal sealed partial class EncodingTransforms
     /// <param name="facet">The facet: its field definitions (the <c>field</c>, and the <c>sort</c>).</param>
     /// <param name="table">The rows of the facet (after its own transforms).</param>
     /// <param name="context">The context of the call (budget, evaluator, limits, token).</param>
+    /// <param name="config">The effective configuration (the number format of the text of a bin); null for the defaults.</param>
     /// <returns>The values of the row, column and wrapped field.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown, located at the field definition, when a sort array is longer than <see cref="VegaLiteLimits.MaxScaleDomainSize"/> or the work exceeds the step budget.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the token of the context is canceled.</exception>
-    public static FacetDomains FacetDomain(FacetDefinition facet, DataTable table, TransformContext context)
+    public static FacetDomains FacetDomain(FacetDefinition facet, DataTable table, TransformContext context, ResolvedConfig? config = null)
     {
         ArgumentNullException.ThrowIfNull(facet);
         ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(context);
         var run = new EncodingTransforms(context);
-        var timed = run.WithTimeUnits(facet, table, out var derived);
+        var timed = run.WithDerivedFields(facet, table, config, out var derived);
         return DomainsOf(run.KeysOf(facet.Row, timed, derived), run.KeysOf(facet.Column, timed, derived), run.KeysOf(facet.Wrap, timed, derived));
     }
 
@@ -125,16 +126,17 @@ internal sealed partial class EncodingTransforms
     /// <param name="viewsPerCell">The number of views that one cell holds (<see cref="LayerTree.FacetViews"/>).</param>
     /// <param name="viewsOutside">The number of views that are not in the cells (<see cref="LayerTree.FacetViews"/>).</param>
     /// <param name="context">The context of the call (row budget, evaluator, limits, token).</param>
+    /// <param name="config">The effective configuration (the number format of the text of a bin); null for the defaults.</param>
     /// <returns>The values of the fields, the size of the grid and the cells with their rows.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="config"/> is null.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown, located at the facet field, when the cells are more than <see cref="VegaLiteLimits.MaxViews"/> allows, the rows exceed the row budget or the work exceeds the step budget.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the token of the context is canceled.</exception>
-    public static FacetPartition Facet(FacetDefinition facet, DataTable table, long viewsPerCell, long viewsOutside, TransformContext context)
+    public static FacetPartition Facet(FacetDefinition facet, DataTable table, long viewsPerCell, long viewsOutside, TransformContext context, ResolvedConfig? config = null)
     {
         ArgumentNullException.ThrowIfNull(facet);
         ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(context);
-        return new EncodingTransforms(context).Partition(facet, table, viewsPerCell, viewsOutside);
+        return new EncodingTransforms(context).Partition(facet, table, viewsPerCell, viewsOutside, config);
     }
 
     /// <summary>
@@ -144,11 +146,12 @@ internal sealed partial class EncodingTransforms
     /// <param name="table">The rows.</param>
     /// <param name="viewsPerCell">The views one cell holds.</param>
     /// <param name="viewsOutside">The views outside the cells.</param>
+    /// <param name="config">The effective configuration, or null.</param>
     /// <returns>The partition.</returns>
-    private FacetPartition Partition(FacetDefinition facet, DataTable table, long viewsPerCell, long viewsOutside)
+    private FacetPartition Partition(FacetDefinition facet, DataTable table, long viewsPerCell, long viewsOutside, ResolvedConfig? config)
     {
         var anchor = facet.Wrap ?? facet.Row ?? facet.Column ?? throw new ArgumentException("The facet has no field.", nameof(facet));
-        table = WithTimeUnits(facet, table, out var derived);
+        table = WithDerivedFields(facet, table, config, out var derived);
         var rowKeys = KeysOf(facet.Row, table, derived);
         var columnKeys = KeysOf(facet.Column, table, derived);
         var wrapKeys = KeysOf(facet.Wrap, table, derived);
@@ -271,7 +274,7 @@ internal sealed partial class EncodingTransforms
     /// <param name="table">The rows (with the field a time unit derives, when the definition has one).</param>
     /// <param name="derived">The names of the fields that the time units of the facet derived, by field definition.</param>
     /// <returns>The ordered values and the position of each row's value; null when there is no field definition.</returns>
-    private FacetKeys? KeysOf(SpecNode? definition, DataTable table, IReadOnlyDictionary<SpecNode, string> derived)
+    private FacetKeys? KeysOf(SpecNode? definition, DataTable table, IReadOnlyDictionary<SpecNode, FacetSource> derived)
     {
         if (definition is not { IsObject: true })
         {
@@ -281,17 +284,21 @@ internal sealed partial class EncodingTransforms
         try
         {
             string? path;
-            if (derived.TryGetValue(definition, out var unitField))
+            FieldReader? labelReader = null;
+            if (derived.TryGetValue(definition, out var source))
             {
-                path = unitField;
+                path = source.Path;
+                labelReader = source.LabelPath is null ? null : new FieldReader(table, source.LabelPath);
             }
             else
             {
                 path = definition["field"] is { IsString: true } field ? field.StringValue : null;
             }
+
             var reader = new FieldReader(table, path);
             var evaluation = _context.Evaluator.Context;
             var firstSeen = new List<DataValue>();
+            var labels = labelReader is null ? null : new List<DataValue>();
             var positions = new Dictionary<DataValue, int>();
             var rowToSeen = new int[table.RowCount];
             var sorter = SortAggregate.Create(definition, table, this);
@@ -305,6 +312,9 @@ internal sealed partial class EncodingTransforms
                     position = firstSeen.Count;
                     positions[value] = position;
                     firstSeen.Add(value);
+
+                    // The text of a bin is shown for its start; a row without a valid start is the text "null" (Vega-Lite's binFormatExpression)
+                    labels?.Add(labelReader!.Read(row, evaluation) is { IsString: true } label ? label : DataValue.FromString("null"));
                 }
 
                 rowToSeen[row] = position;
@@ -318,7 +328,7 @@ internal sealed partial class EncodingTransforms
             for (var i = 0; i < order.Length; i++)
             {
                 rank[order[i]] = i;
-                domain.Add(firstSeen[order[i]]);
+                domain.Add(labels is null ? firstSeen[order[i]] : labels[order[i]]);
             }
 
             for (var row = 0; row < rowToSeen.Length; row++)
@@ -335,34 +345,91 @@ internal sealed partial class EncodingTransforms
     }
 
     /// <summary>
-    ///     Adds the start of the time unit of every facet field that has one to the table (Vega-Lite's <c>TimeUnitNode</c> of a facet field definition).
+    ///     Where a facet field reads its values when the definition transforms the field: the field itself, and the text of a bin.
+    /// </summary>
+    /// <param name="Path">The canonical path of the field whose values are the cells.</param>
+    /// <param name="LabelPath">The canonical path of the field that holds the text of the cell (the range of a bin), or null when the value is its own label.</param>
+    private sealed record FacetSource(string Path, string? LabelPath);
+
+    /// <summary>
+    ///     Derives the fields that the definitions of a facet read, as Vega-Lite's data flow does for a facet model: the bin (<c>BinNode.makeFromEncoding</c>), then the time unit
+    ///     (<c>TimeUnitNode.makeFromEncoding</c>); the aggregate has no node in a facet model.
     /// </summary>
     /// <remarks>
-    ///     The cell of a value is the start of its unit, as a date (the name of the field is Vega-Lite's <c>vgField</c> of the definition, for example <c>month_date</c>). A <c>binned</c> unit and the
-    ///     <c>maxbins</c> form (a unit that depends on the extent of the data) are not applied: the raw value of the field is the cell, and the feature catalog reports them.
+    ///     <para>
+    ///         Vega-Lite names the field of a definition with <c>vgField</c>: a <c>bin</c> wins (<c>bin_maxbins_6_f</c>, the <c>_end</c> field is a second group-by), then an <c>aggregate</c>
+    ///         (<c>sum_f</c>, <c>__count</c>), then a time unit that is not <c>binned</c> (<c>yearmonth_f</c>, <c>timeunit_maxbins_4_f</c>); a <c>binned</c> unit leaves the name as the field (the data is
+    ///         floored already), so the raw value is the cell and only its label uses the specifier of the unit. A <c>bin</c> without <c>maxbins</c> or <c>step</c> has 6 bins for <c>row</c> and
+    ///         <c>column</c> and 10 for a wrapped <c>facet</c> (<c>autoMaxBins</c>), and its cell is the start of the bin with the text <c>start – end</c>, formatted by the <c>format</c> of the header,
+    ///         else <c>config.numberFormat</c>, and the text <c>null</c> for a row that has no bin.
+    ///     </para>
+    ///     <para>
+    ///         An <c>aggregate</c> of a facet field is not computed (<c>AggregateNode.makeFromEncoding</c> takes a unit model only): the cell reads the field of its name in the data (one that an
+    ///         <c>aggregate</c> or <c>window</c> transform wrote), else every row is the null cell.
+    ///     </para>
     /// </remarks>
     /// <param name="facet">The facet.</param>
     /// <param name="table">The rows.</param>
-    /// <param name="derived">Receives the name of the derived field of every definition that has a time unit.</param>
-    /// <returns>The table with the fields added; the table itself when no definition has a time unit.</returns>
-    private DataTable WithTimeUnits(FacetDefinition facet, DataTable table, out Dictionary<SpecNode, string> derived)
+    /// <param name="config">The configuration, or null.</param>
+    /// <param name="derived">Receives, for every definition whose values are not its own field, where they are read.</param>
+    /// <returns>The table with the fields added; the table itself when no definition derives one.</returns>
+    private DataTable WithDerivedFields(FacetDefinition facet, DataTable table, ResolvedConfig? config, out Dictionary<SpecNode, FacetSource> derived)
     {
         derived = [];
+        var bins = new List<BinPlan>();
         var requests = new List<TimeUnitRequest>();
-        foreach (var definition in new[] { facet.Row, facet.Column, facet.Wrap })
+        foreach (var (definition, channel) in new[] { (facet.Row, "row"), (facet.Column, "column"), (facet.Wrap, "facet") })
         {
-            if (definition is not { IsObject: true } || definition["field"] is not { IsString: true } field || definition["timeUnit"] is not { } unit
-                || !TimeUnitSpec.TryRead(unit, out var spec) || spec.IsBinned || spec.Parts.Count == 0)
+            if (definition is not { IsObject: true } || definition["field"] is not { IsString: true } field || FieldPath.Canonicalize(field.StringValue) is null)
             {
                 continue;
             }
 
-            var name = spec.FieldName(field.StringValue!);
-            requests.Add(new TimeUnitRequest(field.StringValue!, name, name + "_end", spec, definition));
-            derived[definition] = name;
+            var source = field.StringValue!;
+            if (EncodingPlan.IsBinning(definition["bin"]))
+            {
+                var node = definition["bin"]!;
+                var maxBins = EncodingPlan.AutoMaxBins(channel);
+                var start = EncodingPlan.BinStartName(node, source, maxBins);
+                bins.Add(new BinPlan(start, start + "_end", start + "_range", source, BinSettings.Read(node, maxBins), node, BinFormatOf(definition, channel, config)));
+                derived[definition] = new FacetSource(FieldPath.Escape(start), FieldPath.Escape(start + "_range"));
+            }
+            else if (EncodingPlan.AggregateFieldPath(definition["aggregate"], source) is { } aggregated)
+            {
+                derived[definition] = new FacetSource(aggregated, null);
+            }
+            else if (definition["timeUnit"] is { IsNull: false } unit && TimeUnitSpec.TryRead(unit, out var spec) && !spec.IsBinned)
+            {
+                var name = spec.FieldName(source);
+                requests.Add(new TimeUnitRequest(source, name, name + "_end", spec, definition));
+                derived[definition] = new FacetSource(FieldPath.Escape(name), null);
+            }
+        }
+
+        if (bins.Count > 0)
+        {
+            table = BinFields(bins, table, new Dictionary<string, BinSpec>(StringComparer.Ordinal));
         }
 
         return requests.Count == 0 ? table : TimeUnitTransform.Apply(table, requests, _context, _context.Locate(requests[0].Node));
+    }
+
+    /// <summary>
+    ///     Gets the number format of the boundaries in the text of a bin of a facet field: the <c>format</c> of its header (or of the header configuration), else <c>config.numberFormat</c>.
+    /// </summary>
+    /// <param name="definition">The field definition.</param>
+    /// <param name="channel">The channel: <c>row</c>, <c>column</c> or <c>facet</c>.</param>
+    /// <param name="config">The configuration, or null.</param>
+    /// <returns>The specifier; empty for the default format.</returns>
+    private static string BinFormatOf(SpecNode definition, string channel, ResolvedConfig? config)
+    {
+        if (config is null)
+        {
+            return string.Empty;
+        }
+
+        var header = Guides.HeaderSettings.Read(config, definition["header"], channel, honoredOrientsOnly: true);
+        return (header.Get("format") is { Kind: ConfigNodeKind.String } format ? format.StringValue : null) ?? config.GetString("numberFormat") ?? string.Empty;
     }
 
     /// <summary>

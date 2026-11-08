@@ -81,7 +81,7 @@ public sealed partial class VegaLiteDocument
     ///     <para>
     ///         The surface is filled with the background (<see cref="VegaLiteRenderOptions.Background"/>, else white)
     ///         and the chart is drawn on it. Rendering is deterministic: two renders of the same document and options
-    ///         are byte-identical, for every degree of parallelism and on every machine, because only the bundled
+    ///         have identical pixels (an encoded PNG file is not byte-stable across .NET versions, so compare pixels), for every degree of parallelism and on every .NET version, because only the bundled
     ///         fonts are used unless <see cref="VegaLiteRenderOptions.Fonts"/> says otherwise.
     ///     </para>
     ///     <para>
@@ -206,6 +206,25 @@ public sealed partial class VegaLiteDocument
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     Checks that the canvas of a laid-out chart has a size that can be drawn.
+    /// </summary>
+    /// <remarks>
+    ///     The size grows with the reach of the guides, which is computed from scale positions: a scale whose values overflow (a <c>pow</c> scale with an
+    ///     exponent of <c>1e300</c> maps every tick to NaN) would otherwise reach the scene as a NaN width and fail without saying where. The failure names the root of the specification.
+    /// </remarks>
+    /// <param name="measure">The measurements of the chart.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the width or the height of the canvas is not a finite number.</exception>
+    private void RequireFiniteSize(ViewMeasure measure)
+    {
+        if (!double.IsFinite(measure.Width) || !double.IsFinite(measure.Height))
+        {
+            throw new VegaLiteRenderException(
+                "The chart has a size that is not a finite number: a scale or an axis produced positions that overflow (for example a pow scale with a huge exponent), or a padding or a size is too large for a double, so the canvas cannot be sized.",
+                _tree.Root.GetLocation(_tree.SourceName));
+        }
     }
 
     /// <summary>
@@ -370,8 +389,10 @@ public sealed partial class VegaLiteDocument
         var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: true, budget, _tree.SourceName);
         if (stage is null || scales is null)
         {
-            var layout = ViewLayout.Compute(request, default, title);
-            return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
+            // The measure is checked before the scene is built from it: a padding of 1e308 makes the canvas infinite, which the scene refuses without saying where
+            var measure = ViewLayout.Measure(request, default, title);
+            RequireFiniteSize(measure);
+            return new ChartPlan(measure.NaturalSize, ViewLayout.Build(request, measure, []), measurer);
         }
 
         var layers = stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i], selections)).ToList();
@@ -487,6 +508,9 @@ public sealed partial class VegaLiteDocument
         }
 
         budget.Adopt(passBudget);
+
+        // A size that is not a finite number (the guides of a scale whose values overflow, such as a pow scale with a huge exponent) cannot be drawn: fail with the location
+        RequireFiniteSize(measure);
 
         // The guides of the pass that was kept, and the marks for the final rectangle
         var content = BuildCell(cell, measure.DataWidth, measure.DataHeight, budget, cancellationToken, guides);
@@ -658,7 +682,7 @@ public sealed partial class VegaLiteDocument
     {
         // The pictures of the image mark are loaded while the scene is painted (the scale is known only now) and every surface the resolver returned is released when the painting ends
         using var images = new SceneImageSource(options.ImageResolver, options.Limits.MaxImages, (message, location, key) => sink.Warn(message, location, key));
-        return new ScenePainter(plan.Measurer, images).Paint(plan.Scene, width, height, placement, cancellationToken);
+        return new ScenePainter(plan.Measurer, images, options.Limits.MaxPaintedPixels).Paint(plan.Scene, width, height, placement, cancellationToken);
     }
 
     /// <summary>

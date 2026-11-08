@@ -120,6 +120,7 @@ public class FeatureCatalogLabelExprAndOffsetTests
         var rect = Visit(Chart("""{ "field": "c", "type": "temporal", "timeUnit": "year" }""").Replace("\"bar\"", "\"rect\"", StringComparison.Ordinal).Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var nominalUnit = Visit(Chart("""{ "field": "c", "type": "nominal", "timeUnit": "year" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var ranged = Visit(Chart("""{ "field": "c", "type": "nominal" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"quantitative\" }, \"y\":", StringComparison.Ordinal));
+        var temporalOffset = Visit(Chart("""{ "field": "c", "type": "nominal" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"temporal\" }, \"y\":", StringComparison.Ordinal));
         var nominalRect = Visit(Chart("""{ "field": "c", "type": "nominal", "timeUnit": "year" }""").Replace("\"bar\"", "\"rect\"", StringComparison.Ordinal).Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var yOffset = Visit("""{ "mark": "bar", "encoding": { "x": { "field": "v", "type": "quantitative" }, "yOffset": { "field": "g", "type": "nominal" } } }""");
 
@@ -132,8 +133,40 @@ public class FeatureCatalogLabelExprAndOffsetTests
         Assert.Equal([("vl-offset-position", "/encoding/xOffset")], rect);
         Assert.Empty(nominalUnit);
         Assert.Empty(nominalRect);
-        Assert.Equal([("vl-offset-ranged", "/encoding/xOffset")], ranged);
+        // A quantitative offset of a bar with a nominal position is a ranged offset and is drawn (Phase 14); a temporal one is not
+        Assert.Empty(ranged);
+        Assert.Equal([("vl-offset-ranged", "/encoding/xOffset")], temporalOffset);
         Assert.Equal([("vl-offset-position", "/encoding/yOffset")], yOffset);
+    }
+
+    /// <summary>
+    ///     Validates the report of the entries of <c>config.scale.invalid</c> that cannot be read (Phase 14): <c>"zero-or-min"</c> and an object with a number or text <c>value</c> are drawn and are not reported;
+    ///     <c>null</c>, a boolean or a list as the value, an unknown text and a number as the entry are reported once at the entry, and an expression reference is reported by <c>vl-expr-ref</c> at its value.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_UnreadableScaleInvalidEntriesAreReported()
+    {
+        // Arrange
+        const string json = """
+            { "config": { "scale": { "invalid": { "x": "zero-or-min", "y": { "value": 5 }, "color": { "value": "#aaa" }, "size": { "value": { "expr": "1" } }, "opacity": { "value": null },
+                                                  "fill": { "value": true }, "stroke": "other", "angle": 3, "shape": { "value": [1] } } } },
+              "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" } } }
+            """;
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert: the expression is reported by vl-expr-ref at its value, and the five other entries that are not readable, in document order
+        Assert.Equal(
+            [
+                ("vl-expr-ref", "/config/scale/invalid/size/value"),
+                ("vl-scale-invalid-value", "/config/scale/invalid/opacity"),
+                ("vl-scale-invalid-value", "/config/scale/invalid/fill"),
+                ("vl-scale-invalid-value", "/config/scale/invalid/stroke"),
+                ("vl-scale-invalid-value", "/config/scale/invalid/angle"),
+                ("vl-scale-invalid-value", "/config/scale/invalid/shape"),
+            ],
+            ids);
     }
 
     /// <summary>

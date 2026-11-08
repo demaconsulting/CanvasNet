@@ -1,0 +1,18 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A binned heat map: two quantities are binned and the rows in each cell are counted.",
+  "title": "Wind speed and wave height",
+  "width": 300,
+  "height": 200,
+  "data": {"sequence": {"start": 0, "stop": 600, "as": "i"}},
+  "transform": [
+    {"calculate": "8 + 5 * sin(datum.i * 0.37) + 4 * cos(datum.i * 1.91)", "as": "wind"},
+    {"calculate": "0.4 + datum.wind * 0.15 + 0.5 * sin(datum.i * 2.9) * cos(datum.i * 0.53)", "as": "wave"}
+  ],
+  "mark": "rect",
+  "encoding": {
+    "x": {"field": "wind", "type": "quantitative", "bin": {"step": 2}, "title": "Wind (m/s)", "axis": {"format": "d"}},
+    "y": {"field": "wave", "type": "quantitative", "bin": {"step": 0.5}, "title": "Wave height (m)", "axis": {"tickMinStep": 0.5}},
+    "color": {"aggregate": "count", "type": "quantitative", "scale": {"scheme": "viridis"}, "title": "Hours"}
+  }
+}

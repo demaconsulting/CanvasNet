@@ -315,7 +315,7 @@ sections:
                   - SpecParser_TimeUnit_UnknownUnitIsLocated
                   - SpecParser_TimeUnit_ObjectForm_ValidatesMembers
                   - SpecParser_TimeUnit_UnknownMemberIsAWarning
-                  - SpecParser_TimeUnit_Binned_ParsesAndIsReported
+                  - SpecParser_TimeUnit_Binned_ParsesAndIsApplied
                   - SpecParser_MarkTimeUnitBand_NonNumberIsAnErrorInTheSpecAndIgnoredInTheCallerConfig
                   - SpecParser_TimeUnitTransform_ValidatesFieldAndAs
 
@@ -391,6 +391,7 @@ sections:
                   - PredicateSource_NumberBelow10000WithSingleUnit_UsesThePart
                   - PredicateSource_UnitsThatApplyNothingAndExpressionValuesStayPlain
                   - PredicateSource_IsTimeAware_AndReadUnit
+                  - PredicateSource_BinnedUnitComparesTheInstantOfTheField
                   - PredicateSource_TimePredicates_AreCultureIndependent
                   - PredicateSource_TimeMembers_RejectNull
                   - SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate

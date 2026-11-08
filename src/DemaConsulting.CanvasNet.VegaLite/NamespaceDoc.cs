@@ -25,7 +25,10 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     <para>
 ///         Rendering is static, offline and deterministic: nothing is fetched from the network, no script runs, fonts
 ///         come from the bundled Liberation families unless the caller opts in to more, and two renders of the same
-///         document and options are byte-identical.
+///         document and options give identical pixels (an encoded PNG file is not byte-stable across .NET versions,
+///         because the deflate encoder differs; compare the <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/>
+///         pixels, not the file bytes) and identical reports. The resource limits of <see cref="VegaLiteLimits"/> bound
+///         the work, not the clock, so the cancellation token of a call is the only wall-clock bound.
 ///     </para>
 ///     <para>
 ///         Third-party provenance and attribution: this package implements the public Vega-Lite specification

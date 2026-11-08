@@ -180,6 +180,25 @@ public class LoessFitTests
     }
 
     /// <summary>
+    ///     Validates the calibration of the work estimate (defect B5): every weight evaluation counts three work elements (so that the default budget stops a loess in about ten seconds), the sort counts sixteen per
+    ///     point, and a bandwidth that no integer window can hold is a window of every point on every runtime. A loess of 20,000 points with a bandwidth of 1 costs more than the whole default budget of
+    ///     50,000,000 steps of 64 elements, as it ran for eleven seconds before.
+    /// </summary>
+    [Fact]
+    public void LoessFit_Cost_CountsEachWeightEvaluationAsThreeElements()
+    {
+        // Arrange / Act
+        var cost = LoessFit.Cost(1000, 1);
+        var huge = LoessFit.Cost(1000, 1e300);
+        var big = LoessFit.Cost(20_000, 1);
+
+        // Assert: 1000 points x (window of 1000 + 2) x 3 passes x 3 elements, plus 16 per point for the sort
+        Assert.Equal((1000L * 1002 * 3 * 3) + 16_000, cost);
+        Assert.Equal(cost, huge);
+        Assert.True(big > VegaLiteLimits.Default.MaxEvaluationSteps * 64);
+    }
+
+    /// <summary>
     ///     Validates the argument checks.
     /// </summary>
     [Fact]

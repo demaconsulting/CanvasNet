@@ -212,7 +212,7 @@ internal static partial class ScaleResolver
                 input.Location);
         }
 
-        var n = (int)Math.Ceiling(count);
+        var n = NumericConversions.ToInt32Saturating(Math.Ceiling(count));
         var values = new List<double>(Math.Max(1, n));
         if (n <= 1)
         {

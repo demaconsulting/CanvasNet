@@ -1,0 +1,22 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "description": "A stacked area of three invented energy sources over twelve years.",
+  "title": "Energy produced by source",
+  "width": 340,
+  "height": 190,
+  "data": {"sequence": {"start": 0, "stop": 12, "as": "i"}},
+  "transform": [
+    {"calculate": "2010 + datum.i", "as": "year"},
+    {"calculate": "60 - datum.i * 3.5", "as": "Coal"},
+    {"calculate": "20 + datum.i * 1.5 + 2 * sin(datum.i)", "as": "Gas"},
+    {"calculate": "5 + datum.i * datum.i * 0.35", "as": "Wind"},
+    {"fold": ["Coal", "Gas", "Wind"], "as": ["source", "twh"]}
+  ],
+  "mark": {"type": "area", "opacity": 0.85, "line": {"strokeWidth": 1}},
+  "encoding": {
+    "x": {"field": "year", "type": "quantitative", "axis": {"format": "d", "tickMinStep": 2}, "title": "Year"},
+    "y": {"field": "twh", "type": "quantitative", "stack": "zero", "title": "Energy (TWh)"},
+    "color": {"field": "source", "type": "nominal", "scale": {"scheme": "set2"}, "title": "Source"},
+    "order": {"field": "source", "type": "nominal"}
+  }
+}

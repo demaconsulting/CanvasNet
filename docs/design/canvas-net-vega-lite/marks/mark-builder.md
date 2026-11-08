@@ -21,8 +21,9 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
 - `MarkBuilder.Arcs.cs` - the `arc` mark, the polar span of a channel, and the polar position of a stacked `text`
 - `MarkBuilder.Images.cs` - the `image` mark (phase 13): `ImageAxis` (the placement of a picture along one axis),
   `Images`, `ImageUrlSource`, `ImageAxisOf`, and `RangeAxis`
-- `MarkBuilder.Offsets.cs` - the `xOffset` and `yOffset` channels: `ChannelOffset` (the offset scale of a position and
-  how it reads the offset value of a row), `AttachOffsets`, `TimeUnitOffsetRange`, and `OffsetCenter`
+- `MarkBuilder.Offsets.cs` - the `xOffset` and `yOffset` channels: `ChannelOffset` (the offset scale of a position,
+  how it reads the offset value of a row, and for a ranged offset (phase 14) `Ranged` and `Range`), `AttachOffsets`,
+  `TimeUnitOffsetRange`, and `OffsetCenter`
 - `MarkBuilder.Brush.cs` - the brush of an interval selection (phase 12): `BrushGroups` (the shade and the outline) and
   `BuildBrush`
 
@@ -74,7 +75,10 @@ extent `min(width, height) / 2`), and the secondary channels `theta2` and `radiu
   `bar`, `rect`, and `rule`: the mark spans from the first to the second end, and a bar with a secondary channel is a
   range, not a
   thickness centered on the value. A rule with a range on one channel runs along that channel; with a range on both it
-  is the segment between the two points. An explicit pixel `value` of the secondary channel wins over the lower end of a
+  is the segment between the two points, except that a channel whose data is **binned already** (`bin: "binned"` with its
+  end) is not a range of a rule (Vega-Lite's orient of a rule, `compile/mark/init.ts`): with a range on `y` the rule is
+  vertical at the middle of the bin of `x` (Phase 14; the whiskers of a box plot over a bin). An explicit pixel
+  `value` of the secondary channel wins over the lower end of a
   stack; a datum is mapped through the primary scale and is not part of the domain. An `area` takes its baseline from
   the secondary channel the same way (see the area rules below). Marks other than these report the secondary
   channels (`vl-channel-x2`, `vl-channel-y2`) and ignore them.
@@ -182,6 +186,20 @@ position of a row is the **start of its band** and the offset scale places the m
   with an offset (`StackRules`) stacks inside each group of the offset, so stacked bars are grouped by the offset.
 - The pixel `xOffset` and `yOffset` **properties of the mark** (not the channels) are still not drawn.
 
+**Ranged offsets** (Phase 14; Vega-Lite 6.5.0 `isRangedOffset`, `rangePosition`, and `mark/area.ts`). When
+`ScaleResolver.HasRangedOffset` holds for a position (a `bar` or `area` whose nominal or ordinal position has no
+secondary channel and whose `xOffset` or `yOffset` is an unbinned quantitative field or numeric datum),
+`AttachOffsets` creates the `ChannelOffset` with `Ranged` true. The offset scale is linear with `zero: true`, so its
+zero is inside the band. `ChannelOffset.Range(table, row)` gives the distances of the offset value and of the zero of the
+offset scale from the start of the band (null for an invalid value: the row is not drawn). `RangePair` then returns the
+two ends of the range (the band start plus the value, the band start plus the zero) and `Span` turns them into the
+start and the length, so a **bar** is the rectangle between the baseline and the value (a negative value hangs on the
+other side of the baseline), and an **area** has `y` and `y2` (or `x` and `x2`) at those ends with its points along the
+other axis. The measure axis of an area follows the ranged offset (`xRangeFromOffset` and `yRangeFromOffset` of
+Vega-Lite: a ranged `xOffset` makes the area horizontal and a ranged `yOffset` vertical, whatever the orientation; the
+`y` offset wins when both are ranged) in `MarkBuilder.Paths.cs`. A mark that is not a `bar` or `area`, or that has a
+secondary channel, keeps the strip or jitter placement described above.
+
 **Offsets inside a time unit** (Vega-Lite's `getOffsetRange`, `durationExpr`, and `timeUnitBandSize`). When the position
 is a temporal field with a time unit (the position scale stays a time scale; `ScaleResolver.HasTimeUnitOffset`),
 `AttachOffsets` creates the offset scale with `CreateModel(0, range)` where `range` comes from `TimeUnitOffsetRange`:
@@ -206,7 +224,9 @@ is a temporal field with a time unit (the position scale stays a time scale; `Sc
 
 Documented deviations: (a) a mark without `timeUnitBandPosition` and `bandPosition` (a point, a line, a text) uses 0.5,
 where Vega-Lite computes NaN; (b) a `rect` mark and a `day`, `weekday`, binned, or `maxbins` unit
-of a temporal parent are not drawn (`vl-offset-position`); a nominal or ordinal parent with a time unit is an ordinary
+of a temporal parent are not drawn (`vl-offset-position`), and a continuous offset of a `bar` or `area` that is not a ranged
+offset (a temporal or binned offset, a position with a secondary channel or with a time unit) is not drawn
+(`vl-offset-ranged`); a nominal or ordinal parent with a time unit is an ordinary
 band parent and is drawn; (c) a UTC unit measures its reference duration in the
 calendar of the scale (UTC) where Vega-Lite uses the zone of the chart (up to an hour for a quarter in a zone with a
 daylight saving time); (d) a `bandPosition` other than 0.5 on a bar does not shift the scale domain as Vega-Lite's
@@ -286,7 +306,8 @@ known mode (from the configuration) gives the default. `show` and null **draw th
 domains are not filtered by the mode, so the invalid rows stay in the domains in
 every mode; `filter` and `break-paths-filter-domains` are reported with a warning (`vl-mark-invalid-domains`). A mark
 other than a path keeps its behavior: a row with an invalid continuous channel is not drawn (unless the mode is
-`show`). **A stacked channel** (`x`,
+`show`). **`config.scale.invalid`** (Phase 14) gives a channel its own mode, whatever the mark's: see the second
+deviation below. **A stacked channel** (`x`,
 `y`, `theta`, or `radius`) is invalid
 when the value that was stacked (the `StackPlan.Field`, read through `Channel.StackValueIndex`) is not a finite number:
 the stack
@@ -501,8 +522,22 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
    value that is not a number, so a row with a null on `x` or `y` is drawn at the position of zero (a bar has no height
    there), a null `size` gets the size of zero, and a null color or opacity channel gets the color or the opacity of
    the first domain value; the text channels do not read the fallback. A stacked row of a null is drawn at its position
-   in the stack (**deviation**). **`config.scale.invalid`
-   (a value per channel) is not read.**
+   in the stack (**deviation**). **`config.scale.invalid` (Phase 14)** is Vega-Lite 6.5.0's `invalid.ts`,
+   `compile/invalid/ScaleInvalidDataMode.ts`, and `compile/mark/encode/invalid.ts`: it maps a scale channel to
+   `"zero-or-min"` or `{"value": ...}`. `ApplyShowInvalid` reads the entry of each channel from the resolved
+   configuration (`scale.invalid.<channel>`) and a channel that has an entry (a field, a continuous domain, not stacked)
+   is in the `show` mode **whatever the `invalid` mode of the mark is** (`Channel.ShowsInvalid`): its rows with a null,
+   NaN, or non-finite value are not filtered and do not break a path. `"zero-or-min"` places them where the scale maps
+   zero (when the domain has zero; never for a time or log scale), else at the first value of the domain, like the
+   `show` mode. `{"value": v}` (a number or a text; a text that reads as a number is also the number) is the output
+   of the mark property **as it is**, a pixel position, a size area, an opacity, or a color text, not passed through
+   the scale: `ApplyShowInvalid` replaces the model of the channel (`Channel.Model` is settable) with a copy that has
+   an `InvalidOutput` (`ScaleModel.WithInvalidOutput`), which `Map` and `MapText` return for a value that is not a
+   number. The other channels keep the mode of the mark. **Deviations**: a stacked channel keeps filtering (its
+   entry is ignored, because its rows are decided on the value that is stacked); an entry that is neither
+   `"zero-or-min"` nor an object with a number or text `value` is ignored (the channel has no entry) and reported
+   by the feature catalog (`vl-scale-invalid-value`); the domains still include the invalid rows, as with the other
+   modes.
 3. **An area without a measure channel** draws nothing.
 4. **A bar or area without stack-by fields is still stacked** (as Vega-Lite's `stack` is only null for an aggregate
    without stack-by): the `order` channel of such a bar is a stack order and does not sort the drawing, and the null `y`

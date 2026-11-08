@@ -421,6 +421,29 @@ public class SourceLoaderVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that a chart that paints more than <see cref="VegaLiteLimits.MaxPaintedPixels"/> is <c>budget-exceeded</c> as well: the message of the library names
+    ///     <c>VegaLiteLimits.MaxPaintedPixels</c>, which is the text the mapping recognizes, so the tool cannot report it as an error of the chart.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLite_MapsPaintLimitFailureToBudgetExceeded()
+    {
+        // Arrange: a chart whose first filled item already covers more pixels than the limit allows
+        var document = VegaLiteDocument.Parse(FixtureFactory.TwoBarChart);
+        var painted = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxPaintedPixels = 10 } }, TestContext.Current.CancellationToken));
+
+        // Act
+        var mapped = SourceLoader.MapVegaLiteRender(painted);
+
+        // Assert
+        Assert.Contains("VegaLiteLimits.MaxPaintedPixels", painted.Message);
+        Assert.Equal(ErrorCodes.BudgetExceeded, mapped.Code);
+        Assert.Contains("exceeds a limit", mapped.Message);
+        Assert.NotNull(mapped.Hint);
+        Assert.Same(painted, mapped.InnerException);
+    }
+
+    /// <summary>
     ///     Test that the limits of the views of a composition, which the library names as <c>the limit (MaxViews)</c>, are
     ///     <c>budget-exceeded</c> as well: this pins the second text form that the mapping recognizes.
     /// </summary>

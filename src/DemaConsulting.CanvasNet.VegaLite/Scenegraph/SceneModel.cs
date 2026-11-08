@@ -90,6 +90,12 @@ internal abstract record SceneItem
     /// <summary>Gets the opacity of the whole item, from 0 to 1; 1 by default.</summary>
     public double Opacity { get; init; } = 1;
 
+    /// <summary>
+    ///     Gets where in the specification the item comes from (the mark of a mark item, which a diagnostic about the item points at); <c>default</c> (unknown) for items that the
+    ///     chart builds itself, such as axes, legends and titles, whose painting is then located at the nearest enclosing group that has a location.
+    /// </summary>
+    public VegaLiteLocation Source { get; init; }
+
     /// <summary>Gets the opacity of the fill, from 0 to 1; 1 by default.</summary>
     public double FillOpacity { get; init; } = 1;
 
@@ -699,11 +705,6 @@ internal sealed record SceneImage : SceneItem
 
     /// <summary>Gets a value indicating whether the picture is smoothed when it is scaled; <see langword="true"/> by default (Vega's <c>smooth !== false</c>).</summary>
     public bool Smooth { get; init; } = true;
-
-    /// <summary>
-    ///     Gets where in the specification the picture comes from (the mark), which a diagnostic about the picture points at.
-    /// </summary>
-    public VegaLiteLocation Source { get; init; }
 }
 
 /// <summary>
@@ -759,13 +760,6 @@ internal sealed record SceneText : SceneItem
 
     /// <summary>Gets the vertical offset added to the position and the baseline offset; 0 by default.</summary>
     public double Dy { get; init; }
-
-    /// <summary>
-    ///     Gets where in the specification the text comes from (the mark of a text mark), which a diagnostic about
-    ///     the text points at; <c>default</c> (unknown) for text the chart builds itself, such as axis labels,
-    ///     legends, and titles.
-    /// </summary>
-    public VegaLiteLocation Source { get; init; }
 
     /// <summary>Gets the font family as a CSS list (<c>"Helvetica Neue", sans-serif</c>), or <see langword="null"/> for <c>sans-serif</c>.</summary>
     public string? FontFamily { get; init; }

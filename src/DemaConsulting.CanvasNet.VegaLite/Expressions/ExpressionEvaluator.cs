@@ -530,7 +530,7 @@ internal sealed partial class ExpressionEvaluator
                 return default;
             }
 
-            var position = (int)number;
+            var position = NumericConversions.ToInt32Saturating(number);
             return target.IsArray ? target.Elements[position] : DataValue.FromString(target.Text![position].ToString());
         }
 

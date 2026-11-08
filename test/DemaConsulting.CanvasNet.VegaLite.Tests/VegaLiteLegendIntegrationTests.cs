@@ -340,7 +340,7 @@ public class VegaLiteLegendIntegrationTests
     public void CanvasNetVegaLite_SystemIntegration_Legend_UnsupportedPropertiesAreReportedWithLocations()
     {
         // Arrange
-        var json = Change(Fixture("legend-symbols.vl.json"), "\"legend\": { \"title\": \"Crop\" }", "\"legend\": { \"title\": \"Crop\", \"clipHeight\": 20 }");
+        var json = Change(Fixture("legend-symbols.vl.json"), "\"legend\": { \"title\": \"Crop\" }", "\"legend\": { \"title\": \"Crop\", \"encode\": {} }");
         var document = VegaLiteDocument.Parse(json);
         var reported = new List<(string Feature, string Pointer)>();
         var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add((u.Feature, u.Location.Pointer)) };
@@ -350,9 +350,9 @@ public class VegaLiteLegendIntegrationTests
         var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
 
         // Assert
-        Assert.Equal([("vl-guide-legend-clipheight", "/encoding/color/legend/clipHeight")], reported);
-        Assert.Equal("vl-guide-legend-clipheight", strict.Feature);
-        Assert.Equal("/encoding/color/legend/clipHeight", strict.Location.Pointer);
+        Assert.Equal([("vl-guide-encode", "/encoding/color/legend/encode")], reported);
+        Assert.Equal("vl-guide-encode", strict.Feature);
+        Assert.Equal("/encoding/color/legend/encode", strict.Location.Pointer);
         Assert.Equal(2, LegendsOf(SceneOf(json)).Count);
     }
 

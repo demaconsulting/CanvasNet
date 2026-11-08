@@ -90,7 +90,8 @@ one dimension keeps the aspect ratio, that a 4000 by 4000 size against a budget 
 below the 64 MB of the picture, while a budget of exactly 120 by 80 pixels draws, that a data file is found in the
 request's folder and a request without a folder
 fails, that
-an unsupported feature (a binned time unit) is returned as an `Unsupported` note of the source `vega-lite` and throws
+an unsupported feature (the `encode` of an axis) is returned as an `Unsupported` note with the code `vl-guide-encode`
+of the source `vega-lite` and throws
 `VegaLiteUnsupportedFeatureException` when strict, that an invalid specification is `VegaLiteSpecException`, a request
 without a file
 `InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
@@ -241,10 +242,29 @@ read-only, and rejected for blank names, null tables, and null rows.
 
 Asserts every documented default (4,194,304 source characters, JSON depth 64, 64 data files, 64 MiB per data file,
 1,000,000 data rows, 1,024 fields, 1,000 views, composition depth 16, 2,000,000 scene items, 100,000 domain values,
-1,000 ticks, expression length 4,096 and depth 64, 50,000,000 evaluation steps, a 1 MiB string, and 1,000
-diagnostics); that the default is a shared instance; that valid values are stored; that every limit rejects zero and
-negative values with `ArgumentOutOfRangeException` naming the property (a theory over all sixteen limits); and that
+1,000 ticks, expression length 4,096 and depth 64, 50,000,000 evaluation steps, a 1 MiB string, 1,000
+diagnostics, 256 pictures, and 250,000,000 painted pixels); that the default is a shared instance; that valid values are
+stored; that every limit rejects zero and
+negative values with `ArgumentOutOfRangeException` naming the property (a theory over all eighteen limits, the paint
+limit included); and that
 the three depth limits accept their ceiling (256, 64, and 256) and reject one more.
+
+#### Limits: Painting, A Size That Is Not A Number, And Cancellation In Flight
+
+**Tests**:
+`CanvasNetVegaLite_SystemIntegration_Limits_PaintedPixelsStopsExpensivePaintingAtTheMark`,
+`CanvasNetVegaLite_SystemIntegration_Limits_NonFiniteLayoutSizeFailsWithALocation`,
+`CanvasNetVegaLite_SystemIntegration_Limits_QuantileStepBeyondTheIntegersFailsLocatedAtTheRowLimit`,
+`CanvasNetVegaLite_SystemIntegration_Limits_LoessBeyondTheStepBudgetIsRefusedBeforeItRuns`,
+`CanvasNetVegaLite_SystemIntegration_Cancellation_IsHonoredWhileTheTransformsAndThePainterRun`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkWithoutSize_IsBoundedByThePaintLimitAndResamplesOnce`
+
+Asserts through `Render` and `Measure` that the paint limit stops symbols that each cover the image with a located
+failure that names `VegaLiteLimits.MaxPaintedPixels` while `Measure` is unaffected, that a pow scale that overflows is a
+located failure about a size that is not a finite number, that a quantile step of 1e-300 is a located row-limit failure,
+that a loess of 20,000 rows with a bandwidth of 1 is refused by the step budget before it runs, that the
+transforms (a loess) and the painter (circles with a very wide stroke) stop with the cancellation while they run, and
+that an image mark without a size is bounded by the paint limit, located at `/mark`, with the picture asked for once.
 
 #### Location: Display Form And Equality
 
@@ -693,6 +713,10 @@ when several threads render one document.
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedScaleUsesTheUnionOfAllCellsAndStepWidthTheirCategories`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_IndependentStepSizesCellsByOwnCategoriesAndAlignFollowsTheScale`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_AggregateRunsPerCell`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_BinOfTheFieldGivesACellPerBinWithRangeLabels`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_BinLabelsUseTheHeaderFormatAndNullIsItsOwnCell`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_BinnedAndMaxBinsTimeUnitsAreDrawn`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_AggregateOfTheFieldReadsTheFieldOfItsName`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_StackRunsPerCell`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SortDescendingArrayAndNull`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NullValueIsItsOwnCell`,
@@ -753,8 +777,8 @@ view with data of its own is not partitioned (each of two cells draws all three 
 field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the columns `101 + 40 + 1` = 142 apart, and
 `bounds: "flush"` lays out the data rectangles (120 apart whatever the axes). The limit on the number of views is
 checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
-the `row` field), a facet with unsupported parts reports `vl-facet-field-transform` (a `bin`),
-`vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-luminance`; `vl-expr-label` is
+the `row` field), a facet with unsupported parts reports `vl-header-orient`,
+the unsupported function of a header `labelExpr` (`vl-expr-function-luminance`; `vl-expr-label` is
 retired)
 and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
 a facet that uses only what is drawn, the scene item limit (charged once for each header, so a 5 by 5 grid renders under
@@ -762,6 +786,16 @@ exactly the limit of its own scene's item count, and one less fails) and a cance
 equals
 `Render`, the render is deterministic also from several threads, a facet of no rows draws no cell and a facet of an
 unsupported mark draws its empty cells and reports the mark once.
+
+The `bin`, the `aggregate`, and the time unit of a facet field (Phase 14, with strict mode throwing nothing) are
+verified through the scene: the values 1, 2, 12, 14, and 25 of a `column` with `bin: {maxbins: 3}` give the headers
+`0 – 10`, `10 – 20`, and `20 – 30` with five bars in all and the title `c (binned)`; a `bin` with `step: 1000` over 1000,
+2500, and a missing value gives `null`, `1000 – 2000`, and `2000 – 3000`, which the header `format` `,.1f` writes as
+`1,000.0 – 2,000.0` and the `numberFormat` `.2s` of the configuration as `1.0k – 2.0k`; a binned `yearmonth` unit of the
+dates 2024-01-01 and 2024-02-01 has the same headers `Jan 2024` and `Feb 2024` as the unit and the title `d` (the unit has
+`d (year-month)`), and a `maxbins` unit of 3 gives the two cells of the weeks that hold the dates; and the `aggregate`
+`sum` of `v` reads the field `sum_v` that the data has (the headers `10` and `20`, the title `Sum of v`), and the one
+cell `null` for a field of that name that the data lacks.
 
 #### Label Expressions: Axes, Legends, And Headers Are Labeled By Their Expressions
 
@@ -834,7 +868,8 @@ concatenation are independent (the second chart is 80 pixels wider, with bars of
 `shared`, the cells of a facet share the offset domain (every cell has the same grouped bars), and a bar layer and a
 text layer over the same offsets share the position and the offset scales (each label is at the center of its bar). An
 offset that is not drawn is reported and the marks are drawn at their position (`vl-offset-position` for a quantitative
-position or a `day` time unit, and `vl-offset-ranged` for a continuous offset of a bar; a `month` unit reports nothing),
+position or a `day` time unit, and `vl-offset-ranged` for a continuous offset of a bar that is not a ranged offset (a
+temporal one; an unbinned quantitative offset over a nominal position is drawn since Phase 14); a `month` unit reports nothing),
 a grouped bar chart over months (`month` unit, width 300, three months of two groups: the domain is January 1 to April 1
 of the leap year 2012, 91 days, so a day is 300 / 91 pixels and the reference month of 31 days is 31 x 300 / 91 =
 102.2 pixels) has six bars 0.4 of a month (40.9 pixels) wide, the first two touching at 0.1 and 0.5 of a month from the

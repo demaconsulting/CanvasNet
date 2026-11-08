@@ -151,6 +151,23 @@ public class StatisticsPrimitivesTests
     }
 
     /// <summary>
+    ///     Validates that a quotient that no 64-bit integer can hold saturates to the largest count on every runtime: a finite but out-of-range quotient (a step of 1e-300) is
+    ///     <see cref="long.MaxValue"/> and never the minimum value that a plain cast gives on .NET 8 (defect B1: that made the row budget see a negative count).
+    /// </summary>
+    [Theory]
+    [InlineData(1e-300)]
+    [InlineData(1e-30)]
+    [InlineData(5e-324)]
+    public void StatisticsPrimitives_RangeCount_QuotientBeyondLong_SaturatesToLongMaxValue(double step)
+    {
+        // Arrange / Act
+        var count = StatisticsPrimitives.RangeCount(step / 2, 1 - 1e-14, step);
+
+        // Assert: the count is positive and saturated, the same on every target framework
+        Assert.Equal(long.MaxValue, count);
+    }
+
+    /// <summary>
     ///     Validates that the statistics helpers reject a null argument.
     /// </summary>
     [Fact]
