@@ -103,6 +103,14 @@ The viewport units use the root viewport in user units - the `viewBox` size, as 
 at the root. A browser instead uses the size the SVG is displayed at, so the two differ only when
 the root `width`/`height` and the `viewBox` disagree.
 
+`lh` and `rlh` follow the `line-height` set by a `style` attribute, a `style` element rule or the
+`font` shorthand (a number multiplies each element's own font size; a length, `em` or percentage is
+fixed where it is declared). Inside `line-height` itself, `lh` is the parent's line height and, on
+the root `svg`, `rlh` is the initial 1.2 x 16 = 19.2, as in CSS, so `line-height: 2lh` never refers
+to itself. A root `width`/`height` in `lh` or `rlh` uses the root's own line height and font size
+(from its `style` attribute, `font-size` attribute or `font` attribute), so `GetInfo` reports
+`width="2lh" height="3rlh" font-size="10" style="line-height: 2"` as 40 by 60.
+
 `calc()` supports `+`, `-`, `*` and `/` (with spaces around `+` and `-`, as CSS requires),
 parentheses and nested `calc()`, and `min()`, `max()` and `clamp()` take lengths or numbers (not
 a mix). A length can be combined with a percentage or a font-relative unit (`calc(100% - 2em)`). A
@@ -138,7 +146,10 @@ as in SVG 2. An omitted attribute with a percentage default uses the same basis:
 are `50%` of the viewport width, height and diagonal basis (`fx` and `fy` follow `cx` and `cy`), so
 a `userSpaceOnUse` gradient that leaves them out now spans the viewport instead of one user unit.
 Under `objectBoundingBox` they stay `1` and `0.5` of the shape's box. A pattern without `width` or
-`height` paints nothing, as the SVG 2 initial value is `0`.
+`height` paints nothing, as the SVG 2 initial value is `0`. A mask region's omitted `x`, `y`,
+`width` and `height` are `-10%`, `-10%`, `120%` and `120%` in both modes: of the shape's box under
+`objectBoundingBox`, and of the viewport width or height under `userSpaceOnUse` (they used to be of
+the shape's box in both modes).
 
 `font-size` can be set by an attribute, a `style` attribute, a `style` element rule, or the `font`
 shorthand (for example `font: italic bold 12px/1.5 "Helvetica Neue", sans-serif`, which also resets

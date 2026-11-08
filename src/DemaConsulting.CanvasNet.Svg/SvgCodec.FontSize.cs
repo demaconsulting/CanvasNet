@@ -684,23 +684,96 @@ public static partial class SvgCodec
     /// </remarks>
     private static float ReadRootFontSize(XElement root)
     {
-        string? inlineSize = null;
+        string? fontAttributeSize = null;
+        ExpandFontAttribute(root)?.TryGetValue("font-size", out fontAttributeSize);
+        return ResolveFontSize(
+            ReadRootInlineDeclaration(root, "font-size"), (string?)root.Attribute("font-size"), fontAttributeSize, RenderState.Initial);
+    }
+
+    /// <summary>
+    ///     Reads the root <c>svg</c> element's own computed <c>line-height</c> for resolving an
+    ///     <c>lh</c>/<c>rlh</c> root <c>width</c>/<c>height</c>, which must be known before any
+    ///     render state exists.
+    /// </summary>
+    /// <param name="root">The root element.</param>
+    /// <param name="fontState">The root-size state carrying the root's own font size (see <see cref="CreateRootSizeState"/>).</param>
+    /// <returns>
+    ///     The root's line height from its inline <c>style</c> (including the <c>font</c> shorthand),
+    ///     else its <c>font</c> attribute, else <see langword="null"/> (<c>normal</c>).
+    /// </returns>
+    /// <remarks>
+    ///     Shares <see cref="ResolveComputedLineHeight"/> with the element cascade so <c>GetInfo</c>
+    ///     and <c>Load</c> agree, and, like <see cref="ReadRootFontSize"/>, does not consult
+    ///     stylesheet rules. A value that needs the viewport (<c>vw</c>...) has no basis here and is
+    ///     dropped, so the root sizes against <c>normal</c>.
+    /// </remarks>
+    private static LineHeightSpec? ReadRootLineHeight(XElement root, RenderState fontState)
+    {
+        string? fontAttributeLineHeight = null;
+        ExpandFontAttribute(root)?.TryGetValue("line-height", out fontAttributeLineHeight);
+        return ResolveComputedLineHeight(
+            ReadRootInlineDeclaration(root, "line-height"), fontAttributeLineHeight, fontState, RenderState.Initial);
+    }
+
+    /// <summary>Reads the last declaration of <paramref name="property"/> in the root element's inline <c>style</c>.</summary>
+    /// <param name="root">The root element.</param>
+    /// <param name="property">The lower-cased property name.</param>
+    /// <returns>The value, or <see langword="null"/> when the inline style does not declare the property.</returns>
+    /// <remarks>
+    ///     The declaration parser expands the <c>font</c> shorthand and drops an invalid font
+    ///     declaration, so the last survivor wins.
+    /// </remarks>
+    private static string? ReadRootInlineDeclaration(XElement root, string property)
+    {
         var inline = (string?)root.Attribute("style");
-        if (inline != null)
+        if (inline == null)
         {
-            // Invalid font-size declarations were dropped by the parser, so the last survivor wins
-            foreach (var (property, value) in ParseDeclarationBlock(inline))
+            return null;
+        }
+
+        string? value = null;
+        foreach (var (name, declared) in ParseDeclarationBlock(inline))
+        {
+            if (name == property)
             {
-                if (property == "font-size")
-                {
-                    inlineSize = value;
-                }
+                value = declared;
             }
         }
 
-        string? fontAttributeSize = null;
-        ExpandFontAttribute(root)?.TryGetValue("font-size", out fontAttributeSize);
-        return ResolveFontSize(inlineSize, (string?)root.Attribute("font-size"), fontAttributeSize, RenderState.Initial);
+        return value;
+    }
+
+    /// <summary>
+    ///     Resolves an element's computed <c>line-height</c> from its sources in cascade order (the
+    ///     property is not an SVG presentation attribute, so only CSS and the <c>font</c> attribute
+    ///     set it), shared by the element cascade and <see cref="ReadRootLineHeight"/>.
+    /// </summary>
+    /// <param name="css">The CSS value (inline style, then stylesheet), or <see langword="null"/>.</param>
+    /// <param name="fontAttribute">The <c>font</c> attribute's expanded line height, or <see langword="null"/>.</param>
+    /// <param name="fontState">
+    ///     The element's state after its own font properties are resolved: its own font size is the
+    ///     basis for <c>em</c> and <c>%</c>, and at the root it is also the <c>rem</c> basis.
+    /// </param>
+    /// <param name="parent">The parent's state (<see cref="RenderState.Initial"/> at the root).</param>
+    /// <returns>The first valid source's computed value, else the parent's (inherited) line height.</returns>
+    /// <remarks>
+    ///     In <c>line-height</c> itself, <c>lh</c> resolves against the parent's line height and font
+    ///     metrics, and <c>rlh</c> on the root element against the initial values (CSS Values 4,
+    ///     font-relative lengths). Both bases are therefore frozen as absolute lengths taken from
+    ///     <paramref name="parent"/>, so a declaration such as <c>line-height: 2lh</c> never refers to
+    ///     itself or to this element's own font size; on a non-root element <c>rlh</c> is the root's
+    ///     line height, unchanged.
+    /// </remarks>
+    private static LineHeightSpec? ResolveComputedLineHeight(string? css, string? fontAttribute, RenderState fontState, RenderState parent)
+    {
+        var basis = fontState with
+        {
+            LineHeight = new LineHeightSpec((float)ResolveLineHeight(parent.LineHeight, parent.FontSize), IsMultiplier: false),
+            RootLineHeight = new LineHeightSpec((float)ResolveLineHeight(parent.RootLineHeight, parent.RootFontSize), IsMultiplier: false)
+        };
+
+        var raw = FirstValidFontValue("line-height", basis, css, null, fontAttribute);
+        return raw != null && TryParseLineHeight(raw, basis, out var computed) ? computed : parent.LineHeight;
     }
 
     /// <summary>
@@ -815,15 +888,16 @@ public static partial class SvgCodec
 
     /// <summary>
     ///     Builds the throwaway state used to resolve a root <c>width</c>/<c>height</c>: only the
-    ///     root font size is known, so a percentage or a viewport unit has no basis (it resolves to
-    ///     NaN and the attribute is treated as absent) and <c>ex</c>/<c>ch</c> use their fallbacks.
+    ///     root font size and line height are known, so a percentage or a viewport unit has no basis
+    ///     (it resolves to NaN and the attribute is treated as absent) and <c>ex</c>/<c>ch</c> use
+    ///     their fallbacks.
     /// </summary>
     /// <param name="root">The root element.</param>
-    /// <returns>The root-size resolution state.</returns>
+    /// <returns>The root-size resolution state, whose <c>lh</c> and <c>rlh</c> are both the root's own line height.</returns>
     private static RenderState CreateRootSizeState(XElement root)
     {
         var fontSize = ReadRootFontSize(root);
-        return RenderState.Initial with
+        var fontState = RenderState.Initial with
         {
             FontSize = fontSize,
             RootFontSize = fontSize,
@@ -832,5 +906,8 @@ public static partial class SvgCodec
             RootViewportWidth = float.NaN,
             RootViewportHeight = float.NaN
         };
+
+        var lineHeight = ReadRootLineHeight(root, fontState);
+        return fontState with { LineHeight = lineHeight, RootLineHeight = lineHeight };
     }
 }

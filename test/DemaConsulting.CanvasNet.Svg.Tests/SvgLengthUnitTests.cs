@@ -1173,6 +1173,43 @@ public class SvgLengthUnitTests
         Assert.False(SvgLengthTestSupport.AreIdentical(untouched, plain));
     }
 
+    /// <summary>
+    ///     Proves an omitted <c>userSpaceOnUse</c> mask region attribute takes its percentage initial
+    ///     value (<c>-10%</c>, <c>-10%</c>, <c>120%</c>, <c>120%</c>, CSS Masking 1) against the
+    ///     viewport, not against the shape's bounding box: the shape sits in the bottom-right quarter,
+    ///     so the two readings clip it differently.
+    /// </summary>
+    /// <param name="attribute">The omitted region attribute.</param>
+    /// <param name="defaultFraction">The attribute's initial value as a fraction.</param>
+    /// <param name="boundingBoxValue">The value the omitted attribute would wrongly take relative to the shape's bounding box.</param>
+    [Theory]
+    [InlineData("x", -0.1f, "90")]
+    [InlineData("y", -0.1f, "45")]
+    [InlineData("width", 1.2f, "120")]
+    [InlineData("height", 1.2f, "60")]
+    public void SvgCodec_Load_MaskRegionUserSpaceOmittedAttribute_DefaultsAgainstViewport(
+        string attribute, float defaultFraction, string boundingBoxValue)
+    {
+        // Arrange: the base region covers the whole 200x100 viewport; the shape is 100,50 to 200,100
+        var baseValues = new[] { ("x", "0"), ("y", "0"), ("width", "200"), ("height", "100") };
+        var viewportDefault = Exact(defaultFraction * ViewportBasis(attribute));
+
+        // Act
+        var omitted = RenderQuarterMask(WithAttribute(baseValues, attribute, null));
+        var viewportLiteral = RenderQuarterMask(WithAttribute(baseValues, attribute, viewportDefault));
+        var boundingBoxLiteral = RenderQuarterMask(WithAttribute(baseValues, attribute, boundingBoxValue));
+
+        // Assert: the omitted attribute is the viewport percentage, which a bounding-box reading is not
+        AssertSurfacesEqual(viewportLiteral, omitted);
+        Assert.False(SvgLengthTestSupport.AreIdentical(boundingBoxLiteral, omitted));
+
+        static Surface RenderQuarterMask(string maskAttributes) => SvgLengthTestSupport.Render(
+            $"<svg viewBox='0 0 200 100'><mask id='m' maskUnits='userSpaceOnUse' {maskAttributes}><rect width='200' height='100' fill='white'/></mask>" +
+            "<rect x='100' y='50' width='100' height='50' fill='black' mask='url(#m)'/></svg>",
+            200,
+            100);
+    }
+
     // ================================================================================================
     // Root width/height (GetInfo and Load)
     // ================================================================================================
@@ -1198,10 +1235,18 @@ public class SvgLengthUnitTests
     [InlineData("width='12 px' height='12 px'", 300, 150)]
     [InlineData("width='1in' height='1in' viewBox='0 0 40 30'", 40, 30)]
     [InlineData("width='1in'", 300, 150)]
-    public void SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack(string attributes, int expectedWidth, int expectedHeight)
+    public void SvgCodec_GetInfo_RootSize_ConvertsUnitsOrFallsBack(string attributes, int expectedWidth, int expectedHeight) =>
+        // Units convert; a percentage/viewport unit has no basis and counts as absent (the 300x150
+        // default), as does an unrecognized unit; a viewBox still wins over any units
+        AssertRootSize(attributes, expectedWidth, expectedHeight);
+
+    /// <summary>Asserts <see cref="SvgCodec.GetInfo(Stream)"/> reports the given size for an empty root carrying <paramref name="attributes"/>.</summary>
+    /// <param name="attributes">The root attributes.</param>
+    /// <param name="expectedWidth">The expected reported width.</param>
+    /// <param name="expectedHeight">The expected reported height.</param>
+    private static void AssertRootSize(string attributes, int expectedWidth, int expectedHeight)
     {
-        // Arrange: units convert; a percentage/viewport unit has no basis and counts as absent (the
-        // 300x150 default), as does an unrecognized unit; a viewBox still wins over any units
+        // Arrange
         using var stream = SvgLengthTestSupport.ToStream($"<svg xmlns='http://www.w3.org/2000/svg' {attributes}/>");
 
         // Act
@@ -1230,6 +1275,74 @@ public class SvgLengthUnitTests
         Assert.Equal(255, surface[0, 0].A);
         Assert.Equal(255, surface[95, 95].A);
     }
+
+    /// <summary>
+    ///     Proves a root <c>width</c>/<c>height</c> in <c>lh</c>/<c>rlh</c> uses the root's own
+    ///     <c>line-height</c> (from its inline style, the <c>font</c> shorthand or the <c>font</c>
+    ///     attribute; a number, any length or <c>normal</c>) resolved with the root's own font size,
+    ///     and that <c>lh</c>/<c>rlh</c> inside the root's <c>line-height</c> resolve against the
+    ///     initial values (1.2 x 16 = 19.2) rather than cycling.
+    /// </summary>
+    /// <param name="attributes">The root attributes.</param>
+    /// <param name="expectedWidth">The expected reported width.</param>
+    /// <param name="expectedHeight">The expected reported height.</param>
+    [Theory]
+    [InlineData("width='2lh' height='3rlh' font-size='10' style='line-height:2'", 40, 60)]
+    [InlineData("width='1lh' height='1rlh' style='font: 10px/3 serif'", 30, 30)]
+    [InlineData("width='1lh' height='1rlh' font='10px/2.5 serif'", 25, 25)]
+    [InlineData("width='1lh' height='2rlh' font-size='10' style='line-height:25px'", 25, 50)]
+    [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:2em'", 20, 20)]
+    [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:150%'", 15, 15)]
+    [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:2rem'", 20, 20)]
+    [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:calc(1 + 1)'", 20, 20)]
+    [InlineData("width='10lh' height='5rlh' font-size='10' style='line-height:normal'", 120, 60)]
+    [InlineData("width='10lh' height='5rlh' font-size='10'", 120, 60)]
+    [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:5lh'", 96, 96)]
+    [InlineData("width='1lh' height='1rlh' font-size='10' style='line-height:5rlh'", 96, 96)]
+    [InlineData("width='10lh' height='10lh' font-size='10' style='line-height:10vw'", 120, 120)]
+    public void SvgCodec_GetInfo_RootSizeInLineHeightUnits_UsesRootLineHeight(string attributes, int expectedWidth, int expectedHeight) =>
+        AssertRootSize(attributes, expectedWidth, expectedHeight);
+
+    /// <summary>Proves <see cref="SvgCodec.Load(Stream, int, int, IReadOnlyDictionary{string, TrueTypeFont}?)"/> sizes a root in <c>lh</c>/<c>rlh</c> exactly as <see cref="SvgCodec.GetInfo(Stream)"/> reports it.</summary>
+    [Fact]
+    public void SvgCodec_Load_RootSizeInLineHeightUnits_FitsContentToReportedSize()
+    {
+        // Arrange: 2lh x 3rlh with font-size 10 and line-height 2 is 40x60; the rect is that size
+        const string Svg =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='2lh' height='3rlh' font-size='10' style='line-height:2'>" +
+            "<rect width='40' height='60' fill='black'/></svg>";
+        using var infoStream = SvgLengthTestSupport.ToStream(Svg);
+        var info = SvgCodec.GetInfo(infoStream);
+
+        // Act: render at four times the reported size
+        using var stream = SvgLengthTestSupport.ToStream(Svg);
+        var surface = SvgCodec.Load(stream, info.Width * 4, info.Height * 4);
+
+        // Assert: the rect fills the whole surface (a 1.2 normal line height would leave the far corner empty)
+        Assert.Equal(40, info.Width);
+        Assert.Equal(60, info.Height);
+        Assert.Equal(255, surface[0, 0].A);
+        Assert.Equal(255, surface[159, 239].A);
+    }
+
+    /// <summary>
+    ///     Proves <c>lh</c> and <c>rlh</c> inside <c>line-height</c> itself resolve against the parent's
+    ///     line height and font size, and against the initial values (19.2) on the root element
+    ///     (CSS Values 4), never against the element's own font size.
+    /// </summary>
+    /// <param name="svg">The document.</param>
+    /// <param name="expected">The expected bar width.</param>
+    [Theory]
+    [InlineData(
+        "<svg viewBox='0 0 400 40'><g font-size='10' style='line-height:2'><g font-size='50' style='line-height:1lh'><rect width='1lh' height='10' fill='black'/></g></g></svg>",
+        20.0)]
+    [InlineData(
+        "<svg viewBox='0 0 400 40' font-size='10' style='line-height:2'><g font-size='50' style='line-height:1rlh'><rect width='1lh' height='10' fill='black'/></g></svg>",
+        20.0)]
+    [InlineData("<svg viewBox='0 0 400 40' font-size='10' style='line-height:5lh'><rect width='1lh' height='10' fill='black'/></svg>", 96.0)]
+    [InlineData("<svg viewBox='0 0 400 40' font-size='10' style='line-height:5rlh'><rect width='1rlh' height='10' fill='black'/></svg>", 96.0)]
+    public void SvgCodec_Load_LineHeightInLineHeightUnits_ResolvesAgainstParent(string svg, double expected) =>
+        Assert.Equal(expected, SvgLengthTestSupport.RowCoverage(SvgLengthTestSupport.Render(svg, 400, 40), 5), Tolerance);
 
     // ================================================================================================
     // Documents that previously used units on non-geometry paths keep working

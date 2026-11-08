@@ -485,8 +485,9 @@ public static partial class SvgCodec
     ///     or inside a math function - is relative to the current viewport on that attribute's axis;
     ///     a number-typed math result (<c>calc(1 + 1)</c>) is user units like a literal, per SVG 2
     ///     "Attribute syntax" (Types 4.2), and a mixed-type expression falls back to the default
-    ///     region
-    ///     (see <see cref="ReadMaskRegionCoordinate"/>/<see cref="ReadMaskRegionExtent"/>).
+    ///     region. The defaults (<c>-10%</c>, <c>-10%</c>, <c>120%</c>, <c>120%</c>) are percentages in
+    ///     both modes, so under <c>userSpaceOnUse</c> an omitted attribute is that percentage of the
+    ///     viewport, not of <paramref name="bounds"/> (see <see cref="ReadMaskRegionValue"/>).
     /// </remarks>
     private static Rect? ComputeMaskRegionLocalBounds(XElement maskElement, Rect bounds, RenderState state)
     {
@@ -498,10 +499,12 @@ public static partial class SvgCodec
         var isUserSpaceOnUse = string.Equals(
             (string?)maskElement.Attribute("maskUnits"), "userSpaceOnUse", StringComparison.Ordinal);
 
-        var x = ReadMaskRegionCoordinate((string?)maskElement.Attribute("x"), -0.10f, bounds.X, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
-        var y = ReadMaskRegionCoordinate((string?)maskElement.Attribute("y"), -0.10f, bounds.Y, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
-        var width = ReadMaskRegionExtent((string?)maskElement.Attribute("width"), 1.20f, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
-        var height = ReadMaskRegionExtent((string?)maskElement.Attribute("height"), 1.20f, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
+        // The initial values are -10%, -10%, 120% and 120% in either units mode (CSS Masking 1); a
+        // coordinate is offset from the bounds' origin, an extent is not
+        var x = ReadMaskRegionValue((string?)maskElement.Attribute("x"), -0.10f, bounds.X, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
+        var y = ReadMaskRegionValue((string?)maskElement.Attribute("y"), -0.10f, bounds.Y, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
+        var width = ReadMaskRegionValue((string?)maskElement.Attribute("width"), 1.20f, 0f, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
+        var height = ReadMaskRegionValue((string?)maskElement.Attribute("height"), 1.20f, 0f, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
 
         if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(width) || !float.IsFinite(height) ||
             width <= 0f || height <= 0f)
@@ -513,85 +516,49 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Reads a mask region's own <c>x</c>/<c>y</c> attribute (see
-    ///     <see cref="ComputeMaskRegionLocalBounds"/>'s remarks for the full percentage-vs-literal/
-    ///     <c>maskUnits</c> interpretation rules).
+    ///     Reads one of a mask region's own <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> attributes
+    ///     (see <see cref="ComputeMaskRegionLocalBounds"/>'s remarks for the full
+    ///     percentage-vs-literal/<c>maskUnits</c> interpretation rules).
     /// </summary>
     /// <param name="raw">The raw attribute text, or <see langword="null"/> if absent.</param>
-    /// <param name="defaultFraction">The bbox-relative fraction to fall back to when absent/unparseable.</param>
-    /// <param name="origin">The reference bounds' own origin coordinate on this axis.</param>
+    /// <param name="defaultFraction">
+    ///     The attribute's initial value as a fraction (<c>-0.1</c> for <c>-10%</c>, <c>1.2</c> for
+    ///     <c>120%</c>), used when the attribute is absent, empty or unparseable.
+    /// </param>
+    /// <param name="origin">
+    ///     The reference bounds' own origin coordinate on this axis for <c>x</c>/<c>y</c>, or <c>0</c>
+    ///     for <c>width</c>/<c>height</c>.
+    /// </param>
     /// <param name="extent">The reference bounds' own extent on this axis.</param>
     /// <param name="isUserSpaceOnUse">Whether <c>maskUnits="userSpaceOnUse"</c> was specified.</param>
-    /// <param name="state">The referencing element's state, resolving a CSS-unit literal under <c>userSpaceOnUse</c>.</param>
+    /// <param name="state">The referencing element's state, supplying unit bases and the viewport.</param>
     /// <param name="axis">The viewport axis a <c>userSpaceOnUse</c> percentage resolves against.</param>
-    /// <returns>The resolved local-space coordinate.</returns>
-    private static float ReadMaskRegionCoordinate(
+    /// <returns>The resolved local-space coordinate or extent.</returns>
+    /// <remarks>
+    ///     The initial value is a percentage in both units modes (CSS Masking 1, <c>mask</c> element),
+    ///     so it resolves exactly like an explicit percentage: against the bounds under
+    ///     <c>objectBoundingBox</c>, and against the current viewport on <paramref name="axis"/> under
+    ///     <c>userSpaceOnUse</c>.
+    /// </remarks>
+    private static float ReadMaskRegionValue(
         string? raw, float defaultFraction, float origin, float extent, bool isUserSpaceOnUse, RenderState state, PercentageAxis axis)
     {
-        if (raw == null)
+        if (isUserSpaceOnUse)
         {
-            return origin + (defaultFraction * extent);
+            // userSpaceOnUse: an absolute length. A percentage - plain, inside a math function, or the
+            // initial value of an omitted attribute - is relative to the current viewport on this
+            // axis; units convert to user units against the referencing element's state
+            return raw != null && TryResolveLength(raw, state, axis, out var literal, out _)
+                ? literal
+                : defaultFraction * ResolvePercentageBasis(state, axis);
         }
 
-        var trimmed = raw.Trim();
-        if (trimmed.Length == 0)
-        {
-            return origin + (defaultFraction * extent);
-        }
-
-        if (!isUserSpaceOnUse)
-        {
-            // objectBoundingBox: a fraction of the bounds; a percentage is a fraction of 1 and a math
-            // expression may be a number or a length/percentage (see PercentageAxis.Fraction)
-            return TryResolveLength(trimmed, state, PercentageAxis.Fraction, out var fraction, out _, enforceMagnitude: false)
-                ? origin + (fraction * extent)
-                : origin + (defaultFraction * extent);
-        }
-
-        // userSpaceOnUse: an absolute length. A percentage - plain or inside a math function - is
-        // relative to the current viewport on this axis; units convert to user units against the
-        // referencing element's state; anything unparseable falls back
-        return TryResolveLength(trimmed, state, axis, out var literal, out _)
-            ? literal
-            : origin + (defaultFraction * extent);
-    }
-
-    /// <summary>
-    ///     Reads a mask region's own <c>width</c>/<c>height</c> attribute (see
-    ///     <see cref="ComputeMaskRegionLocalBounds"/>'s remarks for the full percentage-vs-literal/
-    ///     <c>maskUnits</c> interpretation rules).
-    /// </summary>
-    /// <param name="raw">The raw attribute text, or <see langword="null"/> if absent.</param>
-    /// <param name="defaultFraction">The bbox-relative fraction to fall back to when absent/unparseable.</param>
-    /// <param name="extent">The reference bounds' own extent on this axis.</param>
-    /// <param name="isUserSpaceOnUse">Whether <c>maskUnits="userSpaceOnUse"</c> was specified.</param>
-    /// <param name="state">The referencing element's state, resolving a CSS-unit literal under <c>userSpaceOnUse</c>.</param>
-    /// <param name="axis">The viewport axis a <c>userSpaceOnUse</c> percentage resolves against.</param>
-    /// <returns>The resolved local-space extent.</returns>
-    private static float ReadMaskRegionExtent(
-        string? raw, float defaultFraction, float extent, bool isUserSpaceOnUse, RenderState state, PercentageAxis axis)
-    {
-        if (raw == null)
-        {
-            return defaultFraction * extent;
-        }
-
-        var trimmed = raw.Trim();
-        if (trimmed.Length == 0)
-        {
-            return defaultFraction * extent;
-        }
-
-        if (!isUserSpaceOnUse)
-        {
-            return TryResolveLength(trimmed, state, PercentageAxis.Fraction, out var fraction, out _, enforceMagnitude: false)
-                ? fraction * extent
-                : defaultFraction * extent;
-        }
-
-        return TryResolveLength(trimmed, state, axis, out var literal, out _)
-            ? literal
-            : defaultFraction * extent;
+        // objectBoundingBox: a fraction of the bounds; a percentage is a fraction of 1 and a math
+        // expression may be a number or a length/percentage (see PercentageAxis.Fraction)
+        var fraction = raw != null && TryResolveLength(raw, state, PercentageAxis.Fraction, out var value, out _, enforceMagnitude: false)
+            ? value
+            : defaultFraction;
+        return origin + (fraction * extent);
     }
 
     /// <summary>
