@@ -78,6 +78,13 @@ class:
   caller-registered fonts first, then (per family in the `font-family` list) generic keywords
   mapped to the bundled Liberation fonts and installed fonts matched by exact family name, then
   bundled Liberation Sans - see _SvgCodec Unit Design_.
+- **Length units and font-size**: Every SVG length accepts CSS units (`px`, `pt`, `pc`, `in`, `cm`,
+  `mm`, `Q`, `em`, `ex`, `ch`, `rem`, `lh`, `rlh`, `vw`, `vh`, `vmin`, `vmax`), percentages and
+  `calc()`/`min()`/`max()`/`clamp()`, converted to user units at 1in = 96px; `font-size` is read from
+  an attribute, a style, a stylesheet rule or the `font` shorthand, with keywords and CSS-wide
+  keywords; a malformed length follows a documented three-class policy (strict for geometry, tolerant
+  for root size and paint servers, ignored for font properties) - see _SvgCodec Unit Design_, _Length
+  Units and font-size_.
 - **SvgCodec.GetInfo(Stream stream)** / **SvgCodec.GetInfo(string path)**: Reports an SVG
   document's resolved intrinsic width, height, channel count (always 4), and alpha presence
   (always true) via the shared `Codecs.ImageInfo` record struct, given a stream or a file path,

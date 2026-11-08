@@ -255,7 +255,7 @@ public static partial class SvgCodec
         var (filterElement, clipPathElement, maskElement) = effects;
         var rawBounds = ExpandBoundsForStroke(localPath.GetBounds(), state);
 
-        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, rawBounds, transform);
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, rawBounds, transform, state);
         if (region == null)
         {
             RenderShape(localPath, state, transform, context, scope, ref totalElements);
@@ -718,9 +718,7 @@ public static partial class SvgCodec
         // data would be
         scope.BoundsPrePassBudget.ChargeGeometry(text.Length);
 
-        var origin = new Vector2(
-            GetFloatAttribute(element, "x", state, PercentageAxis.Horizontal),
-            GetFloatAttribute(element, "y", state, PercentageAxis.Vertical));
+        var origin = ResolveTextOrigin(element, state);
         var glyphRunPath = BuildGlyphRunPath(text, font, state, origin);
         return ShapeBoundsRespectingOwnFilter(element, glyphRunPath, state, transform, context, scope.MarkerDepth);
     }
@@ -1027,7 +1025,7 @@ public static partial class SvgCodec
         // Region precedence identical to RenderShapeEffectsPipeline: a filter's own region wins
         // (it may need to expand beyond the raw painted bounds), otherwise a mask's own region,
         // otherwise (clip-path only) the plain painted bounds with no expansion
-        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, localBounds, childrenTransform);
+        var region = ResolveEffectsRegionPixelBounds(filterElement, clipPathElement, maskElement, localBounds, childrenTransform, state);
         if (region == null)
         {
             RenderChildrenDirect(children, state, childrenTransform, context, childScope, ref totalElements);
@@ -1194,6 +1192,7 @@ public static partial class SvgCodec
     /// <param name="maskElement">The resolved <c>mask</c> element, or <see langword="null"/> if none applies.</param>
     /// <param name="bounds">The referencing element's (or group subtree's) already stroke-expanded local-space painted-content bounds.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a mask region written with CSS units.</param>
     /// <returns>
     ///     <paramref name="filterElement"/>'s own filter region if present; otherwise
     ///     <paramref name="maskElement"/>'s own mask region if present; otherwise
@@ -1201,7 +1200,7 @@ public static partial class SvgCodec
     ///     <see langword="null"/> if the chosen region does not resolve to a valid pixel-space box.
     /// </returns>
     private static (int X, int Y, int Width, int Height)? ResolveEffectsRegionPixelBounds(
-        XElement? filterElement, XElement? clipPathElement, XElement? maskElement, Rect bounds, Matrix3x2 transform)
+        XElement? filterElement, XElement? clipPathElement, XElement? maskElement, Rect bounds, Matrix3x2 transform, RenderState state)
     {
         _ = clipPathElement;
 
@@ -1211,7 +1210,7 @@ public static partial class SvgCodec
         }
 
         return maskElement != null
-            ? ComputeMaskRegionPixelBounds(maskElement, bounds, transform)
+            ? ComputeMaskRegionPixelBounds(maskElement, bounds, transform, state)
             : ConvertLocalRegionToPixelBounds(bounds, transform);
     }
 

@@ -206,8 +206,9 @@ public static partial class SvgCodec
             return viewBox.Value;
         }
 
-        var width = ParseLength((string?)root.Attribute("width"));
-        var height = ParseLength((string?)root.Attribute("height"));
+        var rootSizeState = CreateRootSizeState(root);
+        var width = ParseLength((string?)root.Attribute("width"), rootSizeState);
+        var height = ParseLength((string?)root.Attribute("height"), rootSizeState);
         if (width is > 0f && height is > 0f)
         {
             return (Vector2.Zero, new Vector2(width.Value, height.Value));
@@ -254,62 +255,30 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Leniently parses a CSS-style length attribute (<c>width</c>/<c>height</c>), stripping a
-    ///     recognized unit suffix and treating a percentage or otherwise-unparseable value
-    ///     (including a non-finite result such as <c>NaN</c>/<c>Infinity</c>) as "absent" rather
-    ///     than an error - see this class's GetInfo fallback policy remarks.
+    ///     Leniently parses a root <c>width</c>/<c>height</c> attribute to user units (class T in
+    ///     this class's remarks): any CSS length with a unit (<c>in</c>, <c>mm</c>, <c>pt</c>,
+    ///     <c>em</c>, <c>rem</c>...) is converted to user units rather than having its suffix
+    ///     stripped, and a percentage, a viewport unit (no containing block exists yet), an
+    ///     unrecognized unit, or otherwise-unparseable value (including a non-finite result such as
+    ///     <c>NaN</c>/<c>Infinity</c>) is treated as "absent" rather than an error - see this
+    ///     class's GetInfo fallback policy remarks.
     /// </summary>
     /// <param name="raw">The attribute's raw value, or <see langword="null"/> if absent.</param>
+    /// <param name="rootSizeState">The root-size resolution state (see <see cref="CreateRootSizeState"/>).</param>
     /// <returns>
-    ///     The parsed value, or <see langword="null"/> if <paramref name="raw"/> is absent, blank,
-    ///     a percentage, not a recognizable number, or a non-finite number (<c>NaN</c>/<c>Infinity</c>).
+    ///     The parsed value in user units, or <see langword="null"/> if <paramref name="raw"/> is
+    ///     absent, blank, a percentage, not a recognizable length, or non-finite.
     /// </returns>
-    private static float? ParseLength(string? raw)
+    private static float? ParseLength(string? raw, RenderState rootSizeState)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
             return null;
         }
 
-        var trimmed = raw.Trim();
-        if (trimmed.EndsWith('%'))
-        {
-            // A percentage has no intrinsic-size basis to resolve against at this point - treat
-            // as though the attribute were absent, falling through to the next fallback tier
-            return null;
-        }
-
-        trimmed = StripUnitSuffix(trimmed);
-        if (!float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ||
-            !float.IsFinite(value))
-        {
-            // A non-finite result (NaN/Infinity) is syntactically a valid float but never a
-            // meaningful length - treat it the same as an unparseable value: "absent", falling
-            // through to the next GetInfo fallback tier, matching this method's existing
-            // tolerant-parsing contract rather than introducing a new throw site
-            return null;
-        }
-
-        return value;
-    }
-
-    /// <summary>
-    ///     The CSS length unit suffixes this codec recognizes and strips before parsing a bare
-    ///     number - unit conversion itself is out of scope (every value is treated as a bare
-    ///     user-space number once its suffix is removed), a documented simplification.
-    /// </summary>
-    private static readonly string[] LengthUnitSuffixes = ["px", "pt", "pc", "in", "cm", "mm", "em", "ex"];
-
-    /// <summary>
-    ///     Strips a trailing unit suffix from <paramref name="value"/>, if one of
-    ///     <see cref="LengthUnitSuffixes"/> matches.
-    /// </summary>
-    /// <param name="value">The trimmed attribute value to inspect.</param>
-    /// <returns><paramref name="value"/> with any recognized trailing unit suffix removed.</returns>
-    private static string StripUnitSuffix(string value)
-    {
-        var suffix = LengthUnitSuffixes.FirstOrDefault(candidate => value.EndsWith(candidate, StringComparison.OrdinalIgnoreCase));
-        return suffix == null ? value : value[..^suffix.Length];
+        // A percentage or viewport unit has no basis here (the state carries NaN for it), so
+        // the resolver reports it as non-finite and the attribute falls through to the next tier
+        return TryResolveLength(raw, rootSizeState, PercentageAxis.Horizontal, out var value, out _, enforceMagnitude: false) ? value : null;
     }
 
     /// <summary>

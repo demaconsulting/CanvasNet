@@ -840,6 +840,17 @@ words:
   - mousemove
   - denormal
   - slnx
+
+  # SVG / CSS length and font terms
+  - vmin
+  - vmax
+  - rlh
+  - longhand
+  - longhands
+  - dasharray
+  - dashoffset
+  - tspan
+  - FFFD
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

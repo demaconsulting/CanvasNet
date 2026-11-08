@@ -196,32 +196,94 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     double-counting a centering offset against its own <c>refX</c>/<c>refY</c> anchoring).
 ///     </para>
 ///     <para>
-///     <b>Percentage-based geometry.</b> A trailing <c>%</c> on a shape/text geometry attribute
-///     (<c>x</c>, <c>y</c>, <c>width</c>, <c>height</c>, <c>rx</c>, <c>ry</c>, <c>cx</c>, <c>cy</c>,
-///     <c>r</c>, <c>x1</c>/<c>y1</c>/<c>x2</c>/<c>y2</c>, <c>font-size</c>, <c>stroke-width</c>,
-///     <c>stroke-dashoffset</c>, each <c>stroke-dasharray</c> entry, <c>use</c>'s
-///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c>, and <c>text</c>'s <c>x</c>/<c>y</c>) resolves
-///     against the current viewport, per the SVG specification's per-attribute basis rules: a
-///     horizontal attribute resolves against the current viewport width; a vertical attribute
+///     <b>Length units and percentage-based geometry.</b> Every <c>&lt;length&gt;</c> - a
+///     shape/text/<c>use</c>/<c>image</c>/<c>marker</c> geometry attribute (<c>x</c>, <c>y</c>,
+///     <c>width</c>, <c>height</c>, <c>rx</c>, <c>ry</c>, <c>cx</c>, <c>cy</c>, <c>r</c>,
+///     <c>x1</c>/<c>y1</c>/<c>x2</c>/<c>y2</c>, <c>refX</c>/<c>refY</c>, <c>markerWidth</c>/
+///     <c>markerHeight</c>), <c>stroke-width</c>, <c>stroke-dashoffset</c>, each
+///     <c>stroke-dasharray</c> entry, <c>font-size</c>, <c>text</c>'s <c>dx</c>/<c>dy</c>, the
+///     gradient/pattern/mask-region coordinates and the root <c>width</c>/<c>height</c> - accepts a
+///     bare number (user units, per SVG 2 "Units"), a number with a CSS unit, a percentage, or a
+///     <c>calc()</c>/<c>min()</c>/<c>max()</c>/<c>clamp()</c> expression (CSS Values and Units
+///     Level 4). Units are matched ASCII case-insensitively and converted to user units at the CSS
+///     reference ratio (<c>1in = 96px</c>): the absolute units <c>px</c>, <c>pt</c>, <c>pc</c>,
+///     <c>in</c>, <c>cm</c>, <c>mm</c> and <c>Q</c>; the font-relative units <c>em</c>, <c>ex</c>,
+///     <c>ch</c>, <c>rem</c>, <c>lh</c> and <c>rlh</c>; and the viewport-relative units <c>vw</c>,
+///     <c>vh</c>, <c>vmin</c> and <c>vmax</c>. <c>em</c>, <c>ex</c>, <c>ch</c> and <c>lh</c> resolve
+///     against the element's own computed font (the <em>parent's</em> font for the <c>font-size</c>
+///     property itself); <c>ex</c> is the height of the font's <c>x</c> glyph and <c>ch</c> the
+///     advance of <c>0</c>, each falling back to <c>0.5em</c> when the font lacks the glyph; a
+///     <c>normal</c> line height is <c>1.2em</c>; <c>rem</c> and <c>rlh</c> resolve against the root
+///     <c>svg</c> element; and the viewport units are percentages of the root viewport in user
+///     units (the same viewBox-derived basis a percentage uses), which differs from a browser only
+///     when the root <c>width</c>/<c>height</c> and <c>viewBox</c> disagree. A trailing <c>%</c>
+///     resolves against the current viewport, per the SVG specification's per-attribute basis rules:
+///     a horizontal attribute resolves against the current viewport width; a vertical attribute
 ///     against the current viewport height; an axis-agnostic length (<c>stroke-width</c>, a
 ///     circle's <c>r</c>, and each <c>stroke-dasharray</c> entry) against
 ///     <c>sqrt(width^2 + height^2) / sqrt(2)</c>; and <c>font-size</c> against the parent element's
 ///     own already-cascaded <c>font-size</c>. The current viewport is carried by the same cascading
 ///     per-element render state as every other inherited presentation attribute, and is only ever
 ///     changed by the document root or a <c>symbol</c> referenced via <c>use</c> (see the ViewBox
-///     fitting paragraph above); every other element inherits it unchanged. <c>stroke-miterlimit</c>
-///     is the sole documented exception: it remains a unitless ratio per the SVG specification, not
-///     a length, so a percentage on it is deliberately still rejected as invalid numeric syntax (see
-///     below), unchanged from this codec's original behavior. Gradient coordinates on a
-///     <c>userSpaceOnUse</c> gradient are a separate, narrower simplification: they are still
-///     always resolved as basis-1 fractions of the gradient's own bounding-box-relative coordinate
-///     space rather than the current viewport (see this class's <c>GetGradientCoordinateOrDefault</c>
-///     remarks) - a bounded, intentionally out-of-scope simplification for this phase, not a defect.
+///     fitting paragraph above); every other element inherits it unchanged. Quantities that are not
+///     <c>&lt;length&gt;</c>s - <c>viewBox</c>, <c>transform</c> arguments, path data, <c>points</c>,
+///     <c>stroke-miterlimit</c>, filter primitive parameters - stay unitless numbers per the
+///     specification; a percentage on <c>stroke-miterlimit</c> is deliberately still rejected as
+///     invalid numeric syntax (see below). Gradient, pattern and mask-region coordinates resolve a
+///     <c>%</c> against their own coordinate space, identically for a plain percentage and one
+///     inside a math function (SVG 2, Paint Servers): a fraction of <c>1</c> under the default
+///     <c>objectBoundingBox</c> units, and the current viewport on the attribute's own axis
+///     (width for the <c>x</c> family, height for the <c>y</c> family, the diagonal basis for
+///     <c>r</c>/<c>fr</c>) under <c>userSpaceOnUse</c>. A math expression keeps its type (CSS Values
+///     Level 4, "Type Checking"). One that resolves to a number (<c>calc(1 + 1)</c>) is accepted
+///     wherever SVG 2 allows a <c>&lt;number&gt;</c> - the property grammar
+///     <c>&lt;length-percentage&gt; | &lt;number&gt;</c> of <c>stroke-width</c>,
+///     <c>stroke-dasharray</c> entries and <c>stroke-dashoffset</c> (SVG 2, Painting), and every
+///     length presentation attribute, because SVG 2 "Attribute syntax" (Types 4.2) inserts
+///     <c>&lt;number&gt;</c> into <c>&lt;length&gt;</c> and <c>&lt;length-percentage&gt;</c> for a
+///     presentation attribute (shape/text/<c>use</c>/<c>image</c>/<c>marker</c> geometry, text
+///     <c>dx</c>/<c>dy</c>, gradient/pattern/mask coordinates, the root <c>width</c>/<c>height</c>
+///     and the <c>font-size</c> attribute) - and is then user units, exactly like a literal bare
+///     number. A mixed expression (<c>calc(1 + 1px)</c>, <c>calc(10% + 1)</c>) is always invalid.
+///     The one length-percentage-only grammar is a CSS-declared <c>font-size</c> (inline style,
+///     stylesheet rule, <c>font</c> shorthand or <c>font</c> attribute), where a number-typed result
+///     is ignored (class F); <c>line-height</c> keeps treating it as a multiplier. This rests on
+///     the specification text alone; browser behavior for a number-typed math function in an SVG
+///     attribute has not been verified.
+///     </para>
+///     <para>
+///     <b><c>font-size</c>, <c>line-height</c> and the <c>font</c> shorthand.</b> <c>font-size</c> is
+///     read from the presentation attribute, an inline <c>style</c>, a stylesheet rule, or the
+///     <c>font</c> shorthand (CSS Fonts Level 4: style, weight, size, <c>/ line-height</c> and
+///     family; the <c>font</c> presentation attribute ranks below every other source, and a
+///     system-font keyword drops the declaration). It accepts any length above, the keywords
+///     <c>xx-small</c> ... <c>xxx-large</c> (browser pixel sizes 9/10/13/16/18/24/32/48; the
+///     specification's factors would give 9.6/12/14.22/16/19.2/24/32/48), <c>larger</c>/
+///     <c>smaller</c> (parent times or divided by 1.2) and <c>inherit</c>/<c>initial</c>/<c>unset</c>.
+///     </para>
+///     <para>
+///     <b>Malformed-length policy.</b> Three classes, chosen so that no raw exception ever escapes
+///     and so that existing strictness is unchanged. <i>Class S (strict)</i> - shape, text, use,
+///     image and marker geometry, <c>stroke-width</c>, <c>stroke-dashoffset</c> and each
+///     <c>stroke-dasharray</c> entry: a value that is not a number, a number with a known unit, a
+///     percentage or a math function, that is a mixed-type math expression (a number combined
+///     with a length or percentage), or that is non-finite or beyond the supported magnitude after
+///     conversion, throws <see cref="InvalidDataException"/> (never a <see cref="FormatException"/>).
+///     <i>Class T (tolerant)</i> - root <c>width</c>/<c>height</c>, gradient and pattern coordinates
+///     and mask-region coordinates: an unparseable value is treated as absent and the
+///     usual default or fallback applies. <i>Class F (font and text offsets)</i> - <c>font-size</c>,
+///     <c>line-height</c>, the <c>font</c> shorthand and the text <c>dx</c>/<c>dy</c> offsets: an
+///     invalid declaration (including a number-typed math result in a CSS-declared
+///     <c>font-size</c>) is ignored (the CSS invalid-declaration rule), so the value is inherited
+///     (or, for <c>dx</c>/<c>dy</c>, the offset is zero).
 ///     </para>
 ///     <para>
 ///     <b>GetInfo fallback policy.</b> <see cref="GetInfo(Stream)"/> resolves an intrinsic size in
 ///     three tiers: a valid <c>viewBox</c> attribute, if present; otherwise valid <c>width</c>/
-///     <c>height</c> attributes, if both are present and parse successfully; otherwise the CSS/UA
+///     <c>height</c> attributes (converted to user units - <c>1in</c> is 96 - using the root's own
+///     <c>font-size</c> attribute or inline <c>style</c> for <c>em</c>/<c>rem</c>; a percentage or
+///     viewport unit has no basis and counts as absent), if both are present and parse successfully;
+///     otherwise the CSS/UA
 ///     default replaced-element intrinsic size of 300x150. <see cref="ImageInfo.Channels"/> is
 ///     always <c>4</c> and <see cref="ImageInfo.HasAlpha"/> is always <see langword="true"/>,
 ///     since every rasterized pixel carries an alpha channel regardless of document content.

@@ -419,4 +419,82 @@ public class SvgFixtureTests
         // id rule
         Assert.Equal(new Rgba32(0, 255, 255, 255), surface[190, 10]);
     }
+
+    /// <summary>
+    ///     Loads <c>vega-px-font-size.svg</c> (hand-authored in the shape Vega's SVG renderer emits:
+    ///     <c>font-size="10px"</c> axis labels offset with <c>dy="0.71em"</c>, <c>px</c> units on
+    ///     stroke and rect attributes) with only the bundled fonts, so the render is reproducible.
+    /// </summary>
+    /// <param name="mutate">An optional transformation applied to the fixture text before rendering.</param>
+    /// <returns>The rendered surface at the fixture's native 220x120 size.</returns>
+    private static Surface RenderVegaFixture(Func<string, string>? mutate = null)
+    {
+        var text = File.ReadAllText(ResolveFixturePath("vega-px-font-size.svg"));
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(mutate == null ? text : mutate(text)));
+        return SvgCodec.Load(stream, 220, 120, null, new SvgLoadOptions { UseSystemFonts = false });
+    }
+
+    /// <summary>
+    ///     Proves the reported Vega case end to end: the fixture, which used to be rejected with
+    ///     "invalid numeric data" because of <c>font-size="10px"</c>, loads and renders
+    ///     pixel-identically to the same document with every <c>px</c> suffix stripped (the form the
+    ///     codec accepted before units were supported).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_VegaPxFontSizeFixture_RendersSameAsStrippedPx()
+    {
+        // Arrange / Act
+        var withUnits = RenderVegaFixture();
+        var stripped = RenderVegaFixture(text => text.Replace("px", string.Empty, StringComparison.Ordinal));
+
+        // Assert: same size and every pixel identical, and the document is not blank
+        Assert.Equal(stripped.Width, withUnits.Width);
+        Assert.Equal(stripped.Height, withUnits.Height);
+        for (var y = 0; y < stripped.Height; y++)
+        {
+            for (var x = 0; x < stripped.Width; x++)
+            {
+                Assert.Equal(stripped[x, y], withUnits[x, y]);
+            }
+        }
+
+        Assert.NotEqual(new Rgba32(255, 255, 255, 255), withUnits[55, 70]);
+    }
+
+    /// <summary>
+    ///     Proves the axis labels of <c>vega-px-font-size.svg</c> render at 10 user units, not at the
+    ///     16-unit default a dropped <c>font-size</c> would give, and are placed by their
+    ///     <c>dy="0.71em"</c> offset: the dark glyph pixels below the axis line span the height of
+    ///     a 10-unit digit, with the baseline about 7 units below the label's anchor.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_VegaPxFontSizeFixture_RendersTenUnitLabelsBelowAxis()
+    {
+        // Arrange / Act
+        var surface = RenderVegaFixture();
+
+        // Assert: below the axis line (rows 102 and down), find the rows holding dark label ink
+        var firstRow = -1;
+        var lastRow = -1;
+        for (var y = 102; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                var pixel = surface[x, y];
+                if (pixel.A > 0 && pixel.R < 128)
+                {
+                    firstRow = firstRow < 0 ? y : firstRow;
+                    lastRow = y;
+                }
+            }
+        }
+
+        // Assert: a 10px digit is about 7 high (cap-height ratio ~0.72); at 16px it would be ~11.5
+        Assert.True(firstRow >= 0, "Expected label ink below the axis line.");
+        var inkHeight = lastRow - firstRow + 1;
+        Assert.InRange(inkHeight, 6, 9);
+
+        // Assert: the baseline sits at anchor y (10 + 93 = 103) + 0.71 * 10 = 110.1 - the dy offset applied
+        Assert.InRange(lastRow, 109, 111);
+    }
 }

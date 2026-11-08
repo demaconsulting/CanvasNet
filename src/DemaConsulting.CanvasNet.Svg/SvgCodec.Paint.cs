@@ -35,13 +35,18 @@ public static partial class SvgCodec
     /// <param name="localPath">The shape's local-space outline, used as a gradient's object-bounding-box basis.</param>
     /// <param name="transform">The accumulated transform, composed into a resolved gradient's own transform.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="state">
+    ///     The referencing element's cascaded state, used to resolve a gradient coordinate written
+    ///     with a CSS unit (<c>em</c> resolves against the referencing element's font - a documented
+    ///     simplification of the paint server's own cascade).
+    /// </param>
     /// <returns>
     ///     A boxed <see cref="Rgba32"/>, a <see cref="Gradient"/>, or <see langword="null"/> - see
     ///     this class's error-handling policy remarks for why an unrecognized color keyword or a
     ///     dangling <c>url(#id)</c> reference tolerantly resolve to <see langword="null"/> rather
     ///     than throwing.
     /// </returns>
-    private static object? ResolvePaint(string spec, float alphaMultiplier, Path localPath, Matrix3x2 transform, RenderContext context)
+    private static object? ResolvePaint(string spec, float alphaMultiplier, Path localPath, Matrix3x2 transform, RenderContext context, RenderState state)
     {
         var trimmed = spec.Trim();
         if (trimmed.Length == 0 || string.Equals(trimmed, "none", StringComparison.OrdinalIgnoreCase))
@@ -57,7 +62,7 @@ public static partial class SvgCodec
                 return null;
             }
 
-            return BuildGradient(element, alphaMultiplier, localPath, transform, context);
+            return BuildGradient(element, alphaMultiplier, localPath, transform, context, state);
         }
 
         var color = ParseColor(trimmed);
@@ -104,7 +109,12 @@ public static partial class SvgCodec
     private static Rgba32? ParseColor(string spec) => CssColor.TryParse(spec, out var color) ? color : null;
 
     /// <summary>
-    ///     Parses either a bare number or a CSS percentage (resolved against <paramref name="basis"/>).
+    ///     Parses either a bare number or a CSS percentage (resolved against <paramref name="basis"/>)
+    ///     - the tolerant (class T) number-or-percentage parser used by opacity-like and
+    ///     fraction-only values (stop <c>offset</c>, filter fractions). Gradient, pattern and mask
+    ///     coordinates do not use it: they resolve through <see cref="TryResolveLength"/> with a
+    ///     coordinate-space axis (see <see cref="GetGradientCoordinateOrDefault"/>), so a plain
+    ///     percentage and a percentage inside <c>calc()</c> always agree.
     /// </summary>
     /// <param name="token">The raw, trimmed text.</param>
     /// <param name="basis">The value a <c>100%</c> percentage resolves to.</param>

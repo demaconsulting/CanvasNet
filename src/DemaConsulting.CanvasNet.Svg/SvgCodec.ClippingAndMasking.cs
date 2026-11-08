@@ -225,7 +225,7 @@ public static partial class SvgCodec
         // state - only the current viewport size is carried forward, so a percentage length
         // within the clip content (e.g. a clip <rect>'s own x="10%") still resolves sensibly
         var clipBaseState = ApplyPresentationAttributes(
-            RenderState.Initial with { ViewportWidth = state.ViewportWidth, ViewportHeight = state.ViewportHeight },
+            RenderState.InitialWithin(state),
             clipPathElement,
             context);
 
@@ -307,9 +307,7 @@ public static partial class SvgCodec
 
         var font = ResolveFont(context, childState.FontFamily, childState.FontWeight, childState.FontStyle);
 
-        var origin = new Vector2(
-            GetFloatAttribute(child, "x", childState, PercentageAxis.Horizontal),
-            GetFloatAttribute(child, "y", childState, PercentageAxis.Vertical));
+        var origin = ResolveTextOrigin(child, childState);
         return BuildGlyphRunPath(text, font, childState, origin);
     }
 
@@ -409,7 +407,7 @@ public static partial class SvgCodec
         scope.FilterWorkBudget.RecordSurfaceAllocated(content.Width, content.Height);
         var maskSource = new Surface(content.Width, content.Height);
         var maskContext = context with { Surface = maskSource };
-        var maskState = RenderState.Initial with { ViewportWidth = state.ViewportWidth, ViewportHeight = state.ViewportHeight };
+        var maskState = RenderState.InitialWithin(state);
 
         var childScope = scope.Nested();
         foreach (var child in maskElement.Elements())
@@ -464,6 +462,7 @@ public static partial class SvgCodec
     /// </summary>
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
     /// <param name="bounds">The referencing element's already stroke-expanded local-space painted-content bounds.</param>
+    /// <param name="state">The referencing element's cascaded state, resolving a CSS-unit literal under <c>userSpaceOnUse</c>.</param>
     /// <returns>
     ///     The local-space mask region, or <see langword="null"/> if <paramref name="bounds"/> is
     ///     empty/degenerate or the region resolves to a non-finite or non-positive size.
@@ -475,19 +474,21 @@ public static partial class SvgCodec
     ///     interpreted (the mask's own region box, defaulting to <c>objectBoundingBox</c>), while
     ///     <c>maskContentUnits</c> (handled entirely separately, in <see cref="ApplyMask"/>)
     ///     governs the coordinate system the <c>mask</c> element's own <em>children</em> are
-    ///     rendered in (defaulting to <c>userSpaceOnUse</c> - the opposite default). A percentage
-    ///     <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> value always resolves as a <c>[0, 1]</c>
-    ///     fraction of <paramref name="bounds"/> regardless of <c>maskUnits</c> (mirroring
-    ///     <see cref="ParseFilterRegionFraction"/>'s identical percentage handling); only a bare
-    ///     number literal's interpretation actually depends on <c>maskUnits</c> - a bbox-relative
-    ///     fraction under the default <c>objectBoundingBox</c>, or a literal absolute local-space
-    ///     length under <c>userSpaceOnUse</c> (see <see cref="ReadMaskRegionCoordinate"/>/
-    ///     <see cref="ReadMaskRegionExtent"/>). A <c>userSpaceOnUse</c> percentage is documented as
-    ///     resolving against <paramref name="bounds"/> rather than the current viewport - a
-    ///     deliberate simplification, since the viewport's own dimensions are not threaded into
-    ///     this call site.
+    ///     rendered in (defaulting to <c>userSpaceOnUse</c> - the opposite default). Under the
+    ///     default <c>objectBoundingBox</c> every <c>x</c>/<c>y</c>/<c>width</c>/<c>height</c> value
+    ///     is a fraction of <paramref name="bounds"/>: a bare number is the fraction, a percentage
+    ///     is a fraction of <c>1</c>, and a math expression is evaluated on the
+    ///     <see cref="PercentageAxis.Fraction"/> axis (a number or a length/percentage result, so
+    ///     <c>calc(10% + 5%)</c> and <c>calc(0.1 + 0.2)</c> work, while <c>calc(10% + 0.1)</c>
+    ///     mixes a percentage and a number, is invalid and falls back to the default region). Under
+    ///     <c>userSpaceOnUse</c> the value is an absolute local-space length and a percentage - plain
+    ///     or inside a math function - is relative to the current viewport on that attribute's axis;
+    ///     a number-typed math result (<c>calc(1 + 1)</c>) is user units like a literal, per SVG 2
+    ///     "Attribute syntax" (Types 4.2), and a mixed-type expression falls back to the default
+    ///     region
+    ///     (see <see cref="ReadMaskRegionCoordinate"/>/<see cref="ReadMaskRegionExtent"/>).
     /// </remarks>
-    private static Rect? ComputeMaskRegionLocalBounds(XElement maskElement, Rect bounds)
+    private static Rect? ComputeMaskRegionLocalBounds(XElement maskElement, Rect bounds, RenderState state)
     {
         if (bounds.IsEmpty || bounds.Width <= 0f || bounds.Height <= 0f)
         {
@@ -497,10 +498,10 @@ public static partial class SvgCodec
         var isUserSpaceOnUse = string.Equals(
             (string?)maskElement.Attribute("maskUnits"), "userSpaceOnUse", StringComparison.Ordinal);
 
-        var x = ReadMaskRegionCoordinate((string?)maskElement.Attribute("x"), -0.10f, bounds.X, bounds.Width, isUserSpaceOnUse);
-        var y = ReadMaskRegionCoordinate((string?)maskElement.Attribute("y"), -0.10f, bounds.Y, bounds.Height, isUserSpaceOnUse);
-        var width = ReadMaskRegionExtent((string?)maskElement.Attribute("width"), 1.20f, bounds.Width, isUserSpaceOnUse);
-        var height = ReadMaskRegionExtent((string?)maskElement.Attribute("height"), 1.20f, bounds.Height, isUserSpaceOnUse);
+        var x = ReadMaskRegionCoordinate((string?)maskElement.Attribute("x"), -0.10f, bounds.X, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
+        var y = ReadMaskRegionCoordinate((string?)maskElement.Attribute("y"), -0.10f, bounds.Y, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
+        var width = ReadMaskRegionExtent((string?)maskElement.Attribute("width"), 1.20f, bounds.Width, isUserSpaceOnUse, state, PercentageAxis.Horizontal);
+        var height = ReadMaskRegionExtent((string?)maskElement.Attribute("height"), 1.20f, bounds.Height, isUserSpaceOnUse, state, PercentageAxis.Vertical);
 
         if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(width) || !float.IsFinite(height) ||
             width <= 0f || height <= 0f)
@@ -521,8 +522,11 @@ public static partial class SvgCodec
     /// <param name="origin">The reference bounds' own origin coordinate on this axis.</param>
     /// <param name="extent">The reference bounds' own extent on this axis.</param>
     /// <param name="isUserSpaceOnUse">Whether <c>maskUnits="userSpaceOnUse"</c> was specified.</param>
+    /// <param name="state">The referencing element's state, resolving a CSS-unit literal under <c>userSpaceOnUse</c>.</param>
+    /// <param name="axis">The viewport axis a <c>userSpaceOnUse</c> percentage resolves against.</param>
     /// <returns>The resolved local-space coordinate.</returns>
-    private static float ReadMaskRegionCoordinate(string? raw, float defaultFraction, float origin, float extent, bool isUserSpaceOnUse)
+    private static float ReadMaskRegionCoordinate(
+        string? raw, float defaultFraction, float origin, float extent, bool isUserSpaceOnUse, RenderState state, PercentageAxis axis)
     {
         if (raw == null)
         {
@@ -535,13 +539,19 @@ public static partial class SvgCodec
             return origin + (defaultFraction * extent);
         }
 
-        if (trimmed.EndsWith('%') || !isUserSpaceOnUse)
+        if (!isUserSpaceOnUse)
         {
-            var fraction = ParsePercentOrNumber(trimmed, 1f) ?? defaultFraction;
-            return origin + (fraction * extent);
+            // objectBoundingBox: a fraction of the bounds; a percentage is a fraction of 1 and a math
+            // expression may be a number or a length/percentage (see PercentageAxis.Fraction)
+            return TryResolveLength(trimmed, state, PercentageAxis.Fraction, out var fraction, out _, enforceMagnitude: false)
+                ? origin + (fraction * extent)
+                : origin + (defaultFraction * extent);
         }
 
-        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var literal) && float.IsFinite(literal)
+        // userSpaceOnUse: an absolute length. A percentage - plain or inside a math function - is
+        // relative to the current viewport on this axis; units convert to user units against the
+        // referencing element's state; anything unparseable falls back
+        return TryResolveLength(trimmed, state, axis, out var literal, out _)
             ? literal
             : origin + (defaultFraction * extent);
     }
@@ -555,8 +565,11 @@ public static partial class SvgCodec
     /// <param name="defaultFraction">The bbox-relative fraction to fall back to when absent/unparseable.</param>
     /// <param name="extent">The reference bounds' own extent on this axis.</param>
     /// <param name="isUserSpaceOnUse">Whether <c>maskUnits="userSpaceOnUse"</c> was specified.</param>
+    /// <param name="state">The referencing element's state, resolving a CSS-unit literal under <c>userSpaceOnUse</c>.</param>
+    /// <param name="axis">The viewport axis a <c>userSpaceOnUse</c> percentage resolves against.</param>
     /// <returns>The resolved local-space extent.</returns>
-    private static float ReadMaskRegionExtent(string? raw, float defaultFraction, float extent, bool isUserSpaceOnUse)
+    private static float ReadMaskRegionExtent(
+        string? raw, float defaultFraction, float extent, bool isUserSpaceOnUse, RenderState state, PercentageAxis axis)
     {
         if (raw == null)
         {
@@ -569,13 +582,14 @@ public static partial class SvgCodec
             return defaultFraction * extent;
         }
 
-        if (trimmed.EndsWith('%') || !isUserSpaceOnUse)
+        if (!isUserSpaceOnUse)
         {
-            var fraction = ParsePercentOrNumber(trimmed, 1f) ?? defaultFraction;
-            return fraction * extent;
+            return TryResolveLength(trimmed, state, PercentageAxis.Fraction, out var fraction, out _, enforceMagnitude: false)
+                ? fraction * extent
+                : defaultFraction * extent;
         }
 
-        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var literal) && float.IsFinite(literal)
+        return TryResolveLength(trimmed, state, axis, out var literal, out _)
             ? literal
             : defaultFraction * extent;
     }
@@ -589,15 +603,16 @@ public static partial class SvgCodec
     /// <param name="maskElement">The resolved <c>mask</c> element.</param>
     /// <param name="bounds">The referencing shape's own stroke-expanded local-space painted-content bounds.</param>
     /// <param name="transform">The accumulated transform from local space into pixel space.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a CSS-unit region literal.</param>
     /// <returns>
     ///     The pixel-space region as <c>(X, Y, Width, Height)</c>, or <see langword="null"/> under
     ///     the same conditions as <see cref="ComputeMaskRegionLocalBounds"/>/
     ///     <see cref="ConvertLocalRegionToPixelBounds"/>.
     /// </returns>
     private static (int X, int Y, int Width, int Height)? ComputeMaskRegionPixelBounds(
-        XElement maskElement, Rect bounds, Matrix3x2 transform)
+        XElement maskElement, Rect bounds, Matrix3x2 transform, RenderState state)
     {
-        var localRegion = ComputeMaskRegionLocalBounds(maskElement, bounds);
+        var localRegion = ComputeMaskRegionLocalBounds(maskElement, bounds, state);
         return localRegion == null ? null : ConvertLocalRegionToPixelBounds(localRegion.Value, transform);
     }
 }

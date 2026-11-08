@@ -1116,6 +1116,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgPatternTileSmoothingTests.cs"  # pattern tile sampling unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgDefaultFontTests.cs"  # default font resolution unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgLengthUnitTests.cs"  # length unit unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFontSizeTests.cs"  # font-size unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgLengthTestSupport.cs"  # length test helpers
 
   # CanvasNetPdf-Architecture Review (one per system)
   - id: CanvasNetPdf-Architecture
