@@ -306,6 +306,192 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that sequence blocks nested deeper than <see cref="MermaidLimits.MaxNestingDepth"/> fail at open, and
+    ///     that 32 nested blocks (the limit) render.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceDeepBlocks_AreALocatedLimit()
+    {
+        // Arrange
+        static string Nested(int depth) =>
+            "sequenceDiagram\n" + string.Concat(Enumerable.Range(0, depth).Select(i => $"loop L{i}\n")) + "A->>B: x\n" + string.Concat(Enumerable.Repeat("end\n", depth));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Nested(33)));
+        var size = MermaidDocument.Parse(Nested(32)).Measure(Tenth, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.True(exception.Location.Line > 1);
+        Assert.True(size.Height > 50);
+    }
+
+    /// <summary>
+    ///     Validates that more sequence participants than <see cref="MermaidLimits.MaxNodes"/> fail at open, located at
+    ///     the extra participant.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceTooManyParticipants_IsALocatedLimit()
+    {
+        // Arrange
+        var text = "sequenceDiagram\n" + string.Concat(Enumerable.Range(0, 2_001).Select(i => $"participant p{i}\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that a sequence message longer than <see cref="MermaidLimits.MaxLabelLength"/> fails at open.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceLongMessage_IsALocatedLimit()
+    {
+        // Arrange
+        var text = "sequenceDiagram\n    A->>B: " + string.Join(' ', Enumerable.Repeat("lorem", 1_000)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2, exception.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that wrapping long words (Mermaid's hyphenation, quadratic in the word) renders within the default
+    ///     layout work and fails with a located limit under a small one.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange: wrapped messages and notes of one long word each
+        var word = new string('w', 4_000);
+        var text = "---\nconfig:\n  wrap: true\n---\nsequenceDiagram\n" + string.Concat(Enumerable.Range(0, 4).Select(_ => $"    A->>B: {word}\n    Note over A: {word}\n"));
+        var document = MermaidDocument.Parse(text);
+        var small = new MermaidRenderOptions { Limits = new MermaidLimits { MaxLayoutWork = 100_000 } };
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > 100);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates that a storm of nested activations and blocks renders within the default layout work, fails with the
+    ///     limit under a small one, and stops on a canceled token.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels()
+    {
+        // Arrange
+        var text = new StringBuilder("sequenceDiagram\n");
+        for (var i = 0; i < 300; i++)
+        {
+            text.Append("    A->>+B: call ").Append(i).Append('\n');
+        }
+
+        for (var i = 0; i < 300; i++)
+        {
+            text.Append("    B-->>-A: return ").Append(i).Append('\n');
+        }
+
+        var document = MermaidDocument.Parse(text.ToString());
+        var small = new MermaidRenderOptions { Limits = new MermaidLimits { MaxLayoutWork = 10_000 } };
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > 1_000);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(1, exception.Location.Line);
+        Assert.Throws<OperationCanceledException>(() => document.Measure(Tenth, canceled.Token));
+    }
+
+    /// <summary>
+    ///     Validates that every sequence fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sequence"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the sequence fixtures that opening and measuring only ever throw
+    ///     the documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "->>", "-->>", "->", "-x", "--)", "<<->>", "-|\\", "//-", "+", "-", "()", ":", "loop L", "alt A", "else B", "end", "par P",
+            "and Q", "par_over R", "rect rgb(1, 2, 3)", "rect", "opt O", "critical C", "option D", "break E", "box Aqua G", "participant X",
+            "actor Y", "participant Z@{ \"type\": \"queue\" }", "participant W@{ \"type\": \"robot\" }", "create participant N",
+            "destroy A", "activate A", "deactivate A", "Note over A,B: n", "note left of A: n", "autonumber", "autonumber 10 5",
+            "links A: {\"x\": \"https://example.com\"}", "link A: L @ https://example.com", "properties A: {\"class\": \"c\"}",
+            "title T", "%%", "\n", "  ", "<br>", "wrap:", "$$x$$", "#59;",
+        ];
+        var random = new Random(20261109);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sequence"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
     ///     Mutates a text: deletes a range, inserts a token, duplicates a line or swaps two characters, one to three times.
     /// </summary>
     /// <param name="text">The text.</param>
