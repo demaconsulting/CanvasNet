@@ -272,13 +272,14 @@ internal sealed partial class ScenePainter
         // The stroke, built in device space with the scaled width and dashes
         if (item.Stroke is { Color.A: > 0 } stroke && stroke.Width > 0 && double.IsFinite(stroke.Width))
         {
-            var width = stroke.Width * placement.Scale;
-            if (!(width > 0) || width > MaxMagnitude)
+            // A width that rounds to zero in single precision (a tiny fit scale) draws nothing
+            var width = (float)(stroke.Width * placement.Scale);
+            if (!(width > 0) || !float.IsFinite(width) || width > MaxMagnitude)
             {
                 return;
             }
 
-            var half = width / 2;
+            var half = width / 2.0;
             if (charge)
             {
                 Charge(surface, bounds.X - half, bounds.Y - half, bounds.Right + half, bounds.Bottom + half, item);
@@ -286,7 +287,7 @@ internal sealed partial class ScenePainter
 
             var dash = DashFor(stroke, placement.Scale, item.Segments, out var dashOffset);
             var style = new StrokeStyle(
-                (float)width,
+                width,
                 stroke.Cap,
                 stroke.Join,
                 4f,

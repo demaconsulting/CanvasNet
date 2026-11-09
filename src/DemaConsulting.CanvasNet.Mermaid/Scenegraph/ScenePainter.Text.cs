@@ -52,9 +52,11 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        // The line box is charged once, then each run is drawn after the previous one, its outline stroked over its fill
-        var stroke = item.Stroke is { Color.A: > 0 } s && s.Width * placement.Scale is var strokeWidth && strokeWidth > 0 && strokeWidth <= MaxMagnitude ? s : null;
-        var half = stroke is null ? 0 : stroke.Width * placement.Scale / 2;
+        // The line box is charged once, then each run is drawn after the previous one, its outline stroked over its fill;
+        // a stroke width that rounds to zero in single precision (a tiny fit scale) draws no stroke
+        var strokeWidth = item.Stroke is { Color.A: > 0 } s ? (float)(s.Width * placement.Scale) : 0f;
+        var stroke = strokeWidth > 0 && float.IsFinite(strokeWidth) && strokeWidth <= MaxMagnitude ? item.Stroke : null;
+        var half = stroke is null ? 0 : strokeWidth / 2.0;
         Charge(surface, x - half, baseline - ascent - half, x + total + half, baseline + descent + half, item);
         foreach (var (run, font, size, width) in runs)
         {
@@ -66,7 +68,7 @@ internal sealed partial class ScenePainter
 
             if (stroke is not null)
             {
-                var style = new StrokeStyle((float)(stroke.Width * placement.Scale), stroke.Cap, stroke.Join, 4f, null, 0f);
+                var style = new StrokeStyle(strokeWidth, stroke.Cap, stroke.Join, 4f, null, 0f);
                 PathFiller.Fill(surface, PathStroker.Stroke(path, style, FlattenTolerance), stroke.Color, FillRule.NonZero, FlattenTolerance);
             }
 

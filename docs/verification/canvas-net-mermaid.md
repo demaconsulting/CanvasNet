@@ -227,6 +227,7 @@ with `mermaid-render-failed` at the participant (line 2), as Mermaid fails.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
@@ -244,7 +245,8 @@ default layout work and fail with `mermaid-limit-exceeded` under a small one; th
 fail with the limit at the diagram keyword under a small budget, and stop on a canceled token; that 200 messages under
 a work limit of 2,000 fail with `mermaid-limit-exceeded` naming `MaxLayoutWork`; and that a seeded mutation fuzzer over
 the sequence fixtures (eight mutations of each with the tokens of the sequence language) only ever raises the
-documented exception types.
+documented exception types; and that a sequence diagram whose stroke widths round to zero in single precision when
+it is fitted to 400 by 300 pixels (a width of 1e300, or an actor margin of 1e60) renders.
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 

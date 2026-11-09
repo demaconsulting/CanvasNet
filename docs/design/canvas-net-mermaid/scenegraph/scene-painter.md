@@ -31,7 +31,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   under 0.25 pixel, an entry over `MaxMagnitude` device pixels, or more than 50,000 estimated dashes are drawn solid,
   and a dash offset over `MaxMagnitude` is reduced by whole periods, so every value handed to the core
   `StrokeStyle` is finite in single precision. A text run whose device size is zero in single precision is not
-  drawn. `MaxShadowBlur` = 64 device pixels is the largest blur a drop shadow is drawn with.
+  drawn, and a stroke (of a path or of a text) whose device width is zero in single precision (a tiny fit scale) is
+  not drawn. `MaxShadowBlur` = 64 device pixels is the largest blur a drop shadow is drawn with.
 
 **Invariants**: `_painted` never exceeds `_maxPaintedPixels`; an instance paints one scene on one thread.
 

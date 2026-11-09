@@ -769,6 +769,32 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Validates that the first measurement of a text resets Mermaid's stateful break search (its drawing replaces the
+    ///     breaks with the global regex) and a repeated, memoized measurement does not.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch()
+    {
+        // Arrange: a text measured once, and a label whose break leaves the search past the end of the second label
+        const string First = "0123456789<br>x";
+        const string Second = "ab<br>cd word";
+        var builder = NewBuilder(out _);
+        var width = builder.CalculateTextWidth("word ", SequenceFont) + 1;
+
+        // Act
+        builder.WrapLabel(First, width, SequenceFont);
+        builder.CalculateTextWidth("word ", SequenceFont);
+        var missed = builder.WrapLabel(Second, width, SequenceFont);
+        builder.WrapLabel(First, width + 1, SequenceFont);
+        builder.CalculateTextWidth("never measured", SequenceFont);
+        var found = builder.WrapLabel(Second, width + 1, SequenceFont);
+
+        // Assert
+        Assert.Equal("ab<br>cd<br/>word", missed);
+        Assert.Equal(Second, found);
+    }
+
+    /// <summary>
     ///     Validates that hyphenating a long word is metered and stops at the work limit.
     /// </summary>
     [Fact]

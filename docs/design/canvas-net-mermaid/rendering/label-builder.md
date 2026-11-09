@@ -43,8 +43,10 @@ of the participants, messages, notes, and frames of a sequence diagram. The unit
   and a cache of the resolved faces by family, weight, and style.
 - `TextDimensions(Width, Height, LineHeight)` - the size `calculateTextDimensions` gives a text, in whole pixels.
 - For the text utilities, an optional `Meter` (the `LayoutWorkMeter` that measuring and hyphenating charge), the
-  memoized results of `wrapLabel` and `breakString` of one render, and the `lastIndex` of Mermaid's global
-  `lineBreakRegex`, which carries over from one test to the next within a render as it does in Mermaid.
+  memoized results of `wrapLabel` and `breakString` of one render, the `lastIndex` of Mermaid's global
+  `lineBreakRegex`, which carries over from one test to the next within a render as it does in Mermaid, and the
+  Mermaid memoize keys of the texts measured so far: the first measurement of a key resets that `lastIndex`, as
+  Mermaid's drawing of the measured text (its `replace` with the same regex) does on a memoize miss.
 
 #### Key Methods
 

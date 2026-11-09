@@ -212,6 +212,26 @@ public class SequenceLayoutTests
     }
 
     /// <summary>
+    ///     Validates that a measured message ends Mermaid's stateful break search, as its first measurement of a text
+    ///     does: a later wrapped message with a break is kept as written, so the participants are where Mermaid draws them
+    ///     (B at x 335, from the reference renderer) whatever the message before it.
+    /// </summary>
+    [Fact]
+    public void SequenceLayout_Draw_WrapAfterMeasuredBreak_KeepsTheLaterBreak()
+    {
+        // Arrange: the first message's break leaves the search past the end of the second message
+        const string Diagram =
+            "%%{init: {\"sequence\": {\"wrap\": true}}}%%\nsequenceDiagram\nparticipant A\nparticipant B\nparticipant C\nparticipant D\n" +
+            "C->>D: ccccccccccccccccccccccccccccccccccccccccccccccccccccc<br>c\nA->>B: a<br>b c d e f g h i j k l m n o p q r s t u v w\n";
+
+        // Act
+        var items = SceneQuery.SequenceItems(SceneQuery.Layout(Diagram));
+
+        // Assert
+        Assert.Equal(335, Box(items.Find("actor-top", "B")).X);
+    }
+
+    /// <summary>
     ///     Gets the bounds of an item.
     /// </summary>
     /// <param name="item">The item.</param>

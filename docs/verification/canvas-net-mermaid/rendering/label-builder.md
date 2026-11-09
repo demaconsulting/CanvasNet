@@ -143,6 +143,7 @@ wider; and that a font size of zero fails with `mermaid-render-failed` while mea
 `LabelBuilderTests.LabelBuilder_WrapLabel_LongWord_Hyphenated`,
 `LabelBuilderTests.LabelBuilder_BreakString_SurrogatePairs_KeptWhole`,
 `LabelBuilderTests.LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid`,
+`LabelBuilderTests.LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch`,
 `LabelBuilderTests.LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit`
 
 Asserts that a label that fits is kept, that `abc  abc abc abc` wraps into two lines of two words at a width that holds
@@ -151,5 +152,6 @@ word wider than the width is hyphenated where a line reaches it (`mmmm-`, `mmmm-
 `breakString` giving the hyphenated lines and the rest; that hyphenation splits at code points, never inside a
 surrogate pair; that after a label with a break the next label is tested from where that break ended, so its earlier
 break is missed and it is wrapped, that the miss resets the search, that a wrapped label is memoized, and that a fresh
-builder finds the break; and that hyphenating a word of 1,000 characters under a work limit of 10,000 fails with
+builder finds the break; that the first measurement of a text resets the search while a repeated measurement does not;
+and that hyphenating a word of 1,000 characters under a work limit of 10,000 fails with
 `mermaid-limit-exceeded` at the meter's location.

@@ -34,6 +34,16 @@ public class MermaidHardeningTests
     };
 
     /// <summary>
+    ///     Gets sequence diagrams whose stroke widths round to zero in single precision when fitted to 400 by 300 pixels
+    ///     (a tiny fit scale), found by review.
+    /// </summary>
+    public static TheoryData<string> SequenceTinyFitScales =>
+    [
+        "%%{init: {\"sequence\": {\"width\": 1e300}}}%%\nsequenceDiagram\nA->>B: hi\n",
+        "%%{init: {\"sequence\": {\"textPlacement\": \"old\", \"actorMargin\": 1e60, \"mirrorActors\": false}}}%%\nsequenceDiagram\nparticipant A\nparticipant B\n",
+    ];
+
+    /// <summary>
     ///     Validates the hostile corpus through the public API: each diagram renders, or fails with a located
     ///     <see cref="MermaidRenderException"/> of the expected code at the expected line, and never with another
     ///     exception.
@@ -66,6 +76,25 @@ public class MermaidHardeningTests
             Assert.Equal(code, failure.Code);
             Assert.Equal(line, failure.Location.Line);
         }
+    }
+
+    /// <summary>
+    ///     Validates that a sequence diagram fitted to a size at a tiny scale renders without throwing: a stroke width
+    ///     that rounds to zero in single precision draws no stroke.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [MemberData(nameof(SequenceTinyFitScales))]
+    public void CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((400, 300), (surface.Width, surface.Height));
     }
 
     /// <summary>

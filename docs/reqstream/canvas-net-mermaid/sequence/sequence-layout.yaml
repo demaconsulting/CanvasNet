@@ -27,6 +27,7 @@ sections:
                 tests:
                   - SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures
                   - SequenceLayout_Draw_WideMessage_WidensOnlyTheNeighborsMargin
+                  - SequenceLayout_Draw_WrapAfterMeasuredBreak_KeepsTheLaterBreak
 
               - id: CanvasNetMermaid-Sequence-SequenceLayout-MessagePlacement
                 title: >-

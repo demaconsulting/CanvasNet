@@ -45,11 +45,14 @@ asserted. Any position, size, number, or view box that differs from the asserted
 ##### CanvasNetMermaid-Sequence-SequenceLayout-ActorMargins: Participant Widths And Margins
 
 **Tests**: `SequenceLayoutTests.SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures`,
-`SequenceLayoutTests.SequenceLayout_Draw_WideMessage_WidensOnlyTheNeighborsMargin`
+`SequenceLayoutTests.SequenceLayout_Draw_WideMessage_WidensOnlyTheNeighborsMargin`,
+`SequenceLayoutTests.SequenceLayout_Draw_WrapAfterMeasuredBreak_KeepsTheLaterBreak`
 
 Asserts that two participants of one message are 150 by 65 at x 0 and x 200; and that a message much wider than the
 gap moves the second of two neighbors right so that the text fits with the wrap padding, while the same message
-between participants that are not neighbors leaves the third participant at its default x of 400.
+between participants that are not neighbors leaves the third participant at its default x of 400; and that,
+with wrapping on, a wrapped message with a break after a measured message with a later break keeps its break, so the
+second participant is at x 335 as the reference draws it.
 
 ##### CanvasNetMermaid-Sequence-SequenceLayout-MessagePlacement: Messages And Self Messages
 

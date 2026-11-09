@@ -36,7 +36,9 @@ internal readonly record struct TextDimensions(double Width, double Height, doub
 ///         with Mermaid's own keys, per builder (one render), so a label is wrapped once. Mermaid tests whether a label
 ///         already has a <c>&lt;br&gt;</c> with its global <c>lineBreakRegex</c>, whose <c>lastIndex</c> carries over from
 ///         one test to the next; the builder keeps that index too, so a label after one with a break is tested from the
-///         same position, as in Mermaid.
+///         same position, as in Mermaid. Mermaid's measurement is memoized too, and its first measurement of a text
+///         (by Mermaid's key) draws the text, replacing the breaks with the same regex, which resets the index; the builder
+///         resets it on the first measurement of a key likewise.
 ///     </para>
 ///     <para>
 ///         <b>Cost.</b> Every measurement charges the length of its text to <see cref="Meter"/>, so hyphenating a long
@@ -62,6 +64,9 @@ internal sealed partial class LabelBuilder
 
     /// <summary>The memoized results of <see cref="BreakString"/>, by Mermaid's key.</summary>
     private readonly Dictionary<string, (IReadOnlyList<string> Lines, string Remaining)> _breakCache = new(StringComparer.Ordinal);
+
+    /// <summary>The keys (Mermaid's memoize keys) of the texts <see cref="CalculateTextDimensions"/> has measured.</summary>
+    private readonly HashSet<string> _measuredKeys = new(StringComparer.Ordinal);
 
     /// <summary>The <c>lastIndex</c> of Mermaid's global <c>lineBreakRegex</c>.</summary>
     private int _lineBreakLastIndex;
@@ -161,6 +166,13 @@ internal sealed partial class LabelBuilder
         if (text.Length == 0)
         {
             return default;
+        }
+
+        // Mermaid memoizes the measurement; only the first one of a key draws the text, whose replace of the global
+        // lineBreakRegex resets its lastIndex
+        if (_measuredKeys.Add(string.Concat(text, font.Size.Text, font.Weight.Text, font.Family)))
+        {
+            _lineBreakLastIndex = 0;
         }
 
         // The size, weight and families the browser measures with

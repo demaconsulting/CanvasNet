@@ -344,6 +344,7 @@ sections:
           - CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit
           - CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels
           - CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders
           - CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded
 
       - id: CanvasNetMermaid-Determinism

@@ -136,4 +136,5 @@ sections:
                   - LabelBuilder_WrapLabel_LongWord_Hyphenated
                   - LabelBuilder_BreakString_SurrogatePairs_KeptWhole
                   - LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid
+                  - LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch
                   - LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit
