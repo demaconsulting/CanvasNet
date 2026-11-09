@@ -1019,7 +1019,10 @@ words:
   # Mermaid class diagram terms (jison terminals, the texts of mermaid's class parser specs)
   - backticked
   - BQUOTE
+  - bqstring
   - Città
+  - CSSCLASS
+  - GENERICTYPE
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

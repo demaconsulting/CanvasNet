@@ -1,0 +1,382 @@
+using DemaConsulting.CanvasNet.Mermaid.Class;
+
+namespace DemaConsulting.CanvasNet.Mermaid.Tests.Class;
+
+/// <summary>
+///     Unit tests of <see cref="ClassModel"/>: the class database operations (members, annotations, relations,
+///     namespaces, styles and links), its located errors and limits, and the mapping to the layout data.
+/// </summary>
+public class ClassModelTests
+{
+    /// <summary>Member texts and the display text, drawn text and classifier style Mermaid's <c>ClassMember</c> gives them.</summary>
+    public static TheoryData<string, string, string, string> MemberCases => new()
+    {
+        { "+String name", "+String name", "\\+String name", string.Empty },
+        { "-int count$", "-int count", "\\-int count", "text-decoration:underline;" },
+        { "String label*", "String label", "String label", "font-style:italic;" },
+        { "#List~int~ items", "#List<int> items", "\\#List&lt;int&gt; items", string.Empty },
+        { "+draw()*", "+draw()", "\\+draw()", "font-style:italic;" },
+        { "+create()$ Shape", "+create() : Shape", "\\+create() : Shape", "text-decoration:underline;" },
+        { "someAbstract()* int", "someAbstract() : int", "someAbstract() : int", "font-style:italic;" },
+        { "~describe() String$", "~describe() : String", "\\~describe() : String", "text-decoration:underline;" },
+        { "+map(Function~T,R~ f) Box~R~", "+map(Function<T,R> f) : Box<R>", "\\+map(Function&lt;T,R&gt; f) : Box&lt;R&gt;", string.Empty },
+    };
+
+    /// <summary>Generic texts and the TypeScript syntax Mermaid's <c>parseGenericTypes</c> gives them.</summary>
+    public static TheoryData<string, string> GenericCases => new()
+    {
+        { "List~int~", "List<int>" },
+        { "List~List~int~~", "List<List<int>>" },
+        { "Map~K, V~", "Map<K, V>" },
+        { "~T", "~T" },
+        { "Plain", "Plain" },
+    };
+
+    /// <summary>Links and what Mermaid's <c>strict</c> URL check makes of them.</summary>
+    public static TheoryData<string, string?> UrlCases => new()
+    {
+        { "google.com", "google.com" },
+        { "https://Example.com", "https://example.com/" },
+        { "/relative/page", "/relative/page" },
+        { "mailto:someone@example.com", "mailto:someone@example.com" },
+        { "javascript:alert(1)", "about:blank" },
+        { "  ", null },
+    };
+
+    /// <summary>
+    ///     Validates that a member text is split into visibility, name, parameters, return type and classifier as Mermaid
+    ///     does.
+    /// </summary>
+    /// <param name="member">The member text.</param>
+    /// <param name="display">The expected display text.</param>
+    /// <param name="text">The expected drawn text.</param>
+    /// <param name="cssStyle">The expected classifier style.</param>
+    [Theory]
+    [MemberData(nameof(MemberCases))]
+    public void ClassModel_AddMember_MemberText_SplitsLikeMermaid(string member, string display, string text, string cssStyle)
+    {
+        // Arrange
+        var model = CreateModel();
+
+        // Act
+        model.AddMember("Shape", member, default);
+
+        // Assert
+        var shape = Assert.Single(model.Classes);
+        var added = Assert.Single(shape.Members.Concat(shape.Methods));
+        Assert.Equal((display, text, cssStyle), (added.DisplayText, added.Text, added.CssStyle));
+    }
+
+    /// <summary>
+    ///     Validates that a member in angle quotes is an annotation and an empty member adds nothing.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddMember_AnnotationAndEmptyText_AreNotMembers()
+    {
+        // Arrange
+        var model = CreateModel();
+
+        // Act
+        model.AddMember("Shape", "<<interface>>", default);
+        model.AddMember("Shape", "   ", default);
+
+        // Assert
+        var shape = Assert.Single(model.Classes);
+        Assert.Equal(["interface"], shape.Annotations);
+        Assert.Empty(shape.Members);
+        Assert.Empty(shape.Methods);
+    }
+
+    /// <summary>
+    ///     Validates that a member with a closing parenthesis that Mermaid's method expression cannot read fails as
+    ///     Mermaid does, located at the statement.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddMember_UnreadableMethod_ThrowsLocatedError()
+    {
+        // Arrange
+        var model = CreateModel();
+        var location = new MermaidLocation("c.mmd", 3, 5);
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => model.AddMember("Shape", "(x)", location));
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.SyntaxError, location), (ex.Code, ex.Location));
+        Assert.Contains("Cannot read properties of undefined (reading 'startsWith')", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an annotation for a class that does not exist fails as Mermaid does, located at the class name.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddAnnotation_UnknownClass_ThrowsLocatedError()
+    {
+        // Arrange
+        var model = CreateModel();
+        var location = new MermaidLocation("c.mmd", 2, 15);
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => model.AddAnnotation("Missing", "interface", location));
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.SyntaxError, location), (ex.Code, ex.Location));
+        Assert.Contains("Cannot read properties of undefined (reading 'annotations')", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that generic tildes become angle brackets as Mermaid's <c>parseGenericTypes</c> writes them.
+    /// </summary>
+    /// <param name="input">The text.</param>
+    /// <param name="expected">The expected text.</param>
+    [Theory]
+    [MemberData(nameof(GenericCases))]
+    public void ClassModel_ParseGenericTypes_Text_FollowsMermaid(string input, string expected)
+    {
+        // Act
+        var actual = ClassModel.ParseGenericTypes(input);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    ///     Validates that classes get Mermaid's generic types, texts and DOM ids, numbered per model from 0.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddClass_GenericName_SplitsTypeAndNumbersDomIds()
+    {
+        // Arrange
+        var model = CreateModel();
+
+        // Act
+        model.AddClass("Box~T~", default);
+        model.AddClass("Box", default);
+        model.AddClass("Pair", default);
+
+        // Assert
+        Assert.Equal(
+            [("Box", "T", "Box&lt;T&gt;", "classId-Box-0"), ("Pair", string.Empty, "Pair", "classId-Pair-1")],
+            model.Classes.Select(c => (c.Id, c.Type, c.Text, c.DomId)));
+    }
+
+    /// <summary>
+    ///     Validates that a dotted namespace creates its implicit ancestors, and that a nested declaration is qualified by
+    ///     the enclosing namespace.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddNamespace_DottedAndNested_CreatesQualifiedNamespaces()
+    {
+        // Arrange
+        var model = CreateModel();
+
+        // Act
+        var outer = model.AddNamespace("Company.Project", null, default);
+        var inner = model.AddNamespace("Module", "Modules", default);
+        model.PopNamespace();
+        model.PopNamespace();
+
+        // Assert
+        Assert.Equal(("Company.Project", "Company.Project.Module"), (outer, inner));
+        Assert.Equal(
+            [("Company", false, (string?)null), ("Company.Project", true, "Company"), ("Company.Project.Module", true, "Company.Project")],
+            model.Namespaces.Select(n => (n.Id, n.Explicit, n.Parent)));
+        Assert.Equal("Modules", model.Namespaces[2].Label);
+        Assert.Equal(["Company.Project"], model.Namespaces[0].Children);
+    }
+
+    /// <summary>
+    ///     Validates that a style class applies only to the classes that already carry it when it is defined, and keeps
+    ///     its color styles as text styles.
+    /// </summary>
+    [Fact]
+    public void ClassModel_DefineClass_AppliesToClassesThatCarryIt()
+    {
+        // Arrange
+        var model = CreateModel();
+        model.AddClass("Hot", default);
+        model.AddClass("Later", default);
+        model.SetCssClass("Hot", "warm");
+
+        // Act
+        model.DefineClass(["warm"], ["fill:#f96,color:#036"]);
+        model.SetCssClass("Later", "warm");
+
+        // Assert
+        Assert.Equal(["fill:#f96", "color:#036"], model.Classes[0].Styles);
+        Assert.Empty(model.Classes[1].Styles);
+        Assert.Equal(["bgFill:#f96,color:#036"], Assert.Single(model.StyleClasses).TextStyles);
+    }
+
+    /// <summary>
+    ///     Validates that a CSS class for an id that starts with a digit matches no class, because of Mermaid's prefix.
+    /// </summary>
+    [Fact]
+    public void ClassModel_SetCssClass_DigitId_MatchesNoClass()
+    {
+        // Arrange
+        var model = CreateModel();
+        model.AddClass("1Alpha", default);
+        model.AddClass("Beta", default);
+
+        // Act
+        model.SetCssClass("1Alpha,Beta", "hot");
+
+        // Assert
+        Assert.Equal(["default", "default hot"], model.Classes.Select(c => c.CssClasses));
+    }
+
+    /// <summary>
+    ///     Validates that links are checked as Mermaid's <c>strict</c> security level does.
+    /// </summary>
+    /// <param name="link">The link as written.</param>
+    /// <param name="expected">The expected link, or null for none.</param>
+    [Theory]
+    [MemberData(nameof(UrlCases))]
+    public void ClassModel_FormatUrl_Link_IsCheckedLikeMermaid(string link, string? expected)
+    {
+        // Act
+        var actual = ClassModel.FormatUrl(link);
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    ///     Validates that a lollipop end with no end on the other side becomes an interface node, and both lollipop ends
+    ///     do not.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddRelation_Lollipop_AddsInterfaceNode()
+    {
+        // Arrange
+        var model = CreateModel();
+
+        // Act
+        model.AddRelation(new ClassRelationInput("Ignition", "Engine", "none", "none", new(ClassModel.Lollipop, null, ClassModel.SolidLine), null), default);
+        model.AddRelation(new ClassRelationInput("Left", "Right", "none", "none", new(ClassModel.Lollipop, ClassModel.Lollipop, ClassModel.SolidLine), null), default);
+
+        // Assert
+        var face = Assert.Single(model.Interfaces);
+        Assert.Equal(("interface0", "Ignition", "Engine"), (face.Id, face.Label, face.ClassId));
+        Assert.Equal(["Engine", "Left", "Right"], model.Classes.Select(c => c.Id));
+        Assert.Equal(("interface0", "Engine"), (model.Relations[0].Id1, model.Relations[0].Id2));
+    }
+
+    /// <summary>
+    ///     Validates that relations beyond <see cref="MermaidLimits.MaxEdges"/> and nodes beyond
+    ///     <see cref="MermaidLimits.MaxNodes"/> are refused, located.
+    /// </summary>
+    [Fact]
+    public void ClassModel_Limits_TooManyRelationsOrNodes_ThrowLimitExceeded()
+    {
+        // Arrange
+        var model = new ClassModel(new MermaidLimits { MaxEdges = 1, MaxNodes = 3 }, default, "classDiagram");
+        var location = new MermaidLocation("c.mmd", 4, 1);
+        model.AddRelation(new ClassRelationInput("A", "B", "none", "none", new(null, null, ClassModel.SolidLine), null), default);
+        model.AddClass("C", default);
+
+        // Act
+        var edges = Assert.Throws<MermaidSyntaxException>(() =>
+            model.AddRelation(new ClassRelationInput("A", "C", "none", "none", new(null, null, ClassModel.SolidLine), null), location));
+        var nodes = Assert.Throws<MermaidSyntaxException>(() => model.AddNote("text", null, location));
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, location), (edges.Code, edges.Location));
+        Assert.Contains("MaxEdges", edges.Message, StringComparison.Ordinal);
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, location), (nodes.Code, nodes.Location));
+        Assert.Contains("MaxNodes", nodes.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the layout data of a relation: Mermaid's id, the markers, a minimum length of 1, the label and the
+    ///     cardinalities as terminal labels, with <c>none</c> as no label.
+    /// </summary>
+    [Fact]
+    public void ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels()
+    {
+        // Arrange
+        const string Text = "classDiagram\n    Customer \"1\" *--> Order : places\n";
+        var model = ClassFacts.Parse(Text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(Text));
+
+        // Assert
+        var edge = Assert.Single(data.Edges);
+        Assert.Equal(("id_Customer_Order_1", "composition", "dependency", 1), (edge.Id, edge.ArrowTypeStart, edge.ArrowTypeEnd, edge.MinLen));
+        Assert.Equal(("places", "1", string.Empty, "solid"), (edge.Label, edge.StartLabelRight, edge.EndLabelLeft, edge.Pattern));
+        Assert.Equal(("classDiagram", "TB"), (data.DiagramType, data.Direction));
+        Assert.Equal(["aggregation", "extension", "composition", "dependency", "lollipop"], data.Markers);
+    }
+
+    /// <summary>
+    ///     Validates the layout data of notes, namespaces and classes: the note link to an existing class, the namespace
+    ///     cluster with its padding, and the class box texts.
+    /// </summary>
+    [Fact]
+    public void ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes()
+    {
+        // Arrange
+        const string Text = "classDiagram\n    namespace Shop {\n        class Order {\n            +int id\n            +total()$ double\n        }\n    }\n" +
+            "    note for Order \"kept\"\n    note for Missing \"orphan\"\n";
+        var model = ClassFacts.Parse(Text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal(["Shop", "Order", "note0", "note1"], data.Nodes.Select(n => n.Id));
+        Assert.Equal(("rect", true, 16.0), (data.Nodes[0].Shape, data.Nodes[0].IsGroup, data.Nodes[0].Padding));
+        var box = data.Nodes[1].ClassBox!;
+        Assert.Equal(("Shop", "classId-Order-0"), (data.Nodes[1].ParentId, data.Nodes[1].DomId));
+        Assert.Equal(["\\+int id"], box.Members.Select(m => m.Text));
+        Assert.Equal([("\\+total() : double", "text-decoration:underline;")], box.Methods.Select(m => (m.Text, m.CssStyle)));
+        var link = Assert.Single(data.Edges);
+        Assert.Equal(("edgeNote0", "note0", "Order", "dotted", 1), (link.Id, link.Start, link.End, link.Pattern, link.MinLen));
+        Assert.Equal(["text-align: left", "white-space: nowrap", "fill: #fff5ad", "stroke: #aaaa33"], data.Nodes[2].CssStyles);
+    }
+
+    /// <summary>
+    ///     Validates that with <c>class.hierarchicalNamespaces</c> false only the declared namespaces are clusters,
+    ///     labeled with their qualified id, and classes move to the nearest declared namespace.
+    /// </summary>
+    [Fact]
+    public void ClassModel_GetData_CompactNamespaces_KeepDeclaredOnly()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  class:\n    hierarchicalNamespaces: false\n---\nclassDiagram\n    namespace A.B.C {\n        class Deep\n    }\n    namespace A {\n        class Top\n    }\n";
+        var model = ClassFacts.Parse(Text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal(
+            [("A", "A", (string?)null), ("A.B.C", "A.B.C", null), ("Deep", "Deep", "A.B.C"), ("Top", "Top", "A")],
+            data.Nodes.Select(n => (n.Id, n.Label, n.ParentId)));
+    }
+
+    /// <summary>
+    ///     Validates that the class spacing comes from the state section, as Mermaid's class renderer reads it.
+    /// </summary>
+    [Fact]
+    public void ClassModel_GetData_Spacing_FollowsTheStateSection()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  state:\n    nodeSpacing: 80\n    rankSpacing: 70\n---\nclassDiagram\n    class A\n";
+        var model = ClassFacts.Parse(Text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal((80.0, 70.0), (data.NodeSpacing, data.RankSpacing));
+    }
+
+    /// <summary>
+    ///     Creates an empty model with the default limits.
+    /// </summary>
+    /// <returns>The model.</returns>
+    private static ClassModel CreateModel() => new(MermaidLimits.Default, default, "classDiagram");
+}
