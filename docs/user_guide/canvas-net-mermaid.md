@@ -139,8 +139,8 @@ wall-clock bound.
 | -------- | ------- | -------------- | ------------------- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
 | `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), or the relations of a class diagram | `MermaidSyntaxException` |
-| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants of a sequence diagram, or the classes, namespaces, notes, and lollipop interfaces of a class diagram | `MermaidSyntaxException` |
-| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters | `MermaidSyntaxException` |
+| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, or the classes, namespaces, notes, and lollipop interfaces of a class diagram | `MermaidSyntaxException` |
+| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text included) | `MermaidSyntaxException` |
 | `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
 | `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram) | `MermaidRenderException` |

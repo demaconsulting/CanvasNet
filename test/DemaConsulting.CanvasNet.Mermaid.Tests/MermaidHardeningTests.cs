@@ -408,6 +408,45 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that sequence boxes count against <see cref="MermaidLimits.MaxNodes"/> with the participants: once
+    ///     1,000 boxes of one participant each reach the limit, the next box fails at open, located at the box.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceTooManyBoxes_IsALocatedLimit()
+    {
+        // Arrange: 1,000 boxes and their 1,000 participants reach the limit; the next box is one too many
+        var text = "sequenceDiagram\n" + string.Concat(Enumerable.Range(0, 1_001).Select(i => $"box Aqua b{i}\nparticipant p{i}\nend\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert: box 1,000 (counted from zero) is on line 2 + 3 * 1,000
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a sequence participant metadata alias that is short as source but long once converted (a list
+    ///     of 9,000 <c>1e20</c> numbers, about 45,000 characters, becomes a 197,999-character description) fails at
+    ///     open with <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceMetadataAliasList_IsALocatedLimit()
+    {
+        // Arrange
+        var text = "sequenceDiagram\n    participant A@{ \"alias\": [" + string.Join(",", Enumerable.Repeat("1e20", 9_000)) + "] }\n    A->>A: x\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a sequence message longer than <see cref="MermaidLimits.MaxLabelLength"/> fails at open.
     /// </summary>
     [Fact]

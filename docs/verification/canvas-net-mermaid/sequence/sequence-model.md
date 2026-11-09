@@ -120,12 +120,25 @@ Asserts how five texts are read (a theory): `wrap:` after spaces sets the wrap s
 `:nowrap:` clears it, and a prefix later in the text, in upper case, or after two colons is kept as text; and that a
 message with `wrap:` wraps, one with `nowrap:` does not, and one without a prefix follows the configuration.
 
-##### CanvasNetMermaid-Sequence-SequenceModel-Limits: The Participant Limit
+##### CanvasNetMermaid-Sequence-SequenceModel-Limits: The Participant, Box, And Metadata Limits
 
-**Tests**: `SequenceModelTests.SequenceModel_Apply_TooManyParticipants_ThrowsLimitExceeded`
+**Tests**: `SequenceModelTests.SequenceModel_Apply_TooManyParticipants_ThrowsLimitExceeded`,
+`SequenceModelTests.SequenceModel_Apply_TooManyBoxes_ThrowsLimitExceeded`,
+`SequenceModelTests.SequenceModel_Apply_ParticipantAfterBoxes_ThrowsLimitExceeded`,
+`SequenceModelTests.SequenceModel_Apply_ParticipantsAndBoxesAtTheLimit_AreAccepted`,
+`SequenceModelTests.SequenceModel_Apply_LongMetadataAlias_ThrowsLimitExceeded`,
+`SequenceModelTests.SequenceModel_Apply_LongMetadataType_ThrowsLimitExceeded`,
+`SequenceModelTests.SequenceModel_Apply_GrowingMetadataAliasList_ThrowsLimitExceeded`
 
 Asserts that with `MaxNodes` of 3 the fourth participant is `mermaid-limit-exceeded` at line 3, column 5, the
-statement that adds it.
+statement that adds it; that a box that is the fourth participant or box is refused at the box statement (line 6,
+column 5) with the message `more than 3 nodes and subgraphs (MermaidLimits.MaxNodes)`; that a participant after two
+boxes and one participant is refused at its statement (line 6, column 5); and that one box and two participants are
+accepted. Asserts that with `MaxLabelLength` of 10 a metadata `alias` or `type` of 11 characters is
+`mermaid-limit-exceeded` at the YAML value (line 2, column 30 and column 29) with the message
+`a label is 11 characters long`, while an alias of 10 characters is the description; and that, under the default
+limit, an alias list of 9,000 `1e20` numbers is refused after it is converted, as a label of 197,999 characters, at
+the YAML value.
 
 ##### CanvasNetMermaid-Sequence-SequenceModel-Metadata: Title And Counts
 
