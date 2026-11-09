@@ -104,25 +104,34 @@ sections:
               - id: CanvasNetMermaid-Sequence-SequenceRenderer-Text
                 title: >-
                   The SequenceRenderer unit shall show a text with Mermaid's entity placeholders turned into their
-                  characters, and with the old text placement draw each participant label as one text as written, below
-                  the middle of its box, in the root font, filled and stroked by the participant rule.
+                  characters, draw a text whose configured font size is a number without a unit at that many pixels,
+                  as the browser draws SVG text, and with the old text placement draw each participant label as one
+                  text as written, below the middle of its box, in the root font, filled and stroked by the participant
+                  rule.
                 justification: |
-                  The text shown must be the text Mermaid shows, also in the older placement that some diagrams
-                  select.
+                  The text shown must be the text Mermaid shows, at the size the browser draws it, also in the older
+                  placement that some diagrams select.
                 tests:
                   - SequenceRenderer_DisplayText_DecodesEntityPlaceholders
+                  - SequenceRenderer_Layout_FractionalSizesWithoutUnit_TextsDrawnAtThoseSizes
                   - SequenceRenderer_TextPlacementOld_DrawsStrokedLabels
 
               - id: CanvasNetMermaid-Sequence-SequenceRenderer-Menus
                 title: >-
                   The SequenceRenderer unit shall give a participant with links a menu that is an empty group unless the
                   forceMenus setting is on, whose size still grows the view box as in Mermaid, draw a forced menu as a
-                  panel with its drop shadow and one line per link, and fail links on a participant type without a box
-                  with a located MermaidRenderException, as Mermaid fails.
+                  panel with its drop shadow and one line per link, the lines of a link label drawn at the participant
+                  font size as written (a number without a unit is pixels) and spaced by it as Mermaid spaces them (on
+                  one baseline when the size has a unit), and fail links on a participant type without a box with a
+                  located MermaidRenderException, as Mermaid fails.
                 justification: |
                   Mermaid's hidden menus take room in the picture, so the size must include them, and a forced menu
                   must be drawn as Mermaid draws it.
                 tests:
                   - SequenceRenderer_DrawPopup_Hidden_IsEmptyAndGrowsTheViewBox
                   - SequenceRenderer_DrawPopup_Forced_DrawsThePanelAndLinks
+                  - SequenceRenderer_DrawPopup_LabelSizeWithUnit_LinesShareABaseline
+                  - SequenceRenderer_DrawPopup_NumericSize_LinesSpacedBySize
+                  - SequenceRenderer_DrawPopup_ActorSizeWithoutUnit_DrawnAtThatSize
+                  - SequenceRenderer_DrawPopup_FractionalActorSize_DrawnAtThatSize
                   - SequenceRenderer_DrawPopup_ActorWithLinks_FailsLocated

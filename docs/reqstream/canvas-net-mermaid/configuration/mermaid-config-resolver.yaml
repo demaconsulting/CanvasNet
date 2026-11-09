@@ -151,4 +151,6 @@ sections:
                   - MermaidConfigResolver_Resolve_SequenceFonts_FollowSetConf
                   - MermaidConfigResolver_Resolve_SequenceWrap_FollowsInit
                   - MermaidConfigResolver_Resolve_SequenceInvalidValues_ReportedAndIgnored
+                  - MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues
+                  - MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted
                   - MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection

@@ -375,6 +375,116 @@ public class SequenceRendererTests
     }
 
     /// <summary>
+    ///     Validates that the lines of one menu link label share a baseline when the participant font size has a unit, as
+    ///     Mermaid 11.17.2 draws them: its menu <c>byTspan</c> spaces the lines by the raw <c>actorFontSize</c>, so
+    ///     <c>18px</c> (used because the top-level <c>fontSize</c> of 0 does not replace it) gives a <c>dy</c> of NaN
+    ///     that the browser rejects, while the next link stays 30 pixels below. The boxes are the reference renderer's.
+    /// </summary>
+    [Fact]
+    public void SequenceRenderer_DrawPopup_LabelSizeWithUnit_LinesShareABaseline()
+    {
+        // Act: a two-line link label and a second link, with the participant font size written with a unit
+        var (panel, texts) = MenuTexts("\"fontSize\": 0, \"sequence\": {\"forceMenus\": true, \"actorFontSize\": \"18px\"}");
+
+        // Assert: the panel and Mermaid's text boxes, the two lines of the first label on one baseline
+        Assert.Equal(new SceneRect(0, 65, 150, 80), panel);
+        Assert.Equal(["First", "second line", "Other"], texts.Select(text => text.Runs[0].Text));
+        AssertBox(new SceneRect(10, 85, 35.988, 20), texts[0].Box);
+        AssertBox(new SceneRect(10, 85, 91.078, 20), texts[1].Box);
+        AssertBox(new SceneRect(10, 115, 45.031, 20), texts[2].Box);
+        Assert.Equal(texts[0].Baseline, texts[1].Baseline);
+        Assert.Equal(30, texts[2].Baseline - texts[0].Baseline, 6);
+    }
+
+    /// <summary>
+    ///     Validates that the lines of one menu link label are spaced by, and drawn at, a top-level <c>fontSize</c>
+    ///     written as a number, as Mermaid 11.17.2 draws them: setConf copies 18 into <c>actorFontSize</c>, the menu
+    ///     <c>byTspan</c> writes it without a unit into the inline style, which the browser accepts on SVG text as 18
+    ///     pixels (also with a <c>themeVariables.fontSize</c> of <c>10px</c> on the diagram root), and spaces the lines
+    ///     18 pixels apart, with the next link 30 pixels below. The boxes are the reference renderer's.
+    /// </summary>
+    /// <param name="themeVariables">The <c>themeVariables</c> setting, or an empty text for none.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("\"themeVariables\": {\"fontSize\": \"10px\"}, ")]
+    public void SequenceRenderer_DrawPopup_NumericSize_LinesSpacedBySize(string themeVariables)
+    {
+        // Act: the same menu with the top-level font size as a number
+        var (panel, texts) = MenuTexts($"\"fontSize\": 18, {themeVariables}\"sequence\": {{\"forceMenus\": true}}");
+
+        // Assert: the panel, the 18-pixel font and Mermaid's text boxes, the lines 18 pixels apart
+        AssertMenuAt18Pixels(panel, texts);
+    }
+
+    /// <summary>
+    ///     Validates that a menu link label is drawn at a participant font size given as a number or as a string of
+    ///     digits, without a unit, with the top-level <c>fontSize</c> of 0 (which keeps the section's size), as Mermaid
+    ///     11.17.2 draws it: the browser accepts the bare size in the inline style of the SVG text as 18 pixels, and
+    ///     the lines are 18 pixels apart. The boxes are the reference renderer's, the same as for a top-level 18.
+    /// </summary>
+    /// <param name="actorFontSize">The <c>actorFontSize</c> as written in the JSON.</param>
+    [Theory]
+    [InlineData("18")]
+    [InlineData("\"18\"")]
+    public void SequenceRenderer_DrawPopup_ActorSizeWithoutUnit_DrawnAtThatSize(string actorFontSize)
+    {
+        // Act: the menu with the participant font size without a unit
+        var (panel, texts) = MenuTexts($"\"fontSize\": 0, \"sequence\": {{\"forceMenus\": true, \"actorFontSize\": {actorFontSize}}}");
+
+        // Assert: the panel, the 18-pixel font and Mermaid's text boxes, the lines 18 pixels apart
+        AssertMenuAt18Pixels(panel, texts);
+    }
+
+    /// <summary>
+    ///     Validates that a fractional participant font size written as a string without a unit (<c>15.5</c>) draws the
+    ///     menu link label at that size, as Mermaid 11.17.2 draws it: the browser accepts the bare size on SVG text as
+    ///     15.5 pixels, and the lines are spaced by the raw size. The boxes are the reference renderer's.
+    /// </summary>
+    [Fact]
+    public void SequenceRenderer_DrawPopup_FractionalActorSize_DrawnAtThatSize()
+    {
+        // Act: the menu with a fractional participant font size as a string without a unit
+        var (panel, texts) = MenuTexts("\"fontSize\": 0, \"sequence\": {\"forceMenus\": true, \"actorFontSize\": \"15.5\"}");
+
+        // Assert: the panel, the 15.5-pixel font and Mermaid's text boxes
+        Assert.Equal(new SceneRect(0, 65, 150, 80), panel);
+        Assert.Equal(["First", "second line", "Other"], texts.Select(text => text.Runs[0].Text));
+        Assert.All(texts, text => Assert.Equal(15.5, text.Runs[0].Font.Size, 6));
+        AssertBox(new SceneRect(10, 78.75, 30.823, 17), texts[0].Box);
+        AssertBox(new SceneRect(10, 94.25, 78.795, 17), texts[1].Box);
+        AssertBox(new SceneRect(10, 116.5, 39.604, 17), texts[2].Box);
+        Assert.Equal(15.5, texts[1].Baseline - texts[0].Baseline, 6);
+    }
+
+    /// <summary>
+    ///     Validates that fractional font sizes written as strings without a unit draw the participant, message and note
+    ///     texts at those sizes, as Mermaid 11.17.2 draws them: <c>parseFontSize</c> keeps <c>15.5</c>, <c>18.5</c> and
+    ///     <c>17.5</c> as the CSS sizes (they are not their integer alone), and the browser accepts a bare number in the
+    ///     inline style of SVG text as pixels. The boxes are the reference renderer's.
+    /// </summary>
+    [Fact]
+    public void SequenceRenderer_Layout_FractionalSizesWithoutUnit_TextsDrawnAtThoseSizes()
+    {
+        // Arrange: fractional sizes for the participants, the messages and the notes
+        const string Diagram =
+            "%%{init: {\"fontSize\": 0, \"sequence\": {\"actorFontSize\": \"15.5\", \"messageFontSize\": \"18.5\", " +
+            "\"noteFontSize\": \"17.5\"}}}%%\nsequenceDiagram\n    participant A as Alice\n    participant B as Bob\n" +
+            "    A->>B: hello there\n    Note over A,B: a note\n";
+
+        // Act
+        var items = SceneQuery.SequenceItems(SceneQuery.Layout(Diagram));
+        var actor = ((SceneGroup)items.Find("actor-top", "A")!).Children.OfType<SceneText>().Single();
+        var message = items.WithRole("message-text").OfType<SceneText>().Single();
+        var note = items.WithRole("note-text").OfType<SceneText>().Single();
+
+        // Assert: the sizes and Mermaid's text boxes
+        Assert.Equal([15.5, 18.5, 17.5], new[] { actor, message, note }.Select(text => text.Runs[0].Font.Size));
+        AssertBox(new SceneRect(57.195, 24, 34.976, 17), actor.Box);
+        AssertBox(new SceneRect(130.797, 86.391, 86.406, 21), message.Box);
+        AssertBox(new SceneRect(150.672, 138.125, 48.922, 20), note.Box);
+    }
+
+    /// <summary>
     ///     Validates that links on a participant type without a box fail at the participant, as Mermaid fails.
     /// </summary>
     [Fact]
@@ -467,4 +577,46 @@ public class SequenceRendererTests
         var box = Scene.BoundsOf([item])!.Value;
         return new SceneRect(Math.Round(box.X, 3), Math.Round(box.Y, 3), Math.Round(box.Width, 3), Math.Round(box.Height, 3));
     }
+
+    /// <summary>
+    ///     Lays out a participant with a forced menu of a two-line link label and a one-line link label.
+    /// </summary>
+    /// <param name="init">The members of the init directive.</param>
+    /// <returns>The bounds of the menu panel and the menu texts.</returns>
+    private static (SceneRect Panel, List<SceneText> Texts) MenuTexts(string init)
+    {
+        var diagram =
+            $"%%{{init: {{{init}}}}}%%\nsequenceDiagram\nparticipant A\n" +
+            "link A: First<br>second line @ https://a.example\nlink A: Other @ https://b.example\nA->>A: hi\n";
+        var menu = (SceneGroup)SceneQuery.SequenceItems(SceneQuery.Layout(diagram)).Find("menu", "actor0_popup")!;
+        return (Bounds(menu.Children.OfType<ScenePath>().Single(child => child.Role == "menu-panel")), [.. menu.Children.OfType<SceneText>()]);
+    }
+
+    /// <summary>
+    ///     Asserts the menu of <see cref="MenuTexts"/> at an 18-pixel participant font as the reference renderer draws it:
+    ///     the panel, the font size, the text boxes, and the lines of the first label 18 pixels apart.
+    /// </summary>
+    /// <param name="panel">The panel.</param>
+    /// <param name="texts">The link texts.</param>
+    private static void AssertMenuAt18Pixels(SceneRect panel, List<SceneText> texts)
+    {
+        Assert.Equal(new SceneRect(0, 65, 150, 80), panel);
+        Assert.Equal(["First", "second line", "Other"], texts.Select(text => text.Runs[0].Text));
+        Assert.All(texts, text => Assert.Equal(18, text.Runs[0].Font.Size, 6));
+        AssertBox(new SceneRect(10, 76, 35.988, 20), texts[0].Box);
+        AssertBox(new SceneRect(10, 94, 91.078, 20), texts[1].Box);
+        AssertBox(new SceneRect(10, 115, 45.031, 20), texts[2].Box);
+        Assert.Equal(18, texts[1].Baseline - texts[0].Baseline, 6);
+    }
+
+    /// <summary>
+    ///     Asserts that a box matches an expected box within the golden text tolerance (0.02 pixel).
+    /// </summary>
+    /// <param name="expected">The expected box.</param>
+    /// <param name="box">The box.</param>
+    private static void AssertBox(SceneRect expected, SceneRect box) =>
+        Assert.True(
+            Math.Abs(expected.X - box.X) <= 0.02 && Math.Abs(expected.Y - box.Y) <= 0.02 &&
+            Math.Abs(expected.Width - box.Width) <= 0.02 && Math.Abs(expected.Height - box.Height) <= 0.02,
+            $"expected {expected}, got {box}");
 }

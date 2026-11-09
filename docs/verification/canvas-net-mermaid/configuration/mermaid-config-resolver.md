@@ -131,6 +131,8 @@ Asserts that a text with a secure key and an invalid directive gives warnings wi
 `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceFonts_FollowSetConf`,
 `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceWrap_FollowsInit`,
 `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceInvalidValues_ReportedAndIgnored`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted`,
 `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection`
 
 Asserts, for a sequence diagram without configuration, Mermaid's sequence defaults (participants 150 by 65, the
@@ -142,5 +144,8 @@ apply, and that a top-level `fontSize`, `fontFamily`, and `fontWeight` replace a
 when the top-level `wrap`, a `%%{wrap}%%` directive, or `sequence.wrap` is true, and that a false top-level `wrap`
 does not turn off the section's (a theory of seven cases); that a Boolean of the wrong type, a width that is text, a
 font size that is a Boolean, and the alignment `diagonal` are four `mermaid-config-invalid` warnings at the directive
-and leave the defaults, while the alignment `end` and the font size `18px` are accepted; and that a single directive's
-`config` key is moved to the sequence section (`mirrorActors`, `actorMargin`, and `textPlacement`).
+and leave the defaults, while the alignment `end` and the font size `18px` are accepted; that the alignment `justify`
+of `messageAlign` or `noteAlign` is one `mermaid-config-invalid` warning whose message says the value must be left,
+center, right, start, middle or end and whose hint names the same six values, leaving `center`; that each of those
+six values is accepted for both keys without a warning; and that a single directive's `config` key is moved to the
+sequence section (`mirrorActors`, `actorMargin`, and `textPlacement`).

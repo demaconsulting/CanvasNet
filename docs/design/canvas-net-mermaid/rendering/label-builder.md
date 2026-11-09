@@ -81,8 +81,9 @@ of the participants, messages, notes, and frames of a sequence diagram. The unit
 - Text utilities (`LabelBuilder.TextDimensions.cs`):
   - `ParseFontSize(ConfigScalar)` - Mermaid's `parseFontSize`: a number is pixels; a string gives its `parseInt` value
     and is itself the CSS size, with `px` added when it is that integer alone; `FontPixels(css)` gives the pixels a
-    browser draws a CSS size at (a length with a unit, `em` and `rem` of 16 pixels, zero, or the inherited 16 pixels
-    for a size the browser does not accept).
+    browser draws the inline CSS size of an SVG text at (a length with a unit, `em` and `rem` of 16 pixels, a
+    non-negative number without a unit as pixels, which Chrome accepts on SVG text, or the inherited 16 pixels for a
+    size the browser does not accept).
   - `SplitBreaks(text)` - Mermaid's `splitBreaks`: the lines between `<br>` tags in any letter case, with white space
     and an optional slash, empty lines kept.
   - `CalculateTextDimensions(text, MermaidFontConfig)` and `CalculateTextWidth` - Mermaid's `calculateTextDimensions`:

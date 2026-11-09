@@ -98,22 +98,24 @@ internal sealed partial class LabelBuilder
     }
 
     /// <summary>
-    ///     Gets the font size in pixels that the browser draws a CSS font size at: a length with a unit (<c>em</c> and
-    ///     <c>rem</c> of 16 pixels), zero, or the inherited 16 pixels for anything else (a missing size, a number without a
-    ///     unit), which the browser does not accept.
+    ///     Gets the font size in pixels that the browser draws the inline CSS font size of an SVG text at: a length with
+    ///     a unit (<c>em</c> and <c>rem</c> of 16 pixels), or a non-negative number without a unit as pixels (Chrome
+    ///     parses the inline style of an SVG element as it parses a presentation attribute, which accepts a unitless
+    ///     number, so a <c>font-size</c> of <c>18</c> is drawn at 18 pixels); or the inherited 16 pixels for anything else
+    ///     (a missing, negative or malformed size, or a number ending in a decimal point), which the browser does not
+    ///     accept.
     /// </summary>
     /// <param name="css">The CSS font size, or null.</param>
     /// <returns>The size in pixels.</returns>
     public static double FontPixels(string? css)
     {
         var text = css?.Trim();
-        if (string.IsNullOrEmpty(text) || !StyleDeclarations.TryParseLength(text, InheritedFontSize, out var size))
+        if (string.IsNullOrEmpty(text) || text[^1] == '.' || !StyleDeclarations.TryParseLength(text, InheritedFontSize, out var size))
         {
             return InheritedFontSize;
         }
 
-        var unitless = char.IsDigit(text[^1]) || text[^1] == '.';
-        return unitless && size != 0 ? InheritedFontSize : Math.Min(size, StyleDeclarations.MaxFontSize);
+        return Math.Min(size, StyleDeclarations.MaxFontSize);
     }
 
     /// <summary>
