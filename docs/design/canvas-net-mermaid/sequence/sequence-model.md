@@ -113,7 +113,13 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
   - participant metadata that is not valid YAML or uses YAML that the reader does not support (`mermaid-yaml-invalid`
     and `mermaid-yaml-unsupported` of the YAML reader of the `Syntax` subsystem), or that nests deeper than
     `MaxYamlDepth` (`mermaid-limit-exceeded`);
-  - more participants than `MaxNodes` (`mermaid-limit-exceeded`, at the statement that adds one too many).
+  - more participants and boxes together than `MaxNodes` (`mermaid-limit-exceeded`, at the statement that adds one
+    too many, with the flowchart's message `more than N nodes and subgraphs`);
+  - a metadata `type` or `alias` longer than `MaxLabelLength` once converted to a string (`mermaid-limit-exceeded`,
+    at the YAML value, with the flowchart's label message): the parser checks the tokens it reads as texts, but the
+    metadata is one `CONFIG_CONTENT` token whose converted values can be far longer than their source (a list of
+    numbers such as `1e20` grows about four times), so the model checks the values it uses, as the flowchart model
+    checks the labels of its shape data.
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first unsupported feature
   in strict mode; the warnings never throw.
 - `Layout` propagates the render errors of the layout and the renderer (`MermaidRenderException` for the layout work
@@ -148,8 +154,9 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
 
 - **Database errors are located.** Where Mermaid's database throws with its message, the model raises a located
   `MermaidSyntaxException` with Mermaid's message after the location and code, and a hint that names the participant.
-- **Limits at open.** `MaxNodes` refuses more participants when the document is opened, as a `MermaidSyntaxException`
-  with code `mermaid-limit-exceeded`; Mermaid has no participant limit.
+- **Limits at open.** `MaxNodes` refuses more participants and boxes together, and `MaxLabelLength` a longer metadata
+  type or alias, when the document is opened, as a `MermaidSyntaxException` with code `mermaid-limit-exceeded`;
+  Mermaid has no participant, box, or label limit.
 - **The browser's color check.** `CSS.supports('color', ...)` is emulated with the colors that the core color parser
   reads, the color keywords and system colors, and Mermaid's color functions.
 - **Interaction.** Links, link, properties, and details are kept as data; `details` reads nothing, since there is no

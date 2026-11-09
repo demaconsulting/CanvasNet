@@ -267,8 +267,9 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
 
 - `MaxTextSize`, 50,000 (Mermaid's `maxTextSize`): checked at open on the code after the frontmatter, directives,
   and comments are removed; the raw text may be at most four times larger. Failure: `InvalidDataException`.
-- `MaxEdges`, 500 (Mermaid's `maxEdges`); `MaxNodes`, 2,000 (subgraphs included; the participants of a sequence
-  diagram); `MaxLabelLength`, 4,096 (also the accessible title and description); `MaxNestingDepth`, 32 (subgraphs,
+- `MaxEdges`, 500 (Mermaid's `maxEdges`); `MaxNodes`, 2,000 (subgraphs included; the participants and boxes of a
+  sequence diagram); `MaxLabelLength`, 4,096 (also the accessible title and description, and the type and alias of
+  sequence participant metadata); `MaxNestingDepth`, 32 (subgraphs,
   and the blocks and boxes of a sequence diagram; at most 256); `MaxYamlDepth`, 32 (at
   most 256; YAML aliases, anchors, and tags are refused): checked at open. Failure: `MermaidSyntaxException` with
   `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused YAML construct).

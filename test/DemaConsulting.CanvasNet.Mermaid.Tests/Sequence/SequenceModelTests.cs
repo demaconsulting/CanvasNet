@@ -352,6 +352,128 @@ public class SequenceModelTests
     }
 
     /// <summary>
+    ///     Validates that a box counts against <see cref="MermaidLimits.MaxNodes"/> together with the participants: a box
+    ///     that adds one too many is refused at the box statement.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_TooManyBoxes_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNodes = 3 };
+        var text = "sequenceDiagram\n    participant A\n    box Aqua One\n    participant B\n    end\n" +
+            "    box Aqua Two\n    participant C\n    end\n";
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => SequenceFacts.Parse(text, limits: limits));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 6, 5), ex.Location);
+        Assert.Contains("more than 3 nodes and subgraphs (MermaidLimits.MaxNodes)", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a participant that would pass <see cref="MermaidLimits.MaxNodes"/> once the boxes are counted
+    ///     is refused at the statement that adds it.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_ParticipantAfterBoxes_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNodes = 3 };
+        var text = "sequenceDiagram\n    box Aqua One\n    participant A\n    end\n    box Aqua Two\n    participant B\n    end\n";
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => SequenceFacts.Parse(text, limits: limits));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 6, 5), ex.Location);
+        Assert.Contains("MermaidLimits.MaxNodes", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that participants and boxes that together reach <see cref="MermaidLimits.MaxNodes"/> exactly are
+    ///     accepted.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_ParticipantsAndBoxesAtTheLimit_AreAccepted()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNodes = 3 };
+
+        // Act
+        var model = SequenceFacts.Parse("sequenceDiagram\n    box Aqua One\n    participant A\n    end\n    B->>A: x\n", limits: limits);
+
+        // Assert
+        Assert.Equal((2, 1), (model.NodeCount, model.SubgraphCount));
+    }
+
+    /// <summary>
+    ///     Validates that a metadata <c>alias</c> longer than <see cref="MermaidLimits.MaxLabelLength"/> is refused,
+    ///     located at the YAML value, while one at the limit is the description.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_LongMetadataAlias_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 10 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(
+            () => SequenceFacts.Parse("sequenceDiagram\n    participant A@{ \"alias\": \"Description\" }\n", limits: limits));
+        var accepted = SequenceFacts.Parse("sequenceDiagram\n    participant A@{ \"alias\": \"Narratives\" }\n", limits: limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 30), ex.Location);
+        Assert.Contains("a label is 11 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxLabelLength", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("Narratives", Assert.Single(accepted.Actors).Description);
+    }
+
+    /// <summary>
+    ///     Validates that a metadata <c>type</c> longer than <see cref="MermaidLimits.MaxLabelLength"/> is refused,
+    ///     located at the YAML value.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_LongMetadataType_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 10 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(
+            () => SequenceFacts.Parse("sequenceDiagram\n    participant A@{ \"type\": \"Description\" }\n", limits: limits));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 29), ex.Location);
+        Assert.Contains("a label is 11 characters long", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a metadata <c>alias</c> list that grows when converted to a string (each <c>1e20</c> becomes
+    ///     21 digits) is checked after the conversion: 9,000 items, short enough as source, give a 197,999-character
+    ///     description and are refused under the default <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_GrowingMetadataAliasList_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var text = "sequenceDiagram\n    participant A@{ \"alias\": [" + string.Join(",", Enumerable.Repeat("1e20", 9_000)) + "] }\n";
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => SequenceFacts.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 30), ex.Location);
+        Assert.Contains("a label is 197999 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxLabelLength", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the order of the keys of a property map: array indexes first, in numeric order, then the other keys
     ///     in insertion order; a key set again keeps its place.
     /// </summary>

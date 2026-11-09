@@ -103,12 +103,22 @@ sections:
 
               - id: CanvasNetMermaid-Sequence-SequenceModel-Limits
                 title: >-
-                  The SequenceModel unit shall refuse more participants than MaxNodes with a MermaidSyntaxException of
-                  code mermaid-limit-exceeded located at the statement that adds one too many.
+                  The SequenceModel unit shall refuse more participants and boxes together than MaxNodes, located at
+                  the statement that adds one too many, and a participant metadata type or alias longer than
+                  MaxLabelLength once converted to a string, located at the YAML value, with a MermaidSyntaxException
+                  of code mermaid-limit-exceeded.
                 justification: |
-                  The number of participants bounds the work of the layout and must be bounded for untrusted text.
+                  The numbers of participants and boxes bound the work of the layout, and the metadata type and alias
+                  are drawn as labels whose converted text can be far longer than its source, so both must be bounded
+                  for untrusted text as the flowchart bounds its vertices, subgraphs, and shape-data labels.
                 tests:
                   - SequenceModel_Apply_TooManyParticipants_ThrowsLimitExceeded
+                  - SequenceModel_Apply_TooManyBoxes_ThrowsLimitExceeded
+                  - SequenceModel_Apply_ParticipantAfterBoxes_ThrowsLimitExceeded
+                  - SequenceModel_Apply_ParticipantsAndBoxesAtTheLimit_AreAccepted
+                  - SequenceModel_Apply_LongMetadataAlias_ThrowsLimitExceeded
+                  - SequenceModel_Apply_LongMetadataType_ThrowsLimitExceeded
+                  - SequenceModel_Apply_GrowingMetadataAliasList_ThrowsLimitExceeded
 
               - id: CanvasNetMermaid-Sequence-SequenceModel-Metadata
                 title: >-

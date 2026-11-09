@@ -340,6 +340,8 @@ sections:
           - CanvasNetMermaid_Hardening_HostileCorpus_RendersOrFailsLocated
           - CanvasNetMermaid_Hardening_SequenceDeepBlocks_AreALocatedLimit
           - CanvasNetMermaid_Hardening_SequenceTooManyParticipants_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_SequenceTooManyBoxes_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_SequenceMetadataAliasList_IsALocatedLimit
           - CanvasNetMermaid_Hardening_SequenceLongMessage_IsALocatedLimit
           - CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit
           - CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels
