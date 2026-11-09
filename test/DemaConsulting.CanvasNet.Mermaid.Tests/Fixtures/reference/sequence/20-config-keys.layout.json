@@ -1,0 +1,271 @@
+{
+  "source": "20-config-keys.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -50, 558, 403],
+  "title": {
+    "class": null,
+    "lines": ["Configuration keys"],
+    "at": [129, -25],
+    "anchor": "start",
+    "baseline": null,
+    "fontSize": 16,
+    "fontWeight": "400",
+    "fill": "rgb(51, 51, 51)",
+    "box": [129, -39, 132.516, 17]
+  },
+  "actors": [
+    {
+      "name": "Producer",
+      "type": "participant",
+      "description": "Producer",
+      "top": {
+        "box": [0, 0, 120, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 120, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Producer"],
+            "at": [60, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [27.539, 24, 65.594, 17]
+          }
+        ]
+      },
+      "bottom": null,
+      "lifeline": { "line": [60, 65, 60, 2000], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Consumer",
+      "type": "participant",
+      "description": "Consumer",
+      "top": {
+        "box": [307, 0, 120, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [307, 0, 120, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Consumer"],
+            "at": [367, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [330.094, 24, 74.477, 17]
+          }
+        ]
+      },
+      "bottom": null,
+      "lifeline": { "line": [367, 65, 367, 2000], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Producer",
+      "to": "Consumer",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["A message aligned to the left"],
+          "at": [71, 80],
+          "anchor": "start",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [70, 86.219, 207.023, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [61, 113, 363, 113]
+    },
+    {
+      "id": "i1",
+      "from": "Consumer",
+      "to": "Consumer",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Right angle self message"],
+          "at": [378, 128],
+          "anchor": "start",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [378, 134.219, 179.758, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M  368,147 H 458 V 172 H 368",
+      "length": 205,
+      "points": [
+        [368, 147],
+        [378.25, 147],
+        [388.5, 147],
+        [398.75, 147],
+        [409, 147],
+        [419.25, 147],
+        [429.5, 147],
+        [439.75, 147],
+        [450, 147],
+        [458, 149.25],
+        [458, 159.5],
+        [458, 169.75],
+        [450, 172],
+        [439.75, 172],
+        [429.5, 172],
+        [419.25, 172],
+        [409, 172],
+        [398.75, 172],
+        [388.5, 172],
+        [378.25, 172],
+        [368, 172]
+      ]
+    },
+    {
+      "id": "i4",
+      "from": "Consumer",
+      "to": "Producer",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Reply"],
+          "at": [74, 296],
+          "anchor": "start",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [74, 302.219, 41.906, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [366, 329, 64, 329]
+    }
+  ],
+  "notes": [
+    {
+      "id": "i2",
+      "box": [20, 191, 387, 37],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["A note aligned to the right"],
+          "at": [397, 196],
+          "anchor": "end",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [214.531, 202.219, 183.023, 17.016]
+        }
+      ]
+    }
+  ],
+  "activations": [],
+  "frames": [
+    {
+      "id": "i5",
+      "lines": [
+        {
+          "line": [45, 242, 382, 242],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [382, 242, 382, 343],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [45, 343, 382, 343],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [45, 242, 45, 343],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[45, 242], [95, 242], [95, 255], [86.6, 262], [45, 262]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["loop"],
+          "at": [70, 255],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [54.875, 245.219, 30.352, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[Retry]"],
+          "at": [238.5, 264],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [214.938, 250, 47.125, 17]
+        }
+      ]
+    }
+  ],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "lifeline:Consumer",
+    "actor-top:Consumer",
+    "lifeline:Producer",
+    "actor-top:Producer",
+    "note:i2",
+    "frame:i5",
+    "message:i0",
+    "message:i1",
+    "message:i4",
+    "title"
+  ]
+}

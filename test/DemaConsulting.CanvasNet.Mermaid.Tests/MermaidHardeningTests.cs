@@ -34,6 +34,16 @@ public class MermaidHardeningTests
     };
 
     /// <summary>
+    ///     Gets sequence diagrams whose stroke widths round to zero in single precision when fitted to 400 by 300 pixels
+    ///     (a tiny fit scale), found by review.
+    /// </summary>
+    public static TheoryData<string> SequenceTinyFitScales =>
+    [
+        "%%{init: {\"sequence\": {\"width\": 1e300}}}%%\nsequenceDiagram\nA->>B: hi\n",
+        "%%{init: {\"sequence\": {\"textPlacement\": \"old\", \"actorMargin\": 1e60, \"mirrorActors\": false}}}%%\nsequenceDiagram\nparticipant A\nparticipant B\n",
+    ];
+
+    /// <summary>
     ///     Validates the hostile corpus through the public API: each diagram renders, or fails with a located
     ///     <see cref="MermaidRenderException"/> of the expected code at the expected line, and never with another
     ///     exception.
@@ -66,6 +76,59 @@ public class MermaidHardeningTests
             Assert.Equal(code, failure.Code);
             Assert.Equal(line, failure.Location.Line);
         }
+    }
+
+    /// <summary>
+    ///     Validates that a sequence diagram fitted to a size at a tiny scale renders without throwing: a stroke width
+    ///     that rounds to zero in single precision draws no stroke.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [MemberData(nameof(SequenceTinyFitScales))]
+    public void CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal((400, 300), (surface.Width, surface.Height));
+    }
+
+    /// <summary>
+    ///     Validates that the shadowed boxes of a sequence diagram (a box around participants and a forced menu panel)
+    ///     with a stroke width beyond any drawing (set by <c>themeCSS</c>, found by review) render without throwing,
+    ///     their strokes not drawn and their shadows the shadows of their fills alone: the same pixels as with a stroke
+    ///     width of zero.
+    /// </summary>
+    /// <param name="selector">The rule that sets the stroke width.</param>
+    /// <param name="width">The stroke width.</param>
+    [Theory]
+    [InlineData("g rect.rect", "1e300px")]
+    [InlineData("g rect.rect", "1e30px")]
+    [InlineData("g rect.rect", "40000px")]
+    [InlineData(".actorPopupMenuPanel", "1e300px")]
+    [InlineData(".actorPopupMenuPanel", "1e30px")]
+    [InlineData(".actorPopupMenuPanel", "40000px")]
+    public void CanvasNetMermaid_Hardening_SequenceHugeStrokeWidth_ShadowIsTheFillsShadow(string selector, string width)
+    {
+        // Arrange
+        MermaidDocument Diagram(string strokeWidth) => MermaidDocument.Parse(
+            "---\nconfig:\n  sequence:\n    forceMenus: true\n" +
+            $"  themeCSS: \"{selector} {{ stroke-width: {strokeWidth} }}\"\n---\n" +
+            "sequenceDiagram\n    box Aqua Group\n    participant A\n    end\n    participant B\n" +
+            "    link B: Home @ https://example.com/\n    A->>B: hi\n");
+        var huge = Diagram(width);
+        var none = Diagram("0");
+
+        // Act
+        using var surface = huge.Render(cancellationToken: TestContext.Current.CancellationToken);
+        using var expected = none.Render(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(MermaidTestHelpers.PixelsEqual(expected, surface));
     }
 
     /// <summary>
@@ -284,6 +347,192 @@ public class MermaidHardeningTests
         foreach (var fixture in fixtures)
         {
             for (var round = 0; round < 6; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
+    ///     Validates that sequence blocks nested deeper than <see cref="MermaidLimits.MaxNestingDepth"/> fail at open, and
+    ///     that 32 nested blocks (the limit) render.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceDeepBlocks_AreALocatedLimit()
+    {
+        // Arrange
+        static string Nested(int depth) =>
+            "sequenceDiagram\n" + string.Concat(Enumerable.Range(0, depth).Select(i => $"loop L{i}\n")) + "A->>B: x\n" + string.Concat(Enumerable.Repeat("end\n", depth));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Nested(33)));
+        var size = MermaidDocument.Parse(Nested(32)).Measure(Tenth, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.True(exception.Location.Line > 1);
+        Assert.True(size.Height > 50);
+    }
+
+    /// <summary>
+    ///     Validates that more sequence participants than <see cref="MermaidLimits.MaxNodes"/> fail at open, located at
+    ///     the extra participant.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceTooManyParticipants_IsALocatedLimit()
+    {
+        // Arrange
+        var text = "sequenceDiagram\n" + string.Concat(Enumerable.Range(0, 2_001).Select(i => $"participant p{i}\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that a sequence message longer than <see cref="MermaidLimits.MaxLabelLength"/> fails at open.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceLongMessage_IsALocatedLimit()
+    {
+        // Arrange
+        var text = "sequenceDiagram\n    A->>B: " + string.Join(' ', Enumerable.Repeat("lorem", 1_000)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2, exception.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that wrapping long words (Mermaid's hyphenation, quadratic in the word) renders within the default
+    ///     layout work and fails with a located limit under a small one.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange: wrapped messages and notes of one long word each
+        var word = new string('w', 4_000);
+        var text = "---\nconfig:\n  wrap: true\n---\nsequenceDiagram\n" + string.Concat(Enumerable.Range(0, 4).Select(_ => $"    A->>B: {word}\n    Note over A: {word}\n"));
+        var document = MermaidDocument.Parse(text);
+        var small = new MermaidRenderOptions { Limits = new MermaidLimits { MaxLayoutWork = 100_000 } };
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > 100);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates that a storm of nested activations and blocks renders within the default layout work, fails with the
+    ///     limit under a small one, and stops on a canceled token.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels()
+    {
+        // Arrange
+        var text = new StringBuilder("sequenceDiagram\n");
+        for (var i = 0; i < 300; i++)
+        {
+            text.Append("    A->>+B: call ").Append(i).Append('\n');
+        }
+
+        for (var i = 0; i < 300; i++)
+        {
+            text.Append("    B-->>-A: return ").Append(i).Append('\n');
+        }
+
+        var document = MermaidDocument.Parse(text.ToString());
+        var small = new MermaidRenderOptions { Limits = new MermaidLimits { MaxLayoutWork = 10_000 } };
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > 1_000);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(1, exception.Location.Line);
+        Assert.Throws<OperationCanceledException>(() => document.Measure(Tenth, canceled.Token));
+    }
+
+    /// <summary>
+    ///     Validates that every sequence fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_SequenceFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sequence"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the sequence fixtures that opening and measuring only ever throw
+    ///     the documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "->>", "-->>", "->", "-x", "--)", "<<->>", "-|\\", "//-", "+", "-", "()", ":", "loop L", "alt A", "else B", "end", "par P",
+            "and Q", "par_over R", "rect rgb(1, 2, 3)", "rect", "opt O", "critical C", "option D", "break E", "box Aqua G", "participant X",
+            "actor Y", "participant Z@{ \"type\": \"queue\" }", "participant W@{ \"type\": \"robot\" }", "create participant N",
+            "destroy A", "activate A", "deactivate A", "Note over A,B: n", "note left of A: n", "autonumber", "autonumber 10 5",
+            "links A: {\"x\": \"https://example.com\"}", "link A: L @ https://example.com", "properties A: {\"class\": \"c\"}",
+            "title T", "%%", "\n", "  ", "<br>", "wrap:", "$$x$$", "#59;",
+        ];
+        var random = new Random(20261109);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sequence"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
             {
                 var text = Mutate(fixture, tokens, random);
                 try

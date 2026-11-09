@@ -1006,6 +1006,16 @@ words:
   - hypot
   - Steffen's
   - tridiagonal
+  # Mermaid sequence diagram terms (text prefixes, style sheet selectors, marker ids, jison terminals, color keywords)
+  - currentcolor
+  - LINETYPE
+  - nowrap
+  - sequencenumber
+  - signaltype
+  - startx
+  - starty
+  - stopx
+  - stopy
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

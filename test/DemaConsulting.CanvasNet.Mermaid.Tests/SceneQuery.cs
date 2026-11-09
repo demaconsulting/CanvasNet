@@ -1,3 +1,4 @@
+using System.Globalization;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
@@ -194,6 +195,13 @@ internal static class SceneQuery
     }
 
     /// <summary>
+    ///     Reads the items of a sequence diagram's scene by role and id (its items are not translated).
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <returns>The items.</returns>
+    public static SequenceScene SequenceItems(Scene scene) => new(scene);
+
+    /// <summary>
     ///     Translates a segment.
     /// </summary>
     /// <param name="s">The segment.</param>
@@ -206,4 +214,95 @@ internal static class SceneQuery
         SceneSegmentKind.ArcTo => s with { X = s.X + dx, Y = s.Y + dy },
         _ => s with { X = s.X + dx, Y = s.Y + dy, X1 = s.X1 + dx, Y1 = s.Y1 + dy, X2 = s.X2 + dx, Y2 = s.Y2 + dy },
     };
+
+    /// <summary>
+    ///     The items of a sequence diagram's scene: found by role and id, listed by role, and the paint order of the
+    ///     top-level items as the reference goldens key it.
+    /// </summary>
+    internal sealed class SequenceScene
+    {
+        /// <summary>The roles of top-level items and the keys of the paint order.</summary>
+        private static readonly Dictionary<string, string> OrderKeys = new(StringComparer.Ordinal)
+        {
+            ["actor-top"] = "actor-top",
+            ["actor-bottom"] = "actor-bottom",
+            ["lifeline"] = "lifeline",
+            ["message"] = "message",
+            ["sequence-number"] = "number",
+            ["connection-circles"] = "circles",
+            ["note"] = "note",
+            ["frame"] = "frame",
+            ["menu"] = "menu",
+        };
+
+        /// <summary>The items by role and id.</summary>
+        private readonly Dictionary<(string Role, string Id), SceneItem> _byId = [];
+
+        /// <summary>Every item, depth first in paint order.</summary>
+        private readonly List<SceneItem> _all;
+
+        /// <summary>
+        ///     Initializes the items of a scene.
+        /// </summary>
+        /// <param name="scene">The scene.</param>
+        public SequenceScene(Scene scene)
+        {
+            _all = [.. scene.Walk().Select(entry => entry.Item)];
+            foreach (var item in _all.Where(item => item.Id is not null))
+            {
+                _byId.TryAdd((item.Role, item.Id!), item);
+            }
+
+            var activations = 0;
+            var rects = 0;
+            var boxes = 0;
+            foreach (var item in scene.Items)
+            {
+                switch (item.Role)
+                {
+                    case "activation":
+                        Order.Add(string.Create(CultureInfo.InvariantCulture, $"activation:{activations++}"));
+                        break;
+                    case "rect":
+                        Order.Add(string.Create(CultureInfo.InvariantCulture, $"rect:{rects++}"));
+                        break;
+                    case "box":
+                        Order.Add(string.Create(CultureInfo.InvariantCulture, $"box:{boxes++}"));
+                        break;
+                    case "title":
+                        Order.Add("title");
+                        break;
+                    default:
+                        if (OrderKeys.TryGetValue(item.Role, out var key))
+                        {
+                            Order.Add(key + ":" + item.Id);
+                        }
+
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets the paint order of the top-level items as the goldens key it (<c>actor-top:name</c>, <c>message:i0</c>,
+        ///     <c>frame:i7</c>, <c>menu:actor0_popup</c>; activations, <c>rect</c> backgrounds and boxes by their index in
+        ///     the order, as <c>activation:0</c>, <c>rect:0</c> and <c>box:0</c>).
+        /// </summary>
+        public List<string> Order { get; } = [];
+
+        /// <summary>
+        ///     Finds an item by role and id.
+        /// </summary>
+        /// <param name="role">The role.</param>
+        /// <param name="id">The id.</param>
+        /// <returns>The item, or null.</returns>
+        public SceneItem? Find(string role, string id) => _byId.GetValueOrDefault((role, id));
+
+        /// <summary>
+        ///     Gets every item of a role, in paint order.
+        /// </summary>
+        /// <param name="role">The role.</param>
+        /// <returns>The items.</returns>
+        public IEnumerable<SceneItem> WithRole(string role) => _all.Where(item => item.Role == role);
+    }
 }

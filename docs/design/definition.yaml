@@ -195,6 +195,11 @@ input-files:
   - docs/design/canvas-net-mermaid/flowchart.md
   - docs/design/canvas-net-mermaid/flowchart/flowchart-parser.md
   - docs/design/canvas-net-mermaid/flowchart/flowchart-model.md
+  - docs/design/canvas-net-mermaid/sequence.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-parser.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-model.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-layout.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-renderer.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md

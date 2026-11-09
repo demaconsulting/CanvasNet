@@ -128,6 +128,10 @@ package CanvasNet {
         expose MermaidFlowchart;
     }
 
+    view MermaidSequenceView {
+        expose MermaidSequence;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

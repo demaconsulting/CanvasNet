@@ -131,3 +131,26 @@ sections:
                   rendered; both must agree.
                 tests:
                   - MermaidConfigResolver_Resolve_WithoutSink_SameResult
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection
+                title: >-
+                  The MermaidConfigResolver unit shall give typed access to the sequence section with Mermaid's
+                  defaults and the font rules of Mermaid's sequence renderer (the top-level font family and size of a
+                  render replacing the section's own, the section's weights applying unless a top-level font weight
+                  replaces them), shall make the texts of a sequence diagram wrap when the top-level wrap setting or a
+                  wrap directive is true or the section's wrap setting is true, shall move the config key of a single
+                  directive to the sequence section for a sequence diagram, and shall report as mermaid-config-invalid,
+                  and leave without effect, a sequence value of the wrong type and an alignment that Mermaid does not
+                  draw.
+                justification: |
+                  The layout and the drawing of a sequence diagram read these settings; Mermaid's sequence renderer
+                  overrides the section's fonts with the top-level ones, so every sequence text is measured at the
+                  top-level size unless the top level changes it.
+                tests:
+                  - MermaidConfigResolver_Resolve_SequenceDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_SequenceFonts_FollowSetConf
+                  - MermaidConfigResolver_Resolve_SequenceWrap_FollowsInit
+                  - MermaidConfigResolver_Resolve_SequenceInvalidValues_ReportedAndIgnored
+                  - MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues
+                  - MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted
+                  - MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection

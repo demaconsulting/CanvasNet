@@ -4,7 +4,8 @@ This document describes the subsystem-level verification strategy for the `Rende
 `DemaConsulting.CanvasNet.Mermaid.Rendering`), containing five units: `ClusterLayout` (Mermaid's dagre renderer, with
 the layout data records), `ShapeLibrary` (the node shapes, their intersect functions, the subgraph rectangle, and the
 shape registry `ShapeNames`), `EdgeBuilder` (edge routes, curves, markers, and edge labels), `LabelBuilder` (label text
-layout and measurement), and `NodeImages` (the pictures loaded through the caller's resolver).
+layout and measurement, and the text utilities of sequence diagrams), and `NodeImages` (the pictures loaded through the
+caller's resolver).
 
 ### Verification Approach
 
@@ -91,7 +92,8 @@ Mermaid centers them, with the spacing they add between ranks giving Mermaid's v
 
 **Tests**: `RenderingTests.Rendering_Flowchart_LinkedSubgraphs_MatchMermaid`,
 `RenderingTests.Rendering_Flowchart_EdgeLabels_MatchMermaid`,
-`RenderingTests.Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes`
+`RenderingTests.Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes`,
+`RenderingTests.Rendering_TextUtilities_WrapAtWordsAndMeasurePerLine`
 
 Asserts the sizes that follow from the measured labels: the node widths of the subgraph fixture, which are the HTML
 label widths with the padding, and the positions of the edge labels and the width of the view box of the labeled
@@ -99,3 +101,7 @@ chain, which follow from the measured edge label boxes. Lays out, without an ima
 label, a node whose label has a character that no bundled font draws, and an image node, and asserts that the three
 nodes are laid out, that no feature is reported as unsupported, and that the warnings are, in this order,
 `mermaid-html-tag-ignored` at line 2, `mermaid-text-missing-glyph` at line 3, and `mermaid-image-unresolved` at line 4.
+Wraps a sentence wider than 150 pixels with the text utilities that sequence diagrams use, in the default sequence
+font, and asserts that it breaks at its words into several lines that rejoin to the sentence, that the first line is
+narrower than the width, and that the wrapped text measures as wide as its widest line and as high as one line height
+per line.

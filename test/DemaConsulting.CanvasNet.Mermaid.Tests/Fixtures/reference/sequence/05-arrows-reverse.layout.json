@@ -1,0 +1,400 @@
+{
+  "source": "05-arrows-reverse.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 551, 611],
+  "title": null,
+  "actors": [
+    {
+      "name": "L",
+      "type": "participant",
+      "description": "Left side",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Left side"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [44.758, 24, 60.586, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 525, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 525, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Left side"],
+            "at": [75, 557.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [44.758, 549, 60.586, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 525], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "R",
+      "type": "participant",
+      "description": "Right side",
+      "top": {
+        "box": [301, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [301, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Right side"],
+            "at": [376, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [340.422, 24, 71.25, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [301, 525, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [301, 525, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Right side"],
+            "at": [376, 557.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [340.422, 549, 71.25, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [376, 65, 376, 525], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": "solidBottomArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid top reverse"],
+          "at": [227, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [168.305, 86.219, 117.492, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [79, 109, 375, 109]
+    },
+    {
+      "id": "i1",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": "solidTopArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid bottom reverse"],
+          "at": [227, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [154.969, 130.219, 144.164, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [79, 153, 375, 153]
+    },
+    {
+      "id": "i2",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": "stickBottomArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["stick top reverse"],
+          "at": [226, 168],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [167.758, 174.219, 116.586, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 197, 375, 197]
+    },
+    {
+      "id": "i3",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": "stickTopArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["stick bottom reverse"],
+          "at": [226, 212],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [154.422, 218.219, 143.258, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 241, 375, 241]
+    },
+    {
+      "id": "i4",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": "solidBottomArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted solid top reverse"],
+          "at": [227, 256],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [143.836, 262.219, 166.422, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [79, 285, 375, 285]
+    },
+    {
+      "id": "i5",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": "solidTopArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted solid bottom reverse"],
+          "at": [227, 300],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [130.5, 306.219, 193.094, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [79, 329, 375, 329]
+    },
+    {
+      "id": "i6",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": "stickBottomArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted stick top reverse"],
+          "at": [226, 344],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [143.289, 350.219, 165.516, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 373, 375, 373]
+    },
+    {
+      "id": "i7",
+      "from": "L",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": "stickTopArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted stick bottom reverse"],
+          "at": [226, 388],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [129.953, 394.219, 192.188, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 417, 375, 417]
+    },
+    {
+      "id": "i8",
+      "from": "R",
+      "to": "L",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": "solidBottomArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid top reverse back"],
+          "at": [224, 432],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [146.18, 438.219, 156.633, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [372, 461, 76, 461]
+    },
+    {
+      "id": "i9",
+      "from": "R",
+      "to": "L",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": "stickTopArrowHead",
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted stick bottom reverse back"],
+          "at": [226, 476],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [110.836, 482.219, 231.328, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [375, 505, 76, 505]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:R",
+    "actor-bottom:L",
+    "lifeline:R",
+    "actor-top:R",
+    "lifeline:L",
+    "actor-top:L",
+    "message:i0",
+    "message:i1",
+    "message:i2",
+    "message:i3",
+    "message:i4",
+    "message:i5",
+    "message:i6",
+    "message:i7",
+    "message:i8",
+    "message:i9"
+  ]
+}

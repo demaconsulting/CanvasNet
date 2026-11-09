@@ -116,7 +116,8 @@ internal static class DiscoveryCommands
             + "(.vl.json or .vl) is parsed and measured (not drawn) and reports the size it is laid out at, and the" + Environment.NewLine
             + "marks, data references, parameters, title, and schema version of its specification. A Mermaid diagram" + Environment.NewLine
             + "(.mmd or .mermaid) is parsed and measured (not drawn) and reports the size it is laid out at, its type" + Environment.NewLine
-            + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs. The input may end in a" + Environment.NewLine
+            + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs (participants," + Environment.NewLine
+            + "messages, and boxes for a sequence diagram). The input may end in a" + Environment.NewLine
             + "fragment (report.pdf#page=2) as for 'render'; only the page is used here (the other parameters are checked" + Environment.NewLine
             + "and ignored), and a warning about the fragment is written to standard error." + Environment.NewLine
             + Environment.NewLine
@@ -225,9 +226,10 @@ internal static class DiscoveryCommands
         /// <param name="writer">The writer.</param>
         /// <param name="diagram">What the diagram declares.</param>
         /// <remarks>
-        ///     The object has the diagram <c>type</c> (for example <c>flowchart</c>), whether this version draws it
-        ///     (<c>supported</c>; a type that is not drawn yet is an empty picture with the note
-        ///     <c>mermaid-diagram-unsupported</c>), and the numbers of <c>nodes</c>, <c>edges</c>, and <c>subgraphs</c>; the
+        ///     The object has the diagram <c>type</c> (for example <c>flowchart</c> or <c>sequence</c>), whether this version
+        ///     draws it (<c>supported</c>; a type that is not drawn yet is an empty picture with the note
+        ///     <c>mermaid-diagram-unsupported</c>), and the numbers of <c>nodes</c>, <c>edges</c>, and <c>subgraphs</c> (the
+        ///     participants, messages, and boxes of a sequence diagram); the
         ///     <c>direction</c>, the <c>title</c>, and the accessible title <c>accTitle</c> are present when the diagram has
         ///     them. The diagram is parsed and measured but not drawn, and no picture of it is loaded.
         /// </remarks>
@@ -443,7 +445,8 @@ internal static class DiscoveryCommands
         /// <returns>The text, for example <c>1 module</c> or <c>2 modules</c>.</returns>
         private static string Count(int count, string noun)
         {
-            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : "s")}");
+            var plural = noun.EndsWith('x') ? "es" : "s";
+            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : plural)}");
         }
 
         /// <summary>
@@ -477,9 +480,12 @@ internal static class DiscoveryCommands
                 builder.Append(CultureInfo.InvariantCulture, $", {diagram.Type}");
                 builder.Append(diagram.Direction is { } direction ? $" {direction}" : string.Empty);
                 builder.Append(diagram.Supported ? string.Empty : " (not drawn by this version)");
-                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.NodeCount, "node")}");
-                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.EdgeCount, "edge")}");
-                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.SubgraphCount, "subgraph")}");
+
+                // A sequence diagram counts participants, messages and boxes
+                var sequence = diagram.Type == "sequence";
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.NodeCount, sequence ? "participant" : "node")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.EdgeCount, sequence ? "message" : "edge")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.SubgraphCount, sequence ? "box" : "subgraph")}");
                 builder.Append(diagram.Title is { } title ? string.Create(CultureInfo.InvariantCulture, $", title \"{title.ReplaceLineEndings(" ")}\"") : string.Empty);
                 builder.Append(diagram.AccTitle is { } accTitle ? string.Create(CultureInfo.InvariantCulture, $", accTitle \"{accTitle.ReplaceLineEndings(" ")}\"") : string.Empty);
                 builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");

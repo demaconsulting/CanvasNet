@@ -1,0 +1,19 @@
+---
+config:
+  theme: dark
+---
+sequenceDiagram
+    participant Service
+    participant Primary
+    participant Replica
+    critical Write the record
+        Service->>Primary: Insert
+    option Primary is down
+        Service->>Replica: Insert into the replica
+    option Both are down
+        Service->>Service: Queue for later
+    end
+    critical Without options
+        Service->>Primary: Commit
+    end
+    Note over Service,Replica: Dark theme note

@@ -72,16 +72,16 @@ public class MermaidDocumentTests
     }
 
     /// <summary>
-    ///     Validates that a sequence diagram opens as a known type that is not drawn, without parsing its body.
+    ///     Validates that a class diagram opens as a known type that is not drawn, without parsing its body.
     /// </summary>
     [Fact]
-    public void MermaidDocument_Parse_SequenceDiagram_IsKnownButNotSupported()
+    public void MermaidDocument_Parse_ClassDiagram_IsKnownButNotSupported()
     {
         // Arrange / Act
-        var document = MermaidDocument.Parse("sequenceDiagram\n A->>B: hi\n this body is not parsed in this version ]]][[[");
+        var document = MermaidDocument.Parse("classDiagram\n A <|-- B\n this body is not parsed in this version ]]][[[");
 
         // Assert
-        Assert.Equal("sequence", document.DiagramType);
+        Assert.Equal("class", document.DiagramType);
         Assert.False(document.IsSupported);
         Assert.Equal((0, 0, 0), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
         Assert.Null(document.Direction);
@@ -127,14 +127,14 @@ public class MermaidDocumentTests
     public void MermaidDocument_Open_StreamWithBom_ParsesAndLeavesStreamOpen()
     {
         // Arrange
-        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(MermaidTestHelpers.SequenceText)).ToArray();
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(MermaidTestHelpers.ClassText)).ToArray();
         using var stream = new MemoryStream(bytes);
 
         // Act
         var document = MermaidDocument.Open(stream, new MermaidOpenOptions { SourceName = "s.mmd" });
 
         // Assert
-        Assert.Equal(("sequence", "s.mmd"), (document.DiagramType, document.SourceName));
+        Assert.Equal(("class", "s.mmd"), (document.DiagramType, document.SourceName));
         Assert.True(stream.CanRead);
     }
 
@@ -200,11 +200,11 @@ public class MermaidDocumentTests
     {
         // Arrange
         var options = new MermaidOpenOptions { Limits = new MermaidLimits { MaxTextSize = 30 } };
-        var commented = "%% a comment line that is long enough\n" + MermaidTestHelpers.SequenceText;
+        var commented = "%% a comment line that is long enough\n" + MermaidTestHelpers.ClassText;
 
         // Act / Assert
-        Assert.Throws<InvalidDataException>(() => MermaidDocument.Parse("sequenceDiagram\n" + new string('x', 40), options));
-        Assert.Equal("sequence", MermaidDocument.Parse(commented, options).DiagramType);
+        Assert.Throws<InvalidDataException>(() => MermaidDocument.Parse("classDiagram\n" + new string('x', 40), options));
+        Assert.Equal("class", MermaidDocument.Parse(commented, options).DiagramType);
     }
 
     /// <summary>

@@ -55,8 +55,10 @@ subsystem uses no other subsystem of the system and no part of the core `CanvasN
 the `Configuration` subsystem (`MermaidConfigResolver`) reads the frontmatter configuration and the directives,
 detects again with the resolved renderer settings, and uses the edit distance for its nearest-key hints; the
 `Flowchart` subsystem lexes the parser text with `SourceScanner` and `TokenCursor`, reads shape data with
-`YamlSubsetParser`, and sanitizes labels with `HtmlSanitizer`; the `Rendering` subsystem (`LabelBuilder`) sanitizes
-label HTML and decodes character references with `HtmlSanitizer`, and `ShapeNames` uses the edit distance.
+`YamlSubsetParser`, and sanitizes labels with `HtmlSanitizer`; the `Sequence` subsystem lexes the parser text with
+`SourceScanner` and `TokenCursor`, reads participant metadata with `YamlSubsetParser`, sanitizes texts with
+`HtmlSanitizer`, and uses the edit distance for the nearest participant type; the `Rendering` subsystem (`LabelBuilder`)
+sanitizes label HTML and decodes character references with `HtmlSanitizer`, and `ShapeNames` uses the edit distance.
 
 ### Design
 

@@ -10,8 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), a diagram type the tool does not draw yet is left as written for another filter, and the
-    defaults-file filters run before a command-line filter (as the CI's mermaid-filter is run).
+    hashed), a sequence diagram is drawn by the filter itself, a diagram type the tool does not draw yet is left as
+    written for another filter, and the defaults-file filters run before a command-line filter (as the CI's
+    mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -332,22 +333,46 @@ flowchart TD
         'a changed picture of a node draws the diagram again' $mmdChanged.Log
     Copy-Item (Join-Path $repo 'Icon.png') (Join-Path $guide 'pic.png') -Force
 
-    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
-    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
-    Set-Content (Join-Path $guide 'seq.mmd') -Value "sequenceDiagram`n    Alice->>Bob: Hi"
-    $sequence = @'
+    # A sequence diagram is drawn by the filter itself, as a code block and as a .mmd picture: it is not left as
+    # written for another filter, and no marker is left in the cache.
+    Set-Content (Join-Path $guide 'talk.mmd') -Value "sequenceDiagram`n    Alice->>Bob: Hello`n    Bob-->>Alice: Hi"
+    $sequences = @'
 ```mermaid
 sequenceDiagram
-    Alice->>Bob: Hello
+    participant Client
+    participant Server
+    Client->>+Server: Request
+    Server-->>-Client: Response
 ```
 
-![s](seq.mmd)
+![t](talk.mmd)
 '@
-    $seqBefore = @(Get-Pictures).Count
-    $unsupported = Invoke-Filter 'mermaid-unsupported' $sequence
+    $sequencesBefore = @(Get-Pictures).Count
+    $sequenceMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $sequence = Invoke-Filter 'mermaid-sequence' $sequences
+    Write-Result ($sequence.ExitCode -eq 0 -and $sequence.Html -notmatch '<code' -and
+        $sequence.Html -match 'generated/canvasnet/mermaid-' -and $sequence.Html -match 'generated/canvasnet/talk-' -and
+        @(Get-Pictures).Count -eq $sequencesBefore + 2 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $sequenceMarkersBefore -and
+        $sequence.Log -notmatch 'left as written') `
+        'a sequence block and a sequence .mmd picture are drawn by the filter itself' "$($sequence.Log)`n$($sequence.Html)"
+
+    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
+    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
+    Set-Content (Join-Path $guide 'zoo.mmd') -Value "classDiagram`n    Animal <|-- Duck"
+    $classes = @'
+```mermaid
+classDiagram
+    Animal <|-- Cat
+```
+
+![s](zoo.mmd)
+'@
+    $classesBefore = @(Get-Pictures).Count
+    $unsupported = Invoke-Filter 'mermaid-unsupported' $classes
     Write-Result ($unsupported.ExitCode -eq 0 -and $unsupported.Html -match '<code class="[^"]*mermaid"' -and
-        $unsupported.Html -match 'sequenceDiagram' -and
-        $unsupported.Html -match 'src="seq\.mmd"' -and @(Get-Pictures).Count -eq $seqBefore) `
+        $unsupported.Html -match 'classDiagram' -and
+        $unsupported.Html -match 'src="zoo\.mmd"' -and @(Get-Pictures).Count -eq $classesBefore) `
         'an unsupported diagram type is left as written, as a code block and as a picture' "$($unsupported.Log)`n$($unsupported.Html)"
     Write-Result ($unsupported.Log -match 'are not drawn by this version' -and $unsupported.Log -match 'left as written') `
         'an unsupported diagram type is a warning with the tool message' $unsupported.Log
@@ -356,17 +381,17 @@ sequenceDiagram
     foreach ($marker in $markers) {
         Set-Content -LiteralPath $marker.FullName -Value 'remembered-unsupported' -NoNewline
     }
-    $remembered = Invoke-Filter 'mermaid-unsupported' $sequence
+    $remembered = Invoke-Filter 'mermaid-unsupported' $classes
     Write-Result ($remembered.ExitCode -eq 0 -and ([regex]::Matches($remembered.Log, 'remembered-unsupported')).Count -eq 2) `
         'a later run takes an unsupported diagram from its marker without drawing it' $remembered.Log
 
     # A flowchart that embeds a diagram of a type the tool does not draw is still drawn: the report about the
     # embedded picture (which names it in its origin) is an ordinary warning, not the whole picture unsupported.
-    Set-Content (Join-Path $guide 'embeds-seq.mmd') -Value "flowchart LR`n    A --> B@{ img: `"seq.mmd`", h: 60, constraint: `"on`" }"
+    Set-Content (Join-Path $guide 'embeds-class.mmd') -Value "flowchart LR`n    A --> B@{ img: `"zoo.mmd`", h: 60, constraint: `"on`" }"
     $embedBefore = @(Get-Pictures).Count
     $markersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
-    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-seq.mmd)'
-    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-seq-' -and
+    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-class.mmd)'
+    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-class-' -and
         @(Get-Pictures).Count -eq $embedBefore + 1 -and
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $markersBefore -and
         $embedded.Log -match 'are not drawn by this version' -and $embedded.Log -notmatch 'left as written') `
@@ -379,7 +404,7 @@ sequenceDiagram
     Set-Content (Join-Path $root 'observe.lua') -Value (
         'function CodeBlock(b) return pandoc.Para{ pandoc.Str("OBSERVED-" .. (b.text:match("^(%S+)") or "")) } end')
     Set-Content (Join-Path $guide 'order.md') -Value $blocks.Replace('X --> Y', 'X --> Y --> Z') -NoNewline
-    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $sequence.Replace('![s](seq.mmd)', ''))
+    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $classes.Replace('![s](zoo.mmd)', ''))
     Push-Location $tree
     try {
         $orderLog = & dotnet pandoc --defaults (Join-Path $root 'defaults.yaml') --lua-filter (Join-Path $root 'observe.lua') `
@@ -391,7 +416,7 @@ sequenceDiagram
         Pop-Location
     }
     $orderHtml = Get-Content -LiteralPath (Join-Path $guide 'generated/order.html') -Raw -ErrorAction SilentlyContinue
-    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-sequenceDiagram' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
+    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-classDiagram' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
         ([regex]::Matches($orderHtml, 'generated/canvasnet/mermaid-')).Count -eq 2) `
         'defaults-file filters run before a command-line filter, which sees only the unsupported blocks' "$orderLog`n$orderHtml"
 

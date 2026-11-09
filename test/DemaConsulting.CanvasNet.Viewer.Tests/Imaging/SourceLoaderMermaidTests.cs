@@ -147,7 +147,30 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
-    ///     Test that a diagram type this version does not draw (a sequence diagram) is probed with <c>Supported</c> false and
+    ///     Test that a sequence diagram is probed as a supported diagram with its participants and messages, and drawn
+    ///     strictly at its natural size with the participant boxes in the actor fill of the default theme and no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidSequence_ProbesAndDraws()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CopyFixture(directory, "sequence.mmd");
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert: the facts, the size, the white corner, the actor fill, and no note
+        Assert.Equal(new DiagramFacts("sequence", true, null, null, null, 2, 1, 0), info.Diagram);
+        Assert.Equal((info.Width, info.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(White, loaded.Surface[0, 0]);
+        Assert.True(Count(loaded.Surface, DefaultNodeFill) > 2000);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a diagram type this version does not draw (a class diagram) is probed with <c>Supported</c> false and
     ///     drawn as an empty picture with one unsupported note that says it is planned, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.
     /// </summary>
@@ -156,7 +179,7 @@ public class SourceLoaderMermaidTests
     {
         // Arrange
         using var directory = new TempDirectory();
-        var path = CopyFixture(directory, "sequence.mmd");
+        var path = CopyFixture(directory, "class.mmd");
 
         // Act
         var info = SourceLoader.Probe(path);
@@ -164,7 +187,7 @@ public class SourceLoaderMermaidTests
         var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Strict = true }));
 
         // Assert: the facts and the empty picture of 16 pixels (twice the diagram padding)
-        Assert.Equal(new DiagramFacts("sequence", false, null, null, null, 0, 0, 0), info.Diagram);
+        Assert.Equal(new DiagramFacts("class", false, null, null, null, 0, 0, 0), info.Diagram);
         Assert.Equal((16, 16), (loaded.Surface.Width, loaded.Surface.Height));
         Assert.Equal(White, loaded.Surface[8, 8]);
 
@@ -172,7 +195,7 @@ public class SourceLoaderMermaidTests
         var note = Assert.Single(loaded.Diagnostics);
         Assert.Equal(("mermaid", "unsupported", MermaidDiagnosticCodes.DiagramUnsupported), (note.Source, note.Severity, note.Code));
         Assert.Contains("not drawn by this version", note.Message, StringComparison.Ordinal);
-        Assert.Contains("sequence diagrams are planned", note.Message, StringComparison.Ordinal);
+        Assert.Contains("class diagrams are planned", note.Message, StringComparison.Ordinal);
         Assert.Contains("flowchart", note.Message, StringComparison.Ordinal);
         Assert.Equal(1, note.Location!.Line);
         Assert.DoesNotContain('\n', note.Message);

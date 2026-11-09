@@ -94,10 +94,12 @@ sections:
               The Rendering subsystem shall lay out and measure the text of node, subgraph, and edge labels as
               Mermaid does with the bundled fonts - plain and markdown strings, HTML labels with Mermaid's supported
               elements, and SVG labels, wrapped at the wrapping width - and shall report each HTML element it does
-              not support and each character that no bundled font can draw.
+              not support and each character that no bundled font can draw; and shall wrap and measure the texts of
+              sequence diagrams as Mermaid's text utilities do.
             justification: |
               The measured label decides the size of every node and the spacing that edge labels add between ranks;
-              a construct that is not drawn as Mermaid draws it must be reported rather than silently changed.
+              a construct that is not drawn as Mermaid draws it must be reported rather than silently changed. The
+              measured texts of a sequence diagram decide the sizes and the margins of its elements.
             children:
               - CanvasNetMermaid-Rendering-LabelBuilder-HtmlLayout
               - CanvasNetMermaid-Rendering-LabelBuilder-SvgLayout
@@ -106,7 +108,10 @@ sections:
               - CanvasNetMermaid-Rendering-LabelBuilder-Entities
               - CanvasNetMermaid-Rendering-LabelBuilder-MissingGlyphs
               - CanvasNetMermaid-Rendering-LabelBuilder-LabelImages
+              - CanvasNetMermaid-Rendering-LabelBuilder-TextDimensions
+              - CanvasNetMermaid-Rendering-LabelBuilder-WrapLabel
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_EdgeLabels_MatchMermaid
               - Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes
+              - Rendering_TextUtilities_WrapAtWordsAndMeasurePerLine

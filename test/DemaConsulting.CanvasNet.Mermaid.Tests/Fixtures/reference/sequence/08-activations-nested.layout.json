@@ -1,0 +1,416 @@
+{
+  "source": "08-activations-nested.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 460, 569],
+  "title": null,
+  "actors": [
+    {
+      "name": "Scheduler",
+      "type": "participant",
+      "description": "Scheduler",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Scheduler"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [38.977, 24, 72.719, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 483, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 483, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Scheduler"],
+            "at": [75, 515.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [38.977, 507, 72.719, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 483], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Worker",
+      "type": "participant",
+      "description": "Worker",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Worker"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [248.367, 24, 52.938, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 483, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 483, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Worker"],
+            "at": [275, 515.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [248.367, 507, 52.938, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 483], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Scheduler",
+      "to": "Worker",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Start the job"],
+          "at": [174, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [130.859, 86.219, 86.375, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 271, 109]
+    },
+    {
+      "id": "i2",
+      "from": "Worker",
+      "to": "Worker",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Load the input"],
+          "at": [280, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [229.289, 130.219, 101.977, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 280,153 C 340,143 340,183 280,173",
+      "length": 99.683,
+      "points": [
+        [280, 153],
+        [284.93, 152.272],
+        [289.886, 151.741],
+        [294.86, 151.438],
+        [299.843, 151.402],
+        [304.818, 151.686],
+        [309.754, 152.369],
+        [314.588, 153.568],
+        [319.179, 155.489],
+        [323.117, 158.504],
+        [325, 163],
+        [323.117, 167.496],
+        [319.179, 170.511],
+        [314.588, 172.432],
+        [309.754, 173.631],
+        [304.818, 174.314],
+        [299.843, 174.598],
+        [294.86, 174.562],
+        [289.886, 174.259],
+        [284.93, 173.728],
+        [280, 173]
+      ]
+    },
+    {
+      "id": "i4",
+      "from": "Worker",
+      "to": "Worker",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Split the work"],
+          "at": [285, 198],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [236.977, 204.219, 97.039, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 285,227 C 345,217 345,257 285,247",
+      "length": 99.683,
+      "points": [
+        [285, 227],
+        [289.93, 226.272],
+        [294.886, 225.741],
+        [299.86, 225.438],
+        [304.843, 225.402],
+        [309.818, 225.686],
+        [314.754, 226.369],
+        [319.588, 227.568],
+        [324.179, 229.489],
+        [328.117, 232.504],
+        [330, 237],
+        [328.117, 241.496],
+        [324.179, 244.511],
+        [319.588, 246.432],
+        [314.754, 247.631],
+        [309.818, 248.314],
+        [304.843, 248.598],
+        [299.86, 248.562],
+        [294.886, 248.259],
+        [289.93, 247.728],
+        [285, 247]
+      ]
+    },
+    {
+      "id": "i6",
+      "from": "Worker",
+      "to": "Scheduler",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Half done"],
+          "at": [175, 272],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [140.75, 278.219, 68.594, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [270, 301, 79, 301]
+    },
+    {
+      "id": "i8",
+      "from": "Worker",
+      "to": "Scheduler",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Nearly done"],
+          "at": [175, 316],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [131.859, 322.219, 86.375, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [270, 345, 79, 345]
+    },
+    {
+      "id": "i10",
+      "from": "Worker",
+      "to": "Scheduler",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Done"],
+          "at": [175, 360],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [155.875, 366.219, 38.352, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [270, 389, 79, 389]
+    },
+    {
+      "id": "i13",
+      "from": "Scheduler",
+      "to": "Scheduler",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Record the result"],
+          "at": [80, 404],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [19.078, 410.219, 122.391, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 80,433 C 140,423 140,463 80,453",
+      "length": 99.683,
+      "points": [
+        [80, 433],
+        [84.93, 432.272],
+        [89.886, 431.741],
+        [94.86, 431.438],
+        [99.843, 431.402],
+        [104.818, 431.686],
+        [109.754, 432.369],
+        [114.588, 433.568],
+        [119.179, 435.489],
+        [123.117, 438.504],
+        [125, 443],
+        [123.117, 447.496],
+        [119.179, 450.511],
+        [114.588, 452.432],
+        [109.754, 453.631],
+        [104.818, 454.314],
+        [99.843, 454.598],
+        [94.86, 454.562],
+        [89.886, 454.259],
+        [84.93, 453.728],
+        [80, 453]
+      ]
+    }
+  ],
+  "notes": [],
+  "activations": [
+    {
+      "class": "activation0",
+      "box": [270, 109, 10, 280],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation1",
+      "box": [275, 185, 10, 160],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation2",
+      "box": [280, 259, 10, 42],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation0",
+      "box": [70, 389, 10, 74],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    }
+  ],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Worker",
+    "actor-bottom:Scheduler",
+    "lifeline:Worker",
+    "actor-top:Worker",
+    "lifeline:Scheduler",
+    "actor-top:Scheduler",
+    "activation:0",
+    "activation:1",
+    "activation:2",
+    "activation:3",
+    "message:i0",
+    "message:i2",
+    "message:i4",
+    "message:i6",
+    "message:i8",
+    "message:i10",
+    "message:i13"
+  ]
+}

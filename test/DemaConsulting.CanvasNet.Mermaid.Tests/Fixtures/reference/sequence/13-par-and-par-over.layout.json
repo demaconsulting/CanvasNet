@@ -1,0 +1,542 @@
+{
+  "source": "13-par-and-par-over.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 850, 680],
+  "title": null,
+  "actors": [
+    {
+      "name": "Coordinator",
+      "type": "participant",
+      "description": "Coordinator",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Coordinator"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [33.195, 24, 84.273, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 594, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 594, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Coordinator"],
+            "at": [75, 626.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [33.195, 618, 84.273, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 594], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "North",
+      "type": "participant",
+      "description": "North",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["North"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [255.438, 24, 39.227, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 594, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 594, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["North"],
+            "at": [275, 626.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [255.438, 618, 39.227, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 594], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "South",
+      "type": "participant",
+      "description": "South",
+      "top": {
+        "box": [400, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["South"],
+            "at": [475, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [454.094, 24, 41.914, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 594, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 594, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["South"],
+            "at": [475, 626.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [454.094, 618, 41.914, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [475, 65, 475, 594], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "East",
+      "type": "participant",
+      "description": "East",
+      "top": {
+        "box": [600, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [600, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["East"],
+            "at": [675, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [658.992, 24, 32.57, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [600, 594, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [600, 594, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["East"],
+            "at": [675, 626.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [658.992, 618, 32.57, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [675, 65, 675, 594], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i1",
+      "from": "Coordinator",
+      "to": "North",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Update"],
+          "at": [174, 125],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [148.203, 131.219, 51.695, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 154, 271, 154]
+    },
+    {
+      "id": "i3",
+      "from": "Coordinator",
+      "to": "South",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Update"],
+          "at": [274, 214],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [248.203, 220.219, 51.695, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 243, 471, 243]
+    },
+    {
+      "id": "i5",
+      "from": "Coordinator",
+      "to": "East",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Update"],
+          "at": [374, 303],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [348.203, 309.219, 51.695, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 332, 671, 332]
+    },
+    {
+      "id": "i8",
+      "from": "North",
+      "to": "Coordinator",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Ack"],
+          "at": [177, 402],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [162.664, 408.219, 28.672, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 431, 79, 431]
+    },
+    {
+      "id": "i10",
+      "from": "South",
+      "to": "Coordinator",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Ack"],
+          "at": [277, 491],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [262.664, 497.219, 28.672, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [474, 520, 79, 520]
+    },
+    {
+      "id": "i12",
+      "from": "North",
+      "to": "Coordinator",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Done"],
+          "at": [177, 545],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [157.875, 551.219, 38.352, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 574, 79, 574]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [
+    {
+      "id": "i6",
+      "lines": [
+        { "line": [64, 75, 686, 75], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" } },
+        {
+          "line": [686, 75, 686, 342],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 342, 686, 342],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        { "line": [64, 75, 64, 342], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" } },
+        {
+          "line": [64, 169, 686, 169],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "3px, 3px" }
+        },
+        {
+          "line": [64, 258, 686, 258],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "3px, 3px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 75], [114, 75], [114, 88], [105.6, 95], [64, 95]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["par"],
+          "at": [89, 88],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [77.438, 78.219, 23.797, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[Notify north]"],
+          "at": [400, 93],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [354.648, 79, 90.703, 17]
+        },
+        {
+          "class": "sectionTitle",
+          "lines": ["[Notify south]"],
+          "at": [375, 187],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [328.313, 173, 93.375, 17]
+        },
+        {
+          "class": "sectionTitle",
+          "lines": ["[Notify east]"],
+          "at": [375, 276],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [332.758, 262, 84.484, 17]
+        }
+      ]
+    },
+    {
+      "id": "i11",
+      "lines": [
+        {
+          "line": [64, 352, 486, 352],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [486, 352, 486, 530],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 530, 486, 530],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 352, 64, 530],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 446, 486, 446],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "3px, 3px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 352], [114, 352], [114, 365], [105.6, 372], [64, 372]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["par"],
+          "at": [89, 365],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [77.438, 355.219, 23.797, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[Collect the replies]"],
+          "at": [300, 370],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [231.969, 356, 136.063, 17]
+        },
+        {
+          "class": "sectionTitle",
+          "lines": ["[South side]"],
+          "at": [275, 464],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [232.75, 450, 84.5, 17]
+        }
+      ]
+    }
+  ],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:East",
+    "actor-bottom:South",
+    "actor-bottom:North",
+    "actor-bottom:Coordinator",
+    "lifeline:East",
+    "actor-top:East",
+    "lifeline:South",
+    "actor-top:South",
+    "lifeline:North",
+    "actor-top:North",
+    "lifeline:Coordinator",
+    "actor-top:Coordinator",
+    "frame:i6",
+    "frame:i11",
+    "message:i1",
+    "message:i3",
+    "message:i5",
+    "message:i8",
+    "message:i10",
+    "message:i12"
+  ]
+}

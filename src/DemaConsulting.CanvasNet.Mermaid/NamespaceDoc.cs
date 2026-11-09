@@ -20,7 +20,7 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         <see cref="MermaidRenderOptions"/> and resource budgets through <see cref="MermaidLimits"/>. The syntax,
 ///         configuration, layout, rendering and scene-graph stages are internal; only the document surface is public so that
 ///         the internals can evolve. Every diagram type Mermaid knows is recognized; this version draws flowcharts
-///         (<c>flowchart</c> and <c>graph</c>), and reports any other type as
+///         (<c>flowchart</c> and <c>graph</c>) and sequence diagrams (<c>sequenceDiagram</c>), and reports any other type as
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with an empty picture.
 ///     </para>
 ///     <para>
@@ -79,6 +79,25 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///     };
 ///     using var image = diagram.Render(options);
 ///     PngCodec.Save(image, "pipeline.png");
+///     </code>
+/// </example>
+/// <example>
+///     Draw a sequence diagram in the <c>forest</c> theme and read its participants, messages and boxes:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Codecs;
+///     using DemaConsulting.CanvasNet.Mermaid;
+///
+///     var diagram = MermaidDocument.Parse("""
+///         sequenceDiagram
+///             actor Buyer
+///             participant Shop
+///             Buyer->>+Shop: Place the order
+///             Shop-->>-Buyer: Order confirmed
+///             Note over Buyer,Shop: The receipt is sent by email
+///         """);
+///     Console.WriteLine($"{diagram.NodeCount} participants, {diagram.EdgeCount} messages, {diagram.SubgraphCount} boxes");
+///     using var image = diagram.Render(new MermaidRenderOptions { Theme = "forest" });
+///     PngCodec.Save(image, "checkout.png");
 ///     </code>
 /// </example>
 /// <example>

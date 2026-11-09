@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -12,6 +13,31 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.Rendering;
 /// </summary>
 public sealed class RenderingTests
 {
+    /// <summary>
+    ///     Checks the text utilities that sequence diagrams measure their texts with: a text wider than a width is wrapped
+    ///     at its words into lines, and the wrapped text measures as its lines, the widest line wide and one line height
+    ///     per line.
+    /// </summary>
+    [Fact]
+    public void Rendering_TextUtilities_WrapAtWordsAndMeasurePerLine()
+    {
+        // Arrange
+        var font = new MermaidFontConfig(MermaidConfigResolver.DefaultFontFamily, ConfigScalar.FromNumber(16), ConfigScalar.FromNumber(400));
+        var builder = new LabelBuilder(ScenePainter.CreateFontResolver(), new MermaidReportSink(100, false), null);
+        const string Text = "a message that is a lot wider than the width it is wrapped to";
+
+        // Act
+        var wrapped = builder.WrapLabel(Text, 150, font);
+        var lines = LabelBuilder.SplitBreaks(wrapped);
+        var dimensions = builder.CalculateTextDimensions(wrapped, font);
+
+        // Assert
+        Assert.True(lines.Count > 1);
+        Assert.Equal(Text, string.Join(' ', lines));
+        Assert.True(builder.CalculateTextWidth(lines[0], font) < 150);
+        Assert.Equal(lines.Max(line => builder.CalculateTextWidth(line, font)), dimensions.Width);
+        Assert.Equal(lines.Count * dimensions.LineHeight, dimensions.Height);
+    }
     /// <summary>
     ///     Checks two subgraphs linked to each other: the node and subgraph boxes, the edge routes and the view box are
     ///     Mermaid's.

@@ -52,14 +52,24 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        // The line box is charged once, then each run is drawn after the previous one
-        Charge(surface, x, baseline - ascent, x + total, baseline + descent, item);
+        // The line box is charged once, then each run is drawn after the previous one, its outline stroked over its fill;
+        // a stroke width that rounds to zero in single precision (a tiny fit scale) draws no stroke
+        var strokeWidth = DeviceStrokeWidth(item.Stroke, placement.Scale);
+        var stroke = strokeWidth > 0 ? item.Stroke : null;
+        var half = stroke is null ? 0 : strokeWidth / 2.0;
+        Charge(surface, x - half, baseline - ascent - half, x + total + half, baseline + descent + half, item);
         foreach (var (run, font, size, width) in runs)
         {
+            var path = TextRenderer.CreateTextPath(run.Text, font, size, (float)x, (float)baseline);
             if (run.Color.A > 0)
             {
-                var path = TextRenderer.CreateTextPath(run.Text, font, size, (float)x, (float)baseline);
                 PathFiller.Fill(surface, path, run.Color, FillRule.NonZero, FlattenTolerance);
+            }
+
+            if (stroke is not null)
+            {
+                var style = new StrokeStyle(strokeWidth, stroke.Cap, stroke.Join, 4f, null, 0f);
+                PathFiller.Fill(surface, PathStroker.Stroke(path, style, FlattenTolerance), stroke.Color, FillRule.NonZero, FlattenTolerance);
             }
 
             x += width;

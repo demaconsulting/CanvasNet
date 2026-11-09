@@ -5,7 +5,8 @@
 ### Overview
 
 The `Flowchart` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Flowchart`, folder
-`src/DemaConsulting.CanvasNet.Mermaid/Flowchart/`) is the only diagram type of this release: it reads the text of a
+`src/DemaConsulting.CanvasNet.Mermaid/Flowchart/`) is one of the two diagram types of this release: it reads the
+text of a
 `flowchart` or `graph` diagram (and of the `flowchart-elk` keyword, which opens as a flowchart) into Mermaid's flowchart
 database and turns that database into the input of the shared rendering, then draws the diagram as Mermaid's flowchart
 renderer does. It is **internal**: its types are visible only to the other subsystems of the system and, through

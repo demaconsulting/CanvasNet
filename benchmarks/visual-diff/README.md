@@ -108,19 +108,25 @@ For each `<name>.mmd` it writes `<name>.png` and `<name>.layout.json`. Two detai
 
 The layout is read back from the live SVG: the view box, the node positions, shapes and boxes, the subgraph
 rectangles, the edge paths sampled at 21 points along their length, and the edge label boxes. Nested groups are mapped
-with `getScreenCTM`, and ids lose the render id prefix. The format is described in
-`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
+with `getScreenCTM`, and ids lose the render id prefix. For a sequence diagram (`aria-roledescription="sequence"`) it
+reads the sequence layout instead: the actors (the top and bottom drawings with their parts and texts, and the
+lifelines), the messages (lines or sampled self-message paths, markers, texts, sequence numbers, and central-connection
+circles), the notes, activations, frames, `rect` backgrounds, boxes, menus, the title, and the paint order. It also
+records the computed paint (fill, stroke, stroke width, dash, and filter), because Mermaid's CSS overrides many
+attributes. The format is described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Fixture <name>...]
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence] [-Fixture <name>...]
 ```
 
-This regenerates `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/*.layout.json` from the flowchart
-fixtures. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden.
-`MermaidReferenceLayoutTests` compares CanvasNet's layout with the goldens. The tolerance is 0.01 px, or 0.1 px for
-the two fixtures with rough.js circles. A golden change is reviewed like code.
+This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
+fixtures (`Fixtures/flowchart`) give `reference/*.layout.json` and the sequence fixtures (`Fixtures/sequence`) give
+`reference/sequence/*.layout.json`. `-Diagram` picks the types (default: both). Excluded fixtures (`38-unicode`, whose
+CJK text Chrome draws with a system font) get no golden; no sequence fixture is excluded. `MermaidReferenceLayoutTests`
+compares CanvasNet's flowchart layout with the goldens. The tolerance is 0.01 px, or 0.1 px for the two fixtures with
+rough.js circles. A golden change is reviewed like code.
 
 ### Upstream Vector Generators
 
@@ -137,6 +143,10 @@ is their vector file.
   seeded generated graphs (Node).
 - `gen-flowchart-vectors.mjs` writes `flowchart-parser.json`: the flowDb facts and `getData` of the cases in
   `flowchart-vector-cases.mjs`, or the parse error (mermaid in Chrome). `--probe <file>` prints the results instead.
+- `gen-sequence-vectors.mjs` writes `sequence-parser.json`: the sequenceDb facts (actors, boxes, messages with their
+  line types and wrap flags, created and destroyed actors, title, and accessibility texts) of the cases in
+  `sequence-vector-cases.mjs`, or the parse or database error (mermaid in Chrome). Cases may give a site
+  configuration, which the wrap cases use. `--probe <file>` prints the results instead.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

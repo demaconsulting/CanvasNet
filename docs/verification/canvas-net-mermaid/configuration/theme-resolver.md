@@ -2,7 +2,8 @@
 
 This document describes the unit-level verification strategy for the `ThemeResolver` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Configuration` namespace: the internal static `ThemeResolver` (`GetThemeVariables`
-and `IsTheme`), its JavaScript object model `ThemeObject`, and the flowchart style sheet `FlowchartStyles`.
+and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles` and `SequenceStyles`
+with their shared base `DiagramStyles`.
 
 #### Verification Approach
 
@@ -13,7 +14,9 @@ strings, because the text reaches the style sheet). Hand-written tests verify th
 color, the override that wins, the bounds, the theme names, and the JavaScript semantics of `ThemeObject`. The style
 sheet is verified by building `FlowchartStyles` from configurations resolved as Mermaid resolves them and asserting the
 paints of the default theme (as Mermaid's flowchart CSS gives them), the effect of `themeCSS`, and the dropping of an
-invalid declaration. The unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
+invalid declaration. The sequence style sheet is verified the same way with `SequenceStyles`: the shared global rules,
+the cascade over the attributes Mermaid writes, every theme's variables, `themeCSS`, and the drop-shadow filters. The
+unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
 `StyleDeclarations`, and `MermaidConfigResolver` are real, so no mocking or stubbing is required.
 
 Unit tests reside in `ThemeResolverTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
@@ -98,3 +101,26 @@ once as `mermaid-theme-css-unsupported` at the directive.
 
 Asserts that a site theme variable `nodeBorder` of `nonsense` is kept as a variable, but leaves the node stroke
 undeclared while the node fill is unchanged.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet: Mermaid's Sequence Paint
+
+**Tests**: `ThemeResolverTests.DiagramStyles_Create_GlobalRules_SharedByFlowchartAndSequence`,
+`ThemeResolverTests.SequenceStyles_Create_DefaultTheme_ResolvesCascade`,
+`ThemeResolverTests.SequenceStyles_Create_EachTheme_UsesThemeVariables`,
+`ThemeResolverTests.SequenceStyles_Create_ThemeCss_OverridesKnownSelectors`,
+`ThemeResolverTests.SequenceStyles_TryParseFilter_ParsesDropShadow`
+
+Asserts that the flowchart and sequence style sheets start with the same global rules, selector for selector and
+declaration for declaration, from the root rule to `p`; that in the default theme a participant takes the theme's
+`#ECECFF` fill and `#9370DB` stroke over its attributes, a note `#fff5ad` and `#aaaa33`, and an element of a class
+without a rule keeps its attributes; that the `line` rule widens the lifeline and the block lines to 2 pixels in
+`#9370DB` (the block lines dashed 2, 2), while the message rules give 1.5 pixels in `#333` (dashed 2, 2 when dotted);
+that a box gets the drop shadow `1px 2px 2px` in `rgb(185, 185, 185)` and the node border, the menu panel its own
+shadow, the label box none, the arrowhead, crosshead, and sequence-number markers `#333`, the sequence numbers white,
+and a message text `#333` over its attribute while an unknown class keeps the attribute; that for each of the five
+themes (a theory) the participant, lifeline, note, and activation paint and the box shadow come from the theme's
+variables; that a `themeCSS` rule for `.actor` and `.actor-line` overrides the participant fill and the lifeline width
+while the flowchart selector `.node rect` is reported once as `mermaid-theme-css-unsupported`; and that `none` and one
+`drop-shadow()` (with a color first or last, two or three lengths, a negative offset) are read, while four lengths,
+one length, non-zero numbers without units, a negative blur, a color between the lengths, a second filter function, a `url()`,
+and `blur()` are not (a theory of 14 cases).

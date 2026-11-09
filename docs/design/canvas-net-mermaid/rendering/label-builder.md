@@ -3,11 +3,13 @@
 ![Rendering Structure](MermaidRenderingView.svg)
 
 The `LabelBuilder` unit is the fourth software unit in the `Rendering` subsystem. It is the internal sealed partial
-class `LabelBuilder` in five source files - `LabelBuilder.cs` (the entry point, the fonts, the metrics, the
+class `LabelBuilder` in six source files - `LabelBuilder.cs` (the entry point, the fonts, the metrics, the
 missing-glyph report, and the records `LabelFont`, `LabelRequest`, `LabelRun`, `LabelLine`, `LabelImage`, and
 `LabelLayout`), `LabelBuilder.Html.cs` (HTML labels), `LabelBuilder.Markdown.cs` (markdown and plain strings),
-`LabelBuilder.MarkdownLexer.cs` (the part of the `marked` lexer that Mermaid's markdown labels use), and
-`LabelBuilder.Svg.cs` (SVG labels). All types are in the `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace.
+`LabelBuilder.MarkdownLexer.cs` (the part of the `marked` lexer that Mermaid's markdown labels use),
+`LabelBuilder.Svg.cs` (SVG labels), and `LabelBuilder.TextDimensions.cs` (Mermaid's text utilities, with the record
+struct `TextDimensions`, which the sequence diagram measures and wraps its texts with). All types are in the
+`DemaConsulting.CanvasNet.Mermaid.Rendering` namespace.
 
 #### Purpose
 
@@ -15,7 +17,10 @@ missing-glyph report, and the records `LabelFont`, `LabelRequest`, `LabelRun`, `
 `handle-markdown-text.ts`, and `splitText.ts`), with the browser's layout of Mermaid's label emulated over the bundled
 fonts: plain and markdown strings, HTML labels (a `foreignObject` whose box the browser measures), and SVG labels
 (`tspan` lines). The measured box decides the size of every node, subgraph title, and edge label, and the lines are
-drawn as scene text. The unit's behavior is specified by the `CanvasNetMermaid-Rendering-LabelBuilder-*` requirements in
+drawn as scene text. It also measures and wraps text as Mermaid's text utilities do (`calculateTextDimensions`,
+`wrapLabel`, `breakString`, `parseFontSize`, and `splitBreaks` of `utils.ts` and `common.ts`), which decide the sizes
+of the participants, messages, notes, and frames of a sequence diagram. The unit's behavior is specified by the
+`CanvasNetMermaid-Rendering-LabelBuilder-*` requirements in
 `docs/reqstream/canvas-net-mermaid/rendering/label-builder.yaml`.
 
 #### Data Model
@@ -36,6 +41,12 @@ drawn as scene text. The unit's behavior is specified by the `CanvasNetMermaid-R
   use to place the label; `Of(isHtml, box)` is a label with nothing to draw.
 - The constants `HtmlLineHeight` (1.5), `SvgLineHeight` (1.1), `SvgBackgroundPadding` (2), and `LoneImageFactor` (5),
   and a cache of the resolved faces by family, weight, and style.
+- `TextDimensions(Width, Height, LineHeight)` - the size `calculateTextDimensions` gives a text, in whole pixels.
+- For the text utilities, an optional `Meter` (the `LayoutWorkMeter` that measuring and hyphenating charge), the
+  memoized results of `wrapLabel` and `breakString` of one render, the `lastIndex` of Mermaid's global
+  `lineBreakRegex`, which carries over from one test to the next within a render as it does in Mermaid, and the
+  Mermaid memoize keys of the texts measured so far: the first measurement of a key resets that `lastIndex`, as
+  Mermaid's drawing of the measured text (its `replace` with the same regex) does on a memoize miss.
 
 #### Key Methods
 
@@ -67,6 +78,27 @@ drawn as scene text. The unit's behavior is specified by the `CanvasNetMermaid-R
   `TextRenderer`, and the ascent and descent rounded to whole pixels as the browser uses them.
 - `LabelLayout.ToScene(dx, dy, role, id, location)` - the text lines (anchored at their start) and the pictures of the
   label as scene items, translated by the label's offset.
+- Text utilities (`LabelBuilder.TextDimensions.cs`):
+  - `ParseFontSize(ConfigScalar)` - Mermaid's `parseFontSize`: a number is pixels; a string gives its `parseInt` value
+    and is itself the CSS size, with `px` added when it is that integer alone; `FontPixels(css)` gives the pixels a
+    browser draws the inline CSS size of an SVG text at (a length with a unit, `em` and `rem` of 16 pixels, a
+    non-negative number without a unit as pixels, which Chrome accepts on SVG text, or the inherited 16 pixels for a
+    size the browser does not accept).
+  - `SplitBreaks(text)` - Mermaid's `splitBreaks`: the lines between `<br>` tags in any letter case, with white space
+    and an optional slash, empty lines kept.
+  - `CalculateTextDimensions(text, MermaidFontConfig)` and `CalculateTextWidth` - Mermaid's `calculateTextDimensions`:
+    each line measured as the browser's `getBBox` of an SVG text (`MeasureLine`: the white space collapsed as SVG text
+    collapses it, the advance grown to the rasterizer's boxes of the first and last glyphs by `SvgLineExtent`, and the
+    rounded ascent plus the rounded descent), rounded to whole pixels; the widest line's width and the sum of the
+    line heights.
+  - `WrapLabel(label, maxWidth, font, joinWith)` - Mermaid's `wrapLabel`: a label with a `<br>` tag (tested with the
+    stateful `TestLineBreak`) is kept, a label that fits is kept, and otherwise words are added to a line while it
+    stays narrower than the width, a word wider than the width is hyphenated by `BreakString` (characters, whole code
+    points, added until the line reaches the width, each line but the last ending with a hyphen), and the lines are
+    joined with `<br/>`; results are memoized as Mermaid memoizes them.
+  - `SvgLineExtent`, `XHeight`, and `CollapseSvgWhiteSpace` - the horizontal box of an SVG text line, the top of the
+    font's `x` (for the `middle` baseline), and SVG's white-space collapsing, which the sequence renderer uses to place
+    and box its texts.
 
 **Preconditions and postconditions**: a builder belongs to one call on one thread; the result is a deterministic
 function of the request and the bundled fonts.
@@ -79,10 +111,16 @@ function of the request and the bundled fonts.
   code points), and the font's missing-glyph box is drawn.
 - An empty label measures an empty box; a picture of a label that cannot be loaded is reported by `NodeImages`.
 - The image limit failure of `NodeImages` propagates unchanged; a null request throws `ArgumentNullException`.
+- The text utilities charge their work to the `Meter` when one is set; beyond the layout work limit the meter throws a
+  `MermaidRenderException` with code `mermaid-limit-exceeded` at its location, and a canceled token throws
+  `OperationCanceledException`. A text of font size zero, and a line of only spaces between `<br>` tags, fail with
+  `mermaid-render-failed`, as Mermaid's render fails ("svg element not in render tree").
 
 #### Dependencies
 
 - **Rendering subsystem** - `NodeImages` (natural sizes of label pictures)
+- **Configuration subsystem** - `MermaidFontConfig` and `ConfigScalar` (the fonts of the text utilities)
+- **Dagre subsystem** - `LayoutWorkMeter` (the work budget of the text utilities)
 - **Syntax subsystem** - `HtmlSanitizer` (Mermaid's sanitizing and the character references, with the `HtmlEntities`
   table)
 - **Scenegraph subsystem** - `SceneText`, `SceneTextRun`, `SceneImage`, `SceneFont`, `SceneRect`, `SceneItem`
@@ -94,8 +132,10 @@ function of the request and the bundled fonts.
 
 `ShapeLibrary` measures node labels and subgraph titles through `ShapeContext.MeasureLabel`, which `FlowchartModel`
 (the `Flowchart` subsystem) sets to `Build` and also uses for the metrics of the diagram title; `EdgeBuilder` measures
-edge labels through the same delegate and draws them with `LabelLayout.ToScene`. The tests in `LabelBuilderTests.cs`
-call the unit directly through `InternalsVisibleTo`.
+edge labels through the same delegate and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem,
+`SequenceLayout` creates a builder for each render (charged to the render's work meter) and measures and wraps with
+the text utilities, and `SequenceRenderer` boxes and places its text lines with them. The tests in
+`LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
 
@@ -114,3 +154,7 @@ call the unit directly through `InternalsVisibleTo`.
 - Markdown is the subset of `marked` that Mermaid's labels use (paragraphs, strong and emphasis with CommonMark's
   delimiter rules, escapes, inline HTML, and code spans kept as written); other blocks are kept as written, as Mermaid
   does, and links, tables, strikethrough, and hard breaks are plain text.
+- The text utilities emulate `getBBox` with the advance grown to the rasterizer's boxes of the end glyphs; this matches
+  every text of the sequence goldens, but for other glyphs or sizes a rounded width can differ by 1 pixel. Chrome's
+  snapping of text baselines to 1/64 pixel is not modeled. Hyphenating is bounded by the layout work limit, which
+  Mermaid does not have.

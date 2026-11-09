@@ -159,10 +159,11 @@ sections:
       - id: CanvasNetTool-Commands-HelpTopics-Mermaid
         title: >-
           The HelpTopics class shall provide the mermaid topic (alias mmd) with what a diagram may use (flowcharts,
-          their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles), each diagram
-          type and construct that is not drawn with the identifier of its diagnostic, the options that apply (--theme,
-          --scale, --background, and --strict), the diagnostics and errors with their codes, and the known differences
-          from Mermaid, a source example of a flowchart that renders with the strict option without a diagnostic, a
+          their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles, and sequence
+          diagrams, their statements, arrows, participant types, and settings), each diagram type and construct that
+          is not drawn with the identifier of its diagnostic, the options that apply (--theme, --scale, --background,
+          and --strict), the diagnostics and errors with their codes, and the known differences from Mermaid, source
+          examples of a flowchart and of a sequence diagram that render with the strict option without a diagnostic, a
           snippet whose nodes show a model and a chart (the examples of the scad and vega-lite topics) that renders the
           same way once those files exist and lists one embed operation for each, and command examples for render, the
           theme, and info; shall quote the limits of the Mermaid library (text size, nodes, edges, and pictures) from

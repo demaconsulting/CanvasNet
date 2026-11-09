@@ -100,15 +100,19 @@ public class DiscoveryCommandsDiagramTests
     }
 
     /// <summary>
-    ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
-    ///     titles, so an agent learns before rendering that it would get an empty picture.
+    ///     Test that a sequence diagram is described as supported, without a direction, with its title, and with its
+    ///     participants, messages and boxes counted, which the text names as such.
     /// </summary>
     [Fact]
-    public void DiscoveryCommands_Info_SequenceDiagram_IsNotSupported()
+    public void DiscoveryCommands_Info_SequenceDiagram_ReportsParticipantsAndMessages()
     {
         // Arrange
         using var directory = new TempDirectory();
-        var path = FixtureFactory.WriteText(directory.Path, "talk.mmd", "sequenceDiagram\n    Alice->>Bob: Hello\n");
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "talk.mmd",
+            "sequenceDiagram\n    title Talk\n    box Office\n    participant Alice\n    end\n    Alice->>Bob: Hello\n    Bob-->>Alice: Hi\n");
+        var info = SourceLoader.Probe(path);
 
         // Act
         var json = RunInfo(true, path);
@@ -118,11 +122,39 @@ public class DiscoveryCommandsDiagramTests
         using var document = JsonDocument.Parse(json);
         var diagram = document.RootElement.GetProperty("diagram");
         Assert.Equal("sequence", diagram.GetProperty("type").GetString());
+        Assert.True(diagram.GetProperty("supported").GetBoolean());
+        Assert.False(diagram.TryGetProperty("direction", out _));
+        Assert.Equal("Talk", diagram.GetProperty("title").GetString());
+        Assert.Equal((2, 2, 1), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Equal(
+            $"{path}: mermaid, {info.Width}x{info.Height} px (laid out), sequence, 2 participants, 2 messages, 1 box, title \"Talk\", {info.Bytes} bytes",
+            text);
+    }
+
+    /// <summary>
+    ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
+    ///     titles, so an agent learns before rendering that it would get an empty picture.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_ClassDiagram_IsNotSupported()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "classDiagram\n    Animal <|-- Duck\n");
+
+        // Act
+        var json = RunInfo(true, path);
+        var text = RunInfo(false, path).TrimEnd();
+
+        // Assert
+        using var document = JsonDocument.Parse(json);
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal("class", diagram.GetProperty("type").GetString());
         Assert.False(diagram.GetProperty("supported").GetBoolean());
         Assert.False(diagram.TryGetProperty("direction", out _));
         Assert.False(diagram.TryGetProperty("title", out _));
         Assert.Equal(0, diagram.GetProperty("nodes").GetInt32());
-        Assert.Contains("sequence (not drawn by this version), 0 nodes", text, StringComparison.Ordinal);
+        Assert.Contains("class (not drawn by this version), 0 nodes", text, StringComparison.Ordinal);
     }
 
     /// <summary>

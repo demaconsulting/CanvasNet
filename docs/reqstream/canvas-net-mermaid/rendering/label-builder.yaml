@@ -100,3 +100,41 @@ sections:
                   Mermaid sizes a label picture by that rule; the picture comes through the caller's resolver.
                 tests:
                   - LabelBuilder_Build_LoneImage_IsFiveEmWide
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-TextDimensions
+                title: >-
+                  The LabelBuilder unit shall measure a text as Mermaid's text utilities measure it in the browser -
+                  split at break tags as Mermaid's splitBreaks splits it, each line the SVG text box of the browser
+                  rounded to whole pixels (the advance grown to the boxes of the first and last glyphs), the widest
+                  line's width and the sum of the line heights - with Mermaid's font-size parsing and the browser's
+                  pixel size of a CSS font size, shall fail a text of font size zero as Mermaid's render fails, and
+                  shall charge the work to the layout work meter.
+                justification: |
+                  The sizes of the participants, messages, notes, and frames of a sequence diagram come from these
+                  measures; they must be the browser's for the same layout.
+                tests:
+                  - LabelBuilder_ParseFontSize_Number_IsPixels
+                  - LabelBuilder_ParseFontSize_Text_FollowsParseInt
+                  - LabelBuilder_FontPixels_CssSize_GivesBrowserPixels
+                  - LabelBuilder_SplitBreaks_SplitsAtBreakTags
+                  - LabelBuilder_CalculateTextDimensions_OneLine_IsRoundedSvgBox
+                  - LabelBuilder_SvgLineExtent_GlyphBoxesAtTheEnds_GrowTheAdvance
+                  - LabelBuilder_XHeight_IsTheTopOfTheX
+                  - LabelBuilder_CalculateTextDimensions_Lines_WidestAndSummed
+                  - LabelBuilder_CalculateTextDimensions_ZeroSizeAndMeter_FailAndCharge
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-WrapLabel
+                title: >-
+                  The LabelBuilder unit shall wrap a text as Mermaid's wrapLabel does - broken at the words before a
+                  line would reach the width, a word wider than the width hyphenated at code points, and Mermaid's
+                  stateful test for an existing break emulated - and shall stop hyphenating at the layout work limit.
+                justification: |
+                  Wrapped texts decide the sizes of a sequence diagram's messages, notes, and participants; a long word
+                  in untrusted text must not cost unbounded work.
+                tests:
+                  - LabelBuilder_WrapLabel_Words_BreakBeforeWidth
+                  - LabelBuilder_WrapLabel_LongWord_Hyphenated
+                  - LabelBuilder_BreakString_SurrogatePairs_KeptWhole
+                  - LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid
+                  - LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch
+                  - LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit

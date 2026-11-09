@@ -102,3 +102,23 @@ sections:
                   A browser drops an invalid declaration; the paint must be the one a browser would show.
                 tests:
                   - FlowchartStyles_Create_InvalidVariable_DropsDeclaration
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a sequence diagram - the
+                  same global rules as for a flowchart and the sequence rules - from the theme variables of a
+                  configuration, apply the themeCSS rules of the sequence diagram's own selectors after them and report
+                  every other themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade over the
+                  attributes Mermaid gives each element the paint of participants, lifelines, messages and their
+                  markers, sequence numbers, notes, activations, frames and their label boxes, boxes, and menus, the
+                  text colors, and the drop shadow of a CSS filter of none or one drop-shadow().
+                justification: |
+                  Mermaid paints a sequence diagram through these rules; the cascade decides, for example, that a
+                  lifeline is 2 pixels wide and that a box gets the theme's border and shadow, so resolving the rules
+                  the same way gives the same paint.
+                tests:
+                  - DiagramStyles_Create_GlobalRules_SharedByFlowchartAndSequence
+                  - SequenceStyles_Create_DefaultTheme_ResolvesCascade
+                  - SequenceStyles_Create_EachTheme_UsesThemeVariables
+                  - SequenceStyles_Create_ThemeCss_OverridesKnownSelectors
+                  - SequenceStyles_TryParseFilter_ParsesDropShadow

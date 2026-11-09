@@ -56,6 +56,53 @@ internal static partial class MermaidConfigResolver
         ["flowchart.wrappingWidth"] = ValueKind.Number,
         ["flowchart.inheritDir"] = ValueKind.Boolean,
         ["flowchart.arrowMarkerAbsolute"] = ValueKind.Boolean,
+        ["fontWeight"] = ValueKind.NumberOrText,
+        ["sequence"] = ValueKind.Object,
+        ["sequence.arrowMarkerAbsolute"] = ValueKind.Boolean,
+        ["sequence.hideUnusedParticipants"] = ValueKind.Boolean,
+        ["sequence.activationWidth"] = ValueKind.Number,
+        ["sequence.diagramMarginX"] = ValueKind.Number,
+        ["sequence.diagramMarginY"] = ValueKind.Number,
+        ["sequence.actorMargin"] = ValueKind.Number,
+        ["sequence.width"] = ValueKind.Number,
+        ["sequence.height"] = ValueKind.Number,
+        ["sequence.boxMargin"] = ValueKind.Number,
+        ["sequence.boxTextMargin"] = ValueKind.Number,
+        ["sequence.noteMargin"] = ValueKind.Number,
+        ["sequence.messageMargin"] = ValueKind.Number,
+        ["sequence.messageAlign"] = ValueKind.Text,
+        ["sequence.mirrorActors"] = ValueKind.Boolean,
+        ["sequence.forceMenus"] = ValueKind.Boolean,
+        ["sequence.bottomMarginAdj"] = ValueKind.Number,
+        ["sequence.useMaxWidth"] = ValueKind.Boolean,
+        ["sequence.rightAngles"] = ValueKind.Boolean,
+        ["sequence.showSequenceNumbers"] = ValueKind.Boolean,
+        ["sequence.actorFontSize"] = ValueKind.NumberOrText,
+        ["sequence.actorFontFamily"] = ValueKind.Text,
+        ["sequence.actorFontWeight"] = ValueKind.NumberOrText,
+        ["sequence.noteFontSize"] = ValueKind.NumberOrText,
+        ["sequence.noteFontFamily"] = ValueKind.Text,
+        ["sequence.noteFontWeight"] = ValueKind.NumberOrText,
+        ["sequence.noteAlign"] = ValueKind.Text,
+        ["sequence.messageFontSize"] = ValueKind.NumberOrText,
+        ["sequence.messageFontFamily"] = ValueKind.Text,
+        ["sequence.messageFontWeight"] = ValueKind.NumberOrText,
+        ["sequence.wrap"] = ValueKind.Boolean,
+        ["sequence.wrapPadding"] = ValueKind.Number,
+        ["sequence.labelBoxWidth"] = ValueKind.Number,
+        ["sequence.labelBoxHeight"] = ValueKind.Number,
+        ["sequence.textPlacement"] = ValueKind.Text,
+    };
+
+    /// <summary>
+    ///     The typed keys whose string must be one of a set of values: the alignments that Mermaid's sequence
+    ///     <c>drawText</c> understands (the schema's <c>left</c>, <c>center</c> and <c>right</c>, and the <c>start</c>,
+    ///     <c>middle</c> and <c>end</c> that it also honors).
+    /// </summary>
+    private static readonly Dictionary<string, string[]> ChoiceKeys = new(StringComparer.Ordinal)
+    {
+        ["sequence.messageAlign"] = ["left", "center", "right", "start", "middle", "end"],
+        ["sequence.noteAlign"] = ["left", "center", "right", "start", "middle", "end"],
     };
 
     /// <summary>
@@ -74,6 +121,9 @@ internal static partial class MermaidConfigResolver
 
         /// <summary>An object.</summary>
         Object,
+
+        /// <summary>A finite number or a string (a font size or a font weight).</summary>
+        NumberOrText,
     }
 
     /// <summary>
@@ -167,6 +217,17 @@ internal static partial class MermaidConfigResolver
                         $"the configuration value '{childPath}' in {Describe(kind)} must be {DescribeKind(expected)}; it is ignored",
                         location,
                         $"write {DescribeKind(expected)}, for example {ExampleOf(expected)}");
+                    obj.Remove(key);
+                    continue;
+                }
+
+                if (ChoiceKeys.TryGetValue(childSchemaPath, out var choices) && TryGetString(value, out var choice) && !choices.Contains(choice))
+                {
+                    context.Warn(
+                        MermaidDiagnosticCodes.ConfigInvalid,
+                        $"the configuration value '{childPath}' in {Describe(kind)} must be left, center, right, start, middle or end; it is ignored",
+                        location,
+                        "write \"left\", \"center\", \"right\", \"start\", \"middle\" or \"end\"");
                     obj.Remove(key);
                     continue;
                 }
@@ -314,6 +375,7 @@ internal static partial class MermaidConfigResolver
             ValueKind.Object => value is JsonObject,
             ValueKind.Text => value is JsonValue text && text.GetValueKind() == JsonValueKind.String,
             ValueKind.Boolean => value is JsonValue flag && flag.GetValueKind() is JsonValueKind.True or JsonValueKind.False,
+            ValueKind.NumberOrText => HasKind(value, ValueKind.Text) || HasKind(value, ValueKind.Number),
             _ => value is JsonValue number && number.GetValueKind() == JsonValueKind.Number && double.IsFinite(number.GetValue<double>()),
         };
 
@@ -327,6 +389,7 @@ internal static partial class MermaidConfigResolver
             ValueKind.Object => "an object",
             ValueKind.Text => "a string",
             ValueKind.Boolean => "true or false",
+            ValueKind.NumberOrText => "a number or a string",
             _ => "a finite number",
         };
 
@@ -340,6 +403,7 @@ internal static partial class MermaidConfigResolver
             ValueKind.Object => "{ \"key\": \"value\" }",
             ValueKind.Text => "\"text\"",
             ValueKind.Boolean => "true",
+            ValueKind.NumberOrText => "14",
             _ => "50",
         };
     }

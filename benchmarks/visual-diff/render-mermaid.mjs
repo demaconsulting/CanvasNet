@@ -21,6 +21,10 @@
 //   - edges: id (e.g. "L_A_B_0"), length, and points: the path sampled at 21 evenly spaced lengths (0%, 5%, ...,
 //     100%) with getPointAtLength;
 //   - edgeLabels: id (the edge id) and box of each label that has a size.
+// A sequence diagram (aria-roledescription="sequence") gets the sequence layout instead (extractSequence): the actors
+// (with their top and bottom drawings and lifelines), messages (with their texts, markers, sequence numbers and
+// central-connection circles), notes, activations, frames, background rects, boxes, menus, the title, and the paint
+// order; see Fixtures/reference/README.md for the format.
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -120,7 +124,8 @@ try {
     if (layoutDir) {
       const golden = { source: basename(file), mermaid: mermaidVersion, mermaidCli: cliVersion, ...layout };
       mkdirSync(layoutDir, { recursive: true });
-      writeFileSync(join(layoutDir, `${name}.layout.json`), `${format(golden)}\n`);
+      const json = layout.diagram === 'sequence' ? pretty(golden) : format(golden);
+      writeFileSync(join(layoutDir, `${name}.layout.json`), `${json}\n`);
     }
 
     console.log(`mermaid ${mermaidVersion} (mermaid-cli ${cliVersion}): ${file}`);
@@ -135,9 +140,38 @@ function format(value) {
     `[${inner.split(/,\s*/).join(', ')}]`);
 }
 
+// JSON with two-space indentation, where each array or object that fits in 120 columns is written on one line (the
+// sequence goldens, whose many small objects would otherwise take a line per value).
+function pretty(value, indent = '', prefix = 0) {
+  const inline = (v) => {
+    if (Array.isArray(v)) {
+      return `[${v.map(inline).join(', ')}]`;
+    }
+    if (v && typeof v === 'object') {
+      const entries = Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${inline(x)}`);
+      return entries.length ? `{ ${entries.join(', ')} }` : '{}';
+    }
+    return JSON.stringify(v);
+  };
+  const one = inline(value);
+  if (value === null || typeof value !== 'object' || indent.length + prefix + one.length <= 120) {
+    return one;
+  }
+  const next = `${indent}  `;
+  if (Array.isArray(value)) {
+    return `[\n${value.map((x) => next + pretty(x, next)).join(',\n')}\n${indent}]`;
+  }
+  const entries = Object.entries(value).map(([k, x]) => {
+    const key = `${JSON.stringify(k)}: `;
+    return next + key + pretty(x, next, key.length);
+  });
+  return `{\n${entries.join(',\n')}\n${indent}}`;
+}
+
 // Places the SVG in a page with the same fonts (setContent replaces the document that evaluateOnNewDocument styled, so
 // the style sheet is part of the content), reads its geometry back from the DOM and takes the picture; the node
-// shapes (which the SVG does not name) come from the diagram's own data (mermaid.mermaidAPI.getDiagramFromText).
+// shapes (which the SVG does not name) and the sequence actor list come from the diagram's own data
+// (mermaid.mermaidAPI.getDiagramFromText).
 async function readBack(svgText, definition, picture) {
   const page = await host.newPage();
   try {
@@ -148,13 +182,20 @@ async function readBack(svgText, definition, picture) {
       await Promise.all(Array.from(document.fonts, (font) => font.load()));
       await document.fonts.ready;
     });
-    const shapes = await page.evaluate(async (text) => {
+    const { shapes, actors } = await page.evaluate(async (text) => {
       window.mermaid.initialize({ startOnLoad: false });
       const diagram = await window.mermaid.mermaidAPI.getDiagramFromText(text);
       const data = diagram.db.getData?.();
-      return Object.fromEntries((data?.nodes ?? []).filter((n) => n.domId).map((n) => [n.domId, n.shape ?? null]));
+      return {
+        shapes: Object.fromEntries((data?.nodes ?? []).filter((n) => n.domId).map((n) => [n.domId, n.shape ?? null])),
+        actors: diagram.type === 'sequence'
+          ? [...diagram.db.getActors().values()].map((a) => ({ name: a.name, type: a.type, description: a.description }))
+          : null,
+      };
     }, definition);
-    const layout = await page.evaluate(extract, svgId, samples, shapes);
+    const layout = actors
+      ? await page.evaluate(extractSequence, svgId, samples, actors)
+      : await page.evaluate(extract, svgId, samples, shapes);
     let png;
     if (picture) {
       // The picture is the view box rounded up to whole pixels (the natural size CanvasNet draws at), times the scale
@@ -232,4 +273,256 @@ function extract(id, count, shapes) {
 
   const viewBox = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(Number).map(round);
   return { viewBox, nodes, clusters, edges, edgeLabels };
+}
+
+// Runs in the page: the layout of a sequence diagram. actors is the database's actor list (name, type, description)
+// in declaration order; each actor gets its top and bottom drawing (null when not drawn) and its lifeline.
+function extractSequence(id, count, actors) {
+  const svg = document.getElementById(id);
+  const toSvg = svg.getScreenCTM().inverse();
+  const round = (v) => Math.round(v * 1000) / 1000 + 0;
+  const withoutPrefix = (text) => (text && text.startsWith(`${id}-`) ? text.slice(id.length + 1) : text);
+  const matrix = (element) => toSvg.multiply(element.getScreenCTM());
+  const attr = (element, name) => Number(element.getAttribute(name) ?? 0);
+  const point = (element, x, y) => {
+    const p = new DOMPoint(x, y).matrixTransform(matrix(element));
+    return [round(p.x), round(p.y)];
+  };
+  const box = (element) => {
+    const b = element.getBBox();
+    const m = matrix(element);
+    const a = new DOMPoint(b.x, b.y).matrixTransform(m);
+    const c = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
+    return [Math.min(a.x, c.x), Math.min(a.y, c.y), Math.abs(c.x - a.x), Math.abs(c.y - a.y)].map(round);
+  };
+  const rendered = (element) => !element.closest('[display="none"]') && getComputedStyle(element).display !== 'none';
+  const marker = (element, name) => {
+    const match = /url\(#(.+)\)/.exec(element.getAttribute(name) ?? '');
+    return match ? withoutPrefix(match[1]) : null;
+  };
+
+  // The computed paint (CSS beats the presentation attributes): fill (not for a line), stroke, stroke width, and the
+  // dash pattern and filter when set.
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    const result = element.tagName === 'line' ? {} : { fill: s.fill };
+    result.stroke = s.stroke;
+    result.strokeWidth = round(parseFloat(s.strokeWidth));
+    if (s.strokeDasharray && s.strokeDasharray !== 'none') {
+      result.dash = s.strokeDasharray;
+    }
+    if (s.filter && s.filter !== 'none') {
+      result.filter = s.filter;
+    }
+    return result;
+  };
+  const line = (element) => [...point(element, attr(element, 'x1'), attr(element, 'y1')),
+    ...point(element, attr(element, 'x2'), attr(element, 'y2'))];
+  // A text: its lines (one per tspan), its x and y, and the computed style of its first tspan (where the theme's text
+  // color is set) or of the text itself
+  const text = (element) => {
+    const spans = element.querySelectorAll('tspan');
+    const s = getComputedStyle(spans[0] ?? element);
+    const result = {
+      class: element.getAttribute('class'),
+      lines: spans.length ? Array.from(spans, (t) => t.textContent) : [element.textContent],
+      at: point(element, attr(element, 'x'), attr(element, 'y')),
+      anchor: s.textAnchor,
+      baseline: element.getAttribute('dominant-baseline'),
+      fontSize: round(parseFloat(s.fontSize)),
+      fontWeight: s.fontWeight,
+      fill: s.fill,
+    };
+    if (rendered(element)) {
+      result.box = box(element);
+    }
+    return result;
+  };
+  const texts = (element) => Array.from(element.querySelectorAll('text'), text);
+
+  // A shape part of a drawing (not a text, not a marker definition)
+  const part = (element) => {
+    const result = { tag: element.tagName, box: box(element), paint: paint(element) };
+    for (const name of ['marker-start', 'marker-end']) {
+      const value = marker(element, name);
+      if (value) {
+        result[name === 'marker-start' ? 'markerStart' : 'markerEnd'] = value;
+      }
+    }
+    return result;
+  };
+  const parts = (group) => Array.from(group.querySelectorAll('rect, path, circle, ellipse, line, polygon'))
+    .filter((e) => !e.closest('defs, marker'))
+    .map(part);
+  const drawing = (group) => ({ box: box(group), parts: parts(group), texts: texts(group) });
+
+  // The paint order: each recognized item with its element, sorted by document position at the end
+  const order = [];
+
+  // Lifelines, then the top drawings (data-et participant), then the bottom drawings (class actor-bottom: the
+  // drawing's group, named by its name attribute or by its label's x, which is the lifeline's x)
+  const lifelines = new Map();
+  for (const element of svg.querySelectorAll('line[data-et="life-line"]')) {
+    const name = element.getAttribute('data-id');
+    lifelines.set(name, element);
+    order.push([`lifeline:${name}`, element]);
+  }
+  const tops = new Map();
+  for (const element of svg.querySelectorAll('[data-et="participant"]')) {
+    const name = element.getAttribute('data-id');
+    tops.set(name, element);
+    order.push([`actor-top:${name}`, element]);
+  }
+  const bottoms = new Map();
+  for (const element of svg.querySelectorAll('.actor-bottom')) {
+    const group = element.tagName === 'g' && element.querySelector('text') ? element : element.parentElement;
+    if ([...bottoms.values()].includes(group)) {
+      continue;
+    }
+    let name = element.getAttribute('name') ?? group.getAttribute('name');
+    if (!name) {
+      const label = group.querySelector('text');
+      const x = label ? point(label, attr(label, 'x'), 0)[0] : NaN;
+      name = [...lifelines].find(([, l]) => Math.abs(line(l)[0] - x) < 0.01)?.[0] ?? null;
+    }
+    bottoms.set(name, group);
+    order.push([`actor-bottom:${name}`, group]);
+  }
+  const actorList = actors.map((a) => ({
+    name: a.name,
+    type: a.type,
+    description: a.description,
+    top: tops.has(a.name) ? drawing(tops.get(a.name)) : null,
+    bottom: bottoms.has(a.name) ? drawing(bottoms.get(a.name)) : null,
+    lifeline: lifelines.has(a.name)
+      ? { line: line(lifelines.get(a.name)), paint: paint(lifelines.get(a.name)) }
+      : null,
+  }));
+
+  // Messages (data-et message) with the texts drawn just before them, and the sequence number and the
+  // central-connection circles drawn just after them; all are children of the svg element
+  const messages = [];
+  let pending = [];
+  let current = null;
+  for (const child of svg.children) {
+    if (child.matches('text.messageText')) {
+      pending.push(text(child));
+    } else if (child.matches('[data-et="message"]')) {
+      const dataId = child.getAttribute('data-id');
+      current = {
+        id: dataId,
+        from: child.getAttribute('data-from'),
+        to: child.getAttribute('data-to'),
+        class: child.getAttribute('class'),
+        tag: child.tagName,
+        markerStart: marker(child, 'marker-start'),
+        markerEnd: marker(child, 'marker-end'),
+        paint: paint(child),
+        texts: pending,
+        number: null,
+        circles: [],
+      };
+      if (child.tagName === 'line') {
+        current.line = line(child);
+      } else {
+        const m = matrix(child);
+        const length = child.getTotalLength();
+        current.d = child.getAttribute('d');
+        current.length = round(length);
+        current.points = [];
+        for (let i = 0; i <= count; i++) {
+          const p = child.getPointAtLength((length * i) / count).matrixTransform(m);
+          current.points.push([round(p.x), round(p.y)]);
+        }
+      }
+      pending = [];
+      messages.push(current);
+      order.push([`message:${dataId}`, child]);
+    } else if (current && child.matches('line') && marker(child, 'marker-start') === 'sequencenumber') {
+      current.number = { line: line(child), paint: paint(child), text: null };
+      order.push([`number:${current.id}`, child]);
+    } else if (current && current.number && child.matches('text.sequenceNumber')) {
+      current.number.text = text(child);
+    } else if (current && child.matches('g') && !child.hasAttribute('class') && !child.hasAttribute('data-et') &&
+      child.children.length > 0 && Array.from(child.children).every((c) => c.tagName === 'circle')) {
+      for (const circle of child.children) {
+        current.circles.push({ center: point(circle, attr(circle, 'cx'), attr(circle, 'cy')), r: attr(circle, 'r'),
+          paint: paint(circle) });
+      }
+      order.push([`circles:${current.id}`, child]);
+    }
+  }
+
+  const notes = Array.from(svg.querySelectorAll('g[data-et="note"]'), (g) => {
+    const rect = g.querySelector('rect');
+    order.push([`note:${g.getAttribute('data-id')}`, g]);
+    return { id: g.getAttribute('data-id'), box: box(rect), paint: paint(rect), texts: texts(g) };
+  });
+
+  const activations = Array.from(svg.querySelectorAll('rect[class^="activation"]'), (rect, i) => {
+    order.push([`activation:${i}`, rect]);
+    return { class: rect.getAttribute('class'), box: box(rect), paint: paint(rect) };
+  });
+
+  const frames = Array.from(svg.querySelectorAll('g[data-et="control-structure"]'), (g) => {
+    order.push([`frame:${g.getAttribute('data-id')}`, g]);
+    const polygon = g.querySelector('polygon');
+    const points = polygon
+      ? Array.from(polygon.points, (p) => point(polygon, p.x, p.y))
+      : null;
+    return {
+      id: g.getAttribute('data-id'),
+      lines: Array.from(g.querySelectorAll('line'), (l) => ({ line: line(l), paint: paint(l) })),
+      labelBox: polygon ? { points, paint: paint(polygon) } : null,
+      texts: texts(g),
+    };
+  });
+
+  // Background rects of rect blocks are children of the svg element; boxes are rects in a group with their title
+  const rects = Array.from(svg.querySelectorAll(':scope > rect.rect'), (rect, i) => {
+    order.push([`rect:${i}`, rect]);
+    return { box: box(rect), paint: paint(rect) };
+  });
+  const boxes = Array.from(svg.querySelectorAll(':scope > g > rect.rect'), (rect, i) => {
+    order.push([`box:${i}`, rect.parentElement]);
+    return { box: box(rect), paint: paint(rect), texts: texts(rect.parentElement) };
+  });
+
+  // Popup menus are drawn hidden (display none) unless forceMenus is set: the panel is given by its attributes
+  const menus = Array.from(svg.querySelectorAll('g.actorPopupMenu'), (g) => {
+    order.push([`menu:${g.id}`, g]);
+    const panel = g.querySelector('rect');
+    const displayed = rendered(g);
+    return {
+      id: g.id,
+      displayed,
+      panel: panel
+        ? [...point(panel, attr(panel, 'x'), attr(panel, 'y')), attr(panel, 'width'), attr(panel, 'height')].map(round)
+        : null,
+      ...(panel && displayed ? { paint: paint(panel) } : {}),
+      texts: texts(g),
+    };
+  });
+
+  const titleElement = Array.from(svg.querySelectorAll(':scope > text')).find((t) => !t.hasAttribute('class'));
+  if (titleElement) {
+    order.push(['title', titleElement]);
+  }
+
+  order.sort(([, a], [, b]) => (a === b ? 0 : a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  const viewBox = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(Number).map(round);
+  return {
+    diagram: 'sequence',
+    viewBox,
+    title: titleElement ? text(titleElement) : null,
+    actors: actorList,
+    messages,
+    notes,
+    activations,
+    frames,
+    rects,
+    boxes,
+    menus,
+    order: order.map(([key]) => key),
+  };
 }

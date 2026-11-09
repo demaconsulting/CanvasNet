@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Scheduler
+    participant Worker
+    Scheduler->>Worker: Start the job
+    activate Worker
+    Worker->>Worker: Load the input
+    activate Worker
+    Worker->>Worker: Split the work
+    activate Worker
+    Worker-->>Scheduler: Half done
+    deactivate Worker
+    Worker-->>Scheduler: Nearly done
+    deactivate Worker
+    Worker-->>Scheduler: Done
+    deactivate Worker
+    activate Scheduler
+    Scheduler->>Scheduler: Record the result
+    deactivate Scheduler

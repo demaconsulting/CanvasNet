@@ -1,0 +1,555 @@
+{
+  "source": "02-participants-aliases.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 1252, 479],
+  "title": null,
+  "actors": [
+    {
+      "name": "Web",
+      "type": "participant",
+      "description": "Web Shop",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Web Shop"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [36.789, 24, 75.523, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 393, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 393, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Web Shop"],
+            "at": [75, 425.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [36.789, 417, 75.523, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 393], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Buyer",
+      "type": "actor",
+      "description": "Buyer",
+      "top": {
+        "box": [254.102, -5, 42.469, 81],
+        "parts": [
+          { "tag": "line", "box": [275, 25, 0, 20], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [257, 33, 36, 0], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [257, 45, 18, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [275, 45, 16, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          {
+            "tag": "circle",
+            "box": [260, -5, 30, 30],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-man",
+            "lines": ["Buyer"],
+            "at": [275, 67.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [254.102, 59, 42.469, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [254.102, 388, 42.469, 81],
+        "parts": [
+          { "tag": "line", "box": [275, 418, 0, 20], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [257, 426, 36, 0], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [257, 438, 18, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [275, 438, 16, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          {
+            "tag": "circle",
+            "box": [260, 388, 30, 30],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-man",
+            "lines": ["Buyer"],
+            "at": [275, 460.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [254.102, 452, 42.469, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 80, 275, 393], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Pay",
+      "type": "participant",
+      "description": "Payment Gateway",
+      "top": {
+        "box": [400, 0, 152, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 152, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Payment Gateway"],
+            "at": [476, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [410.633, 24, 131.727, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 393, 152, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 393, 152, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Payment Gateway"],
+            "at": [476, 425.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [410.633, 417, 131.727, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [476, 65, 476, 393], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Ledger",
+      "type": "participant",
+      "description": "Ledger",
+      "top": {
+        "box": [602, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [602, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Ledger"],
+            "at": [677, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [652.086, 24, 50.492, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [602, 393, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [602, 393, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Ledger"],
+            "at": [677, 425.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [652.086, 417, 50.492, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [677, 65, 677, 393], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Courier",
+      "type": "actor",
+      "description": "Delivery Courier",
+      "top": {
+        "box": [819.648, -5, 115.367, 81],
+        "parts": [
+          { "tag": "line", "box": [877, 25, 0, 20], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [859, 33, 36, 0], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [859, 45, 18, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [877, 45, 16, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          {
+            "tag": "circle",
+            "box": [862, -5, 30, 30],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-man",
+            "lines": ["Delivery Courier"],
+            "at": [877, 67.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [819.648, 59, 115.367, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [819.648, 388, 115.367, 81],
+        "parts": [
+          { "tag": "line", "box": [877, 418, 0, 20], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [859, 426, 36, 0], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [859, 438, 18, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          { "tag": "line", "box": [877, 438, 16, 15], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } },
+          {
+            "tag": "circle",
+            "box": [862, 388, 30, 30],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-man",
+            "lines": ["Delivery Courier"],
+            "at": [877, 460.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [819.648, 452, 115.367, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [877, 80, 877, 393], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Stock",
+      "type": "participant",
+      "description": "Stock",
+      "top": {
+        "box": [1002, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [1002, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Stock"],
+            "at": [1077, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [1056.992, 24, 41.016, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [1002, 393, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [1002, 393, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Stock"],
+            "at": [1077, 425.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [1056.992, 417, 41.016, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [1077, 65, 1077, 393], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Buyer",
+      "to": "Web",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Place an order"],
+          "at": [177, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [124.969, 86.219, 104.734, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 109, 79, 109]
+    },
+    {
+      "id": "i1",
+      "from": "Web",
+      "to": "Pay",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Charge the card"],
+          "at": [274, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [216.633, 130.219, 114.836, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 153, 472, 153]
+    },
+    {
+      "id": "i2",
+      "from": "Pay",
+      "to": "Web",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Approved"],
+          "at": [277, 168],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [241.75, 174.219, 69.594, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [475, 197, 79, 197]
+    },
+    {
+      "id": "i3",
+      "from": "Web",
+      "to": "Stock",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Reserve the items"],
+          "at": [575, 212],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [510.531, 218.219, 128.938, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 241, 1073, 241]
+    },
+    {
+      "id": "i4",
+      "from": "Stock",
+      "to": "Web",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Reserved"],
+          "at": [578, 256],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [543.758, 262.219, 68.578, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [1076, 285, 79, 285]
+    },
+    {
+      "id": "i5",
+      "from": "Web",
+      "to": "Buyer",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Order confirmed"],
+          "at": [174, 300],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [116.203, 306.219, 115.695, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 329, 271, 329]
+    },
+    {
+      "id": "i6",
+      "from": "Web",
+      "to": "Courier",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Collect the parcel"],
+          "at": [475, 344],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [413.188, 350.219, 123.625, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 373, 873, 373]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Stock",
+    "actor-bottom:Ledger",
+    "actor-bottom:Pay",
+    "actor-bottom:Web",
+    "lifeline:Stock",
+    "actor-top:Stock",
+    "lifeline:Courier",
+    "lifeline:Ledger",
+    "actor-top:Ledger",
+    "lifeline:Pay",
+    "actor-top:Pay",
+    "lifeline:Buyer",
+    "lifeline:Web",
+    "actor-top:Web",
+    "actor-top:Buyer",
+    "actor-top:Courier",
+    "message:i0",
+    "message:i1",
+    "message:i2",
+    "message:i3",
+    "message:i4",
+    "message:i5",
+    "message:i6",
+    "actor-bottom:Buyer",
+    "actor-bottom:Courier"
+  ]
+}

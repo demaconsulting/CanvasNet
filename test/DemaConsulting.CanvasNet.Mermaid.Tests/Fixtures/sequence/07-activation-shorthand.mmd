@@ -1,0 +1,16 @@
+sequenceDiagram
+    participant User
+    participant Api
+    participant Db as Database
+    User->>+Api: Fetch the profile
+    Api->>+Db: Query
+    Db-->>-Api: Rows
+    Api-->>-User: Profile
+    User->>+Api: Update the profile
+    Api->>+Api: Validate
+    Api-->>-Api: Valid
+    Api->>+Db: Write
+    Api->>+Db: Write the audit row
+    Db-->>-Api: Written
+    Db-->>-Api: Audited
+    Api-->>-User: Saved

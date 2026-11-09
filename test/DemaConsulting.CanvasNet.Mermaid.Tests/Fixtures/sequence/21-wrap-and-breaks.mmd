@@ -1,0 +1,17 @@
+---
+config:
+  wrap: true
+---
+sequenceDiagram
+    participant Gateway as The gateway<br/>in front
+    participant Backend
+    Gateway->>Backend: This message is long enough that the automatic wrapping breaks it over several lines
+    Backend-->>Gateway: nowrap:This reply is not wrapped even though wrapping is on for the diagram
+    Note over Gateway: A note that wraps because wrapping is on for every item
+    Note right of Backend: Two<br>lines<br />in a note
+    Backend->>Gateway: A message with https://example.com/a/very/long/path/in/one/word
+    Note over Backend: See https://example.com/a/very/long/path/that/needs/to/be/cut/into/parts
+    loop A loop title that is long enough to wrap inside the frame
+        Gateway->>Backend: Line one<br/>Line two
+    end
+    Gateway->>Gateway: wrap:A self message that wraps around

@@ -26,7 +26,7 @@ public class DiagramDetectorTests
     [InlineData("flowchart TD", "flowchart-v2", "flowchart", "Supported")]
     [InlineData("graph LR", "flowchart-v2", "flowchart", "Supported")]
     [InlineData("flowchart-elk TD", "flowchart-elk", "flowchart", "Supported")]
-    [InlineData("sequenceDiagram", "sequence", "sequence", "Planned")]
+    [InlineData("sequenceDiagram", "sequence", "sequence", "Supported")]
     [InlineData("classDiagram", "classDiagram", "class", "Planned")]
     [InlineData("classDiagram-v2", "classDiagram", "class", "Planned")]
     [InlineData("stateDiagram", "stateDiagram", "state", "Planned")]
@@ -193,9 +193,9 @@ public class DiagramDetectorTests
     public void DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords()
     {
         // Arrange / Act / Assert
-        Assert.Equal("sequence diagrams are planned; supported in this version: flowchart, graph", DiagramDetector.UnsupportedHint(Detect("sequenceDiagram")));
-        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
-        Assert.Equal(["flowchart", "graph"], DiagramDetector.SupportedDiagramKeywords);
+        Assert.Equal("class diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram", DiagramDetector.UnsupportedHint(Detect("classDiagram")));
+        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
+        Assert.Equal(["flowchart", "graph", "sequenceDiagram"], DiagramDetector.SupportedDiagramKeywords);
     }
 
     /// <summary>

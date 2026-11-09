@@ -208,6 +208,11 @@ includes:
   - docs/reqstream/canvas-net-mermaid/flowchart.yaml
   - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml
   - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-model.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-model.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-layout.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

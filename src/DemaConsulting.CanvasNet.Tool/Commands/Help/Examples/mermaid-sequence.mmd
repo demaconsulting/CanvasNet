@@ -1,0 +1,19 @@
+---
+title: Checkout
+---
+sequenceDiagram
+    autonumber
+    actor Buyer
+    participant Shop
+    participant Bank as Payment provider
+    Buyer->>+Shop: Place the order
+    Shop->>Bank: Charge the card
+    alt Card accepted
+        Bank-->>Shop: Approved
+        Shop-->>Buyer: Order confirmed
+    else Card declined
+        Bank-->>Shop: Declined
+        Shop-->>Buyer: Try another card
+    end
+    deactivate Shop
+    Note over Buyer,Shop: The receipt is sent by email

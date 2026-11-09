@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant Planner
+    participant Builder
+    participant Tester
+    Note left of Planner: On the left
+    Note right of Builder: On the right
+    Note over Tester: Over one participant
+    Planner->>Builder: Plan
+    Note over Planner,Builder: Spanning two participants
+    Note over Builder,Tester: A longer note that spans two participants and needs more room than the others
+    Builder->>Tester: Build
+    Note over Tester,Planner: Reversed pair
+    note right of Tester: Last note

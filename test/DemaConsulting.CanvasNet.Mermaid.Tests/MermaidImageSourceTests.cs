@@ -58,7 +58,7 @@ public class MermaidImageSourceTests
         var source = new MermaidImageSource();
 
         // Act
-        var result = source.Render(Request(MermaidTestHelpers.SequenceText, width: 32, height: 24));
+        var result = source.Render(Request(MermaidTestHelpers.ClassText, width: 32, height: 24));
         using var surface = result.Surface;
 
         // Assert
@@ -129,7 +129,7 @@ public class MermaidImageSourceTests
         var source = new MermaidImageSource();
 
         // Act / Assert
-        Assert.Throws<MermaidUnsupportedFeatureException>(() => source.Render(Request(MermaidTestHelpers.SequenceText, strict: true)));
+        Assert.Throws<MermaidUnsupportedFeatureException>(() => source.Render(Request(MermaidTestHelpers.ClassText, strict: true)));
     }
 
     /// <summary>
@@ -142,8 +142,8 @@ public class MermaidImageSourceTests
         var source = new MermaidImageSource();
 
         // Act
-        using var dark = source.Render(Request(MermaidTestHelpers.SequenceText, "theme=dark")).Surface;
-        var ex = Assert.Throws<ImageSourceRefusedException>(() => source.Render(Request(MermaidTestHelpers.SequenceText, "theme=purple")));
+        using var dark = source.Render(Request(MermaidTestHelpers.ClassText, "theme=dark")).Surface;
+        var ex = Assert.Throws<ImageSourceRefusedException>(() => source.Render(Request(MermaidTestHelpers.ClassText, "theme=purple")));
 
         // Assert
         Assert.Equal((16, 16), (dark.Width, dark.Height));

@@ -16,9 +16,9 @@ sections:
           - id: CanvasNetMermaid-Scenegraph-Model
             title: >-
               The Scenegraph subsystem shall represent a laid-out diagram as an immutable scene in Mermaid's SVG
-              coordinates - a view box and translated groups of paths with fill and stroke, lines of styled text
-              runs, and pictures, each with a role, Mermaid's element id, and the location of its construct - whose
-              bounds are those of its geometry as an SVG bounding box gives them.
+              coordinates - a view box and translated groups of paths with fill, stroke, and drop shadow, lines of
+              styled text runs, and pictures, each with a role, Mermaid's element id, and the location of its
+              construct - whose bounds are those of its geometry as an SVG bounding box gives them.
             justification: |
               Separating the scene from the pixels lets the tests and the reference comparison assert the layout
               with numbers, and the view box of a diagram includes bounds that Mermaid takes from the bounding box
@@ -27,15 +27,17 @@ sections:
               - CanvasNetMermaid-Scenegraph-SceneModel-Rectangles
               - CanvasNetMermaid-Scenegraph-SceneModel-Segments
               - CanvasNetMermaid-Scenegraph-SceneModel-Bounds
+              - CanvasNetMermaid-Scenegraph-SceneModel-Shadow
             tests:
               - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
+              - Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds
 
           - id: CanvasNetMermaid-Scenegraph-Painting
             title: >-
               The Scenegraph subsystem shall paint a scene onto a surface over a background (transparent when none),
               placed at a uniform scale or fitted and centered in a size, with anti-aliased fills under the nonzero
-              or even-odd rule, strokes with their width and dashes scaled, and text runs in the bundled fonts
-              anchored at the start, middle, or end of their line.
+              or even-odd rule, strokes with their width and dashes scaled, drop shadows under their paths, and text
+              runs in the bundled fonts anchored at the start, middle, or end of their line.
             justification: |
               The painter turns the verified scene into the pixels of the natural-size and exact-size renders of a
               diagram, and it must draw what Mermaid's SVG shows.
@@ -45,8 +47,11 @@ sections:
               - CanvasNetMermaid-Scenegraph-ScenePainter-Dashes
               - CanvasNetMermaid-Scenegraph-ScenePainter-Text
               - CanvasNetMermaid-Scenegraph-ScenePainter-Placement
+              - CanvasNetMermaid-Scenegraph-ScenePainter-DropShadow
+              - CanvasNetMermaid-Scenegraph-ScenePainter-StrokedText
             tests:
               - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
+              - Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds
 
           - id: CanvasNetMermaid-Scenegraph-Pictures
             title: >-

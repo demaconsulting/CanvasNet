@@ -56,12 +56,23 @@ public static class MermaidDiagnosticCodes
     /// <summary>A configuration key that Mermaid does not define is ignored (a warning).</summary>
     public const string ConfigUnknownKey = "mermaid-config-unknown-key";
 
-    /// <summary>A configuration value has the wrong type or range; the default is kept (a warning).</summary>
+    /// <summary>
+    ///     A configuration value has the wrong type or range; it is ignored and the value of the lower layer is
+    ///     kept (a warning).
+    /// </summary>
     public const string ConfigInvalid = "mermaid-config-invalid";
 
     /// <summary>A node uses a shape name that Mermaid does not define; the hint names the nearest shape.</summary>
     public const string ShapeUnknown = "mermaid-shape-unknown";
 
+    /// <summary>
+    ///     A sequence participant has a <c>type</c> that Mermaid does not define; it is not drawn, as in Mermaid (a
+    ///     warning); the hint names the nearest of the eight types.
+    /// </summary>
+    public const string ParticipantTypeUnknown = "mermaid-participant-type-unknown";
+
+    /// <summary>A <c>$$...$$</c> math text (KaTeX) in a sequence diagram is drawn as plain text (an unsupported feature).</summary>
+    public const string MathUnsupported = "mermaid-math-unsupported";
 
     /// <summary>An icon (<c>fa:</c>, <c>@{ icon }</c>) is not drawn; the text without the icon is (an unsupported feature).</summary>
     public const string IconUnsupported = "mermaid-icon-unsupported";

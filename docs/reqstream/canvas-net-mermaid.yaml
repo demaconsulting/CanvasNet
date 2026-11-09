@@ -3,14 +3,15 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Mermaid package
 # (root namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Graphlib,
-# Dagre, Rendering, Scenegraph, and Flowchart) from the perspective of its consumers, without specifying
+# Dagre, Rendering, Scenegraph, Flowchart, and Sequence) from the perspective of its consumers, without specifying
 # implementation details.
 #
 # CanvasNetMermaid is an independent software system distributed as its own NuGet package. It reads Mermaid diagram
 # text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code and the public
 # CanvasNet APIs: there is no browser, no JavaScript runtime, no network access, and no dependency on any Mermaid,
 # dagre, or d3 package. This version draws flowcharts (the flowchart and graph keywords) with Mermaid's own layout
-# (a port of dagre) and Mermaid's own shapes, labels, edges, themes, and styles; every other Mermaid diagram type is
+# (a port of dagre) and Mermaid's own shapes, labels, edges, themes, and styles, and sequence diagrams (the
+# sequenceDiagram keyword) with a port of Mermaid's sequence renderer; every other Mermaid diagram type is
 # recognized and reported as unsupported with a stable mermaid-* identifier instead of failing or drawing a guess
 # (see docs/design/canvas-net-mermaid.md, Fidelity and Known Differences, and the Phase Plan). The ported behavior of
 # Mermaid, dagre, graphlib, d3, khroma, js-yaml, lodash, and marked is attributed in the package's third-party notices
@@ -37,6 +38,7 @@ sections:
           - CanvasNetMermaid-MermaidDocument-ParseOpen
           - CanvasNetMermaid-Syntax-Preprocessing
           - CanvasNetMermaid-Flowchart-Language
+          - CanvasNetMermaid-Sequence-Language
         tests:
           - CanvasNetMermaid_Open_StringStreamAndPath_Agree
           - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
@@ -44,8 +46,9 @@ sections:
       - id: CanvasNetMermaid-DiagramMetadata
         title: >-
           The library shall let a caller read what a diagram declares - its diagram type, whether this version
-          draws it, its title, its accessible title, its direction, and its node, edge, and subgraph counts - from a
-          parsed document without rendering it and without opening any other file or the network.
+          draws it, its title, its accessible title, its direction, and its node, edge, and subgraph counts (for a
+          sequence diagram its participants, messages, and boxes) - from a parsed document without rendering it and
+          without opening any other file or the network.
         tags: [system]
         justification: |
           Tools describe a diagram before they render it (the canvasnet info command, a documentation filter that
@@ -57,6 +60,7 @@ sections:
           - CanvasNetMermaid-Syntax-Detection
           - CanvasNetMermaid-Configuration-Detection
           - CanvasNetMermaid-Flowchart-Metadata
+          - CanvasNetMermaid-Sequence-Metadata
         tests:
           - CanvasNetMermaid_Metadata_Flowchart_DescribesTheDiagram
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
@@ -80,6 +84,7 @@ sections:
           - CanvasNetMermaid-Syntax-Yaml
           - CanvasNetMermaid-Syntax-UntrustedInput
           - CanvasNetMermaid-Flowchart-FailClosed
+          - CanvasNetMermaid-Sequence-FailClosed
         tests:
           - CanvasNetMermaid_SyntaxErrors_AreLocatedCodedAndHinted
           - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
@@ -103,6 +108,7 @@ sections:
           - CanvasNetMermaid-Configuration-Reports
           - CanvasNetMermaid-Configuration-Detection
           - CanvasNetMermaid-Flowchart-LayoutData
+          - CanvasNetMermaid-Sequence-Layout
         tests:
           - CanvasNetMermaid_Configuration_TextOverridesTheCaller
 
@@ -120,9 +126,12 @@ sections:
           - CanvasNetMermaid-Configuration-Themes
           - CanvasNetMermaid-Configuration-StyleSheet
           - CanvasNetMermaid-Rendering-NodeShapes
+          - CanvasNetMermaid-Sequence-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors
           - CanvasNetMermaid_Flowchart_Theme_ChangesTheNodeFill
+          - CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors
+          - CanvasNetMermaid_Sequence_Theme_ChangesTheParticipantFill
 
       - id: CanvasNetMermaid-Flowcharts
         title: >-
@@ -154,14 +163,44 @@ sections:
         tests:
           - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
           - CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes
-          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowcharts
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams
+          - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
+
+      - id: CanvasNetMermaid-SequenceDiagrams
+        title: >-
+          The library shall draw sequence diagrams (the sequenceDiagram keyword) with the eight participant types,
+          aliases, participant metadata, links, and properties, every arrow of messages, activations, notes, the loop,
+          alt, opt, par, par_over, critical, break, and rect blocks, boxes, created and destroyed participants,
+          sequence numbers, the sequence configuration settings, and the title.
+        tags: [system]
+        justification: |
+          Sequence diagrams are the second most used Mermaid diagram type and describe how parts of a system talk to
+          each other; an author must be able to use the whole sequence language without checking which parts are
+          drawn.
+        children:
+          - CanvasNetMermaid-Syntax-ParserInput
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Configuration-Precedence
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Model
+          - CanvasNetMermaid-Scenegraph-Painting
+          - CanvasNetMermaid-Sequence-Language
+          - CanvasNetMermaid-Sequence-Layout
+          - CanvasNetMermaid-Sequence-Drawing
+        tests:
+          - CanvasNetMermaid_Sequence_Fixture_RendersStrictly
+          - CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams
           - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
       - id: CanvasNetMermaid-LayoutFidelity
         title: >-
           The library shall lay out a flowchart as Mermaid does - the same view box, node centers and sizes,
-          subgraph rectangles, edge routes, and edge label positions - within the tolerance documented in the system
-          design when Mermaid measures text with the same bundled fonts.
+          subgraph rectangles, edge routes, and edge label positions - and a sequence diagram as Mermaid does - the
+          same view box, participants, lifelines, messages and their markers, notes, activations, frames, rect
+          backgrounds, boxes, and menus - within the tolerance documented in the system design when Mermaid measures
+          text with the same bundled fonts.
         tags: [system]
         justification: |
           A picture that differs in layout from the one the author previewed in Mermaid breaks the author's
@@ -180,9 +219,13 @@ sections:
           - CanvasNetMermaid-Rendering-Labels
           - CanvasNetMermaid-Scenegraph-Model
           - CanvasNetMermaid-Flowchart-LayoutData
+          - CanvasNetMermaid-Sequence-Layout
+          - CanvasNetMermaid-Sequence-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid
           - CanvasNetMermaid_Flowchart_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetMermaid_SequenceReferenceLayout_MatchesMermaid
+          - CanvasNetMermaid_Sequence_ReferenceGoldens_CoverEveryFixture
 
       - id: CanvasNetMermaid-MeasureRender
         title: >-
@@ -199,8 +242,10 @@ sections:
           - CanvasNetMermaid-Scenegraph-Model
           - CanvasNetMermaid-Scenegraph-Painting
           - CanvasNetMermaid-Flowchart-Drawing
+          - CanvasNetMermaid-Sequence-Layout
         tests:
           - CanvasNetMermaid_Flowchart_Scale_KeepsTheDrawing
+          - CanvasNetMermaid_Sequence_Scale_MultipliesTheNaturalSize
           - CanvasNetMermaid_Flowchart_Background_IsTransparentByDefault
           - CanvasNetMermaid_Flowchart_FixedSize_FitsTheDiagram
           - CanvasNetMermaid_RenderSized_InvalidSize_Throws
@@ -225,8 +270,9 @@ sections:
       - id: CanvasNetMermaid-UnsupportedFeatures
         title: >-
           The library shall report every construct it recognizes but does not draw - a diagram type other than a
-          flowchart (drawn as an empty transparent picture), the hand-drawn look, a layout other than dagre, icons,
-          style declarations outside the supported subset, and HTML elements outside the supported subset - with a
+          flowchart or a sequence diagram (drawn as an empty transparent picture), the hand-drawn look, a layout other
+          than dagre, icons, math, style declarations outside the supported subset, and HTML elements outside the
+          supported subset - with a
           stable mermaid-* code, a message, a hint, and the location, delivered once, in order, on the calling
           thread to the caller's handlers, and shall throw a MermaidUnsupportedFeatureException at the first one in
           strict mode.
@@ -245,14 +291,18 @@ sections:
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Labels
           - CanvasNetMermaid-Flowchart-UnsupportedFeatures
+          - CanvasNetMermaid-Sequence-UnsupportedFeatures
         tests:
           - CanvasNetMermaid_Reports_AreCodedAndLocated
-          - CanvasNetMermaid_Render_SequenceDiagram_ReportsOnceAndDrawsTransparentPlaceholder
-          - CanvasNetMermaid_Render_SequenceDiagramStrict_Throws
-          - CanvasNetMermaid_Measure_SequenceDiagram_ReportsAndGivesScaledPlaceholderSize
-          - CanvasNetMermaid_RenderSized_SequenceDiagramWithBackground_FillsBackground
+          - CanvasNetMermaid_Render_ClassDiagram_ReportsOnceAndDrawsTransparentPlaceholder
+          - CanvasNetMermaid_Render_ClassDiagramStrict_Throws
+          - CanvasNetMermaid_Measure_ClassDiagram_ReportsAndGivesScaledPlaceholderSize
+          - CanvasNetMermaid_RenderSized_ClassDiagramWithBackground_FillsBackground
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
           - CanvasNetMermaid_Render_FailingHandler_Propagates
+          - CanvasNetMermaid_Sequence_NeoLook_IsReportedAndDrawnClassic
+          - CanvasNetMermaid_Sequence_Math_IsReportedAndDrawnAsText
+          - CanvasNetMermaid_Sequence_PropertiesIcon_IsReportedOrFails
 
       - id: CanvasNetMermaid-Limits
         title: >-
@@ -276,6 +326,7 @@ sections:
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Scenegraph-BoundedPainting
           - CanvasNetMermaid-Flowchart-FailClosed
+          - CanvasNetMermaid-Sequence-FailClosed
         tests:
           - CanvasNetMermaid_Hardening_TooManyEdges_IsALocatedLimit
           - CanvasNetMermaid_Hardening_TooLongText_IsRefused
@@ -287,6 +338,15 @@ sections:
           - CanvasNetMermaid_Hardening_LongChainAndManySubgraphs_Render
           - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_Hardening_HostileCorpus_RendersOrFailsLocated
+          - CanvasNetMermaid_Hardening_SequenceDeepBlocks_AreALocatedLimit
+          - CanvasNetMermaid_Hardening_SequenceTooManyParticipants_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_SequenceLongMessage_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit
+          - CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels
+          - CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders
+          - CanvasNetMermaid_Hardening_SequenceHugeStrokeWidth_ShadowIsTheFillsShadow
+          - CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded
 
       - id: CanvasNetMermaid-Determinism
         title: >-
@@ -308,6 +368,8 @@ sections:
         tests:
           - CanvasNetMermaid_Flowchart_RepeatedAndConcurrentRenders_AreIdentical
           - CanvasNetMermaid_Render_Concurrent_IsDeterministic
+          - CanvasNetMermaid_Sequence_RepeatedAndConcurrentRenders_AreIdentical
+          - CanvasNetMermaid_Hardening_SequenceFixtures_RenderDeterministically
 
       - id: CanvasNetMermaid-Cancellation
         title: >-
@@ -324,6 +386,7 @@ sections:
         tests:
           - CanvasNetMermaid_Render_CanceledToken_Throws
           - CanvasNetMermaid_Flowchart_CanceledToken_Throws
+          - CanvasNetMermaid_Sequence_CanceledToken_Throws
 
       - id: CanvasNetMermaid-ImageSource
         title: >-

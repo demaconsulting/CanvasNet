@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
@@ -6,10 +7,16 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.Configuration;
 
 /// <summary>
 ///     Unit tests of <see cref="ThemeResolver"/>: the five themes against the variables Mermaid computes, the JavaScript
-///     object model, the bounds, and the flowchart style rules built from the variables.
+///     object model, the bounds, and the flowchart and sequence style rules built from the variables.
 /// </summary>
 public class ThemeResolverTests
 {
+    /// <summary>The number of global rules Mermaid's <c>getStyles</c> writes before a diagram's rules.</summary>
+    private const int GlobalRuleCount = 15;
+
+    /// <summary>A sequence diagram whose configuration the style tests resolve.</summary>
+    private const string SequenceText = "sequenceDiagram\n  Alice->>Bob: Hi\n";
+
     /// <summary>
     ///     Gets the theme cases: every theme without overrides, with <c>themeVariables</c>, and in dark mode.
     /// </summary>
@@ -245,6 +252,168 @@ public class ThemeResolverTests
         Assert.Equal("nonsense", config.ThemeVariable("nodeBorder"));
         Assert.Equal(Color("#ECECFF"), styles.Node.Fill);
         Assert.Null(styles.Node.Stroke);
+    }
+
+    /// <summary>
+    ///     Validates that the flowchart and sequence style sheets start with the same global rules of Mermaid's
+    ///     <c>getStyles</c>.
+    /// </summary>
+    [Fact]
+    public void DiagramStyles_Create_GlobalRules_SharedByFlowchartAndSequence()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), SequenceText);
+
+        // Act
+        var flowchart = FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).ToList();
+        var sequence = SequenceStyles.Create(config, null).Rules.Take(GlobalRuleCount).ToList();
+
+        // Assert
+        Assert.Equal(DiagramStyles.Root, flowchart[0].Selector);
+        Assert.Equal("p", flowchart[^1].Selector);
+        Assert.Equal(flowchart.Select(rule => rule.Selector), sequence.Select(rule => rule.Selector));
+        Assert.Equal(
+            flowchart.Select(rule => string.Join(";", rule.Declarations.Declarations)),
+            sequence.Select(rule => string.Join(";", rule.Declarations.Declarations)));
+    }
+
+    /// <summary>
+    ///     Validates the sequence style rules of the default theme and the cascade facts they make: the <c>line</c> rule
+    ///     widens lifelines and block lines to 2 pixels, a message rule beats it, CSS beats the attributes, and a box gets
+    ///     the theme's drop shadow and node border.
+    /// </summary>
+    [Fact]
+    public void SequenceStyles_Create_DefaultTheme_ResolvesCascade()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), SequenceText);
+
+        // Act
+        var styles = SequenceStyles.Create(config, null);
+
+        // Assert: actors and notes take the theme's paint over their attributes
+        Assert.Equal(new ShapePaint(Color("#ECECFF"), Color("#9370DB"), 1), styles.Shape(new ShapePaint(Color("#eaeaea"), Color("#666"), 1), ".actor"));
+        Assert.Equal(new ShapePaint(Color("#fff5ad"), Color("#aaaa33"), 1), styles.Shape(new ShapePaint(Color("#EDF2AE"), Color("#666"), 1), ".note"));
+        Assert.Equal(new ShapePaint(Color("#EDF2AE"), Color("#666"), 1), styles.Shape(new ShapePaint(Color("#EDF2AE"), Color("#666"), 1), ".custom"));
+
+        // Lines: the line rule's 2 pixels, the message rules' 1.5 and their dashes
+        var lifeline = styles.Lifeline;
+        Assert.Equal((Color("#9370DB"), 2.0), (lifeline.Color, lifeline.Width));
+        Assert.Empty(lifeline.Dash);
+        Assert.Equal((Color("#9370DB"), 2.0), (styles.LoopLine.Color, styles.LoopLine.Width));
+        Assert.Equal([2.0, 2.0], styles.LoopLine.Dash);
+        var solid = styles.MessageLine(dotted: false, isLineElement: true);
+        var dotted = styles.MessageLine(dotted: true, isLineElement: false);
+        Assert.Equal((Color("#333"), 1.5, 0), (solid.Color, solid.Width, solid.Dash.Count));
+        Assert.Equal((Color("#333"), 1.5), (dotted.Color, dotted.Width));
+        Assert.Equal([2.0, 2.0], dotted.Dash);
+
+        // Boxes: the drop shadow and the node border; markers and texts
+        Assert.Equal(new ShadowPaint(1, 2, 2, Color("rgb(185, 185, 185)")), styles.BoxShadow);
+        Assert.Equal(new ShapePaint(Color("blue"), Color("#9370DB"), 1), styles.Box(new ShapePaint(Color("blue"), Color("black"), 1)));
+        Assert.Equal(new ShadowPaint(3, 5, 2, Color("rgb(0 0 0 / 0.4)")), styles.MenuPanelShadow);
+        Assert.Null(styles.Shadow(".labelBox"));
+        Assert.Equal((Color("#333"), Color("#333"), Color("#333")), (styles.ArrowheadColor, styles.CrossheadColor, styles.SequenceNumberMarkerColor));
+        Assert.Equal(Color("white"), styles.TextColor(null, ".sequenceNumber"));
+        Assert.Equal(Color("#333"), styles.TextColor(Color("red"), ".messageText"));
+        Assert.Equal(Color("red"), styles.TextColor(Color("red"), ".unknown"));
+        Assert.Equal(Color("#333"), styles.TextColor(null, ".unknown"));
+        Assert.Equal(new ShapePaint(Color("#ECECFF"), Color("#9370DB"), 1), styles.LabelBox);
+        Assert.Equal("normal", styles.Resolve(".noteText")["font-weight"]);
+    }
+
+    /// <summary>
+    ///     Validates for every theme that the sequence styles take the theme's variables: actor paint, lifeline color, note
+    ///     paint, activation paint and the box shadow.
+    /// </summary>
+    /// <param name="theme">The theme.</param>
+    [Theory]
+    [InlineData("default")]
+    [InlineData("base")]
+    [InlineData("dark")]
+    [InlineData("forest")]
+    [InlineData("neutral")]
+    public void SequenceStyles_Create_EachTheme_UsesThemeVariables(string theme)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject { ["theme"] = theme }, SequenceText);
+        Rgba32? Variable(string name) => CssColor.TryParse(config.ThemeVariable(name), out var color) ? color : null;
+        var attributes = new ShapePaint(Color("#eaeaea"), Color("#666"), 1);
+
+        // Act
+        var styles = SequenceStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(new ShapePaint(Variable("actorBkg"), Variable("actorBorder"), 1), styles.Shape(attributes, ".actor"));
+        Assert.Equal(Variable("actorLineColor"), styles.Lifeline.Color);
+        Assert.Equal(new ShapePaint(Variable("noteBkgColor"), Variable("noteBorderColor"), 1), styles.Shape(attributes, ".note"));
+        Assert.Equal(new ShapePaint(Variable("activationBkgColor"), Variable("activationBorderColor"), 1), styles.Shape(attributes, ".activation1"));
+        Assert.True(SequenceStyles.TryParseFilter(config.ThemeVariable("dropShadow")!, out var expected));
+        Assert.NotNull(expected);
+        Assert.Equal(expected, styles.BoxShadow);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule of a sequence selector overrides the theme and that a selector of
+    ///     another diagram is reported and not applied.
+    /// </summary>
+    [Fact]
+    public void SequenceStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".actor { fill: #ff0000 } .actor-line { stroke-width: 3px } .node rect { fill: red }\"}}%%\nsequenceDiagram\n  A->>B: hi\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "sequence", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = SequenceStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Equal(Color("#ff0000"), styles.Shape(new ShapePaint(null, null, 1), ".actor").Fill);
+        Assert.Equal(3, styles.Lifeline.Width);
+        var report = Assert.Single(reports);
+        Assert.Equal(MermaidDiagnosticCodes.ThemeCssUnsupported, report.Feature);
+        Assert.Contains(".node rect", report.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the parsing of the CSS filters that are drawn: <c>none</c> and one <c>drop-shadow()</c>.
+    /// </summary>
+    /// <param name="value">The filter.</param>
+    /// <param name="expected">The shadow as "dx dy blur #rrggbbaa", "none", or null when the filter is not drawn.</param>
+    [Theory]
+    [InlineData("none", "none")]
+    [InlineData("drop-shadow( 1px 2px 2px rgba(185,185,185,0.5))", "1 2 2 #B9B9B980")]
+    [InlineData("drop-shadow(red 3px -4px)", "3 -4 0 #FF0000FF")]
+    [InlineData("drop-shadow(0 0 1px)", "0 0 1 #000000FF")]
+    [InlineData("drop-shadow(1px 2px 3px 4px)", null)]
+    [InlineData("drop-shadow(1px)", null)]
+    [InlineData("drop-shadow(1 2)", null)]
+    [InlineData("drop-shadow(1px 2px -1px)", null)]
+    [InlineData("drop-shadow(1px red 2px)", null)]
+    [InlineData("drop-shadow(1px 2px) blur(1px)", null)]
+    [InlineData("url(#drop-shadow)", null)]
+    [InlineData("blur(2px)", null)]
+    public void SequenceStyles_TryParseFilter_ParsesDropShadow(string value, string? expected)
+    {
+        // Act
+        var parsed = SequenceStyles.TryParseFilter(value, out var shadow);
+
+        // Assert
+        Assert.Equal(expected is not null, parsed);
+        if (expected == "none" || expected is null)
+        {
+            Assert.Null(shadow);
+            return;
+        }
+
+        var parts = expected.Split(' ');
+        Assert.Equal(
+            new ShadowPaint(double.Parse(parts[0], CultureInfo.InvariantCulture), double.Parse(parts[1], CultureInfo.InvariantCulture), double.Parse(parts[2], CultureInfo.InvariantCulture), Color(parts[3])),
+            shadow);
     }
 
     /// <summary>

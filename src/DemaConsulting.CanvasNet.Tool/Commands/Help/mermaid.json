@@ -2,7 +2,7 @@
   "topic": "mermaid",
   "aliases": ["mmd"],
   "title": "Mermaid diagrams (.mmd, .mermaid)",
-  "summary": "A Mermaid flowchart is laid out like Mermaid 11 (dagre) and drawn as one still picture with the bundled fonts.",
+  "summary": "A Mermaid flowchart or sequence diagram is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
   "sections": [
     {
       "id": "supported",
@@ -15,21 +15,38 @@
         { "text": "Labels: quoted text, Markdown strings (\"`**bold** and *italic*`\"), HTML line breaks and the common inline tags, entity codes, and wrapping at Mermaid's width." },
         { "text": "Styles: style, classDef (including classDef default), class, :::, linkStyle (including default and interpolate), with fill, stroke, stroke-width, stroke-dasharray, color, font-weight, font-style, font-size, font-family, and opacity." },
         { "text": "Configuration: YAML frontmatter (title, config), %%{init: ...}%% directives, the five themes (default, base, dark, forest, neutral), themeVariables, and the flowchart settings (nodeSpacing, rankSpacing, curve, padding, wrappingWidth, and so on), with Mermaid's precedence." },
+        { "text": "Sequence diagrams: a sequence diagram starts with sequenceDiagram. It is laid out by a port of Mermaid's sequence renderer: the participants stand in a row in the order they appear, and every message, note, activation, and block is placed below the one before it, where Mermaid 11 puts it." },
+        { "text": "Participants: participant and actor, aliases (participant Bank as Payment provider), and participants named only by a message." },
+        { "text": "Participant types: the eight types of @{ type: ... }: participant, actor, boundary, control, entity, database, collections, and queue, with the alias key." },
+        { "text": "Boxes: box with a color and a title (box LightBlue Front end ... end), with a color only, or with a title only." },
+        { "text": "Create and destroy: create participant and create actor just before the first message of the participant, and destroy just before its last message." },
+        { "text": "Messages: the arrows ->, -->, ->>, -->>, <<->>, <<-->>, -x, --x, -), and --), the half-arrow heads, self messages, and central connections (A->>()B, A()->>B, A()->>()B)." },
+        { "text": "The half-arrow heads draw one side of a head: -|\\ and -|/ draw a solid half head at the top or at the bottom, and -\\\\ and -// a stick half head; with -- the line is dotted (--|\\, --//, and so on). Written before the line, they point back at the sender: /|-, \\|-, //-, and \\\\-, and the dotted /|--, \\|--, //--, and \\\\--." },
+        { "text": "Activations: activate and deactivate, and the + and - shorthands on a message, nested." },
+        { "text": "Notes: Note left of, right of, and over one or two participants." },
+        { "text": "Blocks: loop, alt and else, opt, par and and, par_over, critical and option, and break, nested; rect backgrounds with a CSS color." },
+        { "text": "Numbers: autonumber, with a start and a step, and autonumber off; the showSequenceNumbers setting." },
+        { "text": "Text: <br> line breaks, the wrap: and nowrap: prefixes, wrapping when wrap is on (a word wider than the line is hyphenated), and entity codes." },
+        { "text": "Menus and properties: link, links, and properties; a menu is drawn only with forceMenus, and a class in properties changes the paint of the participant." },
+        { "text": "A hidden menu still takes its room: the diagram is as large as if the menu panel below the participant (20 pixels plus 30 per link, and as wide as its widest label) were drawn." },
+        { "text": "The lines of a menu link label are drawn on one baseline when the participant font size has a unit, such as an actorFontSize of 18px with the top-level fontSize set to 0, because Mermaid spaces them by the size as a number." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the sequence settings (actorMargin, mirrorActors, rightAngles, messageAlign, noteAlign, wrap, and so on), with Mermaid's precedence. As in Mermaid, the top-level fontFamily and fontSize replace the font families and sizes of the sequence settings, so every sequence text is 16 pixels in the theme's font by default; set the top-level fontSize to change it. A top-level fontWeight replaces the three weights in the same way." },
         { "text": "Pictures: an @{ img: \"part.png\", label, pos, w, h, constraint } node shows a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or another diagram that lies beside the diagram (see the pictures example). At most {{mmdMaxImages}} pictures." },
-        { "text": "Titles: the title of the frontmatter is drawn above the diagram; accTitle and accDescr are read (info reports accTitle)." },
-        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs without drawing the diagram." }
+        { "text": "Titles: the title statement, else the frontmatter title, is drawn above the diagram; accTitle and accDescr are read as metadata." },
+        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram) without drawing the diagram." }
       ]
     },
     {
       "id": "unsupported",
       "title": "Not supported (reported, never silently dropped)",
       "items": [
-        { "term": "mermaid-diagram-unsupported", "text": "Every other diagram type. Sequence diagrams are planned next; class, state, entity relationship, pie, gantt, mindmap, and the other types are planned later. Such a diagram is not yet supported: it is recognized, info reports it with supported false, and render gives an empty picture with this diagnostic (an unsupported-feature error with --strict)." },
-        { "term": "mermaid-icon-unsupported", "text": "Icons (fa:fa-... in a label, @{ icon: ... } nodes): the node keeps its shape and label without the icon." },
-        { "term": "mermaid-look-unsupported", "text": "The handDrawn and neo looks: the diagram is drawn in the classic look." },
-        { "term": "mermaid-layout-unsupported", "text": "Layouts other than dagre (elk): the diagram is laid out with dagre." },
-        { "term": "mermaid-theme-css-unsupported", "text": "themeCSS rules with arbitrary selectors; the declarations of the supported style subset still apply through classDef and style." },
-        { "text": "Interaction: click, href, call, and tooltips are read and ignored, as the picture is static." }
+        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, and sequenceDiagram); the picture is empty." },
+        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). Class, state, entity relationship, pie, gantt, and mindmap diagrams are planned later." },
+        { "term": "mermaid-icon-unsupported", "text": "An icon (fa:fa-car in a label, an @{ icon: ... } node, an icon in the properties of a sequence participant); the node or participant keeps its shape and label without the icon." },
+        { "term": "mermaid-math-unsupported", "text": "Math ($$...$$, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written." },
+        { "term": "mermaid-look-unsupported", "text": "A look other than classic (handDrawn, neo); the diagram is drawn classic." },
+        { "term": "mermaid-layout-unsupported", "text": "A layout other than dagre (elk, also the flowchart-elk keyword); the diagram is laid out with dagre." },
+        { "term": "mermaid-theme-css-unsupported", "text": "A themeCSS rule whose selector is not one of the diagram's own (such as .node rect in a flowchart), an at-rule, or a nested rule; the rule is not applied." }
       ]
     },
     {
@@ -47,20 +64,22 @@
       "title": "Diagnostics and errors",
       "items": [
         { "term": "mermaid-warning", "text": "The code of every warning of a diagram; the specific mermaid-* code is in detail and the line and column in location." },
-        { "term": "mermaid-shape-unknown", "text": "Error (mermaid-error): a shape name Mermaid does not define; the hint names the nearest shape." },
-        { "term": "mermaid-syntax-error", "text": "Error (mermaid-error): the text does not follow the flowchart grammar; the message gives the line, the column, and the tokens that were expected, and the hint suggests the fix." },
+        { "term": "mermaid-shape-unknown", "text": "Error (mermaid-error): a shape name Mermaid does not define; the hint names the nearest one." },
+        { "term": "mermaid-syntax-error", "text": "Error (mermaid-error): the text does not follow the grammar of its diagram type; the message gives the line, the column, and the tokens that were expected, and the hint suggests the fix." },
         { "term": "mermaid-unknown-diagram", "text": "Error (mermaid-error): the first statement is not a Mermaid diagram keyword; the hint names the nearest one." },
         { "term": "mermaid-yaml-invalid", "text": "Error (mermaid-error): the frontmatter or the shape data is not valid YAML; anchors, aliases, and tags are refused (mermaid-yaml-unsupported)." },
         { "term": "mermaid-limit-exceeded", "text": "Error (budget-exceeded): a limit of the library (nodes, edges, nesting, label length, layout work, pictures, painted pixels); see 'canvasnet help limits'." },
-        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself." },
-        { "term": "mermaid-config-unknown-key", "text": "Warning: a configuration key Mermaid does not define is ignored." },
-        { "term": "mermaid-config-invalid", "text": "Warning: a configuration value of the wrong type or range; the default is kept." },
+        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself or an empty sequence block." },
+        { "term": "mermaid-participant-type-unknown", "text": "Warning: a sequence participant has a type Mermaid does not define; it is not drawn, as in Mermaid, and the hint names the nearest type." },
+        { "term": "mermaid-config-unknown-key", "text": "Warning: a configuration key Mermaid does not define; it is ignored." },
+        { "term": "mermaid-config-invalid", "text": "Warning: a configuration value of the wrong type or range, or a theme that is not available; it is ignored (sequence.textPlacement: fo is drawn with the default placement)." },
         { "term": "mermaid-config-secure-key", "text": "Warning: the text tried to change a secure key (securityLevel, maxTextSize, maxEdges, and so on); the change is ignored." },
-        { "term": "mermaid-style-ignored", "text": "Warning: a style declaration outside the supported subset is ignored." },
-        { "term": "mermaid-html-tag-ignored", "text": "Warning: an HTML tag outside the supported label subset is dropped and its text is kept." },
-        { "term": "mermaid-image-unresolved", "text": "Warning: a picture could not be loaded; when the link was refused by the folder rule the warning is svg-image-unresolved instead, with the reason." },
-        { "term": "mermaid-text-missing-glyph", "text": "Warning: a character the bundled fonts lack (for example CJK) is drawn as a missing-glyph box." },
-        { "term": "mermaid-diagnostics-suppressed", "text": "Warning: more reports than the library keeps; the rest are dropped." },
+        { "term": "mermaid-style-ignored", "text": "Warning: a style declaration outside the supported subset; it is ignored." },
+        { "term": "mermaid-html-tag-ignored", "text": "Warning: an HTML tag outside the supported label subset; the tag is dropped and its text is kept." },
+        { "term": "mermaid-image-unresolved", "text": "Warning: a picture the resolver did not give; the node keeps its frame." },
+        { "text": "A link that is not drawn (a missing file, a path outside the folder, a network URL) is the warning svg-image-unresolved with the reason, and --strict makes it a failure." },
+        { "term": "mermaid-text-missing-glyph", "text": "Warning: a character that no bundled font has (for example CJK); it is drawn as the missing-glyph box." },
+        { "term": "mermaid-diagnostics-suppressed", "text": "Warning: more reports than MaxDiagnostics; the rest are dropped." },
         { "text": "A text longer than {{mmdMaxTextSize}} characters is corrupt-input." }
       ]
     },
@@ -73,12 +92,18 @@
         { "text": "The picture is static: no interaction, and an animated edge is drawn as its first frame." },
         { "text": "info lays the diagram out without the pictures of its nodes (it reads no other file), so a picture node without w and h can make the drawn diagram a little larger or smaller than the size info reports (with --width or --height it is fitted into the box); give an @{ img } node its w and h (constraint on) so that the layout does not depend on the picture. A render without --width and --height reports the natural size of the diagram it drew (the natural size of render --json); a library render of the diagram file without a size (CanvasNetViewer.Render) also charges its pixel budget for that drawn size, while a document that embeds the diagram always gives it a size." },
         { "text": "A diagram is drawn over white unless --background says otherwise (Mermaid's SVG is transparent); as a picture in an SVG file it stays transparent." },
-        { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor); these are a located mermaid-error instead." }
+        { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor); these are a located mermaid-error instead." },
+        { "text": "Interaction (click, href, call, and tooltips) is read and ignored without a report, because a picture is static." },
+        { "text": "Mermaid draws a broken sequence diagram or fails for an empty block (a block with no message or note inside), for link or links on an actor, boundary, control, or entity participant, and for a properties icon that is not text; these are a located mermaid-render-failed instead." },
+        { "text": "$$ math is drawn and measured as written (mermaid-math-unsupported), and textPlacement: fo (HTML labels) is drawn with the default placement." },
+        { "text": "The color keywords and system colors of a box or a rect background take the values of headless Chrome in the light scheme (system colors depend on the platform in a browser)." },
+        { "text": "The width of a text is the advance of its glyphs grown to the pixels its first and last glyphs reach, as Chrome measures it; for fonts or sizes other than those of the reference diagrams, a width can differ by a pixel, which can move the margins by up to a pixel." }
       ]
     }
   ],
   "examples": [
     { "name": "flowchart", "kind": "source", "language": "mermaid", "fileName": "flowchart.mmd", "description": "A small flowchart with a decision, a subgraph, link labels, and a class." },
+    { "name": "sequence", "kind": "source", "language": "mermaid", "fileName": "sequence.mmd", "description": "A small sequence diagram with an actor, an activation, numbered messages, an alt block, and a note." },
     { "name": "pictures", "kind": "snippet", "language": "mermaid", "fileName": "pictures.mmd", "description": "Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram." },
     { "name": "render", "kind": "command", "language": "shell", "description": "Draw flowchart.mmd and print the JSON result.", "content": "canvasnet render flowchart.mmd -o flowchart.png --json" },
     { "name": "theme", "kind": "command", "language": "shell", "description": "Draw at twice the size in the dark theme over a transparent background.", "content": "canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png" },

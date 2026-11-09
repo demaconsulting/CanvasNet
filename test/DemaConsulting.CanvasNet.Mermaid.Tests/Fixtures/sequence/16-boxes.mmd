@@ -1,0 +1,23 @@
+%%{init: {"theme": "forest"}}%%
+sequenceDiagram
+    box LightBlue Front end
+        participant Browser
+        participant Cdn as CDN
+    end
+    box rgb(255, 230, 230) Back end
+        participant Api
+        actor Admin
+    end
+    box Only a title
+        participant Cache
+    end
+    box Aqua
+        participant Metrics
+    end
+    participant Logger
+    Browser->>Cdn: Get the page
+    Cdn->>Api: Miss
+    Admin->>Api: Configure
+    Api->>Cache: Store
+    Api->>Metrics: Count
+    Metrics->>Logger: Flush

@@ -5,17 +5,16 @@
 The `SceneModel` unit is the first software unit in the `Scenegraph` subsystem. It is one source file,
 `SceneModel.cs`, in the `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace, and defines the internal scene
 types: the record structs `SceneRect` and `SceneSegment`, the enumerations `SceneSegmentKind` and `SceneTextAnchor`,
-and the records `SceneStroke`, `SceneFont`, `SceneTextRun`, `SceneItem` (abstract), `SceneGroup`, `ScenePath`,
-`SceneText`, `SceneImage`, and `Scene`. The SysML2 model names the unit `MermaidSceneModel`.
+and the records `SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun`, `SceneItem` (abstract), `SceneGroup`,
+`ScenePath`, `SceneText`, `SceneImage`, and `Scene`. The SysML2 model names the unit `MermaidSceneModel`.
 
 #### Purpose
 
 `SceneModel` is the immutable description of what a laid-out diagram draws, in Mermaid's SVG user units (CSS pixels at
-scale 1): groups translated together, paths with fill and stroke, lines of styled text runs, and pictures, with the
-view box of the diagram. Its single responsibility is to carry the resolved geometry, paint, and fonts of a diagram
-from the layout to the painter, and to be the surface on which the tests and the reference comparison assert the
-layout with numbers. It also gives the bounds of items (as SVG's `getBBox`) and converts path geometry to a core
-`Path`.
+scale 1): groups translated together, paths with fill, stroke, and drop shadow, lines of styled text runs, and pictures,
+with the view box of the diagram. Its single responsibility is to carry the resolved geometry, paint, and fonts of a
+diagram from the layout to the painter, and to be the surface on which the tests and the reference comparison assert the
+layout with numbers. It also gives the bounds of items (as SVG's `getBBox`) and converts path geometry to a core `Path`.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-SceneModel-*` requirements in
 `docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml`.
@@ -37,9 +36,14 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-SceneModel-
   original text; unknown by default).
 - **`SceneGroup(OffsetX, OffsetY, Children)`** - items translated together, as SVG's
   `<g transform="translate(x, y)">`.
-- **`ScenePath(Segments)`** - with `Fill` (or null), `FillRule` (nonzero by default), and `Stroke` (or null).
+- **`ScenePath(Segments)`** - with `Fill` (or null), `FillRule` (nonzero by default), `Stroke` (or null), and
+  `Shadow` (or null).
+- **`SceneShadow(OffsetX, OffsetY, Blur, Color)`** - a drop shadow drawn under a path, as CSS's
+  `filter: drop-shadow(...)`: the silhouette of the path's fill and stroke moved by the offset, blurred with the blur
+  as the standard deviation (zero for a sharp shadow), and painted in the color, whose alpha scales the coverage.
 - **`SceneText(X, Baseline, Anchor, Runs, Box)`** - one line of runs on a baseline, anchored at its start, middle, or
-  end (`SceneTextAnchor`), with the box that the label layout measured.
+  end (`SceneTextAnchor`), with the box that the label layout measured, and `Stroke` (or null), the stroke of the glyph
+  outlines drawn over their fill.
 - **`SceneImage(Box, Href)`** - a picture that fills its box, with `Opacity` (1 by default).
 - **`Scene(ViewBox, Items)`** - the view box (Mermaid's SVG `viewBox`, whose size is the natural size of the diagram),
   the items in paint order, and `Images`, the picture loader of the scene's pictures (or null).
@@ -56,7 +60,8 @@ not change them after the scene is built. The scene is safe for concurrent readi
   (an item's absolute position is its own coordinates plus the offset).
 - **`Scene.BoundsOf(items)`** - the union of the bounds of the items with the translations of their groups applied:
   the geometry of each path (the path is converted at scale 1 and its bounds taken with curves flattened to 0.01
-  unit, so a curve counts, not its control points, and the stroke does not count), the box of each text line, and the
+  unit, so a curve counts, not its control points, and the stroke and the drop shadow do not count, as SVG's
+  `getBBox` ignores strokes and filters), the box of each text line, and the
   box of each picture; null when the items draw nothing (no items, or only empty paths).
 - **`Scene.ToPath(segments, scale, offsetX, offsetY)`** - a core `Path` built with `PathBuilder`, every point mapped to
   `point x scale + offset`: moves, lines, quadratic and cubic curves, elliptical arcs (radii scaled, rotation kept),
@@ -83,7 +88,9 @@ which skips them. `BoundsOf` and `ToPath` reject only null arguments. The unit p
 
 The units of the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `ClusterLayout`) build the
 items, and `EdgeBuilder` takes the bounds of an edge with `Scene.BoundsOf`; the `FlowchartModel` unit of the
-`Flowchart` subsystem assembles the scene with its view box and picture loader, and the `MermaidDocument` unit builds
+`Flowchart` subsystem assembles the scene with its view box and picture loader, the `SequenceLayout` and
+`SequenceRenderer` units of the `Sequence` subsystem build the items of a sequence diagram (with drop shadows on boxes
+and menus and stroked labels of the `old` text placement) and its scene, and the `MermaidDocument` unit builds
 the empty scene of a diagram type that is not drawn and returns the laid-out scene to the tests; the `ScenePainter`
 unit converts the paths with `Scene.ToPath` and paints the scene. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/SceneModelTests.cs` call the unit directly, and the system

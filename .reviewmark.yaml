@@ -3745,6 +3745,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSystemIntegrationTests.cs"  # system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidFlowchartIntegrationTests.cs"  # flowchart system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReferenceLayoutTests.cs"  # reference layout goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceIntegrationTests.cs"  # sequence system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceReferenceLayoutTests.cs"  # sequence goldens
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
@@ -4318,6 +4320,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.Markdown.cs"  # unit source (markdown strings)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.MarkdownLexer.cs"  # unit source (markdown lexer)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.Svg.cs"  # unit source (SVG labels)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.TextDimensions.cs"  # unit source (text utilities)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/LabelBuilderTests.cs"  # unit tests
 
   # CanvasNetMermaid-Rendering-NodeImages Review (one per unit)
@@ -4382,6 +4385,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.cs"  # unit source (painter, placement, loader)
       - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Text.cs"  # unit source (text partial)
       - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Images.cs"  # unit source (pictures partial)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Shadow.cs"  # unit source (drop shadow partial)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
 
   # CanvasNetMermaid-Flowchart Review (subsystem)
@@ -4439,6 +4443,100 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartModel.LayoutData.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartModel.Render.cs"  # unit source (drawing)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Sequence Review (subsystem)
+  - id: CanvasNetMermaid-Sequence
+    title: Review that CanvasNetMermaid Sequence Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"          # subsystem requirements
+      - "docs/design/canvas-net-mermaid/sequence.md"               # subsystem design
+      - "docs/verification/canvas-net-mermaid/sequence.md"         # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence.sysml"      # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/sequence/*.mmd"  # original sequence fixtures
+
+  # CanvasNetMermaid-Sequence-SequenceParser Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceParser
+    title: Review that CanvasNetMermaid Sequence SequenceParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceParser.Lexer.cs"  # unit source (lexer)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceParser.Statements.cs"  # unit source (statements)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/sequence-parser.json"  # vectors
+
+  # CanvasNetMermaid-Sequence-SequenceModel Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceModel
+    title: Review that CanvasNetMermaid Sequence SequenceModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.Elements.cs"  # unit source (element types)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.Statements.cs"  # unit source (statements)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.Render.cs"  # unit source (reports, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Sequence-SequenceLayout Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceLayout
+    title: Review that CanvasNetMermaid Sequence SequenceLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-layout.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.Bounds.cs"  # unit source (layout state)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.Messages.cs"  # unit source (messages)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.Blocks.cs"  # unit source (blocks, menus)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceLayoutTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Sequence-SequenceRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceRenderer
+    title: Review that CanvasNetMermaid Sequence SequenceRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Actors.cs"  # unit source (participants)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Messages.cs"  # unit source (messages)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Blocks.cs"  # unit source (frames, boxes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Text.cs"  # unit source (text placement)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

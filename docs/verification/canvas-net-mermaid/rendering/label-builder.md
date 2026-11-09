@@ -3,8 +3,8 @@
 This document describes the unit-level verification strategy for the `LabelBuilder` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace: the internal `LabelBuilder` class (the entry point and metrics
 in `LabelBuilder.cs`, HTML labels in `LabelBuilder.Html.cs`, markdown and plain strings in `LabelBuilder.Markdown.cs`
-and `LabelBuilder.MarkdownLexer.cs`, and SVG labels in `LabelBuilder.Svg.cs`) and its records `LabelRequest` and
-`LabelLayout`.
+and `LabelBuilder.MarkdownLexer.cs`, SVG labels in `LabelBuilder.Svg.cs`, and the text utilities in
+`LabelBuilder.TextDimensions.cs`) and its records `LabelRequest`, `LabelLayout`, and `TextDimensions`.
 
 #### Verification Approach
 
@@ -15,7 +15,10 @@ into Mermaid's lines with the same line tops and starts (within 0.02 pixel) and 
 same text. The other tests are analytic: the markdown and plain-string functions are compared with the HTML and the
 lines Mermaid makes of the same text, and the layout rules are checked with numbers derived from the CSS and the font
 metrics (a 16 pixel font gives 24 pixel HTML line boxes and SVG baselines 17.6 pixels apart; a lone picture of natural
-size 40 by 30 is 80 by 60 pixels). The builder is created with the font resolver of the painter (the bundled fonts), a
+size 40 by 30 is 80 by 60 pixels). The text utilities are checked the same way, with numbers derived from Mermaid's
+`utils.ts` and the font metrics and confirmed against the boxes of the reference's `getBBox` (a line of Liberation
+Sans at 16 pixels is 17 pixels high; `Async to itself` is 100.258 pixels wide). The builder is created with the font
+resolver of the painter (the bundled fonts), a
 report sink whose warnings are delivered to a list, and, for pictures, a `NodeImages` over a test resolver; no mocking
 of the unit's own collaborators is required, and the internal types are reached through the test assembly's
 `InternalsVisibleTo` access.
@@ -110,3 +113,46 @@ Asserts that a label with a character from a private use plane, twice, is report
 
 Asserts that a picture alone in an HTML label at a 16 pixel configured font size, with a natural size of 40 by 30, is
 80 by 60 pixels, is the label's box, and is part of the label's scene with its link.
+
+##### CanvasNetMermaid-Rendering-LabelBuilder-TextDimensions: Texts Measure As The Browser's SVG Text
+
+**Tests**: `LabelBuilderTests.LabelBuilder_ParseFontSize_Number_IsPixels`,
+`LabelBuilderTests.LabelBuilder_ParseFontSize_Text_FollowsParseInt`,
+`LabelBuilderTests.LabelBuilder_FontPixels_CssSize_GivesBrowserPixels`,
+`LabelBuilderTests.LabelBuilder_SplitBreaks_SplitsAtBreakTags`,
+`LabelBuilderTests.LabelBuilder_CalculateTextDimensions_OneLine_IsRoundedSvgBox`,
+`LabelBuilderTests.LabelBuilder_SvgLineExtent_GlyphBoxesAtTheEnds_GrowTheAdvance`,
+`LabelBuilderTests.LabelBuilder_XHeight_IsTheTopOfTheX`,
+`LabelBuilderTests.LabelBuilder_CalculateTextDimensions_Lines_WidestAndSummed`,
+`LabelBuilderTests.LabelBuilder_CalculateTextDimensions_ZeroSizeAndMeter_FailAndCharge`
+
+Asserts that `parseFontSize` of a number is pixels (`16px`, `14.5px`) and of a string is its `parseInt` value with the
+string as the CSS size (`px` added to `16` and `-3` alone; `1.5em`, `14.5`, and `12` after a space kept; nothing for
+`abc`) (two theories); that the browser draws the inline size of an SVG text `16px` at 16 pixels, `1.5em` at 24, `12pt`
+at 16, the unitless `14.5`, `18`, `+18` with spaces around it, `.5`, `1e1`, and `0` at those pixels, and `18.`, `-3`, `abc`,
+and no size at the inherited 16 (a theory); that `splitBreaks` splits at `<br>` in any case with spaces and a slash,
+keeps empty lines, and leaves the malformed `<br/ >` in the text (a theory); that one line measures as its SVG label box
+rounded to whole pixels and 17 high (14 ascent and 3 descent at 16 pixels), and an empty text as nothing; that the box
+of `Async to itself` reaches 1 pixel left of its start and is 100.258 pixels wide, and that of `Dock` 1 pixel past its
+advance, as the reference's `getBBox` gives them; that the x-height is Liberation Sans's 1082 units of 2048 and zero for
+a size of zero; that a text of three lines (one empty) is as wide as its widest line and 51 high, and that bold is
+wider; and that a font size of zero fails with `mermaid-render-failed` while measuring charges 8 units to the meter.
+
+##### CanvasNetMermaid-Rendering-LabelBuilder-WrapLabel: Texts Wrap As Mermaid's WrapLabel
+
+**Tests**: `LabelBuilderTests.LabelBuilder_WrapLabel_Words_BreakBeforeWidth`,
+`LabelBuilderTests.LabelBuilder_WrapLabel_LongWord_Hyphenated`,
+`LabelBuilderTests.LabelBuilder_BreakString_SurrogatePairs_KeptWhole`,
+`LabelBuilderTests.LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid`,
+`LabelBuilderTests.LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch`,
+`LabelBuilderTests.LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit`
+
+Asserts that a label that fits is kept, that `abc  abc abc abc` wraps into two lines of two words at a width that holds
+two words but not three (joined with `<br/>`, or with a given separator), and that an empty label stays empty; that a
+word wider than the width is hyphenated where a line reaches it (`mmmm-`, `mmmm-`, `mm`), alone or after a word, with
+`breakString` giving the hyphenated lines and the rest; that hyphenation splits at code points, never inside a
+surrogate pair; that after a label with a break the next label is tested from where that break ended, so its earlier
+break is missed and it is wrapped, that the miss resets the search, that a wrapped label is memoized, and that a fresh
+builder finds the break; that the first measurement of a text resets the search while a repeated measurement does not;
+and that hyphenating a word of 1,000 characters under a work limit of 10,000 fails with
+`mermaid-limit-exceeded` at the meter's location.

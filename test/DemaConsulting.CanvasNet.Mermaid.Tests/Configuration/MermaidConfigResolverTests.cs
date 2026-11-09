@@ -12,6 +12,9 @@ public class MermaidConfigResolverTests
     /// <summary>A flowchart body that follows the configuration of a test.</summary>
     private const string Flow = "flowchart LR\n  A --> B\n";
 
+    /// <summary>A sequence diagram body that follows the configuration of a test.</summary>
+    private const string Sequence = "sequenceDiagram\n  Alice->>Bob: Hi\n";
+
     /// <summary>
     ///     Validates the precedence of the theme: the defaults, then the theme option, then the site configuration, then
     ///     the frontmatter, then the directives.
@@ -385,6 +388,185 @@ public class MermaidConfigResolverTests
         Assert.Equal("{\"a\":{\"b\":null,\"c\":2}}", target.ToJsonString());
         Assert.Equal("{ /* ERROR: Unbalanced CSS */ }", MermaidConfigResolver.SanitizeCss("a } b {"));
         Assert.Equal(".a { b }", MermaidConfigResolver.SanitizeCss(".a { b }"));
+    }
+
+    /// <summary>
+    ///     Validates the sequence section without configuration: Mermaid's defaults, with the fonts of the renderer's
+    ///     <c>setConf</c> (the top-level family and size of 16 pixels replace the section's own).
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_SequenceDefaults_MatchMermaid()
+    {
+        // Act
+        var (config, warnings) = Resolve(Sequence, diagramId: "sequence");
+
+        // Assert
+        Assert.Empty(warnings);
+        var sequence = config.Sequence;
+        Assert.Equal(
+            (false, 10, 50, 10, 50, 150, 65, 10, 5, 10, 35),
+            (sequence.HideUnusedParticipants, sequence.ActivationWidth, sequence.DiagramMarginX, sequence.DiagramMarginY, sequence.ActorMargin,
+             sequence.Width, sequence.Height, sequence.BoxMargin, sequence.BoxTextMargin, sequence.NoteMargin, sequence.MessageMargin));
+        Assert.Equal(
+            ("center", "center", true, false, 1, false, false, false, 10, 50, 20),
+            (sequence.MessageAlign, sequence.NoteAlign, sequence.MirrorActors, sequence.ForceMenus, sequence.BottomMarginAdj, sequence.RightAngles,
+             sequence.ShowSequenceNumbers, sequence.Wrap, sequence.WrapPadding, sequence.LabelBoxWidth, sequence.LabelBoxHeight));
+        Assert.True(sequence.UseMaxWidth);
+        Assert.Null(sequence.TextPlacement);
+        var expectedFont = new MermaidFontConfig(MermaidConfigResolver.DefaultFontFamily, ConfigScalar.FromNumber(16), ConfigScalar.FromNumber(400));
+        Assert.Equal(expectedFont, sequence.ActorFont);
+        Assert.Equal(expectedFont, sequence.NoteFont);
+        Assert.Equal(expectedFont, sequence.MessageFont);
+    }
+
+    /// <summary>
+    ///     Validates the <c>setConf</c> font rules: the section's sizes and families have no effect while the top level
+    ///     has its defaults, its weights apply, and a top-level <c>fontWeight</c> replaces them all.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_SequenceFonts_FollowSetConf()
+    {
+        // Arrange
+        const string Section = "---\nconfig:\n  sequence:\n    actorFontSize: 30\n    noteFontFamily: serif\n    noteFontWeight: bold\n    messageFontSize: \"20px\"\n---\n";
+        const string Top = "---\nconfig:\n  fontSize: 12\n  fontFamily: courier\n  fontWeight: 600\n  sequence:\n    noteFontWeight: bold\n---\n";
+
+        // Act
+        var (section, sectionWarnings) = Resolve(Section + Sequence, diagramId: "sequence");
+        var (top, topWarnings) = Resolve(Top + Sequence, diagramId: "sequence");
+
+        // Assert
+        Assert.Empty(sectionWarnings);
+        Assert.Empty(topWarnings);
+        Assert.Equal(new MermaidFontConfig(MermaidConfigResolver.DefaultFontFamily, ConfigScalar.FromNumber(16), ConfigScalar.FromNumber(400)), section.Sequence.ActorFont);
+        Assert.Equal(new MermaidFontConfig(MermaidConfigResolver.DefaultFontFamily, ConfigScalar.FromNumber(16), ConfigScalar.FromText("bold")), section.Sequence.NoteFont);
+        Assert.Equal(new MermaidFontConfig("courier", ConfigScalar.FromNumber(12), ConfigScalar.FromNumber(600)), top.Sequence.NoteFont);
+        Assert.Equal(top.Sequence.NoteFont, top.Sequence.ActorFont);
+        Assert.Equal(top.Sequence.NoteFont, top.Sequence.MessageFont);
+    }
+
+    /// <summary>
+    ///     Validates the sequence wrap setting: a true top-level <c>wrap</c> (or a <c>%%{wrap}%%</c> directive) or a true
+    ///     <c>sequence.wrap</c> makes texts wrap; a false top-level <c>wrap</c> does not turn off the section's.
+    /// </summary>
+    /// <param name="config">The frontmatter configuration lines.</param>
+    /// <param name="directive">Whether a <c>%%{wrap}%%</c> directive is written.</param>
+    /// <param name="expected">The effective wrap setting.</param>
+    [Theory]
+    [InlineData("", false, false)]
+    [InlineData("  wrap: true\n", false, true)]
+    [InlineData("  sequence:\n    wrap: true\n", false, true)]
+    [InlineData("  wrap: false\n  sequence:\n    wrap: true\n", false, true)]
+    [InlineData("  wrap: true\n  sequence:\n    wrap: false\n", false, true)]
+    [InlineData("  wrap: false\n", false, false)]
+    [InlineData("", true, true)]
+    public void MermaidConfigResolver_Resolve_SequenceWrap_FollowsInit(string config, bool directive, bool expected)
+    {
+        // Arrange
+        var text = (config.Length > 0 ? $"---\nconfig:\n{config}---\n" : string.Empty) + (directive ? "%%{wrap}%%\n" : string.Empty) + Sequence;
+
+        // Act
+        var (resolved, warnings) = Resolve(text, diagramId: "sequence");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal(expected, resolved.Sequence.Wrap);
+    }
+
+    /// <summary>
+    ///     Validates that sequence values of the wrong type and alignments Mermaid does not know are reported at the key
+    ///     and ignored, while a font size string and the alignments <c>drawText</c> honors are accepted.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_SequenceInvalidValues_ReportedAndIgnored()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"sequence\": {\"mirrorActors\": \"no\", \"width\": \"wide\", \"actorFontSize\": true, " +
+                            "\"noteAlign\": \"diagonal\", \"messageAlign\": \"end\", \"messageFontSize\": \"18px\"}}}%%\n" + Sequence;
+
+        // Act
+        var (config, warnings) = Resolve(Text, diagramId: "sequence");
+
+        // Assert
+        Assert.Equal(4, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, new MermaidLocation("t.mmd", 1, 1)), (warning.Code, warning.Location)));
+        Assert.Contains(warnings, warning => warning.Message.Contains("sequence.noteAlign", StringComparison.Ordinal) && warning.Message.Contains("left, center, right, start, middle or end", StringComparison.Ordinal));
+        Assert.Contains(warnings, warning => warning.Message.Contains("sequence.actorFontSize", StringComparison.Ordinal) && warning.Message.Contains("a number or a string", StringComparison.Ordinal));
+        Assert.True(config.Sequence.MirrorActors);
+        Assert.Equal(150, config.Sequence.Width);
+        Assert.Equal("center", config.Sequence.NoteAlign);
+        Assert.Equal("end", config.Sequence.MessageAlign);
+        Assert.Equal("18px", (string?)config.Raw["sequence"]!["messageFontSize"]);
+    }
+
+    /// <summary>
+    ///     Validates that an alignment Mermaid's <c>drawText</c> does not honor is reported with a message and a hint that
+    ///     name all six alignments it does honor (<c>left</c>, <c>center</c>, <c>right</c>, <c>start</c>, <c>middle</c> and
+    ///     <c>end</c>), and is ignored.
+    /// </summary>
+    /// <param name="key">The alignment key of the sequence section.</param>
+    [Theory]
+    [InlineData("messageAlign")]
+    [InlineData("noteAlign")]
+    public void MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues(string key)
+    {
+        // Arrange: an alignment that drawText does not know
+        var text = $"%%{{init: {{\"sequence\": {{\"{key}\": \"justify\"}}}}}}%%\n" + Sequence;
+
+        // Act
+        var (config, warnings) = Resolve(text, diagramId: "sequence");
+
+        // Assert: one located warning naming all six values in the message and the hint; the default is kept
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code);
+        Assert.Contains($"sequence.{key}", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("must be left, center, right, start, middle or end", warning.Message, StringComparison.Ordinal);
+        Assert.Equal("write \"left\", \"center\", \"right\", \"start\", \"middle\" or \"end\"", warning.Hint);
+        Assert.Equal("center", key == "messageAlign" ? config.Sequence.MessageAlign : config.Sequence.NoteAlign);
+    }
+
+    /// <summary>
+    ///     Validates that each of the six alignments Mermaid's <c>drawText</c> honors is accepted without a warning for
+    ///     both sequence alignment keys.
+    /// </summary>
+    /// <param name="value">The alignment.</param>
+    [Theory]
+    [InlineData("left")]
+    [InlineData("center")]
+    [InlineData("right")]
+    [InlineData("start")]
+    [InlineData("middle")]
+    [InlineData("end")]
+    public void MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted(string value)
+    {
+        // Arrange
+        var text = $"%%{{init: {{\"sequence\": {{\"messageAlign\": \"{value}\", \"noteAlign\": \"{value}\"}}}}}}%%\n" + Sequence;
+
+        // Act
+        var (config, warnings) = Resolve(text, diagramId: "sequence");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal(value, config.Sequence.MessageAlign);
+        Assert.Equal(value, config.Sequence.NoteAlign);
+    }
+
+    /// <summary>
+    ///     Validates that a directive's <c>config</c> key moves to the sequence section for a sequence diagram.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"config\": {\"mirrorActors\": false, \"actorMargin\": 80, \"textPlacement\": \"old\"}}}%%\n" + Sequence;
+
+        // Act
+        var (config, warnings) = Resolve(Text, diagramId: "sequence");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.False(config.Sequence.MirrorActors);
+        Assert.Equal(80, config.Sequence.ActorMargin);
+        Assert.Equal("old", config.Sequence.TextPlacement);
     }
 
     /// <summary>

@@ -1,0 +1,20 @@
+---
+config:
+  theme: forest
+  sequence:
+    mirrorActors: false
+---
+sequenceDiagram
+    autonumber
+    participant Phone
+    participant Hub
+    participant Lamp
+    Phone->>Hub: Turn the lamp on
+    Hub-)Lamp: Switch on
+    Lamp--)Hub: On
+    Hub-->>Phone: Done
+    Phone-xHub: Cancel the timer
+    Phone<<->>Hub: Keep the link alive
+    Hub-|\Lamp: Dim to half
+    Hub()->>()Lamp: Set the color
+    Note right of Lamp: wrap:A note that wraps because of its wrap prefix

@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
+using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -9,7 +11,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.Rendering;
 
 /// <summary>
 ///     Tests of <see cref="LabelBuilder"/>: the line breaking of the upstream vectors, the markdown and plain-string
-///     conversions, the HTML subset and the measurement rules of HTML and SVG labels.
+///     conversions, the HTML subset, the measurement rules of HTML and SVG labels, and Mermaid's text dimension,
+///     wrapping and hyphenation utilities.
 /// </summary>
 public sealed class LabelBuilderTests
 {
@@ -18,6 +21,10 @@ public sealed class LabelBuilderTests
 
     /// <summary>The default label font of the flowchart (Mermaid's font stack at 16 pixels, dark gray).</summary>
     private static readonly LabelFont Font = new("\"trebuchet ms\", verdana, arial, sans-serif", 16, false, false, new Rgba32(51, 51, 51, 255));
+
+    /// <summary>The default message font of the sequence diagram (the top-level family and size of <c>setConf</c>).</summary>
+    private static readonly MermaidFontConfig SequenceFont =
+        new(MermaidConfigResolver.DefaultFontFamily, ConfigScalar.FromNumber(16), ConfigScalar.FromNumber(400));
 
     /// <summary>
     ///     Gets the cases with an HTML label of more than one line or more than one style.
@@ -478,6 +485,339 @@ public sealed class LabelBuilderTests
     {
         sink = new MermaidReportSink(100, false);
         return new LabelBuilder(ScenePainter.CreateFontResolver(), sink, null);
+    }
+
+    /// <summary>
+    ///     Validates Mermaid's <c>parseFontSize</c> of a number: pixels.
+    /// </summary>
+    /// <param name="size">The configured number.</param>
+    /// <param name="css">The expected CSS size.</param>
+    [Theory]
+    [InlineData(16, "16px")]
+    [InlineData(14.5, "14.5px")]
+    public void LabelBuilder_ParseFontSize_Number_IsPixels(double size, string css)
+    {
+        // Act
+        var parsed = LabelBuilder.ParseFontSize(ConfigScalar.FromNumber(size));
+
+        // Assert
+        Assert.Equal(((double?)size, css), parsed);
+    }
+
+    /// <summary>
+    ///     Validates Mermaid's <c>parseFontSize</c> of a string: the <c>parseInt</c> value, and the string as the CSS size
+    ///     (with <c>px</c> added when it is that integer alone).
+    /// </summary>
+    /// <param name="text">The configured string.</param>
+    /// <param name="number">The expected number, or null.</param>
+    /// <param name="css">The expected CSS size, or null.</param>
+    [Theory]
+    [InlineData("16", 16.0, "16px")]
+    [InlineData("14px", 14.0, "14px")]
+    [InlineData("1.5em", 1.0, "1.5em")]
+    [InlineData("14.5", 14.0, "14.5")]
+    [InlineData(" 12", 12.0, " 12")]
+    [InlineData("-3", -3.0, "-3px")]
+    [InlineData("abc", null, null)]
+    public void LabelBuilder_ParseFontSize_Text_FollowsParseInt(string text, double? number, string? css)
+    {
+        // Act
+        var parsed = LabelBuilder.ParseFontSize(ConfigScalar.FromText(text));
+
+        // Assert
+        Assert.Equal((number, css), parsed);
+    }
+
+    /// <summary>
+    ///     Validates the pixel size the browser gives the inline CSS font size of an SVG text: a length with a unit, a
+    ///     number without a unit as pixels (as Chrome reads it on SVG text), and the inherited 16 pixels for what it
+    ///     refuses (a negative or malformed size, a number ending in a decimal point, no size).
+    /// </summary>
+    /// <param name="css">The CSS size, or null.</param>
+    /// <param name="expected">The expected pixels.</param>
+    [Theory]
+    [InlineData("16px", 16)]
+    [InlineData("1.5em", 24)]
+    [InlineData("12pt", 16)]
+    [InlineData("14.5", 14.5)]
+    [InlineData("18", 18)]
+    [InlineData(" +18 ", 18)]
+    [InlineData(".5", 0.5)]
+    [InlineData("1e1", 10)]
+    [InlineData("0", 0)]
+    [InlineData("18.", 16)]
+    [InlineData("-3", 16)]
+    [InlineData("abc", 16)]
+    [InlineData(null, 16)]
+    public void LabelBuilder_FontPixels_CssSize_GivesBrowserPixels(string? css, double expected)
+    {
+        // Act
+        var pixels = LabelBuilder.FontPixels(css);
+
+        // Assert
+        Assert.Equal(expected, pixels, 9);
+    }
+
+    /// <summary>
+    ///     Validates Mermaid's <c>splitBreaks</c>: <c>&lt;br&gt;</c> tags in any case with spaces and a slash, empty lines
+    ///     kept, and a malformed tag left in the text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="expected">The expected lines joined by <c>|</c>.</param>
+    [Theory]
+    [InlineData("a<br>b<BR/>c<br  />d", "a|b|c|d")]
+    [InlineData("", "")]
+    [InlineData("a<br/><br/>b", "a||b")]
+    [InlineData("<br>", "|")]
+    [InlineData("a<br/ >b", "a<br/ >b")]
+    public void LabelBuilder_SplitBreaks_SplitsAtBreakTags(string text, string expected)
+    {
+        // Act
+        var lines = LabelBuilder.SplitBreaks(text);
+
+        // Assert
+        Assert.Equal(expected, string.Join("|", lines));
+    }
+
+    /// <summary>
+    ///     Validates that a text measures as its SVG text box rounded to whole pixels: the getBBox width and the rounded
+    ///     ascent plus descent of Liberation Sans at 16 pixels (14 + 3).
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_CalculateTextDimensions_OneLine_IsRoundedSvgBox()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var svg = builder.Build(new LabelRequest("Hello world", Font) { HtmlLabels = false, Prepare = false, CenterSvgText = false, Width = double.PositiveInfinity });
+
+        // Act
+        var dimensions = builder.CalculateTextDimensions("Hello world", SequenceFont);
+
+        // Assert
+        Assert.Equal(new TextDimensions(Math.Floor(svg.Width + 0.5), 17, 17), dimensions);
+        Assert.Equal(default, builder.CalculateTextDimensions(string.Empty, SequenceFont));
+    }
+
+    /// <summary>
+    ///     Validates the horizontal box of an SVG text line: the advance, grown to the rasterizer's boxes of the first and
+    ///     last glyphs as the reference's <c>getBBox</c> gives them (an <c>A</c> reaches one pixel left of the start, a
+    ///     <c>k</c> one pixel past the advance, a final <c>f</c> to the next whole pixel of its own advance).
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_SvgLineExtent_GlyphBoxesAtTheEnds_GrowTheAdvance()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var font = new SceneFont(MermaidConfigResolver.DefaultFontFamily, 16, false, false);
+
+        // Act
+        var (asyncAdvance, asyncLeft, asyncRight) = builder.SvgLineExtent("Async to itself", font);
+        var (dockAdvance, dockLeft, dockRight) = builder.SvgLineExtent("Dock", font);
+        var empty = builder.SvgLineExtent(string.Empty, font);
+
+        // Assert: the widths of the reference boxes (100.258 and 37.453)
+        Assert.Equal(-1, asyncLeft);
+        Assert.Equal(100.258, asyncRight - asyncLeft, 0.02);
+        Assert.Equal(asyncAdvance + 0.555, asyncRight, 0.02);
+        Assert.Equal((0.0, dockAdvance + 1), (dockLeft, dockRight));
+        Assert.Equal((0.0, 0.0, 0.0), empty);
+    }
+
+    /// <summary>
+    ///     Validates the x-height: the top of Liberation Sans's <c>x</c>, 1082 units of 2048, and zero for a size that
+    ///     draws nothing.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_XHeight_IsTheTopOfTheX()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+
+        // Act
+        var regular = builder.XHeight(new SceneFont(MermaidConfigResolver.DefaultFontFamily, 16, false, false));
+        var none = builder.XHeight(new SceneFont(MermaidConfigResolver.DefaultFontFamily, 0, false, false));
+
+        // Assert
+        Assert.Equal(1082.0 / 2048 * 16, regular, 0.01);
+        Assert.Equal(0, none);
+    }
+
+    /// <summary>
+    ///     Validates that the lines of a text are measured apart: the widest line's width and the sum of the line heights,
+    ///     with an empty line as tall as the others.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_CalculateTextDimensions_Lines_WidestAndSummed()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+
+        // Act
+        var lines = builder.CalculateTextDimensions("a<br>wide line<br/>", SequenceFont);
+        var wide = builder.CalculateTextDimensions("wide line", SequenceFont);
+        var bold = builder.CalculateTextDimensions("wide line", SequenceFont with { Weight = ConfigScalar.FromText("bold") });
+
+        // Assert
+        Assert.Equal(new TextDimensions(wide.Width, 51, 17), lines);
+        Assert.True(bold.Width > wide.Width);
+    }
+
+    /// <summary>
+    ///     Validates that a text of font size zero fails as Mermaid's render does, and that measuring charges the meter.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_CalculateTextDimensions_ZeroSizeAndMeter_FailAndCharge()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        builder.Meter = new LayoutWorkMeter(100, default, TestContext.Current.CancellationToken);
+
+        // Act
+        builder.CalculateTextDimensions("abc", SequenceFont);
+        var ex = Assert.Throws<MermaidRenderException>(() => builder.CalculateTextDimensions("abc", SequenceFont with { Size = ConfigScalar.FromNumber(0) }));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, ex.Code);
+        Assert.Equal(8, builder.Meter.Used);
+    }
+
+    /// <summary>
+    ///     Validates that <c>wrapLabel</c> keeps a label that fits, and breaks one at the words where the next word would
+    ///     reach the width.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_WrapLabel_Words_BreakBeforeWidth()
+    {
+        // Arrange: a width that holds two words of "abc" but not three
+        var builder = NewBuilder(out _);
+        var word = builder.CalculateTextWidth("abc", SequenceFont);
+        var spaced = builder.CalculateTextWidth("abc ", SequenceFont);
+        var width = word + spaced + 1;
+
+        // Act
+        var fits = builder.WrapLabel("abc abc", 1000, SequenceFont);
+        var wrapped = builder.WrapLabel("abc  abc abc abc", width, SequenceFont);
+        var joined = builder.WrapLabel("abc abc abc", width, SequenceFont, " / ");
+
+        // Assert
+        Assert.Equal("abc abc", fits);
+        Assert.Equal("abc abc<br/>abc abc", wrapped);
+        Assert.Equal("abc abc / abc", joined);
+        Assert.Equal(string.Empty, builder.WrapLabel(string.Empty, width, SequenceFont));
+    }
+
+    /// <summary>
+    ///     Validates that a word wider than the width is hyphenated where a line reaches the width, without a hyphen after
+    ///     the word's last character.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_WrapLabel_LongWord_Hyphenated()
+    {
+        // Arrange: a width that "mmmm" reaches and "mmm" does not
+        var builder = NewBuilder(out _);
+        var width = builder.CalculateTextWidth("mmm", SequenceFont) + 0.5;
+
+        // Act
+        var ten = builder.WrapLabel("mmmmmmmmmm", width, SequenceFont);
+        var eight = builder.WrapLabel("x mmmmmmmm", width, SequenceFont);
+        var (lines, remaining) = builder.BreakString("mmmmmm", width, SequenceFont);
+
+        // Assert
+        Assert.Equal("mmmm-<br/>mmmm-<br/>mm", ten);
+        Assert.Equal("x<br/>mmmm-<br/>mmmm", eight);
+        Assert.Equal(["mmmm-"], lines);
+        Assert.Equal("mm", remaining);
+    }
+
+    /// <summary>
+    ///     Validates that hyphenation splits a word at code points, never inside a surrogate pair.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_BreakString_SurrogatePairs_KeptWhole()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        const string Word = "a\U0001F600b\U0001F600";
+
+        // Act
+        var (lines, remaining) = builder.BreakString(Word, 1, SequenceFont);
+
+        // Assert: every character is its own line
+        Assert.Equal(["a-", "\U0001F600-", "b-", "\U0001F600"], lines);
+        Assert.Equal(string.Empty, remaining);
+    }
+
+    /// <summary>
+    ///     Validates Mermaid's stateful break test: after a label with a break, the next label is tested from where that
+    ///     break ended, so an earlier break is missed and the label is wrapped; the miss resets the search, and a wrapped
+    ///     label is memoized.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid()
+    {
+        // Arrange
+        const string First = "0123456789<br>x";
+        const string Second = "ab<br>cd word";
+        var builder = NewBuilder(out _);
+        var width = builder.CalculateTextWidth("word ", SequenceFont) + 1;
+
+        // Act
+        var first = builder.WrapLabel(First, width, SequenceFont);
+        var missed = builder.WrapLabel(Second, width, SequenceFont);
+        var found = builder.WrapLabel(Second, width + 1, SequenceFont);
+        var memoized = builder.WrapLabel(Second, width, SequenceFont);
+        var fresh = NewBuilder(out _).WrapLabel(Second, width, SequenceFont);
+
+        // Assert
+        Assert.Equal(First, first);
+        Assert.Equal("ab<br>cd<br/>word", missed);
+        Assert.Equal(Second, found);
+        Assert.Equal(missed, memoized);
+        Assert.Equal(Second, fresh);
+    }
+
+    /// <summary>
+    ///     Validates that the first measurement of a text resets Mermaid's stateful break search (its drawing replaces the
+    ///     breaks with the global regex) and a repeated, memoized measurement does not.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch()
+    {
+        // Arrange: a text measured once, and a label whose break leaves the search past the end of the second label
+        const string First = "0123456789<br>x";
+        const string Second = "ab<br>cd word";
+        var builder = NewBuilder(out _);
+        var width = builder.CalculateTextWidth("word ", SequenceFont) + 1;
+
+        // Act
+        builder.WrapLabel(First, width, SequenceFont);
+        builder.CalculateTextWidth("word ", SequenceFont);
+        var missed = builder.WrapLabel(Second, width, SequenceFont);
+        builder.WrapLabel(First, width + 1, SequenceFont);
+        builder.CalculateTextWidth("never measured", SequenceFont);
+        var found = builder.WrapLabel(Second, width + 1, SequenceFont);
+
+        // Assert
+        Assert.Equal("ab<br>cd<br/>word", missed);
+        Assert.Equal(Second, found);
+    }
+
+    /// <summary>
+    ///     Validates that hyphenating a long word is metered and stops at the work limit.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        builder.Meter = new LayoutWorkMeter(10_000, new MermaidLocation("s.mmd", 2, 3), TestContext.Current.CancellationToken);
+
+        // Act
+        var ex = Assert.Throws<MermaidRenderException>(() => builder.WrapLabel(new string('m', 1000), 1000, SequenceFont));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation("s.mmd", 2, 3), ex.Location);
     }
 
     /// <summary>

@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Poller
+    participant Queue
+    participant Handler
+    loop Every second
+        Poller->>Queue: Receive
+        opt A message is waiting
+            Queue-->>Poller: Message
+            Poller->>Handler: Process
+            break The handler fails
+                Handler-->>Poller: Error
+            end
+        end
+    end
+    loop
+        Poller->>Queue: Poll without a title
+    end
+    Poller->>Queue: Close

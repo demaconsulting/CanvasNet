@@ -65,7 +65,8 @@ internal interface ISceneImageLoader
 ///         <b>Order and paints.</b> The surface is first filled with the background (transparent when none), then the items
 ///         are drawn in list order, parents before children, translated by their groups. Fills and strokes are
 ///         anti-aliased by the core path filler; a stroke is built in device space with its width and dashes scaled, so it
-///         looks the same at every scale. A fully transparent paint draws nothing.
+///         looks the same at every scale. A path with a drop shadow gets its shadow painted under it first. A fully
+///         transparent paint draws nothing.
 ///     </para>
 ///     <para>
 ///         <b>Text.</b> Every run is drawn with the face that <see cref="CreateFontResolver"/> resolves for its family, weight
@@ -237,27 +238,50 @@ internal sealed partial class ScenePainter
             return;
         }
 
+        // The shadow first, under the shape
+        if (item.Shadow is { } shadow)
+        {
+            PaintShadow(surface, item, shadow, placement, bounds);
+        }
+
+        FillAndStroke(surface, item, path, placement, bounds, charge: true);
+    }
+
+    /// <summary>
+    ///     Fills and strokes the device path of a path item.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="item">The path item.</param>
+    /// <param name="path">The item's geometry in device space.</param>
+    /// <param name="placement">The placement the geometry was built with.</param>
+    /// <param name="bounds">The bounds of the geometry.</param>
+    /// <param name="charge">Whether the painted pixels are charged to the budget (not for a shadow's silhouette).</param>
+    private void FillAndStroke(Surface surface, ScenePath item, Geometry.Path path, ScenePlacement placement, Geometry.Rect bounds, bool charge)
+    {
         // The fill
         if (item.Fill is { A: > 0 } fill)
         {
-            Charge(surface, bounds.X, bounds.Y, bounds.Right, bounds.Bottom, item);
+            if (charge)
+            {
+                Charge(surface, bounds.X, bounds.Y, bounds.Right, bounds.Bottom, item);
+            }
+
             PathFiller.Fill(surface, path, fill, item.FillRule, FlattenTolerance);
         }
 
-        // The stroke, built in device space with the scaled width and dashes
-        if (item.Stroke is { Color.A: > 0 } stroke && stroke.Width > 0 && double.IsFinite(stroke.Width))
+        // The stroke, built in device space with the scaled width and dashes; a width that rounds to zero in single
+        // precision (a tiny fit scale) or that is beyond MaxMagnitude draws nothing
+        if (item.Stroke is { } stroke && DeviceStrokeWidth(stroke, placement.Scale) is var width and > 0)
         {
-            var width = stroke.Width * placement.Scale;
-            if (!(width > 0) || width > MaxMagnitude)
+            var half = width / 2.0;
+            if (charge)
             {
-                return;
+                Charge(surface, bounds.X - half, bounds.Y - half, bounds.Right + half, bounds.Bottom + half, item);
             }
 
-            var half = width / 2;
-            Charge(surface, bounds.X - half, bounds.Y - half, bounds.Right + half, bounds.Bottom + half, item);
             var dash = DashFor(stroke, placement.Scale, item.Segments, out var dashOffset);
             var style = new StrokeStyle(
-                (float)width,
+                width,
                 stroke.Cap,
                 stroke.Join,
                 4f,
@@ -266,6 +290,26 @@ internal sealed partial class ScenePainter
             var outline = PathStroker.Stroke(path, style, FlattenTolerance);
             PathFiller.Fill(surface, outline, stroke.Color, FillRule.NonZero, FlattenTolerance);
         }
+    }
+
+    /// <summary>
+    ///     Gets the device width a stroke is drawn with: the scaled width in single precision (the precision of the core
+    ///     stroker), or zero when the stroke is not drawn - no stroke, a transparent color, or a device width that is not
+    ///     more than zero in single precision (a tiny fit scale), not finite, or beyond <see cref="MaxMagnitude"/>. Paths,
+    ///     text and drop shadows decide with it whether a stroke is drawn, so they cannot disagree.
+    /// </summary>
+    /// <param name="stroke">The stroke, or null.</param>
+    /// <param name="scale">The scale.</param>
+    /// <returns>The device width, or zero when the stroke is not drawn.</returns>
+    internal static float DeviceStrokeWidth(SceneStroke? stroke, double scale)
+    {
+        if (stroke is not { Color.A: > 0 })
+        {
+            return 0;
+        }
+
+        var width = (float)(stroke.Width * scale);
+        return width > 0 && float.IsFinite(width) && width <= MaxMagnitude ? width : 0;
     }
 
     /// <summary>
@@ -415,7 +459,17 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        var area = (long)(width * height);
+        ChargeArea((long)(width * height), item);
+    }
+
+    /// <summary>
+    ///     Charges a number of device pixels to the painting budget.
+    /// </summary>
+    /// <param name="area">The number of pixels; not negative.</param>
+    /// <param name="item">The item, for the location of the failure.</param>
+    /// <exception cref="MermaidRenderException">Thrown when the budget would be exceeded.</exception>
+    private void ChargeArea(long area, SceneItem item)
+    {
         if (_painted + area > _maxPaintedPixels)
         {
             throw new MermaidRenderException(

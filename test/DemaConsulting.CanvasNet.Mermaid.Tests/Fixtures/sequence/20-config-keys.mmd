@@ -1,0 +1,24 @@
+---
+title: Configuration keys
+config:
+  sequence:
+    mirrorActors: false
+    messageAlign: left
+    noteAlign: right
+    rightAngles: true
+    width: 120
+    actorMargin: 80
+    boxMargin: 14
+    actorFontSize: 30
+    noteFontSize: 30
+    messageFontSize: 30
+---
+sequenceDiagram
+    participant Producer
+    participant Consumer
+    Producer->>Consumer: A message aligned to the left
+    Consumer->>Consumer: Right angle self message
+    Note over Producer,Consumer: A note aligned to the right
+    loop Retry
+        Consumer-->>Producer: Reply
+    end

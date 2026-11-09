@@ -1,0 +1,238 @@
+{
+  "source": "01-basic-messages.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 481, 347],
+  "title": null,
+  "actors": [
+    {
+      "name": "Client",
+      "type": "participant",
+      "description": "Client",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Client"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.547, 24, 41.461, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 261, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 261, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Client"],
+            "at": [75, 293.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.547, 285, 41.461, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 261], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Server",
+      "type": "participant",
+      "description": "Server",
+      "top": {
+        "box": [231, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [231, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Server"],
+            "at": [306, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [282.438, 24, 47.797, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [231, 261, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [231, 261, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Server"],
+            "at": [306, 293.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [282.438, 285, 47.797, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [306, 65, 306, 261], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Client",
+      "to": "Server",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Request the catalog"],
+          "at": [189, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [117.836, 86.219, 142.422, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 302, 109]
+    },
+    {
+      "id": "i1",
+      "from": "Server",
+      "to": "Client",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Catalog page"],
+          "at": [192, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [144.406, 130.219, 95.289, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [305, 153, 79, 153]
+    },
+    {
+      "id": "i2",
+      "from": "Client",
+      "to": "Server",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Request the next page"],
+          "at": [189, 168],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [108.492, 174.219, 161.109, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 197, 302, 197]
+    },
+    {
+      "id": "i3",
+      "from": "Server",
+      "to": "Client",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Last page"],
+          "at": [192, 212],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [156.859, 218.219, 70.383, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [305, 241, 79, 241]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Server",
+    "actor-bottom:Client",
+    "lifeline:Server",
+    "actor-top:Server",
+    "lifeline:Client",
+    "actor-top:Client",
+    "message:i0",
+    "message:i1",
+    "message:i2",
+    "message:i3"
+  ]
+}

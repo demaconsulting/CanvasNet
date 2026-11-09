@@ -18,18 +18,20 @@ library and the public API of the core `CanvasNet` package.
 
 The goal is **fidelity to Mermaid**: a diagram must look like the picture the pinned Mermaid release draws in a
 browser. The package is therefore a port, derived with attribution, of the parts of Mermaid that decide the picture:
-its preprocessing and diagram detection, the jison grammar and database of the flowchart, its configuration
-defaults and precedence, its five themes and the khroma color functions they use, its unified renderer (shapes,
-labels, edges, markers, clusters), and the dagre layered layout and graphlib graph that Mermaid bundles. Every
+its preprocessing and diagram detection, the jison grammars and databases of the flowchart and the sequence diagram,
+its configuration defaults and precedence, its five themes and the khroma color functions they use, its unified
+renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and graphlib graph that Mermaid bundles,
+and its sequence renderer with the drawing functions of the sequence diagram. Every
 construct that is recognized but not drawn is **reported with a stable `mermaid-*` code and the exact location,
 never skipped silently** (see _Fidelity and Known Differences_).
 
-This version (Phase 1a, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph` keywords). Every other
+This version (Phases 1a and 1b, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph` keywords) and
+**sequence diagrams** (the `sequenceDiagram` keyword). Every other
 Mermaid diagram type is detected (the 40 detectors of Mermaid, in Mermaid's order) and handled the same way: opening
 succeeds, `IsSupported` is false, and measuring or rendering reports `mermaid-diagram-unsupported` once and gives an
 empty, transparent 16 by 16 pixel picture (an exception in strict mode).
 
-The system consists of one direct unit and seven internal subsystems:
+The system consists of one direct unit and eight internal subsystems:
 
 - **MermaidDocument** (unit, root namespace; see _MermaidDocument Unit Design_) - the public API: `MermaidDocument`
   with `Parse`, `Open(path)`, `Open(stream)`, the metadata properties, `Measure`, `Render`, and
@@ -46,7 +48,7 @@ The system consists of one direct unit and seven internal subsystems:
   DOMPurify behavior that Mermaid applies to labels, with the `HtmlEntities` table).
 - **Configuration** (subsystem; see _Configuration Design_) - the effective configuration and paint:
   `MermaidConfigResolver` (defaults, precedence, secure keys, directive parsing, typed `MermaidConfig` view),
-  `ThemeResolver` (the five themes and the flowchart style sheet), `ColorMath` (the khroma subset), and
+  `ThemeResolver` (the five themes and the flowchart and sequence style sheets), `ColorMath` (the khroma subset), and
   `StyleDeclarations` (the CSS declaration subset of `style`, `classDef`, `linkStyle`, and `themeCSS`).
 - **Graphlib** (subsystem; see _Graphlib Design_) - `Graph` (graphlib's directed, multi, and compound graph with
   JavaScript key order) and `GraphAlgorithms` (the traversals dagre uses).
@@ -57,17 +59,24 @@ The system consists of one direct unit and seven internal subsystems:
   `ClusterLayout` (subgraph extraction, recursive layout, and placement), `ShapeLibrary` (the 53 documented shapes,
   their aliases, the bracket shapes, subgraph rectangles, and their intersections), `EdgeBuilder` (edge routes,
   curves, strokes, markers, and edge labels), `LabelBuilder` (HTML, markdown, and SVG labels measured with the
-  bundled fonts), and `NodeImages` (pictures through the caller's resolver).
-- **Scenegraph** (subsystem; see _Scenegraph Design_) - `SceneModel` (the immutable scene: groups, paths, text,
-  images, and their bounds, which is the assertion surface of the tests and goldens) and `ScenePainter` (scene to
-  pixels).
+  bundled fonts, and the text utilities that measure and wrap the texts of sequence diagrams), and `NodeImages`
+  (pictures through the caller's resolver).
+- **Scenegraph** (subsystem; see _Scenegraph Design_) - `SceneModel` (the immutable scene: groups, paths with their
+  drop shadows, text, images, and their bounds, which is the assertion surface of the tests and goldens) and
+  `ScenePainter` (scene to pixels).
 - **Flowchart** (subsystem; see _Flowchart Design_) - `FlowchartParser` (the `flow.jison` lexer and grammar) and
   `FlowchartModel` (the `flowDb` semantics, the mapping to layout data, and the flowchart's own drawing steps).
+- **Sequence** (subsystem; see _Sequence Design_) - `SequenceParser` (the `sequenceDiagram.jison` lexer and grammar),
+  `SequenceModel` (the `sequenceDb` semantics, the metadata, and the reports), `SequenceLayout` (Mermaid's sequence
+  renderer: the bounds model, the placement of every element, and the view box), and `SequenceRenderer` (Mermaid's
+  sequence drawing functions as scene items).
 
 The dependency direction is one way:
 
 ```text
 MermaidDocument -> Syntax -> Configuration -> Flowchart -> Rendering -> Dagre -> Graphlib
+                                                        -> Scenegraph
+                                           -> Sequence  -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
                                                         -> Scenegraph
 ```
 
@@ -82,7 +91,8 @@ test assembly through `InternalsVisibleTo` and to nothing else.
 - **Byte input** (`MermaidDocument.Open(string path, ...)` and `Open(Stream, ...)`): strict UTF-8 with an optional
   byte-order mark; the read is bounded, a stream is left open, and a path names the document.
 - **Metadata output** (`SourceName`, `DiagramType`, `IsSupported`, `Title`, `AccTitle`, `Direction`, `NodeCount`,
-  `EdgeCount`, `SubgraphCount`): .NET values available after open, without rendering.
+  `EdgeCount`, `SubgraphCount`): .NET values available after open, without rendering. For a sequence diagram the
+  counts are its participants, its messages drawn as arrows, and its boxes, and `Direction` is null.
 - **Picture output** (`Measure`, `Render`, `Render(width, height)` with `MermaidRenderOptions`): a `MermaidSize` or a
   `Surface` (RGBA, straight alpha) whose sides lie within 1 and `Surface.MaxDimension`; a `CancellationToken` is
   observed.
@@ -106,7 +116,8 @@ test assembly through `InternalsVisibleTo` and to nothing else.
 The report and error codes are the `MermaidDiagnosticCodes` constants: `mermaid-syntax-error`,
 `mermaid-unknown-diagram`, `mermaid-diagram-unsupported`, `mermaid-yaml-invalid`, `mermaid-yaml-unsupported`,
 `mermaid-limit-exceeded`, `mermaid-render-failed`, `mermaid-diagnostics-suppressed`, `mermaid-config-secure-key`,
-`mermaid-config-unknown-key`, `mermaid-config-invalid`, `mermaid-shape-unknown`, `mermaid-icon-unsupported`,
+`mermaid-config-unknown-key`, `mermaid-config-invalid`, `mermaid-shape-unknown`, `mermaid-participant-type-unknown`,
+`mermaid-math-unsupported`, `mermaid-icon-unsupported`,
 `mermaid-image-unresolved`, `mermaid-text-missing-glyph`, `mermaid-look-unsupported`, `mermaid-layout-unsupported`,
 `mermaid-style-ignored`, `mermaid-theme-css-unsupported`, and `mermaid-html-tag-ignored`. They are part of the public
 contract and do not change between releases. A `class` statement or `:::` that names a class no `classDef` defines
@@ -160,6 +171,10 @@ flowchart LR
     R --> G[DagreLayout]
     G --> E[EdgeBuilder]
     E --> S[Scene]
+    C --> Q[SequenceParser and SequenceModel]
+    Q --> Y[SequenceLayout with LabelBuilder]
+    Y --> W[SequenceRenderer]
+    W --> S
     S --> X[ScenePainter]
     X --> O[Surface]
 ```
@@ -169,18 +184,25 @@ flowchart LR
    through `YamlSubsetParser`), extracts the `%%{...}%%` directives, removes `%%` comments, encodes entities as
    Mermaid does, checks `MaxTextSize`, and keeps a location map back to the original text. `DiagramDetector` picks
    the diagram with Mermaid's detectors (using the renderer settings of the text configuration). For a flowchart,
-   `FlowchartParser` lexes and parses the body and `FlowchartModel` applies the `flowDb` rules; syntax errors and the
+   `FlowchartParser` lexes and parses the body and `FlowchartModel` applies the `flowDb` rules; for a sequence
+   diagram, `SequenceParser` lexes and parses the body and `SequenceModel` applies the collected statements with the
+   `sequenceDb` rules. Syntax errors, database errors, and the
    open-time limits (edges, nodes, label length, nesting, YAML depth) fail here. Other known types are kept as
    unsupported diagrams.
 2. **Measure and Render** (per call, because the options can change sizes): `MermaidConfigResolver` merges the
    defaults, the caller's `Config` and `Theme`, the frontmatter configuration, and the init directives, and
-   `ThemeResolver` derives the theme variables and the flowchart style sheet. `FlowchartModel` reports the unsupported
+   `ThemeResolver` derives the theme variables and the style sheet of the diagram. For a flowchart, `FlowchartModel`
+   reports the unsupported
    constructs (look, layout, icons) and maps the model to layout data. `ClusterLayout` measures every label
    (`LabelBuilder`) and node (`ShapeLibrary`, picture sizes from `NodeImages`), lays out every graph and isolated
    subgraph with `DagreLayout`, and places nodes, subgraphs, and edges (`EdgeBuilder`). The flowchart adds its title;
-   the view box is the drawing bounds grown by `diagramPadding`. `Measure` stops here and returns the view box rounded
-   up and multiplied by the scale. `Render` paints the scene with `ScenePainter` (uniformly scaled, or fitted and
-   centered for an exact size) over the background, loading pictures through the same `NodeImages`.
+   the view box is the drawing bounds grown by `diagramPadding`. For a sequence diagram, `SequenceModel` reports the
+   unsupported constructs (look, participant icons, math, unknown participant types), and `SequenceLayout` sizes the
+   participants from the texts it measures and wraps with `LabelBuilder`, places every message, note, activation,
+   block, box, and menu from top to bottom, and has `SequenceRenderer` draw them in Mermaid's paint order; the view box
+   is the extent grown by the diagram margins, with room for the title. `Measure` stops here and returns the view box
+   rounded up and multiplied by the scale. `Render` paints the scene with `ScenePainter` (uniformly scaled, or fitted
+   and centered for an exact size) over the background, loading pictures through the same `NodeImages`.
 3. **Reports** recorded by any stage go to the call's `MermaidReportSink` and are delivered to the handlers after the
    work, in order, on the calling thread.
 
@@ -222,7 +244,7 @@ third-party/README.md`:
 
 | Upstream project | License | Ported into |
 | --- | --- | --- |
-| mermaid | MIT | the Syntax units except `HtmlSanitizer`, the configuration and themes, the flowchart, the renderer |
+| mermaid | MIT | the Syntax units except `HtmlSanitizer`, configuration, themes, flowchart, renderer, sequence |
 | dagre-d3-es (dagre, graphlib, dagre-d3) | MIT | `Graph`, `GraphAlgorithms`, the `Dagre` units, intersections |
 | d3-shape and d3-path | ISC | `EdgeBuilder` curves and path number formatting |
 | khroma | MIT | `ColorMath` |
@@ -245,13 +267,15 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
 
 - `MaxTextSize`, 50,000 (Mermaid's `maxTextSize`): checked at open on the code after the frontmatter, directives,
   and comments are removed; the raw text may be at most four times larger. Failure: `InvalidDataException`.
-- `MaxEdges`, 500 (Mermaid's `maxEdges`); `MaxNodes`, 2,000 (subgraphs included); `MaxLabelLength`, 4,096 (also
-  the accessible title and description); `MaxNestingDepth`, 32 (subgraphs; at most 256); `MaxYamlDepth`, 32 (at
+- `MaxEdges`, 500 (Mermaid's `maxEdges`); `MaxNodes`, 2,000 (subgraphs included; the participants of a sequence
+  diagram); `MaxLabelLength`, 4,096 (also the accessible title and description); `MaxNestingDepth`, 32 (subgraphs,
+  and the blocks and boxes of a sequence diagram; at most 256); `MaxYamlDepth`, 32 (at
   most 256; YAML aliases, anchors, and tags are refused): checked at open. Failure: `MermaidSyntaxException` with
   `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused YAML construct).
-- `MaxLayoutWork`, 50,000,000 metered layout steps; `MaxImages`, 256 resolver calls; `MaxPaintedPixels`,
-  250,000,000 (charged before each item is painted): checked per call. Failure: `MermaidRenderException` with
-  `mermaid-limit-exceeded`.
+- `MaxLayoutWork`, 50,000,000 metered layout steps (the dagre stages, and the measuring, wrapping, and placing of a
+  sequence diagram); `MaxImages`, 256 resolver calls; `MaxPaintedPixels`,
+  250,000,000 (charged before each item and drop shadow is painted): checked per call. Failure:
+  `MermaidRenderException` with `mermaid-limit-exceeded`.
 - `MaxDiagnostics`, 1,000 reports per call: further reports become one `mermaid-diagnostics-suppressed` notice and
   rendering continues.
 
@@ -268,7 +292,8 @@ third-party README; the `mmdc` used to create the references bundles that releas
 tracked automatically.
 
 **How fidelity is measured.** Algorithmic parts are compared exactly against upstream vectors generated by the
-pinned packages: 207 flowchart parser and database vectors, 53 configuration cases and 622 khroma calls, 224 dagre
+pinned packages: 207 flowchart parser and database vectors, 242 sequence parser and database vectors, 53
+configuration cases and 622 khroma calls, 224 dagre
 stage goldens (ranks and orders exact, coordinates within 1e-9), 286 shape vectors, and 144 d3 curve vectors. The
 whole layout is compared against reference layouts extracted from mermaid-cli renders of the 42 original flowchart
 fixtures with the bundled Liberation Sans (`benchmarks/visual-diff/render-mermaid.mjs` with `liberation.css`): the
@@ -277,7 +302,12 @@ The tolerance is 0.01 pixel, and 0.1 pixel for the fixtures `12-new-shapes-flow`
 rough.js circles, item 1 below); in practice 39 fixtures agree to within 0.001 pixel. The fixture `38-unicode` is
 **excluded** from the goldens: Chrome draws its CJK text with a system font that the bundled fonts do not have, so
 the reference would depend on the machine (its node is 12 pixels wider in Chrome); no bundled font has those
-characters, so CanvasNet draws them as the missing-glyph box and reports `mermaid-text-missing-glyph`.
+characters, so CanvasNet draws them as the missing-glyph box and reports `mermaid-text-missing-glyph`. The 24
+original sequence fixtures are compared the same way (`Fixtures/reference/sequence/`): the view box, the title, every
+participant drawing with its parts, paint, and labels, the lifelines, every message line or self loop with its
+markers, texts, sequence number, and central-connection circles, the notes, activations, block frames, `rect`
+backgrounds, boxes with their shadows, menus, and the paint order, at 0.01 pixel (0.02 pixel for text boxes, which
+Chrome snaps to 1/64 pixel, and for the cylinder arcs of `queue` and `database`); no sequence fixture is excluded.
 
 **Known and accepted differences from Mermaid:**
 
@@ -331,9 +361,10 @@ characters, so CanvasNet draws them as the missing-glyph box and reports `mermai
     natural size of a picture is the size the resolver returns for a 256 by 256 request (a raster comes back at its
     own size); a picture is stretched to its box as Mermaid's `preserveAspectRatio="none"` does. An `<img>` beside text
     is as wide as the label's content; alone it is five times the font size, as in Mermaid.
-16. **Only what flowcharts reach is ported** from the unified renderer: the `rect` subgraph, the `point`, `circle`,
-    and `cross` markers (the circle's ring is not clipped to its marker box, at most 0.55 pixel), no terminal labels.
-17. **Diagram types.** Only `flowchart` and `graph` are drawn in this version; every other type is
+16. **Only what flowcharts and sequence diagrams reach is ported** from the unified renderer: the `rect` subgraph, the
+    `point`, `circle`, and `cross` markers (the circle's ring is not clipped to its marker box, at most 0.55 pixel),
+    no terminal labels.
+17. **Diagram types.** Only `flowchart`, `graph`, and `sequenceDiagram` are drawn in this version; every other type is
     `mermaid-diagram-unsupported` with a 16 by 16 transparent picture, and the documentation filter leaves such blocks
     to another filter.
 18. **Size and background.** The background is transparent by default (as Mermaid's SVG); the natural size is the SVG
@@ -349,13 +380,36 @@ characters, so CanvasNet draws them as the missing-glyph box and reports `mermai
 21. **Detection.** All 40 detectors of the pinned release are known, with their quirks kept (`c4` keywords match
     anywhere; keyword prefixes such as `graphs` detect a flowchart); detection at open uses only the text's own
     configuration, and a site `flowchart.defaultRenderer: elk` is honored at render.
+22. **Sequence text measuring.** Mermaid measures sequence texts with the browser's `getBBox`. The port takes the
+    advance of a line grown to the rasterizer's boxes of its first and last glyphs (matching every text of the
+    goldens); for other glyphs or sizes a rounded width can differ by 1 pixel, which moves margins and self-loop
+    extents by up to 1 pixel. Chrome's snapping of text baselines to 1/64 pixel is not modeled (text boxes 17 pixels
+    high where Chrome gives 17.016).
+23. **Sequence markers.** Filled markers are clipped to their viewport as SVG clips them; the open stroked markers
+    (the crosshead and the stick heads) are not clipped, a sub-pixel difference.
+24. **Sequence failures that Mermaid draws wrongly or crashes on.** A block with nothing inside (Mermaid gives it no
+    size and draws the whole diagram at coordinates that are not numbers), links on a participant type without a box
+    (`actor`, `boundary`, `control`, `entity`; Mermaid crashes in `drawPopup`), a `properties` icon that is not text
+    (Mermaid's `trim` throws), and a line of only spaces between `<br>` tags (Mermaid's "svg element not in render
+    tree") fail with a located `mermaid-render-failed`.
+25. **Sequence reports.** A participant of a type that Mermaid does not define is a warning
+    (`mermaid-participant-type-unknown`, naming the nearest type) and is not drawn, as in Mermaid; `$$...$$` math is
+    reported (`mermaid-math-unsupported`) and drawn and measured as written, where Mermaid draws KaTeX; a `properties`
+    icon that names an image is reported (`mermaid-icon-unsupported`) and not drawn; `textPlacement: fo` (HTML labels)
+    is a `mermaid-config-invalid` warning and drawn as the default placement, while `old` is drawn as Mermaid draws it.
+26. **Sequence colors and menus.** Color keywords and system colors of boxes and `rect` blocks take the values of
+    headless Chrome's light scheme (system colors are platform dependent in browsers); an invalid color, `inherit`,
+    `unset`, and `revert` take the root fill. Menus are not interactive: a menu is an empty group, as Mermaid's hidden
+    menu draws nothing, but its size still grows the diagram; `forceMenus` draws it. Links and `details` are kept as
+    data only.
 
 ## Phase Plan
 
-- **Phase 1a (delivered by this version)**: the foundation (public API, syntax, configuration and the five themes,
+- **Phase 1a (delivered)**: the foundation (public API, syntax, configuration and the five themes,
   scenegraph), graphlib and dagre, the subset of the unified renderer that flowcharts use, flowcharts, the image
   source, the Viewer, tool, and documentation filter integration, and the reference harness and goldens.
-- **Phase 1b (planned)**: sequence diagrams (parser, model, layout, and renderer).
+- **Phase 1b (delivered by this version)**: sequence diagrams (parser, model, layout, and renderer), with the
+  sequence configuration and style sheet, the text utilities of Mermaid, and drop shadows in the scene.
 - **Phase 2 (planned)**: class, state, and entity-relationship diagrams on the same renderer.
 - **Phase 3 (planned)**: pie, Gantt, and mindmap diagrams (mindmap with a port of Mermaid's force-directed layout).
 Each phase adds only its own subsystems and units and extends the supported list of `DiagramDetector`; the public API,
