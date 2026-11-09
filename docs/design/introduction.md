@@ -343,13 +343,14 @@ software items, specifically:
   `Parse`/`Open`/`Measure`/`Render` API with `MermaidOpenOptions`, `MermaidRenderOptions`, `MermaidLimits`,
   `MermaidLocation`, `MermaidDiagnostic`, `MermaidUnsupportedFeature`, `MermaidSize`, `MermaidDiagnosticCodes`,
   `MermaidSyntaxException`, `MermaidRenderException`, `MermaidUnsupportedFeatureException`, the internal report sink,
-  and `MermaidImageSource`), and seven internal subsystems: `Syntax` (`Preprocessor`, `DiagramDetector`,
+  and `MermaidImageSource`), and eight internal subsystems: `Syntax` (`Preprocessor`, `DiagramDetector`,
   `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`), `Configuration` (`MermaidConfigResolver`,
   `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Graphlib` (`Graph` and `GraphAlgorithms`), `Dagre`
   (`DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`,
   `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`), `Rendering` (`ClusterLayout`, `ShapeLibrary`,
-  `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph` (`SceneModel` and `ScenePainter`), and `Flowchart`
-  (`FlowchartParser` and `FlowchartModel`). This version draws flowcharts; every other Mermaid diagram type is
+  `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph` (`SceneModel` and `ScenePainter`), `Flowchart`
+  (`FlowchartParser` and `FlowchartModel`), and `Sequence` (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and
+  `SequenceRenderer`). This version draws flowcharts and sequence diagrams; every other Mermaid diagram type is
   recognized and reported as unsupported — see _CanvasNetMermaid System Design_ (`canvas-net-mermaid.md`) for the
   known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the `CanvasNet` system's `Canvas`,
   `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `ImageSources` subsystems through their public API only
@@ -591,11 +592,13 @@ Mermaid, dagre-d3-es, d3, khroma, js-yaml, lodash, and marked (the licenses ship
 units, its internal `Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
 `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter` units, its
 internal `Rendering` subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
-`NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel` and `ScenePainter` units, and its
-internal `Flowchart` subsystem holds the `FlowchartParser` and `FlowchartModel` units (each subsystem lives in the
-sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def` names carry the prefix
-`Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`, `MermaidRendering`,
-`MermaidScenegraph`, and `MermaidFlowchart`) and the scene units are `MermaidSceneModel` and `MermaidScenePainter`,
+`NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel` and `ScenePainter` units, its internal
+`Flowchart` subsystem holds the `FlowchartParser` and `FlowchartModel` units, and its internal `Sequence` subsystem
+holds the `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units (each subsystem lives in
+the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def` names carry the
+prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`, `MermaidRendering`,
+`MermaidScenegraph`, `MermaidFlowchart`, and `MermaidSequence`) and the scene units are `MermaidSceneModel` and
+`MermaidScenePainter`,
 because the model package is shared by every system and `Rendering`, `SceneModel`, and `ScenePainter` are already
 taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, and
 `ImageSources` subsystems through their public API. See the Folder Layout section below and _CanvasNetMermaid System
@@ -1512,8 +1515,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 The `CanvasNetMermaid` system lives in the `src/DemaConsulting.CanvasNet.Mermaid/` project folder (the separate
 `DemaConsulting.CanvasNet.Mermaid` package). The `MermaidDocument` unit occupies the project root; the internal
 subsystems occupy the sub-folders `Syntax/`, `Configuration/`, `Graphlib/`, `Dagre/`, `Rendering/`, `Scenegraph/`,
-and `Flowchart/`, whose names equal their sub-namespaces; partial files and small helper types belong to the unit
-named before the dash (see _CanvasNetMermaid System Design_, `canvas-net-mermaid.md`):
+`Flowchart/`, and `Sequence/`, whose names equal their sub-namespaces; partial files and small helper types belong to
+the unit named before the dash (see _CanvasNetMermaid System Design_, `canvas-net-mermaid.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Mermaid/
@@ -1544,7 +1547,7 @@ src/DemaConsulting.CanvasNet.Mermaid/
 │   └── HtmlSanitizer.cs, HtmlEntities.cs — HtmlSanitizer: label HTML clean-up and named references
 ├── Configuration/                 — Configuration subsystem
 │   ├── MermaidConfigResolver*.cs, MermaidConfig.cs — MermaidConfigResolver: defaults, precedence, typed view
-│   ├── ThemeResolver*.cs          — ThemeResolver: the five themes and the flowchart style sheet
+│   ├── ThemeResolver*.cs          — ThemeResolver: the five themes and the flowchart and sequence style sheets
 │   ├── ColorMath.cs, ColorMath.Parsers.cs — ColorMath: the khroma subset
 │   └── StyleDeclarations.cs       — StyleDeclarations: the CSS declaration subset
 ├── Graphlib/                      — Graphlib subsystem
@@ -1564,14 +1567,19 @@ src/DemaConsulting.CanvasNet.Mermaid/
 │   ├── ClusterLayout*.cs, LayoutData.cs — ClusterLayout: subgraphs, recursive layout, placement
 │   ├── ShapeLibrary*.cs, ShapeNames.cs — ShapeLibrary: shapes, subgraph rectangles, intersections
 │   ├── EdgeBuilder*.cs            — EdgeBuilder: routes, curves, markers, edge labels
-│   ├── LabelBuilder*.cs           — LabelBuilder: HTML, markdown, and SVG labels
+│   ├── LabelBuilder*.cs           — LabelBuilder: HTML, markdown, and SVG labels; the text utilities of sequence text
 │   └── NodeImages.cs              — NodeImages: pictures through the caller's resolver
 ├── Scenegraph/                    — Scenegraph subsystem
-│   ├── SceneModel.cs              — SceneModel: scene records, bounds, placement
-│   └── ScenePainter*.cs           — ScenePainter: paths, text, and pictures to pixels
-└── Flowchart/                     — Flowchart subsystem
-    ├── FlowchartParser*.cs        — FlowchartParser: the flow.jison lexer and grammar
-    └── FlowchartModel*.cs         — FlowchartModel: the flowDb rules, layout data, and drawing
+│   ├── SceneModel.cs              — SceneModel: scene records, bounds, placement, drop shadows
+│   └── ScenePainter*.cs           — ScenePainter: paths, shadows, text, and pictures to pixels
+├── Flowchart/                     — Flowchart subsystem
+│   ├── FlowchartParser*.cs        — FlowchartParser: the flow.jison lexer and grammar
+│   └── FlowchartModel*.cs         — FlowchartModel: the flowDb rules, layout data, and drawing
+└── Sequence/                      — Sequence subsystem
+    ├── SequenceParser*.cs         — SequenceParser: the sequenceDiagram.jison lexer and grammar
+    ├── SequenceModel*.cs          — SequenceModel: the sequenceDb rules, metadata, and reports
+    ├── SequenceLayout*.cs         — SequenceLayout: the sequenceRenderer.ts layout and view box
+    └── SequenceRenderer*.cs       — SequenceRenderer: the svgDraw.js drawing into scene items
 ```
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses only the
@@ -1782,13 +1790,16 @@ The subsystem tests are `{Subsystem}Tests.cs` in each test folder (for example `
 stage goldens), the direct unit `MermaidDocument` has no subsystem folder
 (`docs/design/canvas-net-mermaid/mermaid-document.md`), and the system itself is `docs/design/canvas-net-mermaid.md`
 with `docs/sysml2/model/canvas-net-mermaid.sysml`; its system tests are `MermaidSystemIntegrationTests.cs`,
-`MermaidFlowchartIntegrationTests.cs`, `MermaidReferenceLayoutTests.cs`, `MermaidHardeningTests.cs`, and
-`MermaidUnsupportedDiagramTests.cs` in the root of its test project. Units whose helper types live in their own
+`MermaidFlowchartIntegrationTests.cs`, `MermaidReferenceLayoutTests.cs`, `MermaidSequenceIntegrationTests.cs`,
+`MermaidSequenceReferenceLayoutTests.cs`, `MermaidHardeningTests.cs`, and `MermaidUnsupportedDiagramTests.cs` in the
+root of its test project. Units whose helper types live in their own
 files list those files in their design and SysML2 model (for example `ObjectKeyMap.cs` belongs to `Graph`,
 `ShapeNames.cs` to `ShapeLibrary`, `LayoutData.cs` to `ClusterLayout`, and `HtmlEntities.cs` to `HtmlSanitizer`).
-The original flowchart fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/`, the
+The original flowchart and sequence fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/`
+and `Fixtures/sequence/`, the
 upstream vectors in `Fixtures/upstream-vectors/`, and the reference layout goldens with their provenance README in
-`Fixtures/reference/`. The attribution record and license texts are in
+`Fixtures/reference/` (the sequence goldens in `Fixtures/reference/sequence/`). The attribution record and license
+texts are in
 `src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the vectors and goldens, and
 the visual-diff harness against mermaid-cli, are in `benchmarks/visual-diff/` and `benchmarks/visual-diff/mermaid/`
 (run by hand, never in CI); they are not software items.

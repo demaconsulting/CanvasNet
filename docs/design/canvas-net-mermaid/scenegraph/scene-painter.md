@@ -2,12 +2,12 @@
 
 ![Scenegraph Structure](MermaidScenegraphView.svg)
 
-The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It consists of three source files
+The `ScenePainter` unit is the second software unit in the `Scenegraph` subsystem. It consists of four source files
 in the `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace that make up the internal sealed partial class
 `ScenePainter`: `ScenePainter.cs` (construction, the font resolver, the item walk, paths, dashes, the bounds checks,
 and the painted-pixel charge; it also defines the record struct `ScenePlacement` and the interface
-`ISceneImageLoader`), `ScenePainter.Text.cs` (text lines), and `ScenePainter.Images.cs` (pictures). The SysML2 model
-names the unit `MermaidScenePainter`.
+`ISceneImageLoader`), `ScenePainter.Shadow.cs` (drop shadows), `ScenePainter.Text.cs` (text lines), and
+`ScenePainter.Images.cs` (pictures). The SysML2 model names the unit `MermaidScenePainter`.
 
 #### Purpose
 
@@ -31,7 +31,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   under 0.25 pixel, an entry over `MaxMagnitude` device pixels, or more than 50,000 estimated dashes are drawn solid,
   and a dash offset over `MaxMagnitude` is reduced by whole periods, so every value handed to the core
   `StrokeStyle` is finite in single precision. A text run whose device size is zero in single precision is not
-  drawn.
+  drawn. `MaxShadowBlur` = 64 device pixels is the largest blur a drop shadow is drawn with.
 
 **Invariants**: `_painted` never exceeds `_maxPaintedPixels`; an instance paints one scene on one thread.
 
@@ -50,14 +50,23 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   `PathFiller` under its fill rule, after charging the path's device box; then strokes it (a stroke with alpha and a
   positive finite width) by building the outline in device space with `PathStroker` (scaled width, cap, join, miter
   limit 4, scaled dashes and offset) and filling the outline nonzero, after charging the box grown by half the width.
+  A path with a drop shadow gets its shadow painted first, under it.
+- **`PaintShadow`** (`ScenePainter.Shadow.cs`) - paints the drop shadow of a path as the SVG `drop-shadow` filter
+  does: the silhouette of the path's fill and stroke, moved by the scaled offset, is drawn as coverage into a buffer
+  that covers its device box grown by the stroke's reach and the reach of the blur, blurred with the three box
+  blurs that the SVG specification gives as the approximation of the Gaussian blur (horizontally, then vertically; a
+  blur at most `MaxShadowBlur` device pixels), and composited in the shadow color under the shape, after charging the
+  shadow's device box. A transparent shadow paints nothing.
 - **`DashFor`** - the device dash pattern, or null (solid) when there is no pattern, the offset is not finite, an
   entry is negative or not finite, the scaled period is under 0.25 pixel, or the length of the path (estimated from
   its control polygon, an upper bound) divided by the period exceeds 50,000.
 - **`PaintText`** (`ScenePainter.Text.cs`) - resolves each run's face with the resolver (family, bold, italic) and
   measures it at the scaled size with `TextRenderer.MeasureText`, skipping empty runs and runs whose size is not
   bounded; places the line at its anchor (start, centered on it, or ending at it) on the scaled baseline; charges the
-  line box (from the largest ascent to the largest descent) once; then fills each run with a color that has alpha
-  with `TextRenderer.CreateTextPath`, one after the other. Characters missing from a face come from the core's
+  line box (from the largest ascent to the largest descent, grown by half the stroke width of a stroked line) once;
+  then fills each run with a color that has alpha with `TextRenderer.CreateTextPath`, one after the other, and, for a
+  line with a stroke (a color with alpha and a positive bounded width), strokes the glyph outlines over the fill with
+  `PathStroker`, also when the fill is transparent. Characters missing from a face come from the core's
   bundled fallback fonts.
 - **`PaintImage`** (`ScenePainter.Images.cs`) - draws nothing without a loader or with an opacity that is not
   positive; maps the box to device space and snaps it outward to whole pixels (left and top down, right and bottom
@@ -118,3 +127,7 @@ the unit directly through `InternalsVisibleTo`.
   browser would draw the part that reaches the visible area.
 - **Pictures fill their box.** A picture is always stretched to its box, as Mermaid's `preserveAspectRatio="none"`
   does; a raster picture is resampled with the core `Surface.Resize`, whose filtering may differ from a browser's.
+- **Drop shadows** use the three box blurs that the SVG specification gives as the approximation of a Gaussian blur,
+  as browsers do, but the rounding of the box sizes and the compositing may differ from a browser's by a few levels;
+  a blur beyond 64 device pixels is drawn at 64. The shadow duplicates the blur of the private filter code of the
+  `CanvasNetSvg` package, because the Mermaid package may only reference the core package.

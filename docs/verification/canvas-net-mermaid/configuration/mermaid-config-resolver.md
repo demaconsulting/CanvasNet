@@ -124,3 +124,23 @@ flowchart with `defaultRenderer: elk` gives the detector settings of the three s
 
 Asserts that a text with a secure key and an invalid directive gives warnings with a sink and a configuration equal
 (deep JSON equality) to the one resolved without a sink.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection: The Sequence Section
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceDefaults_MatchMermaid`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceFonts_FollowSetConf`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceWrap_FollowsInit`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceInvalidValues_ReportedAndIgnored`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection`
+
+Asserts, for a sequence diagram without configuration, Mermaid's sequence defaults (participants 150 by 65, the
+margins 50, 10, 5, 10, and 35, the activation width 10, the diagram margins 50 and 10, the alignments `center`,
+mirrored participants, no forced menus, a bottom adjustment of 1, no right angles, no sequence numbers, no wrap, the
+wrap padding 10, the label box 50 by 20, and no text placement) with the three fonts in the top-level family at 16
+pixels and weight 400, without a warning; that the section's font sizes and families have no effect while its weights
+apply, and that a top-level `fontSize`, `fontFamily`, and `fontWeight` replace all three fonts; that the texts wrap
+when the top-level `wrap`, a `%%{wrap}%%` directive, or `sequence.wrap` is true, and that a false top-level `wrap`
+does not turn off the section's (a theory of seven cases); that a Boolean of the wrong type, a width that is text, a
+font size that is a Boolean, and the alignment `diagonal` are four `mermaid-config-invalid` warnings at the directive
+and leave the defaults, while the alignment `end` and the font size `18px` are accepted; and that a single directive's
+`config` key is moved to the sequence section (`mirrorActors`, `actorMargin`, and `textPlacement`).

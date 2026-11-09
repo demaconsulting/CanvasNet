@@ -53,8 +53,9 @@ lays out the diagram.
 - **`Parse(string text, MermaidOpenOptions? options)`**: runs `Preprocessor.Run` (which checks the raw length of four
   times `MaxTextSize` and then `MaxTextSize`), detects the diagram with `DiagramDetector.Detect`, detects again when
   the text's own configuration chooses another renderer (for example `flowchart.defaultRenderer: elk`), and asks
-  `DiagramRegistry.Parse` for the diagram (`FlowchartParser` and `FlowchartModel` for a flowchart; null for a known
-  type that is not drawn). Postcondition: an immutable document, or an exception.
+  `DiagramRegistry.Parse` for the diagram (`FlowchartParser` and `FlowchartModel` for a flowchart, `SequenceParser`
+  and `SequenceModel` for a sequence diagram; null for a known type that is not drawn). Postcondition: an immutable
+  document, or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
   path unless the options name it. **`Open(Stream, ...)`**: reads in chunks, stopping as soon as the text is certainly
   over the limit, decodes with the strict UTF-8 decoder (no replacement characters), drops a byte-order mark, and
@@ -98,8 +99,8 @@ lays out the diagram.
   argument exceptions when the call or the option setter runs.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
-- Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax and Flowchart
-  subsystems; the unit adds nothing but the source name.
+- Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart, and
+  Sequence subsystems; the unit adds nothing but the source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
   subsystems; a size outside the surface range throws `ArgumentOutOfRangeException` naming the scale and the size.
 - Strict mode throws `MermaidUnsupportedFeatureException` from the sink. Cancellation throws
@@ -115,6 +116,7 @@ lays out the diagram.
 - **Syntax**: `Preprocessor`, `DiagramDetector`, and the `MappedText` location map.
 - **Configuration**: `MermaidConfigResolver` (the effective configuration and detector settings).
 - **Flowchart**: through `DiagramRegistry` (`FlowchartParser`, `FlowchartModel`, which implements `IMermaidDiagram`).
+- **Sequence**: through `DiagramRegistry` (`SequenceParser`, `SequenceModel`, which implements `IMermaidDiagram`).
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

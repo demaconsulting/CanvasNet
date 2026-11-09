@@ -30,10 +30,11 @@ five units:
   curve, stroked and marked, and the edge labels measured, placed, and drawn; see _EdgeBuilder Unit Design_
   (`rendering/edge-builder.md`)
 - **LabelBuilder** - the internal `LabelBuilder` (a partial class in `LabelBuilder.cs`, `LabelBuilder.Html.cs`,
-  `LabelBuilder.Markdown.cs`, `LabelBuilder.MarkdownLexer.cs`, and `LabelBuilder.Svg.cs`) with `LabelFont`,
-  `LabelRequest`, `LabelRun`, `LabelLine`, `LabelImage`, and `LabelLayout`: the label text of Mermaid's `createText`
-  (plain and markdown strings, HTML labels, and SVG labels) laid out and measured with the bundled fonts; see
-  _LabelBuilder Unit Design_ (`rendering/label-builder.md`)
+  `LabelBuilder.Markdown.cs`, `LabelBuilder.MarkdownLexer.cs`, `LabelBuilder.Svg.cs`, and
+  `LabelBuilder.TextDimensions.cs`) with `LabelFont`, `LabelRequest`, `LabelRun`, `LabelLine`, `LabelImage`,
+  `LabelLayout`, and `TextDimensions`: the label text of Mermaid's `createText` (plain and markdown strings, HTML
+  labels, and SVG labels) laid out and measured with the bundled fonts, and Mermaid's text utilities, which measure and
+  wrap the texts of sequence diagrams; see _LabelBuilder Unit Design_ (`rendering/label-builder.md`)
 - **NodeImages** - the internal sealed `NodeImages` (`NodeImages.cs`): the pictures of one rendering, loaded only
   through the caller's image resolver, with their natural sizes for the layout and their pixels for the painter; see
   _NodeImages Unit Design_ (`rendering/node-images.md`)
@@ -56,7 +57,9 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 - `ShapeNames.IsKnown`, `HandlerOf`, `Nearest`, `ShortNames`, and `DocumentedCount`
 - `EdgeBuilder.MeasureLabel`, `Draw`, `LabelPosition`, and `DrawLabel`
 - `LabelBuilder(FontResolver, MermaidReportSink?, NodeImages?)`, `LabelBuilder.Build(LabelRequest)`, which returns a
-  `LabelLayout`, and `LabelLayout.ToScene`
+  `LabelLayout`, and `LabelLayout.ToScene`; and the text utilities `LabelBuilder.Meter`, `CalculateTextDimensions`,
+  `CalculateTextWidth`, `WrapLabel`, `BreakString`, `ParseFontSize`, `FontPixels`, `SplitBreaks`, `SvgLineExtent`,
+  `XHeight`, and `VerticalMetrics`
 - `NodeImages(IImageResolver?, int, MermaidReportSink)`, `NodeImages.NaturalSize`, and `NodeImages.Load` (the
   `ISceneImageLoader` of the painter)
 
@@ -65,8 +68,9 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 - the `Dagre` subsystem: `DagreLayout.Run`, the graph labels `DagreGraph`, `DagreNode`, and `DagreEdge`, and the
   `LayoutWorkMeter` that bounds the work and observes cancellation
 - the `Graphlib` subsystem: the compound multigraph `Graph`
-- the `Configuration` subsystem: `MermaidConfig`, `FlowchartStyles` (the style sheet of the theme), and
-  `StyleDeclarations` (the CSS subset of the node and edge styles)
+- the `Configuration` subsystem: `MermaidConfig`, `FlowchartStyles` (the style sheet of the theme),
+  `StyleDeclarations` (the CSS subset of the node and edge styles), and `MermaidFontConfig` and `ConfigScalar` (the
+  fonts of the text utilities)
 - the `Syntax` subsystem: `HtmlSanitizer` (Mermaid's DOMPurify subset and the character references) and
   `DiagramDetector.EditDistance`
 - the `Scenegraph` subsystem: the scene items (`SceneGroup`, `ScenePath`, `SceneText`, `SceneImage`), `SceneRect`,
@@ -79,7 +83,8 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 **Consumers**: the `Flowchart` subsystem builds the layout data (`FlowchartModel.GetData`), validates the shape names
 of `@{ shape: ... }` with `ShapeNames`, creates the `NodeImages`, `LabelBuilder`, and `ShapeContext` of a render, and
 calls `ClusterLayout.Render`; the `Scenegraph` painter loads the pictures through the same `NodeImages`, so that the
-image limit is shared by the layout and the painting.
+image limit is shared by the layout and the painting; the `Sequence` subsystem creates a `LabelBuilder` for each render
+and measures, wraps, and boxes its texts with the text utilities.
 
 ### Design
 
@@ -113,8 +118,9 @@ emulated with the bundled fonts. The ported files are (see `third-party/README.m
   `labelTransform.ts`, and the edge helpers of `utils.ts`, and the line generator and edge curves of d3-shape with
   d3-path's number rounding
 - `LabelBuilder`: `rendering-util/createText.ts`, `handle-markdown-text.ts`, `splitText.ts`, the label measurement of
-  `shapes/util.ts` and `shapes/labelImageUtils.ts`, and the part of the `marked` lexer that Mermaid's markdown labels
-  use
+  `shapes/util.ts` and `shapes/labelImageUtils.ts`, the part of the `marked` lexer that Mermaid's markdown labels
+  use, and the text utilities of `utils.ts` (`calculateTextDimensions`, `wrapLabel`, `breakString`, `parseFontSize`)
+  and `diagrams/common/common.ts` (`splitBreaks`)
 - `NodeImages` is original work of this repository.
 
 **Fonts.** Text is measured and drawn with the faces of the call's `FontResolver` (the bundled Liberation Sans, which

@@ -3,8 +3,8 @@
 This document describes the subsystem-level verification strategy for the `Configuration` subsystem (internal
 namespace `DemaConsulting.CanvasNet.Mermaid.Configuration`), containing four units: `MermaidConfigResolver` (the
 effective configuration of a call and its located reports, with the typed view `MermaidConfig`), `ThemeResolver` (the
-five built-in themes and the flowchart style sheet `FlowchartStyles`), `ColorMath` (the port of the khroma color
-functions), and `StyleDeclarations` (the CSS subset of style statements and `themeCSS`).
+five built-in themes and the flowchart and sequence style sheets `FlowchartStyles` and `SequenceStyles`), `ColorMath`
+(the port of the khroma color functions), and `StyleDeclarations` (the CSS subset of style statements and `themeCSS`).
 
 ### Verification Approach
 
@@ -14,7 +14,8 @@ khroma. The subsystem-level scenarios in `ConfigurationTests` verify the units w
 texts: the `Preprocessor` of the `Syntax` subsystem reads the frontmatter and the directives,
 `MermaidConfigResolver.Resolve` merges them over the site configuration and computes the theme with `ThemeResolver` and
 `ColorMath`, and `FlowchartStyles.Create` builds the flowchart's paint from the theme variables and the `themeCSS`
-parsed by `StyleDeclarations`. Two scenarios go through the public `MermaidDocument` to verify that the configuration
+parsed by `StyleDeclarations` (`SequenceStyles.Create` the sequence diagram's paint, with the sequence section of the
+configuration). Two scenarios go through the public `MermaidDocument` to verify that the configuration
 of the text drives the diagram detection and that its warnings are delivered by a render call.
 
 The expectations are the values Mermaid gives for the same input: the theme that wins, the node fill of each theme
@@ -42,11 +43,14 @@ scenario in the four unit verification documents passes without error or unexpec
 #### CanvasNetMermaid-Configuration-Precedence: Layers Resolve In Mermaid's Order
 
 **Tests**: `ConfigurationTests.Configuration_ResolveThemeAndStyles_FullText`,
-`ConfigurationTests.Configuration_ThemeOption_NodeFill`
+`ConfigurationTests.Configuration_ThemeOption_NodeFill`,
+`ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`
 
 Asserts that a text whose frontmatter names the `forest` theme and whose directive names `dark`, rendered with the theme
 option `neutral`, resolves to the `dark` theme with the frontmatter's flowchart curve, and that the theme option alone
-selects each of the five themes.
+selects each of the five themes; and that a sequence diagram whose frontmatter names the `forest` theme and sets
+`sequence.mirrorActors: false` resolves to that theme and setting, while its `sequence.noteAlign: 5` (a number) is
+reported as `mermaid-config-invalid` at line 6 and the default `center` is kept.
 
 #### CanvasNetMermaid-Configuration-Reports: Configuration Problems Are Reported And Ignored
 
@@ -68,13 +72,16 @@ Asserts the node fill of each of the five themes (`#ECECFF`, `#fff4dd`, `#1f2020
 dark theme named by a directive gives its `mainBkg` (`#1f2020`) while the directive overrides `primaryColor` and
 `lineColor`.
 
-#### CanvasNetMermaid-Configuration-StyleSheet: Flowchart Paint From The Theme And ThemeCSS
+#### CanvasNetMermaid-Configuration-StyleSheet: Diagram Paint From The Theme And ThemeCSS
 
 **Tests**: `ConfigurationTests.Configuration_ResolveThemeAndStyles_FullText`,
-`ConfigurationTests.Configuration_ThemeOption_NodeFill`
+`ConfigurationTests.Configuration_ThemeOption_NodeFill`,
+`ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`
 
 Asserts that the flowchart's edge and marker colors follow the overridden `lineColor`, that the node fill of the
-style sheet is the theme's, and that a `themeCSS` rule for `.cluster rect` is applied to that selector's declarations.
+style sheet is the theme's, and that a `themeCSS` rule for `.cluster rect` is applied to that selector's declarations;
+and that for the sequence diagram above a `themeCSS` rule for `.note` given in a directive overrides the theme's note
+fill, while the participant fill is the `forest` theme's `actorBkg`.
 
 #### CanvasNetMermaid-Configuration-Declarations: CSS Declarations Take Effect
 

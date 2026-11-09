@@ -106,7 +106,8 @@ and has no file name; a source example or snippet has a file name with the exten
 `.vl.json`, `.mmd`, or `.svg`); and the `scad`, `vega-lite`, `mermaid`, and `svg` topics each have a source example.
 
 **HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics**: a theory over every text example (the OpenSCAD models, the
-Vega-Lite charts, the Mermaid diagrams, and the SVG drawings; not the snippets): the example is saved under its file
+Vega-Lite charts, the Mermaid diagrams - the `flowchart` and the `sequence` example of the `mermaid` topic - and the SVG
+drawings; not the snippets): the example is saved under its file
 name and rendered with `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0,
 `ok` is true, there is no diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid
 anchors, one inside a `translate` and a `rotate`) is covered by this theory, so an anchor example that warned would fail

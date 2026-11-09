@@ -84,5 +84,5 @@ column 1, and that a text that starts with `---` is `mermaid-syntax-error` with 
 
 **Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords`
 
-Asserts the exact hints for a planned type (sequence) and a type that is not planned (`gitGraph`), both naming the
-supported keywords `flowchart` and `graph`.
+Asserts the exact hints for a planned type (`classDiagram`) and a type that is not planned (`gitGraph`), both naming the
+supported keywords `flowchart`, `graph`, and `sequenceDiagram`.

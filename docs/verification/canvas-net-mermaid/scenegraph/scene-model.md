@@ -2,8 +2,8 @@
 
 This document describes the unit-level verification strategy for the `SceneModel` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the immutable scene records (`SceneRect`, `SceneSegment`,
-`SceneStroke`, `SceneFont`, `SceneTextRun`, the items `SceneGroup`, `ScenePath`, `SceneText`, and `SceneImage`, and
-`Scene`) with `Scene.BoundsOf` and `Scene.ToPath`.
+`SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun`, the items `SceneGroup`, `ScenePath`, `SceneText`, and
+`SceneImage`, and `Scene`) with `Scene.BoundsOf` and `Scene.ToPath`.
 
 #### Verification Approach
 
@@ -61,3 +61,10 @@ that a list without items and a list with only an empty path have no bounds.
 
 Converts a half-circle arc that does not begin with a move, followed by a close, at scale 2 with an offset of (5, 50),
 and asserts that the path starts at the placed origin and spans x from 5 to 45 and y from 30 to 50.
+
+##### CanvasNetMermaid-Scenegraph-SceneModel-Shadow: A Path Can Carry A Drop Shadow
+
+**Tests**: `SceneModelTests.ScenePath_Shadow_DefaultsToNoneAndKeepsBounds`
+
+Asserts that a path has no drop shadow unless one is given, that a path given the shadow (1, 2, 2, `#B9B9B9`) carries
+it, and that the shadow does not change the bounds of the path, as SVG's `getBBox` ignores filters.

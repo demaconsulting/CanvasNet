@@ -1,8 +1,8 @@
 ### ScenePainter Unit Verification Design
 
 This document describes the unit-level verification strategy for the `ScenePainter` unit in the
-`DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the internal `ScenePainter` class (its paths, dashes, text,
-and pictures), the `ScenePlacement` record struct, and the `ISceneImageLoader` contract.
+`DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the internal `ScenePainter` class (its paths, dashes, drop
+shadows, text, and pictures), the `ScenePlacement` record struct, and the `ISceneImageLoader` contract.
 
 #### Verification Approach
 
@@ -109,3 +109,23 @@ group translated by infinity under a limit of one pixel, and asserts that nothin
 **Tests**: `ScenePainterTests.ScenePainter_Paint_Canceled_Throws`
 
 Asserts that painting a scene with a token that is already canceled throws `OperationCanceledException`.
+
+##### CanvasNetMermaid-Scenegraph-ScenePainter-DropShadow: Drop Shadows Under Their Paths
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_SharpShadow_OffsetsSilhouetteUnderShape`,
+`ScenePainterTests.ScenePainter_Paint_BlurredShadow_FadesSymmetrically`,
+`ScenePainterTests.ScenePainter_Paint_Shadow_ChargedToPaintedPixelLimit`
+
+Asserts that a white square from 20 to 60 with a sharp black shadow 5 pixels to the right and down stays white inside,
+has the black shadow beside and below it, and nothing beyond the shadow; that a centered shadow with a blur of 2 is
+symmetric on both sides of the square (within one level), fades outward, is gone 20 pixels away, and is drawn in its
+own color under the white square; and that under a painted-pixel limit of 2,000 the square of 1,600 pixels is painted,
+with a transparent shadow too (which paints nothing), while the square with a visible shadow fails with
+`mermaid-limit-exceeded`, the shadow's pixels being charged.
+
+##### CanvasNetMermaid-Scenegraph-ScenePainter-StrokedText: Stroked Text Outlines
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_StrokedText_DrawsTheOutline`
+
+Asserts that a line of text with a transparent fill draws nothing without a stroke and leaves more than 20 inked
+pixels with a stroke of width 1, so the outline is stroked over the fill even when the fill is transparent.

@@ -21,7 +21,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Syntax-DiagramDetector
 
 #### Data Model
 
-- `DiagramSupport` - `Supported` (drawn: `flowchart`), `Planned` (the types of the following phases: sequence,
+- `DiagramSupport` - `Supported` (drawn: `flowchart` and `sequence`), `Planned` (the types of the following phases:
   class, state, entity relationship, gantt, pie, and mindmap), and `NotPlanned` (every other type).
 - `DetectorSettings(FlowchartRenderer, ClassRenderer, StateRenderer)` - the `defaultRenderer` values that Mermaid's
   detectors read; `DetectorSettings.Default` is Mermaid's default (`dagre-wrapper` for all three).
@@ -36,7 +36,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Syntax-DiagramDetector
   Mermaid's id, except that `classDiagram` and `class` are `class`, `stateDiagram` and `state` are `state`, and
   `flowchart-v2`, `flowchart`, and `flowchart-elk` are `flowchart`.
 - The keywords offered by the nearest-keyword hint (the common diagram keywords) and the supported keywords
-  (`flowchart` and `graph`).
+  (`flowchart`, `graph`, and `sequenceDiagram`).
 
 The unit has no mutable state and is safe for concurrent use.
 
@@ -47,8 +47,8 @@ The unit has no mutable state and is safe for concurrent use.
   white space, up to white space or `;`) and its location, and returns the first known type whose detector matches.
 - `ReplaceComments(MappedText)` - `detectType`'s comment expression (`/\s*%%.*\n/gm`) as a scanner: the white space
   before a comment, the comment, and its line feed become one line feed; a comment without a final line feed stays.
-- `UnsupportedHint(DetectedDiagram)` - "`<type>` diagrams are planned; supported in this version: flowchart, graph"
-  or "... are not supported; ...".
+- `UnsupportedHint(DetectedDiagram)` - "`<type>` diagrams are planned; supported in this version: flowchart, graph,
+  sequenceDiagram" or "... are not supported; ...".
 - `SupportedDiagramKeywords` and `DetectorIds` - the supported keywords and the detector ids in detection order.
 - `EditDistance(string, string)` - the Levenshtein distance used by the nearest-keyword hint (and by the nearest-name
   hints of other subsystems).
@@ -84,7 +84,8 @@ location is in the original text.
 `MermaidDocument` detects every text it opens, first with the default settings and again with the settings of the
 text's configuration when they differ, and reads `UnsupportedHint` for the report of a type that is not drawn; the
 `Configuration` subsystem (`MermaidConfigResolver`) detects with the resolved settings and uses `EditDistance`, as
-does `ShapeNames` of the `Rendering` subsystem. The tests in
+does `ShapeNames` of the `Rendering` subsystem and `SequenceModel` of the `Sequence` subsystem (for the nearest
+participant type). The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/DiagramDetectorTests.cs` call the unit directly through
 `InternalsVisibleTo`.
 
