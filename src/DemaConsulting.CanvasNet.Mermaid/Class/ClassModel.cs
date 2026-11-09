@@ -1,4 +1,4 @@
-// Portions derived from mermaid (MIT); see third-party/README.md
+// Portions derived from mermaid (MIT) and sanitize-url (MIT); see third-party/README.md
 using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;

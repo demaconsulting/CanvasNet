@@ -1016,13 +1016,14 @@ words:
   - starty
   - stopx
   - stopy
-  # Mermaid class diagram terms (jison terminals, the texts of mermaid's class parser specs)
+  # Mermaid class diagram terms (jison terminals, the texts of mermaid's class parser specs, the sanitize-url author)
   - backticked
   - BQUOTE
   - bqstring
   - Città
   - CSSCLASS
   - GENERICTYPE
+  - braintree
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
