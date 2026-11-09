@@ -127,8 +127,7 @@ a statement list, for the members and the direction of a subgraph).
   and emulates the expected-token lists of jison's tables, including the effects of its merged states; the 26 grammar
   errors of the upstream vectors give the identical lists in jison's order.
 - **Located errors.** Mermaid's parse errors name a line of the text that its parser sees (after the frontmatter and
-  the directives are removed); this unit's errors are located by line and column in the original text and carry a
-  hint.
+  the directives are removed); this unit's errors are located by line and column in the original text and carry a hint.
   The failures of Mermaid's database are located CanvasNet exceptions too (see the FlowchartModel unit).
 - **Limits.** The nesting limit (and, through the model, the edge, node, and label limits) refuses the text when the
   document is opened, with code `mermaid-limit-exceeded`; Mermaid has no nesting or label limit.

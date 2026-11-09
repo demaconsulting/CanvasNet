@@ -25,8 +25,7 @@ one-based locations are stated as literals derived by hand from the input text (
 line of a text with Windows line endings is at line 10, column 24), and the cleaned label is the text that DOMPurify's
 rules give for it. The small grammar (spaces skipped, line feeds and words as tokens) stands in for a diagram parser,
 so the scanner is exercised on the real parser text without the `Flowchart` subsystem. The subsystem uses no mocking or
-stubbing; it is
-internal, so its tests reach it through the test assembly's `InternalsVisibleTo` access.
+stubbing; it is internal, so its tests reach it through the test assembly's `InternalsVisibleTo` access.
 
 ### Test Environment
 

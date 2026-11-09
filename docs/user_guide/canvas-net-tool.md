@@ -6,14 +6,10 @@
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
 libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
 document pages, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, cleans up photographs of sketches (contrast,
-tilt, borders,
-and a coordinate
-grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's
-standard
-output holds only
-its own result, every result can be written as one JSON document, a failure is reported with a stable error code, and
-the exit code is always 0 or 1. This chapter describes the whole contract, so that a script or an AI agent can use the
-tool without reading its source.
+tilt, borders, and a coordinate grid), and measures their colors and pixels. It is built to be driven by programs as
+well as by people: a command's standard output holds only its own result, every result can be written as one JSON
+document, a failure is reported with a stable error code, and the exit code is always 0 or 1. This chapter describes the
+whole contract, so that a script or an AI agent can use the tool without reading its source.
 
 The tool is a thin command-line shell over the `DemaConsulting.CanvasNet.Viewer` library: it parses a command line into
 the requests of the library's `Imaging` operations (`SourceLoader`, `ImageRenderer`, `ImageInspector`, `ImageComparer`,
@@ -222,10 +218,8 @@ parse standard output alone in both cases; the text report on standard error is 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
 Vega-Lite chart, a Mermaid diagram, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`,
-`--trim`, `--grid`,
-and so on; see *Photos
-and Sketches*) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
-as well.
+`--trim`, `--grid`, and so on; see *Photos and Sketches*) are options of `render`, so they are available to all of these
+commands too, and `inspect` accepts them as well.
 
 ### Formats Read and Written
 
@@ -803,9 +797,8 @@ SVG, rooted at the folder of the diagram, so the link can name a raster, an SVG 
 chart, a page of a document, or another diagram, and nothing outside that folder is read. A link that is not drawn (a
 missing file, a path outside the folder, a network URL) is the warning `svg-image-unresolved` with the reason, and
 `--strict` makes it a failure. The pictures that were drawn are listed as `embed` operations. `info` lays the diagram
-out without loading
-any picture, so give a picture node its `w` and `h`: otherwise the drawn diagram can be a little larger or smaller than
-the size `info` reports.
+out without loading any picture, so give a picture node its `w` and `h`: otherwise the drawn diagram can be a little
+larger or smaller than the size `info` reports.
 
 **Diagnostics and errors.** A construct the library recognizes but cannot draw (an icon, the `handDrawn` look, the
 `elk` layout, a `themeCSS` rule with an arbitrary selector) is left out and reported in `diagnostics` with its stable
@@ -907,14 +900,12 @@ draws the model and the chart into their rectangles. The result lists each embed
   (after `--scale`, `--width`, and any transform in the SVG), so it is sharp; the rectangle is filled by a model, and a
   chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. A raster is decoded at its
   own size and resampled once. A model, an SVG file, and a diagram are drawn over a **transparent** background, so the
-  diagram shows
-  through; a chart keeps **its own background** (white unless it declares another), because a chart is meant to carry
-  its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D model,
-  top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables; `#view=front` in
-  the link chooses a named view) and default
-  settings: the options of the command (`--view`,
-  `-D`, `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets the variables of an embedded model
-  and the parameters of an embedded chart (see *Variables and parameters in the link*).
+  diagram shows through; a chart keeps **its own background** (white unless it declares another), because a chart is
+  meant to carry its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D
+  model, top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables;
+  `#view=front` in the link chooses a named view) and default settings: the options of the command (`--view`, `-D`,
+  `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets the variables of an embedded model and
+  the parameters of an embedded chart (see *Variables and parameters in the link*).
 - **Choosing a page.** A link to a document draws **page 1 unless its fragment says otherwise**:
   `<image href="report.pdf#page=3" .../>` draws page 3 of a PDF, `deck.pptx#slide=2` (or `#page=2`) slide 2 of a
   presentation, `drawing.vsdx#page=2` page 2 of a Visio drawing, and `part.scad#view=front` draws a model from a named
@@ -1880,11 +1871,11 @@ the agent's own drawings (an SVG, a SCAD model, or a Mermaid diagram) as picture
 conventions make this reliable:
 
 - Start with `canvasnet help topics`, then `canvasnet help <format>` for what a format supports and what it does not
-  (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and `canvasnet help <format> --example <name>`
-  for a
-  tiny example that is known to render. Add `--json` to parse any of them. To put a model, a chart, or a picture inside
-  a diagram, link it from an SVG with `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the
-  folder rule, and the `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
+  (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and
+  `canvasnet help <format> --example <name>` for a tiny example that is known to render. Add `--json` to parse any of
+  them. To put a model, a chart, or a picture inside a diagram, link it from an SVG with
+  `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the folder rule, and the
+  `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
 - Always pass `--json` and parse the one line on standard output. Check `ok`, and on a failure branch on
   `error.code`. Read `diagnostics` even on success: they list what was left out of the picture.
 - Ask before you render: `canvasnet info <file> --json` gives the size, the page count, or the modules of a model
@@ -2095,10 +2086,9 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, and Mermaid: `diagnostics`; SVG: the `image`
-  references it could
-  not draw). PDF has no such report, and a
-  construct it (or the SVG library, inside an SVG file) cannot draw is simply absent from the picture.
+  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, and Mermaid: `diagnostics`; SVG: the `image` references
+  it could not draw). PDF has no such report, and a construct it (or the SVG library, inside an SVG file) cannot draw is
+  simply absent from the picture.
 - **SVG embedding.** Only relative references below the folder of the SVG file are followed (never the network, an
   absolute path, or a link), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
   default view; the `feImage` filter primitive reads only a `data:` URI.

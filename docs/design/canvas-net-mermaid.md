@@ -202,8 +202,9 @@ instead use `MermaidDocument` directly with `MermaidRenderOptions`.
 ### Determinism
 
 - **Fonts**: every font family (Mermaid's default `"trebuchet ms", verdana, arial, sans-serif` and any `fontFamily`)
-  resolves to the bundled Liberation Sans; system fonts are never consulted, and a glyph missing from the bundled
-  fonts is taken from the core Noto fallback and reported (`mermaid-text-missing-glyph`).
+  resolves to the bundled Liberation Sans, and system fonts are never consulted. A glyph that Liberation Sans lacks is
+  drawn from the core library's bundled Noto fallback fonts without a report; a character that no bundled font has is
+  drawn as the font's missing-glyph box and reported (`mermaid-text-missing-glyph`).
 - **Order**: graphlib's object-key order (array-index keys first, then insertion order) and lodash's and V8's sorting
   steps are reproduced, so ties are broken as in Mermaid and never by hash order.
 - **Arithmetic**: layout uses `double` arithmetic in Mermaid's order of operations; nothing depends on the culture,
@@ -253,6 +254,7 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   `mermaid-limit-exceeded`.
 - `MaxDiagnostics`, 1,000 reports per call: further reports become one `mermaid-diagnostics-suppressed` notice and
   rendering continues.
+
 A site configuration's `maxTextSize` and `maxEdges` are resolved but not consulted: the limits come from
 `MermaidLimits` only. A natural size beyond `Surface.MaxDimension` (8,192) at the requested scale is an
 `ArgumentOutOfRangeException` from `Measure` or `Render`; a host can then render at a smaller scale or an exact size.
@@ -274,8 +276,8 @@ view box, node centers and sizes, subgraph rectangles, 21 arc-length samples of 
 The tolerance is 0.01 pixel, and 0.1 pixel for the fixtures `12-new-shapes-flow` and `14-new-shapes-symbols` (the
 rough.js circles, item 1 below); in practice 39 fixtures agree to within 0.001 pixel. The fixture `38-unicode` is
 **excluded** from the goldens: Chrome draws its CJK text with a system font that the bundled fonts do not have, so
-the reference would depend on the machine (its node is 12 pixels wider in Chrome); CanvasNet draws it with the core
-fallback and reports `mermaid-text-missing-glyph`.
+the reference would depend on the machine (its node is 12 pixels wider in Chrome); no bundled font has those
+characters, so CanvasNet draws them as the missing-glyph box and reports `mermaid-text-missing-glyph`.
 
 **Known and accepted differences from Mermaid:**
 
@@ -296,9 +298,10 @@ fallback and reports `mermaid-text-missing-glyph`.
    and MathML content.
 6. **Icons** (`fa:` classes and `@{ icon }`) are not drawn (`mermaid-icon-unsupported`); the text without the icon is
    drawn, and icon shapes keep their frame and size.
-7. **Looks and layouts.** `look: handDrawn` is drawn classic (`mermaid-look-unsupported`); `layout: elk`, the
-   `flowchart-elk` keyword, and any other layout fall back to dagre (`mermaid-layout-unsupported`). The rough.js
-   circles of some shapes are drawn as true circles (at most 0.06 pixel different).
+7. **Looks and layouts.** `look: handDrawn`, `look: neo`, and any other look but `classic` are drawn classic
+   (`mermaid-look-unsupported`); `layout: elk`, the `flowchart-elk` keyword, and any other layout fall back to dagre
+   (`mermaid-layout-unsupported`). The rough.js circles of some shapes are drawn as true circles (at most 0.06 pixel
+   different).
 8. **Interaction and animation.** `click`, `href`, `call`, callbacks, tooltips, and links are parsed and ignored
    (only the `clickable` class is kept); an animated edge is drawn as its first frame (dash `9,5`, offset 900);
    `accTitle` and `accDescr` are metadata only.

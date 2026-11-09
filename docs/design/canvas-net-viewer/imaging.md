@@ -17,30 +17,25 @@ the result records. It is a subsystem rather than a single unit because loading,
 separate responsibilities with distinct requirements and tests. It contains ten units: `SourceLoader`, which
 recognizes a file, reads its header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, a view of an OpenSCAD model, a Vega-Lite chart,
-and a Mermaid diagram),
-`ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone of, deskews, trims, and
-draws a grid on pixels in the order the operations are given,
-`ImageWriter`, which writes PNG,
+and a Mermaid diagram), `ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone
+of, deskews, trims, and draws a grid on pixels in the order the operations are given, `ImageWriter`, which writes PNG,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which checks a comparison of two images against thresholds and holds
-the defaults of the comparison options, `ContactSheet`, which composes a grid of images, each fitted into a cell,
-with optional labels drawn in
-the bundled font, and `GridOverlay`, which draws a labeled coordinate grid over pixels in place. Four operation
-units chain those units: `ImageRenderer` (load, transform, and write the pages of a source), `ImageInspector` (load,
-transform, and analyze), `ImageComparer` (load two inputs, measure, check thresholds, write pictures), and
-`MontageBuilder` (load several sources into one contact sheet). The failures of every unit are
+the defaults of the comparison options, `ContactSheet`, which composes a grid of images, each fitted into a cell, with
+optional labels drawn in the bundled font, and `GridOverlay`, which draws a labeled coordinate grid over pixels in
+place. Four operation units chain those units: `ImageRenderer` (load, transform, and write the pages of a source),
+`ImageInspector` (load, transform, and analyze), `ImageComparer` (load two inputs, measure, check thresholds, write
+pictures), and `MontageBuilder` (load several sources into one contact sheet). The failures of every unit are
 `ViewerException` values with the stable `ErrorCodes` (the `ViewerException` unit of the `CanvasNetViewer` system). The
-pixel arithmetic that is not specific to the tool is part of the core
-`Surface` class and its units of the `Canvas` subsystem: flip, pad, trim, fit, flatten, and the EXIF orientation
-(_SurfaceTransforms Unit Design_), the tone adjustments (_SurfaceAdjustments Unit Design_), the rotation by any angle
-and the skew estimation (_SurfaceGeometry Unit Design_), the comparison of two surfaces and the difference pictures
-(_SurfaceComparison Unit Design_), and the analysis of colors (_SurfaceAnalysis Unit Design_); the units here delegate
-to it. The
-supporting
-types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`, `ChartFacts`,
-`DiagramFacts`, `DiagramOptions`, `LoadedSource`, `SourceAnchor`, `AppliedOperation`, `ImageDiagnostic`, and
-`SourcePage`) are documented in the design of the unit that owns them; the operation records of the pipeline (and the
-`Dimension`, `GeometrySpec`, `PadSpec`, and `FlipAxis` values they carry) are documented with `ImagePipeline`, and the
-request and result records of an operation with the operation unit.
+pixel arithmetic that is not specific to the tool is part of the core `Surface` class and its units of the `Canvas`
+subsystem: flip, pad, trim, fit, flatten, and the EXIF orientation (_SurfaceTransforms Unit Design_), the tone
+adjustments (_SurfaceAdjustments Unit Design_), the rotation by any angle and the skew estimation (_SurfaceGeometry Unit
+Design_), the comparison of two surfaces and the difference pictures (_SurfaceComparison Unit Design_), and the analysis
+of colors (_SurfaceAnalysis Unit Design_); the units here delegate to it. The supporting types shared by the units
+(`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`, `ChartFacts`, `DiagramFacts`,
+`DiagramOptions`, `LoadedSource`, `SourceAnchor`, `AppliedOperation`, `ImageDiagnostic`, and `SourcePage`) are
+documented in the design of the unit that owns them; the operation records of the pipeline (and the `Dimension`,
+`GeometrySpec`, `PadSpec`, and `FlipAxis` values they carry) are documented with `ImagePipeline`, and the request and
+result records of an operation with the operation unit.
 
 **Record style.** One rule applies to every request and option record of the subsystem (`RenderRequest`,
 `InspectRequest`, `CompareRequest`, `CompareInput`, `MontageRequest`, `SheetOptions`, and `WriteOptions`, like the
@@ -114,33 +109,29 @@ diagram.
 
 ### Design
 
-A load is: detect the format (signature bytes, then ZIP entries, then SVG text, then file name and extension); read
-the header
-(`Probe`); refuse an image that is too large; compute the target size from the options; decode or render; apply
-what the options ask for (EXIF orientation, resize, flatten over a background); and return the pixels with the list
-of operations that were applied, which commands report as the `operations` of a JSON result. A vector source (SVG,
-a page of a PDF, PPTX, or VSDX document, a view of an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram) is
-rendered directly at
-the target size,
-which is sharper than
-rendering at the natural size and resampling; a raster source is decoded at its own size and resized afterwards.
-A page of a document is chosen by its number counted from 1 and sized at a resolution in dots per inch (96 by
-default); every page of one document is loaded from one opened source. A model is drawn from a named viewpoint
-(`iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`, in the camera convention of the Render3D library: the
-eye on the side the name says, Z up; with no view chosen the library decides: `iso` for a 3D model, `top` for a
-model that is entirely 2D, or the view the model sets with its viewport variables) at 800 by 800 pixels unless a size
-is given, with the variables and limits
-the options set; the files its `include` and `use` directives name are read from the folder of the model and below
-it only. A chart is laid out by the library at its natural size, which the probe reports, and is drawn at the target
-size with UTC dates and only the bundled fonts over its own background (white by default); nothing is read from the
-network. A diagram is laid out by the library at its natural size, which the probe reports without loading the pictures
-of its nodes, and is drawn at that size times the scale exactly where Mermaid places it, or fitted into the box of the
-size options, with only the bundled fonts over white (or the background given), in the theme the options or the fragment
-of the input choose; the pictures of its nodes are read through the same sandboxed resolver as those of an SVG file. A
-write is: resolve the format, check the target, flatten transparency for JPEG, and encode into a temporary file in the
-target directory (staging); moving it over the target (publishing, `ImageWriter.PublishAll`) is a separate step, so a
-command that writes several outputs touches no target until every one was encoded and then publishes them all or nothing
-(an existing target is renamed to a backup first, and a failure rolls the published targets back).
+A load is: detect the format (signature bytes, then ZIP entries, then SVG text, then file name and extension); read the
+header (`Probe`); refuse an image that is too large; compute the target size from the options; decode or render; apply
+what the options ask for (EXIF orientation, resize, flatten over a background); and return the pixels with the list of
+operations that were applied, which commands report as the `operations` of a JSON result. A vector source (SVG, a page
+of a PDF, PPTX, or VSDX document, a view of an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram) is rendered
+directly at the target size, which is sharper than rendering at the natural size and resampling; a raster source is
+decoded at its own size and resized afterwards. A page of a document is chosen by its number counted from 1 and sized at
+a resolution in dots per inch (96 by default); every page of one document is loaded from one opened source. A model is
+drawn from a named viewpoint (`iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`, in the camera convention of
+the Render3D library: the eye on the side the name says, Z up; with no view chosen the library decides: `iso` for a 3D
+model, `top` for a model that is entirely 2D, or the view the model sets with its viewport variables) at 800 by 800
+pixels unless a size is given, with the variables and limits the options set; the files its `include` and `use`
+directives name are read from the folder of the model and below it only. A chart is laid out by the library at its
+natural size, which the probe reports, and is drawn at the target size with UTC dates and only the bundled fonts over
+its own background (white by default); nothing is read from the network. A diagram is laid out by the library at its
+natural size, which the probe reports without loading the pictures of its nodes, and is drawn at that size times the
+scale exactly where Mermaid places it, or fitted into the box of the size options, with only the bundled fonts over
+white (or the background given), in the theme the options or the fragment of the input choose; the pictures of its nodes
+are read through the same sandboxed resolver as those of an SVG file. A write is: resolve the format, check the target,
+flatten transparency for JPEG, and encode into a temporary file in the target directory (staging); moving it over the
+target (publishing, `ImageWriter.PublishAll`) is a separate step, so a command that writes several outputs touches no
+target until every one was encoded and then publishes them all or nothing (an existing target is renamed to a backup
+first, and a failure rolls the published targets back).
 
 Between the load and the write an operation may transform the pixels with the pipeline: the operations are applied
 left to right, each making a new surface from the previous one, so one decode and one encode serve the whole chain.
@@ -160,12 +151,9 @@ comparison does not meet is data in the result, not an exception, and the tool d
 The subsystem owns the policy for the things that must be decided in one place so that every command agrees:
 the size policy (including the maximum of `Surface.MaxDimension` pixels per side, enforced before decoding
 wherever a header gives the size), the page numbering and resolution, the views of a model, the fixed deterministic
-render options of a chart and of a diagram, and the mapping of
-library exceptions to expected errors. The mapping is an
-explicit list of exception types in `SourceLoader.Read`; any other exception is a defect and propagates to the
-entry point, which reports and re-throws it. `Imaging` adds no dependency on a system other than the CanvasNet
-core library (its pixel, codec, font, and text-rendering parts; `ContactSheet` draws its labels with the text
-renderer and
-the bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, Render3D, Vega-Lite, and Mermaid systems. Every source
-kind is read; a
-further kind is added by a new partial file of `SourceLoader` and one new case in `Probe` and in `OpenPages`.
+render options of a chart and of a diagram, and the mapping of library exceptions to expected errors. The mapping is an
+explicit list of exception types in `SourceLoader.Read`; any other exception is a defect and propagates to the entry
+point, which reports and re-throws it. `Imaging` adds no dependency on a system other than the CanvasNet core library
+(its pixel, codec, font, and text-rendering parts; `ContactSheet` draws its labels with the text renderer and the
+bundled font) and the CanvasNet SVG, PDF, PPTX, VSDX, SCAD, Render3D, Vega-Lite, and Mermaid systems. Every source kind
+is read; a further kind is added by a new partial file of `SourceLoader` and one new case in `Probe` and in `OpenPages`.

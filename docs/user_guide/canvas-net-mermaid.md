@@ -160,8 +160,7 @@ So a theme that the diagram sets itself always wins over the caller's theme, exa
 never change a **secure** key (`securityLevel`, `maxTextSize`, `maxEdges`, and so on): such a change is ignored with
 the warning `mermaid-config-secure-key`. A key that Mermaid does not define is the warning `mermaid-config-unknown-key`
 (its hint names the nearest key when one is close), and a value of the wrong type or range is `mermaid-config-invalid`,
-which keeps the
-value of the lower layer.
+which keeps the value of the lower layer.
 
 The five built-in themes are `default`, `base`, `dark`, `forest`, and `neutral`. Each is derived as Mermaid derives
 it, so `themeVariables` (such as `primaryColor`, `primaryTextColor`, `primaryBorderColor`, `lineColor`,
@@ -256,8 +255,8 @@ degree of parallelism, on every machine, and in every culture. The package reads
 locale, or installed font, runs no script, and never uses the network. Text is measured and drawn with the bundled
 fonts only: Mermaid's default `"trebuchet ms", verdana, arial, sans-serif` resolves to Liberation Sans, a family that
 is not bundled falls back to it, and the bundled Noto fonts draw the characters it lacks. Compare the pixels of two
-surfaces, not the bytes of two PNG files,
-because the PNG encoder of .NET 9 and later writes a different stream for the same pixels.
+surfaces, not the bytes of two PNG files, because the PNG encoder of .NET 9 and later writes a different stream for the
+same pixels.
 
 The layout is checked against Mermaid itself: a set of reference diagrams is drawn by Mermaid 11.17.2 (with the same
 Liberation Sans font) and every node, edge, and subgraph of the CanvasNet layout matches within a hundredth of a pixel.

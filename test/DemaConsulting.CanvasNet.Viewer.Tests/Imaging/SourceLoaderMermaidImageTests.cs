@@ -1,4 +1,3 @@
-// cspell:ignore scad svg href
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;

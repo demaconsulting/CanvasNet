@@ -164,9 +164,8 @@ sections:
         justification: |
           The help examples self-test proves, in the deployment environment, that the help content shipped inside the
           tool is present and that its examples render through the SVG, OpenSCAD, Vega-Lite, and Mermaid renderers
-          bundled
-          with the tool; its name is a contract with the qualification evidence. It is a smoke test: the detailed
-          coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
+          bundled with the tool; its name is a contract with the qualification evidence. It is a smoke test: the
+          detailed coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
         tests:
           - Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded
           - CanvasNetTool_HelpExamples

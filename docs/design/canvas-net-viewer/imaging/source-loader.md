@@ -479,17 +479,15 @@ height for 5 to 8.
 background was given, and `ImageWriter` uses both for JPEG output.
 
 **SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite, and Mermaid, the kinds that
-are rendered at the
-size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options that load a
-source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and `Scale`
-cleared, so the source is rendered sharply at the box (a document page, a chart, and a diagram are fitted inside it and
-centered over the
-background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
-unchanged, because the caller fits the decoded pixels with the core `Surface.FitInto`. The loader keeps its own
-private center helper for documents (a page rendered smaller than the box is centered over the background); the fitted
-size comes from the core `Surface.FitInside` (the smaller of the two box ratios scales both sides, so a small image is
-enlarged, and each side is rounded half away from zero and limited to 1 and the box; the algorithm is documented in
-*SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
+are rendered at the size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options
+that load a source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and
+`Scale` cleared, so the source is rendered sharply at the box (a document page, a chart, and a diagram are fitted inside
+it and centered over the background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster
+kind the options unchanged, because the caller fits the decoded pixels with the core `Surface.FitInto`. The loader keeps
+its own private center helper for documents (a page rendered smaller than the box is centered over the background); the
+fitted size comes from the core `Surface.FitInside` (the smaller of the two box ratios scales both sides, so a small
+image is enlarged, and each side is rounded half away from zero and limited to 1 and the box; the algorithm is
+documented in *SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
 
 **SourceInput and LoadContext** (`SourceLoader.Input.cs`): the loader reads a file through a `SourceInput`, not a path.
 `SourceInput.FromFile(path)` opens a new `FileStream` for every use, and `SourceInput.FromMemory(bytes, name,

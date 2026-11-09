@@ -26,11 +26,9 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 - **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, eight
   `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, vega-lite, and mermaid, in that order, with the
   names, extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union
-  of their
-  extensions,
-  computed through an `ImageSourceSet` so that the claims are validated once. Both are exposed as read-only lists
-  (`ImageSources`, `Extensions`). The sources are stateless and thread-safe, so the shared instances serve any number of
-  resolvers.
+  of their extensions, computed through an `ImageSourceSet` so that the claims are validated once. Both are exposed as
+  read-only lists (`ImageSources`, `Extensions`). The sources are stateless and thread-safe, so the shared instances
+  serve any number of resolvers.
 - **`LoaderImageSource`** (internal sealed class, `IImageSource` and `IFragmentImageSource`) — an adapter over the
   `SourceLoader` of the `Imaging` subsystem, so that the tool, `Render` and a linked file are drawn by the same code.
   It is built from the claims of the package source it stands for, the `SourceKind`s it draws, the fragment parameters

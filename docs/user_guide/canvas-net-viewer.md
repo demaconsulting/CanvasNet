@@ -247,44 +247,34 @@ PngCodec.Save(image.Surface, "part.png");
 `ViewerRenderOptions` has `Width` and `Height` (none: natural size; one: keep the aspect ratio; both: a box - a vector
 file is drawn at that size and a raster is fitted into it; when given, each must be from 1 to 8192, otherwise `Render`
 throws `ArgumentOutOfRangeException` before it reads anything), `Page` (the 1-based page or slide of a PDF, PPTX, or
-VSDX
-file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a value
-below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is sized
-at,
-96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color transparent areas
-are
-flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box, whose anchors follow
-the picture; null keeps the transparency of a document, a model, an SVG file, and a diagram, and the own background of
-a chart),
-`Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time, and triangle limit), `VegaLite`
-(the
-`ChartOptions` of a Vega-Lite chart: the values of its parameters, the option behind `--param`; see below), `Folder`
-(the sandbox for the files the rendered file itself
-includes or embeds; by default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an
-unsupported
-feature fails instead of being drawn without it and reported; for an SVG file it also fails on a link that is not
-drawn, as `--strict` does: a missing file, a picture too large, an unusable fragment, or a page that does not exist is a
-`ViewerException` with the code `unsupported-feature`, while an unknown fragment parameter stays a warning),
-`MaxDecodedPixels` (the most pixels the render may decode
-in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192 picture, so set it to render
-one larger image; when a raster is resized to the requested size, the final picture is a second buffer that counts
-against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that does not fit throws
-`ImageSourceBudgetException`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?* below), and
-`CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries `Format`,
-`Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document), `Diagnostics`,
-`Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their pixels; empty
-for
-every other file), and `Embedded`. `Render` throws `FileNotFoundException`
-for a missing file, `NotSupportedException` when no source claims the extension (the message lists them),
-`SandboxException` when the sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn
-(a mistake of the caller or a limit - `page-out-of-range`, a size above 8192 pixels, a model whose `include` is
-missing - is a `ViewerException` instead). Render
-a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source. With both
-`Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas `SourceOptions.Width` and
-`Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model that the rendered file
-embeds chooses its own page or view, and sets its own variables or parameters, with the fragment of its link; it never
-inherits
-`Page`, `Dpi`, `Scad`, or `VegaLite`.
+VSDX file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a
+value below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is
+sized at, 96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color
+transparent areas are flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box,
+whose anchors follow the picture; null keeps the transparency of a document, a model, an SVG file, and a diagram, and
+the own background of a chart), `Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time,
+and triangle limit), `VegaLite` (the `ChartOptions` of a Vega-Lite chart: the values of its parameters, the option
+behind `--param`; see below), `Folder` (the sandbox for the files the rendered file itself includes or embeds; by
+default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an unsupported feature fails instead
+of being drawn without it and reported; for an SVG file it also fails on a link that is not drawn, as `--strict` does: a
+missing file, a picture too large, an unusable fragment, or a page that does not exist is a `ViewerException` with the
+code `unsupported-feature`, while an unknown fragment parameter stays a warning), `MaxDecodedPixels` (the most pixels
+the render may decode in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192
+picture, so set it to render one larger image; when a raster is resized to the requested size, the final picture is a
+second buffer that counts against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that
+does not fit throws `ImageSourceBudgetException`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?*
+below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries
+`Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document),
+`Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their
+pixels; empty for every other file), and `Embedded`. `Render` throws `FileNotFoundException` for a missing file,
+`NotSupportedException` when no source claims the extension (the message lists them), `SandboxException` when the
+sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn (a mistake of the caller or a
+limit - `page-out-of-range`, a size above 8192 pixels, a model whose `include` is missing - is a `ViewerException`
+instead). Render a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the
+source. With both `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas
+`SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model
+that the rendered file embeds chooses its own page or view, and sets its own variables or parameters, with the fragment
+of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
 
 To render page 2 of a PDF document at 192 dpi, over white, in memory:
 
@@ -891,9 +881,8 @@ stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints
 is a defect and is not caught. The codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
-`size-mismatch`, and
-`threshold-failed`. `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations are in
-`DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
+`size-mismatch`, and `threshold-failed`. `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
+are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
 
 <!-- compile -->
 

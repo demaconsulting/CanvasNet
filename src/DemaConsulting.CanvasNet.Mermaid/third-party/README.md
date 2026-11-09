@@ -60,8 +60,7 @@ are generated from the pinned mermaid and khroma by `benchmarks/visual-diff/merm
 `gen-flowchart-vectors.mjs` (whose flowchart texts in `flowchart-vector-cases.mjs` are original) and
 `gen-shape-vectors.mjs` (single nodes of every shape and label kind, measured in headless Chrome with the bundled
 Liberation Sans) and `gen-curve-vectors.mjs` (point sets drawn by d3-shape's line generator with every edge curve);
-their
-inputs are original, and their expected values are the results of those MIT-licensed projects. The dagre stage
+their inputs are original, and their expected values are the results of those MIT-licensed projects. The dagre stage
 goldens (`dagre-layouts.json`) are generated from dagre-d3-es by `benchmarks/visual-diff/mermaid/gen-dagre-goldens.mjs`
 on graphs from a seeded generator, so their inputs are original too. The dagre unit tests under `Dagre/` include cases
 ported from the test files of dagre-d3-es (`*.test.js`, MIT, same copyright notices as `LICENSE-dagre.txt`). The

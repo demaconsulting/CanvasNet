@@ -254,18 +254,15 @@ sections:
         title: >-
           The render command and its verb commands shall read an input path that ends in a URL fragment
           (part.scad#view=top&def.width=20, report.pdf#page=3, chart.vl.json#param.cutoff=5, flow.mmd#theme=dark) with
-          the grammar and the
-          checks of the link of an SVG image (InputReference and SourceLoader.Probe), treating a number sign as the
-          start of a fragment only when no file has that exact name, let the fragment override --page, --all-pages,
-          --view,
-          -D, --param and --theme for that input (variables and parameters by name), draw the page the fragment names
-          as the
-          only page, name the input with its fragment in the text result and report it in the fragment member of the
-          input object of the JSON result, fail with the code image-fragment-invalid for a fragment or a value that
-          cannot be used and with page-out-of-range for a page the file does not have (writing nothing), report a
-          parameter the kind does not use, a parameter given twice and a chart parameter the chart does not declare as
-          the warnings image-fragment-unknown-parameter, image-fragment-duplicate-parameter and vl-param-unknown (never
-          as errors, not even with --strict), and describe the fragment in the usage text.
+          the grammar and the checks of the link of an SVG image (InputReference and SourceLoader.Probe), treating a
+          number sign as the start of a fragment only when no file has that exact name, let the fragment override
+          --page, --all-pages, --view, -D, --param and --theme for that input (variables and parameters by name), draw
+          the page the fragment names as the only page, name the input with its fragment in the text result and report
+          it in the fragment member of the input object of the JSON result, fail with the code image-fragment-invalid
+          for a fragment or a value that cannot be used and with page-out-of-range for a page the file does not have
+          (writing nothing), report a parameter the kind does not use, a parameter given twice and a chart parameter the
+          chart does not declare as the warnings image-fragment-unknown-parameter, image-fragment-duplicate-parameter
+          and vl-param-unknown (never as errors, not even with --strict), and describe the fragment in the usage text.
         justification: |
           A command line names a file the way a link does, so a page, a view, a variable or a chart parameter can be
           chosen without an option for each input, and a list of inputs (a montage of the versions of one model) can
