@@ -219,7 +219,7 @@ the one before it, where Mermaid 11 puts it.
 | Participant types | The eight types of `@{ type: ... }`: `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, and `queue`, with the `alias` key |
 | Boxes | `box` with a color and a title (`box LightBlue Front end` ... `end`), with a color only, or with a title only |
 | Create and destroy | `create participant` and `create actor` just before the first message of the participant, and `destroy` just before its last message |
-| Messages | The arrows in the table below, self messages, and central connections (`A->>()B`, `A()->>B`, `A()->>()B`) |
+| Messages | The arrows `->`, `-->`, `->>`, `-->>`, `<<->>`, `<<-->>`, `-x`, `--x`, `-)`, and `--)`, the half-arrow heads, self messages, and central connections (`A->>()B`, `A()->>B`, `A()->>()B`) |
 | Activations | `activate` and `deactivate`, and the `+` and `-` shorthands on a message, nested |
 | Notes | `Note left of`, `right of`, and `over` one or two participants |
 | Blocks | `loop`, `alt` and `else`, `opt`, `par` and `and`, `par_over`, `critical` and `option`, and `break`, nested; `rect` backgrounds with a CSS color |
@@ -307,12 +307,12 @@ fail on a warning.
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
 | `mermaid-layout-unsupported` | Unsupported | A `layout` other than `dagre` (`elk`, also the `flowchart-elk` keyword); the diagram is laid out with dagre |
-| `mermaid-theme-css-unsupported` | Unsupported | A `themeCSS` rule with a selector other than the diagram's own (such as `.node rect`) |
+| `mermaid-theme-css-unsupported` | Unsupported | A `themeCSS` rule whose selector is not one of the diagram's own (such as `.node rect` in a flowchart), an at-rule, or a nested rule; the rule is not applied |
 | `mermaid-config-unknown-key` | Warning | A configuration key Mermaid does not define; it is ignored |
 | `mermaid-config-invalid` | Warning | A configuration value of the wrong type or range, or a theme that is not available; it is ignored (`sequence.textPlacement: fo` is drawn with the default placement) |
 | `mermaid-participant-type-unknown` | Warning | A sequence participant has a type Mermaid does not define; it is not drawn, as in Mermaid, and the hint names the nearest type |
-| `mermaid-config-secure-key` | Warning | The text tried to change a secure key; the change is ignored |
-| `mermaid-style-ignored` | Warning | A style declaration outside the supported subset (see *Supported Flowchart Syntax*) |
+| `mermaid-config-secure-key` | Warning | The text tried to change a secure key (`securityLevel`, `maxTextSize`, `maxEdges`, and so on); the change is ignored |
+| `mermaid-style-ignored` | Warning | A style declaration outside the supported subset; it is ignored |
 | `mermaid-html-tag-ignored` | Warning | An HTML tag outside the supported label subset; the tag is dropped and its text is kept |
 | `mermaid-image-unresolved` | Warning | A picture the resolver did not give; the node keeps its frame |
 | `mermaid-text-missing-glyph` | Warning | A character that no bundled font has (for example CJK); it is drawn as the missing-glyph box |
