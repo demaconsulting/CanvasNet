@@ -228,6 +228,7 @@ with `mermaid-render-failed` at the participant (line 2), as Mermaid fails.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceHugeStrokeWidth_ShadowIsTheFillsShadow`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
@@ -246,7 +247,10 @@ fail with the limit at the diagram keyword under a small budget, and stop on a c
 a work limit of 2,000 fail with `mermaid-limit-exceeded` naming `MaxLayoutWork`; and that a seeded mutation fuzzer over
 the sequence fixtures (eight mutations of each with the tokens of the sequence language) only ever raises the
 documented exception types; and that a sequence diagram whose stroke widths round to zero in single precision when
-it is fitted to 400 by 300 pixels (a width of 1e300, or an actor margin of 1e60) renders.
+it is fitted to 400 by 300 pixels (a width of 1e300, or an actor margin of 1e60) renders; and that a box around
+participants and a forced menu panel, both with a drop shadow, given a stroke width of 1e300, 1e30, or 40,000 pixels by
+`themeCSS` (`g rect.rect` or `.actorPopupMenuPanel`), render without an exception and with the same pixels as with a
+stroke width of zero (the stroke is not drawn and the shadow is that of the fill).
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 

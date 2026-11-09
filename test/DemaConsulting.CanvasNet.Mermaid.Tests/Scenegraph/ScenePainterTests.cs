@@ -490,6 +490,117 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that a shadowed path whose stroke is not drawn (a device width that is not finite in single
+    ///     precision or beyond <see cref="ScenePainter.MaxMagnitude"/>) paints without throwing, and that its shadow is the
+    ///     shadow of its fill alone: the same pixels as the path without a stroke.
+    /// </summary>
+    /// <param name="width">The stroke width in scene units.</param>
+    /// <param name="scale">The scale the scene is painted at.</param>
+    [Theory]
+    [InlineData(1e300, 1)]
+    [InlineData(1e30, 1)]
+    [InlineData(20_000, 2)]
+    public void ScenePainter_Paint_ShadowWithHugeStroke_IsTheFillsShadow(double width, double scale)
+    {
+        // Arrange: a white square with a blurred black shadow, with and without the stroke
+        var plain = new ScenePath(Rectangle(20, 20, 40, 40))
+        {
+            Role = "box",
+            Fill = new Rgba32(255, 255, 255, 255),
+            Shadow = new SceneShadow(3, 3, 2, new Rgba32(0, 0, 0, 255)),
+        };
+        var stroked = plain with { Stroke = new SceneStroke(NodeStroke, width) };
+        var view = new SceneRect(0, 0, 100, 100);
+        Surface PaintAt(ScenePath item) => new ScenePainter(ScenePainter.CreateFontResolver()).Paint(
+            new Scene(view, [item]),
+            (int)(view.Width * scale),
+            (int)(view.Height * scale),
+            ScenePlacement.Uniform(view, scale),
+            null,
+            TestContext.Current.CancellationToken);
+
+        // Act
+        using var expected = PaintAt(plain);
+        using var surface = PaintAt(stroked);
+
+        // Assert: the shadow is drawn beside the square, and the pixels are those of the square without a stroke
+        Assert.True(surface[(int)(62 * scale), (int)(40 * scale)].A > 0);
+        Assert.True(MermaidTestHelpers.PixelsEqual(expected, surface));
+    }
+
+    /// <summary>
+    ///     Validates that the scratch region of a small shadow on a large surface is the shadow's own bounds - the box
+    ///     grown by the stroke's reach and the blur's reach and moved by the offset - and nowhere near the surface's size.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_ShadowRegion_SmallShadowOnLargeSurface_IsTheShadowsBounds()
+    {
+        // Arrange: a 20 by 20 box at (4000, 4000) on an 8,192 by 8,192 surface, a stroke reach of 2, an offset of
+        // (1, 2), and a blur reach of 15
+        var bounds = new Geometry.Rect(4000, 4000, 20, 20);
+
+        // Act
+        var region = ScenePainter.ShadowRegion(bounds, 2, 1, 2, 15, Surface.MaxDimension, Surface.MaxDimension);
+
+        // Assert: 20 + 2 x 2 + 2 x 15 = 54 pixels square, moved by the offset
+        Assert.Equal((3984, 3985, 4038, 4039), region);
+        var (left, top, right, bottom) = region!.Value;
+        Assert.Equal((54, 54), (right - left, bottom - top));
+    }
+
+    /// <summary>
+    ///     Validates that the scratch region of a shadow is computed without overflow: a reach beyond every surface keeps
+    ///     the region to the surface, and a region off the surface or not a number is none.
+    /// </summary>
+    /// <param name="strokeReach">The stroke reach.</param>
+    /// <param name="dx">The x offset.</param>
+    /// <param name="expected">The expected region as "left,top,right,bottom", or null for none.</param>
+    [Theory]
+    [InlineData(1e300, 0, "0,0,8192,8192")]
+    [InlineData(double.PositiveInfinity, 0, "0,0,8192,8192")]
+    [InlineData(0, 1e300, null)]
+    [InlineData(0, -1e300, null)]
+    [InlineData(double.NaN, 0, null)]
+    public void ScenePainter_ShadowRegion_ExtremeValues_AreClampedWithoutOverflow(double strokeReach, double dx, string? expected)
+    {
+        // Arrange
+        var bounds = new Geometry.Rect(4000, 4000, 20, 20);
+
+        // Act
+        var region = ScenePainter.ShadowRegion(bounds, strokeReach, dx, 0, 15, Surface.MaxDimension, Surface.MaxDimension);
+
+        // Assert
+        Assert.Equal(expected, region is { } r ? $"{r.Left},{r.Top},{r.Right},{r.Bottom}" : null);
+    }
+
+    /// <summary>
+    ///     Validates that a shadow charges its whole scratch region, the blur's margins beyond the surface included, to
+    ///     the painted-pixel limit, and that a small shadow on a large surface charges only its own region.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_Shadow_ChargesItsWholeScratchRegion()
+    {
+        // Arrange: a 20 by 20 box at the corner of a 1,024 by 1,024 surface with a centered shadow of blur 2, whose
+        // blur reaches 9 pixels: 400 pixels of fill and a region of 38 by 38 = 1,444 pixels, of which 29 by 29 are on
+        // the surface
+        var box = new ScenePath(Rectangle(0, 0, 20, 20))
+        {
+            Role = "box",
+            Fill = NodeFill,
+            Shadow = new SceneShadow(0, 0, 2, new Rgba32(0, 0, 0, 255)),
+        };
+        var view = new SceneRect(0, 0, 1024, 1024);
+
+        // Act
+        using var fits = Paint(new Scene(view, [box]), maxPixels: 400 + 1_444);
+        var ex = Assert.Throws<MermaidRenderException>(() => Paint(new Scene(view, [box]), maxPixels: 400 + 1_444 - 1));
+
+        // Assert
+        Assert.Equal(NodeFill, fits[10, 10]);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+    }
+
+    /// <summary>
     ///     A picture loader that returns solid pictures and records the requests.
     /// </summary>
     /// <param name="color">The color of the pictures.</param>

@@ -72,8 +72,8 @@ internal sealed partial class ScenePainter
 
         // The line box is charged once, then each run is drawn after the previous one, its outline stroked over its fill;
         // a stroke width that rounds to zero in single precision (a tiny fit scale) draws no stroke
-        var strokeWidth = item.Stroke is { Color.A: > 0 } s ? (float)(s.Width * placement.Scale) : 0f;
-        var stroke = strokeWidth > 0 && float.IsFinite(strokeWidth) && strokeWidth <= MaxMagnitude ? item.Stroke : null;
+        var strokeWidth = DeviceStrokeWidth(item.Stroke, placement.Scale);
+        var stroke = strokeWidth > 0 ? item.Stroke : null;
         var half = stroke is null ? 0 : strokeWidth / 2.0;
         Charge(surface, x - half, baseline - ascent - half, x + total + half, baseline + descent + half, item);
         foreach (var (run, face, size, width) in runs)

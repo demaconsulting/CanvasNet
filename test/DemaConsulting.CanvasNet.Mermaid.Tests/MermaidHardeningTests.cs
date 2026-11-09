@@ -98,6 +98,40 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that the shadowed boxes of a sequence diagram (a box around participants and a forced menu panel)
+    ///     with a stroke width beyond any drawing (set by <c>themeCSS</c>, found by review) render without throwing,
+    ///     their strokes not drawn and their shadows the shadows of their fills alone: the same pixels as with a stroke
+    ///     width of zero.
+    /// </summary>
+    /// <param name="selector">The rule that sets the stroke width.</param>
+    /// <param name="width">The stroke width.</param>
+    [Theory]
+    [InlineData("g rect.rect", "1e300px")]
+    [InlineData("g rect.rect", "1e30px")]
+    [InlineData("g rect.rect", "40000px")]
+    [InlineData(".actorPopupMenuPanel", "1e300px")]
+    [InlineData(".actorPopupMenuPanel", "1e30px")]
+    [InlineData(".actorPopupMenuPanel", "40000px")]
+    public void CanvasNetMermaid_Hardening_SequenceHugeStrokeWidth_ShadowIsTheFillsShadow(string selector, string width)
+    {
+        // Arrange
+        MermaidDocument Diagram(string strokeWidth) => MermaidDocument.Parse(
+            "---\nconfig:\n  sequence:\n    forceMenus: true\n" +
+            $"  themeCSS: \"{selector} {{ stroke-width: {strokeWidth} }}\"\n---\n" +
+            "sequenceDiagram\n    box Aqua Group\n    participant A\n    end\n    participant B\n" +
+            "    link B: Home @ https://example.com/\n    A->>B: hi\n");
+        var huge = Diagram(width);
+        var none = Diagram("0");
+
+        // Act
+        using var surface = huge.Render(cancellationToken: TestContext.Current.CancellationToken);
+        using var expected = none.Render(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(MermaidTestHelpers.PixelsEqual(expected, surface));
+    }
+
+    /// <summary>
     ///     Validates that more edges than <see cref="MermaidLimits.MaxEdges"/> fail at open, located at the extra edge.
     /// </summary>
     [Fact]

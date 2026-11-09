@@ -117,15 +117,21 @@ sections:
                 title: >-
                   The ScenePainter unit shall paint the drop shadow of a path under the path as the SVG drop-shadow
                   filter does - the silhouette of the shape moved by the offset and blurred with the three box blurs
-                  that approximate the filter's Gaussian blur - and shall charge the pixels of the shadow to the
-                  painted-pixel limit.
+                  that approximate the filter's Gaussian blur - over a scratch region of the shadow's own bounds, with
+                  a stroke that is not drawn left out of the silhouette and the region, and shall charge the whole
+                  scratch region to the painted-pixel limit.
                 justification: |
                   The boxes of a sequence diagram carry the theme's drop shadow in every theme; the shadow must look as
-                  in a browser and its work must be bounded like any other paint.
+                  in a browser and its work and memory must be bounded like any other paint, also for a stroke width
+                  beyond any drawing.
                 tests:
                   - ScenePainter_Paint_SharpShadow_OffsetsSilhouetteUnderShape
                   - ScenePainter_Paint_BlurredShadow_FadesSymmetrically
                   - ScenePainter_Paint_Shadow_ChargedToPaintedPixelLimit
+                  - ScenePainter_Paint_ShadowWithHugeStroke_IsTheFillsShadow
+                  - ScenePainter_ShadowRegion_SmallShadowOnLargeSurface_IsTheShadowsBounds
+                  - ScenePainter_ShadowRegion_ExtremeValues_AreClampedWithoutOverflow
+                  - ScenePainter_Paint_Shadow_ChargesItsWholeScratchRegion
 
               - id: CanvasNetMermaid-Scenegraph-ScenePainter-StrokedText
                 title: >-
