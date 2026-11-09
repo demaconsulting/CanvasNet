@@ -1005,6 +1005,11 @@ words:
   - hypot
   - Steffen's
   - tridiagonal
+  # Mermaid documentation terms (user guide, design, and requirements)
+  - acyclicity
+  - multigraphs
+  - recomputations
+  - unloadable
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

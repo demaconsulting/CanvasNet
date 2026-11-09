@@ -1,0 +1,23 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#e0f2fe"
+    primaryTextColor: "#0c4a6e"
+    primaryBorderColor: "#0369a1"
+    lineColor: "#0369a1"
+    secondaryColor: "#fef3c7"
+    tertiaryColor: "#f0fdf4"
+  flowchart:
+    curve: stepAfter
+    nodeSpacing: 40
+---
+flowchart LR
+    plan[Plan] --> design[Design]
+    design --> buildIt[Build]
+    design --> review{Review}
+    review -- changes --> design
+    review -- approved --> buildIt
+    subgraph delivery [Delivery]
+        buildIt --> release[Release]
+    end

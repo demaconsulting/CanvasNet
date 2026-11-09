@@ -5,7 +5,8 @@
 
 The `DemaConsulting.CanvasNet.Tool` package is a .NET tool whose command, `canvasnet`, exposes the CanvasNet
 libraries on the command line. It inspects, renders, converts, transforms, compares, and composes images, drawings,
-document pages, OpenSCAD models, and Vega-Lite charts, cleans up photographs of sketches (contrast, tilt, borders,
+document pages, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, cleans up photographs of sketches (contrast,
+tilt, borders,
 and a coordinate
 grid), and measures their colors and pixels. It is built to be driven by programs as well as by people: a command's
 standard
@@ -81,6 +82,7 @@ chooses what to draw from the file, for that input only, so one file can be seve
 ```bash
 canvasnet render "report.pdf#page=3" -o page3.png
 canvasnet render "chart.vl.json#param.t=5" -o chart.png
+canvasnet render "flow.mmd#theme=dark" -o flow-dark.png
 canvasnet render "part.scad#view=top&def.width=20" -o part-top.png
 canvasnet compare "a.scad#view=top" "b.scad#view=top" --diff diff.png
 canvasnet montage "assembly.scad#def.explode=0" "assembly.scad#def.explode=0.5" "assembly.scad#def.explode=1" \
@@ -93,6 +95,7 @@ canvasnet montage "assembly.scad#def.explode=0" "assembly.scad#def.explode=0.5" 
 | `view=NAME` | `.scad` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`; replaces `--view` |
 | `def.NAME=VALUE` | `.scad` | Sets the variable `NAME` like `-D`; a vector is a JSON array (`def.$vpt=[0,0,2]`) |
 | `param.NAME=VALUE` | `.vl.json`, `.vl` | Sets the chart parameter `NAME` like `--param` |
+| `theme=NAME` | `.mmd`, `.mermaid` | `default`, `base`, `dark`, `forest`, or `neutral`; replaces `--theme` |
 
 The grammar of the values is the one of the options (`-D` and `--param`) and of a link in an SVG file (see *Embedding
 Images, Charts, and Models in an SVG*): the names of the parameters are not case sensitive (the name after `def.` or
@@ -105,7 +108,8 @@ names an existing file is the file, and the rest after that `#` is the fragment.
 error names the file before the first `#`, and says that a file of the whole name does not exist either.
 
 **The fragment overrides the options of the command** for its input: its page replaces `--page` (and `--all-pages`: the
-input then gives that one page), its view replaces `--view`, and its variables and chart parameters are merged with
+input then gives that one page), its view replaces `--view`, its theme replaces `--theme`, and its variables and chart
+parameters are merged with
 `-D` and `--param` by name, the fragment winning. `--azimuth`, `--elevation`, and `--projection` still refine the
 view. For `compare` it wins over the options of one side (`--a-page`, `--a-view`, `--a-define`) too. Other inputs are
 not affected: `canvasnet montage "a.scad#view=top" b.scad --view front` draws `a.scad` from the top and `b.scad` from
@@ -116,8 +120,8 @@ input with more than one parameter in quotes (`"part.scad#view=top&def.width=20"
 quotes, as in `-D '$vpd=300'`. A `#` in the middle of a word is not a comment, but one at the start of a word is.
 
 **Mistakes and warnings.** They have the codes of an SVG link. A value that cannot be used (a vector or a JSON value that
-is cut short, a `def.` name that is not an identifier, an unknown `view`, a page that is not a whole number, a fragment
-over its limits) is an **error** with the code `image-fragment-invalid`, and a page the file does not have is
+is cut short, a `def.` name that is not an identifier, an unknown `view` or `theme`, a page that is not a whole number,
+a fragment over its limits) is an **error** with the code `image-fragment-invalid`, and a page the file does not have is
 `page-out-of-range`; nothing is written. A parameter that the kind of the file does not use (`pag=2`, `page=2` on a
 PNG, `def.x=1` on a chart) is the **warning** `image-fragment-unknown-parameter`, a parameter given twice with different
 values is `image-fragment-duplicate-parameter`, and a `param.` name that the chart does not declare is
@@ -217,7 +221,8 @@ parse standard output alone in both cases; the text report on standard error is 
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
-Vega-Lite chart, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`,
+Vega-Lite chart, a Mermaid diagram, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`,
+`--trim`, `--grid`,
 and so on; see *Photos
 and Sketches*) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
 as well.
@@ -238,6 +243,7 @@ as well.
 | Visio | `.vsdx` | Multi-page (drawing pages) |
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
+| Mermaid | `.mmd`, `.mermaid` | A diagram, drawn at its laid-out size; this version draws flowcharts |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -247,8 +253,9 @@ as well.
 | TIFF | `.tif`, `.tiff` | Uncompressed, with alpha |
 
 The format of an input is recognized from its content (signature bytes, or the document structure inside a ZIP
-package), and the extension is used only when the content is not conclusive. A model and a chart are text without a
-signature: a model is recognized by `.scad`, and a chart by the file name suffix `.vl.json` or `.vl`, or, for a `.json`
+package), and the extension is used only when the content is not conclusive. A model, a chart, and a diagram are text
+without a signature: a model is recognized by `.scad`, a diagram by `.mmd` or `.mermaid`, and a chart by the file name
+suffix `.vl.json` or `.vl`, or, for a `.json`
 file, by a top-level Vega-Lite `$schema` property (an address under `vega.github.io/schema/vega-lite/`) in the first
 4 KiB of the file; the address in any other property does not count. A
 `.json` file with the schema of plain Vega is refused as `unsupported-format` (Vega is not supported), and so is any
@@ -278,6 +285,7 @@ Input formats:
   ...
   scad      model     .scad           single    yes       help scad
   vega-lite chart     .vl.json .vl    single    yes       help vega-lite
+  mermaid   diagram   .mmd .mermaid   single    yes       help mermaid
 
 Output formats:
   Format  Extensions  Alpha  Quality
@@ -293,7 +301,7 @@ Versions:
   canvasnet tool: <version>
   CanvasNet library: <version>
 
-Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite'). An SVG drawing can embed files of these formats with <image href>; see 'canvasnet help svg'.
+Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite'). An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'.
 ```
 <!-- markdownlint-enable MD013 -->
 
@@ -306,8 +314,8 @@ The `--help` of every command (for example `canvasnet render --help` and `canvas
 canvasnet info <input> [--page N | --all-pages] [--json]
 ```
 
-Reads only the header of a file (a model is parsed but not evaluated, and a chart is parsed and laid out but not
-drawn) and reports its properties without rendering
+Reads only the header of a file (a model is parsed but not evaluated, and a chart or a diagram is parsed and laid out
+but not drawn) and reports its properties without rendering
 it, which is cheap even for a large file. The input may end in a fragment (`report.pdf#page=2`): only its page is used
 (it replaces `--page` and `--all-pages`), the other parameters are checked and ignored, and the `input` object of the
 result has a `fragment` member (see *Fragments on Input Paths*).
@@ -326,6 +334,10 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   from
   the folder of the specification (see *Vega-Lite Charts* below; a missing file is a `vega-lite-error`) and uses no
   network.
+- A **Mermaid diagram** reports the size it is laid out at (the size of Mermaid's SVG), 4 channels with transparency,
+  and what the text declares: the diagram type, whether this version draws it (`sequence (not drawn by this version)`
+  otherwise), the direction, the title and the accessible title, and the numbers of nodes, edges, and subgraphs. The
+  diagram is laid out without the pictures of its nodes, so no other file is read (see *Mermaid Diagrams* below).
 
 <!-- markdownlint-disable MD013 -->
 ```text
@@ -341,6 +353,8 @@ part.scad: scad, 1 module, 1 function, 0 include/use directives, 376 bytes
   function half
 $ canvasnet info chart.vl.json
 chart.vl.json: vega-lite, 289x264 px (laid out), 1 mark, 1 data reference, 0 parameters, title "Crates sold per stall", schema v5, 562 bytes
+$ canvasnet info flow.mmd
+flow.mmd: mermaid, 674x286 px (laid out), flowchart LR, 5 nodes, 5 edges, 1 subgraph, title "Order flow", 313 bytes
 ```
 <!-- markdownlint-enable MD013 -->
 
@@ -353,8 +367,9 @@ canvasnet convert <input> -o <output> [options]
 
 `render` loads one input, optionally sizes it, applies the transformations in the order written, and writes one
 output file (or one per page). `convert` is another name for the same command. The input path may end in a fragment
-that chooses the page, view, variables, or chart parameters for it (`"report.pdf#page=3"`,
-`"part.scad#view=top&def.width=20"`, `"chart.vl.json#param.t=5"`), which overrides the matching options; see *Fragments
+that chooses the page, view, variables, chart parameters, or diagram theme for it (`"report.pdf#page=3"`,
+`"part.scad#view=top&def.width=20"`, `"chart.vl.json#param.t=5"`, `"flow.mmd#theme=dark"`), which overrides the
+matching options; see *Fragments
 on Input Paths*. The processing order is always:
 
 1. **Load and size the source**: decode or draw it at its natural size, at the size set by `--dpi`, `--scale`,
@@ -379,6 +394,7 @@ The options of `render` are listed in the following tables.
 | `--background <color>` | The color that transparency is flattened over (see *Colors* and *Defaults*) |
 | `--no-auto-orient` | Do not turn a JPEG upright by its EXIF orientation |
 | `--strict` | Fail with `unsupported-feature` instead of skipping a picture or shape that cannot be drawn |
+| `--theme <name>` | The theme of a Mermaid diagram: `default`, `base`, `dark`, `forest`, or `neutral` |
 
 `--scale`, `--width`, `--height`, and `--size` conflict with one another where they overlap (`--scale` with any other,
 `--size` with `--width` or `--height`); a conflict is a `usage-error`. For a vector source (SVG, document page,
@@ -751,6 +767,73 @@ canvasnet render chart.vl.json --scale 2 --background "#f4f4f4" -o chart-large.p
 canvasnet render chart.vl.json --strict -o chart.png
 ```
 
+#### Mermaid Diagrams
+
+A Mermaid diagram (`.mmd` or `.mermaid`) is drawn as a still image with Mermaid's own layout (a port of the dagre
+layout Mermaid uses), at the size of the SVG that Mermaid would make for it (`info` reports it), or at the size the
+size options ask for: `--scale` multiplies it, `--width` or `--height` fits the diagram (keeping its aspect ratio), and
+`--size WxH` fits it inside that box and centers it. The diagram is drawn sharply at the final size. A diagram has one
+page, and the model and chart options (`-D`, `--view`, `--param`, ...) given with a diagram are a `usage-error`. A
+diagram can also be drawn inside an SVG drawing with `<image href="flow.mmd" .../>`.
+
+This version draws **flowcharts** (`flowchart` and `graph`): every shape, link, subgraph, label, style, and theme of the
+Mermaid 11 flowchart language; `canvasnet help mermaid` lists them. Every other diagram type is recognized: `info`
+reports it with `"supported": false`, and `render` writes an empty picture of 16 by 16 pixels with the diagnostic
+`mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure). Sequence diagrams are planned next,
+then class, state, entity relationship, pie, gantt, and mindmap diagrams.
+
+**Theme.** `--theme <name>` chooses one of Mermaid's five themes, `default`, `base`, `dark`, `forest`, or `neutral`
+(any letter case), exactly like `mmdc -t`: a theme that the diagram sets itself, in its frontmatter or an
+`%%{init: ...}%%` directive, still wins. The fragment `flow.mmd#theme=dark` does the same for one input and wins over
+`--theme`. Another name is a `usage-error` that lists the themes (`image-fragment-invalid` in a fragment), and the
+option on an input that is not a diagram is a `usage-error`. `render`, its verbs (`resize`, ...), and `inspect` take
+the option, and the `render` operation of the JSON result reports it as `theme`.
+
+```bash
+canvasnet render flow.mmd --theme dark --scale 2 --background transparent -o flow-dark.png
+```
+
+The background is white (Mermaid's own SVG is transparent; `--background transparent` keeps that). The picture is
+static and the same on every machine: only the fonts bundled with the tool are used (Mermaid's default fonts map to
+Liberation Sans), nothing is read from the network, and `click` links and tooltips are ignored.
+
+**Pictures.** A node can show a picture that lies **next to the diagram**: `A@{ img: "part.scad", w: 120, h: 120 }`
+or `<img src="logo.png">` in a label. The tool wires the same sandboxed folder resolver that draws the pictures of an
+SVG, rooted at the folder of the diagram, so the link can name a raster, an SVG file, an OpenSCAD model, a Vega-Lite
+chart, a page of a document, or another diagram, and nothing outside that folder is read. A link that is not drawn (a
+missing file, a path outside the folder, a network URL) is the warning `svg-image-unresolved` with the reason, and
+`--strict` makes it a failure. The pictures that were drawn are listed as `embed` operations. `info` lays the diagram
+out without loading
+any picture, so give a picture node its `w` and `h`: otherwise the drawn diagram can be a little larger or smaller than
+the size `info` reports.
+
+**Diagnostics and errors.** A construct the library recognizes but cannot draw (an icon, the `handDrawn` look, the
+`elk` layout, a `themeCSS` rule with an arbitrary selector) is left out and reported in `diagnostics` with its stable
+`mermaid-*` code (for example `Unsupported: mermaid-icon-unsupported: icon.mmd:2:3: ...`); `--strict` makes the first
+one an `unsupported-feature` failure. A warning (an unknown configuration key, an ignored style declaration or HTML
+tag, a character the bundled fonts lack) has the code `mermaid-warning`, with the specific `mermaid-*` code in `detail`
+and the line and column in `location`. Text that is not a Mermaid diagram, does not follow the grammar, or has invalid
+frontmatter is the error `mermaid-error`, which names the file, line, and column and gives a hint:
+
+```text
+Error: mermaid-error: Mermaid syntax error: bad.mmd:2:7: mermaid-syntax-error: expected 'SQE', ... or 'TAGSTART',
+found 'SQS' ('[')
+Hint: close the label with the bracket that matches its opening bracket, or quote text that contains brackets:
+A["a [b] c"]
+```
+
+A diagram that exceeds a limit of the library (nodes, edges, nesting, label length, layout work, pictures, painted
+pixels; see `canvasnet help limits`) fails with `budget-exceeded`, a text longer than 50,000 characters is
+`corrupt-input`, and a diagram that lays out larger than 8192 pixels on a side is `size-limit` unless a size option
+makes it fit.
+
+```bash
+canvasnet info flow.mmd --json
+canvasnet render flow.mmd -o flow.png --json
+canvasnet render flow.mmd --strict --width 1200 -o flow-wide.png
+canvasnet help mermaid --example flowchart > flowchart.mmd
+```
+
 #### Embedding Images, Charts, and Models in an SVG
 
 An `<image>` element of an SVG file can name another file by a **relative `href`**, and the tool draws that file in the
@@ -766,6 +849,7 @@ accepts):
 | Another SVG file | `.svg` |
 | OpenSCAD model | `.scad` |
 | Vega-Lite chart | `.vl.json`, `.vl` |
+| Mermaid diagram (`#theme=NAME` chooses the theme) | `.mmd`, `.mermaid` |
 | A document page (page 1, or `#page=N`; PDF, PowerPoint, Visio) | `.pdf`, `.pptx`, `.vsdx` |
 
 The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named
@@ -822,7 +906,8 @@ draws the model and the chart into their rectangles. The result lists each embed
 - **Size and background.** A model, chart, SVG file, or document page is drawn at the **device size of its rectangle**
   (after `--scale`, `--width`, and any transform in the SVG), so it is sharp; the rectangle is filled by a model, and a
   chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. A raster is decoded at its
-  own size and resampled once. A model and an SVG file are drawn over a **transparent** background, so the diagram shows
+  own size and resampled once. A model, an SVG file, and a diagram are drawn over a **transparent** background, so the
+  diagram shows
   through; a chart keeps **its own background** (white unless it declares another), because a chart is meant to carry
   its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D model,
   top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables; `#view=front` in
@@ -892,7 +977,8 @@ An SVG file that has no such reference renders exactly as before.
 
 #### Diagnostics and --strict
 
-PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, and SVG files that embed other files report every picture,
+PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, Mermaid diagrams, and SVG files that embed other files
+report every picture,
 shape, or feature the library recognizes but cannot
 draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and,
 without
@@ -1411,13 +1497,14 @@ A value that does not match its grammar is a `usage-error` that quotes the value
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of ten help topics, which cover the input formats and the subjects that apply to
+is a command (see *Commands*) or one of eleven help topics, which cover the input formats and the subjects that apply to
 every command. A subject is matched in any letter case, and a topic may be named by an alias.
 
 | Topic | Aliases | What it covers |
 | --- | --- | --- |
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
+| `mermaid` | `mmd` | Mermaid diagrams: flowcharts laid out like Mermaid 11, the themes, and the known differences |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
@@ -1435,8 +1522,8 @@ that is installed. This guide stays the narrative; the topics are the quick refe
 in a machine-readable form, and they are tested against the code (the options, the error codes, the diagnostic
 identifiers, the limits, and every example).
 
-The topics ship tiny examples. The source examples of `scad`, `vega-lite`, and `svg` are files that render with
-`--strict` without a diagnostic; the other examples are command lines:
+The topics ship tiny examples. The source examples of `scad`, `vega-lite`, `mermaid`, and `svg` are files that render
+with `--strict` without a diagnostic; the other examples are command lines:
 
 ```bash
 # Read the topic, list its examples, and print one: the output is only the source, so it can be saved as it is
@@ -1446,11 +1533,12 @@ canvasnet help scad --example plate > plate.scad
 canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 ```
 
-- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, or `.svg` file) or, for a
-  topic whose example is a command, the command line. Nothing else is written to standard output.
+- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, `.mmd`, or `.svg` file) or,
+  for a topic whose example is a command, the command line. Nothing else is written to standard output.
 - `--examples` lists the names, kinds (`source`, `command`, or `snippet`), and descriptions of the examples of the
   topic. A `snippet` is shown but not rendered alone, because it refers to other files (the `embed` example of `svg` is
-  a diagram that links a model, a chart, and an SVG file beside it).
+  a diagram that links a model, a chart, and an SVG file beside it, and the `pictures` example of `mermaid` a flowchart
+  whose nodes show a model and a chart).
 - `--json` writes any help output as one JSON document, without a banner or color codes (see *Help Documents*).
 - An unknown subject is a `usage-error` that names the closest subject (`Did you mean 'scad'?`) when there is one and
   lists the valid subjects. `--example` and `--examples` need a topic, and an unknown example name lists the names.
@@ -1505,6 +1593,13 @@ objects:
 - `chart` (Vega-Lite), after an `image` object that gives the laid-out `width` and `height`: `title` and
   `schemaMajorVersion` when the specification has them, `marks` (the mark types as written), `dataReferences` (each with
   `kind` `inline`, `url`, `name`, or `sequence`, `url` and `rows` when known, and the `line`), and `parameters` (names).
+- `diagram` (Mermaid), after an `image` object that gives the laid-out `width` and `height`: `type` (`flowchart`,
+  `sequence`, ...), `supported` (whether this version draws the type), `direction`, `title`, and `accTitle` when the
+  diagram has them, and `nodes`, `edges`, and `subgraphs` (the counts; zero for a type that is not drawn):
+
+```json
+{"schemaVersion":1,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
+```
 
 `render`, `convert`, and the transformation commands add:
 
@@ -1520,12 +1615,13 @@ objects:
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}`, `page` for a
   document, and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`,
-  `pptx`, `vsdx`, `vega-lite`, or `svg`; `code` is the library's stable feature token, such as
-  `scad-module-surface` or `vl-mark-geoshape`, `vega-lite-warning` for a warning of the chart library, or
+  `pptx`, `vsdx`, `vega-lite`, `mermaid`, or `svg`; `code` is the library's stable feature token, such as
+  `scad-module-surface`, `vl-mark-geoshape`, or `mermaid-icon-unsupported`, `vega-lite-warning` for a warning of the
+  chart library, `mermaid-warning` for a warning of the diagram library, or
   `svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, `image-page-out-of-range`,
   `image-fragment-unknown-parameter`, or `image-fragment-duplicate-parameter` for an SVG `image` link). `detail` is the
   finer identifier when `code` is a generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a
-  `vega-lite-warning`); `location` is `{"file","line","column"}` (a chart adds `"pointer"`, and a member that is
+  `vega-lite-warning`, `mermaid-config-unknown-key` for a `mermaid-warning`); `location` is `{"file","line","column"}` (a chart adds `"pointer"`, and a member that is
   not known is left out) where the file gave a position; `origin` lists the files, outermost first, that lead to an
   embedded file's note (a link of the SVG file you named has none). The `code`s and the other members are unchanged; a
   note without the extras has exactly the shape it always had. The same members are in the `diagnostics` of `inspect`,
@@ -1537,7 +1633,7 @@ objects:
 | `op` | Fields besides `op` |
 | --- | --- |
 | `auto-orient` | `orientation` (the EXIF orientation, 2-8, that was applied) |
-| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given. For a model, `view`, `azimuth`, `elevation`, and `projection` report the view that was **used**: `view` is `iso`, `top`, another named view whose angles match, or `custom` (for example a view set by the model's `$vpr`) |
+| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given; a diagram adds `width`, `height`, `background`, and `theme` when one was chosen. For a model, `view`, `azimuth`, `elevation`, and `projection` report the view that was **used**: `view` is `iso`, `top`, another named view whose angles match, or `custom` (for example a view set by the model's `$vpr`) |
 | `resize` | `width`, `height`, and `filter` when one was chosen (a raster sized by `--scale`, `--width`, `--height`, or `--size`, or `--resize`) |
 | `embed` | A file an SVG embedded and drew: `href` (as written), `format`, `width`, `height` (the size it was loaded at); listed after the `render` and `flatten` of the SVG |
 | `fit` | The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
@@ -1613,7 +1709,7 @@ and hint may be improved at any time.
 | `input-not-found` | The input file or folder does not exist | Check the path |
 | `input-unreadable` | The input exists but cannot be read (permissions, a folder, a locked file) | Check the permissions |
 | `unsupported-format` | The input is not a format the tool reads (for example a DOCX or an unknown extension) | See `canvasnet formats` |
-| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file), or a model or chart file is longer than the library reads | Repair or replace the file |
+| `corrupt-input` | The content is damaged or is not what its extension says (a truncated or garbage file), or a model, chart, or diagram file is longer than the library reads | Repair or replace the file |
 | `unsupported-feature` | The file is valid but uses a feature the library cannot draw or decode (an interlaced PNG, a PPTX shape the library lacks, or any skipped feature with `--strict`) | Remove the feature, or drop `--strict` if it is only a skipped picture |
 | `page-out-of-range` | `--page`, or a `page=` or `slide=` fragment of the input, is beyond the last page of the document | Pages are counted from 1; use `info` for the count |
 | `image-fragment-invalid` | The fragment of an input path (`part.scad#def.width=20`) cannot be used: a value that is not valid, a name that is not an identifier, an unknown view, a page that is not a whole number, or a fragment over its limits | Fix the value, and quote the input in a shell; see *Fragments on Input Paths* |
@@ -1623,7 +1719,8 @@ and hint may be improved at any time.
 | `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
 | `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn, including a local data file that is missing, outside the folder of the specification, or not valid | The message has the file, line, column, and JSON pointer |
-| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart exceeds a limit of the chart library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items) | Raise the limit (a model) or simplify the model or chart |
+| `mermaid-error` | A Mermaid diagram is not valid (no diagram keyword, a grammar error, an unknown shape, invalid frontmatter or shape data) or cannot be laid out | The message has the file, line, column, and `mermaid-*` code; the hint suggests the fix |
+| `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes, edges, nesting, layout work, pictures, painted pixels) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
 | `threshold-failed` | `compare` measured a value on the wrong side of a `--threshold` limit (the result and the pictures were still written) | Look at the pictures and the grid, fix the image or relax the limit |
 
@@ -1635,13 +1732,16 @@ and hint may be improved at any time.
 | Output the same as the input | Refused (`same-input-output`) | Choose another output |
 | Output format | From the output extension | `--format` |
 | JPEG quality | 90 | `--quality` |
-| Transparency in a vector source (SVG, document page, model, chart) | Flattened over white (a chart over its own background) | `--background <color>`; `--background transparent` keeps it |
+| Transparency in a vector source (SVG, document page, model, chart, diagram) | Flattened over white (a chart over its own background) | `--background <color>`; `--background transparent` keeps it |
 | Transparency in a raster source | Kept (PNG, BMP, TIFF); a JPEG output flattens over `--background` or white | `--background <color>` flattens a raster too |
 | JPEG orientation | Turned upright by its EXIF orientation; `info` reports the raw value | `--no-auto-orient` |
 | Resolution of a document page | 96 dpi | `--dpi` (at most 2400) |
 | Size of a drawing | Its natural size | `--scale`, `--width`, `--height`, `--size`, `--dpi` |
 | Size of an OpenSCAD model | 800 by 800 pixels | The size options |
 | Size of a Vega-Lite chart | The size its specification lays out | The size options |
+| Size of a Mermaid diagram | The size of Mermaid's SVG for it | The size options |
+| Theme of a Mermaid diagram | `default`, unless the diagram sets one | `--theme`, or `#theme=` on the input |
+| Fonts of a diagram | The bundled fonts only | Not adjustable |
 | Time zone and fonts of a chart | UTC, the bundled fonts only | Not adjustable |
 | Data files of a chart | Read from the folder of the specification and below it; no network | Not adjustable (no data-folder option) |
 | SCAD view and projection | The library chooses: `iso` for a 3D model, a flat `top` view for a model that is entirely 2D (or the model's own `$vpr`); orthographic | `--view`, `--azimuth`, `--elevation` (any of them makes the view explicit), `--projection perspective` |
@@ -1673,9 +1773,9 @@ crops the 800-pixel drawing, not the natural-size one.
 
 ## Using the Tool in Pandoc Documents
 
-The repository's `docs/filters/canvasnet.lua` is a self-contained Pandoc Lua filter that draws models, charts, and
-document pages with the tool when a document is built, so a Markdown file can refer to the source of a picture
-instead of a rendered copy. Copy the file into a documentation repository (it needs Pandoc 3 and no other
+The repository's `docs/filters/canvasnet.lua` is a self-contained Pandoc Lua filter that draws models, charts,
+diagrams, and document pages with the tool when a document is built, so a Markdown file can refer to the source of a
+picture instead of a rendered copy. Copy the file into a documentation repository (it needs Pandoc 3 and no other
 library), pin the tool, and add the filter to the Pandoc defaults file of each document:
 
 ```bash
@@ -1688,13 +1788,14 @@ filters:
   - docs/filters/canvasnet.lua
 ```
 
-A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.vsdx`, `.pptx`, or `.pdf` is then drawn as a PNG,
-and the attributes written after it choose how. Any other picture (a PNG, a JPEG, an SVG, an address on the
-internet) is left alone, and the tool is not started for it.
+A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.vsdx`, `.pptx`, or `.pdf` is then
+drawn as a PNG, and the attributes written after it choose how. Any other picture (a PNG, a JPEG, an SVG, an address on
+the internet) is left alone, and the tool is not started for it.
 
 ```markdown
 ![Pump mount](pump-mount.scad){view=top define-hole_radius=4 width=60%}
 ![Sales by region](sales.vl.json){scale=2}
+![Order flow](order-flow.mmd){theme=forest}
 ![The wiring](wiring.vsdx){page=2 dpi=150}
 ```
 
@@ -1710,6 +1811,25 @@ internet) is left alone, and the tool is not started for it.
 | `projection` | `.scad` | `ortho` (default) or `perspective` |
 | `define-NAME` | `.scad` | Sets the model variable `NAME`, for example `define-wall_height=44` |
 | `param-NAME` | `.vl.json`, `.vl` | Sets the chart parameter `NAME` like `--param`, for example `param-cutoff=50` |
+| `theme` | `.mmd`, `.mermaid` | `default`, `base`, `dark`, `forest`, or `neutral`, like `--theme` |
+
+A Mermaid diagram can also be written in the document itself, as a fenced code block of class `mermaid`. The block
+reads the attributes of a `.mmd` picture (`size`, `scale`, `background`, and `theme`), a `caption` attribute makes it a
+figure with that caption, and every other attribute, the identifier, and any other class stay on the picture:
+
+````markdown
+```{.mermaid caption="Order flow" theme=forest width=80%}
+flowchart LR
+    A[Order] --> B{Paid?} --> C[Ship]
+```
+````
+
+The text of a block is written to the cache folder and drawn from there, so a diagram whose nodes show pictures must be
+a `.mmd` file of its own, used as a picture. A block or a `.mmd` picture of a diagram type that the tool does not draw
+yet (the tool reports `mermaid-diagram-unsupported` for `sequenceDiagram`, `classDiagram`, and so on) is left exactly
+as written, with the tool's message as a Pandoc warning, so that another filter can draw it. Pandoc runs the filters in
+the order of its command line, and the filters of a defaults file take the place of its `--defaults` option, so
+`--defaults ... --filter mermaid-filter` runs this filter first; the CanvasNet build does this.
 
 Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
 found stops the build with a message that names the picture. All other attributes
@@ -1727,6 +1847,7 @@ the files a model pulls in with `include` and `use`, the local data files a char
 that exists, wherever it lies; a remote URL is skipped, since the tool never reads it) and the pictures its image marks
 name (a
 fragment such as `#def.width=20` of such a link is part of the specification, so changing it draws the chart again), the
+pictures the nodes of a diagram name (`img:` and `<img src>`), the
 attributes, the tool's version, and the filter's own version. A picture is written under a temporary name and then
 renamed, so builds that run at the same time are safe. The `src` of the picture is written relative to the output
 HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the build with the tool's own
@@ -1746,19 +1867,20 @@ CANVASNET_TOOL="dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/Dem
 
 The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
 local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. The header of
-`canvasnet.lua` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, VSDX, PPTX, and PDF
-packages are drawn this way.
+`canvasnet.lua` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, Mermaid, VSDX, PPTX,
+and PDF packages are drawn this way.
 
 ## Using the Tool from an AI Agent
 
 The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a
-PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart) into a PNG the agent can
-inspect, and writes
-the agent's own drawings (an SVG or a SCAD model) as pictures it can compare with a reference. A few conventions make
-this reliable:
+PDF page, a PowerPoint slide, a Visio drawing, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram) into a PNG the
+agent can inspect, and writes
+the agent's own drawings (an SVG, a SCAD model, or a Mermaid diagram) as pictures it can compare with a reference. A few
+conventions make this reliable:
 
 - Start with `canvasnet help topics`, then `canvasnet help <format>` for what a format supports and what it does not
-  (`scad`, `vega-lite`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and `canvasnet help <format> --example <name>` for a
+  (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and `canvasnet help <format> --example <name>`
+  for a
   tiny example that is known to render. Add `--json` to parse any of them. To put a model, a chart, or a picture inside
   a diagram, link it from an SVG with `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the
   folder rule, and the `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
@@ -1958,9 +2080,9 @@ pictures side by side.
 - **Determinism.** For the same input, command line, tool version, and machine, the output file is identical byte for
   byte, as is a JSON document. Different machines can differ where text is drawn from the host's fonts (text in SVG,
   PDF, PowerPoint, and Visio files that does not embed its font), so compare such pictures by eye rather than by
-  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts use
-  only the
-  bundled fonts and UTC dates, so they are the same on every machine. SVG text is always drawn: a
+  checksum. Pictures made of shapes, rasters, and OpenSCAD models do not depend on fonts, and Vega-Lite charts and
+  Mermaid diagrams use only the
+  bundled fonts (and charts UTC dates), so they are the same on every machine. SVG text is always drawn: a
   family that is installed is used, the generic families (`sans-serif`, `serif`, `monospace`, ...) and any family that
   is not installed are drawn with the bundled Liberation Sans, Serif, and Mono fonts.
 - **Determinism of `compare` and `montage`.** The measures of `compare` are computed from exact integer sums with a
@@ -1972,7 +2094,8 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, SCAD, and Vega-Lite: `diagnostics`; SVG: the `image` references it could
+  where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, and Mermaid: `diagnostics`; SVG: the `image`
+  references it could
   not draw). PDF has no such report, and a
   construct it (or the SVG library, inside an SVG file) cannot draw is simply absent from the picture.
 - **SVG embedding.** Only relative references below the folder of the SVG file are followed (never the network, an
@@ -1988,6 +2111,10 @@ pictures side by side.
   from the command line),
   and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is
   reported). Vega (as opposed to Vega-Lite) specifications are not read.
+- **Diagrams.** A static picture of one Mermaid flowchart: no interaction (`click` and tooltips are ignored), no
+  network, pictures only from the folder of the diagram, and the other diagram types (sequence, class, state, and so
+  on) are recognized but drawn as an empty picture with the diagnostic `mermaid-diagram-unsupported` until a later
+  version draws them.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear
@@ -2030,6 +2157,7 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_PdfMinimal - Passed
 ✓ CanvasNetTool_RenderScad - Passed
 ✓ CanvasNetTool_RenderVegaLite - Passed
+✓ CanvasNetTool_RenderMermaid - Passed
 ✓ CanvasNetTool_CropResize - Passed
 ✓ CanvasNetTool_RotateFlipPad - Passed
 ✓ CanvasNetTool_Compare - Passed
@@ -2037,8 +2165,8 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_Adjustments - Passed
 ✓ CanvasNetTool_HelpExamples - Passed
 
-Total Tests: 16
-Passed: 16
+Total Tests: 17
+Passed: 17
 Failed: 0
 ```
 
@@ -2054,6 +2182,7 @@ Failed: 0
 | `CanvasNetTool_PdfMinimal` | A one-page PDF is read and a page is rendered |
 | `CanvasNetTool_RenderScad` | An OpenSCAD model is drawn, and `-D` changes the picture |
 | `CanvasNetTool_RenderVegaLite` | A Vega-Lite chart is described by `info` and drawn with its bars correctly placed |
+| `CanvasNetTool_RenderMermaid` | A Mermaid flowchart is described by `info` and drawn at that size, nodes in place |
 | `CanvasNetTool_CropResize` | `crop` and `resize` produce the expected pixels |
 | `CanvasNetTool_RotateFlipPad` | `rotate`, `flip`, and `pad` produce the expected pixels |
 | `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |

@@ -1,0 +1,12 @@
+flowchart LR
+    classDef good fill:#d8f3dc,stroke:#2d6a4f,stroke-width:2px,color:#1b4332
+    classDef risk fill:#ffe5d9,stroke:#d00000,stroke-dasharray:5 3
+    request[Request]:::good --> check{Valid?}
+    check -->|yes| run[Run the job]
+    check -->|no| reject[Reject]
+    run --> report[Report]
+    class run,report good
+    class reject risk
+    style check fill:#fff3b0,stroke:#e09f3e,stroke-width:3px
+    linkStyle 2 stroke:#d00000,stroke-width:2px
+    linkStyle default interpolate linear

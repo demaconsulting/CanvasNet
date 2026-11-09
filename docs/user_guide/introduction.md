@@ -12,6 +12,7 @@ This user guide covers:
 - Installation of the library and of the `canvasnet` command-line tool
 - Basic usage and examples
 - API reference
+- Rendering Mermaid flowcharts (`DemaConsulting.CanvasNet.Mermaid`), with a gallery of original diagrams
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References
@@ -44,9 +45,8 @@ dotnet add package DemaConsulting.CanvasNet
 ```
 
 To use CanvasNet from the command line instead (to inspect, render, convert, and transform images, documents,
-OpenSCAD models, and Vega-Lite charts, from scripts or AI agents), install the `canvasnet` .NET tool, which bundles the
-libraries. The
-chapter on the command-line tool describes it in full:
+OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, from scripts or AI agents), install the `canvasnet` .NET tool,
+which bundles the libraries. The chapter on the command-line tool describes it in full:
 
 ```bash
 dotnet tool install --global DemaConsulting.CanvasNet.Tool

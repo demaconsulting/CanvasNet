@@ -1,0 +1,12 @@
+flowchart TB
+    browser[Browser] --> gateway
+    subgraph cloud [Cloud]
+        gateway[API gateway] --> services
+        subgraph services [Services]
+            direction LR
+            orders[Orders] --> billing[Billing]
+            orders --> stock[Stock]
+        end
+        services --> db[(Database)]
+    end
+    cloud --> audit[Audit log]

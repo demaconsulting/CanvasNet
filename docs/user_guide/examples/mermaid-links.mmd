@@ -1,0 +1,11 @@
+flowchart LR
+    start[Start] --> open[Arrow]
+    start --- plain[No head]
+    start -.-> dotted[Dotted]
+    start ==> thick[Thick]
+    open --o circle[Circle end]
+    plain --x cross[Cross end]
+    dotted <--> both[Two heads]
+    thick ----> long[Longer link]
+    long -- retry --> long
+    circle ~~~ cross
