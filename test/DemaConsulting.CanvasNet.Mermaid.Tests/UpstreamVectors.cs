@@ -15,10 +15,18 @@ internal static class UpstreamVectors
     /// <summary>The flowchart parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> FlowchartVectors = new(() => Load("flowchart-parser.json"));
 
+    /// <summary>The sequence parser vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> SequenceVectors = new(() => Load("sequence-parser.json"));
+
     /// <summary>
     ///     Gets the flowchart parser cases of <c>flowchart-parser.json</c>.
     /// </summary>
     public static JsonArray Flowcharts => FlowchartVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the sequence parser cases of <c>sequence-parser.json</c>.
+    /// </summary>
+    public static JsonArray Sequences => SequenceVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the theme, configuration and color vectors (<c>themes.json</c>).
