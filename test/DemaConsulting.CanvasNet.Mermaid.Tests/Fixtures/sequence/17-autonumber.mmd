@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant Client
+    participant Server
+    autonumber
+    Client->>Server: First
+    Server-->>Client: Second
+    autonumber 10 5
+    Client->>Server: Ten
+    Server-->>Client: Fifteen
+    autonumber off
+    Client->>Server: Not numbered
+    autonumber 1.5 0.25
+    Client->>Server: Decimal start
+    Server-->>Client: Decimal step
+    Note over Client,Server: Notes are not numbered
+    Client->>Client: Self message
+    autonumber 999
+    Client->>Server: Three digits
+    Server-->>Client: Four digits

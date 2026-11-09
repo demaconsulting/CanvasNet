@@ -1,0 +1,303 @@
+{
+  "source": "24-menus-forced-properties.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 650, 259],
+  "title": null,
+  "actors": [
+    {
+      "name": "Portal",
+      "type": "participant",
+      "description": "Portal",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Portal"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.102, 24, 41.797, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 173, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 173, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Portal"],
+            "at": [75, 205.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.102, 197, 41.797, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 173], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Billing",
+      "type": "participant",
+      "description": "Billing",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Billing"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [253.656, 24, 42.789, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 173, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 173, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Billing"],
+            "at": [275, 205.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [253.656, 197, 42.789, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 173], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Support",
+      "type": "participant",
+      "description": "Support",
+      "top": {
+        "box": [400, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 150, 65],
+            "paint": { "fill": "rgb(237, 242, 174)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Support"],
+            "at": [475, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [446.977, 24, 56.594, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 173, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 173, 150, 65],
+            "paint": { "fill": "rgb(237, 242, 174)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Support"],
+            "at": [475, 205.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [446.977, 197, 56.594, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [475, 65, 475, 173], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Portal",
+      "to": "Billing",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Pay"],
+          "at": [174, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [160.211, 86.219, 28.57, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 271, 109]
+    },
+    {
+      "id": "i1",
+      "from": "Billing",
+      "to": "Support",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Escalate"],
+          "at": [374, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [343.313, 130.219, 61.469, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [276, 153, 471, 153]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [
+    {
+      "id": "actor0_popup",
+      "displayed": true,
+      "panel": [0, 65, 150, 80],
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(147, 112, 219)",
+        "strokeWidth": 1,
+        "filter": "drop-shadow(rgba(0, 0, 0, 0.4) 3px 5px 2px)"
+      },
+      "texts": [
+        {
+          "class": "actor",
+          "lines": ["Home"],
+          "at": [10, 95],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [10, 86.5, 42.781, 17]
+        },
+        {
+          "class": "actor",
+          "lines": ["Help"],
+          "at": [10, 125],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [10, 116.5, 33.008, 17]
+        }
+      ]
+    },
+    {
+      "id": "actor1_popup",
+      "displayed": true,
+      "panel": [200, 65, 150, 50],
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(147, 112, 219)",
+        "strokeWidth": 1,
+        "filter": "drop-shadow(rgba(0, 0, 0, 0.4) 3px 5px 2px)"
+      },
+      "texts": [
+        {
+          "class": "actor",
+          "lines": ["Invoices"],
+          "at": [210, 95],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [210, 86.5, 58.703, 17]
+        }
+      ]
+    }
+  ],
+  "order": [
+    "actor-bottom:Support",
+    "actor-bottom:Billing",
+    "actor-bottom:Portal",
+    "lifeline:Support",
+    "actor-top:Support",
+    "lifeline:Billing",
+    "actor-top:Billing",
+    "lifeline:Portal",
+    "actor-top:Portal",
+    "message:i0",
+    "message:i1",
+    "actor-bottom:null",
+    "menu:actor0_popup",
+    "actor-bottom:null",
+    "menu:actor1_popup"
+  ]
+}

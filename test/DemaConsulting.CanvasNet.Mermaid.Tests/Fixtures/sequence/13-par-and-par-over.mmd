@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Coordinator
+    participant North
+    participant South
+    participant East
+    par Notify north
+        Coordinator->>North: Update
+    and Notify south
+        Coordinator->>South: Update
+    and Notify east
+        Coordinator->>East: Update
+    end
+    par_over Collect the replies
+        North-->>Coordinator: Ack
+    and South side
+        South-->>Coordinator: Ack
+    end
+    North-->>Coordinator: Done

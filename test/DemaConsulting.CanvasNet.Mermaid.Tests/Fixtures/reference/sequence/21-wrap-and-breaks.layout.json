@@ -1,0 +1,552 @@
+{
+  "source": "21-wrap-and-breaks.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 910, 821],
+  "title": null,
+  "actors": [
+    {
+      "name": "Gateway",
+      "type": "participant",
+      "description": "The gateway<br/>in front",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["The gateway"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [29.195, 16, 92.609, 17]
+          },
+          {
+            "class": "actor actor-box",
+            "lines": ["in front"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [50.539, 32, 49.469, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 735, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 735, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["The gateway"],
+            "at": [75, 767.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [29.195, 751, 92.609, 17]
+          },
+          {
+            "class": "actor actor-box",
+            "lines": ["in front"],
+            "at": [75, 767.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [50.539, 767, 49.469, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 735], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Backend",
+      "type": "participant",
+      "description": "Backend",
+      "top": {
+        "box": [560, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [560, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Backend"],
+            "at": [635, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [603.867, 24, 62.367, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [560, 735, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [560, 735, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Backend"],
+            "at": [635, 767.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [603.867, 759, 62.367, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [635, 65, 635, 735], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Gateway",
+      "to": "Backend",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["This message is long enough that the automatic wrapping breaks it over several"],
+          "at": [354, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [71.18, 86.219, 565.641, 17.016]
+        },
+        {
+          "class": "messageText",
+          "lines": ["lines"],
+          "at": [354, 97],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [337.547, 103.219, 32.906, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 126, 631, 126]
+    },
+    {
+      "id": "i1",
+      "from": "Backend",
+      "to": "Gateway",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["This reply is not wrapped even though wrapping is on for the diagram"],
+          "at": [357, 141],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [111.969, 147.219, 490.063, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [634, 170, 79, 170]
+    },
+    {
+      "id": "i4",
+      "from": "Backend",
+      "to": "Gateway",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["A message with https://example.com/a/very/long/path/in/one/word"],
+          "at": [357, 364],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [123.43, 370.219, 466.234, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [634, 393, 79, 393]
+    },
+    {
+      "id": "i7",
+      "from": "Gateway",
+      "to": "Backend",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Line one"],
+          "at": [354, 568],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [323.305, 574.219, 61.492, 17.016]
+        },
+        {
+          "class": "messageText",
+          "lines": ["Line two"],
+          "at": [354, 585],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [324.203, 591.219, 59.695, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 614, 631, 614]
+    },
+    {
+      "id": "i9",
+      "from": "Gateway",
+      "to": "Gateway",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["A self message that"],
+          "at": [76, 639],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [5.18, 645.219, 141.188, 17.016]
+        },
+        {
+          "class": "messageText",
+          "lines": ["wraps around"],
+          "at": [76, 656],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [26.523, 662.219, 98.047, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 76,685 C 136,675 136,715 76,705",
+      "length": 99.683,
+      "points": [
+        [76, 685],
+        [80.93, 684.272],
+        [85.886, 683.741],
+        [90.86, 683.438],
+        [95.843, 683.402],
+        [100.818, 683.687],
+        [105.754, 684.369],
+        [110.588, 685.569],
+        [115.179, 687.489],
+        [119.117, 690.504],
+        [121, 695],
+        [119.117, 699.496],
+        [115.179, 702.511],
+        [110.588, 704.431],
+        [105.754, 705.631],
+        [100.818, 706.313],
+        [95.843, 706.598],
+        [90.86, 706.562],
+        [85.886, 706.259],
+        [80.93, 705.728],
+        [76, 705]
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "i2",
+      "box": [0, 180, 150, 88],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["A note that wraps"],
+          "at": [75, 185],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [12.18, 191.219, 124.641, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["because wrapping"],
+          "at": [75, 202],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [10.063, 208.219, 129.969, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["is on for every"],
+          "at": [75, 219],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [24.758, 225.219, 101.484, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["item"],
+          "at": [75, 236],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [59.883, 242.219, 30.234, 17.016]
+        }
+      ]
+    },
+    {
+      "id": "i3",
+      "box": [660, 278, 150, 71],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["Two"],
+          "at": [735, 283],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [720.328, 289.219, 29.445, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["lines"],
+          "at": [735, 300],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [718.547, 306.219, 32.906, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["in a note"],
+          "at": [735, 317],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [704.305, 323.219, 61.484, 17.016]
+        }
+      ]
+    },
+    {
+      "id": "i5",
+      "box": [560, 403, 150, 105],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["See"],
+          "at": [635, 408],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [620.766, 414.219, 28.57, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["https://example.co-"],
+          "at": [635, 425],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [567.414, 431.219, 135.172, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["m/a/very/long/path-"],
+          "at": [635, 442],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [566.523, 448.219, 136.953, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["/that/needs/to/be/c-"],
+          "at": [635, 459],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [565.508, 465.219, 137.984, 17.016]
+        },
+        {
+          "class": "noteText",
+          "lines": ["ut/into/parts"],
+          "at": [635, 476],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [593.195, 482.219, 83.609, 17.016]
+        }
+      ]
+    }
+  ],
+  "activations": [],
+  "frames": [
+    {
+      "id": "i8",
+      "lines": [
+        {
+          "line": [64, 518, 646, 518],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [646, 518, 646, 624],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 624, 646, 624],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 518, 64, 624],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 518], [114, 518], [114, 531], [105.6, 538], [64, 538]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["loop"],
+          "at": [89, 531],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [73.875, 521.219, 30.352, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[A loop title that is long enough to wrap inside the frame]"],
+          "at": [380, 536],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [181.211, 522, 397.578, 17]
+        }
+      ]
+    }
+  ],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Backend",
+    "actor-bottom:Gateway",
+    "lifeline:Backend",
+    "actor-top:Backend",
+    "lifeline:Gateway",
+    "actor-top:Gateway",
+    "note:i2",
+    "note:i3",
+    "note:i5",
+    "frame:i8",
+    "message:i0",
+    "message:i1",
+    "message:i4",
+    "message:i7",
+    "message:i9"
+  ]
+}

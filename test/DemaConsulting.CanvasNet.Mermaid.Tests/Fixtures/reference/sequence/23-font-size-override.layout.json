@@ -1,0 +1,288 @@
+{
+  "source": "23-font-size-override.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 450, 346],
+  "title": null,
+  "actors": [
+    {
+      "name": "Sensor",
+      "type": "participant",
+      "description": "Sensor",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Sensor"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 12,
+            "fontWeight": "700",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.656, 25.5, 41.012, 14]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 260, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 260, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Sensor"],
+            "at": [75, 292.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 12,
+            "fontWeight": "700",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.656, 285.5, 41.012, 14]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 260], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Controller",
+      "type": "participant",
+      "description": "Controller",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Controller"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 12,
+            "fontWeight": "700",
+            "fill": "rgb(0, 0, 0)",
+            "box": [246.328, 25.5, 57.664, 14]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 260, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 260, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Controller"],
+            "at": [275, 292.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 12,
+            "fontWeight": "700",
+            "fill": "rgb(0, 0, 0)",
+            "box": [246.328, 285.5, 57.664, 14]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 260], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Sensor",
+      "to": "Controller",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Reading"],
+          "at": [261, 80],
+          "anchor": "end",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [216.297, 84.172, 45.027, 14]
+        }
+      ],
+      "number": {
+        "line": [75, 103, 75, 103],
+        "paint": { "stroke": "none", "strokeWidth": 2 },
+        "text": {
+          "class": "sequenceNumber",
+          "lines": ["1"],
+          "at": [75, 107],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(255, 255, 255)",
+          "box": [71.656, 96, 7, 14]
+        }
+      },
+      "circles": [],
+      "line": [82, 103, 271, 103]
+    },
+    {
+      "id": "i3",
+      "from": "Controller",
+      "to": "Sensor",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Next"],
+          "at": [264, 207],
+          "anchor": "end",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [239.313, 211.172, 25.34, 14]
+        }
+      ],
+      "number": {
+        "line": [275, 230, 275, 230],
+        "paint": { "stroke": "none", "strokeWidth": 2 },
+        "text": {
+          "class": "sequenceNumber",
+          "lines": ["2"],
+          "at": [275, 234],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(255, 255, 255)",
+          "box": [271.656, 223, 7, 14]
+        }
+      },
+      "circles": [
+        { "center": [75, 230], "r": 5, "paint": { "fill": "rgb(51, 51, 51)", "stroke": "none", "strokeWidth": 1 } }
+      ],
+      "line": [280, 230, 83, 230]
+    }
+  ],
+  "notes": [
+    {
+      "id": "i1",
+      "box": [50, 113, 250, 34],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["Twelve pixel text everywhere"],
+          "at": [60, 118],
+          "anchor": "start",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [60, 122.172, 153.725, 14]
+        }
+      ]
+    }
+  ],
+  "activations": [],
+  "frames": [
+    {
+      "id": "i5",
+      "lines": [
+        {
+          "line": [64, 157, 286, 157],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [286, 157, 286, 240],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 240, 286, 240],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 157, 64, 240],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 157], [114, 157], [114, 170], [105.6, 177], [64, 177]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["loop"],
+          "at": [89, 170],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [77.656, 162.172, 23.014, 14]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[Sampling]"],
+          "at": [200, 175],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 12,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [171.648, 164, 56.703, 14]
+        }
+      ]
+    }
+  ],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Controller",
+    "actor-bottom:Sensor",
+    "lifeline:Controller",
+    "actor-top:Controller",
+    "lifeline:Sensor",
+    "actor-top:Sensor",
+    "note:i1",
+    "frame:i5",
+    "message:i0",
+    "number:i0",
+    "message:i3",
+    "circles:i3",
+    "number:i3"
+  ]
+}

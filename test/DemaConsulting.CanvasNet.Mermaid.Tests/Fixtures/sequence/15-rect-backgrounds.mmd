@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Editor
+    participant Compiler
+    participant Linker
+    rect rgb(230, 240, 255)
+        Editor->>Compiler: Build
+        rect rgba(255, 200, 120, 0.5)
+            Compiler->>Compiler: Parse
+            Compiler->>Linker: Link
+        end
+    end
+    rect LightYellow
+        Linker-->>Editor: Binary
+    end
+    rect hsl(120, 60%, 85%)
+        Editor->>Editor: Run
+        Note over Editor: Inside a green block
+    end

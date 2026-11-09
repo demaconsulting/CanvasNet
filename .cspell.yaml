@@ -1006,7 +1006,8 @@ words:
   - hypot
   - Steffen's
   - tridiagonal
-  # Mermaid sequence diagram rendering terms (style sheet selectors and marker ids)
+  # Mermaid sequence diagram terms (text prefixes, style sheet selectors and marker ids)
+  - nowrap
   - sequencenumber
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity

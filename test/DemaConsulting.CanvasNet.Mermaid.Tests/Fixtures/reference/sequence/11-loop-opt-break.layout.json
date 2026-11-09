@@ -1,0 +1,542 @@
+{
+  "source": "11-loop-opt-break.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 650, 635],
+  "title": null,
+  "actors": [
+    {
+      "name": "Poller",
+      "type": "participant",
+      "description": "Poller",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Poller"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.547, 24, 41.578, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 549, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 549, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Poller"],
+            "at": [75, 581.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.547, 573, 41.578, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 549], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Queue",
+      "type": "participant",
+      "description": "Queue",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Queue"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [250.977, 24, 48.141, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 549, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 549, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Queue"],
+            "at": [275, 581.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [250.977, 573, 48.141, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 549], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Handler",
+      "type": "participant",
+      "description": "Handler",
+      "top": {
+        "box": [400, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Handler"],
+            "at": [475, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [446.984, 24, 56.703, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 549, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 549, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Handler"],
+            "at": [475, 581.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [446.984, 573, 56.703, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [475, 65, 475, 549], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i1",
+      "from": "Poller",
+      "to": "Queue",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Receive"],
+          "at": [174, 125],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [145.094, 131.219, 57.906, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 154, 271, 154]
+    },
+    {
+      "id": "i3",
+      "from": "Queue",
+      "to": "Poller",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Message"],
+          "at": [177, 214],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [144.539, 220.219, 65.023, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 243, 79, 243]
+    },
+    {
+      "id": "i4",
+      "from": "Poller",
+      "to": "Handler",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Process"],
+          "at": [274, 258],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [245.102, 264.219, 57.797, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 287, 471, 287]
+    },
+    {
+      "id": "i6",
+      "from": "Handler",
+      "to": "Poller",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Error"],
+          "at": [277, 347],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [259.219, 353.219, 36.227, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [474, 376, 79, 376]
+    },
+    {
+      "id": "i11",
+      "from": "Poller",
+      "to": "Queue",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Poll without a title"],
+          "at": [174, 446],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [111.742, 452.219, 124.609, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 475, 271, 475]
+    },
+    {
+      "id": "i13",
+      "from": "Poller",
+      "to": "Queue",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Close"],
+          "at": [174, 500],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [153.547, 506.219, 41.008, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 529, 271, 529]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [
+    {
+      "id": "i7",
+      "lines": [
+        {
+          "line": [64, 297, 486, 297],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [486, 297, 486, 386],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 386, 486, 386],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 297, 64, 386],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 297], [114, 297], [114, 310], [105.6, 317], [64, 317]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["break"],
+          "at": [89, 310],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [68.984, 300.219, 41.023, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[The handler fails]"],
+          "at": [300, 315],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [236.406, 301, 127.188, 17]
+        }
+      ]
+    },
+    {
+      "id": "i8",
+      "lines": [
+        {
+          "line": [54, 164, 496, 164],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [496, 164, 496, 396],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [54, 396, 496, 396],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [54, 164, 54, 396],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[54, 164], [104, 164], [104, 177], [95.6, 184], [54, 184]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["opt"],
+          "at": [79, 177],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [67.875, 167.219, 22.797, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[A message is waiting]"],
+          "at": [300, 182],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [220.852, 168, 158.297, 17]
+        }
+      ]
+    },
+    {
+      "id": "i9",
+      "lines": [
+        { "line": [44, 75, 506, 75], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" } },
+        {
+          "line": [506, 75, 506, 406],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [44, 406, 506, 406],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        { "line": [44, 75, 44, 406], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" } }
+      ],
+      "labelBox": {
+        "points": [[44, 75], [94, 75], [94, 88], [85.6, 95], [44, 95]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["loop"],
+          "at": [69, 88],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [53.875, 78.219, 30.352, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[Every second]"],
+          "at": [300, 93],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [247.086, 79, 105.828, 17]
+        }
+      ]
+    },
+    {
+      "id": "i12",
+      "lines": [
+        {
+          "line": [64, 416, 286, 416],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [286, 416, 286, 485],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 485, 286, 485],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 416, 64, 485],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 416], [114, 416], [114, 429], [105.6, 436], [64, 436]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["loop"],
+          "at": [89, 429],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [73.875, 419.219, 30.352, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["​"],
+          "at": [200, 434],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [200, 420, 0, 17]
+        }
+      ]
+    }
+  ],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Handler",
+    "actor-bottom:Queue",
+    "actor-bottom:Poller",
+    "lifeline:Handler",
+    "actor-top:Handler",
+    "lifeline:Queue",
+    "actor-top:Queue",
+    "lifeline:Poller",
+    "actor-top:Poller",
+    "frame:i7",
+    "frame:i8",
+    "frame:i9",
+    "frame:i12",
+    "message:i1",
+    "message:i3",
+    "message:i4",
+    "message:i6",
+    "message:i11",
+    "message:i13"
+  ]
+}

@@ -1,0 +1,520 @@
+{
+  "source": "12-alt-else-nested.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 650, 724],
+  "title": null,
+  "actors": [
+    {
+      "name": "Gate",
+      "type": "participant",
+      "description": "Gate",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Gate"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [57.656, 24, 34.789, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 638, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 638, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Gate"],
+            "at": [75, 670.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [57.656, 662, 34.789, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 638], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Auth",
+      "type": "participant",
+      "description": "Auth",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Auth"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [257.539, 24, 34.016, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 638, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 638, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Auth"],
+            "at": [275, 670.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [257.539, 662, 34.016, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 638], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Audit",
+      "type": "participant",
+      "description": "Audit",
+      "top": {
+        "box": [400, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Audit"],
+            "at": [475, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [455.766, 24, 38.023, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 638, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 638, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Audit"],
+            "at": [475, 670.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [455.766, 662, 38.023, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [475, 65, 475, 638], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Gate",
+      "to": "Auth",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Check the badge"],
+          "at": [174, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [113.508, 86.219, 121.078, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 271, 109]
+    },
+    {
+      "id": "i2",
+      "from": "Auth",
+      "to": "Gate",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Open"],
+          "at": [177, 169],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [157.43, 175.219, 39.242, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 198, 79, 198]
+    },
+    {
+      "id": "i4",
+      "from": "Gate",
+      "to": "Audit",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Log a late entry"],
+          "at": [274, 258],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [218.852, 264.219, 111.297, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 287, 471, 287]
+    },
+    {
+      "id": "i6",
+      "from": "Gate",
+      "to": "Audit",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Log an entry"],
+          "at": [274, 347],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [229.523, 353.219, 89.953, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 376, 471, 376]
+    },
+    {
+      "id": "i9",
+      "from": "Auth",
+      "to": "Gate",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Deny"],
+          "at": [177, 446],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [158.32, 452.219, 38.352, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 475, 79, 475]
+    },
+    {
+      "id": "i11",
+      "from": "Auth",
+      "to": "Gate",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Deny and alert"],
+          "at": [177, 535],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [124.969, 541.219, 104.617, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 564, 79, 564]
+    },
+    {
+      "id": "i12",
+      "from": "Gate",
+      "to": "Audit",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Raise an alarm"],
+          "at": [274, 579],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [220.195, 585.219, 107.609, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 608, 471, 608]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [
+    {
+      "id": "i7",
+      "lines": [
+        {
+          "line": [64, 208, 486, 208],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [486, 208, 486, 386],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 386, 486, 386],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 208, 64, 386],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [64, 302, 486, 302],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "3px, 3px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[64, 208], [114, 208], [114, 221], [105.6, 228], [64, 228]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["alt"],
+          "at": [89, 221],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [80.547, 211.219, 17.453, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[After hours]"],
+          "at": [300, 226],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [256.422, 212, 87.156, 17]
+        },
+        {
+          "class": "sectionTitle",
+          "lines": ["[During the day]"],
+          "at": [275, 320],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [218.523, 306, 112.953, 17]
+        }
+      ]
+    },
+    {
+      "id": "i13",
+      "lines": [
+        {
+          "line": [54, 119, 496, 119],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [496, 119, 496, 618],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [54, 618, 496, 618],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [54, 119, 54, 618],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "2px, 2px" }
+        },
+        {
+          "line": [54, 401, 496, 401],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "3px, 3px" }
+        },
+        {
+          "line": [54, 490, 496, 490],
+          "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2, "dash": "3px, 3px" }
+        }
+      ],
+      "labelBox": {
+        "points": [[54, 119], [104, 119], [104, 132], [95.6, 139], [54, 139]],
+        "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+      },
+      "texts": [
+        {
+          "class": "labelText",
+          "lines": ["alt"],
+          "at": [79, 132],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [70.547, 122.219, 17.453, 17.016]
+        },
+        {
+          "class": "loopText",
+          "lines": ["[Badge valid]"],
+          "at": [300, 137],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [253.742, 123, 92.516, 17]
+        },
+        {
+          "class": "sectionTitle",
+          "lines": ["[Badge expired]"],
+          "at": [275, 419],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [218.961, 405, 112.078, 17]
+        },
+        {
+          "class": "sectionTitle",
+          "lines": ["[Badge unknown]"],
+          "at": [275, 508],
+          "anchor": "middle",
+          "baseline": null,
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [213.172, 494, 123.656, 17]
+        }
+      ]
+    }
+  ],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Audit",
+    "actor-bottom:Auth",
+    "actor-bottom:Gate",
+    "lifeline:Audit",
+    "actor-top:Audit",
+    "lifeline:Auth",
+    "actor-top:Auth",
+    "lifeline:Gate",
+    "actor-top:Gate",
+    "frame:i7",
+    "frame:i13",
+    "message:i0",
+    "message:i2",
+    "message:i4",
+    "message:i6",
+    "message:i9",
+    "message:i11",
+    "message:i12"
+  ]
+}
