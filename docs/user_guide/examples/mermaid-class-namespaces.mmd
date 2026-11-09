@@ -1,0 +1,34 @@
+---
+config:
+  class:
+    hideEmptyMembersBox: true
+---
+classDiagram
+    namespace Shop.Orders {
+        class Order {
+            <<entity>>
+            +String id
+            -List~LineItem~ items
+            +total() Money
+            +place()$ Order
+        }
+        class LineItem {
+            +int quantity
+            #price() Money
+        }
+    }
+    namespace Billing["Billing service"] {
+        class Invoice:::paper {
+            ~String number
+            +issue()*
+        }
+        class Money
+    }
+    class Customer["Customer (VIP)"]
+    Customer --> Order : places
+    Order "1" *-- "1..*" LineItem
+    Order <.. Invoice : bills
+    Invoice --> Money
+    note for Customer "Pays by invoice"
+    classDef paper fill:#fff4d6,stroke:#b8860b
+    style Customer fill:#e3f2e1,stroke:#2e7d32,stroke-width:2px

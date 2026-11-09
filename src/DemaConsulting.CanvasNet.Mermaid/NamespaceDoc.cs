@@ -20,8 +20,9 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         <see cref="MermaidRenderOptions"/> and resource budgets through <see cref="MermaidLimits"/>. The syntax,
 ///         configuration, layout, rendering and scene-graph stages are internal; only the document surface is public so that
 ///         the internals can evolve. Every diagram type Mermaid knows is recognized; this version draws flowcharts
-///         (<c>flowchart</c> and <c>graph</c>) and sequence diagrams (<c>sequenceDiagram</c>), and reports any other type as
-///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with an empty picture.
+///         (<c>flowchart</c> and <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>) and class diagrams
+///         (<c>classDiagram</c>), and reports any other type as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
+///         an empty picture.
 ///     </para>
 ///     <para>
 ///         Rendering is static, offline and deterministic: nothing is fetched from the network, no script runs, links and
@@ -34,8 +35,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///     <para>
 ///         Third-party provenance and attribution: this package implements the Mermaid text language and is not affiliated
 ///         with or endorsed by the Mermaid project. Its preprocessing, detection, parsers, configuration defaults, themes and
-///         layout are ports of mermaid, js-yaml and dagre (all MIT) with attribution in the <c>third-party</c> folder, whose
-///         license texts ship in the package under <c>licenses\</c>.
+///         layout are ports of mermaid, js-yaml, dagre and sanitize-url (all MIT) with attribution in the
+///         <c>third-party</c> folder, whose license texts ship in the package under <c>licenses\</c>.
 ///     </para>
 ///     <para>
 ///         A diagram is drawn onto a <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/>

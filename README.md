@@ -59,8 +59,8 @@ specification and is rendered, in strict mode, by a test.*
 - 📉 **Vega-Lite Charts** - Render a growing subset of Vega-Lite specs (see User Guide)
 - 🛡️ **Vega-Lite Hardening** - Resource limits for every stage (rows, steps, items, painted pixels), cancellation,
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
-- 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts and sequence diagrams with ports of Mermaid's own layouts;
-  class, state, ER, pie, gantt, and mindmap diagrams are planned (see User Guide)
+- 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence diagrams, and class diagrams with ports of Mermaid's own
+  layouts; state, ER, pie, gantt, and mindmap diagrams are planned (see User Guide)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
@@ -115,7 +115,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
-| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams (flowcharts, sequence diagrams) |
+| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams (flowcharts, sequence, class)   |
 | `DemaConsulting.CanvasNet.Viewer`   | The `canvasnet` operations as library calls      |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
@@ -200,10 +200,11 @@ A Mermaid diagram is read from a file named `.mmd` or `.mermaid` and is drawn wi
 Mermaid's SVG (`--scale`, `--width`, `--height`, and `--size` change it), for example
 `canvasnet render flow.mmd -o flow.png --json`. It is a `diagram` in the `kind` column of `canvasnet formats`, and
 `canvasnet info flow.mmd` reports its diagram type, direction, title, and the numbers of nodes, edges, and subgraphs
-(participants, messages, and boxes for a sequence diagram) without drawing it. This version draws flowcharts
-(`flowchart` and `graph`) and sequence diagrams (`sequenceDiagram`); every other type is recognized, reported as
-`mermaid-diagram-unsupported`, and drawn as an empty picture (class, state, ER, pie, gantt, and mindmap diagrams are
-planned later). `--theme default|base|dark|forest|neutral` chooses the theme like
+(participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram)
+without drawing it. This version draws flowcharts (`flowchart` and `graph`), sequence diagrams (`sequenceDiagram`), and
+class diagrams (`classDiagram`); every other type is recognized, reported as `mermaid-diagram-unsupported`, and drawn
+as an empty picture (state, ER, pie, gantt, and mindmap diagrams are planned later).
+`--theme default|base|dark|forest|neutral` chooses the theme like
 `mmdc -t` (a theme the diagram sets itself still wins), and `flow.mmd#theme=dark` does the same for one input or link.
 What the library recognizes but cannot draw (icons, the hand-drawn look, the ELK layout) is reported in `diagnostics`
 with a stable `mermaid-*` code, and invalid text is the error `mermaid-error` with the file, line, column, and a hint.
@@ -261,7 +262,7 @@ canvasnet render bracket.scad --view top -D width=55 -o top.png --json
 canvasnet info sales.vl.json --json
 canvasnet render sales.vl.json --scale 2 -o sales.png --json
 
-# 4e. Draw a Mermaid diagram (flowchart or sequence) in the dark theme; info reports the type and whether it is drawn
+# 4e. Draw a Mermaid diagram (flowchart, sequence, class) in the dark theme; info reports its type and support
 canvasnet info flow.mmd --json
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 ```

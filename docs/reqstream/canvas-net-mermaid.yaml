@@ -163,7 +163,7 @@ sections:
         tests:
           - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
           - CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes
-          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
       - id: CanvasNetMermaid-SequenceDiagrams
@@ -191,7 +191,7 @@ sections:
         tests:
           - CanvasNetMermaid_Sequence_Fixture_RendersStrictly
           - CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors
-          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
       - id: CanvasNetMermaid-LayoutFidelity

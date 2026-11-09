@@ -10,9 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), a sequence diagram is drawn by the filter itself, a diagram type the tool does not draw yet is left as
-    written for another filter, and the defaults-file filters run before a command-line filter (as the CI's
-    mermaid-filter is run).
+    hashed), sequence and class diagrams are drawn by the filter itself, a diagram type the tool does not draw yet
+    is left as written for another filter, and the defaults-file filters run before a command-line filter (as the
+    CI's mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -356,6 +356,26 @@ sequenceDiagram
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $sequenceMarkersBefore -and
         $sequence.Log -notmatch 'left as written') `
         'a sequence block and a sequence .mmd picture are drawn by the filter itself' "$($sequence.Log)`n$($sequence.Html)"
+
+    # A class diagram is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $classes = @'
+```mermaid
+classDiagram
+    class Animal {
+        +String name
+        +speak() String
+    }
+    Animal <|-- Dog
+```
+'@
+    $classesBefore = @(Get-Pictures).Count
+    $classMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $class = Invoke-Filter 'mermaid-class' $classes
+    Write-Result ($class.ExitCode -eq 0 -and $class.Html -notmatch '<code' -and
+        $class.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $classesBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $classMarkersBefore -and
+        $class.Log -notmatch 'left as written') `
+        'a class block is drawn' "$($class.Log)`n$($class.Html)"
 
     # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
     # marker in the cache remembers it: the next run warns from the marker and does not draw it.

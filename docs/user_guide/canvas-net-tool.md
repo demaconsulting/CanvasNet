@@ -237,7 +237,7 @@ commands too, and `inspect` accepts them as well.
 | Visio | `.vsdx` | Multi-page (drawing pages) |
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
-| Mermaid | `.mmd`, `.mermaid` | A diagram (a flowchart or a sequence diagram), drawn at its laid-out size |
+| Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence diagram, or class diagram, drawn at its laid-out size |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -329,10 +329,10 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   the folder of the specification (see *Vega-Lite Charts* below; a missing file is a `vega-lite-error`) and uses no
   network.
 - A **Mermaid diagram** reports the size it is laid out at (the size of Mermaid's SVG), 4 channels with transparency,
-  and what the text declares: the diagram type, whether this version draws it (`class (not drawn by this version)`
+  and what the text declares: the diagram type, whether this version draws it (`pie (not drawn by this version)`
   otherwise), the direction, the title and the accessible title, and the numbers of nodes, edges, and subgraphs
-  (participants, messages, and boxes for a sequence diagram). The diagram is laid out without the pictures of its
-  nodes, so no other file is read (see *Mermaid Diagrams* below).
+  (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram).
+  The diagram is laid out without the pictures of its nodes, so no other file is read (see *Mermaid Diagrams* below).
 
 <!-- markdownlint-disable MD013 -->
 ```text
@@ -352,6 +352,8 @@ $ canvasnet info flow.mmd
 flow.mmd: mermaid, 674x286 px (laid out), flowchart LR, 5 nodes, 5 edges, 1 subgraph, title "Order flow", 313 bytes
 $ canvasnet info checkout.mmd
 checkout.mmd: mermaid, 650x622 px (laid out), sequence, 3 participants, 6 messages, 0 boxes, title "Checkout", 470 bytes
+$ canvasnet info library.mmd
+library.mmd: mermaid, 454x957 px (laid out), class TB, 4 nodes, 3 edges, 0 subgraphs, title "Library", 563 bytes
 ```
 <!-- markdownlint-enable MD013 -->
 
@@ -776,11 +778,13 @@ diagram can also be drawn inside an SVG drawing with `<image href="flow.mmd" ...
 This version draws **flowcharts** (`flowchart` and `graph`): every shape, link, subgraph, label, style, and theme of the
 Mermaid 11 flowchart language. It also draws **sequence diagrams** (`sequenceDiagram`), laid out with a port of
 Mermaid's sequence renderer: participants and their eight types, boxes, every arrow, activations, notes, the blocks
-(`loop`, `alt`, `opt`, `par`, `critical`, `break`, and `rect`), `autonumber`, and the sequence settings.
-`canvasnet help mermaid` lists them. Every other diagram type is recognized: `info` reports it with
-`"supported": false`, and `render` writes an empty picture of 16 by 16 pixels with the diagnostic
-`mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure). Class, state, entity
-relationship, pie, gantt, and mindmap diagrams are planned later.
+(`loop`, `alt`, `opt`, `par`, `critical`, `break`, and `rect`), `autonumber`, and the sequence settings. **Class
+diagrams** (`classDiagram`) are laid out with the same dagre layout as a flowchart: classes with their
+annotations, attributes, and methods, generics, every kind of relation with its markers, cardinalities, and labels,
+lollipop interfaces, namespaces, notes, styles, and the class settings. `canvasnet help mermaid` lists them. Every
+other diagram type is recognized: `info` reports it with `"supported": false`, and `render` writes an empty picture of
+16 by 16 pixels with the diagnostic `mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature`
+failure). State, entity relationship, pie, gantt, and mindmap diagrams are planned later.
 
 **Theme.** `--theme <name>` chooses one of Mermaid's five themes, `default`, `base`, `dark`, `forest`, or `neutral`
 (any letter case), exactly like `mmdc -t`: a theme that the diagram sets itself, in its frontmatter or an
@@ -836,6 +840,7 @@ canvasnet render flow.mmd -o flow.png --json
 canvasnet render flow.mmd --strict --width 1200 -o flow-wide.png
 canvasnet help mermaid --example flowchart > flowchart.mmd
 canvasnet help mermaid --example sequence > checkout.mmd
+canvasnet help mermaid --example class > library.mmd
 ```
 
 #### Embedding Images, Charts, and Models in an SVG
@@ -1507,7 +1512,7 @@ every command. A subject is matched in any letter case, and a topic may be named
 | --- | --- | --- |
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
-| `mermaid` | `mmd` | Mermaid flowcharts and sequence diagrams laid out like Mermaid 11, themes, and differences |
+| `mermaid` | `mmd` | Mermaid flowcharts, sequence and class diagrams laid out like Mermaid 11, themes, differences |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
@@ -1597,9 +1602,9 @@ objects:
   `schemaMajorVersion` when the specification has them, `marks` (the mark types as written), `dataReferences` (each with
   `kind` `inline`, `url`, `name`, or `sequence`, `url` and `rows` when known, and the `line`), and `parameters` (names).
 - `diagram` (Mermaid), after an `image` object that gives the laid-out `width` and `height`: `type` (`flowchart`,
-  `sequence`, ...), `supported` (whether this version draws the type), `direction`, `title`, and `accTitle` when the
-  diagram has them, and `nodes`, `edges`, and `subgraphs` (the counts; the participants, messages, and boxes of a
-  sequence diagram; zero for a type that is not drawn):
+  `sequence`, `class`, ...), `supported` (whether this version draws the type), `direction`, `title`, and `accTitle`
+  when the diagram has them, and `nodes`, `edges`, and `subgraphs` (the counts; the participants, messages, and boxes
+  of a sequence diagram; the classes, relations, and namespaces of a class diagram; zero for a type that is not drawn):
 
 ```json
 {"schemaVersion":1,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
@@ -2114,9 +2119,9 @@ pictures side by side.
   from the command line),
   and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is
   reported). Vega (as opposed to Vega-Lite) specifications are not read.
-- **Diagrams.** A static picture of one Mermaid flowchart or sequence diagram: no interaction (`click`, tooltips, and
-  menu links are ignored), no network, pictures only from the folder of the diagram, and the other diagram types
-  (class, state, and so on) are recognized but drawn as an empty picture with the diagnostic
+- **Diagrams.** A static picture of one Mermaid flowchart, sequence diagram, or class diagram: no interaction
+  (`click`, tooltips, and menu links are ignored), no network, pictures only from the folder of the diagram, and the
+  other diagram types (state, pie, and so on) are recognized but drawn as an empty picture with the diagnostic
   `mermaid-diagram-unsupported` until a later version draws them.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.

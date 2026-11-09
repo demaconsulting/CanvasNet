@@ -43,6 +43,16 @@ public partial class HelpTopicsTests
         new(@"(?<=^|[\s(,])\.[a-z0-9]+(?:\.json)?(?=$|[\s),;.])", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
+    ///     Splits a markdown table row at the cell bars that are not escaped (<c>\|</c> is a bar inside a cell).
+    /// </summary>
+    private static readonly Regex TableCellSplit = new(@"(?<!\\)\|", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    ///     Matches the <c>Area: </c> prefix of a help item that mirrors a row of a syntax table of the guide.
+    /// </summary>
+    private static readonly Regex AreaPrefix = new(@"^[^:]{1,40}: (?=.)", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+
+    /// <summary>
     ///     The names of the global options, which every command accepts.
     /// </summary>
     private static readonly string[] GlobalOptionNames =
@@ -427,6 +437,53 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
+    ///     Test that the <c>mermaid</c> topic says, word for word, what the tables of the Mermaid user guide say: the
+    ///     <c>class</c> section holds exactly the rows of the guide's class syntax, relation, and settings tables, in
+    ///     order, and every row of the guide's table of unsupported features and warnings is an item of the
+    ///     <c>unsupported</c> or <c>diagnostics</c> section. Backticks are dropped, <c>\|</c> is read as <c>|</c>, and the
+    ///     first letter of a text (after an <c>Area: </c> prefix) is compared ignoring case.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide()
+    {
+        // Arrange: the guide and the topic, each item in its canonical form
+        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-mermaid.md"));
+        var topic = HelpTopics.Find("mermaid")!;
+        var help = topic.Sections.ToDictionary(s => s.Id, s => s.Items.Select(i => Canonical(i.Term, i.Text)).ToList());
+
+        // Act: the items that the rows of the guide's tables promise
+        var classRows = GuideTableRows(guide, "### Supported Class Syntax").Select(ExpectedClassItem).ToList();
+        var codeRows = GuideTableRows(guide, "### Mermaid Unsupported Features and Strict Mode").ToList();
+        var differences = new List<string>();
+        var classItems = help["class"];
+        for (var i = 0; i < Math.Max(classRows.Count, classItems.Count); i++)
+        {
+            var expected = i < classRows.Count ? classRows[i] : "(nothing)";
+            var actual = i < classItems.Count ? classItems[i] : "(nothing)";
+            if (expected != actual)
+            {
+                differences.Add($"class item {i + 1}:{Environment.NewLine}  guide: {expected}{Environment.NewLine}  help:  {actual}");
+            }
+        }
+
+        foreach (var (header, cells) in codeRows)
+        {
+            Assert.Equal(["Code", "Kind", "Reported when"], header);
+            var (section, text) = cells[1] == "Unsupported" ? ("unsupported", cells[2]) : ("diagnostics", $"{cells[1]}: {cells[2]}");
+            var expected = Canonical(cells[0], text + ".");
+            if (!help[section].Contains(expected))
+            {
+                differences.Add($"{section} item missing:{Environment.NewLine}  guide: {expected}");
+            }
+        }
+
+        // Assert: the guide has the tables, and nothing differs
+        Assert.True(classRows.Count >= 30, $"Only {classRows.Count} rows were found in the class tables of the guide.");
+        Assert.True(codeRows.Count >= 15, $"Only {codeRows.Count} rows were found in the code table of the guide.");
+        Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
+    }
+
+    /// <summary>
     ///     Test that the <c>svg</c> topic documents the page fragment: the grammar, the parameter of each format, the
     ///     four diagnostic codes with their severity, the <c>--strict</c> behavior, the <c>&amp;amp;</c> note, the
     ///     example, and that the limits quoted are the live ones.
@@ -751,6 +808,104 @@ public partial class HelpTopicsTests
         Assert.Equal("example", oneJson.RootElement.GetProperty("kind").GetString());
         Assert.Equal(expected, oneJson.RootElement.GetProperty("example").GetProperty("content").GetString());
         Assert.Equal("plate.scad", oneJson.RootElement.GetProperty("example").GetProperty("fileName").GetString());
+    }
+
+    /// <summary>
+    ///     Finds the folder that contains the solution file by walking up from the test output folder.
+    /// </summary>
+    /// <returns>The repository root.</returns>
+    private static string FindRepositoryRoot()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder != null; folder = folder.Parent)
+        {
+            if (File.Exists(Path.Combine(folder.FullName, "CanvasNet.slnx")))
+            {
+                return folder.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"The repository root (the folder with CanvasNet.slnx) was not found above {AppContext.BaseDirectory}.");
+    }
+
+    /// <summary>
+    ///     Gets the rows of every markdown table in one section of a guide, from its heading to the next heading of the
+    ///     same or a higher level, each with the header of its table. Cells lose their backticks and read <c>\|</c> as
+    ///     <c>|</c>.
+    /// </summary>
+    /// <param name="lines">The lines of the guide.</param>
+    /// <param name="heading">The heading line of the section.</param>
+    /// <returns>The header and the cells of each body row, in order.</returns>
+    private static IEnumerable<(string[] Header, string[] Cells)> GuideTableRows(string[] lines, string heading)
+    {
+        var start = Array.IndexOf(lines, heading);
+        Assert.True(start >= 0, $"The guide has no heading '{heading}'.");
+        string[]? header = null;
+        var separator = false;
+        for (var i = start + 1; i < lines.Length && !lines[i].StartsWith("## ", StringComparison.Ordinal)
+                                && !lines[i].StartsWith("### ", StringComparison.Ordinal); i++)
+        {
+            if (!lines[i].StartsWith('|'))
+            {
+                header = null;
+                continue;
+            }
+
+            var cells = TableCellSplit.Split(lines[i].Trim().Trim('|'))
+                .Select(c => c.Replace("`", "", StringComparison.Ordinal).Replace("\\|", "|", StringComparison.Ordinal).Trim())
+                .ToArray();
+            if (header == null)
+            {
+                (header, separator) = (cells, true);
+            }
+            else if (separator)
+            {
+                separator = false;
+            }
+            else
+            {
+                yield return (header, cells);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets the help item, in canonical form, that a row of a class table of the guide promises: an <c>Area: text.</c>
+    ///     item for a syntax row, a term and its text for a relation row, and a key with its meaning and default for a
+    ///     settings row.
+    /// </summary>
+    /// <param name="row">The header and the cells of the row.</param>
+    /// <returns>The canonical item.</returns>
+    private static string ExpectedClassItem((string[] Header, string[] Cells) row)
+    {
+        var (header, cells) = row;
+        return string.Join("|", header) switch
+        {
+            "Area|Supported" => Canonical(null, $"{cells[0]}: {cells[1]}."),
+            "Relation|Drawn as" => Canonical(cells[0], $"{cells[1]}."),
+            "Key|Default|Meaning" => Canonical(cells[0], $"{cells[2]} (default {cells[1]})."),
+            _ => throw new InvalidOperationException($"The guide has a class table with the unknown header '{string.Join(" | ", header)}'."),
+        };
+    }
+
+    /// <summary>
+    ///     Gets the canonical form of a help item for the guide comparison: the term and the text, with the first letter of
+    ///     the text, and the first letter after a leading <c>Area: </c> prefix, in lower case.
+    /// </summary>
+    /// <param name="term">The term, or <see langword="null"/>.</param>
+    /// <param name="text">The text.</param>
+    /// <returns>The canonical form.</returns>
+    private static string Canonical(string? term, string text)
+    {
+        var lowered = text.Length == 0 ? text : char.ToLowerInvariant(text[0]) + text[1..];
+        var prefix = AreaPrefix.Match(lowered);
+        if (prefix.Success)
+        {
+            var at = prefix.Length;
+            lowered = lowered[..at] + char.ToLowerInvariant(lowered[at]) + lowered[(at + 1)..];
+        }
+
+        return term == null ? lowered : $"{term} => {lowered}";
     }
 
     /// <summary>

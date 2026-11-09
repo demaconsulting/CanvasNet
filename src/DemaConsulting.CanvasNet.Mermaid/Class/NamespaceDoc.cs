@@ -1,9 +1,9 @@
 namespace DemaConsulting.CanvasNet.Mermaid.Class;
 
 /// <summary>
-///     The <c>Class</c> namespace reads class diagrams (<c>classDiagram</c>, <c>classDiagram-v2</c>): a port of Mermaid's
-///     <c>classDiagram.jison</c> grammar, of its class database (<c>classDb.ts</c>) and of its class members
-///     (<c>classTypes.ts</c>).
+///     The <c>Class</c> namespace reads and lays out class diagrams (<c>classDiagram</c>, <c>classDiagram-v2</c>): a port
+///     of Mermaid's <c>classDiagram.jison</c> grammar, of its class database (<c>classDb.ts</c>), of its class members
+///     (<c>classTypes.ts</c>) and of its class renderer (<c>classRenderer-v3-unified.ts</c>).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -16,7 +16,9 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///     <para>
 ///         For each render, <c>ClassModel.GetData</c> maps the model to the shared layout data of the unified renderer,
 ///         as Mermaid's <c>getData</c> does: namespaces as clusters, classes as class boxes, notes, invisible interface
-///         nodes, note links and relations with their markers and terminal labels.
+///         nodes, note links and relations with their markers and terminal labels. <c>ClassModel.Layout</c> then draws
+///         the data with the shared cluster layout, as Mermaid's class renderer does: the spacing of the state settings,
+///         the five class markers, the frontmatter title and a view box padding of 8.
 ///     </para>
 ///     <para>
 ///         The namespace is internal to the package. A parsed model is immutable and safe for concurrent use.

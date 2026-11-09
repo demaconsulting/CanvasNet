@@ -2,7 +2,7 @@
   "topic": "mermaid",
   "aliases": ["mmd"],
   "title": "Mermaid diagrams (.mmd, .mermaid)",
-  "summary": "A Mermaid flowchart or sequence diagram is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
+  "summary": "A Mermaid flowchart, sequence diagram, or class diagram is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
   "sections": [
     {
       "id": "supported",
@@ -33,15 +33,57 @@
         { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the sequence settings (actorMargin, mirrorActors, rightAngles, messageAlign, noteAlign, wrap, and so on), with Mermaid's precedence. As in Mermaid, the top-level fontFamily and fontSize replace the font families and sizes of the sequence settings, so every sequence text is 16 pixels in the theme's font by default; set the top-level fontSize to change it. A top-level fontWeight replaces the three weights in the same way." },
         { "text": "Pictures: an @{ img: \"part.png\", label, pos, w, h, constraint } node shows a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or another diagram that lies beside the diagram (see the pictures example). At most {{mmdMaxImages}} pictures." },
         { "text": "Titles: the title statement, else the frontmatter title, is drawn above the diagram; accTitle and accDescr are read as metadata." },
-        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram) without drawing the diagram." }
+        { "text": "Class diagrams: a class diagram starts with classDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the class boxes, relations, namespaces, and notes land where Mermaid 11 puts them; its syntax, relations, and settings are listed under Class diagrams." },
+        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram) without drawing the diagram." }
+      ]
+    },
+    {
+      "id": "class",
+      "title": "Class diagrams",
+      "items": [
+        { "text": "Header: classDiagram and classDiagram-v2, and direction with TB, BT, LR, or RL." },
+        { "text": "Classes: class Name, a body in braces (class Name { ... }), member lines (Name : +int id), a label (class Order[\"Purchase order\"]), names written in backticks, and classes named only by a relation." },
+        { "text": "Members: attributes and methods with the visibility +, -, #, or ~, parameters, return types, and the classifiers $ (static, underlined) and * (abstract, italic)." },
+        { "text": "Generics: ~T~ in class names, members, and methods, drawn as <T>, also nested (List~List~int~~)." },
+        { "text": "Annotations: <<interface>>, <<enumeration>>, and any other annotation, in a body, after the class name, or as a statement (<<service>> Service); only the first annotation of a class is drawn, as in Mermaid." },
+        { "text": "Relations: the eight kinds of relation in both directions, two-way relations, lollipop interfaces, labels (A --> B : uses), and cardinalities (A \"1\" --> \"*\" B)." },
+        { "text": "Namespaces: namespace Name { ... }, nested, dotted names (namespace Geo.Plane), and a label (namespace Utils[\"Utility types\"])." },
+        { "text": "Notes: note \"text\" and note for Name \"text\", with \\n and <br> line breaks." },
+        { "text": "Styles: classDef (including classDef default), cssClass \"A,B\" name, :::, and style, with the declarations of a flowchart style; as in Mermaid, a style cannot start with a key that holds a dash, so write fill:#f9f,stroke-width:2px, not stroke-width:2px,fill:#f9f." },
+        { "text": "Interaction: click, link, and callback are read and ignored, because a picture is static." },
+        { "text": "Titles: the frontmatter title is drawn above the diagram; accTitle and accDescr are read as metadata." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the class settings below, with Mermaid's precedence." },
+        { "term": "<|-- and --|>", "text": "Inheritance: a solid line with a hollow triangle." },
+        { "term": "*-- and --*", "text": "Composition: a solid line with a filled diamond." },
+        { "term": "o-- and --o", "text": "Aggregation: a solid line with a hollow diamond." },
+        { "term": "<-- and -->", "text": "Association: a solid line with an arrowhead." },
+        { "term": "--", "text": "Link: a solid line without markers." },
+        { "term": "<.. and ..>", "text": "Dependency: a dashed line with an arrowhead." },
+        { "term": "<|.. and ..|>", "text": "Realization: a dashed line with a hollow triangle." },
+        { "term": "..", "text": "Dashed link: a dashed line without markers." },
+        { "term": "()-- and --()", "text": "Lollipop interface: a solid line to a small circle labeled with the name of the interface (Engine --() Runnable)." },
+        { "term": "<|--|>, *--*, o--o, <-->, <..>, *--o", "text": "Two-way: a marker at both ends; any two ends combine, on a solid (--) or a dashed (..) line." },
+        { "term": "A \"1\" --> \"*\" B", "text": "Cardinality: a quoted text before or after the line (\"1\", \"0..1\", \"1..*\", \"many\") is drawn small next to that end." },
+        { "term": "A --> B : text", "text": "Label: the text after the colon is drawn at the middle of the line." },
+        { "term": "class.hideEmptyMembersBox", "text": "Leaves out the empty member compartment of a class that has no members and no methods (default false)." },
+        { "term": "class.hierarchicalNamespaces", "text": "Makes a dotted namespace name (Geo.Plane) a namespace inside another; false draws one namespace of that name (default true)." },
+        { "term": "class.padding", "text": "The padding of a class box, and when it is set, of the namespaces and the notes too, which otherwise pad by 16 and 6 (default 12)." },
+        { "term": "class.defaultRenderer", "text": "Another value selects Mermaid's legacy class diagram, which is drawn the same way (default dagre-wrapper)." },
+        { "term": "state.nodeSpacing", "text": "The space between the classes of a rank (default 50)." },
+        { "term": "state.rankSpacing", "text": "The space between the ranks (default 50)." },
+        { "term": "state.titleTopMargin", "text": "The margin above the title (default 25)." },
+        { "term": "htmlLabels", "text": "false draws the texts of the class boxes as SVG text instead of HTML labels; such a box is within a pixel of Mermaid's (default unset)." },
+        { "term": "flowchart.curve", "text": "The curve of the relation lines (default basis)." },
+        { "term": "class.nodeSpacing, class.rankSpacing, class.titleTopMargin", "text": "Accepted, and without effect as in Mermaid; the state keys above apply instead (default unset)." },
+        { "term": "class.htmlLabels, class.diagramPadding, class.useMaxWidth", "text": "Accepted, and without effect as in Mermaid (default unset)." }
       ]
     },
     {
       "id": "unsupported",
       "title": "Not supported (reported, never silently dropped)",
       "items": [
-        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, and sequenceDiagram); the picture is empty." },
-        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). Class, state, entity relationship, pie, gantt, and mindmap diagrams are planned later." },
+        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, and classDiagram); the picture is empty." },
+        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). State, entity relationship, pie, gantt, and mindmap diagrams are planned later." },
         { "term": "mermaid-icon-unsupported", "text": "An icon (fa:fa-car in a label, an @{ icon: ... } node, an icon in the properties of a sequence participant); the node or participant keeps its shape and label without the icon." },
         { "term": "mermaid-math-unsupported", "text": "Math ($$...$$, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written." },
         { "term": "mermaid-look-unsupported", "text": "A look other than classic (handDrawn, neo); the diagram is drawn classic." },
@@ -93,17 +135,22 @@
         { "text": "info lays the diagram out without the pictures of its nodes (it reads no other file), so a picture node without w and h can make the drawn diagram a little larger or smaller than the size info reports (with --width or --height it is fitted into the box); give an @{ img } node its w and h (constraint on) so that the layout does not depend on the picture. A render without --width and --height reports the natural size of the diagram it drew (the natural size of render --json); a library render of the diagram file without a size (CanvasNetViewer.Render) also charges its pixel budget for that drawn size, while a document that embeds the diagram always gives it a size." },
         { "text": "A diagram is drawn over white unless --background says otherwise (Mermaid's SVG is transparent); as a picture in an SVG file it stays transparent." },
         { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor); these are a located mermaid-error instead." },
-        { "text": "Interaction (click, href, call, and tooltips) is read and ignored without a report, because a picture is static." },
+        { "text": "Interaction (click, href, call, tooltips, and the link and callback of a class diagram) is read and ignored without a report, because a picture is static." },
         { "text": "Mermaid draws a broken sequence diagram or fails for an empty block (a block with no message or note inside), for link or links on an actor, boundary, control, or entity participant, and for a properties icon that is not text; these are a located mermaid-render-failed instead." },
         { "text": "$$ math is drawn and measured as written (mermaid-math-unsupported), and textPlacement: fo (HTML labels) is drawn with the default placement." },
         { "text": "The color keywords and system colors of a box or a rect background take the values of headless Chrome in the light scheme (system colors depend on the platform in a browser)." },
-        { "text": "The width of a text is the advance of its glyphs grown to the pixels its first and last glyphs reach, as Chrome measures it; for fonts or sizes other than those of the reference diagrams, a width can differ by a pixel, which can move the margins by up to a pixel." }
+        { "text": "The width of a text is the advance of its glyphs grown to the pixels its first and last glyphs reach, as Chrome measures it; for fonts or sizes other than those of the reference diagrams, a width can differ by a pixel, which can move the margins by up to a pixel." },
+        { "text": "With htmlLabels: false the texts of a class box are SVG text, whose box Chrome takes from the glyphs it draws at their place on the pixel grid, so such a class box can differ from Mermaid's by up to a pixel." },
+        { "text": "Mermaid's fix-up of an SVG class text that holds &gt (a generic) is not ported; the entities are decoded instead, which gives the same characters for a text of one line." },
+        { "text": "$$ math in a class text is drawn and measured as written, without a report." },
+        { "text": "A style declaration of a class diagram outside the supported subset is reported at the first mention of the class, not at the style statement." }
       ]
     }
   ],
   "examples": [
     { "name": "flowchart", "kind": "source", "language": "mermaid", "fileName": "flowchart.mmd", "description": "A small flowchart with a decision, a subgraph, link labels, and a class." },
     { "name": "sequence", "kind": "source", "language": "mermaid", "fileName": "sequence.mmd", "description": "A small sequence diagram with an actor, an activation, numbered messages, an alt block, and a note." },
+    { "name": "class", "kind": "source", "language": "mermaid", "fileName": "class.mmd", "description": "A small class diagram with an abstract class, members and methods, a generic, a static method, inheritance, cardinalities, and a note." },
     { "name": "pictures", "kind": "snippet", "language": "mermaid", "fileName": "pictures.mmd", "description": "Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram." },
     { "name": "render", "kind": "command", "language": "shell", "description": "Draw flowchart.mmd and print the JSON result.", "content": "canvasnet render flowchart.mmd -o flowchart.png --json" },
     { "name": "theme", "kind": "command", "language": "shell", "description": "Draw at twice the size in the dark theme over a transparent background.", "content": "canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png" },

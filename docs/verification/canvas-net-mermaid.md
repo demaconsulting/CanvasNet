@@ -121,7 +121,7 @@ themes (`#ECECFF`, `#1F2020`, `#CDE498`, and `#EEEEEE`).
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Fixture_RendersStrictly`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes`,
-`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings` (a theory with one case
 for each file)
 
@@ -141,7 +141,7 @@ links.
 
 **Tests**: `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Fixture_RendersStrictly` (a theory with one case
 for each file), `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors`,
-`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
 
 Opens each of the 24 sequence fixtures by its path (the arrows, participant types, aliases and metadata, activations,
