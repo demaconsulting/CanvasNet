@@ -18,7 +18,7 @@ with the CanvasNet codecs and write them to a temporary directory, so that no bi
 | `baskets.vl.json` | A Vega-Lite bar chart of three inline values (a 120x80 data rectangle, a title, a nominal x axis, and a quantitative y axis). Written by hand for these tests; no data file, no URL, and no custom font. |
 | `mermaid/flow.mmd` | A Mermaid flowchart (left to right) of three nodes, a decision, labeled links, and a loop. Written by hand for these tests. |
 | `mermaid/shipping.mermaid` | A Mermaid flowchart with YAML frontmatter (a title), an accessible title, a subgraph with its own direction, and a class; it uses the second extension. Written by hand for these tests. |
-| `mermaid/sequence.mmd` | A two-line Mermaid sequence diagram, a type this version recognizes but does not draw. Written by hand for these tests. |
+| `mermaid/sequence.mmd` | A two-line Mermaid sequence diagram of two participants and one message. Written by hand for these tests. |
 | `mermaid/class.mmd` | A two-line Mermaid class diagram, a type this version recognizes but does not draw. Written by hand for these tests. |
 <!-- markdownlint-enable MD013 -->
 

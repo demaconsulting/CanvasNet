@@ -1,9 +1,8 @@
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Sequence;
 
 /// <summary>
-///     Subsystem tests of the Sequence subsystem: the parser and the model working together, from a whole text to the
-///     database facts, the metadata and the located errors. Sequence diagrams are not drawn yet, so the document still
-///     reports them as not supported.
+///     Subsystem tests of the Sequence subsystem: the parser, the model, the layout and the renderer working together,
+///     from a whole text to the database facts, the metadata, the located errors and the scene.
 /// </summary>
 public class SequenceTests
 {
@@ -86,15 +85,37 @@ public class SequenceTests
     }
 
     /// <summary>
-    ///     Validates that the document still reports a sequence diagram as known but not supported, until it is drawn.
+    ///     Validates that the document reports a sequence diagram as supported, with its metadata: participants as nodes,
+    ///     arrows as edges, boxes as subgraphs and no direction.
     /// </summary>
     [Fact]
-    public void Sequence_Document_IsStillReportedAsNotSupported()
+    public void Sequence_Document_IsSupportedWithMetadata()
     {
         // Act
-        var document = MermaidDocument.Parse("sequenceDiagram\n    A->>B: x\n");
+        var document = MermaidDocument.Parse("sequenceDiagram\n    box Back end\n    participant A\n    end\n    A->>B: x\n    Note over A: n\n    B-->>A: y\n");
 
         // Assert
-        Assert.Equal(("sequence", false), (document.DiagramType, document.IsSupported));
+        Assert.Equal(("sequence", true), (document.DiagramType, document.IsSupported));
+        Assert.Equal((2, 2, 1), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
+        Assert.Null(document.Direction);
+    }
+
+    /// <summary>
+    ///     Validates that every original sequence fixture lays out into a scene with participants and a positive size.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(Fixtures))]
+    public void Sequence_Layout_Fixture_DrawsParticipants(string name)
+    {
+        // Arrange
+        var text = File.ReadAllText(Path.Combine(FixtureFolder, name));
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+
+        // Assert
+        Assert.True(scene.ViewBox.Width > 0 && scene.ViewBox.Height > 0);
+        Assert.NotEmpty(SceneQuery.OfRole(scene, "actor-top"));
     }
 }

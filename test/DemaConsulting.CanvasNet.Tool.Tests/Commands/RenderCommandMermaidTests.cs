@@ -87,6 +87,31 @@ public class RenderCommandMermaidTests
     }
 
     /// <summary>
+    ///     Test that a sequence diagram is drawn strictly at its natural size, with the participant boxes in the actor
+    ///     fill of the default theme and no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidSequence_DrawsTheParticipants()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "talk.mmd", "sequenceDiagram\n    Alice->>Bob: Hello\n    Bob-->>Alice: Hi\n");
+        var output = directory.Combine("talk.png");
+
+        // Act
+        using var document = RunJson(input, "-o", output, "--strict");
+
+        // Assert: the natural size, a white corner, the actor fill, and no diagnostic
+        var root = document.RootElement;
+        var natural = root.GetProperty("input").GetProperty("natural");
+        using var image = PngCodec.Load(output);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[0, 0]);
+        Assert.True(Count(image, DefaultNodeFill) > 2000);
+        Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
     ///     Test that <c>--theme</c> draws the diagram in that theme (without regard to the case of the name) and records it, that
     ///     the theme of a fragment of the input wins over the option, and that a theme the text sets wins over both.
     /// </summary>

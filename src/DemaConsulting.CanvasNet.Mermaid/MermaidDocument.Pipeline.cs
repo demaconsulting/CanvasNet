@@ -2,6 +2,7 @@ using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
+using DemaConsulting.CanvasNet.Mermaid.Sequence;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid;
@@ -95,7 +96,8 @@ internal sealed record DiagramRenderContext(
 /// <remarks>
 ///     <para>
 ///         The registry is the one place a new diagram type is wired in: the flowchart (<c>flowchart</c> and
-///         <c>graph</c>) is parsed by <see cref="FlowchartParser"/> into a <see cref="FlowchartModel"/>.
+///         <c>graph</c>) is parsed by <see cref="FlowchartParser"/> into a <see cref="FlowchartModel"/>, and the sequence
+///         diagram (<c>sequenceDiagram</c>) by <see cref="SequenceParser"/> into a <see cref="SequenceModel"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -117,8 +119,11 @@ internal static class DiagramRegistry
         ArgumentNullException.ThrowIfNull(detected);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(limits);
-        return detected.IsSupported && detected.DiagramType == "flowchart"
-            ? FlowchartParser.Parse(source, detected, limits)
-            : throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected));
+        return (detected.IsSupported, detected.DiagramType) switch
+        {
+            (true, "flowchart") => FlowchartParser.Parse(source, detected, limits),
+            (true, "sequence") => SequenceParser.Parse(source, detected, limits),
+            _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
+        };
     }
 }

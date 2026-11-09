@@ -44,7 +44,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Sequence;
 ///         concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed class SequenceModel
+internal sealed partial class SequenceModel
 {
     /// <summary>The color keywords and system colors that browsers accept as a color besides the named colors.</summary>
     private static readonly FrozenSet<string> ColorKeywords = new[]

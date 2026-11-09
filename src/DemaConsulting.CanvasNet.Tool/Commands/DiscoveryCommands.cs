@@ -443,7 +443,8 @@ internal static class DiscoveryCommands
         /// <returns>The text, for example <c>1 module</c> or <c>2 modules</c>.</returns>
         private static string Count(int count, string noun)
         {
-            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : "s")}");
+            var plural = noun.EndsWith('x') ? "es" : "s";
+            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : plural)}");
         }
 
         /// <summary>
@@ -477,9 +478,12 @@ internal static class DiscoveryCommands
                 builder.Append(CultureInfo.InvariantCulture, $", {diagram.Type}");
                 builder.Append(diagram.Direction is { } direction ? $" {direction}" : string.Empty);
                 builder.Append(diagram.Supported ? string.Empty : " (not drawn by this version)");
-                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.NodeCount, "node")}");
-                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.EdgeCount, "edge")}");
-                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.SubgraphCount, "subgraph")}");
+
+                // A sequence diagram counts participants, messages and boxes
+                var sequence = diagram.Type == "sequence";
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.NodeCount, sequence ? "participant" : "node")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.EdgeCount, sequence ? "message" : "edge")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.SubgraphCount, sequence ? "box" : "subgraph")}");
                 builder.Append(diagram.Title is { } title ? string.Create(CultureInfo.InvariantCulture, $", title \"{title.ReplaceLineEndings(" ")}\"") : string.Empty);
                 builder.Append(diagram.AccTitle is { } accTitle ? string.Create(CultureInfo.InvariantCulture, $", accTitle \"{accTitle.ReplaceLineEndings(" ")}\"") : string.Empty);
                 builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");

@@ -30,7 +30,7 @@ public class MermaidUnsupportedDiagramTests
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
         Assert.Equal(new MermaidLocation("class.mmd", 2, 1), report.Location);
-        Assert.Equal("class diagrams are planned; supported in this version: flowchart, graph", report.Hint);
+        Assert.Equal("class diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram", report.Hint);
     }
 
     /// <summary>

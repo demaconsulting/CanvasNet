@@ -78,7 +78,7 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 internal static class DiagramDetector
 {
     /// <summary>The keywords of the supported diagram types, for hints.</summary>
-    private static readonly string[] SupportedKeywords = ["flowchart", "graph"];
+    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram"];
 
     /// <summary>
     ///     The known diagram types in Mermaid's detection order: the detector id, the public type name, the support and
@@ -109,7 +109,7 @@ internal static class DiagramDetector
         new("info", "info", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "info")),
         new("pie", "pie", DiagramSupport.Planned, (text, _) => StartsWithKeyword(text, "pie")),
         new("requirement", "requirement", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "requirement")),
-        new("sequence", "sequence", DiagramSupport.Planned, (text, _) => StartsWithKeyword(text, "sequenceDiagram")),
+        new("sequence", "sequence", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "sequenceDiagram")),
         new("swimlane", "swimlane", DiagramSupport.NotPlanned, (text, _) => StartsWithWord(text, "swimlane-beta", false)),
         new("flowchart-v2", "flowchart", DiagramSupport.Supported, (text, settings) =>
             settings.FlowchartRenderer != "dagre-d3" &&
