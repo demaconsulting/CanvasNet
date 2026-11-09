@@ -75,7 +75,8 @@ size and a raster fitted into the box (or scaled for one dimension), that `MaxDe
 keeps the default, a cap that fits renders, a smaller cap throws `ImageSourceBudgetException`, a negative one is
 rejected), that a Mermaid diagram whose picture node without `w` and `h` (a 400 by 300 PNG) enlarges the layout is held
 to `MaxDecodedPixels` at its drawn size (300 000 pixels, enough for both picture loads and the probed size, throws
-`ImageSourceBudgetException`; 400 000 draws it larger than the probed size, about 416 by 316), that a width or height
+`ImageSourceBudgetException` whose requested pixels are those of the drawn surface; 400 000 draws it larger than the
+probed size, about 416 by 316), that a width or height
 of 0, -1, or `Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException`
 (parameter `options`, message naming `ViewerRenderOptions.Width` or `Height`) before the file is read while 1 and
 `Surface.MaxDimension` pass the validation, that the final buffer of a resized render is charged to the budget in

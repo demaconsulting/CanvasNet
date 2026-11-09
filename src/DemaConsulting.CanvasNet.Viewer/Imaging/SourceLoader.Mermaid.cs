@@ -418,13 +418,21 @@ public static partial class SourceLoader
             // and h takes the size of its picture), which the probe measured without them: the pixels drawn beyond the
             // charge are charged now (the surface is refused when they do not fit), and the natural size and the render
             // operation report the size that was drawn
-            var excess = (long)surface.Width * surface.Height - (long)width * height;
+            var drawnPixels = (long)surface.Width * surface.Height;
+            var excess = drawnPixels - (long)width * height;
             if (excess > 0)
             {
                 try
                 {
                     // At most Surface.MaxDimension squared, so it fits an int; charged as one row of pixels
                     Context.ChargeSurface((int)excess, 1);
+                }
+                catch (ImageSourceBudgetException ex)
+                {
+                    // The refusal names the whole surface against what remains once the charge before the draw is given
+                    // back (the resolver refunds it), as the resolver reports a surface larger than its charge
+                    surface.Dispose();
+                    throw new ImageSourceBudgetException(drawnPixels, ex.RemainingPixels + ((long)width * height));
                 }
                 catch
                 {

@@ -782,7 +782,7 @@ sections:
           such a link when the strict option is set; name both files when a picture that is found cannot be loaded;
           and, when a picture node without its w and h makes a diagram drawn at its natural size larger than the probe
           measured, charge the load with the size of the surface it returns (refusing it when that does not fit) and
-          report the natural size of the drawn diagram.
+          report the natural size of the drawn diagram (the drawn size over the scale).
         justification: |
           A diagram on the command line must show the files beside it exactly as an SVG drawing and a chart do, under
           the same sandbox, notes, and strict policy, so a diagram can never read a file outside its folder, and an
@@ -797,6 +797,7 @@ sections:
           - SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture
           - SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize
           - SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget
+          - SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartParameters
         title: >-

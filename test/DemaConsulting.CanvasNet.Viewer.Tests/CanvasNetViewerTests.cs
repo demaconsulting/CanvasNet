@@ -199,6 +199,7 @@ public class CanvasNetViewerTests
         using var drawn = CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 400_000 });
 
         // Assert: the refusal is for the drawn pixels, and the diagram that fits is drawn larger than the probe measured
+        Assert.Equal((long)drawn.Surface.Width * drawn.Surface.Height, refused.RequestedPixels);
         Assert.True(refused.RequestedPixels > refused.RemainingPixels);
         Assert.True(drawn.Surface.Width > probe.Width && drawn.Surface.Height > probe.Height);
         Assert.InRange(drawn.Surface.Width, 400, 440);

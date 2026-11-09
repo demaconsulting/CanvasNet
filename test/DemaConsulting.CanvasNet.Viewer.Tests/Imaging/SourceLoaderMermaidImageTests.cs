@@ -262,8 +262,8 @@ public class SourceLoaderMermaidImageTests
     }
 
     /// <summary>
-    ///     Test that a diagram drawn at its natural size whose picture node enlarges it beyond the pixel budget is refused, even
-    ///     though the size the probe measured without the picture fits.
+    ///     Test that a diagram drawn at its natural size whose picture node enlarges it beyond the pixel budget is refused for
+    ///     the pixels of the whole drawn surface, even though the size the probe measured without the picture fits.
     /// </summary>
     [Fact]
     public void SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget()
@@ -288,8 +288,43 @@ public class SourceLoaderMermaidImageTests
             },
         };
         using var pages = SourceLoader.OpenInputPages(input, probe, new SourceOptions(), context);
+        using var unlimitedPages = SourceLoader.OpenInputPages(input, probe, new SourceOptions(), new SourceLoader.LoadContext());
+        using var unlimited = unlimitedPages.ReadPage(1);
 
-        // Act / Assert
-        Assert.Throws<ImageSourceBudgetException>(() => pages.ReadPage(1).Dispose());
+        // Act
+        var refused = Assert.Throws<ImageSourceBudgetException>(() => pages.ReadPage(1).Dispose());
+
+        // Assert: the refusal names the whole drawn surface against the full budget (the charge before the draw given
+        // back), and the hook holds only that charge, not the refused rest
+        Assert.Equal((long)unlimited.Surface.Width * unlimited.Surface.Height, refused.RequestedPixels);
+        Assert.Equal(Budget, refused.RemainingPixels);
+        Assert.Equal((long)probe.Width * probe.Height, charged);
+    }
+
+    /// <summary>
+    ///     Test that a diagram whose picture node enlarges it, drawn at a scale, reports the natural size of the diagram drawn
+    ///     at a scale of 1 (the drawn size over the scale) and returns a surface of that size times the scale.
+    /// </summary>
+    /// <param name="scale">The scale of the load.</param>
+    [Theory]
+    [InlineData(2.0)]
+    [InlineData(1.5)]
+    public void SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize(double scale)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var (input, probe) = WriteEnlargingPicture(directory);
+        using var naturalPages = SourceLoader.OpenInputPages(input, probe, new SourceOptions(), new SourceLoader.LoadContext());
+        using var natural = naturalPages.ReadPage(1);
+
+        // Act
+        using var scaledPages = SourceLoader.OpenInputPages(input, probe, new SourceOptions { Scale = scale }, new SourceLoader.LoadContext());
+        using var scaled = scaledPages.ReadPage(1);
+
+        // Assert: the natural size is the drawn size at scale 1, and the surface is that size times the scale
+        Assert.Equal((natural.Surface.Width, natural.Surface.Height), (scaled.Info.Width, scaled.Info.Height));
+        Assert.Equal(
+            ((int)Math.Round(scaled.Info.Width * scale, MidpointRounding.AwayFromZero), (int)Math.Round(scaled.Info.Height * scale, MidpointRounding.AwayFromZero)),
+            (scaled.Surface.Width, scaled.Surface.Height));
     }
 }

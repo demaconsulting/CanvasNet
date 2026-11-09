@@ -387,7 +387,10 @@ the draw: a surface larger than the charge is charged the rest (as one row of th
 `Charge` hook) before it is returned, and is disposed and refused when the rest does not fit. The surface is therefore
 allocated before the excess is validated, bounded by `Surface.MaxDimension` squared, as the resolver already accepts for
 a source that under-charges; measuring with the pictures first would resolve every picture a third time and lay the
-diagram out once more. The `SourceInfo` of the result then carries the natural size of the drawn diagram (the drawn size
+diagram out once more. A refusal reports the pixels of the whole surface and the budget left once the charge before the
+draw is refunded. When the pictures make the diagram smaller than the probe, the larger probed size stays charged:
+`LoadContext` has no way to give pixels back, and that over-charge, bounded by the probed size, only makes the budget
+stricter. The `SourceInfo` of the result then carries the natural size of the drawn diagram (the drawn size
 over the scale, rounded, at least one pixel; exact at a scale of 1 or more), so the loaded picture's size and charge are
 the drawn size while `info` still reports the size without the pictures. The operation recorded is `render` with the
 `width` and the `height` of the surface that was drawn, the `background`, and, when one is set, the `theme`.

@@ -693,8 +693,9 @@ and its mark types.
 **SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused**,
 **SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles**,
 **SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture**,
-**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize**, and
-**SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget** (`SourceLoaderMermaidImageTests.cs`):
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize**,
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget**, and
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize** (`SourceLoaderMermaidImageTests.cs`):
 diagrams with picture nodes (`@{ img: ... }`) are loaded from a temporary folder through the real sandboxed resolver of
 the viewer. A flowchart whose two nodes show the model of the fixtures (`part.scad`, 120 by 120) and the two-bar chart
 (`chart.vl.json`) draws more than 500 pixels of the bar color and changes more than 500 pixels of the half that holds
@@ -715,7 +716,10 @@ the one `embed` operation `sub/flow.mmd`. A diagram whose one picture node has n
 PNG, loaded at its natural size with a recording `Charge` hook, returns a surface larger than the probed size, the
 charges add up to exactly the pixels of that surface, and the natural size of the result equals the surface size. The
 same diagram under a `Charge` hook that holds a budget of 10 000 pixels (more than the probed size, less than the drawn
-one) throws `ImageSourceBudgetException`.
+one) throws `ImageSourceBudgetException` whose requested pixels are the pixels of the surface drawn without a budget and
+whose remaining pixels are the whole 10 000 (the charge before the draw given back), and the hook holds only the probed
+size. Loaded at a scale of 2 and of 1.5, the same diagram reports the natural size of the diagram drawn at a scale of 1
+and returns a surface of that size times the scale, rounded.
 
 **Chart parameters** (`SourceLoader_Load_ChartOptions_AreAppliedAndReportedInTheOperation`,
 `SourceLoader_Load_InvalidChartOptions_ThrowsUsageErrorBeforeTouchingTheFile`, and the tests of
