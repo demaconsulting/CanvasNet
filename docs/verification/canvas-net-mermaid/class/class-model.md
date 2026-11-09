@@ -156,7 +156,7 @@ count; and that with `MaxNodes` of 3 the namespace `Geo.Plane` with one class, t
 accepted with one node and two subgraphs. Asserts that with `MaxLabelLength` of 10 the nested namespace `Bravo` in
 `Alpha`, whose qualified id `Alpha.Bravo` is 11 characters long although each name fits, is refused at its name
 (line 3, column 15) with the message `a label is 11 characters long` that names `MermaidLimits.MaxLabelLength`, while
-a nested name one character shorter, giving a qualified id of 10 characters, is accepted; and that
+the nested namespace `Beta`, giving the 10-character qualified id `Alpha.Beta`, is accepted; and that
 `class A~Type~["Labels"]`, whose drawn name `Labels<Type>` is 12 characters long although the name and the label each
 fit, is refused at the class name (line 2, column 7) with the message `a label is 12 characters long`, while
 `class A~Type~["Name"]` is accepted with the drawn name `Name<Type>`.

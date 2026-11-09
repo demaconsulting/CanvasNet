@@ -361,14 +361,14 @@ public class ClassModelTests
         // Act
         var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(
             "classDiagram\nnamespace Alpha {\n    namespace Bravo {\n        class C\n    }\n}\n", null, limits));
-        var accepted = ClassFacts.Parse("classDiagram\nnamespace Alpha {\n    namespace Brav {\n        class C\n    }\n}\n", null, limits);
+        var accepted = ClassFacts.Parse("classDiagram\nnamespace Alpha {\n    namespace Beta {\n        class C\n    }\n}\n", null, limits);
 
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
         Assert.Equal(new MermaidLocation(null, 3, 15), ex.Location);
         Assert.Contains("a label is 11 characters long", ex.Message, StringComparison.Ordinal);
         Assert.Contains("MermaidLimits.MaxLabelLength", ex.Message, StringComparison.Ordinal);
-        Assert.Equal("Alpha.Brav", accepted.Namespaces[^1].Id);
+        Assert.Equal("Alpha.Beta", accepted.Namespaces[^1].Id);
     }
 
     /// <summary>
