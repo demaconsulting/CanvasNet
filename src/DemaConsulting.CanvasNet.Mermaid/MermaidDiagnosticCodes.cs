@@ -56,7 +56,10 @@ public static class MermaidDiagnosticCodes
     /// <summary>A configuration key that Mermaid does not define is ignored (a warning).</summary>
     public const string ConfigUnknownKey = "mermaid-config-unknown-key";
 
-    /// <summary>A configuration value has the wrong type or range; the default is kept (a warning).</summary>
+    /// <summary>
+    ///     A configuration value has the wrong type or range; it is ignored and the value of the lower layer is
+    ///     kept (a warning).
+    /// </summary>
     public const string ConfigInvalid = "mermaid-config-invalid";
 
     /// <summary>A node uses a shape name that Mermaid does not define; the hint names the nearest shape.</summary>
