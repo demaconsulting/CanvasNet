@@ -138,3 +138,13 @@ sections:
                   - LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid
                   - LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch
                   - LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-InheritedWeight
+                title: >-
+                  The LabelBuilder unit shall draw an SVG label in the font weight of its element when the label
+                  inherits it, as the bold name of a class box is drawn in an SVG label.
+                justification: |
+                  Mermaid's SVG class names inherit the bold weight of their group; the weight changes the width of
+                  the name and so the size of the class box.
+                tests:
+                  - LabelBuilder_Build_SvgInheritsWeight_DrawsTheLabelBold

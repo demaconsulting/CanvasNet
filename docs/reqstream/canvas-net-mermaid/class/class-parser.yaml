@@ -1,0 +1,90 @@
+---
+# Software Unit Requirements for ClassParser
+#
+# These requirements describe the design-level behavior of the ClassParser unit of the Class subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Class): the lexer and the grammar of the class diagram language of the
+# pinned Mermaid release, the statements it hands to the class database in Mermaid's order, the located errors with
+# Mermaid's expected tokens, and the limits checked while the text is read. See
+# docs/verification/canvas-net-mermaid/class/class-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Class Requirements
+        sections:
+          - title: ClassParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Class-ClassParser-Tokens
+                title: >-
+                  The ClassParser unit shall split a class diagram text into the tokens that Mermaid's class lexer
+                  produces, including a direction statement anywhere on its line, keywords inside generics and
+                  backticks, a name of exactly o as an aggregation end and every other name that starts with o as a
+                  name, a class body line as one member, the letters of every script in names, and labels that run to
+                  the next colon or line break, while keeping every token located in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in many corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - ClassParser_Parse_UpstreamVector_MatchesMermaid
+                  - ClassParser_Parse_DirectionAnywhereOnTheLine_IsDirectionStatement
+                  - ClassParser_Parse_NamesStartingWithO_AreNames
+                  - ClassParser_Parse_ClassNames_FollowTheGrammar
+
+              - id: CanvasNetMermaid-Class-ClassParser-Grammar
+                title: >-
+                  The ClassParser unit shall accept exactly the texts that the class grammar of the pinned Mermaid
+                  release accepts - class statements with labels, generics, style classes, and bodies, member lines,
+                  the relation forms with cardinalities and labels, lollipops, annotations, namespaces, notes, the
+                  classDef, cssClass, and style statements, the click, link, and callback statements, the direction,
+                  and the accessibility statements - and shall hand the class database the same operations, in the
+                  same order, as Mermaid's parser hands them.
+                justification: |
+                  DOM ids, style classes, and namespace membership depend on the order of the statements, and the
+                  layout depends on all of them.
+                tests:
+                  - ClassParser_Parse_UpstreamVector_MatchesMermaid
+                  - ClassParser_Vectors_FileHasEnoughCases_AtLeast120
+                  - ClassParser_Parse_ClassStatement_AddsClassWithLabelClassAndMembers
+                  - ClassParser_Parse_RelationForm_MapsToRelationCodes
+                  - ClassParser_Parse_RelationWithCardinalitiesAndLabel_KeepsThem
+                  - ClassParser_Parse_LoneName_DoesNothing
+                  - ClassParser_Parse_ClickStatements_KeepLinkData
+
+              - id: CanvasNetMermaid-Class-ClassParser-Errors
+                title: >-
+                  The ClassParser unit shall refuse a token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's parser lists, with a hint;
+                  shall refuse text that no lexer rule matches, such as a statement semicolon, with a located error;
+                  and shall fail an unclosed class body at its end, as Mermaid does.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to
+                  write and where.
+                tests:
+                  - ClassParser_Parse_MissingTarget_ThrowsLocatedErrorWithExpectedTokens
+                  - ClassParser_Parse_UnclosedBody_FailsAtTheEndOfTheBody
+                  - ClassParser_Parse_Semicolon_IsLexicalError
+                  - ClassParser_Parse_DirectionOnTheKeywordLine_FailsLikeMermaid
+                  - ClassParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Class-ClassParser-LinearTime
+                title: >-
+                  The ClassParser unit shall read a name made of many tokens and a text of many statements without
+                  recursion that grows with the text and without matching work that grows faster than the length of
+                  the text.
+                justification: |
+                  The text is untrusted; a long name or a long text must not exhaust the stack or cost quadratic time.
+                tests:
+                  - ClassParser_Parse_NameOfManyTokens_IsReadIteratively
+
+              - id: CanvasNetMermaid-Class-ClassParser-Limits
+                title: >-
+                  The ClassParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
+                  located at the element that breaches it, namespaces nested deeper than MaxNestingDepth and a name,
+                  member, or text longer than MaxLabelLength.
+                justification: |
+                  The size of the model, and so the cost of every later stage, must be bounded while untrusted text is
+                  read.
+                tests:
+                  - ClassParser_Parse_NamespacesTooDeep_ThrowsLimitExceeded
+                  - ClassParser_Parse_LongMember_ThrowsLimitExceeded

@@ -229,6 +229,7 @@ sections:
           - RenderCommand_Run_Mermaid_WritesTheDiagramAndDescribesIt
           - RenderCommand_Run_MermaidPie_IsUnsupportedDiagnosticThenStrictError
           - RenderCommand_Run_MermaidSequence_DrawsTheParticipants
+          - RenderCommand_Run_MermaidClass_DrawsTheClassBoxes
           - RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract
           - RenderCommand_Metadata_DescribesCommandAndOptions
 

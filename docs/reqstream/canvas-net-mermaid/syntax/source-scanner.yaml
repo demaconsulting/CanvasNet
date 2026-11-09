@@ -88,3 +88,13 @@ sections:
                   time.
                 tests:
                   - ScanPatterns_Matchers_BehaveAsRegexParts
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-UnicodeLetters
+                title: >-
+                  The SourceScanner unit shall classify the letters outside ASCII that the UNICODE_TEXT rule of
+                  Mermaid's grammars matches, the same letters for every grammar that uses the rule.
+                justification: |
+                  The flowchart and class grammars accept names in every script through the same rule; one shared
+                  definition keeps them accepting the same letters as Mermaid.
+                tests:
+                  - ScanPatterns_IsUnicodeLetter_FollowsTheGrammarLetters

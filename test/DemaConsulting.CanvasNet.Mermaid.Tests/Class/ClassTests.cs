@@ -129,4 +129,92 @@ public class ClassTests
         Assert.Equal(("class", "class"), (model.MermaidId, data.DiagramType));
         Assert.Single(data.Edges);
     }
+
+    /// <summary>
+    ///     Validates that the document reports a class diagram as supported, with its metadata: classes as nodes,
+    ///     relations as edges, namespaces as subgraphs (notes, lollipop interfaces and note links not counted) and the
+    ///     direction statement.
+    /// </summary>
+    [Fact]
+    public void Class_Document_IsSupportedWithMetadata()
+    {
+        // Act
+        var document = MermaidDocument.Parse("classDiagram-v2\n    direction RL\n    namespace Shop {\n        class Order\n    }\n" +
+            "    Order --> Line\n    Line --() Priced\n    note for Order \"n\"\n");
+
+        // Assert
+        Assert.Equal(("class", true), (document.DiagramType, document.IsSupported));
+        Assert.Equal((2, 2, 1), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
+        Assert.Equal("RL", document.Direction);
+    }
+
+    /// <summary>
+    ///     Validates that every original class fixture lays out into a scene with a class box for each class, the
+    ///     relations as edges and a positive size.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(Fixtures))]
+    public void Class_Layout_Fixture_DrawsClassBoxesAndRelations(string name)
+    {
+        // Arrange
+        var text = File.ReadAllText(Path.Combine(FixtureFolder, name));
+        var model = ClassFacts.Parse(text, name);
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+
+        // Assert
+        Assert.True(scene.ViewBox.Width > 0 && scene.ViewBox.Height > 0);
+        var nodes = SceneQuery.Nodes(scene);
+        Assert.All(model.Classes, node => Assert.Contains(node.DomId, nodes.Keys));
+        Assert.True(SceneQuery.Edges(scene).Count >= model.Relations.Count);
+    }
+
+    /// <summary>
+    ///     Validates that what the subsystem does not draw as Mermaid does is reported in order at its location - the look
+    ///     and the layout as unsupported features - and that the diagram is still drawn.
+    /// </summary>
+    [Fact]
+    public void Class_Render_UnsupportedFeatures_AreReported()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n  layout: elk\n---\nclassDiagram\n    Order --> Line\n";
+        var document = MermaidDocument.Parse(Text, new MermaidOpenOptions { SourceName = "c.mmd" });
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(size.Width > 16 && size.Height > 16);
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LookUnsupported, 3), (MermaidDiagnosticCodes.LayoutUnsupported, 4)],
+            unsupported.Select(u => (u.Feature, u.Location.Line)));
+        Assert.Empty(warnings);
+    }
+
+    /// <summary>
+    ///     Validates that the interaction statements (<c>click</c>, <c>link</c> and <c>callback</c>) open, draw nothing
+    ///     and report nothing, even in strict mode.
+    /// </summary>
+    [Fact]
+    public void Class_Render_InteractionStatements_AreIgnoredSilently()
+    {
+        // Arrange
+        const string Text = "classDiagram\n    class Order\n    class Line\n    Order --> Line\n    link Order \"https://example.com\" \"Orders\"\n" +
+            "    click Line href \"https://example.com/line\"\n    callback Order \"showOrder\" \"Show\"\n";
+        const string Plain = "classDiagram\n    class Order\n    class Line\n    Order --> Line\n";
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting(strict: true);
+
+        // Act
+        var scene = SceneQuery.Layout(Text, options);
+        var plain = SceneQuery.Layout(Plain);
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+        Assert.Equal(plain.ViewBox, scene.ViewBox);
+        Assert.Equal(SceneQuery.Nodes(plain).Keys.Order(StringComparer.Ordinal), SceneQuery.Nodes(scene).Keys.Order(StringComparer.Ordinal));
+    }
 }

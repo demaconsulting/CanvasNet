@@ -154,3 +154,18 @@ sections:
                   - MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues
                   - MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted
                   - MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
+                title: >-
+                  The MermaidConfigResolver unit shall give typed access to the class section with Mermaid's effective
+                  defaults (padding, hideEmptyMembersBox, hierarchicalNamespaces, and the default renderer), take the
+                  node spacing, rank spacing, and title margin of a class diagram from the state section as Mermaid's
+                  class renderer does, and report as mermaid-config-invalid, and leave without effect, a class or
+                  state value of the wrong type.
+                justification: |
+                  The layout and the drawing of a class diagram read these settings, and Mermaid's class renderer
+                  reads its spacing from the state section, which authors see in its picture.
+                tests:
+                  - MermaidConfigResolver_Resolve_ClassDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_ClassSpacingFromState_FollowsClassRenderer
+                  - MermaidConfigResolver_Resolve_ClassInvalidValues_ReportedAndIgnored

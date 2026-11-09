@@ -29,10 +29,12 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-Directives
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-TypedView
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ThemeOption_NodeFill
               - Configuration_ResolveSequenceSectionAndStyles_FullText
+              - Configuration_ResolveClassSectionAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Reports
             title: >-
@@ -49,8 +51,10 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-InvalidValues
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-ThemeRecovery
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-SilentResolution
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
+              - Configuration_ResolveClassSectionAndStyles_FullText
               - Configuration_Document_RenderDeliversConfigurationWarnings
               - Configuration_Document_UnsupportedType_ConfigurationSilent
 
@@ -79,10 +83,10 @@ sections:
 
           - id: CanvasNetMermaid-Configuration-StyleSheet
             title: >-
-              The Configuration subsystem shall resolve the paint and fonts of the element classes of flowcharts and
-              sequence diagrams from the style sheets Mermaid writes for them with the theme variables of the
-              configuration, apply the themeCSS rules of the diagram's own selectors after them, and report every other
-              themeCSS rule as the unsupported feature mermaid-theme-css-unsupported.
+              The Configuration subsystem shall resolve the paint and fonts of the element classes of flowcharts,
+              sequence diagrams, and class diagrams from the style sheets Mermaid writes for them with the theme
+              variables of the configuration, apply the themeCSS rules of the diagram's own selectors after them, and
+              report every other themeCSS rule as the unsupported feature mermaid-theme-css-unsupported.
             justification: |
               Mermaid paints a diagram through CSS rules built from the theme; reproducing those rules and the
               user's overrides of them gives the same paint without a browser, and a rule that cannot be applied
@@ -90,6 +94,7 @@ sections:
             children:
               - CanvasNetMermaid-Configuration-ThemeResolver-FlowchartStyles
               - CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet
               - CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
               - CanvasNetMermaid-Configuration-ThemeResolver-InvalidDeclarations
               - CanvasNetMermaid-Configuration-StyleDeclarations-StyleSheets
@@ -97,6 +102,7 @@ sections:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ThemeOption_NodeFill
               - Configuration_ResolveSequenceSectionAndStyles_FullText
+              - Configuration_ResolveClassSectionAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Declarations
             title: >-

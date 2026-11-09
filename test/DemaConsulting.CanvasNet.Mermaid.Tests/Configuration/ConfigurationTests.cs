@@ -76,6 +76,36 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a class diagram text that configures its section and its style at once: the class settings and the
+    ///     state spacing the class renderer reads take effect, a <c>themeCSS</c> rule of a class selector overrides the
+    ///     theme, the class box paint comes from the theme, and a class value of the wrong type is reported at its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolveClassSectionAndStyles_FullText()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  theme: forest\n  class:\n    padding: 5\n    hideEmptyMembersBox: maybe\n  state:\n    nodeSpacing: 80\n---\n" +
+                            "%%{init: {'themeCSS': '.divider { stroke: #ff0000 }'}}%%\n" +
+                            "classDiagram\n  class A\n";
+        var source = Preprocessor.Run(Text, "class.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var config = MermaidConfigResolver.Resolve(source, "classDiagram", null, sink);
+        var styles = ClassStyles.Create(config, sink);
+        var warnings = new List<MermaidDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert
+        Assert.Equal("forest", config.Theme);
+        Assert.Equal(((double?)5, false, 80.0), (config.Class.Padding, config.Class.HideEmptyMembersBox, config.Class.NodeSpacing));
+        Assert.Equal(CssColor.Parse("#ff0000"), styles.Divider.Stroke);
+        Assert.Equal(CssColor.Parse(config.ThemeVariable("mainBkg")!), styles.Node.Fill);
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (warning.Code, warning.Location.Line));
+    }
+
+    /// <summary>
     ///     Validates that each of the five themes gives the flowchart its node fill (the theme's <c>mainBkg</c>) through
     ///     the site theme option.
     /// </summary>

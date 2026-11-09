@@ -134,6 +134,30 @@ public sealed class RenderingTests
     }
 
     /// <summary>
+    ///     Checks a class diagram end to end through the unified renderer: the class boxes, the relation label, the
+    ///     cardinalities at both ends of a relation and the view box are Mermaid's, and the dependency marker ends the
+    ///     relation.
+    /// </summary>
+    [Fact]
+    public void Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid()
+    {
+        // Act
+        var scene = SceneQuery.Layout(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "class", "08-cardinality-labels.mmd")));
+
+        // Assert
+        AssertBox(new SceneRect(0, 0, 429.629, 416), scene.ViewBox);
+        var nodes = SceneQuery.Nodes(scene);
+        AssertBox(new SceneRect(292.273, 8, 98.688, 84), nodes["classId-Customer-0"].Box);
+        AssertBox(new SceneRect(174.469, 166, 67.578, 84), nodes["classId-Order-1"].Box);
+        var label = SceneQuery.EdgeLabels(scene)["id_Customer_Order_1"];
+        Assert.Equal(277.715, label.X, 0.002);
+        Assert.Equal(129, label.Y, 0.002);
+        var terminals = SceneQuery.Terminals(scene)["id_Customer_Order_1"];
+        Assert.Equal([(284.976, 96.172), (259.867, 161.33)], terminals.Select(t => (Math.Round(t.X, 3), Math.Round(t.Y, 3))));
+        Assert.NotEmpty(SceneQuery.OfRole(scene, "marker"));
+    }
+
+    /// <summary>
     ///     Checks an image node: its picture is asked for once, through the caller's resolver, to learn its natural size,
     ///     and the natural aspect ratio sizes the picture of a constrained node of a given height.
     /// </summary>

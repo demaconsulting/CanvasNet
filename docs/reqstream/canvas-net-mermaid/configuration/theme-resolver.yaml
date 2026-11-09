@@ -122,3 +122,20 @@ sections:
                   - SequenceStyles_Create_EachTheme_UsesThemeVariables
                   - SequenceStyles_Create_ThemeCss_OverridesKnownSelectors
                   - SequenceStyles_TryParseFilter_ParsesDropShadow
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a class diagram - the same
+                  global rules as for a flowchart and the class rules - from the theme variables of a configuration,
+                  apply the themeCSS rules of the class diagram's own selectors after them and report every other
+                  themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the class
+                  boxes and their dividers, the namespaces, the node, note, edge, and terminal labels, the edge label
+                  backgrounds, the relation markers, and the title, the title taking the root font as Mermaid's class
+                  title does.
+                justification: |
+                  Mermaid paints a class diagram through these rules; resolving them the same way gives the same
+                  paint.
+                tests:
+                  - ClassStyles_Create_DefaultTheme_ResolvesClassRules
+                  - ClassStyles_Create_DefaultTheme_ResolvesNoteLabelsAndLabelBackgrounds
+                  - ClassStyles_Create_ThemeCss_OverridesKnownSelectors

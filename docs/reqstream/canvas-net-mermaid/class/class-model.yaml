@@ -1,0 +1,170 @@
+---
+# Software Unit Requirements for ClassModel
+#
+# These requirements describe the design-level behavior of the ClassModel unit of the Class subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Class): the class database of the pinned Mermaid release (classes,
+# members, annotations, relations, lollipop interfaces, namespaces, notes, style classes, and links), its located
+# errors and limits, the metadata of the diagram, the mapping to the layout data of the unified renderer, and the
+# class renderer's reports and frame of the drawing. See docs/verification/canvas-net-mermaid/class/class-model.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Class Requirements
+        sections:
+          - title: ClassModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-Class-ClassModel-Classes
+                title: >-
+                  The ClassModel unit shall keep each class once, in the order of its first mention, with the type
+                  parameters of a generic name split from its id and written as Mermaid writes them, its label, and a
+                  DOM id numbered as Mermaid's class counter numbers it within the document.
+                justification: |
+                  The text, the order, and the DOM ids of the classes decide their boxes, their place in the layout,
+                  and the elements that styles and the reference comparison address.
+                tests:
+                  - ClassModel_AddClass_GenericName_SplitsTypeAndNumbersDomIds
+                  - ClassModel_ParseGenericTypes_Text_FollowsMermaid
+
+              - id: CanvasNetMermaid-Class-ClassModel-Members
+                title: >-
+                  The ClassModel unit shall split each member text into the display text, the drawn text, and the
+                  classifier style that Mermaid's class member gives it - visibility, name, parameters, return type,
+                  generics, and the underline of a static ($) and the italic of an abstract (*) member - shall keep an
+                  annotation line as an annotation, and shall keep no member for an empty line.
+                justification: |
+                  Members fill the class box and decide its size; their text and style must be Mermaid's.
+                tests:
+                  - ClassModel_AddMember_MemberText_SplitsLikeMermaid
+                  - ClassModel_AddMember_AnnotationAndEmptyText_AreNotMembers
+
+              - id: CanvasNetMermaid-Class-ClassModel-Errors
+                title: >-
+                  The ClassModel unit shall refuse a statement on which Mermaid's class database fails - an annotation
+                  of a class that does not exist or a method text that Mermaid's member expression cannot read - with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the statement, that carries
+                  Mermaid's own message.
+                justification: |
+                  Mermaid fails the whole render on these statements; the port must fail closed at the same texts and
+                  show the author where.
+                tests:
+                  - ClassModel_AddAnnotation_UnknownClass_ThrowsLocatedError
+                  - ClassModel_AddMember_UnreadableMethod_ThrowsLocatedError
+
+              - id: CanvasNetMermaid-Class-ClassModel-Relations
+                title: >-
+                  The ClassModel unit shall keep each relation with its end types, line type, cardinalities, and label,
+                  shall add an invisible interface node for each lollipop end, and shall map each relation to the
+                  markers and the terminal labels Mermaid draws at its ends.
+                justification: |
+                  Relations carry the meaning of a class diagram; their markers and cardinalities must read as in
+                  Mermaid.
+                tests:
+                  - ClassModel_AddRelation_Lollipop_AddsInterfaceNode
+                  - ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels
+
+              - id: CanvasNetMermaid-Class-ClassModel-Namespaces
+                title: >-
+                  The ClassModel unit shall create a namespace for each namespace statement with its qualified id,
+                  create the implicit ancestors of a dotted or nested name, and keep the classes and notes declared in
+                  it; with class.hierarchicalNamespaces false it shall keep only the declared namespaces, labeled with
+                  their qualified ids, and move their members to the nearest declared namespace.
+                justification: |
+                  Namespaces group classes into the clusters of the drawing, and both of Mermaid's namespace modes
+                  must give Mermaid's clusters.
+                tests:
+                  - ClassModel_AddNamespace_DottedAndNested_CreatesQualifiedNamespaces
+                  - ClassModel_GetData_CompactNamespaces_KeepDeclaredOnly
+
+              - id: CanvasNetMermaid-Class-ClassModel-Notes
+                title: >-
+                  The ClassModel unit shall keep each note with its text, map it to a note node with the styles that
+                  Mermaid's class diagram writes for it, and link a note to its class only when the class exists.
+                justification: |
+                  Notes are drawn as boxes beside their classes; a note for a missing class is drawn alone, as in
+                  Mermaid.
+                tests:
+                  - ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes
+
+              - id: CanvasNetMermaid-Class-ClassModel-Styles
+                title: >-
+                  The ClassModel unit shall apply classDef styles to the classes that carry the style class when it is
+                  defined, and cssClass and style statements to the classes they name, matching names as Mermaid's
+                  DOM-id lookup does, so that a class whose id starts with a digit is not matched.
+                justification: |
+                  The paint of a class box depends on the order of the style statements and on Mermaid's quirks, which
+                  authors see in Mermaid's picture.
+                tests:
+                  - ClassModel_DefineClass_AppliesToClassesThatCarryIt
+                  - ClassModel_SetCssClass_DigitId_MatchesNoClass
+
+              - id: CanvasNetMermaid-Class-ClassModel-Links
+                title: >-
+                  The ClassModel unit shall keep the link, target, tooltip, and callback of a class only as data, and
+                  shall check a link as Mermaid's strict security level checks it.
+                justification: |
+                  A static picture has no interaction, but texts written for Mermaid's browser output must still open,
+                  and an unsafe link must never be kept as written.
+                tests:
+                  - ClassModel_FormatUrl_Link_IsCheckedLikeMermaid
+
+              - id: CanvasNetMermaid-Class-ClassModel-Metadata
+                title: >-
+                  The ClassModel unit shall give the accessible title, the direction (the last direction statement, else
+                  TB), and the numbers of classes, relations, and namespaces drawn under the text's own configuration,
+                  not counting notes, lollipop interfaces, or the links of notes, and no title of its own.
+                justification: |
+                  The counts must keep the meaning of the document's node, edge, and subgraph counts and describe the
+                  diagram that is drawn.
+                tests:
+                  - ClassModel_Metadata_CountsClassesRelationsAndNamespaces
+                  - ClassModel_SubgraphCount_HierarchicalNamespaces_CountsTheKeptNamespaces
+
+              - id: CanvasNetMermaid-Class-ClassModel-Limits
+                title: >-
+                  The ClassModel unit shall refuse, with a located MermaidSyntaxException of code
+                  mermaid-limit-exceeded, more relations than MaxEdges and more classes, namespaces, notes, and
+                  interfaces together than MaxNodes.
+                justification: |
+                  The size of the model, and so the cost of the layout, must be bounded for untrusted text.
+                tests:
+                  - ClassModel_Limits_TooManyRelationsOrNodes_ThrowLimitExceeded
+
+              - id: CanvasNetMermaid-Class-ClassModel-LayoutData
+                title: >-
+                  The ClassModel unit shall map the diagram, under the configuration of a render, to the layout data
+                  that Mermaid's class database gives its renderer - the namespaces as clusters, the classes as class
+                  boxes with their annotations, members, methods, and styles, the notes, the interface nodes, the note
+                  links and the relations with a minimum length of 1, the class markers, the direction, and the
+                  node and rank spacing that Mermaid's class renderer reads from the state section.
+                justification: |
+                  Comparing the layout data with Mermaid's own is the strongest proof that the drawing starts from the
+                  same graph, and the spacing quirk changes every position.
+                tests:
+                  - ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels
+                  - ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes
+                  - ClassModel_GetData_CompactNamespaces_KeepDeclaredOnly
+                  - ClassModel_GetData_Spacing_FollowsTheStateSection
+
+              - id: CanvasNetMermaid-Class-ClassModel-Unsupported
+                title: >-
+                  The ClassModel unit shall report, in order and located at their keys with hints, a look other than
+                  classic (mermaid-look-unsupported) and a layout other than dagre (mermaid-layout-unsupported).
+                justification: |
+                  The host must learn of each setting whose picture differs from Mermaid's, at the place where it is
+                  written.
+                tests:
+                  - ClassModel_ReportUnsupported_LookAndLayout_AreReportedInOrder
+
+              - id: CanvasNetMermaid-Class-ClassModel-Drawing
+                title: >-
+                  The ClassModel unit shall, when it is laid out for a render, deliver its reports first and then draw
+                  the class diagram through the shared rendering with the class style sheet, the frontmatter title
+                  centered above the drawing at the title margin of the state section, and a view box of the drawn
+                  bounds grown by a padding of 8.
+                justification: |
+                  Reports must reach the host before any work is spent on drawing, and the size of the picture must be
+                  Mermaid's.
+                tests:
+                  - ClassModel_Layout_Title_IsAboveTheDrawingInsideThePaddedViewBox

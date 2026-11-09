@@ -392,6 +392,39 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks that the styles a diagram writes itself (a class diagram's note) are applied without reports, while the
+    ///     same styles from the user report the properties this version does not draw; the fill applies either way.
+    /// </summary>
+    /// <param name="trusted">Whether the node's styles are the diagram's own.</param>
+    /// <param name="expectedReports">The expected number of <c>mermaid-style-ignored</c> reports.</param>
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 2)]
+    public void ShapeLibrary_Draw_TrustedNodeStyles_ApplyWithoutReports(bool trusted, int expectedReports)
+    {
+        // Arrange
+        var sink = new MermaidReportSink(100, false);
+        var node = new LayoutNode
+        {
+            Id = "note0",
+            Shape = "note",
+            Label = "n",
+            CssStyles = ["text-align: left", "white-space: nowrap", "fill: #fff5ad", "stroke: #aaaa33"],
+            TrustedStyles = trusted,
+            Location = new MermaidLocation(null, 3, 5),
+        };
+        var warnings = new List<MermaidDiagnostic>();
+
+        // Act
+        var result = ShapeLibrary.Draw(node, Context(new SceneRect(0, 0, 20, 10), sink));
+        sink.Deliver(warnings.Add, null);
+
+        // Assert
+        Assert.Equal(expectedReports, warnings.Count(w => w.Code == MermaidDiagnosticCodes.StyleIgnored));
+        Assert.Contains(result.Items, item => item is ScenePath { Fill: { } fill } && fill == new Rgba32(0xff, 0xf5, 0xad, 255));
+    }
+
+    /// <summary>
     ///     Gets the boxes of the dividers of a drawn class box.
     /// </summary>
     /// <param name="result">The drawn node.</param>

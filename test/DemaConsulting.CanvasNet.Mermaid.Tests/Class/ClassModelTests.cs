@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Mermaid.Class;
+using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Class;
 
@@ -420,6 +421,52 @@ public class ClassModelTests
 
         // Assert
         Assert.Equal((80.0, 70.0), (data.NodeSpacing, data.RankSpacing));
+    }
+
+    /// <summary>
+    ///     Validates that a look other than classic and a layout other than dagre are reported in order, located at their
+    ///     keys, with hints.
+    /// </summary>
+    [Fact]
+    public void ClassModel_ReportUnsupported_LookAndLayout_AreReportedInOrder()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n  layout: elk\n---\nclassDiagram\n    class A\n";
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        ClassModel.ReportUnsupported(ClassFacts.DefaultConfig(Text), sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LookUnsupported, 3), (MermaidDiagnosticCodes.LayoutUnsupported, 4)],
+            reports.Select(r => (r.Feature, r.Location.Line)));
+        Assert.All(reports, r => Assert.NotNull(r.Hint));
+    }
+
+    /// <summary>
+    ///     Validates the class renderer's frame of the drawing: the frontmatter title is drawn centered above the drawing
+    ///     at the state section's title margin, and the view box is the drawn bounds grown by the padding of 8.
+    /// </summary>
+    [Fact]
+    public void ClassModel_Layout_Title_IsAboveTheDrawingInsideThePaddedViewBox()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("---\ntitle: Shapes\n---\nclassDiagram\n    class Shape\n");
+
+        // Act
+        var scene = document.LayoutScene(null, TestContext.Current.CancellationToken);
+
+        // Assert
+        var title = Assert.IsType<SceneText>(Assert.Single(SceneQuery.OfRole(scene, "title")));
+        Assert.Equal((SceneTextAnchor.Middle, -25.0), (title.Anchor, title.Baseline));
+        Assert.True(scene.ViewBox.Encloses(title.Box));
+        var box = SceneQuery.Nodes(scene)["classId-Shape-0"].Box;
+        Assert.Equal(box.X - 8, scene.ViewBox.X, 3);
+        Assert.Equal(box.X + box.Width + 8, scene.ViewBox.X + scene.ViewBox.Width, 3);
+        Assert.Equal(box.Y + box.Height + 8, scene.ViewBox.Y + scene.ViewBox.Height, 3);
     }
 
     /// <summary>

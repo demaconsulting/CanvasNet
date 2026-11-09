@@ -114,3 +114,31 @@ sections:
                 tests:
                   - ShapeLibrary_Draw_ImageWithoutResolver_ReportsAndDrawsNoPicture
                   - ShapeLibrary_Draw_UpstreamVectorWithMermaidLabel_MatchesGeometry
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-ClassBox
+                title: >-
+                  The ShapeLibrary unit shall draw a class box as Mermaid's class box shape does - the annotation, the
+                  name, the members, and the methods stacked with the dividers between them, the extra compartment of
+                  an empty class unless class.hideEmptyMembersBox is set, each text wrapped at Mermaid's width, bold
+                  names, underlined static and italic abstract members, HTML labels unless the top-level htmlLabels
+                  setting is false and SVG labels spaced by Mermaid's text padding otherwise - painted by the style
+                  sheet with the class's own styles winning, and sized and intersected by its rectangle.
+                justification: |
+                  The class box decides the size of every class, and so the whole layout of a class diagram; its parts
+                  must be where Mermaid puts them.
+                tests:
+                  - ShapeLibrary_Draw_ClassBoxWithMembers_StacksGroupsAndDividers
+                  - ShapeLibrary_Draw_EmptyClassBox_DrawsTheExtraCompartment
+                  - ShapeLibrary_Draw_EmptyClassBoxHidden_DrawsTheNameAlone
+                  - ShapeLibrary_Draw_ClassBoxSvgLabels_SpacesTheMembersByTheTextPadding
+                  - ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-TrustedStyles
+                title: >-
+                  The ShapeLibrary unit shall apply the styles that a diagram writes for its own nodes (the alignment,
+                  the white space, and the paint of a class diagram's notes and the hidden lollipop interfaces) without
+                  reports, while still reporting the properties it does not draw when they come from the user.
+                justification: |
+                  A diagram-generated style is not the author's choice; reporting it would warn about every note.
+                tests:
+                  - ShapeLibrary_Draw_TrustedNodeStyles_ApplyWithoutReports

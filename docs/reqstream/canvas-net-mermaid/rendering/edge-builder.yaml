@@ -95,3 +95,43 @@ sections:
                   - EdgeBuilder_MeasureLabel_Text_IsOneLineBox
                   - EdgeBuilder_DrawLabel_Html_IsCenteredWithTwoBackgrounds
                   - EdgeBuilder_DrawLabel_Svg_HasAHalfOpaqueBackground
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-LabelBackgrounds
+                title: >-
+                  The EdgeBuilder unit shall paint the backgrounds of an edge label from the selectors of the
+                  diagram's own style sheet - a class diagram's label background, label span, and label rectangle
+                  rules, a flowchart's paragraph and rectangle rules.
+                justification: |
+                  Each diagram type writes its own edge label rules; a class diagram's labels must have the background
+                  Mermaid's class style sheet gives them.
+                tests:
+                  - EdgeBuilder_DrawLabel_ClassDiagram_UsesTheClassBackgrounds
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-ClassMarkers
+                title: >-
+                  The EdgeBuilder unit shall draw the aggregation, extension, composition, dependency, and lollipop
+                  markers of a class diagram and their start variants in user space with the shape, reference point,
+                  and paint of Mermaid's class markers - the lollipop as an unfilled circle - turned along the
+                  direction of the path at that end, and color them with the relation's stroke color.
+                justification: |
+                  The markers tell the kind of each relation and must look and sit as in Mermaid.
+                tests:
+                  - EdgeBuilder_UserSpaceMarkerOf_ClassArrowTypes_GiveMermaidsMarkers
+                  - EdgeBuilder_DrawUserSpaceMarker_Extension_TipIsSeventeenPixelsFromTheVertex
+                  - EdgeBuilder_DrawUserSpaceMarker_LollipopStart_IsAnUnfilledCircleBehindTheVertex
+                  - EdgeBuilder_Draw_ClassRelation_MarkersFollowTheClassRules
+                  - EdgeBuilder_Draw_ClassRelationStroke_ColorsTheMarkers
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-TerminalLabels
+                title: >-
+                  The EdgeBuilder unit shall place the cardinality labels of a relation beside the start and the end
+                  of its route as Mermaid's terminal label position does, the start label centered and the end label
+                  not, sized as Mermaid sizes HTML and SVG terminal labels, and shall fail with a mermaid-render-failed
+                  error located at the link when the route is too short to place them, as Mermaid's render fails.
+                justification: |
+                  Cardinalities must stand where Mermaid puts them to read as the multiplicity of the right end.
+                tests:
+                  - EdgeBuilder_CalcTerminalLabelPosition_StraightRoute_IsBesideTheWalkedPart
+                  - EdgeBuilder_DrawTerminals_ShortRoute_FailsLocatedAtTheLink
+                  - EdgeBuilder_DrawTerminals_HtmlLabels_StartCenteredEndNot
+                  - EdgeBuilder_DrawTerminals_SvgLabels_StartCenteredOnItsTextBox

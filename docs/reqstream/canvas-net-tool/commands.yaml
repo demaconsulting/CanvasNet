@@ -68,6 +68,7 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
           - CanvasNetTool-Commands-HelpTopics-InputFragments
           - CanvasNetTool-Commands-HelpTopics-Mermaid
+          - CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:

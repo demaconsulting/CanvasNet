@@ -51,6 +51,7 @@ sections:
               - CanvasNetMermaid-Syntax-SourceScanner-ExpectedTokens
               - CanvasNetMermaid-Syntax-SourceScanner-GrammarDefects
               - CanvasNetMermaid-Syntax-SourceScanner-JavaScriptClasses
+              - CanvasNetMermaid-Syntax-SourceScanner-UnicodeLetters
             tests:
               - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
               - Syntax_ScanParserText_AfterFrontmatter_LocatesTokensAndLexicalError

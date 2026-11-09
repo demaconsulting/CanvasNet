@@ -66,3 +66,12 @@ sections:
                   box ignores filters, so the view box must not grow with the shadow.
                 tests:
                   - ScenePath_Shadow_DefaultsToNoneAndKeepsBounds
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-Underline
+                title: >-
+                  The SceneModel unit shall let a text run be marked as underlined, not underlined unless marked.
+                justification: |
+                  Mermaid underlines the static members of a class box; the scene must carry the decoration to the
+                  painter.
+                tests:
+                  - SceneTextRun_Underline_DefaultsToFalse

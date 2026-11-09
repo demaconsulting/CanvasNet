@@ -272,4 +272,17 @@ public class SourceScannerTests
         Assert.True(ScanPatterns.IsJsLineTerminator('\u2028'));
         Assert.False(ScanPatterns.IsJsWordChar('\u00e9'));
     }
+
+    /// <summary>
+    ///     Validates the letters outside ASCII of the <c>UNICODE_TEXT</c> rule that the flowchart and class grammars share:
+    ///     letters of every script are letters, while ASCII (matched by the grammars' own rules), punctuation, white space
+    ///     and the multiplication and division signs inside the Latin-1 letters are not.
+    /// </summary>
+    [Fact]
+    public void ScanPatterns_IsUnicodeLetter_FollowsTheGrammarLetters()
+    {
+        // Act / Assert
+        Assert.All(['\u00aa', '\u00c0', '\u00e9', '\u0416', '\u4e2d'], c => Assert.True(ScanPatterns.IsUnicodeLetter(c), $"U+{(int)c:X4}"));
+        Assert.All(['a', '1', '_', ' ', '\u00a0', '\u00d7', '\u00f7'], c => Assert.False(ScanPatterns.IsUnicodeLetter(c), $"U+{(int)c:X4}"));
+    }
 }
