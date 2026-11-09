@@ -591,6 +591,50 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Validates the horizontal box of an SVG text line: the advance, grown to the rasterizer's boxes of the first and
+    ///     last glyphs as the reference's <c>getBBox</c> gives them (an <c>A</c> reaches one pixel left of the start, a
+    ///     <c>k</c> one pixel past the advance, a final <c>f</c> to the next whole pixel of its own advance).
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_SvgLineExtent_GlyphBoxesAtTheEnds_GrowTheAdvance()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var font = new SceneFont(MermaidConfigResolver.DefaultFontFamily, 16, false, false);
+
+        // Act
+        var (asyncAdvance, asyncLeft, asyncRight) = builder.SvgLineExtent("Async to itself", font);
+        var (dockAdvance, dockLeft, dockRight) = builder.SvgLineExtent("Dock", font);
+        var empty = builder.SvgLineExtent(string.Empty, font);
+
+        // Assert: the widths of the reference boxes (100.258 and 37.453)
+        Assert.Equal(-1, asyncLeft);
+        Assert.Equal(100.258, asyncRight - asyncLeft, 0.02);
+        Assert.Equal(asyncAdvance + 0.555, asyncRight, 0.02);
+        Assert.Equal((0.0, dockAdvance + 1), (dockLeft, dockRight));
+        Assert.Equal((0.0, 0.0, 0.0), empty);
+    }
+
+    /// <summary>
+    ///     Validates the x-height: the top of Liberation Sans's <c>x</c>, 1082 units of 2048, and zero for a size that
+    ///     draws nothing.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_XHeight_IsTheTopOfTheX()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+
+        // Act
+        var regular = builder.XHeight(new SceneFont(MermaidConfigResolver.DefaultFontFamily, 16, false, false));
+        var none = builder.XHeight(new SceneFont(MermaidConfigResolver.DefaultFontFamily, 0, false, false));
+
+        // Assert
+        Assert.Equal(1082.0 / 2048 * 16, regular, 0.01);
+        Assert.Equal(0, none);
+    }
+
+    /// <summary>
     ///     Validates that the lines of a text are measured apart: the widest line's width and the sum of the line heights,
     ///     with an empty line as tall as the others.
     /// </summary>

@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
+using DemaConsulting.CanvasNet.Rendering;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 
@@ -25,7 +26,7 @@ internal readonly record struct TextDimensions(double Width, double Height, doub
 ///     <para>
 ///         <b>Measurement.</b> A text is split at <c>&lt;br&gt;</c> tags; each line is measured as the SVG text Mermaid
 ///         appends (an empty line as a zero-width space): its width and height are those of the browser's <c>getBBox</c>
-///         (the rule of <see cref="BuildSvg"/>), each rounded with <c>Math.round</c>. The text is measured with the
+///         (the rule of <see cref="SvgLineExtent"/>), each rounded with <c>Math.round</c>. The text is measured with the
 ///         family <c>sans-serif</c> and with its own family, and the second is used unless the first is larger in all
 ///         three dimensions, as Mermaid does.
 ///     </para>
@@ -46,6 +47,12 @@ internal sealed partial class LabelBuilder
 {
     /// <summary>The text Mermaid measures for an empty line (its <c>ZERO_WIDTH_SPACE</c>).</summary>
     private const string ZeroWidthSpace = "\u200b";
+
+    /// <summary>
+    ///     How far the rasterizer's box of a glyph reaches past its outline, in pixels (a quarter pixel, the browser's
+    ///     subpixel step); a box edge that falls on a pixel boundary takes in the next pixel.
+    /// </summary>
+    private const double GlyphAntialiasMargin = 0.25;
 
     /// <summary>The font size in pixels that a text gets when its size is not a valid CSS font size (the inherited one).</summary>
     private const double InheritedFontSize = 16;
@@ -262,6 +269,53 @@ internal sealed partial class LabelBuilder
     }
 
     /// <summary>
+    ///     Measures one line of SVG text horizontally as the browser's <c>getBBox</c> does: the advance, grown to the
+    ///     boxes the rasterizer gives its first and last glyphs (each glyph's outline grown by
+    ///     <see cref="GlyphAntialiasMargin"/> to the whole pixels it reaches into, at the glyph's own origin).
+    /// </summary>
+    /// <remarks>
+    ///     The browser's glyph boxes come from its rasterizer, so they can differ from this rule by a pixel for glyphs
+    ///     whose outline ends near a pixel boundary; the rule matches the reference boxes of the Liberation Sans glyphs at
+    ///     the ends of the texts of the sequence goldens.
+    /// </remarks>
+    /// <param name="line">The line.</param>
+    /// <param name="font">The font.</param>
+    /// <returns>The advance, and the left and right ends of the box relative to the start of the line.</returns>
+    internal (double Advance, double Left, double Right) SvgLineExtent(string line, SceneFont font)
+    {
+        var advance = Advance(line, font);
+        var size = (float)font.Size;
+        if (line.Length == 0 || !(size > 0) || !float.IsFinite(size))
+        {
+            return (advance, 0, advance);
+        }
+
+        // The box of the first glyph at the start, and the box of the last glyph at its own origin
+        var left = GlyphBox(FirstCharacter(line), font) is { } first ? Math.Min(0, first.Left) : 0;
+        var last = LastCharacter(line);
+        var lastOrigin = advance - Advance(last, font);
+        var right = GlyphBox(last, font) is { } box ? Math.Max(advance, lastOrigin + box.Right) : advance;
+        return (advance, left, right);
+    }
+
+    /// <summary>
+    ///     Gets the x-height of a font: how far the top of its <c>x</c> is above the baseline.
+    /// </summary>
+    /// <param name="font">The font.</param>
+    /// <returns>The x-height; zero for a size that draws nothing.</returns>
+    internal double XHeight(SceneFont font)
+    {
+        var size = (float)font.Size;
+        if (!(size > 0) || !float.IsFinite(size))
+        {
+            return 0;
+        }
+
+        var bounds = TextRenderer.CreateTextPath("x", Face(font.Family, font.Bold, font.Italic), size, 0, 0).GetBounds(0.01f);
+        return bounds.IsEmpty ? 0 : -bounds.Y;
+    }
+
+    /// <summary>
     ///     Tests whether a text has a <c>&lt;br&gt;</c> tag as Mermaid's global <c>lineBreakRegex.test</c> does: the search
     ///     starts at the <c>lastIndex</c> the previous test left, which a match moves past the tag and a miss resets to 0.
     /// </summary>
@@ -394,8 +448,8 @@ internal sealed partial class LabelBuilder
     }
 
     /// <summary>
-    ///     Measures one line as the browser's <c>getBBox</c> of an SVG text at x 0: the advance grown to the glyph outlines
-    ///     rounded out to whole pixels, and the rounded ascent plus the rounded descent.
+    ///     Measures one line as the browser's <c>getBBox</c> of an SVG text at x 0: the advance grown to the glyph boxes
+    ///     at its ends (<see cref="SvgLineExtent"/>), and the rounded ascent plus the rounded descent.
     /// </summary>
     /// <param name="line">The line (a zero-width space for an empty one).</param>
     /// <param name="font">The font.</param>
@@ -409,8 +463,82 @@ internal sealed partial class LabelBuilder
             return (0, ascent + descent);
         }
 
-        var advance = Advance(line, font);
-        var (left, right) = InkExtent([new LabelRun(line, font, default, advance)], advance);
+        // The browser collapses the white space of SVG text: a line of spaces has no box at all
+        var text = CollapseSvgWhiteSpace(line);
+        if (text.Length == 0)
+        {
+            return (0, 0);
+        }
+
+        var (_, left, right) = SvgLineExtent(text, font);
         return (right - left, ascent + descent);
     }
+
+    /// <summary>
+    ///     Collapses the white space of an SVG text as the browser does: every run of spaces, tabs and line breaks is one
+    ///     space, and none is kept at the start or the end.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The text as laid out.</returns>
+    internal static string CollapseSvgWhiteSpace(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        static bool IsSpace(char c) => c is ' ' or '\t' or '\n' or '\r' or '\f';
+        if (!text.Any(IsSpace))
+        {
+            return text;
+        }
+
+        var builder = new System.Text.StringBuilder(text.Length);
+        var pending = false;
+        foreach (var c in text)
+        {
+            if (IsSpace(c))
+            {
+                pending = builder.Length > 0;
+                continue;
+            }
+
+            if (pending)
+            {
+                builder.Append(' ');
+                pending = false;
+            }
+
+            builder.Append(c);
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Gets the box the rasterizer gives a glyph, relative to its origin: its outline grown by the antialiasing margin
+    ///     to the pixels it reaches into.
+    /// </summary>
+    /// <param name="glyph">The glyph's text (one character, or a surrogate pair).</param>
+    /// <param name="font">The font.</param>
+    /// <returns>The left and right of the box, or null for a glyph without ink.</returns>
+    private (double Left, double Right)? GlyphBox(string glyph, SceneFont font)
+    {
+        var bounds = TextRenderer.CreateTextPath(glyph, Face(font.Family, font.Bold, font.Italic), (float)font.Size, 0, 0).GetBounds(0.01f);
+        return bounds.IsEmpty
+            ? null
+            : (Math.Ceiling(bounds.X - GlyphAntialiasMargin) - 1, Math.Floor(bounds.X + bounds.Width + GlyphAntialiasMargin) + 1);
+    }
+
+    /// <summary>
+    ///     Gets the last character of a text, with its high surrogate when it is the second half of a pair.
+    /// </summary>
+    /// <param name="text">The text; not empty.</param>
+    /// <returns>The character.</returns>
+    private static string LastCharacter(string text) =>
+        text.Length > 1 && char.IsLowSurrogate(text[^1]) && char.IsHighSurrogate(text[^2]) ? text[^2..] : text[^1..];
+
+    /// <summary>
+    ///     Gets the first character of a text, with its low surrogate when it is the first half of a pair.
+    /// </summary>
+    /// <param name="text">The text; not empty.</param>
+    /// <returns>The character.</returns>
+    private static string FirstCharacter(string text) =>
+        text.Length > 1 && char.IsHighSurrogate(text[0]) && char.IsLowSurrogate(text[1]) ? text[..2] : text[..1];
 }

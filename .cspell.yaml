@@ -1012,6 +1012,10 @@ words:
   - nowrap
   - sequencenumber
   - signaltype
+  - startx
+  - starty
+  - stopx
+  - stopy
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
