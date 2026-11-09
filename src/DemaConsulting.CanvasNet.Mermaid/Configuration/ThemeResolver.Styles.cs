@@ -263,6 +263,12 @@ internal abstract class UnifiedStyles : DiagramStyles
     /// </summary>
     public virtual TextPaint EdgeLabel => NodeLabel;
 
+    /// <summary>
+    ///     Gets the font and color of the label of a note node; the node label's unless the diagram's sheet colors note
+    ///     labels with a rule of their own.
+    /// </summary>
+    public virtual TextPaint NoteLabel => NodeLabel;
+
     /// <summary>Gets the font and color of subgraph titles (<c>.cluster-label span</c>).</summary>
     public TextPaint ClusterLabel => Text(".cluster-label span", "color");
 
@@ -271,6 +277,15 @@ internal abstract class UnifiedStyles : DiagramStyles
 
     /// <summary>Gets the background of edge labels (<c>.edgeLabel</c>), or null for none.</summary>
     public Rgba32? EdgeLabelBackground => Resolve(".edgeLabel").Paint("background-color");
+
+    /// <summary>
+    ///     Gets the selectors of the backgrounds of an HTML edge label, painted in order over the label's box: the
+    ///     div's <c>.labelBkg</c>, then the paragraph's <c>.edgeLabel p</c> (a flowchart's rules).
+    /// </summary>
+    public virtual IReadOnlyList<string> HtmlEdgeLabelBackgrounds { get; } = [".labelBkg", ".edgeLabel p"];
+
+    /// <summary>Gets the selector of the background rectangle of an SVG edge label (a flowchart's <c>.edgeLabel rect</c>).</summary>
+    public virtual string SvgEdgeLabelBackground => ".edgeLabel rect";
 
     /// <summary>
     ///     Gets the selector of the diagram title (the CSS class that Mermaid's <c>insertTitle</c> gives the title text,

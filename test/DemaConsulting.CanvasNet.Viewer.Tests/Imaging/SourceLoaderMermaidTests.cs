@@ -170,6 +170,29 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
+    ///     Test that a class diagram is probed as a supported diagram with its classes, relations and direction, and drawn
+    ///     strictly at its natural size with the class boxes in the node fill of the default theme and no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidClass_ProbesAndDraws()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CopyFixture(directory, "class.mmd");
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert: the facts, the size, the white corner, the box fill, and no note
+        Assert.Equal(new DiagramFacts("class", true, "TB", null, null, 2, 1, 0), info.Diagram);
+        Assert.Equal((info.Width, info.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(White, loaded.Surface[0, 0]);
+        Assert.True(Count(loaded.Surface, DefaultNodeFill) > 2000);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw (a pie chart) is probed with <c>Supported</c> false and
     ///     drawn as an empty picture with one unsupported note that says it is planned, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.

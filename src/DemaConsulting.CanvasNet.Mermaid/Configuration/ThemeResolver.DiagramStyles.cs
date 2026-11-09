@@ -48,6 +48,18 @@ internal sealed class ClassStyles : UnifiedStyles
     /// <summary>Gets the font and color of edge labels (<c>.edgeLabel</c> on the root font: <c>classText</c>).</summary>
     public override TextPaint EdgeLabel => Text(".edgeLabel", "color");
 
+    /// <summary>
+    ///     Gets the selectors of the backgrounds of an HTML edge label: the div's <c>.labelBkg</c>, then the span's
+    ///     <c>.edgeLabel .label span</c>.
+    /// </summary>
+    public override IReadOnlyList<string> HtmlEdgeLabelBackgrounds { get; } = [".labelBkg", ".edgeLabel .label span"];
+
+    /// <summary>Gets the selector of the background rectangle of an SVG edge label (<c>.edgeLabel .label rect</c>).</summary>
+    public override string SvgEdgeLabelBackground => ".edgeLabel .label rect";
+
+    /// <summary>Gets the font and color of note labels (<c>.noteLabel .nodeLabel</c> on the root font: <c>noteTextColor</c>).</summary>
+    public override TextPaint NoteLabel => Text(".noteLabel .nodeLabel", "color");
+
     /// <summary>Gets the paint of the divider lines of a class box (<c>.divider</c>).</summary>
     public ShapePaint Divider => Shape(".divider", 1);
 

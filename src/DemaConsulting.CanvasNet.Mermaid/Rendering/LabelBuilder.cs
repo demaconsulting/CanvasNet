@@ -69,6 +69,13 @@ internal sealed record LabelRequest(string Text, LabelFont Font)
     /// </summary>
     public bool CenterSvgText { get; init; } = true;
 
+    /// <summary>
+    ///     Gets a value indicating whether the lines of an SVG label take the weight of <see cref="Font"/> (a class box
+    ///     removes the <c>font-weight</c> of its tspans, so the label's <c>bolder</c> applies); otherwise only strong
+    ///     markdown is bold.
+    /// </summary>
+    public bool SvgInheritsWeight { get; init; }
+
     /// <summary>Gets the location of the element the label belongs to, for reports.</summary>
     public MermaidLocation Location { get; init; }
 }

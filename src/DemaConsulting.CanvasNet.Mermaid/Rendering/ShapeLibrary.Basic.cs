@@ -441,7 +441,7 @@ internal static partial class ShapeLibrary
     private static ShapeResult Note(ShapeInput input)
     {
         var draft = new Draft(input);
-        var label = input.MeasureLabel();
+        var label = input.MeasureLabel(css: input.Context.Styles.NoteLabel);
         var totalWidth = label.Width + (input.Padding * 2);
         var totalHeight = label.Height + (input.Padding * 2);
         draft.Part(new PathData().Rect(-totalWidth / 2, -totalHeight / 2, totalWidth, totalHeight), Body(input.Paint));

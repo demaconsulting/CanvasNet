@@ -35,7 +35,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///         concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed partial class ClassModel
+internal sealed partial class ClassModel : IMermaidDiagram
 {
     /// <summary>The relation code of an aggregation end (<c>o</c>).</summary>
     public const int Aggregation = 0;
@@ -129,6 +129,21 @@ internal sealed partial class ClassModel
 
     /// <summary>Gets the accessible title (empty when there is none).</summary>
     public string AccessibleTitle { get; private set; } = string.Empty;
+
+    /// <summary>Gets the title the diagram declares: always null, because the class grammar has no title statement.</summary>
+    public string? Title => null;
+
+    /// <summary>Gets the accessible title, or null when there is none.</summary>
+    public string? AccTitle => AccessibleTitle.Length > 0 ? AccessibleTitle : null;
+
+    /// <summary>Gets the number of classes (notes and lollipop interfaces are not counted).</summary>
+    public int NodeCount => _classes.Count;
+
+    /// <summary>Gets the number of relations (the links of notes are not counted).</summary>
+    public int EdgeCount => _relations.Count;
+
+    /// <summary>Gets the number of namespaces, implicit ancestors included.</summary>
+    public int SubgraphCount => _namespaces.Count;
 
     /// <summary>Gets the accessible description (empty when there is none).</summary>
     public string AccessibleDescription { get; private set; } = string.Empty;

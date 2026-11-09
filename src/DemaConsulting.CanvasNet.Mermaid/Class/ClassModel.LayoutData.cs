@@ -2,16 +2,91 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
+using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Class;
 
 /// <content>
-///     The mapping of the model to the renderer's <see cref="LayoutData"/> (Mermaid's <c>getData</c>).
+///     The mapping of the model to the renderer's <see cref="LayoutData"/> (Mermaid's <c>getData</c>) and the class
+///     renderer (<c>classRenderer-v3-unified.ts</c>'s <c>draw</c>): the layout data through the cluster layout, the
+///     diagram title and the view box with its padding of 8.
 /// </content>
 internal sealed partial class ClassModel
 {
     /// <summary>The markers a class diagram defines (the class renderer's <c>markers</c>).</summary>
     private static readonly string[] ClassMarkers = ["aggregation", "extension", "composition", "dependency", "lollipop"];
+
+    /// <summary>The padding of the view box, which the class renderer hard-codes.</summary>
+    private const double ViewBoxPadding = 8;
+
+    /// <inheritdoc />
+    public Scene Layout(DiagramRenderContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        // The reports of what is not drawn come first
+        var config = context.Config;
+        var sink = context.Sink;
+        ReportUnsupported(config, sink);
+        var data = GetData(config);
+
+        // The settings of the rendering: pictures, labels, style sheet and the shared work budget
+        var limits = context.Options.Limits;
+        var meter = new Dagre.LayoutWorkMeter(limits.MaxLayoutWork, KeywordLocation, context.CancellationToken);
+        var images = new NodeImages(context.Options.ImageResolver, limits.MaxImages, sink);
+        var labels = new LabelBuilder(context.Fonts, sink, images) { Meter = meter };
+        var font = new MermaidFontConfig(
+            config.FontFamily ?? "Arial",
+            ConfigScalar.FromJson(config.Raw["fontSize"]) ?? ConfigScalar.FromNumber(12),
+            ConfigScalar.FromJson(config.Raw["fontWeight"]) ?? ConfigScalar.FromNumber(400));
+        var shapes = new ShapeContext
+        {
+            Config = config,
+            Styles = ClassStyles.Create(config, sink),
+            MeasureLabel = labels.Build,
+            Images = images,
+            Sink = sink,
+            TextWidth = text => labels.CalculateTextWidth(text, font),
+        };
+
+        // The drawing, the title above it and the view box grown by the padding
+        return new ClusterLayout(shapes, meter).RenderDiagram(
+            data,
+            context.Source.Frontmatter?.Title,
+            config.Class.TitleTopMargin,
+            ViewBoxPadding,
+            labels);
+    }
+
+    /// <summary>
+    ///     Reports what the diagram uses that this version does not draw: a look other than <c>classic</c> and a layout
+    ///     other than <c>dagre</c>.
+    /// </summary>
+    /// <param name="config">The effective configuration of the render.</param>
+    /// <param name="sink">The report sink of the render.</param>
+    /// <exception cref="MermaidUnsupportedFeatureException">Thrown by the sink in strict mode at the first report.</exception>
+    public static void ReportUnsupported(MermaidConfig config, MermaidReportSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(sink);
+        if (config.Look != "classic")
+        {
+            sink.Unsupported(
+                MermaidDiagnosticCodes.LookUnsupported,
+                $"the '{config.Look}' look is not supported; the diagram is drawn in the classic look",
+                config.LocationOf("look"),
+                "remove the look setting, or set look: classic");
+        }
+
+        if (config.Layout != "dagre")
+        {
+            sink.Unsupported(
+                MermaidDiagnosticCodes.LayoutUnsupported,
+                $"the '{config.Layout}' layout is not supported; the diagram is laid out with dagre",
+                config.LocationOf("layout"),
+                "remove the layout setting, or set layout: dagre");
+        }
+    }
 
     /// <summary>
     ///     Maps the model to the renderer's input under the configuration of a render (Mermaid's <c>getData</c>, with the
@@ -99,6 +174,7 @@ internal sealed partial class ClassModel
                 Shape = "note",
                 Padding = config.Class.Padding ?? 6,
                 CssStyles = ["text-align: left", "white-space: nowrap", $"fill: {noteFill}", $"stroke: {noteStroke}"],
+                TrustedStyles = true,
                 Look = look,
                 ParentId = hierarchical ? note.Parent : ResolveExplicitAncestor(note.Parent),
                 LabelType = "markdown",
@@ -138,6 +214,7 @@ internal sealed partial class ClassModel
                 IsGroup = false,
                 Shape = "rect",
                 CssStyles = ["opacity: 0;"],
+                TrustedStyles = true,
                 Look = look,
                 Location = face.Location,
             });

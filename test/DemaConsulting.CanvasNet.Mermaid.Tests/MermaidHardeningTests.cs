@@ -555,6 +555,132 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every class fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "class"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile class diagrams through the public API, fitted to 400 by 300 pixels: huge and tiny paddings,
+    ///     spacings and font sizes, huge dashes, cardinalities on a self-loop and markup in a note each render, or end in a
+    ///     located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  class:\n    padding: 1e300\n---\nclassDiagram\nclass A {\n+int x\n}\nA --> B\n")]
+    [InlineData("---\nconfig:\n  class:\n    padding: -1e300\n---\nclassDiagram\nclass A\nA --> B\n")]
+    [InlineData("---\nconfig:\n  state:\n    nodeSpacing: 1e300\n    rankSpacing: 1e300\n---\nclassDiagram\nA --> B\nA --> C\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e300}}}%%\nclassDiagram\nclass A {\n+int x\n}\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nclassDiagram\nclass A {\n+int x\n}\n")]
+    [InlineData("classDiagram\nclass A\nstyle A stroke:#f00,stroke-dasharray:1e300\n")]
+    [InlineData("classDiagram\nA \"1\" --> \"*\" A : self\n")]
+    [InlineData("classDiagram\nnote \"<b>x</b><br><img src='x'>\"\nclass A {\n<<a>>\n}\n")]
+    public void CanvasNetMermaid_Hardening_HostileClassDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a class with very many members renders or hits the work limit, and that the work is bounded.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassWithManyMembers_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange
+        var text = "classDiagram\nclass Big {\n" + string.Concat(Enumerable.Range(0, 1_500).Select(i => $"+int field{i}\n")) + "}\n";
+        var document = MermaidDocument.Parse(text);
+        var small = new MermaidRenderOptions { Scale = 0.1, Limits = new MermaidLimits { MaxLayoutWork = 5_000 } };
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > size.Width);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the class fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "<|--", "*--", "o--", "-->", "--", "..>", "..|>", "..", "()--", "--()", "<|--|>", "\"1\"", "\"*\"", ":", " : label",
+            "class X", "class Y {", "}", "{", "<<interface>>", "<<", ">>", "~T~", "~", "+", "-", "#", "$", "*", "()", "(a, b)",
+            "namespace N {", "note \"n\"", "note for X \"n\"", "classDef c fill:#f00", "cssClass \"X\" c", ":::c", "style X fill:#0f0",
+            "direction LR", "direction RL", "link X \"https://example.com\"", "click X call f()", "callback X \"f\"", "`B`", "[\"L\"]",
+            "accTitle: t", "accDescr: d", "%%", "\n", "  ", "<br>", "\\", "#59;",
+        ];
+        var random = new Random(20261109);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "class"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
     ///     Mutates a text: deletes a range, inserts a token, duplicates a line or swaps two characters, one to three times.
     /// </summary>
     /// <param name="text">The text.</param>

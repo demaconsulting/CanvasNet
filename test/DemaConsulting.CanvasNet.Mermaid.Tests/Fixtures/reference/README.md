@@ -197,10 +197,25 @@ Each file holds the flowchart content, extended for the diagrams of Mermaid's un
   and `box`. Mermaid inserts terminal labels concurrently, so their order does not name their edge: the harness
   matches each to the nearest route end of an edge whose terminal text is the same.
 
+### Class Tolerances
+
+`MermaidReferenceLayoutTests` compares every class golden at **0.01 px**: the view box, each node's position and box,
+each part of its drawing (a rectangle drawn as a fill path and a stroke path with the same box counts once; the
+lines of a label are united), each namespace rectangle and title, each edge as a flowchart edge is compared, each
+edge label's center, each terminal label's position, and the title's box. There is one exception:
+
+- **`16-config-title-links`**, 1 px. Its class texts are SVG text (`htmlLabels: false`), and Chrome takes the box of
+  SVG text from the glyphs it rasterizes at their place on the device pixel grid, so the same text measures
+  differently where the class box first measures it and where it is finally drawn (the name `Backend` is 66.922 px
+  wide in the first place and 66.89 px in the second). CanvasNet gives the advance, grown to the glyph outlines
+  rounded out to whole pixels. The text boxes differ by up to 0.88 px (the bold name `Gateway`), and the class boxes,
+  the node positions, the edges and the view box sized from them by up to 0.57 px. The vertical positions agree at
+  0.01 px.
+
 ### Class Fixtures
 
 The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
-none is excluded. The comparison of CanvasNet's class layout with these goldens comes with the class drawing.
+none is excluded.
 
 | Fixture | Covers |
 | --- | --- |

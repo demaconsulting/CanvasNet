@@ -262,7 +262,7 @@ public sealed class ShapeLibraryTests
     public void ShapeLibrary_Draw_UndrawnShape_ThrowsRenderFailed()
     {
         // Arrange
-        var node = new LayoutNode { Id = "A", Shape = "classBox", Location = new MermaidLocation(null, 3, 1) };
+        var node = new LayoutNode { Id = "A", Shape = "erBox", Location = new MermaidLocation(null, 3, 1) };
 
         // Act
         var exception = Assert.Throws<MermaidRenderException>(() => ShapeLibrary.Draw(node, Context()));
@@ -287,6 +287,135 @@ public sealed class ShapeLibraryTests
 
         // Assert
         Assert.All(results, result => Assert.True(result.Width > 0 && result.Height > 0, result.Handler));
+    }
+
+    /// <summary>
+    ///     Checks the class box of a class with attributes and methods: the groups stacked under the name, the rectangle
+    ///     around them with the padding, and the two dividers under the name and under the attributes.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ClassBoxWithMembers_StacksGroupsAndDividers()
+    {
+        // Arrange
+        var member = new LayoutClassMember("+int x", string.Empty);
+        var node = new LayoutNode { Id = "A", Shape = "classBox", ClassBox = new LayoutClassBox("A", [], [member, member], [member], []) };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ClassContext("classDiagram\n  class A\n", new SceneRect(0, 0, 40, 24)));
+
+        // Assert: the name centered, the members from the left, 24 pixels apart
+        Assert.Equal("classBox", result.Handler);
+        Assert.Equal(new SceneRect(-42, -84, 84, 168), result.Bounds);
+        Assert.Equal([-36.0, 36.0], Dividers(result).Select(box => box.Y));
+        var members = result.Items.OfType<SceneGroup>().Where(g => g.Role == "class-member").ToList();
+        Assert.Equal([-30.0, -30.0], members.Select(g => g.OffsetX));
+        Assert.Equal(24, members[1].OffsetY - members[0].OffsetY, 9);
+        Assert.Equal(new ShapePoint(42, 0), result.Intersect(new NodeBox(0, 0, 84, 168), new ShapePoint(300, 0)));
+    }
+
+    /// <summary>
+    ///     Checks the class box of an empty class: the extra empty compartment below the name, with both dividers.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_EmptyClassBox_DrawsTheExtraCompartment()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "A", Shape = "classBox", ClassBox = new LayoutClassBox("A", [], [], [], []) };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ClassContext("classDiagram\n  class A\n", new SceneRect(0, 0, 40, 24)));
+
+        // Assert
+        Assert.Equal(new SceneRect(-32, -42, 64, 84), result.Bounds);
+        Assert.Equal([6.0, 24.0], Dividers(result).Select(box => box.Y));
+    }
+
+    /// <summary>
+    ///     Checks that <c>class.hideEmptyMembersBox</c> draws an empty class as its name alone, without dividers.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_EmptyClassBoxHidden_DrawsTheNameAlone()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "A", Shape = "classBox", ClassBox = new LayoutClassBox("A", [], [], [], []) };
+        const string Text = "---\nconfig:\n  class:\n    hideEmptyMembersBox: true\n---\nclassDiagram\n  class A\n";
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ClassContext(Text, new SceneRect(0, 0, 40, 24)));
+
+        // Assert
+        Assert.Equal(new SceneRect(-32, -24, 64, 48), result.Bounds);
+        Assert.Empty(Dividers(result));
+    }
+
+    /// <summary>
+    ///     Checks that SVG labels (a top-level <c>htmlLabels</c> of <c>false</c>) space the members by their height and
+    ///     Mermaid's text padding of 3.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ClassBoxSvgLabels_SpacesTheMembersByTheTextPadding()
+    {
+        // Arrange
+        var member = new LayoutClassMember("+int x", string.Empty);
+        var node = new LayoutNode { Id = "A", Shape = "classBox", ClassBox = new LayoutClassBox("A", [], [member, member], [], []) };
+        const string Text = "---\nconfig:\n  htmlLabels: false\n---\nclassDiagram\n  class A\n";
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ClassContext(Text, new SceneRect(0, 0, 40, 24)));
+
+        // Assert
+        var members = result.Items.OfType<SceneGroup>().Where(g => g.Role == "class-member").ToList();
+        Assert.Equal(27, members[1].OffsetY - members[0].OffsetY, 9);
+    }
+
+    /// <summary>
+    ///     Checks that only the top-level <c>htmlLabels</c> turns the class box's HTML labels off (Mermaid's
+    ///     <c>evaluate(config.htmlLabels)</c>, which is true when the key is not set); the flowchart's does not.
+    /// </summary>
+    /// <param name="setting">The frontmatter line, or empty for none.</param>
+    /// <param name="expected">Whether HTML labels are used.</param>
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("  htmlLabels: true\n", true)]
+    [InlineData("  htmlLabels: false\n", false)]
+    [InlineData("  flowchart:\n    htmlLabels: false\n", true)]
+    public void ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate(string setting, bool expected)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "---\nconfig:\n" + setting + "  theme: default\n---\nclassDiagram\n");
+
+        // Act
+        var html = ShapeLibrary.ClassHtmlLabels(config);
+
+        // Assert
+        Assert.Equal(expected, html);
+    }
+
+    /// <summary>
+    ///     Gets the boxes of the dividers of a drawn class box.
+    /// </summary>
+    /// <param name="result">The drawn node.</param>
+    /// <returns>The boxes.</returns>
+    private static List<SceneRect> Dividers(ShapeResult result) =>
+        [.. result.Items.Where(item => item.Role == "class-divider").Select(item => Scene.BoundsOf([item])!.Value)];
+
+    /// <summary>
+    ///     Creates the context of a class diagram whose labels all measure a fixed box.
+    /// </summary>
+    /// <param name="text">The class diagram text (its frontmatter configures the rendering).</param>
+    /// <param name="fixedLabel">The box of every label.</param>
+    /// <returns>The context.</returns>
+    private static ShapeContext ClassContext(string text, SceneRect fixedLabel)
+    {
+        var reports = new MermaidReportSink(100, false);
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), text);
+        return new ShapeContext
+        {
+            Config = config,
+            Styles = ClassStyles.Create(config, reports),
+            MeasureLabel = request => LabelLayout.Of(request.HtmlLabels, fixedLabel),
+            Sink = reports,
+        };
     }
 
     /// <summary>

@@ -89,6 +89,12 @@ internal sealed class ShapeContext
     /// <summary>Gets the report sink of the call, or null.</summary>
     public MermaidReportSink? Sink { get; init; }
 
+    /// <summary>
+    ///     Gets the width Mermaid's <c>calculateTextWidth</c> gives a text in the configured font, which a class box adds
+    ///     its wrapping room to, or null when texts are not measured that way (they then never wrap).
+    /// </summary>
+    public Func<string, double>? TextWidth { get; init; }
+
     /// <summary>Gets the theme colors.</summary>
     public ShapeTheme Theme => _theme ??= ShapeTheme.From(Config);
 
@@ -177,7 +183,7 @@ internal static partial class ShapeLibrary
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(context);
-        var handler = node.Shape == "ellipse" ? "ellipse" : ShapeNames.HandlerOf(node.Shape);
+        var handler = node.Shape is "ellipse" or "classBox" ? node.Shape : ShapeNames.HandlerOf(node.Shape);
         var input = new ShapeInput(node, context, handler ?? node.Shape);
         return handler switch
         {
@@ -200,6 +206,7 @@ internal static partial class ShapeLibrary
             "inv_trapezoid" => InvTrapezoid(input),
             "rect_left_inv_arrow" => RectLeftInvArrow(input),
             "ellipse" => Ellipse(input),
+            "classBox" => ClassBox(input),
             "choice" => Choice(input),
             "note" => Note(input),
             "anchor" => Anchor(input),
@@ -355,8 +362,18 @@ internal static partial class ShapeLibrary
             Context = context;
             Handler = handler;
             var (label, nodeStyles) = SplitStyles(node);
-            _labelStyles = StyleDeclarations.ParseItems(label, node.Location, context.Sink);
-            User = StyleDeclarations.ParseItems(nodeStyles, node.Location, context.Sink);
+            if (node.TrustedStyles)
+            {
+                // The diagram's own styles: every property is applied, and nothing is reported
+                _labelStyles = StyleDeclarations.ParseBlock(string.Join(";", label), restrict: false, node.Location, null);
+                User = StyleDeclarations.ParseBlock(string.Join(";", nodeStyles), restrict: false, node.Location, null);
+            }
+            else
+            {
+                _labelStyles = StyleDeclarations.ParseItems(label, node.Location, context.Sink);
+                User = StyleDeclarations.ParseItems(nodeStyles, node.Location, context.Sink);
+            }
+
             Paint = new NodePaint(context.Styles.Node, User, context.Theme);
         }
 
@@ -390,10 +407,11 @@ internal static partial class ShapeLibrary
         /// <param name="width">The width the label wraps at (<c>node.width</c> when the shape set it), or null for the wrapping width.</param>
         /// <param name="assetShape">Whether the shape is an icon or image shape (the label gets a background and padding).</param>
         /// <param name="label">The label text, or null for the node's.</param>
+        /// <param name="css">The text rule of the label, or null for the node label's.</param>
         /// <returns>The measured label.</returns>
-        public LabelLayout MeasureLabel(double? width = null, bool assetShape = false, string? label = null)
+        public LabelLayout MeasureLabel(double? width = null, bool assetShape = false, string? label = null, TextPaint? css = null)
         {
-            var css = Context.Styles.NodeLabel;
+            css ??= Context.Styles.NodeLabel;
             var wrap = width is > 0 ? width.Value : Context.Config.Flowchart.WrappingWidth;
             var request = new LabelRequest(label ?? Node.Label ?? string.Empty, LabelFontOf(_labelStyles, css))
             {

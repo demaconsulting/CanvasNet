@@ -335,6 +335,29 @@ public class ClassModelTests
         var link = Assert.Single(data.Edges);
         Assert.Equal(("edgeNote0", "note0", "Order", "dotted", 1), (link.Id, link.Start, link.End, link.Pattern, link.MinLen));
         Assert.Equal(["text-align: left", "white-space: nowrap", "fill: #fff5ad", "stroke: #aaaa33"], data.Nodes[2].CssStyles);
+        Assert.Equal((false, false, true), (data.Nodes[0].TrustedStyles, data.Nodes[1].TrustedStyles, data.Nodes[2].TrustedStyles));
+    }
+
+    /// <summary>
+    ///     Validates the metadata the model reports: the classes, relations and namespaces are counted (notes, lollipop
+    ///     interfaces and note links are not), the direction is the last statement's, the accessible title is kept,
+    ///     and the grammar declares no title.
+    /// </summary>
+    [Fact]
+    public void ClassModel_Metadata_CountsClassesRelationsAndNamespaces()
+    {
+        // Arrange
+        const string Text = "classDiagram\n    accTitle: Shop\n    direction RL\n    namespace Shop {\n        class Order\n    }\n" +
+            "    Order --> Item\n    Item --() Priced\n    note for Order \"n\"\n";
+
+        // Act
+        var model = ClassFacts.Parse(Text);
+
+        // Assert
+        Assert.Equal((2, 2, 1), (model.NodeCount, model.EdgeCount, model.SubgraphCount));
+        Assert.Equal(("RL", "Shop"), (model.Direction, model.AccTitle));
+        Assert.Null(model.Title);
+        Assert.True(model.GetData(ClassFacts.DefaultConfig(Text)).Nodes.Single(node => node.Id == "interface0").TrustedStyles);
     }
 
     /// <summary>

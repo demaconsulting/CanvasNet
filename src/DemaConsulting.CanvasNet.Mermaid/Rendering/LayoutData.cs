@@ -79,6 +79,12 @@ internal sealed record LayoutNode
     /// <summary>Gets the inline styles of the node (<c>style</c> statements), or null for a cluster.</summary>
     public IReadOnlyList<string>? CssStyles { get; init; }
 
+    /// <summary>
+    ///     Gets a value indicating whether the node's styles are written by the diagram itself (a class note's colors, a
+    ///     lollipop interface's opacity) rather than by the user: they are applied without reports.
+    /// </summary>
+    public bool TrustedStyles { get; init; }
+
     /// <summary>Gets the styles of the node's classes (<c>classDef</c>), compiled in class order.</summary>
     public IReadOnlyList<string> CssCompiledStyles { get; init; } = [];
 

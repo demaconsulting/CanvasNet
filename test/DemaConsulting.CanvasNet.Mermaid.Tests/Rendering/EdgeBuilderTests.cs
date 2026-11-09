@@ -442,6 +442,31 @@ public sealed class EdgeBuilderTests
     }
 
     /// <summary>
+    ///     Checks the class diagram's edge label backgrounds: an HTML label's are the node background of the class
+    ///     sheet (<c>.labelBkg</c> and <c>.edgeLabel .label span</c>), and an SVG label's rectangle is too
+    ///     (<c>.edgeLabel .label rect</c>).
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawLabel_ClassDiagram_UsesTheClassBackgrounds()
+    {
+        // Arrange
+        var html = RenderingTestContext.CreateClass();
+        var svg = RenderingTestContext.CreateClass("---\nconfig:\n  htmlLabels: false\n---\nclassDiagram\n  class A\n");
+        var mainBkg = new Rgba32(0xEC, 0xEC, 0xFF, 255);
+
+        // Act
+        var htmlDrawing = EdgeBuilder.DrawLabel(EdgeBuilder.MeasureLabel(Edge(), "uses", html), new ShapePoint(0, 0), Edge(), "e", html.Styles);
+        var svgDrawing = EdgeBuilder.DrawLabel(EdgeBuilder.MeasureLabel(Edge(), "uses", svg), new ShapePoint(0, 0), Edge(), "e", svg.Styles);
+
+        // Assert
+        var htmlBackgrounds = Assert.IsType<SceneGroup>(Assert.Single(htmlDrawing.Items)).Children.Where(c => c.Role == "edge-label-background").ToList();
+        Assert.Equal(2, htmlBackgrounds.Count);
+        Assert.All(htmlBackgrounds, background => Assert.Equal(mainBkg, Assert.IsType<ScenePath>(background).Fill));
+        var svgBackground = Assert.Single(Assert.IsType<SceneGroup>(Assert.Single(svgDrawing.Items)).Children, c => c.Role == "edge-label-background");
+        Assert.Equal(mainBkg, Assert.IsType<ScenePath>(svgBackground).Fill);
+    }
+
+    /// <summary>
     ///     Checks the class diagram's markers: their types and reference points, and none for the flowchart's types.
     /// </summary>
     [Fact]

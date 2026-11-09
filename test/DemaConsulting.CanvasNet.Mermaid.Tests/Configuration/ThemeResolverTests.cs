@@ -289,6 +289,30 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the class sheet's note labels (<c>noteTextColor</c>) and edge label backgrounds (the span's and the
+    ///     SVG rectangle's selectors), where a flowchart keeps its own.
+    /// </summary>
+    [Fact]
+    public void ClassStyles_Create_DefaultTheme_ResolvesNoteLabelsAndLabelBackgrounds()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "classDiagram\n  class A\n");
+
+        // Act
+        var styles = ClassStyles.Create(config, null);
+        var flowchart = FlowchartStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(Color(config.ThemeVariable("noteTextColor")!), styles.NoteLabel.Color);
+        Assert.Equal([".labelBkg", ".edgeLabel .label span"], styles.HtmlEdgeLabelBackgrounds);
+        Assert.Equal(".edgeLabel .label rect", styles.SvgEdgeLabelBackground);
+        Assert.Equal("#ECECFF", styles.Resolve(styles.SvgEdgeLabelBackground)["fill"]);
+        Assert.Equal(flowchart.NodeLabel, flowchart.NoteLabel);
+        Assert.Equal([".labelBkg", ".edgeLabel p"], flowchart.HtmlEdgeLabelBackgrounds);
+        Assert.Equal(".edgeLabel rect", flowchart.SvgEdgeLabelBackground);
+    }
+
+    /// <summary>
     ///     Validates that a <c>themeCSS</c> rule of a class selector overrides the theme, and that the important marker
     ///     fills are kept against it.
     /// </summary>

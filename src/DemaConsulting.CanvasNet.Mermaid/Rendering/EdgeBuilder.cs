@@ -308,14 +308,16 @@ internal static partial class EdgeBuilder
 
         if (label.IsHtml)
         {
-            // The div's labelBkg background, then the paragraph's .edgeLabel p background, both over the whole box
-            Background(styles.Resolve(".labelBkg").Paint("background-color"), 1, "edge-label-background");
-            Background(styles.Resolve(".edgeLabel p").Paint("background-color"), 1, "edge-label-background");
+            // The div's labelBkg background, then the background of the text's element, both over the whole box
+            foreach (var selector in styles.HtmlEdgeLabelBackgrounds)
+            {
+                Background(styles.Resolve(selector).Paint("background-color"), 1, "edge-label-background");
+            }
         }
         else
         {
-            // The background rectangle of the SVG text (.edgeLabel rect)
-            var rect = styles.Resolve(".edgeLabel rect");
+            // The background rectangle of the SVG text
+            var rect = styles.Resolve(styles.SvgEdgeLabelBackground);
             var opacity = rect["opacity"] is { } text && StyleDeclarations.TryParseOpacity(text, out var factor) ? factor : 1;
             Background(rect.Paint("fill"), opacity, "edge-label-background");
         }
