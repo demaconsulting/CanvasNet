@@ -1,0 +1,58 @@
+---
+# Software Unit Requirements for SceneModel
+#
+# These requirements describe the design-level behavior of the SceneModel unit of the Scenegraph subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Scenegraph): the immutable scene records of a laid-out diagram (Scene,
+# SceneGroup, ScenePath, SceneText, SceneImage, and their parts), the bounds of a scene, and the conversion of the
+# path geometry of a scene to a core CanvasNet path.
+# See docs/verification/canvas-net-mermaid/scenegraph/scene-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: SceneModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-Rectangles
+                title: >-
+                  The SceneModel unit shall give the right and bottom edges of a scene rectangle, the smallest
+                  rectangle that contains two rectangles, and a rectangle moved by an offset.
+                justification: |
+                  View boxes, text boxes, picture boxes, and bounds are rectangles combined with this arithmetic.
+                tests:
+                  - SceneRect_UnionAndOffset_ComputeEdges
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-Segments
+                title: >-
+                  The SceneModel unit shall describe the geometry of a path with the SVG path commands that Mermaid's
+                  shapes and edges use - move, line, quadratic curve, cubic curve, elliptical arc, and close - in
+                  absolute scene units, created from their end points, control points, radii, rotation, and flags.
+                justification: |
+                  Shapes and edges are ported from Mermaid's SVG path data; the scene must carry that data exactly so
+                  that it can be compared with Mermaid's numbers and drawn.
+                tests:
+                  - SceneSegment_Factories_FillTheDocumentedFields
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-Bounds
+                title: >-
+                  The SceneModel unit shall give the bounds of scene items as an SVG bounding box gives them: the
+                  geometry of every path with its curves rather than their control points, the box of every text
+                  line, and the box of every picture, each moved by the translations of its enclosing groups, and no
+                  bounds for items that draw nothing.
+                justification: |
+                  Mermaid sizes the view box and places titles from bounding boxes; the bounds of a curve must be those
+                  of the curve, not of its control points, for the same numbers.
+                tests:
+                  - Scene_BoundsOf_ItemsAndCurves_AreGeometryBounds
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-PathConversion
+                title: >-
+                  The SceneModel unit shall convert the geometry of a path into a core CanvasNet path scaled
+                  uniformly and moved by an offset, converting elliptical arcs, and starting a path that does not
+                  begin with a move at the origin, as SVG does.
+                justification: |
+                  The painter and the bounds both draw on the core path; the conversion must keep the SVG meaning of
+                  the commands at any scale.
+                tests:
+                  - Scene_ToPath_AppliesPlacementAndArcs

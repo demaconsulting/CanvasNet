@@ -1,0 +1,97 @@
+---
+# Software Unit Requirements for EdgeBuilder
+#
+# These requirements describe the design-level behavior of the EdgeBuilder unit of the Rendering subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): Mermaid's edges - the route of the layout cut at
+# the node outlines and subgraph borders, drawn with a d3-shape curve, stroked, and marked - and the measuring,
+# placing, and drawing of edge labels.
+# See docs/verification/canvas-net-mermaid/rendering/edge-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: EdgeBuilder Requirements
+            requirements:
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Curves
+                title: >-
+                  The EdgeBuilder unit shall draw the points of an edge with every curve Mermaid offers for edges
+                  exactly as d3-shape's line generator writes them to three decimals, drawing the basis curve for a
+                  name Mermaid does not list, rounding the corners of the rounded curve, and ending the path at a
+                  number that is not finite.
+                justification: |
+                  The curve decides the shape of every edge; the same path data gives the same pixels as Mermaid.
+                tests:
+                  - EdgeBuilder_Line_UpstreamVector_MatchesD3
+                  - EdgeBuilder_Line_UnknownCurve_DrawsBasis
+                  - EdgeBuilder_Line_NotFiniteNumber_EndsTheDrawnPath
+                  - EdgeBuilder_RoundedPath_Corner_IsAQuadraticCurve
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Route
+                title: >-
+                  The EdgeBuilder unit shall end the route of an edge on the outlines of its nodes, cut it where it
+                  enters or leaves a subgraph's box with the arithmetic of Mermaid, round off its right-angle corners,
+                  and pull its ends back so that the tip of an arrowhead touches the node.
+                justification: |
+                  Mermaid changes the layout's route before drawing it; the same changes give the same end points
+                  and arrowheads.
+                tests:
+                  - EdgeBuilder_CutPathAtIntersect_RouteIntoBox_EndsOnTheBorder
+                  - EdgeBuilder_Intersection_TopSide_KeepsMermaidsArithmetic
+                  - EdgeBuilder_FixCorners_RightAngle_IsRoundedOff
+                  - EdgeBuilder_Draw_ArrowPoint_TipTouchesTheNode
+                  - EdgeBuilder_Draw_EndsAndSubgraph_CutTheRoute
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Markers
+                title: >-
+                  The EdgeBuilder unit shall draw the point, circle, and cross markers of a flowchart and their start
+                  variants at the ends of an edge with the size, reference point, and stroke of Mermaid's markers,
+                  turned along the direction of the path at that end.
+                justification: |
+                  Arrowheads show the direction and kind of a link and must look and sit as in Mermaid.
+                tests:
+                  - EdgeBuilder_MarkerOf_ArrowTypes_GiveMermaidsMarkers
+                  - EdgeBuilder_DrawMarker_PointEnd_TipIsFourPixelsAhead
+                  - EdgeBuilder_DrawMarker_CircleAndCross_ArePlacedBeforeTheVertex
+                  - EdgeBuilder_StartOfAndEndOf_Curve_TakeTheTangents
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Stroke
+                title: >-
+                  The EdgeBuilder unit shall stroke an edge by the thickness and pattern of its link and the edge's
+                  own styles, color its markers with the stroke color of those styles, and draw an animated edge as
+                  the first frame of its animation.
+                justification: |
+                  The link strokes, linkStyle, and classDef statements style the edges; an animation cannot be drawn
+                  in a still picture, so its first frame is drawn.
+                tests:
+                  - EdgeBuilder_Draw_LinkStroke_FollowsTheClasses
+                  - EdgeBuilder_Draw_LinkStyleStroke_ColorsPathAndMarker
+                  - EdgeBuilder_Draw_AnimatedEdge_IsDashedNineFive
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-LabelPlacement
+                title: >-
+                  The EdgeBuilder unit shall place an edge label at the position the layout gave it, or at the middle
+                  by length of the changed route when the route was cut, moved down by half the subgraph title
+                  margin, and place no label for an edge without text.
+                justification: |
+                  Mermaid moves a label onto a cut route so that it stays on the drawn line; the same rule gives the
+                  same label positions.
+                tests:
+                  - EdgeBuilder_CalcLabelPosition_Route_IsTheMiddleByLength
+                  - EdgeBuilder_IsLabelCoordinateInPath_RoundedText_IsSearched
+                  - EdgeBuilder_LabelPosition_LayoutPosition_IsMovedByHalfTheTitleMargin
+                  - EdgeBuilder_Draw_EndsAndSubgraph_CutTheRoute
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-LabelDrawing
+                title: >-
+                  The EdgeBuilder unit shall measure an edge label as Mermaid creates it, wrapped at 200 pixels, and
+                  draw it centered on its position over the backgrounds of the style sheet - two over the box of an
+                  HTML label, one at half opacity behind an SVG label.
+                justification: |
+                  The measured label sets the space dagre leaves for it, and its background keeps it readable over
+                  the edge as in Mermaid.
+                tests:
+                  - EdgeBuilder_MeasureLabel_Text_IsOneLineBox
+                  - EdgeBuilder_DrawLabel_Html_IsCenteredWithTwoBackgrounds
+                  - EdgeBuilder_DrawLabel_Svg_HasAHalfOpaqueBackground

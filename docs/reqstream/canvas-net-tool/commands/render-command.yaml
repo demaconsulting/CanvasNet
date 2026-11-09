@@ -16,7 +16,8 @@ sections:
         title: >-
           The render command shall declare its options (page, all-pages, dpi, scale, width, height,
           size, background, no-auto-orient, strict, the model options view, azimuth, elevation,
-          projection, define, time, default-color, and max-triangles, the pipeline options crop,
+          projection, define, time, default-color, and max-triangles, the chart option param, the diagram option theme,
+          the pipeline options crop,
           resize, fit, allow-upscale, rotate, rotate-fill, flip, pad, pad-color, grayscale, invert,
           threshold, levels, brightness, contrast, auto-levels, auto-levels-clip, deskew, trim,
           trim-tolerance, grid, and filter, output, format,
@@ -208,14 +209,57 @@ sections:
           - RenderCommand_OptionTable_DeclaresParam
           - RenderCommand_Usage_MentionsParamAndItsExampleRuns
 
+      - id: CanvasNetTool-Commands-RenderCommand-Mermaid
+        title: >-
+          The render command shall render a Mermaid diagram (a .mmd or .mermaid file) at the size the size options ask
+          for (the size Mermaid lays it out at by default) over white, or the background color given, with the theme
+          option of the Theme requirement as its only option of its own; shall describe what it drew (the drawn size,
+          the background, and the theme when one is set) in the render operation and the natural size and the mermaid
+          format in the input of the result; shall report the warnings of the diagram (mermaid-warning with the
+          specific code in detail and the line and column in location) and the constructs it does not draw (a diagram
+          type that is not drawn yet is the diagnostic mermaid-diagram-unsupported with an empty picture) in the
+          diagnostics of the result (and, without the JSON option, on standard error) and, with the strict switch, fail
+          with unsupported-feature and write no output; shall report invalid text as mermaid-error with the hint of the
+          library; and shall name Mermaid diagrams in its usage text.
+        justification: |
+          A diagram is rendered like any other vector source; the result must say what picture was drawn so that an
+          agent can reproduce it, the diagram types that are not drawn yet must be reported rather than silently left
+          empty, and a bad diagram must be a concise, coded error that says how to fix it.
+        tests:
+          - RenderCommand_Run_Mermaid_WritesTheDiagramAndDescribesIt
+          - RenderCommand_Run_MermaidSequence_IsUnsupportedDiagnosticThenStrictError
+          - RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract
+          - RenderCommand_Metadata_DescribesCommandAndOptions
+
+      - id: CanvasNetTool-Commands-RenderCommand-Theme
+        title: >-
+          The render command, its verb commands and the inspect command shall accept the --theme name option for a
+          Mermaid diagram (one of default, base, dark, forest, and neutral, in any case, reported by its canonical
+          name), draw the diagram in that theme unless the theme fragment of the input names another one (the fragment
+          wins over the option) or the text of the diagram sets a theme itself (the text wins over both), refuse a name
+          that is not a theme with a usage error that lists the themes, refuse the option for an input that is not a
+          diagram with a usage error that names the kind, before anything is drawn, and describe the option in the
+          option table, the usage text and the mermaid topic.
+        justification: |
+          A diagram is drawn in a theme the way Mermaid's own command line draws it, without editing its file, and a
+          mistake in the name, or an option that would be silently ignored on another kind of input, must be loud on a
+          command line.
+        tests:
+          - RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence
+          - RenderCommand_Run_MermaidThemeMistakes_AreUsageErrors
+          - InspectCommand_Run_MermaidTheme_ReportsTheThemedColors
+          - RenderCommand_Metadata_DescribesCommandAndOptions
+
       - id: CanvasNetTool-Commands-RenderCommand-InputFragments
         title: >-
           The render command and its verb commands shall read an input path that ends in a URL fragment
-          (part.scad#view=top&def.width=20, report.pdf#page=3, chart.vl.json#param.cutoff=5) with the grammar and the
+          (part.scad#view=top&def.width=20, report.pdf#page=3, chart.vl.json#param.cutoff=5, flow.mmd#theme=dark) with
+          the grammar and the
           checks of the link of an SVG image (InputReference and SourceLoader.Probe), treating a number sign as the
           start of a fragment only when no file has that exact name, let the fragment override --page, --all-pages,
           --view,
-          -D and --param for that input (variables and parameters by name), draw the page the fragment names as the
+          -D, --param and --theme for that input (variables and parameters by name), draw the page the fragment names
+          as the
           only page, name the input with its fragment in the text result and report it in the fragment member of the
           input object of the JSON result, fail with the code image-fragment-invalid for a fragment or a value that
           cannot be used and with page-out-of-range for a page the file does not have (writing nothing), report a
@@ -238,6 +282,7 @@ sections:
           - InputFragment_MissingFile_IsInputNotFoundWithAHint
           - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode
           - InputFragment_OverTheLimits_IsInvalid
+          - RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence
           - InputFragment_Grammar_IsTheGrammarOfALink
 
       - id: CanvasNetTool-Commands-RenderCommand-Source
@@ -315,7 +360,7 @@ sections:
 
       - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
         title: >-
-          The render command shall render an SVG file whose image elements name a model, a chart, another SVG
+          The render command shall render an SVG file whose image elements name a model, a chart, a diagram, another SVG
           file, a document page, or a raster in the folder of the SVG file or below it, choose the page of a
           document (or the view of a model) from the fragment of the link and draw page 1 without one, list each
           embedded file as an embed operation of the result with the link as written, report a page that does not

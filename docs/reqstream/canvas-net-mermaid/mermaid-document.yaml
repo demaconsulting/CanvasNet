@@ -1,0 +1,146 @@
+---
+# Software Unit Requirements for MermaidDocument
+#
+# These requirements describe the design-level behavior of the MermaidDocument unit, the public API of the
+# CanvasNetMermaid system in the root namespace DemaConsulting.CanvasNet.Mermaid: the immutable MermaidDocument
+# with its Parse and Open entry points, metadata, Measure and Render; the validated MermaidOpenOptions,
+# MermaidRenderOptions, and MermaidLimits; the MermaidLocation, MermaidDiagnostic, MermaidUnsupportedFeature, and
+# MermaidSize records; the MermaidDiagnosticCodes constants; the MermaidSyntaxException, MermaidRenderException, and
+# MermaidUnsupportedFeatureException types; the internal report sink; and the MermaidImageSource.
+# See docs/verification/canvas-net-mermaid/mermaid-document.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: MermaidDocument Requirements
+        requirements:
+          - id: CanvasNetMermaid-MermaidDocument-ParseOpen
+            title: >-
+              The MermaidDocument unit shall open diagram text from a string, a file path (named by the path), or a
+              stream (read as strict UTF-8 without a leading byte-order mark, bounded, and left open), shall refuse
+              invalid UTF-8 with a MermaidSyntaxException, text longer than the limit with an
+              InvalidDataException, and null, empty, or unreadable arguments with the documented argument
+              exceptions.
+            justification: |
+              Every entry point must yield the same validated document and fail closed in a predictable way that a
+              host can map to its own error codes.
+            tests:
+              - MermaidDocument_Open_StreamWithBom_ParsesAndLeavesStreamOpen
+              - MermaidDocument_Open_InvalidUtf8_ThrowsSyntaxException
+              - MermaidDocument_Open_File_UsesPathAsSourceName
+              - MermaidDocument_EntryPoints_InvalidArguments_Throw
+              - MermaidDocument_Parse_OverMaxTextSize_ThrowsInvalidData
+              - MermaidDocument_Open_StreamOverBound_ThrowsInvalidData
+
+          - id: CanvasNetMermaid-MermaidDocument-Metadata
+            title: >-
+              The MermaidDocument unit shall expose the source name, the diagram type, whether this version draws
+              the type, the title (the frontmatter title when the diagram has none of its own), the accessible
+              title, the direction, and the node, edge, and subgraph counts of an opened document, and shall open a
+              known diagram type that this version does not draw without error.
+            justification: |
+              Hosts decide what to do with a diagram (draw it, pass it on, describe it) from these facts, before
+              and without rendering.
+            tests:
+              - MermaidDocument_Parse_Flowchart_IsSupportedFlowchart
+              - MermaidDocument_Parse_SequenceDiagram_IsKnownButNotSupported
+              - MermaidDocument_Parse_FrontmatterTitle_IsTitle
+
+          - id: CanvasNetMermaid-MermaidDocument-ErrorContract
+            title: >-
+              The MermaidDocument unit shall raise MermaidSyntaxException, MermaidRenderException, and
+              MermaidUnsupportedFeatureException values that carry a code or feature, a location, and a hint
+              (a syntax exception also the expected tokens), whose message reads file:line:column: code:
+              description, and whose standard constructors use a general code, and shall format a location as
+              file:line:column, line:column, or file alone depending on what is known.
+            justification: |
+              One stable, parseable shape for every failure lets agents and tools point at the exact place to fix,
+              and keeps the exceptions usable through the standard .NET constructors.
+            tests:
+              - MermaidDocument_Parse_UnknownKeyword_ThrowsLocatedSyntaxException
+              - MermaidSyntaxException_Located_CarriesCodeLocationHintAndExpected
+              - MermaidSyntaxException_StandardConstructors_UseGeneralCode
+              - MermaidRenderException_Constructors_CarryCodeAndLocation
+              - MermaidUnsupportedFeatureException_Constructors_CarryFeatureAndLocation
+              - MermaidLocation_ToString_Forms_AreFileLineColumn
+              - MermaidLocation_IsKnown_DependsOnLine
+
+          - id: CanvasNetMermaid-MermaidDocument-DiagnosticCodes
+            title: >-
+              The MermaidDocument unit shall publish every report and error code as a distinct, stable constant
+              that starts with mermaid-, and shall format a warning and an unsupported-feature report with their
+              location and code or feature.
+            justification: |
+              Hosts and scripts branch on the codes, so they must be discoverable, unique, and never change.
+            tests:
+              - MermaidDiagnosticCodes_AllCodes_AreDistinctMermaidIdentifiers
+              - MermaidDiagnostic_ToString_PrefixesLocationAndCode
+              - MermaidUnsupportedFeature_ToString_IncludesFeatureAndLocation
+              - MermaidSize_Equality_IsByValue
+
+          - id: CanvasNetMermaid-MermaidDocument-Options
+            title: >-
+              The MermaidDocument unit shall validate its options when they are set: a scale that is finite and
+              positive, a theme that is one of default, base, dark, forest, and neutral, a site configuration that
+              is a JSON object, non-null limits, and a source name that is not white space, with documented
+              defaults (scale 1, transparent background, no configuration, no theme, no resolver, the default
+              limits, lenient mode).
+            justification: |
+              Invalid options must fail where the caller sets them, not deep inside a render, and the defaults
+              must reproduce what Mermaid draws.
+            tests:
+              - MermaidRenderOptions_Defaults_AreDocumented
+              - MermaidRenderOptions_Scale_Invalid_Throws
+              - MermaidRenderOptions_Theme_OnlyMermaidThemes_AreAccepted
+              - MermaidRenderOptions_Config_NotJsonObject_Throws
+              - MermaidRenderOptions_Limits_Null_Throws
+              - MermaidOpenOptions_SourceName_Whitespace_Throws
+
+          - id: CanvasNetMermaid-MermaidDocument-Limits
+            title: >-
+              The MermaidDocument unit shall provide default limits with the documented values (Mermaid's own text
+              size and edge defaults, and CanvasNet ceilings for the rest) and shall refuse a limit below one and a
+              depth limit outside its range.
+            justification: |
+              Hosts tune the limits for their trust level; the defaults must be safe and the ceilings meaningful.
+            tests:
+              - MermaidLimits_Default_HasDocumentedValues
+              - MermaidLimits_Init_BelowOne_Throws
+              - MermaidLimits_Init_DepthOutsideRange_Throws
+
+          - id: CanvasNetMermaid-MermaidDocument-Reports
+            title: >-
+              The MermaidDocument unit shall deliver the warnings and unsupported features of a call once each, in
+              the order they occurred across both kinds, after the work and on the calling thread, shall drop an
+              exact duplicate, shall stop at the report limit with a single mermaid-diagnostics-suppressed notice,
+              shall throw at the first unsupported feature in strict mode after recording it, and shall let an
+              exception thrown by a handler propagate, except after a failed call, where it is ignored so that the
+              original failure is the one reported.
+            justification: |
+              Reports must be complete, ordered, and bounded, and a host's handler must not be called from another
+              thread or in the middle of a render.
+            tests:
+              - MermaidReportSink_Deliver_KeepsOrderAcrossKinds
+              - MermaidReportSink_Warn_Duplicate_IsRecordedOnce
+              - MermaidReportSink_BeyondCap_AddsSingleSuppressedNotice
+              - MermaidReportSink_Unsupported_Strict_RecordsAndThrows
+              - MermaidReportSink_DeliverIgnoringHandlerFailures_SwallowsHandlerException
+
+          - id: CanvasNetMermaid-MermaidDocument-ImageSource
+            title: >-
+              The MermaidDocument unit shall provide MermaidImageSource, which claims .mmd and .mermaid and the
+              theme fragment parameter (refusing a theme that is not a Mermaid theme), draws a diagram at its
+              natural size or at the requested size, returns a transparent picture with one unsupported note for a
+              diagram type it does not draw (an exception in strict mode), maps warnings to mermaid-warning
+              diagnostics with the code and location, lets a syntax error propagate, and rejects a null request.
+            justification: |
+              The image-source contract is how SVG documents, the Viewer, and the tool embed a diagram; it must
+              behave like the other CanvasNet sources.
+            tests:
+              - MermaidImageSource_Properties_ClaimMermaidExtensionsAndTheme
+              - MermaidImageSource_Render_UnsupportedType_ReturnsTransparentPictureAndNote
+              - MermaidImageSource_Render_Flowchart_DrawsTheDiagram
+              - MermaidImageSource_Render_UnsupportedTypeStrict_Throws
+              - MermaidImageSource_Render_ThemeFragment_ValidatedAgainstMermaidThemes
+              - MermaidImageSource_Render_InvalidText_ThrowsSyntaxException
+              - MermaidImageSource_Render_NullRequest_Throws

@@ -169,6 +169,45 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
+  - docs/reqstream/canvas-net-mermaid.yaml
+  - docs/reqstream/canvas-net-mermaid/platform-requirements.yaml
+  - docs/reqstream/canvas-net-mermaid/mermaid-document.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/preprocessor.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/diagram-detector.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/yaml-subset-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/source-scanner.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/html-sanitizer.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/mermaid-config-resolver.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/theme-resolver.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/color-math.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/style-declarations.yaml
+  - docs/reqstream/canvas-net-mermaid/graphlib.yaml
+  - docs/reqstream/canvas-net-mermaid/graphlib/graph.yaml
+  - docs/reqstream/canvas-net-mermaid/graphlib/graph-algorithms.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-layout.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-acyclic.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-nesting.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-normalizer.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-ordering.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-positioning.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-coordinate-system.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/layout-work-meter.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/edge-builder.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/label-builder.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/node-images.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-mermaid/flowchart.yaml
+  - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-model.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

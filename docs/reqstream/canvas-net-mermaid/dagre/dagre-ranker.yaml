@@ -1,0 +1,61 @@
+---
+# Software Unit Requirements for DagreRanker
+#
+# These requirements describe the design-level behavior of the DagreRanker unit of the Dagre subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's ranking (rank/index.js, rank/util.js,
+# rank/feasible-tree.js and rank/network-simplex.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreRanker Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreRanker-NetworkSimplex
+                title: >-
+                  The DagreRanker unit shall rank the nodes of a connected acyclic graph with the network simplex
+                  method as dagre does, giving each edge at least its minimum length (the greatest one of parallel
+                  edges) and the least total weighted edge length.
+                justification: |
+                  Network simplex is dagre's default ranker and the one Mermaid uses; the ranks decide the rows of a
+                  flowchart.
+                tests:
+                  - DagreRanker_NetworkSimplex_SmallGraphs_OptimalRanks
+                  - DagreRanker_NetworkSimplex_MinLen_Honored
+                  - DagreRanker_NetworkSimplex_MultiEdges_GreatestMinLen
+
+              - id: CanvasNetMermaid-Dagre-DagreRanker-Pivots
+                title: >-
+                  The DagreRanker unit shall pivot as dagre's network simplex does: number the spanning tree in
+                  postorder, compute the cut value of every tree edge, leave by the first tree edge with a negative
+                  cut value, and enter by the edge of least slack that crosses from the head to the tail component.
+                justification: |
+                  Several optimal rankings may exist; only the same pivots in the same order reach the one dagre
+                  reaches.
+                tests:
+                  - DagreRanker_InitLowLimValues_Tree_NumbersInPostorder
+                  - DagreRanker_CalcCutValue_GansnerTree_MatchesPaper
+                  - DagreRanker_LeaveEdge_NegativeCutValue_Found
+                  - DagreRanker_EnterEdge_HeadToTail_Found
+
+              - id: CanvasNetMermaid-Dagre-DagreRanker-FeasibleTree
+                title: >-
+                  The DagreRanker unit shall build a spanning tree of tight edges by shifting the ranks of the tree
+                  found so far toward the edge of least slack that leaves it, until the tree spans the graph.
+                justification: |
+                  The feasible tree is the start of the network simplex and the whole of the tight-tree ranker.
+                tests:
+                  - DagreRanker_FeasibleTree_ShortensLooseEdges_SpansGraph
+
+              - id: CanvasNetMermaid-Dagre-DagreRanker-RankerChoice
+                title: >-
+                  The DagreRanker unit shall rank with the ranker the graph names - longest-path (each node as low as
+                  its successors allow), tight-tree, or network-simplex - using network simplex when the name is
+                  absent or unknown.
+                justification: |
+                  dagre selects its ranker by an attribute; the port must honor the same names and default.
+                tests:
+                  - DagreRanker_Rank_RankerAttribute_PicksRanker
+                  - DagreRanker_LongestPath_Chain_RanksBySinkDistance

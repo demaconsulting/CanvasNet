@@ -1,0 +1,53 @@
+---
+# Software Unit Requirements for NodeImages
+#
+# These requirements describe the design-level behavior of the NodeImages unit of the Rendering subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the pictures of one rendering, loaded only
+# through the caller's image resolver, with their natural sizes for the layout and their pixels for the painter.
+# See docs/verification/canvas-net-mermaid/rendering/node-images.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: NodeImages Requirements
+            requirements:
+              - id: CanvasNetMermaid-Rendering-NodeImages-Resolver
+                title: >-
+                  The NodeImages unit shall load a picture only through the caller's image resolver and shall report
+                  a link once, loading nothing, when there is no resolver or the resolver gives no picture.
+                justification: |
+                  The caller, not the library, decides what a link may refer to; a picture that is not drawn must
+                  be reported.
+                tests:
+                  - NodeImages_NaturalSize_NoResolver_ReportsOnceAndGivesNull
+                  - NodeImages_NaturalSize_ResolverGivesNothing_Reports
+
+              - id: CanvasNetMermaid-Rendering-NodeImages-NaturalSize
+                title: >-
+                  The NodeImages unit shall take as the natural size of a picture the size of what the resolver
+                  returns when asked for it at 256 by 256 pixels, asking once per link in a rendering.
+                justification: |
+                  Mermaid sizes image nodes by the natural size of their pictures; asking once keeps the work and the
+                  resolver calls bounded.
+                tests:
+                  - NodeImages_NaturalSize_Resolver_AsksOnce
+
+              - id: CanvasNetMermaid-Rendering-NodeImages-DeviceSize
+                title: >-
+                  The NodeImages unit shall ask the resolver for a picture that is painted at the device size it is
+                  drawn at.
+                justification: |
+                  A picture loaded at the drawn size is sharp at every scale.
+                tests:
+                  - NodeImages_Load_Resolver_AsksAtDeviceSize
+
+              - id: CanvasNetMermaid-Rendering-NodeImages-MaxImages
+                title: >-
+                  The NodeImages unit shall count every resolver call of a rendering against the image limit and fail
+                  the call that would pass it with a located limit failure, without calling the resolver.
+                justification: |
+                  Untrusted diagrams must not make the host load an unbounded number of pictures.
+                tests:
+                  - NodeImages_NaturalSize_BeyondMaxImages_ThrowsLimitExceeded

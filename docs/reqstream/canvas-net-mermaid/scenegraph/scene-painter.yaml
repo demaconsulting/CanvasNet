@@ -1,0 +1,111 @@
+---
+# Software Unit Requirements for ScenePainter
+#
+# These requirements describe the design-level behavior of the ScenePainter unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Scenegraph): the painter that draws a scene onto a core
+# CanvasNet Surface (ScenePainter, a partial class with its text and picture parts), its placement (ScenePlacement),
+# and the picture-loader contract (ISceneImageLoader).
+# See docs/verification/canvas-net-mermaid/scenegraph/scene-painter.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: ScenePainter Requirements
+            requirements:
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-FillStroke
+                title: >-
+                  The ScenePainter unit shall fill a path with its color under its fill rule (nonzero or even-odd)
+                  and stroke it with its color and width centered on its outline, leaving the rest of the surface
+                  untouched.
+                justification: |
+                  Node shapes, clusters, edges, and markers are filled and stroked paths; shapes with holes rely on
+                  the even-odd rule.
+                tests:
+                  - ScenePainter_Paint_FilledStrokedRectangle_PaintsFillAndStroke
+                  - ScenePainter_Paint_EvenOdd_LeavesHole
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-Dashes
+                title: >-
+                  The ScenePainter unit shall stroke a dashed path with its dash pattern scaled with the scene, and
+                  shall stroke it solid when the pattern is invalid for SVG (an entry that is negative or not finite)
+                  or finer than a quarter of a pixel.
+                justification: |
+                  Dotted and animated links are dashed; a browser draws an invalid pattern solid, and a pattern too
+                  fine to be seen must not make the stroke cost without bound.
+                tests:
+                  - ScenePainter_Paint_DashedStroke_LeavesGaps
+                  - ScenePainter_Paint_InvalidDash_IsSolid
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-Text
+                title: >-
+                  The ScenePainter unit shall draw the runs of a text line one after the other, each in its own
+                  color and in the bundled face that its font family, weight, and style resolve to (common family
+                  names such as Mermaid's default stack mapping to the bundled families, never to installed fonts),
+                  at the scaled size, with the line starting at, centered on, or ending at its anchor.
+                justification: |
+                  Labels are drawn with the same fonts that measured them during the layout, so the text fits its
+                  box and looks the same on every machine.
+                tests:
+                  - ScenePainter_Paint_MiddleAnchoredText_IsCentered
+                  - ScenePainter_Paint_EndAnchoredRuns_EndAtAnchor
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-Placement
+                title: >-
+                  The ScenePainter unit shall fill the surface with the background color before drawing (leaving it
+                  transparent when there is none), and place the view box of a scene either at the origin enlarged
+                  by a scale or scaled uniformly by the largest factor that fits a target size and centered in it,
+                  without scaling a view box that has no area.
+                justification: |
+                  The natural-size render enlarges the view box by the requested scale and the exact-size render fits
+                  it; geometry and line widths must scale together.
+                tests:
+                  - ScenePainter_Paint_ScaledWithBackground_ScalesGeometry
+                  - ScenePlacement_Fit_ScalesAndCenters
+                  - ScenePainter_Paint_FilledStrokedRectangle_PaintsFillAndStroke
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-Images
+                title: >-
+                  The ScenePainter unit shall ask its picture loader for the picture of an image item at the size of
+                  the item's box in whole device pixels, stretch a picture that comes back at another size to the
+                  whole box, composite it with the item's opacity, and draw nothing when it has no loader or the
+                  loader gives no picture.
+                justification: |
+                  Pictures are loaded at the size they are drawn so that vector pictures stay sharp; Mermaid's image
+                  element fills its box without keeping the aspect of the picture.
+                tests:
+                  - ScenePainter_Paint_Image_LoadsAtDeviceSizeAndComposites
+                  - ScenePainter_Paint_ImageAtItsOwnSize_IsStretchedToTheBox
+                  - ScenePainter_Paint_ImageWithoutLoader_DrawsNothing
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-PaintedPixelLimit
+                title: >-
+                  The ScenePainter unit shall charge the device pixels of the box of every fill, stroke, text line,
+                  and picture, clipped to the surface, against its painted-pixel limit before painting it, and shall
+                  fail with a MermaidRenderException with the code mermaid-limit-exceeded, the location of the item,
+                  and a message naming MermaidLimits.MaxPaintedPixels when an item would pass the limit.
+                justification: |
+                  The painted-pixel limit bounds the work of a render; the failure must point at the construct that
+                  caused it and tell the caller which limit to raise.
+                tests:
+                  - ScenePainter_Paint_OverPaintedPixelLimit_ThrowsLimitExceeded
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-UnboundedGeometry
+                title: >-
+                  The ScenePainter unit shall skip, without painting or charging it, an item or group whose
+                  coordinates, sizes, or translations are not finite or exceed 32,768 device pixels in magnitude.
+                justification: |
+                  Such geometry cannot be seen on any surface and would make flattening and stroking cost without
+                  bound.
+                tests:
+                  - ScenePainter_Paint_UnboundedGeometry_IsSkipped
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-Cancellation
+                title: >-
+                  The ScenePainter unit shall throw OperationCanceledException when its cancellation token is
+                  canceled, checking the token before it starts and before it paints each item.
+                justification: |
+                  A caller that cancels a render must get control back promptly.
+                tests:
+                  - ScenePainter_Paint_Canceled_Throws

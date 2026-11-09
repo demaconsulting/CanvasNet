@@ -7,8 +7,8 @@
 #
 # Packaging note: CanvasNetViewer is distributed as the separate DemaConsulting.CanvasNet.Viewer NuGet package
 # (namespace DemaConsulting.CanvasNet.Viewer), which references the core package and the Svg, Pdf, Pptx, Vsdx,
-# Scad, and VegaLite packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every "tests"
-# entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
+# Scad, VegaLite, and Mermaid packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every
+# "tests" entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
 # docs/verification/canvas-net-viewer/canvas-net-viewer.md for the test-evidence mapping.
 
 sections:
@@ -19,7 +19,7 @@ sections:
           - id: CanvasNetViewer-CanvasNetViewer-ImageSources
             title: >-
               The CanvasNetViewer class shall expose the built-in image sources as a fixed, read-only list
-              (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and Vega-Lite, in that order, with shared
+              (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid, in that order, with shared
               instances) and the extensions they claim as the sorted union of their claims.
             justification: |
               One fixed list is the single place where the supported file types are decided, and the help of
@@ -90,9 +90,10 @@ sections:
               The CanvasNetViewer class shall draw a linked file and a file given to Render with the same code as the
               command-line tool: its built-in sources shall be adapters over the SourceLoader (with the names,
               extensions and order above), hand the bytes and the fragment of the link to it, choose the page of a
-              PDF, PowerPoint or Visio document from the fragment (page 1 without one) and the view of a model from
-              view=, keep the options of an embedding document away from an embedded file, report a page that does not
-              exist as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
+              PDF, PowerPoint or Visio document from the fragment (page 1 without one), the view of a model from
+              view=, and the theme of a Mermaid diagram from theme= (one of Mermaid's themes, in any case), keep
+              the options of an embedding document away from an embedded file, report a page that does not exist
+              as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
               image-fragment-invalid without drawing the image, report notes with their detail, location, page and
               origin, and surface a library failure as the original exception inside an ImageSourceException.
             justification: |
@@ -113,6 +114,8 @@ sections:
               - CanvasNetViewer_Render_HostileFragment_IsRefusedAndShortInTheMessage
               - SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks
               - SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument
+              - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme
+              - SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid
 
           - id: CanvasNetViewer-CanvasNetViewer-RenderOptions
             title: >-

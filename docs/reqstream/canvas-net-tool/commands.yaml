@@ -67,6 +67,7 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-SvgImageLinks
           - CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
           - CanvasNetTool-Commands-HelpTopics-InputFragments
+          - CanvasNetTool-Commands-HelpTopics-Mermaid
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:
@@ -104,6 +105,7 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-InfoPages
           - CanvasNetTool-Commands-DiscoveryCommands-InfoModel
           - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
+          - CanvasNetTool-Commands-DiscoveryCommands-Mermaid
           - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
           - CanvasNetTool-Commands-DiscoveryCommands-InfoFragments
         tests:
@@ -127,6 +129,8 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-Scad
           - CanvasNetTool-Commands-RenderCommand-VegaLite
           - CanvasNetTool-Commands-RenderCommand-ChartParams
+          - CanvasNetTool-Commands-RenderCommand-Mermaid
+          - CanvasNetTool-Commands-RenderCommand-Theme
           - CanvasNetTool-Commands-RenderCommand-InputFragments
           - CanvasNetTool-Commands-RenderCommand-Pipeline
           - CanvasNetTool-Commands-RenderCommand-PhotoOptions

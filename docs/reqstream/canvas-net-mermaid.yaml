@@ -1,0 +1,348 @@
+---
+# Software System Requirements for CanvasNetMermaid
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Mermaid package
+# (root namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Graphlib,
+# Dagre, Rendering, Scenegraph, and Flowchart) from the perspective of its consumers, without specifying
+# implementation details.
+#
+# CanvasNetMermaid is an independent software system distributed as its own NuGet package. It reads Mermaid diagram
+# text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code and the public
+# CanvasNet APIs: there is no browser, no JavaScript runtime, no network access, and no dependency on any Mermaid,
+# dagre, or d3 package. This version draws flowcharts (the flowchart and graph keywords) with Mermaid's own layout
+# (a port of dagre) and Mermaid's own shapes, labels, edges, themes, and styles; every other Mermaid diagram type is
+# recognized and reported as unsupported with a stable mermaid-* identifier instead of failing or drawing a guess
+# (see docs/design/canvas-net-mermaid.md, Fidelity and Known Differences, and the Phase Plan). The ported behavior of
+# Mermaid, dagre, graphlib, d3, khroma, js-yaml, lodash, and marked is attributed in the package's third-party notices
+# (src/DemaConsulting.CanvasNet.Mermaid/third-party).
+#
+# Every requirement below links down to the subsystem and unit requirements that implement it; the test evidence is
+# described in docs/verification/canvas-net-mermaid.md.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    requirements:
+      - id: CanvasNetMermaid-Open
+        title: >-
+          The library shall parse Mermaid diagram text supplied as a string, a readable stream, or a file path into
+          a MermaidDocument that is identical whichever entry point is used, shall ignore a leading byte-order mark,
+          shall refuse text that is not valid UTF-8, and shall reject null arguments and unreadable sources with the
+          documented exception contract.
+        tags: [system]
+        justification: |
+          Callers hold diagrams in different forms (a code block, an embedded resource, a file); every entry point
+          must yield the same validated result, and invalid arguments must fail closed with a predictable exception
+          rather than being coerced.
+        children:
+          - CanvasNetMermaid-MermaidDocument-ParseOpen
+          - CanvasNetMermaid-Syntax-Preprocessing
+          - CanvasNetMermaid-Flowchart-Language
+        tests:
+          - CanvasNetMermaid_Open_StringStreamAndPath_Agree
+          - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
+
+      - id: CanvasNetMermaid-DiagramMetadata
+        title: >-
+          The library shall let a caller read what a diagram declares - its diagram type, whether this version
+          draws it, its title, its accessible title, its direction, and its node, edge, and subgraph counts - from a
+          parsed document without rendering it and without opening any other file or the network.
+        tags: [system]
+        justification: |
+          Tools describe a diagram before they render it (the canvasnet info command, a documentation filter that
+          decides whether to draw a code block); the description must be available from the text alone, cheaply
+          and safely.
+        children:
+          - CanvasNetMermaid-MermaidDocument-Metadata
+          - CanvasNetMermaid-Syntax-Preprocessing
+          - CanvasNetMermaid-Syntax-Detection
+          - CanvasNetMermaid-Configuration-Detection
+          - CanvasNetMermaid-Flowchart-Metadata
+        tests:
+          - CanvasNetMermaid_Metadata_Flowchart_DescribesTheDiagram
+          - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
+
+      - id: CanvasNetMermaid-SyntaxErrors
+        title: >-
+          The library shall fail closed on invalid diagram text with a MermaidSyntaxException that carries a stable
+          mermaid-* code, the source name and the one-based line and column of the problem in the original text
+          (including inside the frontmatter), a hint that suggests the fix, and the tokens that were expected, and
+          shall name the nearest known keyword when the diagram keyword is unknown.
+        tags: [system]
+        justification: |
+          Authors and agents need to find and fix a mistake in a diagram quickly; a renderer that guessed at
+          invalid text would draw a picture that silently differs from the author's intent, as a browser would
+          draw an error picture instead.
+        children:
+          - CanvasNetMermaid-MermaidDocument-ErrorContract
+          - CanvasNetMermaid-MermaidDocument-DiagnosticCodes
+          - CanvasNetMermaid-Syntax-ParserInput
+          - CanvasNetMermaid-Syntax-Detection
+          - CanvasNetMermaid-Syntax-Yaml
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Flowchart-FailClosed
+        tests:
+          - CanvasNetMermaid_SyntaxErrors_AreLocatedCodedAndHinted
+          - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+
+      - id: CanvasNetMermaid-Configuration
+        title: >-
+          The library shall resolve the effective configuration of a diagram in Mermaid's order - the Mermaid
+          defaults, then the caller's site configuration and theme, then the configuration of the frontmatter, then
+          the init directives of the text - shall never let the text change a secure key of the site, and shall
+          report a configuration key it does not know or a value of the wrong type instead of failing.
+        tags: [system]
+        justification: |
+          A documentation build applies a house style on top of whatever a diagram says, while a diagram must keep
+          the right to choose its own theme and spacing, exactly as it does in Mermaid; untrusted text must not
+          raise what the host has locked.
+        children:
+          - CanvasNetMermaid-MermaidDocument-Options
+          - CanvasNetMermaid-Syntax-Preprocessing
+          - CanvasNetMermaid-Syntax-Yaml
+          - CanvasNetMermaid-Configuration-Precedence
+          - CanvasNetMermaid-Configuration-Reports
+          - CanvasNetMermaid-Configuration-Detection
+          - CanvasNetMermaid-Flowchart-LayoutData
+        tests:
+          - CanvasNetMermaid_Configuration_TextOverridesTheCaller
+
+      - id: CanvasNetMermaid-Themes
+        title: >-
+          The library shall draw with the five Mermaid themes default, base, dark, forest, and neutral, deriving
+          every theme color as Mermaid does from the theme and its themeVariables overrides, so that a diagram has
+          the same colors as in Mermaid.
+        tags: [system]
+        justification: |
+          A diagram's colors are part of its meaning and its house style; readers expect a CanvasNet picture of a
+          Mermaid diagram to look like the one Mermaid draws.
+        children:
+          - CanvasNetMermaid-MermaidDocument-Options
+          - CanvasNetMermaid-Configuration-Themes
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Rendering-NodeShapes
+        tests:
+          - CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors
+          - CanvasNetMermaid_Flowchart_Theme_ChangesTheNodeFill
+
+      - id: CanvasNetMermaid-Flowcharts
+        title: >-
+          The library shall draw flowchart diagrams (the flowchart and graph keywords) with every documented node
+          shape and its aliases and bracket forms, every link form (strokes, heads, lengths, labels, ids, chains),
+          nested subgraphs with their own directions, the four directions, classDef, class, style, and linkStyle
+          declarations, markdown, HTML, and plain labels, the documented curves and markers, and the frontmatter
+          title.
+        tags: [system]
+        justification: |
+          Flowcharts are the most used Mermaid diagram type and the one this version delivers end to end; an
+          author must be able to use the whole flowchart language without checking which parts are drawn.
+        children:
+          - CanvasNetMermaid-Syntax-ParserInput
+          - CanvasNetMermaid-Syntax-Yaml
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Configuration-Declarations
+          - CanvasNetMermaid-Graphlib-GraphStructure
+          - CanvasNetMermaid-Dagre-Layout
+          - CanvasNetMermaid-Rendering-Layout
+          - CanvasNetMermaid-Rendering-NodeShapes
+          - CanvasNetMermaid-Rendering-Edges
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Painting
+          - CanvasNetMermaid-Flowchart-Language
+          - CanvasNetMermaid-Flowchart-LayoutData
+          - CanvasNetMermaid-Flowchart-Drawing
+        tests:
+          - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
+          - CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes
+
+      - id: CanvasNetMermaid-LayoutFidelity
+        title: >-
+          The library shall lay out a flowchart as Mermaid does - the same view box, node centers and sizes,
+          subgraph rectangles, edge routes, and edge label positions - within the tolerance documented in the system
+          design when Mermaid measures text with the same bundled fonts.
+        tags: [system]
+        justification: |
+          A picture that differs in layout from the one the author previewed in Mermaid breaks the author's
+          intent (crossing links, moved groups); comparing against Mermaid's own output is the only objective
+          measure of fidelity.
+        children:
+          - CanvasNetMermaid-Graphlib-GraphStructure
+          - CanvasNetMermaid-Graphlib-KeyOrder
+          - CanvasNetMermaid-Graphlib-Traversals
+          - CanvasNetMermaid-Graphlib-Consistency
+          - CanvasNetMermaid-Dagre-Layout
+          - CanvasNetMermaid-Dagre-TieBreaking
+          - CanvasNetMermaid-Rendering-Layout
+          - CanvasNetMermaid-Rendering-NodeShapes
+          - CanvasNetMermaid-Rendering-Edges
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Model
+          - CanvasNetMermaid-Flowchart-LayoutData
+        tests:
+          - CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid
+          - CanvasNetMermaid_Flowchart_ReferenceGoldens_CoverEveryFixture
+
+      - id: CanvasNetMermaid-MeasureRender
+        title: >-
+          The library shall measure and render a diagram at its natural size (its drawing bounds plus the diagram
+          padding, as Mermaid's view box) multiplied by a scale, or fitted and centered inside an exact width and
+          height, over a transparent background unless the caller gives a background color, and shall reject an
+          invalid size.
+        tags: [system]
+        justification: |
+          Hosts place diagrams in documents and slides at a resolution of their choice; the natural size must
+          match Mermaid's picture so that a scale of 1 equals what an author previews, and the transparent
+          background matches Mermaid's SVG.
+        children:
+          - CanvasNetMermaid-Scenegraph-Model
+          - CanvasNetMermaid-Scenegraph-Painting
+          - CanvasNetMermaid-Flowchart-Drawing
+        tests:
+          - CanvasNetMermaid_Flowchart_Scale_KeepsTheDrawing
+          - CanvasNetMermaid_Flowchart_Background_IsTransparentByDefault
+          - CanvasNetMermaid_Flowchart_FixedSize_FitsTheDiagram
+          - CanvasNetMermaid_RenderSized_InvalidSize_Throws
+
+      - id: CanvasNetMermaid-ImageEmbedding
+        title: >-
+          The library shall draw the pictures that diagram nodes and labels name (the img shape data and img tags)
+          only through an image resolver the caller supplies, never by opening a file or the network itself, shall
+          report a picture it cannot obtain with the mermaid-image-unresolved code and still draw the diagram, and
+          shall bound the number of pictures it asks for.
+        tags: [system]
+        justification: |
+          Diagrams of parts and charts show pictures of other CanvasNet sources; untrusted text must not decide
+          which files are read, so the host keeps that decision (for example a sandboxed folder resolver).
+        children:
+          - CanvasNetMermaid-Rendering-NodeShapes
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Pictures
+        tests:
+          - CanvasNetMermaid_ImageEmbedding_PictureComesFromTheResolver
+
+      - id: CanvasNetMermaid-UnsupportedFeatures
+        title: >-
+          The library shall report every construct it recognizes but does not draw - a diagram type other than a
+          flowchart (drawn as an empty transparent picture), the hand-drawn look, a layout other than dagre, icons,
+          style declarations outside the supported subset, and HTML elements outside the supported subset - with a
+          stable mermaid-* code, a message, a hint, and the location, delivered once, in order, on the calling
+          thread to the caller's handlers, and shall throw a MermaidUnsupportedFeatureException at the first one in
+          strict mode.
+        tags: [system]
+        justification: |
+          A partial picture must never be mistaken for a complete one; reports with stable codes let a host warn,
+          fail a build in strict mode, or pass the diagram to another renderer (as the documentation filter does
+          for the other diagram types).
+        children:
+          - CanvasNetMermaid-MermaidDocument-Reports
+          - CanvasNetMermaid-MermaidDocument-DiagnosticCodes
+          - CanvasNetMermaid-Syntax-Detection
+          - CanvasNetMermaid-Configuration-Reports
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Configuration-Declarations
+          - CanvasNetMermaid-Rendering-NodeShapes
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Flowchart-UnsupportedFeatures
+        tests:
+          - CanvasNetMermaid_Reports_AreCodedAndLocated
+          - CanvasNetMermaid_Render_SequenceDiagram_ReportsOnceAndDrawsTransparentPlaceholder
+          - CanvasNetMermaid_Render_SequenceDiagramStrict_Throws
+          - CanvasNetMermaid_Measure_SequenceDiagram_ReportsAndGivesScaledPlaceholderSize
+          - CanvasNetMermaid_RenderSized_SequenceDiagramWithBackground_FillsBackground
+          - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
+          - CanvasNetMermaid_Render_FailingHandler_Propagates
+
+      - id: CanvasNetMermaid-Limits
+        title: >-
+          The library shall treat diagram text as untrusted and bound the work and memory of a document with
+          caller-adjustable limits - the text size, edges, nodes, label length, nesting depth, YAML depth (refusing
+          YAML aliases), layout work, pictures, painted pixels, and reports - failing with a located
+          mermaid-limit-exceeded error (or an InvalidDataException for oversized text) instead of hanging or
+          exhausting memory.
+        tags: [system]
+        justification: |
+          Diagrams arrive from documents, prompts, and the network; a hostile or accidental input (an alias bomb, a
+          complete graph, a deep nesting) must not stop a build or a service.
+        children:
+          - CanvasNetMermaid-MermaidDocument-Limits
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Configuration-Reports
+          - CanvasNetMermaid-Configuration-Themes
+          - CanvasNetMermaid-Dagre-Limits
+          - CanvasNetMermaid-Rendering-Layout
+          - CanvasNetMermaid-Rendering-NodeShapes
+          - CanvasNetMermaid-Scenegraph-BoundedPainting
+          - CanvasNetMermaid-Flowchart-FailClosed
+        tests:
+          - CanvasNetMermaid_Hardening_TooManyEdges_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_TooLongText_IsRefused
+          - CanvasNetMermaid_Hardening_DeepNesting_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_NestingAtTheLimit_Renders
+          - CanvasNetMermaid_Hardening_YamlAliasBomb_IsRefused
+          - CanvasNetMermaid_Hardening_LongLabel_IsALimitOrWraps
+          - CanvasNetMermaid_Hardening_CompleteGraph_RendersOrHitsTheWorkLimit
+          - CanvasNetMermaid_Hardening_LongChainAndManySubgraphs_Render
+          - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+
+      - id: CanvasNetMermaid-Determinism
+        title: >-
+          The library shall produce identical pixels and identical reports for the same document and options on
+          every render, on every thread, and on every supported platform, measuring and drawing text only with the
+          fonts bundled with CanvasNet.
+        tags: [system]
+        justification: |
+          Documentation builds cache and compare pictures; a picture that changed with the machine, the installed
+          fonts, or the thread would break caching and reviews.
+        children:
+          - CanvasNetMermaid-Configuration-Themes
+          - CanvasNetMermaid-Graphlib-KeyOrder
+          - CanvasNetMermaid-Graphlib-Consistency
+          - CanvasNetMermaid-Dagre-TieBreaking
+          - CanvasNetMermaid-Dagre-Determinism
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Determinism
+        tests:
+          - CanvasNetMermaid_Flowchart_RepeatedAndConcurrentRenders_AreIdentical
+          - CanvasNetMermaid_Render_Concurrent_IsDeterministic
+
+      - id: CanvasNetMermaid-Cancellation
+        title: >-
+          The library shall stop measuring or rendering with an OperationCanceledException when the caller's
+          cancellation token is canceled.
+        tags: [system]
+        justification: |
+          A large diagram can take noticeable time to lay out; an interactive host or a build must be able to stop
+          it.
+        children:
+          - CanvasNetMermaid-Dagre-Cancellation
+          - CanvasNetMermaid-Rendering-Layout
+          - CanvasNetMermaid-Scenegraph-BoundedPainting
+        tests:
+          - CanvasNetMermaid_Render_CanceledToken_Throws
+          - CanvasNetMermaid_Flowchart_CanceledToken_Throws
+
+      - id: CanvasNetMermaid-ImageSource
+        title: >-
+          The library shall provide an image source that claims the .mmd and .mermaid file name extensions and the
+          theme fragment parameter, draws the diagram content of a request at its natural size or at the requested
+          size, and returns the reports of the library as image diagnostics.
+        tags: [system]
+        justification: |
+          The CanvasNet image-source contract is how SVG documents, the Viewer library, and the canvasnet tool
+          embed and render any supported format; a Mermaid diagram must be usable everywhere a chart or a model is.
+        children:
+          - CanvasNetMermaid-MermaidDocument-ImageSource
+        tests:
+          - CanvasNetMermaid_ImageSource_DrawsDiagramBytes
+
+      - id: CanvasNetMermaid-ThirdPartyNotices
+        title: >-
+          The package shall ship the license texts of the projects whose behavior it ports (Mermaid, dagre and
+          graphlib, d3, khroma, js-yaml, lodash, and marked) and a provenance record that names, for each, what was
+          ported and that the package is not affiliated with those projects.
+        tags: [system]
+        justification: |
+          The ported projects are MIT or ISC licensed, which requires their notices to accompany the derived work;
+          the provenance record lets a reviewer confirm that only behavior, not code text, was taken.
+        tests:
+          - CanvasNetMermaid_ThirdPartyNotices_ShipWithPackage

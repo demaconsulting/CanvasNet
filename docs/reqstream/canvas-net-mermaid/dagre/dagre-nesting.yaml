@@ -1,0 +1,52 @@
+---
+# Software Unit Requirements for DagreNesting
+#
+# These requirements describe the design-level behavior of the DagreNesting unit of the Dagre subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's cluster handling (nesting-graph.js,
+# parent-dummy-chains.js and add-border-segments.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-nesting.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreNesting Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreNesting-ClusterBorders
+                title: >-
+                  The DagreNesting unit shall, before ranking, give every cluster a top and a bottom border node
+                  joined to its members, join every top-level node to one root, and multiply every edge length by
+                  the nesting rank factor, so that the members of a cluster are ranked between its borders.
+                justification: |
+                  Subgraphs must be laid out as contiguous boxes; dagre ranks them with this nesting graph.
+                tests:
+                  - DagreNesting_Run_FlatGraph_ConnectsRoot
+                  - DagreNesting_Run_Cluster_AddsBorders
+
+              - id: CanvasNetMermaid-Dagre-DagreNesting-Cleanup
+                title: >-
+                  The DagreNesting unit shall remove the root and the nesting edges after ranking and keep every
+                  other edge.
+                justification: |
+                  The nesting graph only guides the ranking; later stages must see the caller's edges only.
+                tests:
+                  - DagreNesting_Cleanup_AfterRun_RemovesNestingGraph
+
+              - id: CanvasNetMermaid-Dagre-DagreNesting-DummyChains
+                title: >-
+                  The DagreNesting unit shall move each dummy node of a long edge into the cluster that the edge
+                  crosses at the dummy's rank.
+                justification: |
+                  An edge that leaves a subgraph must be ordered with that subgraph while it is inside it.
+                tests:
+                  - DagreNesting_ParentDummyChains_EdgeLeavingCluster_DummiesFollowCluster
+
+              - id: CanvasNetMermaid-Dagre-DagreNesting-BorderSegments
+                title: >-
+                  The DagreNesting unit shall give every cluster a left and a right border node at each of its ranks,
+                  joined from rank to rank.
+                justification: |
+                  The border nodes keep the members of a cluster between its sides and give the cluster its width.
+                tests:
+                  - DagreNesting_AddBorderSegments_ClusterOverTwoRanks_AddsChains

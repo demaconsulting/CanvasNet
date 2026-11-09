@@ -1,0 +1,49 @@
+---
+# Software Unit Requirements for GraphAlgorithms
+#
+# These requirements describe the design-level behavior of the GraphAlgorithms unit of the Graphlib subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Graphlib): the graphlib traversals of the ported graphlib
+# surface (preorder, postorder, components, tarjan, and findCycles).
+# See docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Graphlib Requirements
+        sections:
+          - title: GraphAlgorithms Requirements
+            requirements:
+              - id: CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
+                title: >-
+                  The GraphAlgorithms unit shall list the nodes reachable from the given roots, each once, in
+                  depth-first preorder or postorder, visiting the roots in the given order and following the
+                  successors of a directed graph or the neighbors of an undirected graph in the graph's key order,
+                  and shall refuse a root that is not a node of the graph.
+                justification: |
+                  The dagre ranker walks its spanning tree with these traversals; the visiting order decides the
+                  ranks.
+                tests:
+                  - GraphAlgorithms_PreorderPostorder_Tree_VisitsInOrder
+                  - GraphAlgorithms_Preorder_UndirectedAndUnknownRoot_FollowsNeighborsOrThrows
+
+              - id: CanvasNetMermaid-Graphlib-GraphAlgorithms-Components
+                title: >-
+                  The GraphAlgorithms unit shall list the connected components of a graph, ignoring the direction
+                  of its edges, each in the order graphlib visits its nodes.
+                justification: |
+                  The components traversal is part of the ported graphlib surface; a caller must get the components
+                  and the order that graphlib gives.
+                tests:
+                  - GraphAlgorithms_Components_TwoParts_ListsBoth
+
+              - id: CanvasNetMermaid-Graphlib-GraphAlgorithms-StronglyConnected
+                title: >-
+                  The GraphAlgorithms unit shall list the strongly connected components of a graph in the order of
+                  Tarjan's algorithm as graphlib runs it, and the cycles of a graph as the components with more than
+                  one node or with a self loop, and no cycle for an acyclic graph.
+                justification: |
+                  Cycle detection is part of the ported graphlib surface; a caller that checks a graph for cycles
+                  must get the cycles that graphlib reports.
+                tests:
+                  - GraphAlgorithms_TarjanFindCycles_CyclesAndSelfLoop_AreFound
+                  - GraphAlgorithms_FindCycles_AcyclicGraph_ReturnsNone
