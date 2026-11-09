@@ -3,21 +3,21 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 
 /// <summary>
-///     System tests of the behavior for a known diagram type that this version does not draw (<c>classDiagram</c>
+///     System tests of the behavior for a known diagram type that this version does not draw (<c>pie</c>
 ///     here): one <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> report and an empty transparent picture, or a
 ///     <see cref="MermaidUnsupportedFeatureException"/> in strict mode.
 /// </summary>
 public class MermaidUnsupportedDiagramTests
 {
     /// <summary>
-    ///     Validates that rendering a class diagram delivers one report, located at the keyword, with the planned hint,
+    ///     Validates that rendering a pie chart delivers one report, located at the keyword, with the planned hint,
     ///     and returns a transparent 16 by 16 surface.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Render_ClassDiagram_ReportsOnceAndDrawsTransparentPlaceholder()
+    public void CanvasNetMermaid_Render_PieChart_ReportsOnceAndDrawsTransparentPlaceholder()
     {
         // Arrange
-        var document = MermaidDocument.Parse("%% comment\n" + MermaidTestHelpers.ClassText, new MermaidOpenOptions { SourceName = "class.mmd" });
+        var document = MermaidDocument.Parse("%% comment\n" + MermaidTestHelpers.PieText, new MermaidOpenOptions { SourceName = "pie.mmd" });
         var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
 
         // Act
@@ -29,18 +29,18 @@ public class MermaidUnsupportedDiagramTests
         Assert.Empty(warnings);
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
-        Assert.Equal(new MermaidLocation("class.mmd", 2, 1), report.Location);
-        Assert.Equal("class diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram", report.Hint);
+        Assert.Equal(new MermaidLocation("pie.mmd", 2, 1), report.Location);
+        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram", report.Hint);
     }
 
     /// <summary>
     ///     Validates that strict mode throws the unsupported-feature exception after delivering the report.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Render_ClassDiagramStrict_Throws()
+    public void CanvasNetMermaid_Render_PieChartStrict_Throws()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.ClassText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
         var (options, _, unsupported) = MermaidTestHelpers.Collecting(strict: true);
 
         // Act
@@ -48,7 +48,7 @@ public class MermaidUnsupportedDiagramTests
 
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, ex.Feature);
-        Assert.StartsWith("class diagrams are planned", ex.Hint, StringComparison.Ordinal);
+        Assert.StartsWith("pie diagrams are planned", ex.Hint, StringComparison.Ordinal);
         Assert.Single(unsupported);
     }
 
@@ -56,10 +56,10 @@ public class MermaidUnsupportedDiagramTests
     ///     Validates that measuring reports the same and gives the size of the placeholder, scaled.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Measure_ClassDiagram_ReportsAndGivesScaledPlaceholderSize()
+    public void CanvasNetMermaid_Measure_PieChart_ReportsAndGivesScaledPlaceholderSize()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.ClassText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
         var unsupported = new List<MermaidUnsupportedFeature>();
         var options = new MermaidRenderOptions { Scale = 2.5, UnsupportedFeatureHandler = unsupported.Add };
 
@@ -75,10 +75,10 @@ public class MermaidUnsupportedDiagramTests
     ///     Validates that an explicit size and a background are honored for the placeholder.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_RenderSized_ClassDiagramWithBackground_FillsBackground()
+    public void CanvasNetMermaid_RenderSized_PieChartWithBackground_FillsBackground()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.ClassText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
         var white = new Rgba32(255, 255, 255, 255);
         var (options, _, _) = MermaidTestHelpers.Collecting(background: white);
 
@@ -129,7 +129,7 @@ public class MermaidUnsupportedDiagramTests
     public void CanvasNetMermaid_Render_FailingHandler_Propagates()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.ClassText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
         var options = new MermaidRenderOptions { UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
 
         // Act / Assert
@@ -144,7 +144,7 @@ public class MermaidUnsupportedDiagramTests
     public void CanvasNetMermaid_RenderSized_InvalidSize_Throws()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.ClassText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
 
         // Act / Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 10, cancellationToken: TestContext.Current.CancellationToken));

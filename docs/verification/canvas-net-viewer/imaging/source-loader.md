@@ -25,8 +25,8 @@ an unsupported encryption handler, and a broken part. Charts are JSON text writt
 sandbox, and the data errors are verified with real files); one original chart is a fixture file
 (`baskets.vl.json`). Diagrams are the fixture files `Fixtures/mermaid/flow.mmd` (a small flowchart),
 `shipping.mermaid` (a flowchart with frontmatter, an accessible title, a subgraph, and a class), `sequence.mmd` (a
-two-participant sequence diagram), and `class.mmd` (a
-class diagram, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
+two-participant sequence diagram), and `pie.mmd` (a
+pie chart, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
 are the colors of Mermaid's default and dark themes. The other fixture files are an original SVG
 drawing and a JPEG 2000
 image copied from the
@@ -301,10 +301,10 @@ fill and none of the default fill and lists `theme` `dark` in the operation; `Da
 `usage-error` whose hint lists `default, base, dark, forest, neutral`, and `midnight` is a `usage-error` before a
 missing file is looked for.
 
-**SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError**: `class.mmd` is probed with the facts
-`class`, not supported, no direction or titles, and zero counts; it loads as a 16 by 16 picture (twice the diagram
+**SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError**: `pie.mmd` is probed with the facts
+`pie`, not supported, no direction or titles, and zero counts; it loads as a 16 by 16 picture (twice the diagram
 padding) that is white, with exactly one note (source `mermaid`, severity `unsupported`, code
-`mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that class
+`mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that pie
 diagrams are planned, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the code, with a
 hint that says the type is planned and mentions `--strict`, and the library's `MermaidUnsupportedFeatureException` as
 its cause.

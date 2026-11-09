@@ -72,16 +72,16 @@ public class MermaidDocumentTests
     }
 
     /// <summary>
-    ///     Validates that a class diagram opens as a known type that is not drawn, without parsing its body.
+    ///     Validates that a pie chart opens as a known type that is not drawn, without parsing its body.
     /// </summary>
     [Fact]
-    public void MermaidDocument_Parse_ClassDiagram_IsKnownButNotSupported()
+    public void MermaidDocument_Parse_PieChart_IsKnownButNotSupported()
     {
         // Arrange / Act
-        var document = MermaidDocument.Parse("classDiagram\n A <|-- B\n this body is not parsed in this version ]]][[[");
+        var document = MermaidDocument.Parse("pie\n \"a\" : 1\n this body is not parsed in this version ]]][[[");
 
         // Assert
-        Assert.Equal("class", document.DiagramType);
+        Assert.Equal("pie", document.DiagramType);
         Assert.False(document.IsSupported);
         Assert.Equal((0, 0, 0), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
         Assert.Null(document.Direction);
@@ -127,14 +127,14 @@ public class MermaidDocumentTests
     public void MermaidDocument_Open_StreamWithBom_ParsesAndLeavesStreamOpen()
     {
         // Arrange
-        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(MermaidTestHelpers.ClassText)).ToArray();
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(MermaidTestHelpers.PieText)).ToArray();
         using var stream = new MemoryStream(bytes);
 
         // Act
         var document = MermaidDocument.Open(stream, new MermaidOpenOptions { SourceName = "s.mmd" });
 
         // Assert
-        Assert.Equal(("class", "s.mmd"), (document.DiagramType, document.SourceName));
+        Assert.Equal(("pie", "s.mmd"), (document.DiagramType, document.SourceName));
         Assert.True(stream.CanRead);
     }
 
@@ -200,11 +200,11 @@ public class MermaidDocumentTests
     {
         // Arrange
         var options = new MermaidOpenOptions { Limits = new MermaidLimits { MaxTextSize = 30 } };
-        var commented = "%% a comment line that is long enough\n" + MermaidTestHelpers.ClassText;
+        var commented = "%% a comment line that is long enough\n" + MermaidTestHelpers.PieText;
 
         // Act / Assert
-        Assert.Throws<InvalidDataException>(() => MermaidDocument.Parse("classDiagram\n" + new string('x', 40), options));
-        Assert.Equal("class", MermaidDocument.Parse(commented, options).DiagramType);
+        Assert.Throws<InvalidDataException>(() => MermaidDocument.Parse("pie\n" + new string('x', 40), options));
+        Assert.Equal("pie", MermaidDocument.Parse(commented, options).DiagramType);
     }
 
     /// <summary>

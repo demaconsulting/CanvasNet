@@ -174,11 +174,11 @@ public class RenderCommandMermaidTests
     ///     <c>mermaid-diagram-unsupported</c>, which says that the type is planned, and fails with <c>--strict</c>.
     /// </summary>
     [Fact]
-    public void RenderCommand_Run_MermaidClass_IsUnsupportedDiagnosticThenStrictError()
+    public void RenderCommand_Run_MermaidPie_IsUnsupportedDiagnosticThenStrictError()
     {
         // Arrange
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "classDiagram\n    Animal <|-- Duck\n");
+        var input = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "pie\n    \"Ducks\" : 3\n");
 
         // Act
         using var document = RunJson(input, "-o", directory.Combine("zoo.png"));
@@ -189,7 +189,7 @@ public class RenderCommandMermaidTests
         Assert.Equal("mermaid", diagnostic.GetProperty("source").GetString());
         Assert.Equal("unsupported", diagnostic.GetProperty("severity").GetString());
         Assert.Equal("mermaid-diagram-unsupported", diagnostic.GetProperty("code").GetString());
-        Assert.Contains("class diagrams are planned", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("pie diagrams are planned", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(1, diagnostic.GetProperty("location").GetProperty("line").GetInt32());
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.False(File.Exists(directory.Combine("strict.png")));

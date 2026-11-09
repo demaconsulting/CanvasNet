@@ -189,10 +189,10 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 ### CanvasNetMermaid-UnsupportedFeatures: Reported Once, In Order, And Strict Mode
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Reports_AreCodedAndLocated`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_ClassDiagram_ReportsOnceAndDrawsTransparentPlaceholder`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_ClassDiagramStrict_Throws`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Measure_ClassDiagram_ReportsAndGivesScaledPlaceholderSize`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_ClassDiagramWithBackground_FillsBackground`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_PieChart_ReportsOnceAndDrawsTransparentPlaceholder`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_PieChartStrict_Throws`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Measure_PieChart_ReportsAndGivesScaledPlaceholderSize`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_PieChartWithBackground_FillsBackground`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_FailingHandler_Propagates`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_NeoLook_IsReportedAndDrawnClassic`,
@@ -200,7 +200,7 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_PropertiesIcon_IsReportedOrFails`
 
 Asserts the `mermaid-look-unsupported` report at its frontmatter line and the `mermaid-style-ignored` warning at the
-styled node while the diagram is drawn; that a class diagram gives one located report with the planned hint and a
+styled node while the diagram is drawn; that a pie chart gives one located report with the planned hint and a
 transparent 16 by 16 picture (scaled by the scale, filled by a background), throws in strict mode, and that every
 other known type does the same with its own hint; and that a failing handler's exception reaches the caller. For a
 sequence diagram, asserts that the `neo` look is reported once and drawn with the same pixels as the classic look and

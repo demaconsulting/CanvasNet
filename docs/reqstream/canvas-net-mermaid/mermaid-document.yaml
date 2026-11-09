@@ -43,7 +43,7 @@ sections:
               and without rendering.
             tests:
               - MermaidDocument_Parse_Flowchart_IsSupportedFlowchart
-              - MermaidDocument_Parse_ClassDiagram_IsKnownButNotSupported
+              - MermaidDocument_Parse_PieChart_IsKnownButNotSupported
               - MermaidDocument_Parse_FrontmatterTitle_IsTitle
 
           - id: CanvasNetMermaid-MermaidDocument-ErrorContract

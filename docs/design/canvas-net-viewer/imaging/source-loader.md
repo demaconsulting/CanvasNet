@@ -378,7 +378,7 @@ a note (`mermaid`, `warning`, the generic code `mermaid-warning` (`MermaidImageS
 one-line text, with the specific `mermaid-*` code as `Detail` and the file, line, and column as `Location`); a construct
 the library recognizes but does not draw becomes a note (`mermaid`, `unsupported`, the feature identifier as the code,
 such as `mermaid-icon-unsupported`, and `file:line:column: message (hint)`, `DescribeUnsupported`). A diagram type that
-is recognized but not drawn yet (a class diagram, for example) is one such note, `mermaid-diagram-unsupported`, whose
+is recognized but not drawn yet (a pie chart, for example) is one such note, `mermaid-diagram-unsupported`, whose
 hint says that the type is planned and which types are drawn, and the picture is the background alone; in strict mode
 the library throws instead (see *Error Handling*). The surface is charged to the `LoadContext` before the library draws
 it. Without a size option the pictures of the nodes can enlarge the drawn diagram (a picture node without its `w` and

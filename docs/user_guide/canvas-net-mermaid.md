@@ -65,7 +65,7 @@ public sealed partial class MermaidDocument
   size, not enlarged afterwards. The caller owns, and must dispose, the returned surface.
 - `Render(width, height)` draws onto a surface of exactly that size: the diagram is scaled uniformly to fit and
   centered, and the margins take the background. `Scale` is not used.
-- A known type that this version does not draw (`classDiagram`, `stateDiagram`, `pie`, ...) opens without error.
+- A known type that this version does not draw (`pie`, `gantt`, `mindmap`, ...) opens without error.
   Measuring or rendering it reports the unsupported feature `mermaid-diagram-unsupported` and gives an empty,
   transparent picture of 16 by 16 pixels (twice Mermaid's diagram padding), or throws in strict mode.
 
@@ -497,10 +497,10 @@ catch (MermaidSyntaxException ex)
 }
 
 // A known type that this version does not draw opens, is reported, and gives an empty picture
-var classes = MermaidDocument.Parse("classDiagram\n    Animal <|-- Duck\n");
-Console.WriteLine($"{classes.DiagramType} {classes.IsSupported}");    // Output: class False
+var pie = MermaidDocument.Parse("pie\n    \"Ducks\" : 3\n");
+Console.WriteLine($"{pie.DiagramType} {pie.IsSupported}");            // Output: pie False
 var reports = new List<MermaidUnsupportedFeature>();
-using var empty = classes.Render(new MermaidRenderOptions { UnsupportedFeatureHandler = reports.Add });
+using var empty = pie.Render(new MermaidRenderOptions { UnsupportedFeatureHandler = reports.Add });
 Console.WriteLine($"{reports[0].Feature} {empty.Width}x{empty.Height}");
                                                                       // Output: mermaid-diagram-unsupported 16x16
 
@@ -597,7 +597,7 @@ flowchart LR
 
 A plain ` ```mermaid ` block works the same way, without a caption. The text of a block is written to the filter's
 cache folder and drawn from there, so a diagram that shows pictures must be a `.mmd` file of its own (as in Example
-55). A block or a `.mmd` picture of a type that this version does not draw (`classDiagram`, `pie`, ...) is
+55). A block or a `.mmd` picture of a type that this version does not draw (`pie`, `gantt`, ...) is
 left as written, with the tool's message as a warning, so that another filter, such as `mermaid-filter`, can draw it.
 
 ### Example 57: The Mermaid Gallery

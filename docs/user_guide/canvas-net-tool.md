@@ -1830,7 +1830,7 @@ flowchart LR
 
 The text of a block is written to the cache folder and drawn from there, so a diagram whose nodes show pictures must be
 a `.mmd` file of its own, used as a picture. A block or a `.mmd` picture of a diagram type that the tool does not draw
-yet (the tool reports `mermaid-diagram-unsupported` for `classDiagram`, `pie`, and so on) is left exactly
+yet (the tool reports `mermaid-diagram-unsupported` for `pie`, `gantt`, and so on) is left exactly
 as written, with the tool's message as a Pandoc warning, so that another filter can draw it. Pandoc runs the filters in
 the order of its command line, and the filters of a defaults file take the place of its `--defaults` option, so
 `--defaults ... --filter mermaid-filter` runs this filter first; the CanvasNet build does this.

@@ -483,9 +483,9 @@ Mermaid theme") whose hint lists `default, base, dark, forest, neutral`; `--them
 that says that `--theme` only applies to a Mermaid diagram and names the `scad` kind, and writes no output; and
 `inspect colors` of the model with `--theme dark` exits with 1 and the same usage error.
 
-**RenderCommand_Run_MermaidClass_IsUnsupportedDiagnosticThenStrictError**: a class diagram renders with exactly
+**RenderCommand_Run_MermaidPie_IsUnsupportedDiagnosticThenStrictError**: a pie chart renders with exactly
 one diagnostic (source `mermaid`, severity `unsupported`, code `mermaid-diagram-unsupported`, a message that says
-class diagrams are planned, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
+pie diagrams are planned, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
 
 **RenderCommand_Run_MermaidSequence_DrawsTheParticipants**: a two-message sequence diagram rendered with `--strict` and
 `--json` writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000

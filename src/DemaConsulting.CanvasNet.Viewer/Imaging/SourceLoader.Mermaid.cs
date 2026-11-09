@@ -276,8 +276,8 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="unsupported">The report.</param>
     /// <returns>
-    ///     One line, for example <c>flow.mmd:1:1: 'classDiagram' diagrams (class) are not drawn by this version; the
-    ///     picture is empty (class diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram)</c>.
+    ///     One line, for example <c>flow.mmd:1:1: 'pie' diagrams (pie) are not drawn by this version; the
+    ///     picture is empty (pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram)</c>.
     /// </returns>
     private static string DescribeUnsupported(MermaidUnsupportedFeature unsupported)
     {
