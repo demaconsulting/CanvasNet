@@ -28,7 +28,10 @@ namespace DemaConsulting.CanvasNet.Mermaid.Syntax;
 ///         character references of <see cref="HtmlEntities"/> are decoded (an unknown one is kept as text); SVG and MathML content is removed.
 ///     </para>
 ///     <para>
-///         The class is stateless and safe for concurrent use; it runs in time linear in the length of the text.
+///         The class is stateless and safe for concurrent use. It makes one pass over the text without recursion; an end
+///         tag searches the open elements and reopens the formatting elements it closes, so the worst case is quadratic in
+///         the number of open elements. A label is at most <see cref="MermaidLimits.MaxLabelLength"/> characters (and a
+///         frontmatter title at most the text size limit), which bounds the work.
 ///     </para>
 /// </remarks>
 internal static class HtmlSanitizer

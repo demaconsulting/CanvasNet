@@ -30,24 +30,26 @@ public class GraphlibTests
     }
 
     /// <summary>
-    ///     Validates that removing and adding nodes and edges keeps the graph consistent for the traversals.
+    ///     Validates that removing and adding nodes and edges keeps the graph consistent for the traversals: a removed
+    ///     node takes its edges with it, and a node added again moves to the end of the key order.
     /// </summary>
     [Fact]
     public void Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph()
     {
         // Arrange
         var g = new Graph<object, string, string>();
-        g.SetPath(["a", "b", "c", "a"]);
+        g.SetPath(["a", "b", "c"]);
 
         // Act
-        g.RemoveEdge("c", "a");
-        var acyclic = GraphAlgorithms.FindCycles(g);
-        g.SetEdge("c", "a");
-        var cyclic = GraphAlgorithms.FindCycles(g);
+        g.RemoveNode("b");
+        var cut = GraphAlgorithms.Preorder(g, ["a"]);
+        g.SetEdge("a", "c").SetEdge("c", "b");
+        var rejoined = GraphAlgorithms.Postorder(g, ["a"]);
 
         // Assert
-        Assert.Empty(acyclic);
-        Assert.Single(cyclic);
-        Assert.Equal(3, cyclic[0].Count);
+        Assert.Equal(["a"], cut);
+        Assert.False(g.HasEdge("a", "b"));
+        Assert.Equal(["a", "c", "b"], g.Nodes());
+        Assert.Equal(["b", "c", "a"], rejoined);
     }
 }

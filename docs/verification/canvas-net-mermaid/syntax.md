@@ -15,12 +15,17 @@ expected values of the preparation, detection, and YAML tests were produced by r
 js-yaml on the same inputs, and the expected texts of the sanitizer tests are what Mermaid's `sanitizeText` gives in
 a browser. The subsystem-level scenarios in `SyntaxTests` verify the units working together on a whole diagram text:
 the `Preprocessor` reads the frontmatter through the `YamlSubsetParser`, finds the directives, and removes the
-comments; the `DiagramDetector` detects the type of the resulting code; and positions of the parser text, of the
-detected keyword, and of a YAML error map back to the lines and columns of the original text.
+comments; the `DiagramDetector` detects the type of the resulting code; a small grammar built on the `SourceScanner`
+lexes the parser text that the `Preprocessor` prepares; the `HtmlSanitizer` cleans the label HTML of a prepared text;
+and positions of the parser text, of its tokens and lexical and grammar errors, of the detected keyword, and of a YAML
+error map back to the lines and columns of the original text.
 
 The expectations are exact: the title, the configuration values, the directive arguments, the detector id, and the
 one-based locations are stated as literals derived by hand from the input text (for example, the `B` of the tenth
-line of a text with Windows line endings is at line 10, column 24). The subsystem uses no mocking or stubbing; it is
+line of a text with Windows line endings is at line 10, column 24), and the cleaned label is the text that DOMPurify's
+rules give for it. The small grammar (spaces skipped, line feeds and words as tokens) stands in for a diagram parser,
+so the scanner is exercised on the real parser text without the `Flowchart` subsystem. The subsystem uses no mocking or
+stubbing; it is
 internal, so its tests reach it through the test assembly's `InternalsVisibleTo` access.
 
 ### Test Environment
@@ -48,12 +53,19 @@ double quotes.
 
 #### CanvasNetMermaid-Syntax-ParserInput: The Parser Text Maps Back To The Original Text
 
-**Tests**: `SyntaxTests.Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations`
+**Tests**: `SyntaxTests.Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations`,
+`SyntaxTests.Syntax_ScanParserText_AfterFrontmatter_LocatesTokensAndLexicalError`,
+`SyntaxTests.Syntax_ParseParserText_UnexpectedToken_ListsExpectedTokensAtOriginalLocation`
 
 Asserts that the last node of the parser text, which follows an encoded `#quot;` entity on a line after the removed
-frontmatter, directive, and comment, is located at line 10, column 24 of the original text. The lexing semantics of
-the parsers and the expected-token errors are verified by the `SourceScanner` unit scenarios and, end to end, by the
-`Flowchart` subsystem.
+frontmatter, directive, and comment, is located at line 10, column 24 of the original text. Lexes the parser text of a
+text with a frontmatter and a comment line with a grammar of words and line feeds and asserts the tokens `flowchart`,
+`LR`, a line feed, `a`, `b`, a line feed, and `c`, that the keyword is located at line 5, column 1 and `b` at line 6,
+column 5 of the original text, and that the `?` that no rule matches is a `mermaid-syntax-error` at line 7, column 5
+that names the character. Reads a second word where the grammar accepts only a line feed, after a frontmatter, and
+asserts a `mermaid-syntax-error` at line 4, column 14 whose expected tokens are the grammar's description `a new line`
+and whose message names the word found. The full lexing semantics are verified by the `SourceScanner` unit scenarios
+and, end to end, by the `Flowchart` subsystem.
 
 #### CanvasNetMermaid-Syntax-Detection: The Type Of The Prepared Code Is Detected At Its Keyword
 
@@ -69,11 +81,16 @@ the original text, after the frontmatter, the directive, and the comment line.
 Asserts that the frontmatter configuration is a mapping whose `flowchart` key holds a mapping whose `curve` is the
 string `linear`, as js-yaml reads it.
 
-#### CanvasNetMermaid-Syntax-UntrustedInput: A Refused YAML Construct Stops The Text At Its Location
+#### CanvasNetMermaid-Syntax-UntrustedInput: Refused YAML Stops The Text And Label HTML Is Cleaned
 
-**Tests**: `SyntaxTests.Syntax_Preprocess_FrontmatterAlias_IsRefusedAtLocation`
+**Tests**: `SyntaxTests.Syntax_Preprocess_FrontmatterAlias_IsRefusedAtLocation`,
+`SyntaxTests.Syntax_PrepareAndSanitizeLabel_UnsafeHtml_IsCleaned`
 
 Prepares a text whose frontmatter defines an anchor and uses it as an alias, and asserts that preparation fails with
-`mermaid-yaml-unsupported` at line 2, column 7 of the original text (the anchor). The text size limits, the YAML
-depth limit, and the clean-up of label HTML are verified by the `Preprocessor`, `YamlSubsetParser`, and
-`HtmlSanitizer` unit scenarios.
+`mermaid-yaml-unsupported` at line 2, column 7 of the original text (the anchor). Prepares a flowchart whose quoted
+node label holds a link with a `javascript:` address and an `onclick` handler in double-quoted attributes, a script,
+the named reference `&eacute;`, and a bold element; asserts that the preparation turns the attribute quotes into
+single quotes so the label stays inside its quoted string, and that the label cleaned by the `HtmlSanitizer` is
+`<a>go</a> café <b>ok</b>` (the link without its address and handler, no script, and the reference decoded through
+the `HtmlEntities` table). The text size limits, the YAML depth limit, and the bound of the clean-up are verified by
+the `Preprocessor`, `YamlSubsetParser`, and `HtmlSanitizer` unit scenarios.

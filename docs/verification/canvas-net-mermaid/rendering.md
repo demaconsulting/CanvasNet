@@ -21,14 +21,20 @@ Liberation Sans: the view box, the node and subgraph boxes, the end points of ev
 centers of the edge labels, compared to the three decimals that Mermaid's SVG reports (a tolerance of 0.002 pixel).
 Because the node sizes come from the label measurement and the shape formulas, the edge ends from the intersect
 functions and the route cuts, and the positions from the subgraph handling around dagre, an exact match of these
-numbers verifies the collaboration of all five units. The subsystem uses no mocking or stubbing; the subsystem is
-internal, so its tests reach it through the test assembly's `InternalsVisibleTo` access.
+numbers verifies the collaboration of all five units. Three further scenarios lay out small texts written for the
+purpose and assert analytic expectations: the box of a picture worked out from the natural size that a resolver gives
+and Mermaid's sizing rule of an image node, the located failure of the picture limit, and the codes and lines of the
+reports of the label measurement and the pictures. These use a test resolver that gives a picture of a fixed size and
+records the links it is asked for, which stands in for the caller's resolver, the only way the subsystem reaches a
+picture; otherwise the subsystem uses no mocking or stubbing. The subsystem is internal, so its tests reach it
+through the test assembly's `InternalsVisibleTo` access.
 
 ### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: None required
+- **Mocking**: None; a test image resolver that gives fixed-size pictures and records its requests stands in for the
+  caller's resolver in the picture scenarios
 - **Fonts**: The bundled Liberation fonts, resolved through the rendering's font resolver
 - **Files**: The flowchart fixtures in `Fixtures/flowchart/` of the test project (copied to the output folder)
 - **Isolation**: Each test lays out its own document; no shared state
@@ -56,11 +62,18 @@ are Mermaid's.
 #### CanvasNetMermaid-Rendering-NodeShapes: Nodes Have Mermaid's Sizes And Places
 
 **Tests**: `RenderingTests.Rendering_Flowchart_LinkedSubgraphs_MatchMermaid`,
-`RenderingTests.Rendering_Flowchart_SubgraphWithDirection_MatchesMermaid`
+`RenderingTests.Rendering_Flowchart_SubgraphWithDirection_MatchesMermaid`,
+`RenderingTests.Rendering_Flowchart_ImageNode_SizedByThePictureOfTheResolver`,
+`RenderingTests.Rendering_Flowchart_PicturesBeyondMaxImages_FailAtTheNode`
 
 Asserts that the boxes of the drawn nodes (rectangles sized from their measured labels and padding, for example 77.797
 by 54 pixels) and the subgraph rectangles built around them are Mermaid's, in a top-to-bottom diagram and in a
-left-to-right subgraph.
+left-to-right subgraph. Lays out an image node with a label, a height of 60, and the aspect constraint, through a
+resolver whose pictures are 40 by 20, and asserts that the resolver is asked once, for `pic.png` at 256 by 256 device
+pixels, and that the scene holds one node picture of `pic.png` of 120 by 60 (the natural aspect ratio of 2 at the
+given height). Lays out three image nodes with `MermaidLimits.MaxImages` of 2 and asserts that the layout fails with
+`mermaid-limit-exceeded` at line 4, the node of the third picture, naming the limit, after the resolver was asked for
+the first two pictures only.
 
 #### CanvasNetMermaid-Rendering-Edges: Edges And Their Labels Are Where Mermaid Draws Them
 
@@ -77,8 +90,12 @@ Mermaid centers them, with the spacing they add between ranks giving Mermaid's v
 #### CanvasNetMermaid-Rendering-Labels: Labels Measure As Mermaid's Labels
 
 **Tests**: `RenderingTests.Rendering_Flowchart_LinkedSubgraphs_MatchMermaid`,
-`RenderingTests.Rendering_Flowchart_EdgeLabels_MatchMermaid`
+`RenderingTests.Rendering_Flowchart_EdgeLabels_MatchMermaid`,
+`RenderingTests.Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes`
 
 Asserts the sizes that follow from the measured labels: the node widths of the subgraph fixture, which are the HTML
 label widths with the padding, and the positions of the edge labels and the width of the view box of the labeled
-chain, which follow from the measured edge label boxes.
+chain, which follow from the measured edge label boxes. Lays out, without an image resolver, a node with an `<u>`
+label, a node whose label has a character that no bundled font draws, and an image node, and asserts that the three
+nodes are laid out, that no feature is reported as unsupported, and that the warnings are, in this order,
+`mermaid-html-tag-ignored` at line 2, `mermaid-text-missing-glyph` at line 3, and `mermaid-image-unresolved` at line 4.

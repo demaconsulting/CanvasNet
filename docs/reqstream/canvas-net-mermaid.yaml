@@ -154,6 +154,8 @@ sections:
         tests:
           - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
           - CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowcharts
+          - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
       - id: CanvasNetMermaid-LayoutFidelity
         title: >-

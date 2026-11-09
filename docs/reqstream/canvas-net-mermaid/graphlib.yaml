@@ -52,15 +52,14 @@ sections:
 
           - id: CanvasNetMermaid-Graphlib-Traversals
             title: >-
-              The Graphlib subsystem shall give the same depth-first preorder and postorder, connected components,
-              strongly connected components, and cycles of a graph as graphlib's traversals.
+              The Graphlib subsystem shall give the same depth-first preorder and postorder of a graph as graphlib's
+              traversals.
             justification: |
               The dagre ranker walks its spanning tree in preorder and postorder; identical traversals are needed
               for identical ranks.
             children:
               - CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
-              - CanvasNetMermaid-Graphlib-GraphAlgorithms-Components
-              - CanvasNetMermaid-Graphlib-GraphAlgorithms-StronglyConnected
+
             tests:
               - Graphlib_Traversal_NumericNames_FollowJavaScriptKeyOrder
               - Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph
@@ -74,6 +73,6 @@ sections:
               proxies, border nodes, reversed edges); a stale entry would change the layout or fail it.
             children:
               - CanvasNetMermaid-Graphlib-Graph-Removal
-              - CanvasNetMermaid-Graphlib-GraphAlgorithms-StronglyConnected
+              - CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
             tests:
               - Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph

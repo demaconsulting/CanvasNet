@@ -59,7 +59,7 @@ sections:
             children:
               - CanvasNetMermaid-Scenegraph-ScenePainter-Images
             tests:
-              - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
+              - Scenegraph_PaintPictureScene_PicturesComeOnlyFromTheLoader
 
           - id: CanvasNetMermaid-Scenegraph-BoundedPainting
             title: >-
@@ -76,7 +76,8 @@ sections:
               - CanvasNetMermaid-Scenegraph-ScenePainter-UnboundedGeometry
               - CanvasNetMermaid-Scenegraph-ScenePainter-Cancellation
             tests:
-              - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
+              - Scenegraph_PaintNodeScene_OverPaintedPixelLimit_FailsAtTheNode
+              - Scenegraph_PaintNodeScene_CanceledToken_Throws
 
           - id: CanvasNetMermaid-Scenegraph-Determinism
             title: >-

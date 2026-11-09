@@ -1549,7 +1549,7 @@ src/DemaConsulting.CanvasNet.Mermaid/
 │   └── StyleDeclarations.cs       — StyleDeclarations: the CSS declaration subset
 ├── Graphlib/                      — Graphlib subsystem
 │   ├── Graph.cs, GraphEdge.cs, ObjectKeyMap.cs — Graph: graphlib's graph with JavaScript key order
-│   └── GraphAlgorithms.cs         — GraphAlgorithms: traversals, components, cycles
+│   └── GraphAlgorithms.cs         — GraphAlgorithms: depth-first preorder and postorder
 ├── Dagre/                         — Dagre subsystem
 │   ├── DagreLayout.cs, DagreLayout.Util.cs, DagreGraph.cs, LayoutModel.cs, Lodash.cs — DagreLayout: the pipeline
 │   ├── DagreAcyclic.cs            — DagreAcyclic: cycle breaking

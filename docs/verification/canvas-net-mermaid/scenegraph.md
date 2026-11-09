@@ -9,24 +9,29 @@ bounds, and the conversion of their geometry to a core path) and `ScenePainter` 
 
 The `Scenegraph` subsystem is verified at two tiers. The unit tests (see the unit verification designs under
 `scenegraph/`) verify each unit in isolation, including the pictures, the painted-pixel limit, the skipping of
-unbounded geometry, and cancellation. The subsystem-level scenario in `ScenegraphTests` verifies the units working
+unbounded geometry, and cancellation. The subsystem-level scenarios in `ScenegraphTests` verify the units working
 together: a scene of one node - a filled and stroked rectangle with a centered label inside a translated group, built
-from `SceneModel` records as the layout builds it - is measured with `Scene.BoundsOf` and painted by `ScenePainter`
-with the font resolver of a call, twice at scale 1 and once at scale 2. The expectations are analytic: the bounds are
-the rectangle moved by the group translation; the fill color is found at the node center at both scales; the label
-leaves ink at the center of the node; and the two paintings at scale 1 are identical pixel by pixel. No golden images
-are used.
+from `SceneModel` records as the layout builds it, with the location of its construct - is measured with
+`Scene.BoundsOf` and painted by `ScenePainter` with the font resolver of a call, twice at scale 1 and once at scale 2,
+under a painted-pixel limit smaller than the node, and with a canceled token; and a scene of one picture inside a
+translated group is painted at scale 2 with and without a picture loader. The expectations are analytic: the bounds
+are the rectangle moved by the group translation; the fill color is found at the node center at both scales; the
+label leaves ink at the center of the node; the two paintings at scale 1 are identical pixel by pixel; the picture is
+asked for at the device size of its box and covers exactly the device pixels of the box; and the failures carry the
+code and the location of the node. No golden images are used.
 
-The subsystem uses no mocking or stubbing; the core `Surface`, `PathFiller`, `PathStroker`, `TextRenderer`, the font
-resolver, and the bundled fonts are real. The subsystem is internal, so its tests reach it through the test
-assembly's `InternalsVisibleTo` access. The painting of complete diagrams, the pictures of the caller's resolver, the
-painted-pixel limit, and cancellation through the public API are further verified by the system tests.
+The scenarios use a test picture loader that gives a red picture of the requested size and records the requests, as
+the caller's resolver would through the `NodeImages` loader of a diagram; otherwise the subsystem uses no mocking or
+stubbing, and the core `Surface`, `PathFiller`, `PathStroker`, `TextRenderer`, the font resolver, and the bundled
+fonts are real. The subsystem is internal, so its tests reach it through the test assembly's `InternalsVisibleTo`
+access. The painting of complete diagrams, the pictures of the caller's resolver, the painted-pixel limit, and
+cancellation through the public API are further verified by the system tests.
 
 ### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: None required
+- **Mocking**: None; a recording test picture loader stands in for the loader of a diagram's pictures
 - **Fonts**: The bundled Liberation fonts, through the resolver of `ScenePainter.CreateFontResolver`
 - **Isolation**: Each test builds its own scene, painter, and surface; no files are read
 
@@ -55,21 +60,24 @@ stack, leaves ink at the center of the node.
 
 #### CanvasNetMermaid-Scenegraph-Pictures: Pictures Come Only From The Scene's Loader
 
-**Tests**: `ScenegraphTests.Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled`
+**Tests**: `ScenegraphTests.Scenegraph_PaintPictureScene_PicturesComeOnlyFromTheLoader`
 
-Paints a scene that carries no picture loader with a painter built without one, as the system does for a diagram
-without pictures, and asserts the expected pixels. The loading at device size, the stretching to the box, the
-opacity, and the absence of a picture without a loader are verified by the unit scenario
-`CanvasNetMermaid-Scenegraph-ScenePainter-Images`.
+Paints a scene with a 10 by 6 picture centered in a group at (10, 5) at scale 2 with a recording loader and asserts
+that the loader is asked once for `pic.png` at 20 by 12 device pixels, that the picture covers the device pixels from
+(10, 4) to (29, 15) and nothing to its left or right, and that the same scene painted without a loader is fully
+transparent. The opacity and the stretching of a picture that comes back at another size are verified by the unit
+scenario `CanvasNetMermaid-Scenegraph-ScenePainter-Images`.
 
 #### CanvasNetMermaid-Scenegraph-BoundedPainting: Painting Is Bounded And Cancelable
 
-**Tests**: `ScenegraphTests.Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled`
+**Tests**: `ScenegraphTests.Scenegraph_PaintNodeScene_OverPaintedPixelLimit_FailsAtTheNode`,
+`ScenegraphTests.Scenegraph_PaintNodeScene_CanceledToken_Throws`
 
-Paints the node scene with the cancellation token of the test run and the default limit and asserts that the
-painting completes with the expected pixels. The charge against the painted-pixel limit, the located
-`mermaid-limit-exceeded` failure, the skipping of unbounded geometry, and cancellation are verified by the unit
-scenarios `CanvasNetMermaid-Scenegraph-ScenePainter-PaintedPixelLimit`, `-UnboundedGeometry`, and `-Cancellation`.
+Paints the node scene, whose node fills 80 by 40 device pixels, with a painted-pixel limit of 1000 and asserts that
+the painting fails with `mermaid-limit-exceeded` located at the node (`n.mmd`, line 2, column 3) and naming
+`MermaidLimits.MaxPaintedPixels`, and that a limit of 100000 paints the node fill. Paints the node scene with a
+canceled token and asserts an operation-canceled error. The skipping of unbounded geometry is verified by the unit
+scenario `CanvasNetMermaid-Scenegraph-ScenePainter-UnboundedGeometry`.
 
 #### CanvasNetMermaid-Scenegraph-Determinism: The Same Scene Gives The Same Pixels
 

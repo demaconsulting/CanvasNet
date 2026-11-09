@@ -164,6 +164,57 @@ public class FlowchartTests
     }
 
     /// <summary>
+    ///     Validates that a text over the edge, node, or label-length limit of the open call is refused when it is opened,
+    ///     located at the element that passes the limit in the original text and naming the limit.
+    /// </summary>
+    [Fact]
+    public void Flowchart_Open_OverLimits_IsRefusedAtTheElement()
+    {
+        // Arrange: a frontmatter moves every line of the flowchart down by three
+        const string Text = "---\ntitle: T\n---\nflowchart LR\n  a --> b\n  b --> c\n  c --> d[a label longer than ten]\n";
+        MermaidSyntaxException Open(MermaidLimits limits) =>
+            Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Text, new MermaidOpenOptions { SourceName = "l.mmd", Limits = limits }));
+
+        // Act
+        var edges = Open(new MermaidLimits { MaxEdges = 2 });
+        var nodes = Open(new MermaidLimits { MaxNodes = 3 });
+        var label = Open(new MermaidLimits { MaxLabelLength = 10 });
+
+        // Assert
+        Assert.All([edges, nodes, label], ex => Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code));
+        Assert.Equal(("l.mmd", 7), (edges.Location.File, edges.Location.Line));
+        Assert.Equal(("l.mmd", 7), (nodes.Location.File, nodes.Location.Line));
+        Assert.Equal(("l.mmd", 7), (label.Location.File, label.Location.Line));
+        Assert.Contains("MermaidLimits.MaxEdges", edges.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxNodes", nodes.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxLabelLength", label.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that what Mermaid's flowchart database fails on is refused when the document is opened, located in
+    ///     the original text and with a hint: a subgraph without an id or a title, and a shape name that Mermaid does
+    ///     not know, whose hint names the nearest known shape.
+    /// </summary>
+    [Fact]
+    public void Flowchart_Open_DatabaseErrors_AreLocatedWithHints()
+    {
+        // Arrange
+        const string Anonymous = "%% a comment\nflowchart LR\n  subgraph\n    a\n  end\n";
+        const string UnknownShape = "%% a comment\nflowchart LR\n  A@{ shape: rectangles }\n";
+
+        // Act
+        var subgraph = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Anonymous, new MermaidOpenOptions { SourceName = "d.mmd" }));
+        var shape = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(UnknownShape, new MermaidOpenOptions { SourceName = "d.mmd" }));
+
+        // Assert
+        Assert.Equal(new MermaidLocation("d.mmd", 3, 3), subgraph.Location);
+        Assert.Contains("id or a title", subgraph.Message, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrEmpty(subgraph.Hint));
+        Assert.Equal((MermaidDiagnosticCodes.ShapeUnknown, new MermaidLocation("d.mmd", 3, 14)), (shape.Code, shape.Location));
+        Assert.Contains("'rectangle'", shape.Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that every original fixture opens as a flowchart with nodes and maps to layout data without reports.
     /// </summary>
     /// <param name="name">The fixture file name.</param>

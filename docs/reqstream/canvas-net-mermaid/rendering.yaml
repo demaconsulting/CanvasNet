@@ -63,6 +63,8 @@ sections:
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_SubgraphWithDirection_MatchesMermaid
+              - Rendering_Flowchart_ImageNode_SizedByThePictureOfTheResolver
+              - Rendering_Flowchart_PicturesBeyondMaxImages_FailAtTheNode
 
           - id: CanvasNetMermaid-Rendering-Edges
             title: >-
@@ -106,3 +108,4 @@ sections:
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_EdgeLabels_MatchMermaid
+              - Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes

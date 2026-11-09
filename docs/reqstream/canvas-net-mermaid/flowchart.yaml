@@ -66,6 +66,8 @@ sections:
               - CanvasNetMermaid-Flowchart-FlowchartModel-Styles
             tests:
               - Flowchart_Open_SyntaxErrorAfterFrontmatter_IsLocatedInOriginalText
+              - Flowchart_Open_OverLimits_IsRefusedAtTheElement
+              - Flowchart_Open_DatabaseErrors_AreLocatedWithHints
 
           - id: CanvasNetMermaid-Flowchart-LayoutData
             title: >-

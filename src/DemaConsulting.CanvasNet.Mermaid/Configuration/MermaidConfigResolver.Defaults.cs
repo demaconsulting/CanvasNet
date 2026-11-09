@@ -165,10 +165,11 @@ internal static partial class MermaidConfigResolver
     /// <returns>The default configuration.</returns>
     internal static JsonObject CreateDefaults()
     {
+        // JsonValue.Create(string) is reflection-free; the generic JsonArray.Add<T> is not
         var secure = new JsonArray();
         foreach (var key in DefaultSecureKeys)
         {
-            secure.Add(key);
+            secure.Add(JsonValue.Create(key));
         }
 
         return new JsonObject

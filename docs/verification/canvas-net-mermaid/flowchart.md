@@ -59,13 +59,20 @@ subgraph, without being rendered.
 
 #### CanvasNetMermaid-Flowchart-FailClosed: Invalid Text Is Refused At Its Place
 
-**Tests**: `FlowchartTests.Flowchart_Open_SyntaxErrorAfterFrontmatter_IsLocatedInOriginalText`
+**Tests**: `FlowchartTests.Flowchart_Open_SyntaxErrorAfterFrontmatter_IsLocatedInOriginalText`,
+`FlowchartTests.Flowchart_Open_OverLimits_IsRefusedAtTheElement`,
+`FlowchartTests.Flowchart_Open_DatabaseErrors_AreLocatedWithHints`
 
 A link to a bracket without an id, after a frontmatter and a comment, is refused when the document is opened with a
 `MermaidSyntaxException` located at line 7, column 9 of the original file, whose message starts with the location and
-the code `mermaid-syntax-error` and whose expected tokens include `NODE_STRING`. The refusals of what Mermaid's database
-rejects and of the edge, node, label length, and nesting limits are verified at the unit level (see the FlowchartParser
-and FlowchartModel unit verification designs).
+the code `mermaid-syntax-error` and whose expected tokens include `NODE_STRING`. A chain of three links after a
+frontmatter, whose last node has a label longer than ten characters, is refused when it is opened with
+`MermaidLimits.MaxEdges` of 2, `MaxNodes` of 3, or `MaxLabelLength` of 10, each time with `mermaid-limit-exceeded`
+at line 7 of the named file (the third link, the fourth node, and the long label) and a message that names the limit.
+After a comment line, a subgraph without an id or a title is refused at its keyword (line 3, column 3) with a message
+that asks for an id or a title and a hint, and an unknown shape name is refused with `mermaid-shape-unknown` at its
+value (line 3, column 14) with a hint that names the nearest shape, `rectangle`. The nesting limit and the other
+refusals are verified at the unit level (see the FlowchartParser and FlowchartModel unit verification designs).
 
 #### CanvasNetMermaid-Flowchart-LayoutData: The Layout Input Is Mermaid's
 

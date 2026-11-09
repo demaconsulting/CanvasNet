@@ -106,10 +106,11 @@ test assembly through `InternalsVisibleTo` and to nothing else.
 The report and error codes are the `MermaidDiagnosticCodes` constants: `mermaid-syntax-error`,
 `mermaid-unknown-diagram`, `mermaid-diagram-unsupported`, `mermaid-yaml-invalid`, `mermaid-yaml-unsupported`,
 `mermaid-limit-exceeded`, `mermaid-render-failed`, `mermaid-diagnostics-suppressed`, `mermaid-config-secure-key`,
-`mermaid-config-unknown-key`, `mermaid-config-invalid`, `mermaid-shape-unknown`, `mermaid-class-undefined`,
-`mermaid-icon-unsupported`, `mermaid-image-unresolved`, `mermaid-text-missing-glyph`, `mermaid-look-unsupported`,
-`mermaid-layout-unsupported`, `mermaid-style-ignored`, `mermaid-theme-css-unsupported`, and
-`mermaid-html-tag-ignored`. They are part of the public contract and do not change between releases.
+`mermaid-config-unknown-key`, `mermaid-config-invalid`, `mermaid-shape-unknown`, `mermaid-icon-unsupported`,
+`mermaid-image-unresolved`, `mermaid-text-missing-glyph`, `mermaid-look-unsupported`, `mermaid-layout-unsupported`,
+`mermaid-style-ignored`, `mermaid-theme-css-unsupported`, and `mermaid-html-tag-ignored`. They are part of the public
+contract and do not change between releases. A `class` statement or `:::` that names a class no `classDef` defines
+is not reported: the pinned Mermaid's flowchart database records the name and the class simply adds no style.
 
 ## Dependencies
 

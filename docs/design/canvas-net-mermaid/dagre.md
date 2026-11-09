@@ -37,9 +37,9 @@ other subsystems of the system and, through `InternalsVisibleTo`, to the test as
   one diagram, its two failures, and the counter of lodash's `_.uniqueId`; see _LayoutWorkMeter Unit Design_
   (`dagre/layout-work-meter.md`)
 
-Its behavior is specified by the `CanvasNetMermaid-Dagre-*` requirements in
-`docs/reqstream/canvas-net-mermaid/dagre.yaml`. The SysML2 model names the subsystem `MermaidDagre` (see
-_CanvasNetMermaid System Design_).
+The subsystem's namespace documentation is in `Dagre/NamespaceDoc.cs`. Its behavior is specified by the
+`CanvasNetMermaid-Dagre-*` requirements in `docs/reqstream/canvas-net-mermaid/dagre.yaml`. The SysML2 model names the
+subsystem `MermaidDagre` (see _CanvasNetMermaid System Design_).
 
 **Attribution.** Every unit except `LayoutWorkMeter` is a port of dagre-d3-es (MIT; derived from dagre and graphlib by
 Chris Pettitt), read from the package that the repository's lock file pins for the pinned Mermaid release; `Lodash`

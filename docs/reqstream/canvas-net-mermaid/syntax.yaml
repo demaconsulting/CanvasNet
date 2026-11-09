@@ -53,6 +53,8 @@ sections:
               - CanvasNetMermaid-Syntax-SourceScanner-JavaScriptClasses
             tests:
               - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+              - Syntax_ScanParserText_AfterFrontmatter_LocatesTokensAndLexicalError
+              - Syntax_ParseParserText_UnexpectedToken_ListsExpectedTokensAtOriginalLocation
 
           - id: CanvasNetMermaid-Syntax-Detection
             title: >-
@@ -110,3 +112,4 @@ sections:
               - CanvasNetMermaid-Syntax-HtmlSanitizer-Bounded
             tests:
               - Syntax_Preprocess_FrontmatterAlias_IsRefusedAtLocation
+              - Syntax_PrepareAndSanitizeLabel_UnsafeHtml_IsCleaned

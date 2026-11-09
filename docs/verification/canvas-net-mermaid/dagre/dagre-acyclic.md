@@ -8,8 +8,9 @@ and `GreedyFas`), the port of dagre's `acyclic.js`, `greedy-fas.js`, and `data/l
 
 The unit is verified on small graphs ported from dagre-d3-es's `acyclic.test.js` and `greedy-fas.test.js`: an acyclic
 graph with every cycle breaker (the depth-first default, `greedy`, and an unknown name that falls back to the default),
-a square cycle and a two-node cycle, a weighted cycle, two four-node cycles, and named parallel edges. The tests use the
-`Graphlib` subsystem's `FindCycles` to check that no cycle remains and compare the returned feedback arc sets with the
+a square cycle and a two-node cycle, a weighted cycle, two four-node cycles, and named parallel edges. The tests check
+that no cycle remains with a topological sort written in the test class (a graph has a cycle exactly when removing
+the nodes without incoming edges one by one leaves nodes behind) and compare the returned feedback arc sets with the
 edges dagre returns. No mocking or stubbing is used; the internal type is reached through the test assembly's
 `InternalsVisibleTo` access.
 

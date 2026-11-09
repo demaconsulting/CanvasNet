@@ -36,9 +36,9 @@ visited nodes other than the hand-derived JavaScript order constitutes a failure
 **Tests**: `GraphlibTests.Graphlib_Traversal_NumericNames_FollowJavaScriptKeyOrder`,
 `GraphlibTests.Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph`
 
-Builds a compound multigraph with named parallel edges, a path that closes a cycle, and a node placed under a parent
-that did not exist, and asserts the nodes, the top-level children, the children of the parent, and the edges that the
-traversals follow.
+Builds a compound multigraph with named parallel edges and a node placed under a parent that did not exist, and a
+path from which a node is removed and edges are added again, and asserts the nodes, the top-level children, the
+children of the parent, the edges, and the nodes that the traversals follow.
 
 #### CanvasNetMermaid-Graphlib-KeyOrder: Collections And Traversals Follow JavaScript's Key Order
 
@@ -53,12 +53,13 @@ all nodes visits `3`, `y`, `12`, `root`, `z`, `cluster`.
 **Tests**: `GraphlibTests.Graphlib_Traversal_NumericNames_FollowJavaScriptKeyOrder`,
 `GraphlibTests.Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph`
 
-Asserts the hand-derived preorder of a compound multigraph and that the cycles of a three-node path are none when the
-closing edge is absent and one cycle of three nodes when it is present.
+Asserts the hand-derived preorder of a compound multigraph, and the preorder and postorder of a path before and after
+a node is removed and edges are added again.
 
 #### CanvasNetMermaid-Graphlib-Consistency: Changes Are Seen By Later Queries
 
 **Tests**: `GraphlibTests.Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph`
 
-Removes the closing edge of the cycle `a`, `b`, `c`, `a`, asserts that no cycle is found, adds the edge again, and
-asserts that exactly one cycle of three nodes is found.
+Removes the middle node of the path `a`, `b`, `c` and asserts that a preorder from `a` visits only `a` and that the
+edge from `a` to `b` is gone with it; then adds the edges `a`-`c` and `c`-`b` and asserts that the nodes are listed as
+`a`, `c`, `b` (the node added again moves to the end) and that a postorder from `a` visits `b`, `c`, `a`.

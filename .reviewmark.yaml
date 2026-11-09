@@ -3745,6 +3745,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
+      - "docs/user_guide/examples/mermaid-*.mmd"                      # documentation gallery diagrams
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/SceneQuery.cs"   # shared scene queries of the layout tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/UpstreamVectors.cs"  # shared upstream-vector loader
@@ -4055,6 +4056,7 @@ reviews:
       - "docs/design/canvas-net-mermaid/dagre.md"  # subsystem design
       - "docs/verification/canvas-net-mermaid/dagre.md"  # subsystem verification
       - "docs/sysml2/model/canvas-net-mermaid/dagre.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/NamespaceDoc.cs"  # namespace documentation
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreTests.cs"  # subsystem tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreGoldens.cs"  # subsystem test helper (golden reader)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreTestGraphs.cs"  # test helper (meters, graph builders)

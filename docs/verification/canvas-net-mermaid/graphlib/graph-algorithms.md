@@ -1,8 +1,8 @@
 ### GraphAlgorithms Unit Verification Design
 
 This document describes the unit-level verification strategy for the `GraphAlgorithms` unit in the
-`DemaConsulting.CanvasNet.Mermaid.Graphlib` namespace: the internal static `GraphAlgorithms` class (`Preorder`,
-`Postorder`, `Components`, `Tarjan`, and `FindCycles`).
+`DemaConsulting.CanvasNet.Mermaid.Graphlib` namespace: the internal static `GraphAlgorithms` class (`Preorder` and
+`Postorder`).
 
 #### Verification Approach
 
@@ -36,19 +36,3 @@ asserted. A traversal that lists other nodes, or the same nodes in another order
 Asserts that the tree `a`-`b`-`d`, `a`-`c`, `b`-`e` gives the preorder `a`, `b`, `d`, `e`, `c` and the postorder
 `d`, `e`, `b`, `c`, `a`; that an undirected graph is walked through its neighbors (`c`, `b`, `a` from `c`); and that a
 root that is not a node throws `ArgumentException`.
-
-##### CanvasNetMermaid-Graphlib-GraphAlgorithms-Components: Connected Components Ignore Direction
-
-**Tests**: `GraphAlgorithmsTests.GraphAlgorithms_Components_TwoParts_ListsBoth`
-
-Asserts that a graph of a path `a`-`b`-`c`, an edge `e`-`d`, and a lone node `f` has the three components `a`, `b`,
-`c`; `e`, `d`; and `f`, in that order.
-
-##### CanvasNetMermaid-Graphlib-GraphAlgorithms-StronglyConnected: Tarjan Components And Cycles
-
-**Tests**: `GraphAlgorithmsTests.GraphAlgorithms_TarjanFindCycles_CyclesAndSelfLoop_AreFound`,
-`GraphAlgorithmsTests.GraphAlgorithms_FindCycles_AcyclicGraph_ReturnsNone`
-
-Asserts that a graph with the cycle `a`, `b`, `c`, an edge to `d`, a self loop on `e`, and a lone `f` has four
-strongly connected components with `d` first and `c`, `b`, `a` second, that its cycles are `c`, `b`, `a` and `e`, and
-that an acyclic graph has no cycles.

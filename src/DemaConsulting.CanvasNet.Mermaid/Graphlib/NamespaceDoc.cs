@@ -11,8 +11,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Graphlib;
 ///         (such as <c>"2"</c> and <c>"10"</c>) come first in ascending numeric order, then the other keys in insertion
 ///         order. Every dagre stage iterates these collections, so this order decides ties and therefore the layout;
 ///         keeping it makes the port give the same results as Mermaid for any node names. <c>GraphAlgorithms</c> holds the
-///         traversals that dagre and Mermaid's dagre wrapper use (<c>preorder</c>, <c>postorder</c>, <c>components</c>,
-///         <c>tarjan</c> and <c>findCycles</c>).
+///         depth-first traversals that the dagre ranker uses (<c>preorder</c> and <c>postorder</c>); graphlib's other
+///         algorithms are not reached by the layout and are not ported.
 ///     </para>
 ///     <para>
 ///         The namespace is internal to the package. A graph is mutable and is used by one call on one thread.

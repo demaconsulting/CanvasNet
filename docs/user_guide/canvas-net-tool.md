@@ -1150,8 +1150,9 @@ canvasnet inspect pixel  <input> <x,y> [--radius R] [options]
 ```
 
 `inspect` reads what the pixels of an image contain, without writing a file. It loads the input like `render` and
-accepts every source and pipeline option of `render` (`--page`, `--dpi`, `--background`, `--crop`, `--fit`, `--deskew`,
-`--auto-levels`, and so on; not the output options or `--all-pages`), so the numbers are those of the picture after the
+accepts every source and pipeline option of `render` (`--page`, `--dpi`, `--background`, `-D` of a model, `--param` of
+a chart, `--theme` of a Mermaid diagram, `--crop`, `--fit`, `--deskew`, `--auto-levels`, and so on; not the output
+options or `--all-pages`), so the numbers are those of the picture after the
 pipeline: `inspect colors photo.jpg --crop 100,100,50,50` answers "what color is this region", and the point of
 `inspect pixel` is a coordinate of the processed picture. The subcommand comes first; a missing or misspelled one is a
 `usage-error` that names the closest (`Did you mean 'colors'?`), and an option of the other subcommand is a

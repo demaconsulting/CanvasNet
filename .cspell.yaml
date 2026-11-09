@@ -964,6 +964,7 @@ words:
   - noscript
   - noshade
   - novalidate
+  - onclick
   - optgroup
   - playsinline
   - plusmn

@@ -3,7 +3,7 @@
 #
 # These requirements describe the design-level behavior of the GraphAlgorithms unit of the Graphlib subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Graphlib): the graphlib traversals of the ported graphlib
-# surface (preorder, postorder, components, tarjan, and findCycles).
+# surface that the dagre ranker uses (preorder and postorder).
 # See docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md for the test-evidence mapping.
 
 sections:
@@ -25,25 +25,3 @@ sections:
                 tests:
                   - GraphAlgorithms_PreorderPostorder_Tree_VisitsInOrder
                   - GraphAlgorithms_Preorder_UndirectedAndUnknownRoot_FollowsNeighborsOrThrows
-
-              - id: CanvasNetMermaid-Graphlib-GraphAlgorithms-Components
-                title: >-
-                  The GraphAlgorithms unit shall list the connected components of a graph, ignoring the direction
-                  of its edges, each in the order graphlib visits its nodes.
-                justification: |
-                  The components traversal is part of the ported graphlib surface; a caller must get the components
-                  and the order that graphlib gives.
-                tests:
-                  - GraphAlgorithms_Components_TwoParts_ListsBoth
-
-              - id: CanvasNetMermaid-Graphlib-GraphAlgorithms-StronglyConnected
-                title: >-
-                  The GraphAlgorithms unit shall list the strongly connected components of a graph in the order of
-                  Tarjan's algorithm as graphlib runs it, and the cycles of a graph as the components with more than
-                  one node or with a self loop, and no cycle for an acyclic graph.
-                justification: |
-                  Cycle detection is part of the ported graphlib surface; a caller that checks a graph for cycles
-                  must get the cycles that graphlib reports.
-                tests:
-                  - GraphAlgorithms_TarjanFindCycles_CyclesAndSelfLoop_AreFound
-                  - GraphAlgorithms_FindCycles_AcyclicGraph_ReturnsNone

@@ -17,8 +17,8 @@ This document describes the system-level verification strategy for CanvasNetMerm
   pictures, reports, image source, notices, cancellation, concurrency), `MermaidFlowchartIntegrationTests` (every
   fixture in strict mode, theme and style pixels, scale, background, exact size, determinism, cancellation),
   `MermaidReferenceLayoutTests` (the layout goldens), `MermaidHardeningTests` (limits and a seeded mutation fuzzer),
-  and `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw). They are named
-  `CanvasNetMermaid_<Area>_<Scenario>_<Result>`.
+  `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw), and `MermaidGalleryTests` (the
+  diagrams of the documentation gallery). They are named `CanvasNetMermaid_<Area>_<Scenario>_<Result>`.
 - **Subsystem tests** (`{Subsystem}Tests.cs` in each folder) and **unit tests** (`{Unit}Tests.cs`) are described in
   the subsystem and unit verification designs that follow this document; the direct unit `MermaidDocument` is
   described in _MermaidDocument Unit Verification Design_.
@@ -107,12 +107,21 @@ Asserts the default theme's node fill `#ECECFF`, node border `#9370DB`, arrowhea
 ### CanvasNetMermaid-Flowcharts: Every Fixture Draws Strictly
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Fixture_RendersStrictly`,
-`MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes`
+`MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowcharts`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings` (a theory with one case
+for each file)
 
 Renders each of the 42 fixtures (directions, all shapes, link forms, subgraphs, styles, classes, curves, markdown and
 HTML labels, unicode, long labels, many nodes) in strict mode and asserts that it draws something, measures as it
 renders, and gives no report other than the documented missing-glyph warning of `38-unicode`; asserts the pixels of
-`classDef`, `class`, and `style` declarations.
+`classDef`, `class`, and `style` declarations. The diagrams of the documentation gallery
+(`docs/user_guide/examples/mermaid-*.mmd`, copied next to the test assembly as `Gallery`) are checked the same way: the
+first test asserts that there are at least six and that each opens as a supported flowchart; the theory renders each
+with `ThrowOnUnsupportedFeature = true`, a warning handler, and a resolver that gives a solid picture for every link,
+and asserts that no warning is raised, that the surface has the measured size, that more than one pixel in fifty
+differs from the corner pixel, and that the pictures diagram asks the resolver for its `.scad`, `.svg`, and `.vl.json`
+links.
 
 ### CanvasNetMermaid-LayoutFidelity: The Layout Matches Mermaid
 

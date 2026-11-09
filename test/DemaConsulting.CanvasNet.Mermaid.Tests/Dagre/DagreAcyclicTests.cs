@@ -56,8 +56,8 @@ public class DagreAcyclicTests
         DagreAcyclic.Run(pair, Meter());
 
         // Assert
-        Assert.Empty(GraphAlgorithms.FindCycles(square));
-        Assert.Empty(GraphAlgorithms.FindCycles(pair));
+        Assert.False(HasCycle(square));
+        Assert.False(HasCycle(pair));
         Assert.Equal(2, pair.EdgeCount);
         Assert.Equal(2, pair.HasEdge("a", "b") ? pair.OutEdges("a", "b")!.Length : pair.OutEdges("b", "a")!.Length);
     }
@@ -105,7 +105,7 @@ public class DagreAcyclicTests
         DagreAcyclic.Run(g, Meter());
 
         // Assert
-        Assert.Empty(GraphAlgorithms.FindCycles(g));
+        Assert.False(HasCycle(g));
         Assert.False(g.HasEdge("c", "d"));
     }
 
@@ -147,7 +147,7 @@ public class DagreAcyclicTests
         }
 
         // Assert
-        Assert.Empty(GraphAlgorithms.FindCycles(g));
+        Assert.False(HasCycle(g));
         Assert.True(fas.Count <= (m / 2) - (n / 6));
     }
 
@@ -172,5 +172,36 @@ public class DagreAcyclicTests
         // Assert
         Assert.Equal([new GraphEdge("n2", "n1")], fas1);
         Assert.Equal([new GraphEdge("b", "a", "bar"), new GraphEdge("b", "a", "baz")], fas2.OrderBy(e => e.Name, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    ///     Gets whether a directed graph has a cycle (a self loop included): removing the nodes without incoming edges
+    ///     one by one (Kahn's topological sort) leaves nodes behind exactly when it has one.
+    /// </summary>
+    /// <typeparam name="TGraph">The graph label type.</typeparam>
+    /// <typeparam name="TNode">The node label type.</typeparam>
+    /// <typeparam name="TEdge">The edge label type.</typeparam>
+    /// <param name="g">The graph.</param>
+    /// <returns>Whether it has a cycle.</returns>
+    private static bool HasCycle<TGraph, TNode, TEdge>(Graph<TGraph, TNode, TEdge> g)
+    {
+        var incoming = g.Nodes().ToDictionary(v => v, v => g.InEdges(v)!.Length, StringComparer.Ordinal);
+        var ready = new Queue<string>(incoming.Where(entry => entry.Value == 0).Select(entry => entry.Key));
+        var removed = 0;
+        while (ready.Count > 0)
+        {
+            var v = ready.Dequeue();
+            removed++;
+            foreach (var e in g.OutEdges(v)!)
+            {
+                incoming[e.W]--;
+                if (incoming[e.W] == 0)
+                {
+                    ready.Enqueue(e.W);
+                }
+            }
+        }
+
+        return removed < incoming.Count;
     }
 }

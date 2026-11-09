@@ -14,9 +14,8 @@ the test assembly. It contains two units:
   (`GraphEdge.cs`), and the string-keyed map that keeps the key order of a JavaScript object, `ObjectKeyMap<TValue>`
   (`ObjectKeyMap.cs`): directed or undirected, simple or multi, flat or compound graphs with labels on the graph, the
   nodes, and the edges; see _Graph Unit Design_ (`graphlib/graph.md`)
-- **GraphAlgorithms** - the static `GraphAlgorithms` (`GraphAlgorithms.cs`): the graphlib traversals `preorder`,
-  `postorder`, `components`, `tarjan`, and `findCycles`; see _GraphAlgorithms Unit Design_
-  (`graphlib/graph-algorithms.md`)
+- **GraphAlgorithms** - the static `GraphAlgorithms` (`GraphAlgorithms.cs`): the graphlib traversals `preorder` and
+  `postorder`; see _GraphAlgorithms Unit Design_ (`graphlib/graph-algorithms.md`)
 
 The subsystem's namespace documentation is in `Graphlib/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Graphlib-*` requirements in `docs/reqstream/canvas-net-mermaid/graphlib.yaml`. The SysML2 model
@@ -30,8 +29,8 @@ names the subsystem `MermaidGraphlib` (see _CanvasNetMermaid System Design_).
 `NodeCount`; `SetParent`, `Parent`, and `Children`; `Predecessors`, `Successors`, `Neighbors`, and `IsLeaf`;
 `FilterNodes`; `Edges`, `SetEdge`, `SetPath`, `Edge`, `HasEdge`, `RemoveEdge`, `InEdges`, `OutEdges`, `NodeEdges`,
 and `EdgeCount`; the record `GraphEdge(V, W, Name)`; `ObjectKeyMap<TValue>` (indexer, `ContainsKey`,
-`TryGetValue`, `Remove`, `Keys`, `Values`, `Count`, and `IsArrayIndex`); and `GraphAlgorithms.Preorder`,
-`Postorder`, `Components`, `Tarjan`, and `FindCycles`.
+`TryGetValue`, `Remove`, `Keys`, `Values`, `Count`, and `IsArrayIndex`); and `GraphAlgorithms.Preorder` and
+`Postorder`.
 
 **Consumed**: the .NET base class library only (collections, `RuntimeHelpers.EnsureSufficientExecutionStack`, and
 invariant-culture number formatting). The subsystem uses no other subsystem of the system and no part of the core
@@ -59,10 +58,8 @@ the two ends (ordered for an undirected graph) and the name, the default labels 
 the tail, head, and name, the implicit root of a compound graph, the predecessor and successor counts that make
 parallel edges count once, the removal of a node with its edges and the re-parenting of its children, and
 `filterNodes` with its nearest-kept-ancestor search. Methods that graphlib answers with `undefined` for an absent
-node answer null. `GraphAlgorithms` ports the traversals of `graphlib/alg/` (`dfs.js`, `preorder.js`,
-`postorder.js`, `components.js`, `tarjan.js`, and `find-cycles.js`) on top of the same key order, so its results are
-those graphlib gives. Of these, the dagre ranker uses `Preorder` and `Postorder`; the others complete the ported
-surface.
+node answer null. `GraphAlgorithms` ports the traversals of `graphlib/alg/` that the dagre ranker uses (`dfs.js`,
+`preorder.js`, and `postorder.js`) on top of the same key order, so its results are those graphlib gives.
 
 **Work and depth are bounded by the callers.** The traversals recurse as graphlib does; the depth is bounded by the
 number of nodes, which the diagram limits keep small, and every recursive step calls
@@ -72,7 +69,8 @@ ending the process. The graph does not meter its own work; the dagre stages char
 meter of the `Dagre` subsystem.
 
 **Not ported.** graphlib's `json` reader and writer and the algorithms that neither dagre nor Mermaid's dagre wrapper
-reach (shortest paths, minimum spanning tree, topological sort, and the cycle check) are not ported; the pinned
+reach (components, strongly connected components and cycles, shortest paths, minimum spanning tree, topological sort,
+and the cycle check) are not ported; the pinned
 Mermaid release refers to `json.write` only in logging that is commented out.
 
 **Attribution.** `Graph.cs`, `GraphEdge.cs`, and `GraphAlgorithms.cs` contain portions derived from dagre-d3-es

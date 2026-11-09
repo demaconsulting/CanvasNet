@@ -62,8 +62,6 @@ public static class MermaidDiagnosticCodes
     /// <summary>A node uses a shape name that Mermaid does not define; the hint names the nearest shape.</summary>
     public const string ShapeUnknown = "mermaid-shape-unknown";
 
-    /// <summary>A <c>class</c> statement or <c>:::</c> names a class that no <c>classDef</c> defines (a warning).</summary>
-    public const string ClassUndefined = "mermaid-class-undefined";
 
     /// <summary>An icon (<c>fa:</c>, <c>@{ icon }</c>) is not drawn; the text without the icon is (an unsupported feature).</summary>
     public const string IconUnsupported = "mermaid-icon-unsupported";
