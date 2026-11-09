@@ -231,6 +231,8 @@ internal static class SceneQuery
             ["sequence-number"] = "number",
             ["connection-circles"] = "circles",
             ["note"] = "note",
+            ["frame"] = "frame",
+            ["menu"] = "menu",
         };
 
         /// <summary>The items by role and id.</summary>
@@ -252,24 +254,40 @@ internal static class SceneQuery
             }
 
             var activations = 0;
+            var rects = 0;
+            var boxes = 0;
             foreach (var item in scene.Items)
             {
-                if (item.Role == "activation")
+                switch (item.Role)
                 {
-                    Order.Add(string.Create(CultureInfo.InvariantCulture, $"activation:{activations++}"));
-                }
-                else if (item.Role == "title")
-                {
-                    Order.Add("title");
-                }
-                else if (OrderKeys.TryGetValue(item.Role, out var key))
-                {
-                    Order.Add(key + ":" + item.Id);
+                    case "activation":
+                        Order.Add(string.Create(CultureInfo.InvariantCulture, $"activation:{activations++}"));
+                        break;
+                    case "rect":
+                        Order.Add(string.Create(CultureInfo.InvariantCulture, $"rect:{rects++}"));
+                        break;
+                    case "box":
+                        Order.Add(string.Create(CultureInfo.InvariantCulture, $"box:{boxes++}"));
+                        break;
+                    case "title":
+                        Order.Add("title");
+                        break;
+                    default:
+                        if (OrderKeys.TryGetValue(item.Role, out var key))
+                        {
+                            Order.Add(key + ":" + item.Id);
+                        }
+
+                        break;
                 }
             }
         }
 
-        /// <summary>Gets the paint order of the top-level items (<c>actor-top:name</c>, <c>message:i0</c>, ...).</summary>
+        /// <summary>
+        ///     Gets the paint order of the top-level items as the goldens key it (<c>actor-top:name</c>, <c>message:i0</c>,
+        ///     <c>frame:i7</c>, <c>menu:actor0_popup</c>; activations, <c>rect</c> backgrounds and boxes by their index in
+        ///     the order, as <c>activation:0</c>, <c>rect:0</c> and <c>box:0</c>).
+        /// </summary>
         public List<string> Order { get; } = [];
 
         /// <summary>

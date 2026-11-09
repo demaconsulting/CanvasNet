@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
@@ -10,7 +11,9 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 ///     <c>Fixtures/reference/sequence/</c> (the layout that the pinned mermaid-cli and mermaid draw in headless Chrome with
 ///     Liberation Sans, see <c>Fixtures/reference/README.md</c>) is compared with CanvasNet's scene: the view box, the title,
 ///     every participant's drawings, parts, paint and labels, the lifelines, every message's line or self loop, markers,
-///     text, central-connection circles and sequence number, the notes, the activations, and the paint order.
+///     text, central-connection circles and sequence number, the notes, the activations, the block frames with their
+///     label boxes and titles, the <c>rect</c> backgrounds, the boxes with their shadows and titles, the menus, and the
+///     paint order.
 /// </summary>
 public class MermaidSequenceReferenceLayoutTests
 {
@@ -26,30 +29,15 @@ public class MermaidSequenceReferenceLayoutTests
     /// </summary>
     private const double TextTolerance = 0.02;
 
+    /// <summary>
+    ///     The tolerance in pixels of the box of a cylinder (a <c>queue</c> or <c>database</c> path of elliptical arcs):
+    ///     Chrome's <c>getBBox</c> of an arc far from the origin can stop up to 0.02 pixel short of the ellipse's extreme
+    ///     (its arc approximation; the mirrored queue at y 481 shows 0.017), while the geometry is the same.
+    /// </summary>
+    private const double ArcTolerance = 0.02;
+
     /// <summary>The number of intervals the goldens sample each self loop at.</summary>
     private const int SampleIntervals = 20;
-
-    /// <summary>
-    ///     The fixtures that need what is not drawn yet: blocks (<c>loop</c>, <c>alt</c>, <c>opt</c>, <c>par</c>,
-    ///     <c>critical</c>, <c>break</c>, <c>rect</c>), boxes, the participant types other than <c>participant</c> and
-    ///     <c>actor</c>, and the actor menus. This list is temporary and must be empty when those are drawn.
-    /// </summary>
-    private static readonly HashSet<string> NotYetDrawn = new(StringComparer.Ordinal)
-    {
-        "11-loop-opt-break",
-        "12-alt-else-nested",
-        "13-par-and-par-over",
-        "14-critical-option",
-        "15-rect-backgrounds",
-        "16-boxes",
-        "18-create-destroy",
-        "19-participant-types",
-        "20-config-keys",
-        "21-wrap-and-breaks",
-        "22-title-menus-hidden",
-        "23-font-size-override",
-        "24-menus-forced-properties",
-    };
 
     /// <summary>
     ///     Gets the names of the goldens.
@@ -94,11 +82,6 @@ public class MermaidSequenceReferenceLayoutTests
     public void CanvasNetMermaid_SequenceReferenceLayout_MatchesMermaid(string name)
     {
         // Arrange
-        if (NotYetDrawn.Contains(name))
-        {
-            Assert.Skip($"{name} uses blocks, boxes, other participant types or menus, which are not drawn yet");
-        }
-
         var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(ReferenceFolder, name + ".layout.json")))!.AsObject();
         var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sequence", (string)golden["source"]!));
 
@@ -213,12 +196,114 @@ public class MermaidSequenceReferenceLayoutTests
                 Paint($"activation {path.Id}", activation["paint"], path);
             }
 
-            // The paint order
-            var order = golden["order"]!.AsArray().Select(key => (string)key!).ToList();
+            // The block frames, rect backgrounds, boxes and menus
+            foreach (var frame in golden["frames"]!.AsArray())
+            {
+                Frame(frame!.AsObject(), items);
+            }
+
+            var rects = scene.Items.Where(item => item.Role == "rect").OfType<ScenePath>().ToList();
+            var goldenRects = golden["rects"]!.AsArray();
+            Count("rects", goldenRects.Count, rects.Count);
+            foreach (var (rect, path) in goldenRects.Zip(rects))
+            {
+                Check("rect", Numbers(rect!["box"]), Box(Scene.BoundsOf([path])), DefaultTolerance);
+                Paint("rect", rect["paint"], path);
+            }
+
+            var boxes = scene.Items.Where(item => item.Role == "box").OfType<SceneGroup>().ToList();
+            var goldenBoxes = golden["boxes"]!.AsArray();
+            Count("boxes", goldenBoxes.Count, boxes.Count);
+            foreach (var (box, group) in goldenBoxes.Zip(boxes))
+            {
+                var rect = (ScenePath)group.Children[0];
+                Check("box", Numbers(box!["box"]), Box(Scene.BoundsOf([rect])), DefaultTolerance);
+                Paint("box", box["paint"], rect);
+                Texts("box", box["texts"]!.AsArray(), [.. group.Children.OfType<SceneText>()]);
+            }
+
+            foreach (var menu in golden["menus"]!.AsArray())
+            {
+                Menu(menu!.AsObject(), items);
+            }
+
+            // The paint order; the harness also lists a menu panel of a mirrored participant as an unnamed bottom drawing
+            // (the panel has the participant box's classes, actor-bottom among them), which is left out
+            var keys = golden["order"]!.AsArray().Select(key => (string)key!).ToList();
+            var order = keys.Where((key, i) => !(key == "actor-bottom:null" && i + 1 < keys.Count && keys[i + 1].StartsWith("menu:", StringComparison.Ordinal))).ToList();
             if (!order.SequenceEqual(items.Order))
             {
                 Issues.Add($"order: expected [{string.Join(", ", order)}], got [{string.Join(", ", items.Order)}]");
             }
+        }
+
+        /// <summary>
+        ///     Compares a block frame: its sides and section separators, its label box, and its texts.
+        /// </summary>
+        /// <param name="frame">The golden frame.</param>
+        /// <param name="items">The scene's items.</param>
+        private void Frame(JsonObject frame, SceneQuery.SequenceScene items)
+        {
+            var id = (string)frame["id"]!;
+            if (items.Find("frame", id) is not SceneGroup group)
+            {
+                Issues.Add($"frame {id}: missing");
+                return;
+            }
+
+            var lines = group.Children.Where(child => child.Role == "frame-line").OfType<ScenePath>().ToList();
+            var expected = frame["lines"]!.AsArray();
+            Count($"frame {id} lines", expected.Count, lines.Count);
+            foreach (var (line, path) in expected.Zip(lines))
+            {
+                Check($"frame {id} line", Numbers(line!["line"]), [path.Segments[0].X, path.Segments[0].Y, path.Segments[1].X, path.Segments[1].Y], DefaultTolerance);
+                Paint($"frame {id} line", line["paint"], path);
+            }
+
+            if (frame["labelBox"] is { } labelBox && group.Children.FirstOrDefault(child => child.Role == "frame-label-box") is ScenePath polygon)
+            {
+                var points = labelBox["points"]!.AsArray().SelectMany(Numbers).ToArray();
+                Check($"frame {id} label box", points, [.. polygon.Segments.Take(5).SelectMany(s => new[] { s.X, s.Y })], DefaultTolerance);
+                Paint($"frame {id} label box", labelBox["paint"], polygon);
+            }
+            else
+            {
+                Issues.Add($"frame {id} label box: missing");
+            }
+
+            Texts($"frame {id}", frame["texts"]!.AsArray(), [.. group.Children.OfType<SceneText>()]);
+        }
+
+        /// <summary>
+        ///     Compares a participant's menu: hidden (an empty group), or its panel, paint and link texts.
+        /// </summary>
+        /// <param name="menu">The golden menu.</param>
+        /// <param name="items">The scene's items.</param>
+        private void Menu(JsonObject menu, SceneQuery.SequenceScene items)
+        {
+            var id = (string)menu["id"]!;
+            if (items.Find("menu", id) is not SceneGroup group)
+            {
+                Issues.Add($"menu {id}: missing");
+                return;
+            }
+
+            if (!(bool)menu["displayed"]!)
+            {
+                Count($"menu {id} items", 0, group.Children.Count);
+                return;
+            }
+
+            var panel = group.Children.OfType<ScenePath>().FirstOrDefault(child => child.Role == "menu-panel");
+            if (panel is null)
+            {
+                Issues.Add($"menu {id} panel: missing");
+                return;
+            }
+
+            Check($"menu {id} panel", Numbers(menu["panel"]), Box(Scene.BoundsOf([panel])), DefaultTolerance);
+            Paint($"menu {id} panel", menu["paint"], panel);
+            Texts($"menu {id}", menu["texts"]!.AsArray(), [.. group.Children.OfType<SceneText>()]);
         }
 
         /// <summary>
@@ -304,13 +389,14 @@ public class MermaidSequenceReferenceLayoutTests
                 return;
             }
 
-            Check($"{what} box", Numbers(golden["box"]), Box(Scene.BoundsOf(group.Children)), TextTolerance);
-            var parts = group.Children.OfType<ScenePath>().ToList();
+            Check($"{what} box", Numbers(golden["box"]), Box(Scene.BoundsOf([.. group.Children.Where(child => child.Role != "actor-marker")])), TextTolerance);
+            var parts = group.Children.OfType<ScenePath>().Where(path => path.Role != "actor-marker").ToList();
             var expected = golden["parts"]!.AsArray();
             Count($"{what} parts", expected.Count, parts.Count);
             foreach (var (part, path) in expected.Zip(parts))
             {
-                Check($"{what} {(string)part!["tag"]!}", Numbers(part["box"]), Box(Scene.BoundsOf([path])), DefaultTolerance);
+                var tolerance = path.Segments.Any(s => s.Kind == SceneSegmentKind.ArcTo) && path.Role == "actor-cylinder" ? ArcTolerance : DefaultTolerance;
+                Check($"{what} {(string)part!["tag"]!}", Numbers(part["box"]), Box(Scene.BoundsOf([path])), tolerance);
                 Paint($"{what} {(string)part["tag"]!}", part["paint"], path);
             }
 
@@ -328,18 +414,25 @@ public class MermaidSequenceReferenceLayoutTests
             Count($"{what} texts", golden.Count, ours.Count);
             foreach (var (text, line) in golden.Zip(ours))
             {
-                var content = string.Concat(text!["lines"]!.AsArray().Select(l => (string)l!));
+                // Mermaid draws an empty line as a zero-width space, which CanvasNet keeps as a line without runs
+                var content = string.Concat(text!["lines"]!.AsArray().Select(l => (string)l!)).Replace("\u200B", string.Empty, StringComparison.Ordinal);
                 Same($"{what} text", content, string.Concat(line.Runs.Select(run => run.Text)));
                 Check($"{what} text '{content}' x", [Numbers(text["at"])[0]], [line.X], DefaultTolerance);
                 Same($"{what} text '{content}' anchor", (string)text["anchor"]!, line.Anchor.ToString().ToLowerInvariant());
-                var font = line.Runs[0].Font;
-                Check($"{what} text '{content}' font size", [(double)text["fontSize"]!], [font.Size], DefaultTolerance);
-                Same($"{what} text '{content}' bold", int.Parse((string)text["fontWeight"]!, CultureInfo.InvariantCulture) >= 600 ? "bold" : "normal", font.Bold ? "bold" : "normal");
-                Color($"{what} text '{content}' fill", (string)text["fill"]!, line.Runs[0].Color);
                 if (text["box"] is { } box)
                 {
                     Check($"{what} text '{content}' box", Numbers(box), Box(line.Box), TextTolerance);
                 }
+
+                if (line.Runs.Count == 0)
+                {
+                    continue;
+                }
+
+                var font = line.Runs[0].Font;
+                Check($"{what} text '{content}' font size", [(double)text["fontSize"]!], [font.Size], DefaultTolerance);
+                Same($"{what} text '{content}' bold", int.Parse((string)text["fontWeight"]!, CultureInfo.InvariantCulture) >= 600 ? "bold" : "normal", font.Bold ? "bold" : "normal");
+                Color($"{what} text '{content}' fill", (string)text["fill"]!, line.Runs[0].Color);
             }
         }
 
@@ -370,6 +463,25 @@ public class MermaidSequenceReferenceLayoutTests
                 var expectedDash = dash is null or "none" ? string.Empty : dash.Replace("px", string.Empty, StringComparison.Ordinal);
                 var ourDash = ours.Dash is { } d ? string.Join(", ", d.Select(v => v.ToString(CultureInfo.InvariantCulture))) : string.Empty;
                 Same($"{what} dash", expectedDash, ourDash);
+            }
+
+            // The drop shadow of the CSS filter
+            var filter = (string?)golden["filter"];
+            if (filter is null)
+            {
+                if (path.Shadow is not null)
+                {
+                    Issues.Add($"{what} shadow: unexpected");
+                }
+            }
+            else if (!SequenceStyles.TryParseFilter(filter, out var shadow) || shadow is null || path.Shadow is not { } ourShadow)
+            {
+                Issues.Add($"{what} shadow: expected {filter}, got {(path.Shadow is null ? "none" : "a shadow")}");
+            }
+            else
+            {
+                Check($"{what} shadow", [shadow.OffsetX, shadow.OffsetY, shadow.Blur], [ourShadow.OffsetX, ourShadow.OffsetY, ourShadow.Blur], DefaultTolerance);
+                Same($"{what} shadow color", shadow.Color.ToString(), ourShadow.Color.ToString());
             }
         }
 

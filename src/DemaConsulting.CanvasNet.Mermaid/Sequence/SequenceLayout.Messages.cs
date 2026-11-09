@@ -86,19 +86,19 @@ internal sealed partial class SequenceLayout
                     ActiveEnd(msg, _bounds.VerticalPos);
                     break;
                 case var type when IsBlockStart(type):
-                    AdjustLoopHeightForWrap(loopWidths, state, _conf.BoxMargin, _conf.BoxMargin + _conf.BoxTextMargin, title => _bounds.NewLoop(title, null));
+                    AdjustLoopHeightForWrap(loopWidths, state, _conf.BoxMargin, _conf.BoxMargin + _conf.BoxTextMargin, title => _bounds.NewLoop(title, null, title.Source.Location));
                     break;
                 case var type when IsBlockSection(type):
                     AdjustLoopHeightForWrap(loopWidths, state, _conf.BoxMargin + _conf.BoxTextMargin, _conf.BoxMargin, _bounds.AddSectionToLoop);
                     break;
                 case var type when IsBlockEnd(type):
-                    EndLoop();
+                    EndLoop(msg);
                     break;
                 case SequenceLineType.RectStart:
-                    AdjustLoopHeightForWrap(loopWidths, state, _conf.BoxMargin, _conf.BoxMargin, title => _bounds.NewLoop(null, RectFill(title.Message)));
+                    AdjustLoopHeightForWrap(loopWidths, state, _conf.BoxMargin, _conf.BoxMargin, title => _bounds.NewLoop(null, RectFill(title.Message), title.Source.Location));
                     break;
                 case SequenceLineType.RectEnd:
-                    EndLoop();
+                    EndLoop(msg);
                     break;
                 case SequenceLineType.Autonumber:
                     {
@@ -153,16 +153,6 @@ internal sealed partial class SequenceLayout
         }
 
         return config.ThemeVariable("actorBkg") is { Length: > 0 } actor ? actor : "rgba(128, 128, 128, 0.5)";
-    }
-
-    /// <summary>
-    ///     Closes the innermost block and moves below it.
-    /// </summary>
-    private void EndLoop()
-    {
-        var loop = _bounds.EndLoop() ?? throw _meter.Failure("a block ends that was not started");
-        _bounds.BumpVerticalPos((loop.StopY ?? double.NaN) - _bounds.VerticalPos);
-        _bounds.LoopModels.Add(loop);
     }
 
     /// <summary>

@@ -24,7 +24,8 @@ internal sealed class SceneSlot
 /// <remarks>
 ///     <para>
 ///         <b>Paint order.</b> Mermaid appends most elements to the diagram, but lowers some groups to the back (the
-///         participant boxes with their lifelines, and the lifelines of stick figures). The renderer keeps both lists, so
+///         participant boxes with their lifelines, the lifelines of the figures, then the <c>rect</c> backgrounds and the
+///         boxes). The renderer keeps both lists, so
 ///         the scene has Mermaid's paint order: the lowered places from the last lowered to the first, then the appended
 ///         ones in order. An activation is drawn into the group Mermaid made for it when it started.
 ///     </para>
@@ -33,8 +34,12 @@ internal sealed class SceneSlot
 ///         <c>actor-bottom</c> groups (the participant's name), <c>lifeline</c> paths, <c>message</c> groups with the
 ///         <c>message-line</c> and its <c>marker-start</c> and <c>marker-end</c> (the marker name as id),
 ///         <c>message-text</c>, <c>connection-circles</c> and <c>sequence-number</c> groups (Mermaid's <c>i</c> and
-///         message index), <c>note</c> groups, <c>activation</c> rectangles (the activation class as id) and the
-///         <c>title</c>.
+///         message index), <c>note</c> groups, <c>activation</c> rectangles (the activation class as id), <c>frame</c>
+///         groups of blocks (the id of the message that ends the block) with <c>frame-line</c>, <c>frame-label-box</c>,
+///         <c>frame-label</c>, <c>frame-title</c> and <c>frame-section-title</c> items, <c>rect</c> backgrounds,
+///         <c>box</c> groups with a <c>box-rect</c> and a <c>box-title</c>, <c>menu</c> groups (Mermaid's
+///         <c>actor{n}_popup</c> id, empty while the menu is hidden) with a <c>menu-panel</c> and <c>menu-text</c> lines,
+///         and the <c>title</c>.
 ///     </para>
 ///     <para>
 ///         An instance draws one render on one thread.

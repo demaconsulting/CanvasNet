@@ -287,7 +287,14 @@ internal sealed record ScenePath(IReadOnlyList<SceneSegment> Segments) : SceneIt
 /// <param name="Anchor">Where the anchor is on the line.</param>
 /// <param name="Runs">The runs in order.</param>
 /// <param name="Box">The box of the line as the label layout measured it (for the bounds of the scene and for tests).</param>
-internal sealed record SceneText(double X, double Baseline, SceneTextAnchor Anchor, IReadOnlyList<SceneTextRun> Runs, SceneRect Box) : SceneItem;
+internal sealed record SceneText(double X, double Baseline, SceneTextAnchor Anchor, IReadOnlyList<SceneTextRun> Runs, SceneRect Box) : SceneItem
+{
+    /// <summary>
+    ///     Gets the stroke of the glyph outlines, drawn over their fill, or null for none (most text; a sequence label of
+    ///     the <c>old</c> text placement is stroked by its style rule).
+    /// </summary>
+    public SceneStroke? Stroke { get; init; }
+}
 
 /// <summary>
 ///     A picture drawn into a box (an <c>@{ img }</c> node or an <c>&lt;img&gt;</c> in a label).

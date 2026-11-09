@@ -75,6 +75,9 @@ internal sealed partial class SequenceLayout
     /// <summary>The per-render states of the messages, in order.</summary>
     private readonly List<SequenceMessageState> _messages;
 
+    /// <summary>The <c>rect</c> blocks, in the order they end (Mermaid's <c>backgrounds</c>), drawn behind everything.</summary>
+    private readonly List<SequenceLoopModel> _backgrounds = [];
+
     /// <summary>The height of every participant (Mermaid's <c>conf.height</c> after <c>calculateActorMargins</c>).</summary>
     private double _actorHeight;
 
@@ -206,9 +209,16 @@ internal sealed partial class SequenceLayout
             DrawActors(actorKeys, isFooter: true);
         }
 
+        // The rect backgrounds go behind everything drawn so far, then the lifelines end and the boxes go behind them
+        foreach (var background in _backgrounds)
+        {
+            _renderer.DrawBackgroundRect(background);
+        }
+
         _renderer.FixLifeLineHeights(actorKeys.Select(key => _actors[key]));
         LayoutBoxes();
-        return ViewBox();
+        var requiredBoxSize = DrawActorsPopup(actorKeys);
+        return ViewBox(requiredBoxSize);
     }
 
     /// <summary>
@@ -447,8 +457,8 @@ internal sealed partial class SequenceLayout
     }
 
     /// <summary>
-    ///     Gives the boxes their height and adds them to the extent (the part of Mermaid's <c>draw</c> after the
-    ///     lifelines), then leaves the box margin below them.
+    ///     Gives the boxes their height, adds them to the extent and draws them behind everything (the part of Mermaid's
+    ///     <c>draw</c> after the lifelines), then leaves the box margin below them.
     /// </summary>
     private void LayoutBoxes()
     {
@@ -456,6 +466,7 @@ internal sealed partial class SequenceLayout
         {
             box.Height = _bounds.VerticalPos - box.Y;
             _bounds.Insert(box.X, box.Y, box.X + box.Width, box.Height);
+            _renderer.DrawBox(box);
         }
 
         if (_model.HasAtLeastOneBox)
@@ -465,24 +476,25 @@ internal sealed partial class SequenceLayout
     }
 
     /// <summary>
-    ///     Draws the title and makes the scene with Mermaid's view box: the extent with the diagram margins, the room of
-    ///     the title above it, and the mirrored participants' bottom margin.
+    ///     Draws the title and makes the scene with Mermaid's view box: the extent (at least the size the menus need)
+    ///     with the diagram margins, the room of the title above it, and the mirrored participants' bottom margin.
     /// </summary>
+    /// <param name="requiredBoxSize">The height and right edge the menus need.</param>
     /// <returns>The scene.</returns>
-    private Scene ViewBox()
+    private Scene ViewBox((double MaxHeight, double MaxWidth) requiredBoxSize)
     {
         var startx = _bounds.StartX ?? 0;
         var starty = _bounds.StartY ?? 0;
         var stopx = _bounds.StopX ?? 0;
         var stopy = _bounds.StopY ?? 0;
-        var boxHeight = stopy - starty;
+        var boxHeight = Math.Max(stopy - starty, requiredBoxSize.MaxHeight);
         var height = boxHeight + (2 * _conf.DiagramMarginY);
         if (_conf.MirrorActors)
         {
             height = height - _conf.BoxMargin + _conf.BottomMarginAdj;
         }
 
-        var width = stopx - startx + (2 * _conf.DiagramMarginX);
+        var width = Math.Max(stopx - startx, requiredBoxSize.MaxWidth) + (2 * _conf.DiagramMarginX);
 
         // The title: the diagram's own, else the frontmatter's
         var title = _model.Title ?? (_context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter ? HtmlSanitizer.Sanitize(frontmatter) : null);

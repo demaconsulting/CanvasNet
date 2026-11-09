@@ -152,6 +152,28 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that the stroke of a text is drawn over its glyph outlines, even when the fill is transparent.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_StrokedText_DrawsTheOutline()
+    {
+        // Arrange: the same line without a fill, once without and once with a stroke
+        var font = new SceneFont("\"trebuchet ms\", verdana, arial, sans-serif", 16, false, false);
+        var line = new SceneText(10, 20, SceneTextAnchor.Start, [new SceneTextRun("HHHH", font, new Rgba32(0, 0, 0, 0))], new SceneRect(10, 4, 40, 20)) { Role = "label" };
+        var plain = new Scene(new SceneRect(0, 0, 100, 30), [line]);
+        var stroked = new Scene(new SceneRect(0, 0, 100, 30), [line with { Stroke = new SceneStroke(NodeStroke, 1) }]);
+
+        // Act
+        using var unstroked = Paint(plain);
+        using var outlined = Paint(stroked);
+        var inked = Enumerable.Range(0, 100).SelectMany(x => Enumerable.Range(0, 30).Select(y => outlined[x, y])).Count(p => p.A > 0);
+
+        // Assert
+        Assert.True(MermaidTestHelpers.IsFullyTransparent(unstroked));
+        Assert.True(inked > 20);
+    }
+
+    /// <summary>
     ///     Validates that runs are drawn one after the other with their own styles, and that an end anchor ends the line.
     /// </summary>
     [Fact]

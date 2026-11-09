@@ -22,8 +22,11 @@ internal sealed record SequenceTextData
     /// <summary>Gets the y.</summary>
     public double Y { get; init; }
 
-    /// <summary>Gets the width of the area the text is aligned in.</summary>
-    public double Width { get; init; }
+    /// <summary>
+    ///     Gets the width of the area the text is aligned in, or null for none (the anchor then only sets the text's
+    ///     anchor, at its x, on the alphabetic baseline, as <c>drawText</c> does for a text object without a width).
+    /// </summary>
+    public double? Width { get; init; }
 
     /// <summary>Gets the alignment (<c>left</c>, <c>center</c>, <c>right</c>, <c>start</c>, <c>middle</c> or <c>end</c>), or null.</summary>
     public string? Anchor { get; init; }
@@ -83,26 +86,39 @@ internal sealed partial class SequenceRenderer
         var margin = data.TextMargin;
         var measured = data.Valign is not null && margin > 0;
 
-        // The anchor moves the x into the area and centers the lines vertically on their middle baseline
+        // The anchor moves the x into the area and centers the lines vertically on their middle baseline; without an
+        // area it is only the text's anchor
         var x = data.X;
         var anchor = SceneTextAnchor.Start;
         var middle = false;
-        switch (data.Anchor)
+        if (data.Width is not { } width)
         {
-            case "left" or "start":
-                x = ColorMath.JsRound(x + margin);
-                middle = true;
-                break;
-            case "middle" or "center":
-                x = ColorMath.JsRound(x + (data.Width / 2));
-                anchor = SceneTextAnchor.Middle;
-                middle = true;
-                break;
-            case "right" or "end":
-                x = ColorMath.JsRound(x + data.Width - margin);
-                anchor = SceneTextAnchor.End;
-                middle = true;
-                break;
+            anchor = data.Anchor switch
+            {
+                "middle" => SceneTextAnchor.Middle,
+                "end" => SceneTextAnchor.End,
+                _ => SceneTextAnchor.Start,
+            };
+        }
+        else
+        {
+            switch (data.Anchor)
+            {
+                case "left" or "start":
+                    x = ColorMath.JsRound(x + margin);
+                    middle = true;
+                    break;
+                case "middle" or "center":
+                    x = ColorMath.JsRound(x + (width / 2));
+                    anchor = SceneTextAnchor.Middle;
+                    middle = true;
+                    break;
+                case "right" or "end":
+                    x = ColorMath.JsRound(x + width - margin);
+                    anchor = SceneTextAnchor.End;
+                    middle = true;
+                    break;
+            }
         }
 
         var items = new List<SceneItem>(lines.Count);
@@ -135,27 +151,65 @@ internal sealed partial class SequenceRenderer
                 textHeight += line.Box.Height;
             }
 
-            if (line.Runs.Count > 0)
-            {
-                items.Add(line);
-            }
+            // An empty line is kept (Mermaid draws a zero-width space): it paints nothing but has its box
+            items.Add(line);
         }
 
         return (items, textHeight);
     }
 
     /// <summary>
-    ///     Draws a participant label as Mermaid's <c>byTspan</c> does: one SVG text per line, centered in the box on the
-    ///     central baseline, the lines one font size apart around the middle of the box.
+    ///     Draws a text in the participants' font as Mermaid's <c>_drawTextCandidateFunc</c> chooses: <c>byText</c> for
+    ///     the <c>old</c> text placement, else <c>byTspan</c> (the <c>fo</c> placement, HTML labels, is reported and drawn
+    ///     as <c>byTspan</c>).
     /// </summary>
-    /// <param name="content">The label, with <c>&lt;br&gt;</c> tags between its lines.</param>
-    /// <param name="x">The left of the box.</param>
-    /// <param name="y">The top of the box.</param>
-    /// <param name="width">The width of the box.</param>
-    /// <param name="height">The height of the box.</param>
-    /// <param name="location">The location of the participant.</param>
+    /// <param name="content">The text, with <c>&lt;br&gt;</c> tags between its lines.</param>
+    /// <param name="x">The left of the area.</param>
+    /// <param name="y">The top of the area.</param>
+    /// <param name="width">The width of the area.</param>
+    /// <param name="height">The height of the area.</param>
+    /// <param name="style">The paint and role of the text.</param>
+    /// <param name="location">The location of the construct.</param>
     /// <returns>The lines.</returns>
-    private List<SceneItem> ByTspan(string content, double x, double y, double width, double height, MermaidLocation location)
+    private List<SceneItem> ActorText(string content, double x, double y, double width, double height, ActorTextStyle style, MermaidLocation location) =>
+        _conf.TextPlacement == "old"
+            ? [.. new[] { OldText(content, x + (width / 2), y + (height / 2) + 5, SceneTextAnchor.Middle, style, location) }.Where(line => line.Runs.Count > 0)]
+            : ByTspan(content, x, y, width, height, style, location);
+
+    /// <summary>
+    ///     Draws a text as Mermaid's <c>byText</c> does for the <c>old</c> text placement: one SVG text at the point with
+    ///     the content as written (a <c>&lt;br&gt;</c> is shown, not a break), in the root font, painted by the class of
+    ///     the text element (the <c>.actor</c> rule fills it with the participant fill and strokes it).
+    /// </summary>
+    /// <param name="content">The text.</param>
+    /// <param name="x">The x of the anchor.</param>
+    /// <param name="y">The y of the alphabetic baseline.</param>
+    /// <param name="anchor">The anchor.</param>
+    /// <param name="style">The paint and role of the text.</param>
+    /// <param name="location">The location of the construct.</param>
+    /// <returns>The line; it has no runs when the text is empty.</returns>
+    private SceneText OldText(string content, double x, double y, SceneTextAnchor anchor, ActorTextStyle style, MermaidLocation location)
+    {
+        var root = _styles.Resolve(DiagramStyles.Root);
+        var font = new SceneFont(root["font-family"] ?? MermaidConfigResolver.DefaultFontFamily, root.Length("font-size", 16), false, false);
+        var paint = style.TextClass is { } selector ? _styles.Shape(new ShapePaint(RootFill, null, 1), selector) : new ShapePaint(RootFill, null, 1);
+        var line = TextLine(DisplayText(content), x, y, anchor, font, paint.Fill ?? new Rgba32(0, 0, 0, 0), style.Role, null, location);
+        return line with { Stroke = Stroke(paint) };
+    }
+
+    /// <summary>
+    ///     Draws a text in the participants' font as Mermaid's <c>byTspan</c> does: one SVG text per line, centered in the
+    ///     area on the central baseline, the lines one font size apart around the middle of the area.
+    /// </summary>
+    /// <param name="content">The text, with <c>&lt;br&gt;</c> tags between its lines.</param>
+    /// <param name="x">The left of the area.</param>
+    /// <param name="y">The top of the area.</param>
+    /// <param name="width">The width of the area.</param>
+    /// <param name="height">The height of the area.</param>
+    /// <param name="style">The paint and role of the text.</param>
+    /// <param name="location">The location of the construct.</param>
+    /// <returns>The lines.</returns>
+    private List<SceneItem> ByTspan(string content, double x, double y, double width, double height, ActorTextStyle style, MermaidLocation location)
     {
         var actorFont = _conf.ActorFont;
         var (fontSize, fontSizeCss) = LabelBuilder.ParseFontSize(actorFont.Size);
@@ -165,7 +219,7 @@ internal sealed partial class SequenceRenderer
             LabelBuilder.FontPixels(fontSizeCss),
             StyleDeclarations.TryParseBold(actorFont.Weight.Text, out var bold) && bold,
             false);
-        var color = _styles.TextColor(null, "text.actor > tspan") ?? Black;
+        var color = style.TspanColor ?? Black;
         var (ascent, descent) = _labels.VerticalMetrics(font);
         var lines = LabelBuilder.SplitBreaks(content);
         var items = new List<SceneItem>(lines.Count);
@@ -174,7 +228,7 @@ internal sealed partial class SequenceRenderer
             // A dy that is not a number is ignored by the browser
             var dy = (i * size) - (size * (lines.Count - 1) / 2);
             var baseline = y + (height / 2) + (double.IsNaN(dy) ? 0 : dy) + ((ascent - descent) / 2);
-            var line = TextLine(DisplayText(lines[i]), x + (width / 2), baseline, SceneTextAnchor.Middle, font, color, "actor-text", null, location);
+            var line = TextLine(DisplayText(lines[i]), x + (width / 2), baseline, SceneTextAnchor.Middle, font, color, style.Role, null, location);
             if (line.Runs.Count > 0)
             {
                 items.Add(line);
@@ -226,4 +280,13 @@ internal sealed partial class SequenceRenderer
             Location = location,
         };
     }
+
+    /// <summary>
+    ///     The paint and role of a text in the participants' font (Mermaid's text attributes of
+    ///     <c>_drawTextCandidateFunc</c>).
+    /// </summary>
+    /// <param name="TspanColor">The color of the lines <c>byTspan</c> draws (the rules of their <c>tspan</c>), or null for black.</param>
+    /// <param name="TextClass">The class selector that paints the text element <c>byText</c> draws, or null for none.</param>
+    /// <param name="Role">The role of the lines.</param>
+    private sealed record ActorTextStyle(Rgba32? TspanColor, string? TextClass, string Role);
 }

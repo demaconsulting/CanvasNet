@@ -1,4 +1,5 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid.Dagre;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Sequence;
@@ -51,7 +52,31 @@ internal sealed class SequenceActorLayout
 
     /// <summary>Gets or sets the layout of the participant's box, or null.</summary>
     public SequenceBoxLayout? Box { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the number of the participant among those drawn at the top (Mermaid's <c>actorCnt</c>, from 0),
+    ///     or -1 before it is drawn; it names the participant's menu (<c>actor{n}_popup</c>).
+    /// </summary>
+    public int ActorCnt { get; set; } = -1;
+
+    /// <summary>
+    ///     Gets or sets the box of the participant's last drawing (Mermaid's <c>rectData</c>), which places its menu, or
+    ///     null for the types that have none (<c>actor</c>, <c>boundary</c>, <c>control</c>, <c>entity</c>).
+    /// </summary>
+    public SequenceRectData? RectData { get; set; }
 }
+
+/// <summary>
+///     The box Mermaid keeps of a participant's drawing (its <c>rectData</c>): what places and paints the participant's
+///     menu.
+/// </summary>
+/// <param name="X">The left edge.</param>
+/// <param name="Height">The height (the menu panel's top, as Mermaid uses it).</param>
+/// <param name="Width">The width.</param>
+/// <param name="Radius">The corner radius.</param>
+/// <param name="Classes">The CSS classes of the drawing's box (<c>actor actor-top</c>, or the <c>properties</c> class).</param>
+/// <param name="Fill">The fill attribute of the box.</param>
+internal sealed record SequenceRectData(double X, double Height, double Width, double Radius, string Classes, Rgba32 Fill);
 
 /// <summary>
 ///     A box as one render lays it out (Mermaid's box object with the renderer's fields).
@@ -203,6 +228,9 @@ internal sealed class SequenceLoopModel
 
     /// <summary>Gets the messages that start the sections (their titles), or null.</summary>
     public List<SequenceMessageState>? SectionTitles { get; set; }
+
+    /// <summary>Gets or sets the location of the statement that starts the block.</summary>
+    public MermaidLocation Location { get; set; }
 }
 
 /// <summary>
@@ -346,13 +374,15 @@ internal sealed class SequenceBounds(double boxMargin, LayoutWorkMeter meter)
     /// </summary>
     /// <param name="title">The message that starts the block (its text is the title), or null for a <c>rect</c>.</param>
     /// <param name="fill">The fill of a <c>rect</c> block, or null.</param>
-    public void NewLoop(SequenceMessageState? title, string? fill) => SequenceItems.Add(new SequenceLoopModel
+    /// <param name="location">The location of the statement that starts the block.</param>
+    public void NewLoop(SequenceMessageState? title, string? fill, MermaidLocation location) => SequenceItems.Add(new SequenceLoopModel
     {
         StartY = VerticalPos,
         Title = title?.Message,
         Wrap = title?.Wrap ?? false,
         Width = title?.Width,
         Fill = fill,
+        Location = location,
     });
 
     /// <summary>

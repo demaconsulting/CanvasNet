@@ -334,4 +334,23 @@ public class SequenceModelTests
         Assert.True(map.TryGetValue("b", out var b));
         Assert.Equal(6, (int)b!);
     }
+
+    /// <summary>
+    ///     Validates the math test of Mermaid's <c>hasKatex</c>: two dollar signs, then two more on the same line.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="expected">Whether it has math.</param>
+    [Theory]
+    [InlineData("$$x^2$$", true)]
+    [InlineData("a $$ b $$ c", true)]
+    [InlineData("$$$$", true)]
+    [InlineData("$$$", false)]
+    [InlineData("$$x\n$$", false)]
+    [InlineData("$ x $", false)]
+    [InlineData("", false)]
+    public void SequenceModel_HasKatex_FollowsMermaidsPattern(string text, bool expected)
+    {
+        // Act / Assert
+        Assert.Equal(expected, SequenceModel.HasKatex(text));
+    }
 }

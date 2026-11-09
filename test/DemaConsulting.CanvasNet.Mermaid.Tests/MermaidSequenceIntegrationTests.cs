@@ -1,3 +1,4 @@
+using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -200,6 +201,97 @@ public class MermaidSequenceIntegrationTests
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
         Assert.Contains("MaxLayoutWork", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a participant of an unknown type is a located warning whose hint names the nearest type, and
+    ///     that it is not drawn.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Sequence_UnknownParticipantType_IsAWarningWithTheNearestType()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("sequenceDiagram\n    participant A@{ \"type\": \"queues\" }\n    A->>B: x\n");
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MermaidDiagnosticCodes.ParticipantTypeUnknown, warning.Code);
+        Assert.Equal(2, warning.Location.Line);
+        Assert.Contains("'queue'", warning.Hint, StringComparison.Ordinal);
+        Assert.Empty(unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that <c>$$</c> math is reported as unsupported at its message and drawn as written, and that strict
+    ///     mode refuses it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Sequence_Math_IsReportedAndDrawnAsText()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("sequenceDiagram\n    A->>B: plain\n    B->>A: $$x^2$$\n");
+        var (options, _, unsupported) = MermaidTestHelpers.Collecting();
+        var (strict, _, _) = MermaidTestHelpers.Collecting(strict: true);
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        var report = Assert.Single(unsupported);
+        Assert.Equal((MermaidDiagnosticCodes.MathUnsupported, 3), (report.Feature, report.Location.Line));
+        Assert.Throws<MermaidUnsupportedFeatureException>(() => document.Render(strict, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    ///     Validates the <c>properties</c> icon of a participant: an image is reported and not drawn, a symbol reference
+    ///     (<c>@</c>, which Mermaid cannot find) is not reported, and an icon that is not text fails at the participant as
+    ///     Mermaid fails.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Sequence_PropertiesIcon_IsReportedOrFails()
+    {
+        // Arrange
+        const string Diagram = "sequenceDiagram\n    participant A\n    properties A: {{\"icon\": {0}}}\n    A->>B: x\n";
+        var image = MermaidDocument.Parse(string.Format(CultureInfo.InvariantCulture, Diagram, "\"https://example.com/i.png\""));
+        var symbol = MermaidDocument.Parse(string.Format(CultureInfo.InvariantCulture, Diagram, "\"@server\""));
+        var number = MermaidDocument.Parse(string.Format(CultureInfo.InvariantCulture, Diagram, "5"));
+        var (imageOptions, _, imageReports) = MermaidTestHelpers.Collecting();
+        var (symbolOptions, _, symbolReports) = MermaidTestHelpers.Collecting();
+
+        // Act
+        image.Measure(imageOptions, TestContext.Current.CancellationToken);
+        symbol.Measure(symbolOptions, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => number.Measure(cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.IconUnsupported, Assert.Single(imageReports).Feature);
+        Assert.Empty(symbolReports);
+        Assert.Equal((MermaidDiagnosticCodes.RenderFailed, 2), (exception.Code, exception.Location.Line));
+    }
+
+    /// <summary>
+    ///     Validates that the <c>fo</c> text placement (HTML labels) is a configuration warning and draws as the default
+    ///     placement.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Sequence_TextPlacementFo_IsAWarningAndDrawsAsDefault()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("---\nconfig:\n  sequence:\n    textPlacement: fo\n---\n" + Simple);
+        var plain = MermaidDocument.Parse(Simple);
+        var (options, warnings, _) = MermaidTestHelpers.Collecting();
+
+        // Act
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+        using var expected = plain.Render(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, Assert.Single(warnings).Code);
+        Assert.True(MermaidTestHelpers.PixelsEqual(expected, surface));
     }
 
     /// <summary>
