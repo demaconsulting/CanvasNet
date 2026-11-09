@@ -114,19 +114,24 @@ internal static class DiagramRegistry
     /// <param name="detected">The detected type; it must be supported.</param>
     /// <param name="source">The preprocessed text.</param>
     /// <param name="limits">The limits of the open call.</param>
+    /// <param name="textConfig">
+    ///     The configuration of the text alone (frontmatter and directives), which selects what the metadata counts where
+    ///     a setting changes what is drawn (<c>class.hierarchicalNamespaces</c>).
+    /// </param>
     /// <returns>The parsed diagram.</returns>
     /// <exception cref="ArgumentException">Thrown when the type is not supported.</exception>
     /// <exception cref="MermaidSyntaxException">Thrown, located, when the diagram does not follow its grammar.</exception>
-    public static IMermaidDiagram Parse(DetectedDiagram detected, PreprocessedSource source, MermaidLimits limits)
+    public static IMermaidDiagram Parse(DetectedDiagram detected, PreprocessedSource source, MermaidLimits limits, MermaidConfig textConfig)
     {
         ArgumentNullException.ThrowIfNull(detected);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(limits);
+        ArgumentNullException.ThrowIfNull(textConfig);
         return (detected.IsSupported, detected.DiagramType) switch
         {
             (true, "flowchart") => FlowchartParser.Parse(source, detected, limits),
             (true, "sequence") => SequenceParser.Parse(source, detected, limits),
-            (true, "class") => ClassParser.Parse(source, detected, limits),
+            (true, "class") => ClassParser.Parse(source, detected, limits, textConfig.Class.HierarchicalNamespaces),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

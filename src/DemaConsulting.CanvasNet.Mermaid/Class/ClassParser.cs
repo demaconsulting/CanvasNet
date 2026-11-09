@@ -164,17 +164,21 @@ internal sealed partial class ClassParser
     /// <param name="source">The preprocessed text.</param>
     /// <param name="detected">The detected diagram (its keyword location and Mermaid id).</param>
     /// <param name="limits">The limits of the open call.</param>
+    /// <param name="hierarchicalNamespaces">
+    ///     Whether the text's own configuration nests dotted namespaces (<c>class.hierarchicalNamespaces</c>), which selects
+    ///     the namespaces the metadata counts.
+    /// </param>
     /// <returns>The model, with every statement applied.</returns>
     /// <exception cref="MermaidSyntaxException">
     ///     Thrown, located, when the text does not follow the grammar, when Mermaid's database fails on a statement, or when
     ///     a limit is exceeded.
     /// </exception>
-    public static ClassModel Parse(PreprocessedSource source, DetectedDiagram detected, MermaidLimits limits)
+    public static ClassModel Parse(PreprocessedSource source, DetectedDiagram detected, MermaidLimits limits, bool hierarchicalNamespaces = true)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(detected);
         ArgumentNullException.ThrowIfNull(limits);
-        var model = new ClassModel(limits, detected.Location, detected.MermaidId);
+        var model = new ClassModel(limits, detected.Location, detected.MermaidId) { HierarchicalNamespaces = hierarchicalNamespaces };
         new ClassParser(model, limits).Run(source.ParserText);
         return model;
     }

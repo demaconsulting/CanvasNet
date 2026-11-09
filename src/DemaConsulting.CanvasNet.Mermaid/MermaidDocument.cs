@@ -214,13 +214,14 @@ public sealed partial class MermaidDocument
         // directives choose the flowchart, class and state renderers that the detectors read), then parse a supported type
         var source = Preprocessor.Run(text, sourceName, limits);
         var detected = DiagramDetector.Detect(source.Code, DetectorSettings.Default);
-        var settings = MermaidConfigResolver.Resolve(source, diagramId: null, options: null, sink: null).DetectorSettings;
+        var textConfig = MermaidConfigResolver.Resolve(source, diagramId: null, options: null, sink: null);
+        var settings = textConfig.DetectorSettings;
         if (settings != DetectorSettings.Default)
         {
             detected = DiagramDetector.Detect(source.Code, settings);
         }
 
-        var diagram = detected.IsSupported ? DiagramRegistry.Parse(detected, source, limits) : null;
+        var diagram = detected.IsSupported ? DiagramRegistry.Parse(detected, source, limits, textConfig) : null;
         return new MermaidDocument(source, detected, diagram, sourceName);
     }
 

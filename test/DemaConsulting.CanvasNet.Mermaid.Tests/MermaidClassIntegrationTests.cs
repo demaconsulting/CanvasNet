@@ -77,6 +77,29 @@ public class MermaidClassIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the namespace count follows what is drawn: a dotted namespace is two nested namespaces by
+    ///     default, and one namespace when the text sets <c>class.hierarchicalNamespaces</c> to false.
+    /// </summary>
+    /// <param name="frontmatter">The frontmatter of the text.</param>
+    /// <param name="expected">The expected number of namespaces.</param>
+    [Theory]
+    [InlineData("", 2)]
+    [InlineData("---\nconfig:\n  class:\n    hierarchicalNamespaces: false\n---\n", 1)]
+    public void CanvasNetMermaid_ClassDiagram_Metadata_CountsTheDrawnNamespaces(string frontmatter, int expected)
+    {
+        // Arrange
+        var text = frontmatter + "classDiagram\n    namespace Geo.Plane {\n        class Point\n    }\n";
+
+        // Act
+        var document = MermaidDocument.Parse(text);
+        var clusters = SceneQuery.Clusters(SceneQuery.Layout(text));
+
+        // Assert
+        Assert.Equal(expected, document.SubgraphCount);
+        Assert.Equal(expected, clusters.Count);
+    }
+
+    /// <summary>
     ///     Validates the default theme's colors in the pixels: the class box fill <c>#ECECFF</c>, the divider in the
     ///     node border <c>#9370DB</c>, the composition marker filled with the line color <c>#333333</c> and the extension
     ///     marker left hollow.

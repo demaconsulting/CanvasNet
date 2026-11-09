@@ -381,6 +381,31 @@ public class ClassModelTests
     }
 
     /// <summary>
+    ///     Validates that the namespace count follows the namespaces the layout data keeps: every namespace with
+    ///     hierarchical namespaces, and only the declared ones without.
+    /// </summary>
+    /// <param name="hierarchical">Whether namespaces are hierarchical.</param>
+    /// <param name="expected">The expected number of namespaces.</param>
+    [Theory]
+    [InlineData(true, 4)]
+    [InlineData(false, 2)]
+    public void ClassModel_SubgraphCount_HierarchicalNamespaces_CountsTheKeptNamespaces(bool hierarchical, int expected)
+    {
+        // Arrange
+        var model = new ClassModel(MermaidLimits.Default, default, "classDiagram") { HierarchicalNamespaces = hierarchical };
+
+        // Act
+        model.AddNamespace("A.B.C", null, default);
+        model.PopNamespace();
+        model.AddNamespace("D", null, default);
+        model.PopNamespace();
+
+        // Assert
+        Assert.Equal(expected, model.SubgraphCount);
+        Assert.Equal(4, model.Namespaces.Count);
+    }
+
+    /// <summary>
     ///     Validates that the class spacing comes from the state section, as Mermaid's class renderer reads it.
     /// </summary>
     [Fact]

@@ -142,8 +142,18 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <summary>Gets the number of relations (the links of notes are not counted).</summary>
     public int EdgeCount => _relations.Count;
 
-    /// <summary>Gets the number of namespaces, implicit ancestors included.</summary>
-    public int SubgraphCount => _namespaces.Count;
+    /// <summary>
+    ///     Gets a value indicating whether the text's own configuration nests dotted namespaces
+    ///     (<c>class.hierarchicalNamespaces</c>), which selects the namespaces <see cref="SubgraphCount"/> counts.
+    /// </summary>
+    public bool HierarchicalNamespaces { get; init; } = true;
+
+    /// <summary>
+    ///     Gets the number of namespaces drawn under the text's own configuration: every namespace, implicit ancestors
+    ///     included, or with <see cref="HierarchicalNamespaces"/> false only the declared ones, as <see cref="GetData"/>
+    ///     keeps them.
+    /// </summary>
+    public int SubgraphCount => HierarchicalNamespaces ? _namespaces.Count : _namespaces.Count(space => space.Explicit);
 
     /// <summary>Gets the accessible description (empty when there is none).</summary>
     public string AccessibleDescription { get; private set; } = string.Empty;

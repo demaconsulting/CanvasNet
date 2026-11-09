@@ -59,7 +59,8 @@ public sealed partial class MermaidDocument
 - The descriptive properties come from the text only. For a sequence diagram, `NodeCount` is the number of
   participants, `EdgeCount` the number of messages, and `SubgraphCount` the number of boxes. For a class diagram,
   `NodeCount` is the number of classes (notes and lollipop interfaces are not counted), `EdgeCount` the number of
-  relations (the links of notes are not counted), `SubgraphCount` the number of namespaces, and `Direction` the
+  relations (the links of notes are not counted), `SubgraphCount` the number of namespaces drawn (with
+  `class.hierarchicalNamespaces: false` in the text, only the declared ones), and `Direction` the
   `direction` statement, else `TB`. For a type that is not drawn, `IsSupported` is `false`, the counts are zero, and
   `Direction` and `AccTitle` are `null`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It

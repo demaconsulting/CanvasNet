@@ -89,6 +89,26 @@ public class MermaidDocumentTests
     }
 
     /// <summary>
+    ///     Validates that a class diagram opens as a drawn type whose counts follow the text's own configuration: with
+    ///     <c>class.hierarchicalNamespaces</c> false in a directive, a dotted namespace counts once, as it is drawn.
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_Parse_ClassDiagram_CountsFollowTheTextConfiguration()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"class\": {\"hierarchicalNamespaces\": false}}}%%\nclassDiagram\n" +
+            "    namespace Geo.Plane {\n        class Point\n    }\n    Point --> Line\n";
+
+        // Act
+        var document = MermaidDocument.Parse(Text);
+
+        // Assert
+        Assert.Equal(("class", true), (document.DiagramType, document.IsSupported));
+        Assert.Equal((2, 1, 1), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
+        Assert.Equal("TB", document.Direction);
+    }
+
+    /// <summary>
     ///     Validates that the frontmatter title becomes the document title.
     /// </summary>
     [Fact]
