@@ -335,7 +335,10 @@ internal sealed partial class SequenceRenderer
     /// <summary>
     ///     Draws a link label of a menu (Mermaid's menu <c>byTspan</c>, or its <c>byText</c> for the <c>old</c> text
     ///     placement): left-aligned, centered on the line 10 pixels below its y, in the participants' font as the
-    ///     configuration writes it (a size without a unit is not accepted by the browser, which keeps the inherited one).
+    ///     configuration writes it. Mermaid writes the raw <c>actorFontSize</c> into the inline style without
+    ///     <c>parseFontSize</c>; the browser accepts a number without a unit in the inline style of an SVG text as pixels,
+    ///     so an <c>actorFontSize</c> of 18 (or a top-level <c>fontSize</c> of 18, which setConf copies into it) draws the
+    ///     text at 18 pixels, not at the diagram's inherited size.
     /// </summary>
     /// <param name="content">The label, with <c>&lt;br&gt;</c> tags between its lines.</param>
     /// <param name="x">The x.</param>
@@ -354,7 +357,9 @@ internal sealed partial class SequenceRenderer
         // Mermaid's menu byTspan (svgDraw.js) spaces the lines by the raw actorFontSize, unlike the participant text,
         // which calls parseFontSize: a size with a unit (such as an actorFontSize of "18px", which setConf keeps when the
         // top-level fontSize is falsy) gives a dy of NaN, which the browser rejects, so the lines of one label share a
-        // baseline. A top-level fontSize with a unit never gets here: the validation reports and ignores it.
+        // baseline. A top-level fontSize with a unit never gets here: the validation reports and ignores it. The raw size
+        // is also the inline font-size, which FontPixels reads as the browser reads it on SVG text (a bare number is
+        // pixels).
         var size = double.TryParse(actorFont.Size.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : double.NaN;
         var font = new SceneFont(
             actorFont.Family,

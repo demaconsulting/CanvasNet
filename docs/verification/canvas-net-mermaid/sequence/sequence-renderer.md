@@ -116,10 +116,14 @@ of `B`, then those of `A` (each lowered to the back), then the note, then the me
 ##### CanvasNetMermaid-Sequence-SequenceRenderer-Text: Text Shown And The Old Placement
 
 **Tests**: `SequenceRendererTests.SequenceRenderer_DisplayText_DecodesEntityPlaceholders`,
+`SequenceRendererTests.SequenceRenderer_Layout_FractionalSizesWithoutUnit_TextsDrawnAtThoseSizes`,
 `SequenceRendererTests.SequenceRenderer_TextPlacementOld_DrawsStrokedLabels`
 
 Asserts that Mermaid's entity placeholders for a numeric reference and for `&amp;` become their characters and that a
-plain text is unchanged; and that with `textPlacement: old` a participant label is one text `One<br/>Two` as written,
+plain text is unchanged; that the font sizes `15.5`, `18.5`, and `17.5` written as strings without a unit (the top-level
+`fontSize` 0) draw the participant, message, and note texts at those pixels with Mermaid's boxes
+(57.195, 24, 34.976, 17), (130.797, 86.391, 86.406, 21), and (150.672, 138.125, 48.922, 20); and that with
+`textPlacement: old` a participant label is one text `One<br/>Two` as written,
 anchored in the middle at (75, 37.5), filled with the participant fill `#ECECFF` and stroked with the participant
 border `#9370DB`.
 
@@ -129,6 +133,8 @@ border `#9370DB`.
 `SequenceRendererTests.SequenceRenderer_DrawPopup_Forced_DrawsThePanelAndLinks`,
 `SequenceRendererTests.SequenceRenderer_DrawPopup_LabelSizeWithUnit_LinesShareABaseline`,
 `SequenceRendererTests.SequenceRenderer_DrawPopup_NumericSize_LinesSpacedBySize`,
+`SequenceRendererTests.SequenceRenderer_DrawPopup_ActorSizeWithoutUnit_DrawnAtThatSize`,
+`SequenceRendererTests.SequenceRenderer_DrawPopup_FractionalActorSize_DrawnAtThatSize`,
 `SequenceRendererTests.SequenceRenderer_DrawPopup_ActorWithLinks_FailsLocated`
 
 Asserts that a participant with six links has an empty menu group `actor0_popup` and a view box 276 pixels high (the
@@ -136,6 +142,10 @@ participant, 20 pixels and 30 per link of the panel, the margin, and the bottom 
 the menu panel is drawn at (0, 65), 150 by 80, in the participant fill with a drop shadow, with the link texts `Home`
 and `Help` at x 10; that with an `actorFontSize` of `18px` (the top-level `fontSize` 0) the two lines of a link label
 have Mermaid's boxes (10, 85, 35.988, 20) and (10, 85, 91.078, 20) on one baseline and the next link's box is
-(10, 115, 45.031, 20), 30 pixels below; that with a top-level `fontSize` of 18 the lines are centered at y 86 and 104,
-18 pixels apart, and the next link at y 125, as in Mermaid; and that links on an `actor` are a
-`MermaidRenderException` of code `mermaid-render-failed` at line 2, the participant's declaration.
+(10, 115, 45.031, 20), 30 pixels below; that with a top-level `fontSize` of 18 (also with a `themeVariables.fontSize`
+of `10px`), and with an `actorFontSize` of 18 as a number and as the string `"18"` (the top-level `fontSize` 0), the
+link texts are drawn at 18 pixels with Mermaid's boxes (10, 76, 35.988, 20), (10, 94, 91.078, 20), and
+(10, 115, 45.031, 20), the lines 18 pixels apart (two theories); that an `actorFontSize` of `"15.5"` draws them at 15.5
+pixels with Mermaid's boxes (10, 78.75, 30.823, 17), (10, 94.25, 78.795, 17), and (10, 116.5, 39.604, 17); and that
+links on an `actor` are a `MermaidRenderException` of code `mermaid-render-failed` at line 2, the participant's
+declaration.

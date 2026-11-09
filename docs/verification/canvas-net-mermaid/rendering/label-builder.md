@@ -128,7 +128,8 @@ Asserts that a picture alone in an HTML label at a 16 pixel configured font size
 
 Asserts that `parseFontSize` of a number is pixels (`16px`, `14.5px`) and of a string is its `parseInt` value with the
 string as the CSS size (`px` added to `16` and `-3` alone; `1.5em`, `14.5`, and `12` after a space kept; nothing for
-`abc`) (two theories); that the browser draws `16px` at 16 pixels, `1.5em` at 24, `0` at 0, and `12pt`, `14.5`, `abc`,
+`abc`) (two theories); that the browser draws the inline size of an SVG text `16px` at 16 pixels, `1.5em` at 24, `12pt`
+at 16, the unitless `14.5`, `18`, `+18` with spaces around it, `.5`, `1e1`, and `0` at those pixels, and `18.`, `-3`, `abc`,
 and no size at the inherited 16 (a theory); that `splitBreaks` splits at `<br>` in any case with spaces and a slash,
 keeps empty lines, and leaves the malformed `<br/ >` in the text (a theory); that one line measures as its SVG label box
 rounded to whole pixels and 17 high (14 ascent and 3 descent at 16 pixels), and an empty text as nothing; that the box

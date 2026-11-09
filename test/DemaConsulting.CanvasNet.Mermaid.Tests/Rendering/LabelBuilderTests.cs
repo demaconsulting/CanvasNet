@@ -529,7 +529,9 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
-    ///     Validates the pixel size the browser gives a CSS font size, with the inherited 16 pixels for what it refuses.
+    ///     Validates the pixel size the browser gives the inline CSS font size of an SVG text: a length with a unit, a
+    ///     number without a unit as pixels (as Chrome reads it on SVG text), and the inherited 16 pixels for what it
+    ///     refuses (a negative or malformed size, a number ending in a decimal point, no size).
     /// </summary>
     /// <param name="css">The CSS size, or null.</param>
     /// <param name="expected">The expected pixels.</param>
@@ -537,8 +539,14 @@ public sealed class LabelBuilderTests
     [InlineData("16px", 16)]
     [InlineData("1.5em", 24)]
     [InlineData("12pt", 16)]
-    [InlineData("14.5", 16)]
+    [InlineData("14.5", 14.5)]
+    [InlineData("18", 18)]
+    [InlineData(" +18 ", 18)]
+    [InlineData(".5", 0.5)]
+    [InlineData("1e1", 10)]
     [InlineData("0", 0)]
+    [InlineData("18.", 16)]
+    [InlineData("-3", 16)]
     [InlineData("abc", 16)]
     [InlineData(null, 16)]
     public void LabelBuilder_FontPixels_CssSize_GivesBrowserPixels(string? css, double expected)
