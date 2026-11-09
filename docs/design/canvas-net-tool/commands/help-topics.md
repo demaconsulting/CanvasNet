@@ -7,12 +7,12 @@
 #### Purpose
 
 `HelpTopics` is the catalog of help topics that `canvasnet help <topic>` prints: one topic for each format the tool
-reads (`scad`, `vega-lite`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`) and three cross-cutting topics (`json`,
-`errors`, and `limits`). A topic says what a format supports, what it does not, which options apply, which diagnostics
-can appear (and what `--strict` does with them), and where the tool differs from the original program, and it carries
-tiny examples that an agent can print and run. Its single responsibility is to load that content, keep it consistent
-with the code, and render it as plain text or as JSON. The dispatch of the `help` command and the index of commands and
-topics belong to `CommandRegistry` (the file `CommandRegistry.Help.cs`), which calls this unit.
+reads (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, and `raster`) and three cross-cutting topics
+(`json`, `errors`, and `limits`). A topic says what a format supports, what it does not, which options apply, which
+diagnostics can appear (and what `--strict` does with them), and where the tool differs from the original program, and
+it carries tiny examples that an agent can print and run. Its single responsibility is to load that content, keep it
+consistent with the code, and render it as plain text or as JSON. The dispatch of the `help` command and the index of
+commands and topics belong to `CommandRegistry` (the file `CommandRegistry.Help.cs`), which calls this unit.
 
 The unit is the internal static partial class `HelpTopics` in `HelpTopics.cs` (the model, the loading of the embedded
 content, the token substitution, and the lookup) and `HelpTopics.Render.cs` (the text and JSON renderings and the
@@ -25,10 +25,10 @@ wrapping). The content is embedded in the tool assembly, so an installed tool ne
 `Content`), and `HelpTopic` (`Name`, `Aliases`, `Title`, `Summary`, `Sections`, and `Examples`). The records are
 immutable, so the catalog is safe to share between threads.
 
-**TopicNames**: the canonical names in the order the topics are listed: `scad`, `vega-lite`, `svg`, `pdf`, `pptx`,
-`vsdx`, `raster`, `json`, `errors`, `limits`. A topic is added or removed only by changing this list together with the
-embedded files, and a unit test proves that the embedded topic files are exactly this set. **FormatTopicNames** is the
-first seven names, the topics that describe one format.
+**TopicNames**: the canonical names in the order the topics are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
+`pptx`, `vsdx`, `raster`, `json`, `errors`, `limits` (eleven topics). A topic is added or removed only by changing this
+list together with the embedded files, and a unit test proves that the embedded topic files are exactly this set.
+**FormatTopicNames** is the first eight names, the topics that describe one format.
 
 **Catalog**: a `Lazy<IReadOnlyList<HelpTopic>>` that loads every topic of `TopicNames` on first use; `All` returns it.
 The catalog is read once and never changes afterwards.
@@ -45,14 +45,14 @@ The two prefixes are the constants `ResourcePrefix` (`DemaConsulting.CanvasNet.T
 (`ResourcePrefix` followed by `Examples.`).
 
 The example sources stay real files with the extension of their format (`scad-plate.scad`, `vega-lite-bar.vl.json`,
-`svg-shapes.svg`), so they can be edited and checked with ordinary tools. A resource is read as text with LF line
-endings and without trailing line feeds.
+`mermaid-flowchart.mmd`, `svg-shapes.svg`), so they can be edited and checked with ordinary tools. A resource is read as
+text with LF line endings and without trailing line feeds.
 
 **Topic file** (`Commands/Help/<topic>.json`): one JSON object with these properties.
 
 - `topic`: the canonical name; must equal the file name without its extension.
-- `aliases`: other names that select the topic (`openscad`, `vegalite`, `vl`, `powerpoint`, `visio`, and for `raster`
-  `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, and `jp2`).
+- `aliases`: other names that select the topic (`openscad`, `vegalite`, `vl`, `mmd`, `powerpoint`, `visio`, and for
+  `raster` `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, and `jp2`).
 - `title`: the title shown at the top of the topic.
 - `summary`: one line of plain text, shown in the topic list.
 - `sections`: an array of `{id, title, items}`; `id` is a kebab-case identifier, unique within the topic, and `items`
@@ -66,15 +66,16 @@ two examples; this is checked by the unit tests, not by the loader. An example `
 read on its own, so the tests render every one with `--strict`. A `snippet` is stored the same way (`fileName` and an
 embedded file) but is text that refers to other files, such as the `embed` diagram of the `svg` topic whose `image`
 elements link a model, a chart, and an SVG file, and the `embed-pages` diagram whose links choose pages (`#page=2`,
-`#slide=2`); `SourceExamples()` does not return a snippet, so the strict-clean drift test
+`#slide=2`), and the `pictures` diagram of the `mermaid` topic whose nodes show `part.scad` and `chart.vl.json`;
+`SourceExamples()` does not return a snippet, so the strict-clean drift test
 skips it, and a dedicated test renders each snippet with its sibling files (the examples of the other topics for a
 model,
 a chart, and an SVG file, and the documents of the shared test fixtures for a PDF, PPTX, and VSDX; a new kind rather
 than
 an exception in the test, so
 a snippet is visible as one in `--examples` and in the JSON). A `command` example has inline `content` that is a command
-line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`, or
-`shell`.
+line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`,
+`mermaid`, or `shell`.
 
 The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
 from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
@@ -104,6 +105,22 @@ diagnostics (as does `svg`; the drift test accepts the identifier because it is 
 `scad` topic shows
 `#def.` in its link item. A unit test checks the three topics, the usage text, and that the documented command runs.
 
+The `mermaid` topic (alias `mmd`) has the five sections of a format topic: `supported` (flowcharts and their shapes,
+links, subgraphs, labels, styles, configuration and themes, picture nodes, and titles; what `info` reports),
+`unsupported` (one term per identifier the renderer reports instead of drawing: `mermaid-diagram-unsupported` for every
+other diagram type, which `render` draws as an empty picture and `info` reports with `supported` false, and the icon,
+look, layout, and theme-CSS identifiers), `options` (`--theme` with the theme fragment, `--scale`, `--background`, and
+`--strict`), `diagnostics` (`mermaid-warning` with the specific code in `detail`, the codes of the errors and of the
+warnings of the library, and the text limit), and `differences` (the bundled fonts, a static picture, the layout without
+the pictures that `info` reports, the white background, and the located errors where Mermaid would crash). Its examples
+are `flowchart` (a source example: a decision, a subgraph, link labels, and a class, rendered with `--strict` by the
+drift test and the self-test), `pictures` (a snippet whose nodes show `part.scad` and `chart.vl.json`, rendered by its
+own test with the `plate` example of `scad` and the `bar` example of `vega-lite` as its siblings, which requires one
+`embed` operation per picture and no diagnostic), and the commands `render`, `theme`, and `info`. The `svg` topic lists
+`.mmd` and `.mermaid` among the `href file types` and `theme=` in its page fragment item, and the `limits` topic has a
+section for diagrams with the `mmd*` tokens. The identifier pattern of the drift test includes the `mermaid-` prefix,
+and the identifiers it finds are looked up in the Mermaid assembly as well.
+
 **Tokens**: text in a topic file may use `{{name}}` tokens, which the loader replaces from the live constants of the
 code before the JSON is parsed, so a documented number cannot drift from the real one. `Tokens` is the table; the values
 are formatted with the invariant culture and no thousands separator.
@@ -124,6 +141,10 @@ are formatted with the invariant culture and no thousands separator.
 | `vlMaxDataRows` | `VegaLiteLimits.Default.MaxDataRows` |
 | `vlMaxImages` | `VegaLiteLimits.Default.MaxImages` |
 | `vlMaxPaintedPixels` | `VegaLiteLimits.Default.MaxPaintedPixels` |
+| `mmdMaxTextSize` | `MermaidLimits.Default.MaxTextSize` |
+| `mmdMaxEdges` | `MermaidLimits.Default.MaxEdges` |
+| `mmdMaxNodes` | `MermaidLimits.Default.MaxNodes` |
+| `mmdMaxImages` | `MermaidLimits.Default.MaxImages` |
 | `fragmentMaxLength` | `ImageFragment.MaxLength` |
 | `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
 
@@ -209,8 +230,8 @@ load every topic, so a malformed file fails the build before it reaches a user. 
 code is proven by the unit tests (see _HelpTopics Unit Verification Design_): the command examples use known commands
 and
 options, the options listed exist in `render`, the `errors` topic lists every error code, every cited diagnostic
-identifier is produced by a tiny model or chart or exists in the libraries, and every text example renders with
-`--strict` without a diagnostic.
+identifier is produced by a tiny model or chart or exists in the libraries (the Mermaid library included), and every
+text example renders with `--strict` without a diagnostic.
 
 #### Dependencies
 
@@ -219,7 +240,8 @@ identifier is produced by a tiny model or chart or exists in the libraries, and 
 - **ToolException** and **ErrorCodes** - the usage error for an unknown example (documented in _Program Unit Design_).
 - **ArgumentReader** - `MaxDpi`, for a token.
 - **ImageWriter** (Imaging) and the core `Surface` - the quality and size constants for tokens.
-- **ScadLimits** (Scad) and **VegaLiteLimits** (VegaLite) - the resource limits for tokens.
+- **ScadLimits** (Scad), **VegaLiteLimits** (VegaLite), and **MermaidLimits** (Mermaid) - the resource limits for
+  tokens.
 - **ImageFragment** (core ImageSources) - the fragment limits for tokens.
 
 #### Callers

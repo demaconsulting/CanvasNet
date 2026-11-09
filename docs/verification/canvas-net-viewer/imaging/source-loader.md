@@ -6,9 +6,10 @@
 
 `SourceLoader` is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
-OpenSCAD models), and `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts); the reading and the application of the EXIF
-orientation are core operations (`JpegCodec.ReadExifOrientation` and `Surface.ApplyExifOrientation`) verified in the
-core
+OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `SourceLoaderMermaidTests.cs` and
+`SourceLoaderMermaidImageTests.cs` (the Mermaid diagrams and the pictures of their nodes); the reading and the
+application of the EXIF orientation are core operations (`JpegCodec.ReadExifOrientation` and
+`Surface.ApplyExifOrientation`) verified in the core
 test project, and here only their use by the loader is. The
 tests generate their inputs: rasters are written in memory
 with the CanvasNet codecs (a gradient that differs at every pixel and channel, so a mirroring, rotation, or offset
@@ -22,7 +23,10 @@ an unsupported encryption handler, and a broken part. Charts are JSON text writt
 (`FixtureFactory.VegaLite.cs`) with inline data and no custom font, plus a two-bar chart whose rows are in a CSV file
 (`TwoBarFileChart` and `TwoBarCsv`, written beside the specification in a temporary folder, so that the chart facts, the
 sandbox, and the data errors are verified with real files); one original chart is a fixture file
-(`baskets.vl.json`). The other fixture files are an original SVG
+(`baskets.vl.json`). Diagrams are the fixture files `Fixtures/mermaid/flow.mmd` (a small flowchart),
+`shipping.mermaid` (a flowchart with frontmatter, an accessible title, a subgraph, and a class), and `sequence.mmd` (a
+sequence diagram, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
+are the colors of Mermaid's default and dark themes. The other fixture files are an original SVG
 drawing and a JPEG 2000
 image copied from the
 repository's own codec fixtures (see `Fixtures/README.md`). Expected pixels come from the codecs and document
@@ -35,7 +39,8 @@ byte, a header only, half, and short by one byte, and garbage of the file's own 
 either loads or raises a `ViewerException` with an expected code - an unexpected exception type fails the test, which
 is how gaps in the allow-list are found; by doing the same for each document with eight prefix lengths, a dropped
 tail, and an overwritten or zeroed middle, probing and loading every page; and by loading garbage with each known
-extension and requiring `corrupt-input` (`scad-error` for a model, `vega-lite-error` for a chart; the shared sweeps
+extension and requiring `corrupt-input` (`scad-error` for a model, `vega-lite-error` for a chart, `mermaid-error` for a
+diagram; the shared sweeps
 include the chart
 fixture and also accept `vega-lite-error`). The models have their own sweep in
 `SourceLoaderScadTests.cs`, because a model is text and a cut one is
@@ -43,6 +48,10 @@ usually still a valid, shorter model: a model with several kinds of statement is
 garbage of four sizes is added, and some forty stress models probe the library for exceptions that are not mapped; a
 one-off sweep during development (about 950 truncations and random byte
 changes per document kind) raised only expected errors, so the allow-list needed no extension for PDF, PPTX, or VSDX.
+The diagrams have their own sweep in `SourceLoaderMermaidTests.cs` for the same reason: every prefix of a diagram is
+loaded, and the mapping of the library's failures is verified both with real failures (invalid text, more edges than
+the limit, a text longer than the limit, a diagram wider than the largest image) and directly, by handing
+`RenderDiagram` the library's exceptions.
 
 #### Test Environment
 
@@ -84,6 +93,21 @@ N/A - standard test environment; the tests need no network and write only to tem
   lenient and strict mode alike (never an empty chart); remote data is only a diagnostic (an `unsupported-feature` error
   with strict mode) and is never fetched; and a data limit of the library (rows or bytes) is `budget-exceeded`.
 - A JPEG is turned upright by its EXIF orientation unless switched off, and the size applies to the upright image.
+- A diagram (`.mmd` or `.mermaid`, never taken for an SVG and never recognized by its content) is probed by parsing and
+  measuring it without its pictures (the laid-out size, four channels, and the type, whether it is drawn, the
+  direction, the titles, and the numbers of nodes, edges, and subgraphs), with a natural size above 8192 pixels
+  reported rather than refused; it is drawn at its natural size times the scale or fitted into the size given, over
+  white, the background given, or transparent, in the theme of the options (a theme fragment of the input wins, and a
+  name that is not a theme is a `usage-error`), with each warning a `mermaid-warning` note with its detail and location
+  and each construct it does not draw an unsupported note (a type that is not drawn yet is one note and an empty
+  picture), or, in strict mode, `unsupported-feature`; invalid text is `mermaid-error` with the location and the hint of
+  the library, a limit of the library `budget-exceeded`, an overlong text `corrupt-input`, and a target size above the
+  maximum `size-limit`; a cut or damaged diagram is an expected error or a shorter diagram that loads.
+- The pictures of the nodes of a diagram are drawn through the sandboxed resolver of the folder of the diagram (a raster
+  fills its box), listed once each as `embed` operations, a link outside the sandbox or a cycle is one
+  `svg-image-unresolved` warning (an error in strict mode), and a broken picture is an error naming both files; a
+  picture node without `w` and `h` that enlarges a diagram drawn at its natural size is charged at the drawn size
+  (refused when that does not fit) and reported with the drawn natural size.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
 
 #### Test Scenarios
@@ -128,6 +152,13 @@ document is cut off by the end of the 4 KiB header after the property.
 
 **SourceLoader_Detect_ScadMentioningSvg_ReturnsScad**: a file named `.scad` whose comment contains the text of an SVG
 start tag is a model, not an SVG, while the same text without the `.scad` extension is still taken for an SVG.
+
+**SourceLoader_Detect_MermaidMentioningSvg_ReturnsMermaid**: a diagram whose first line and one label hold the text of
+an SVG element, named `flow.mmd` and `Flow.MERMAID`, is a Mermaid diagram, and so is SVG content with the extension
+`.mmd`; a Markdown file (`flow.md`) that holds the text of a diagram is `unsupported-format` (no content sniffing); the
+kind is a vector kind and a diagram (`IsDiagram`), not a chart, and its format name is `mermaid`. The fallback theory
+(**SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension**) also maps unrecognized content named `.mmd` and
+`.MERMAID` to `mermaid`.
 
 **SourceLoader_Probe_EachKind_ReportsHeaderFacts**, **SourceLoader_Probe_PngAndSvg_ReportChannelsAndAlpha**, and
 **SourceLoader_Probe_JpegWithExif_ReportsOrientation**: for each kind the format, path, byte count, size, decodability,
@@ -246,6 +277,60 @@ hint; a `VegaLiteRenderException` that reports a limit is still `budget-exceeded
 **SourceLoader_Probe_VegaLiteOverflowingDomain_IsNotSizeLimit**: a chart whose quantitative data runs from -1e308 to
 1e308 (a domain whose span overflows a double, so that it has no ticks) is probed and measured at a size within the
 image limits, so that it is neither `size-limit` nor an unexpected exception.
+
+**SourceLoader_Probe_Mermaid_ReportsDiagramFacts**: `shipping.mermaid` is probed as the `Mermaid` kind with one page,
+four channels, and transparency, at exactly the size `MermaidDocument.Measure` gives, with the facts `flowchart`,
+supported, `TB`, the title `Shipping`, the accessible title `Shipping steps`, three nodes, two edges, and one subgraph,
+and no chart facts or modules.
+
+**SourceLoader_Load_Mermaid_DrawsAtTheNaturalSizeOverWhite**: `flow.mmd` loaded in strict mode is a vector source at the
+probed size with a white corner, more than 500 pixels of the default node fill, no note, and the one operation `render`
+with the fields `width`, `height`, and `background` `#FFFFFF`, in that order.
+
+**SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
+the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the
+fitted diagram, and a background with zero alpha leaves the corner transparent while the nodes keep the default fill.
+
+**SourceLoader_Load_MermaidTheme_IsAppliedAndValidated**: the theme `dark` draws more than 500 pixels of the dark node
+fill and none of the default fill and lists `theme` `dark` in the operation; `Dark` (not the canonical name) is a
+`usage-error` whose hint lists `default, base, dark, forest, neutral`, and `midnight` is a `usage-error` before a
+missing file is looked for.
+
+**SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError**: `sequence.mmd` is probed with the facts
+`sequence`, not supported, no direction or titles, and zero counts; it loads as a 16 by 16 picture (twice the diagram
+padding) that is white, with exactly one note (source `mermaid`, severity `unsupported`, code
+`mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that sequence
+diagrams are planned, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the code, with a
+hint that says the type is planned and mentions `--strict`, and the library's `MermaidUnsupportedFeatureException` as
+its cause.
+
+**SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures**: a flowchart with a style declaration outside the
+supported subset and a Font Awesome icon in a label has one warning (source `mermaid`, code `mermaid-warning`, detail
+`mermaid-style-ignored`, a location after line 1 that the message names as `noisy.mmd:line:`) and one unsupported note
+(code `mermaid-icon-unsupported`, no detail), each on one line.
+
+**SourceLoader_Probe_MermaidInvalidText_IsMermaidError**: an unclosed bracket, an unknown diagram keyword (`drawing`),
+and an unknown shape name are each a `mermaid-error` whose one-line message starts with "Mermaid syntax error: ", names
+`bad.mmd:` and the library's code (`mermaid-syntax-error`, `mermaid-unknown-diagram`, `mermaid-shape-unknown`), with a
+hint and the library's `MermaidSyntaxException` as the cause.
+
+**SourceLoader_Probe_MermaidLimits_AreBudgetExceededAndCorruptInput**: a chain of one edge more than the default edge
+limit is `budget-exceeded` naming `mermaid-limit-exceeded`, with a hint, and a diagram text longer than the default
+text limit is `corrupt-input` naming the file.
+
+**SourceLoader_MapMermaid_MapsByCode**: a `MermaidRenderException` with the limit code thrown by a render is
+`budget-exceeded` with the library's hint and the exception as the cause; one with the render-failed code is the
+`mermaid-error` "Mermaid render error: a.mmd:2:3: mermaid-render-failed: the layout failed" without a hint; and an
+`ArgumentException` of a render is a `mermaid-error`.
+
+**SourceLoader_Load_MermaidLargerThanMaximum_NeedsASizeOption**: a chain of 120 nodes from left to right is probed with
+a natural width above 8192 pixels (the size read from the library's message, whose text this test pins), is `size-limit`
+with a hint that names `--scale` when it is loaded without a size option, and loads at a scale of 0.25 at a quarter of
+the natural width with the default node fill.
+
+**SourceLoader_Load_MermaidTruncatedOrDamaged_IsExpectedErrorOrLoads**: every prefix of `shipping.mermaid`, the empty
+one included, either loads or is a `mermaid-error` or `corrupt-input`, never another exception, and 200 bytes of
+garbage named `.mmd` are a `mermaid-error`.
 
 **SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation**, **SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize**,
 and **SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes**: the PDF lists 144x96 and (rotated) 96x144 points with the
@@ -482,7 +567,9 @@ whose rectangle operator has too few operands is `corrupt-input`, one that decla
 is `unsupported-feature`, and a valid archive whose slide, page, or presentation part is not valid is `corrupt-input`.
 Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, and garbage or a truncation of a chart
 is a
-`vega-lite-error`, the kinds whose damage is a syntax error;
+`vega-lite-error`, and garbage in a file named `.mmd` a `mermaid-error`, the kinds whose damage is a syntax error (a
+diagram is left out of the shared truncation sweep, as a model is, because a cut diagram is usually still valid; it has
+its own sweep);
 **SourceLoader_OpenPages_UnhandledKind_IsNotAViewerException**:
 facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
@@ -523,7 +610,9 @@ code
 and gets a location; a chart note has the `vl-*` detail and a JSON pointer; a presentation note has a page and no
 location; the notes of an embedded model keep the detail, the location, and the origin; and two notes are equal only
 when
-the new members are equal.
+the new members are equal. The notes of a diagram are verified by
+**SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures** (above): a warning is `mermaid-warning` with the
+`mermaid-*` code of the library as its detail and the line and column as its location.
 
 **SourceLoader_InputFromMemory_LoadsLikeTheFile**,
 **SourceLoader_SourceInput_FileAndMemory_ExposeNameFolderLengthAndStream**,
@@ -552,7 +641,9 @@ filter, a width or height of 0 or below, a scale of 0, a negative one, NaN, infi
 view, a bad variable name) is a `usage-error` from `Load(path)`, `Load(info)`, and `OpenPages` even when the file does
 not
 exist; the values at the boundaries are accepted; a width of 9000 is still `size-limit` and a page beyond the last still
-`page-out-of-range`; the unknown-view message names the views; and the maximum resolution is 2400.
+`page-out-of-range`; the unknown-view message names the views; and the maximum resolution is 2400. A Mermaid theme that
+is not one of the canonical theme names is checked the same way, before the file is touched
+(**SourceLoader_Load_MermaidTheme_IsAppliedAndValidated**, above).
 
 **SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks** and
 **SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument**
@@ -597,6 +688,39 @@ draws it through the resolver of the diagram; and probing a chart whose picture 
 100)
 and its mark types.
 
+**SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations**,
+**SourceLoader_Load_MermaidPngPicture_FillsItsBox**, **SourceLoader_Load_MermaidSelfCycle_IsUnresolved**,
+**SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused**,
+**SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles**,
+**SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture**,
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize**,
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget**, and
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize** (`SourceLoaderMermaidImageTests.cs`):
+diagrams with picture nodes (`@{ img: ... }`) are loaded from a temporary folder through the real sandboxed resolver of
+the viewer. A flowchart whose two nodes show the model of the fixtures (`part.scad`, 120 by 120) and the two-bar chart
+(`chart.vl.json`) draws more than 500 pixels of the bar color and changes more than 500 pixels of the half that holds
+the model, in strict mode without a note, and lists exactly one `embed` operation for each file, in order (`part.scad`
+with the format `scad` and the drawn size 120 by 120, then `chart.vl.json`); the same diagram in a folder without the
+files has the same size, no bar color, no `embed` operation, and exactly two notes, each the resolver's
+`svg-image-unresolved` (source `svg`) and not also the library's `mermaid-image-unresolved`. A generated 4 by 4 green
+PNG in a 60 by 60 node fills its box (between 50 by 50 and 61 by 61 green pixels) with one `embed` operation and no
+note. A diagram that shows itself is the warning `svg-image-unresolved` that names the cycle and, in strict mode, an
+`unsupported-feature` error whose message says that `'loop.mmd' embeds 'loop.mmd', which was not drawn`. Each of
+`../secret.png` (an existing picture one folder up), `https://example.invalid/secret.png`, `C:/secret.png`, and
+`missing.png` is exactly one warning of the resolver (source `svg`) that names the link, draws nothing green, lists no
+`embed` operation, and is an `unsupported-feature` error naming the diagram and the link in strict mode. A model with a
+syntax error shown by a node is a `scad-error` whose message names both the diagram and the model. And an SVG file
+that places `sub/flow.mmd` (whose picture `logo.png` lies in `sub`) over a red rectangle draws the green picture through
+the resolver of the SVG file, keeps the red where the diagram is transparent, reports nothing in strict mode, and lists
+the one `embed` operation `sub/flow.mmd`. A diagram whose one picture node has no `w` and `h` and shows a 400 by 300
+PNG, loaded at its natural size with a recording `Charge` hook, returns a surface larger than the probed size, the
+charges add up to exactly the pixels of that surface, and the natural size of the result equals the surface size. The
+same diagram under a `Charge` hook that holds a budget of 10 000 pixels (more than the probed size, less than the drawn
+one) throws `ImageSourceBudgetException` whose requested pixels are the pixels of the surface drawn without a budget and
+whose remaining pixels are the whole 10 000 (the charge before the draw given back), and the hook holds only the probed
+size. Loaded at a scale of 2 and of 1.5, the same diagram reports the natural size of the diagram drawn at a scale of 1
+and returns a surface of that size times the scale, rounded.
+
 **Chart parameters** (`SourceLoader_Load_ChartOptions_AreAppliedAndReportedInTheOperation`,
 `SourceLoader_Load_InvalidChartOptions_ThrowsUsageErrorBeforeTouchingTheFile`, and the tests of
 `CanvasNetViewerParameterFragmentTests.cs` for an unknown name):
@@ -614,30 +738,36 @@ value nested 40 levels deep and a null dictionary are
 **SourceLoader_ProbeInputReference_Document_PageIsCheckedAndReplacesTheOption**,
 **SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid**,
 **SourceLoader_ProbeInputReference_OverTheLimitsOrMissing_Throws**,
-**InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView**, **InputSelection_ApplyTo_Chart_MergesParametersByName**,
+**InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView**,
+**InputSelection_ApplyTo_Chart_MergesParametersByName**,
+**InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme**,
 **InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce**,
 **SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw**,
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException**, and
 **CanvasNetViewer_Render_ScadViewportFragment_FixesTheCamera** (the fragment of an input path): the scenarios of
-`InputSelectionTests.cs` use real files in a temporary folder. `Parse` of a text without a `#` is the
-path; with the files `a.scad`, `a.scad#view=top` and `p#1.scad` on disk, `a.scad#def.width=3` splits into the file and
-`def.width=3`, the real name `a.scad#view=top` is the path with no fragment, `p#1.scad` is a path and
-`p#1.scad#view=front&def.c=#ff0` is that file with the fragment `view=front&def.c=#ff0` (a `#` inside the fragment is
-kept); and with no such file, the first `#` splits (`missing.scad#view=top`, `missing#a#b`, `#only`, `trailing#`).
-Probing an input without a fragment gives no `Selection` and `Specifier` is the path; a null argument is rejected.
-For `part.scad#view=top&def.width=20&def.$vpt=[0,0,2]` the selection merged over `front`, azimuth 30 and the
-variables `width=5`, `depth=9` has the view `top` (still given), the azimuth 30, `width=20`, `depth=9`, and the list
-`[0,0,2]`, applying it twice gives the same, and a fragment with no view keeps `front`. For a PDF `page=2` is the
-selection page (and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter)
-is the warning `image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `def.2x=1`,
-`param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint; a
-fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`; a missing file with a fragment is
-`input-not-found` that says a file of that name does not exist either, and without a fragment it says nothing of the
-kind. The notes: a model with `wide=1&def.width=1&def.width=2` has the unknown and the duplicate warning (source
-`input`, severity `warning`, in that order); a chart with `param.cutoff=2&param.nope=1` has one `vl-param-unknown`
-that lists `declared: cutoff` and a selection with only `cutoff`; a PDF with `extra=1` reports the warning with the
-first page that is read and not with the second. A chart parameter of the fragment is merged over those of the command
-by name (the fragment wins, the other one stays, `WarnOnUnknownParameters` stays false). A model probed with
+`InputSelectionTests.cs` use real files in a temporary folder. `Parse` of a text without a `#` is the path; with the
+files `a.scad`, `a.scad#view=top` and `p#1.scad` on disk, `a.scad#def.width=3` splits into the file and `def.width=3`,
+the real name `a.scad#view=top` is the path with no fragment, `p#1.scad` is a path and `p#1.scad#view=front&def.c=#ff0`
+is that file with the fragment `view=front&def.c=#ff0` (a `#` inside the fragment is kept); and with no such file, the
+first `#` splits (`missing.scad#view=top`, `missing#a#b`, `#only`, `trailing#`). Probing an input without a fragment
+gives no `Selection` and `Specifier` is the path; a null argument is rejected. For
+`part.scad#view=top&def.width=20&def.$vpt=[0,0,2]` the selection merged over `front`, azimuth 30 and the variables
+`width=5`, `depth=9` has the view `top` (still given), the azimuth 30, `width=20`, `depth=9`, and the list `[0,0,2]`,
+applying it twice gives the same, and a fragment with no view keeps `front`. For a PDF `page=2` is the selection page
+(and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter) is the warning
+`image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `def.2x=1`,
+`param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint, and so
+is `theme=midnight` on a diagram; a fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`;
+a missing file with a fragment is `input-not-found` that says a file of that name does not exist either, and without a
+fragment it says nothing of the kind. The notes: a model with `wide=1&def.width=1&def.width=2` has the unknown and the
+duplicate warning (source `input`, severity `warning`, in that order); a chart with `param.cutoff=2&param.nope=1` has
+one `vl-param-unknown` that lists `declared: cutoff` and a selection with only `cutoff`; a PDF with `extra=1` reports
+the warning with the first page that is read and not with the second. A chart parameter of the fragment is merged over
+those of the command by name (the fragment wins, the other one stays, `WarnOnUnknownParameters` stays false). For a
+diagram, `#theme=Dark&page=2` gives the selection theme `dark` (the canonical name) and no page, with the one warning
+`image-fragment-unknown-parameter` (a diagram takes no page); merged over the command theme `forest` it gives `dark`,
+while a fragment without a theme keeps `forest`; and loading the probed input draws in `dark` (the `render` operation
+lists `theme` `dark`) and reports the warning. A model probed with
 `view=top&def.width=20` and loaded into 64 by 64 pixels has exactly the pixels of the same model loaded with those
 options and no fragment. In `CanvasNetViewerParameterFragmentTests.cs` the same variables, as the fragment of a link
 in an SVG document, fix the camera: a red box of width 5 and one of width 20 drawn with `def.$vpd=200` are as tall as

@@ -1,0 +1,55 @@
+---
+# Software Unit Requirements for LayoutWorkMeter
+#
+# These requirements describe the design-level behavior of the LayoutWorkMeter unit of the Dagre subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Dagre): the work budget and cancellation check of the layout
+# of one diagram, its failures, and the counter of lodash's uniqueId.
+# See docs/verification/canvas-net-mermaid/dagre/layout-work-meter.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: LayoutWorkMeter Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-LayoutWorkMeter-Budget
+                title: >-
+                  The LayoutWorkMeter unit shall add up the work charged to it up to its limit, refuse a limit below
+                  one, and fail a charge that would pass the limit with a MermaidRenderException with the code
+                  mermaid-limit-exceeded, located where the meter was made for and naming the limit.
+                justification: |
+                  One bounded budget per diagram stops a pathological layout early with an error the caller can act
+                  on.
+                tests:
+                  - LayoutWorkMeter_Charge_PastLimit_ThrowsLocatedLimitExceeded
+                  - LayoutWorkMeter_Constructor_ZeroLimit_Throws
+
+              - id: CanvasNetMermaid-Dagre-LayoutWorkMeter-Cancellation
+                title: >-
+                  The LayoutWorkMeter unit shall check the cancellation token of the call before every charge and
+                  throw an OperationCanceledException when it is canceled.
+                justification: |
+                  Every iterative stage charges the meter, so a check there reaches every long loop of the layout.
+                tests:
+                  - LayoutWorkMeter_Charge_Canceled_ThrowsOperationCanceled
+
+              - id: CanvasNetMermaid-Dagre-LayoutWorkMeter-UniqueIds
+                title: >-
+                  The LayoutWorkMeter unit shall give new names as lodash's uniqueId does - the prefix followed by the
+                  next number of one counter shared by every prefix - counting from the start for each meter.
+                justification: |
+                  dagre names its dummy nodes this way; one counter per diagram keeps the names the same whatever was
+                  drawn before.
+                tests:
+                  - LayoutWorkMeter_UniqueId_Prefixes_ShareOneCounter
+
+              - id: CanvasNetMermaid-Dagre-LayoutWorkMeter-Failure
+                title: >-
+                  The LayoutWorkMeter unit shall create the failure of a layout that dagre cannot complete as a
+                  MermaidRenderException with the code mermaid-render-failed, located where the meter was made for
+                  and carrying the description of the failure.
+                justification: |
+                  A graph that dagre rejects must be reported with the documented code and a location.
+                tests:
+                  - LayoutWorkMeter_Failure_Description_RenderFailedAtLocation

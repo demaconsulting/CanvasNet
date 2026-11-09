@@ -6,10 +6,11 @@
 
 `DiscoveryCommands` is verified with unit tests in `DiscoveryCommandsTests.cs` and
 `DiscoveryCommandsDocumentTests.cs` (the page options and the documents), and `DiscoveryCommandsModelTests.cs` (the
-description of an OpenSCAD model and the link between the format table and the loader), and `DiscoveryCommandsChartTests.cs`
-(the listing of the chart format and the description of a Vega-Lite chart). The `formats` command is run
-in-process with fixed versions (through its `internal` constructor) so that the output does not depend on the
-build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
+description of an OpenSCAD model and the link between the format table and the loader), and
+`DiscoveryCommandsChartTests.cs` (the listing of the chart format and the description of a Vega-Lite chart), and
+`DiscoveryCommandsDiagramTests.cs` (the listing of the diagram format and the description of a Mermaid diagram). The
+`formats` command is run in-process with fixed versions (through its `internal` constructor) so that the output does not
+depend on the build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
 in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
 into a JPEG, and the PDF, presentation, and drawing that the shared test support writes) and on the original SVG
 fixture, and
@@ -32,6 +33,9 @@ console.
 - The format tables name exactly the source kinds and output formats the code implements, in order.
 - The listing names the `vega-lite` format (kind `chart`, extensions `.vl.json` and `.vl`) in text and JSON, and `info`
   describes a chart as one text line and as the `image` and `chart` objects.
+- The listing names the `mermaid` format (kind `diagram`, extensions `.mmd` and `.mermaid`, help topic `mermaid`) in
+  text and JSON, and `info` describes a diagram as one text line and as the `image` and `diagram` objects, with
+  `supported` false for a type that is not drawn yet; a theme fragment is checked and does not change the description.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
 
@@ -60,8 +64,8 @@ exit with 0 and end with a See also paragraph that names `canvasnet help <topic>
 `Program.Version` and a non-empty library version.
 
 **DiscoveryCommands_FormatTables_AreWellFormed**: format names are unique; extensions are lower case, start with a
-dot, and are unique within a table; every input kind is one of the five documented kinds (`raster`, `vector`, `document`,
-`model`, and `chart`).
+dot, and are unique within a table; every input kind is one of the six documented kinds (`raster`, `vector`, `document`,
+`model`, `chart`, and `diagram`).
 
 **DiscoveryCommands_Formats_PositionalArgument_ThrowsUsageError** and
 **DiscoveryCommands_Formats_UnknownOption_ThrowsUsageError**: a stray argument or an unknown option is a
@@ -78,8 +82,8 @@ with the extensions the loader maps to that kind (and, for the chart, the suffix
 one row per `OutputFormat`, in order, with the
 extensions the writer accepts, and only JPEG is lossy; the quality range and default are the writer's; a file of each
 listed input kind (including the model) is probed by the loader as the kind the row names, only documents are
-multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format; the golden document
-includes the `vega-lite` row.
+multi-page, the `model` row is the model kind, and the model row is a vector, single-page `.scad` format; the golden
+document includes the `vega-lite` and `mermaid` rows.
 
 **DiscoveryCommands_Info_Metadata_DescribesCommand** and **DiscoveryCommands_Info_DefaultRegistry_RegistersInfo**: the
 command is named `info`, has no aliases and the two page options, and has a usage line with examples; the default
@@ -143,6 +147,27 @@ with the size, the counts, the title, the schema version, and the byte count.
 `schemaMajorVersion` key, empty data and parameter lists, and zero counts in the text; a malformed chart is a
 `vega-lite-error`
 and page 2 of a chart is `page-out-of-range`; the usage text names Vega-Lite charts and has a chart example.
+
+**DiscoveryCommands_Formats_IncludesMermaidDiagram**: the table row `mermaid` is the `diagram` kind, a vector,
+single-page format with the extensions `.mmd` and `.mermaid` (in that order) and the help topic `mermaid`; the JSON
+listing has the same row and the text listing shows `mermaid  diagram  .mmd .mermaid  single  yes  help mermaid`; and
+the `mermaid` source of the shared fixtures is probed by the loader as the `Mermaid` kind.
+
+**DiscoveryCommands_Info_Flowchart_ReportsTheDiagramObject**: for a flowchart with frontmatter (the title `Shipping`),
+an accessible title (`Shipping steps`), three nodes, two edges, and a subgraph, the JSON names the `mermaid` format, has
+the `image` object with the probed size, and the `diagram` object with exactly the members `type`, `supported`,
+`direction`, `title`, `accTitle`, `nodes`, `edges`, and `subgraphs`, in that order (`flowchart`, true, `TB`, the
+two titles, 3, 2, 1); the text is exactly one line
+`<path>: mermaid, WxH px (laid out), flowchart TB, 3 nodes, 2 edges, 1 subgraph, title "Shipping", accTitle
+"Shipping steps", <bytes> bytes`.
+
+**DiscoveryCommands_Info_SequenceDiagram_IsNotSupported**: a sequence diagram is described with the type `sequence`,
+`supported` false, no `direction` and no `title` member, and zero nodes, and its text line says
+`sequence (not drawn by this version), 0 nodes`.
+
+**DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
+same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and
+`#theme=sunset` returns exit code 1 with an `Error: image-fragment-invalid:` line.
 
 **InputFragment_TextResultAndInfo_NameTheFragment** (`InputFragmentTests.cs`): `info source.pdf#page=2 --all-pages
 --json` describes only page 2 (the fragment wins over `--all-pages`) and its `input` object has the `path` and the

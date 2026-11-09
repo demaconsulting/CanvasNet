@@ -11,7 +11,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Viewer is the library equivalent of the canvasnet command-line tool: it probes, renders, transforms, inspects, compares, and composes into contact sheets any file the CanvasNet format packages can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite and raster images), with the same stable error codes, and lets SVG documents embed all of them with a safe, pluggable image resolver.</Description>
+    <Description>DemaConsulting.CanvasNet.Viewer is the library equivalent of the canvasnet command-line tool: it probes, renders, transforms, inspects, compares, and composes into contact sheets any file the CanvasNet format packages can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid and raster images), with the same stable error codes, and lets SVG documents embed all of them with a safe, pluggable image resolver.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
@@ -77,6 +77,7 @@
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Render3D\DemaConsulting.CanvasNet.Render3D.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Mermaid\DemaConsulting.CanvasNet.Mermaid.csproj" />
   </ItemGroup>
 
   <!-- The unit tests exercise the internal helpers of the imaging operations (the staged-output publish seam, the

@@ -1,0 +1,87 @@
+{
+  "topic": "mermaid",
+  "aliases": ["mmd"],
+  "title": "Mermaid diagrams (.mmd, .mermaid)",
+  "summary": "A Mermaid flowchart is laid out like Mermaid 11 (dagre) and drawn as one still picture with the bundled fonts.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "Flowcharts: the flowchart and graph keywords with the directions TB, TD, BT, LR, and RL, laid out with a port of Mermaid's dagre layout, so the nodes, edges, and labels land where Mermaid 11 puts them." },
+        { "text": "Node shapes: every bracket form ([ ], ( ), ([ ]), [[ ]], [( )], (( )), ((( ))), > ], { } and its doubled form (a hexagon), [/ /], [\\ \\], [/ \\], [\\ /]) and the @{ shape: ... } syntax with all of Mermaid's named shapes (rect, rounded, stadium, cyl, diam, hex, doc, docs, fork, delay, and so on)." },
+        { "text": "Links: arrows, open links, dotted (-.->) and thick (==>) links, circle and cross heads, two-headed links, links of any length (--->), labels (-- text --> and -->|text|), chains and & groups (a & b --> c), invisible links (~~~), self-loops, and edge ids with curve and animate shape data (an animated edge is drawn as its first frame)." },
+        { "text": "Subgraphs: titles, nesting, their own direction, links to and from a subgraph." },
+        { "text": "Labels: quoted text, Markdown strings (\"`**bold** and *italic*`\"), HTML line breaks and the common inline tags, entity codes, and wrapping at Mermaid's width." },
+        { "text": "Styles: style, classDef (including classDef default), class, :::, linkStyle (including default and interpolate), with fill, stroke, stroke-width, stroke-dasharray, color, font-weight, font-style, font-size, font-family, and opacity." },
+        { "text": "Configuration: YAML frontmatter (title, config), %%{init: ...}%% directives, the five themes (default, base, dark, forest, neutral), themeVariables, and the flowchart settings (nodeSpacing, rankSpacing, curve, padding, wrappingWidth, and so on), with Mermaid's precedence." },
+        { "text": "Pictures: an @{ img: \"part.png\", label, pos, w, h, constraint } node shows a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or another diagram that lies beside the diagram (see the pictures example). At most {{mmdMaxImages}} pictures." },
+        { "text": "Titles: the title of the frontmatter is drawn above the diagram; accTitle and accDescr are read (info reports accTitle)." },
+        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs without drawing the diagram." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Not supported (reported, never silently dropped)",
+      "items": [
+        { "term": "mermaid-diagram-unsupported", "text": "Every other diagram type. Sequence diagrams are planned next; class, state, entity relationship, pie, gantt, mindmap, and the other types are planned later. Such a diagram is not yet supported: it is recognized, info reports it with supported false, and render gives an empty picture with this diagnostic (an unsupported-feature error with --strict)." },
+        { "term": "mermaid-icon-unsupported", "text": "Icons (fa:fa-... in a label, @{ icon: ... } nodes): the node keeps its shape and label without the icon." },
+        { "term": "mermaid-look-unsupported", "text": "The handDrawn and neo looks: the diagram is drawn in the classic look." },
+        { "term": "mermaid-layout-unsupported", "text": "Layouts other than dagre (elk): the diagram is laid out with dagre." },
+        { "term": "mermaid-theme-css-unsupported", "text": "themeCSS rules with arbitrary selectors; the declarations of the supported style subset still apply through classDef and style." },
+        { "text": "Interaction: click, href, call, and tooltips are read and ignored, as the picture is static." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Options",
+      "items": [
+        { "term": "--theme", "text": "The theme: default, base, dark, forest, or neutral, like mmdc -t. A theme the diagram sets in its frontmatter or a directive still wins. In a link or an input path the fragment theme=dark does the same (flow.mmd#theme=dark). On any other kind of input --theme is a usage-error." },
+        { "term": "--scale", "text": "The natural size is Mermaid's SVG view box in pixels; --scale, --width, and --height draw the diagram sharply at another size (a diagram larger than {{maxDimension}} pixels on a side needs one of them)." },
+        { "term": "--background", "text": "The color under the diagram: white by default, transparent keeps the transparency of Mermaid's own SVG." },
+        { "term": "--strict", "text": "Every unsupported construct, and a picture that is not drawn, becomes an unsupported-feature error." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and errors",
+      "items": [
+        { "term": "mermaid-warning", "text": "The code of every warning of a diagram; the specific mermaid-* code is in detail and the line and column in location." },
+        { "term": "mermaid-shape-unknown", "text": "Error (mermaid-error): a shape name Mermaid does not define; the hint names the nearest shape." },
+        { "term": "mermaid-syntax-error", "text": "Error (mermaid-error): the text does not follow the flowchart grammar; the message gives the line, the column, and the tokens that were expected, and the hint suggests the fix." },
+        { "term": "mermaid-unknown-diagram", "text": "Error (mermaid-error): the first statement is not a Mermaid diagram keyword; the hint names the nearest one." },
+        { "term": "mermaid-yaml-invalid", "text": "Error (mermaid-error): the frontmatter or the shape data is not valid YAML; anchors, aliases, and tags are refused (mermaid-yaml-unsupported)." },
+        { "term": "mermaid-limit-exceeded", "text": "Error (budget-exceeded): a limit of the library (nodes, edges, nesting, label length, layout work, pictures, painted pixels); see 'canvasnet help limits'." },
+        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself." },
+        { "term": "mermaid-config-unknown-key", "text": "Warning: a configuration key Mermaid does not define is ignored." },
+        { "term": "mermaid-config-invalid", "text": "Warning: a configuration value of the wrong type or range; the default is kept." },
+        { "term": "mermaid-config-secure-key", "text": "Warning: the text tried to change a secure key (securityLevel, maxTextSize, maxEdges, and so on); the change is ignored." },
+        { "term": "mermaid-style-ignored", "text": "Warning: a style declaration outside the supported subset is ignored." },
+        { "term": "mermaid-html-tag-ignored", "text": "Warning: an HTML tag outside the supported label subset is dropped and its text is kept." },
+        { "term": "mermaid-image-unresolved", "text": "Warning: a picture could not be loaded; when the link was refused by the folder rule the warning is svg-image-unresolved instead, with the reason." },
+        { "term": "mermaid-text-missing-glyph", "text": "Warning: a character the bundled fonts lack (for example CJK) is drawn as a missing-glyph box." },
+        { "term": "mermaid-diagnostics-suppressed", "text": "Warning: more reports than the library keeps; the rest are dropped." },
+        { "text": "A text longer than {{mmdMaxTextSize}} characters is corrupt-input." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from Mermaid",
+      "items": [
+        { "text": "Text is measured and drawn with the bundled Liberation Sans (Mermaid's default trebuchet ms, verdana, and arial map to it) and the bundled Noto fallback fonts, never an installed font, so the result does not depend on the machine; against Mermaid rendered with the same font the layout matches to a hundredth of a pixel." },
+        { "text": "The circles of the new shapes are true circles where Mermaid draws rough.js curves (a few hundredths of a pixel)." },
+        { "text": "The picture is static: no interaction, and an animated edge is drawn as its first frame." },
+        { "text": "info lays the diagram out without the pictures of its nodes (it reads no other file), so a picture node without w and h can make the drawn diagram a little larger or smaller than the size info reports (with --width or --height it is fitted into the box); give an @{ img } node its w and h (constraint on) so that the layout does not depend on the picture. A render without --width and --height reports the natural size of the diagram it drew (the natural size of render --json); a library render of the diagram file without a size (CanvasNetViewer.Render) also charges its pixel budget for that drawn size, while a document that embeds the diagram always gives it a size." },
+        { "text": "A diagram is drawn over white unless --background says otherwise (Mermaid's SVG is transparent); as a picture in an SVG file it stays transparent." },
+        { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor); these are a located mermaid-error instead." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "flowchart", "kind": "source", "language": "mermaid", "fileName": "flowchart.mmd", "description": "A small flowchart with a decision, a subgraph, link labels, and a class." },
+    { "name": "pictures", "kind": "snippet", "language": "mermaid", "fileName": "pictures.mmd", "description": "Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram." },
+    { "name": "render", "kind": "command", "language": "shell", "description": "Draw flowchart.mmd and print the JSON result.", "content": "canvasnet render flowchart.mmd -o flowchart.png --json" },
+    { "name": "theme", "kind": "command", "language": "shell", "description": "Draw at twice the size in the dark theme over a transparent background.", "content": "canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png" },
+    { "name": "info", "kind": "command", "language": "shell", "description": "Report the type, direction, and counts without drawing.", "content": "canvasnet info flowchart.mmd --json" }
+  ]
+}

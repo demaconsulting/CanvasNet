@@ -3,8 +3,8 @@
 # Software Unit Requirements for the SourceLoader Class
 #
 # The SourceLoader class turns a path into facts (probe) or into pixels (load) for the file formats the
-# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, OpenSCAD (SCAD) models, and Vega-Lite
-# charts. It
+# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, OpenSCAD (SCAD) models, Vega-Lite
+# charts, and Mermaid diagrams. It
 # recognizes the format, applies the size policy (including the maximum image size), the page and
 # resolution of a document, the view and variables of a model, the EXIF orientation of a JPEG, and the
 # background color, collects the notes about features the libraries cannot draw, and maps the library
@@ -20,8 +20,8 @@ sections:
           The SourceLoader class shall recognize the format of a file from its signature bytes (PNG,
           JPEG, GIF, TIFF, JPEG 2000, PDF, and BMP), then from the entries of a ZIP package
           (a presentation or a drawing; any other archive is not supported), then from SVG text, then
-          from its file name extension (a file named .scad is a model whatever its text mentions), so
-          that the content wins over the extension and a damaged file
+          from its file name extension (a file named .scad, .vl, .mmd, or .mermaid is a model, a chart, or a
+          diagram whatever its text mentions), so that the content wins over the extension and a damaged file
           with a known extension is still attributed to its format.
         justification: |
           Agents rename and mislabel files; trusting the content first avoids decoding a file with the
@@ -33,6 +33,7 @@ sections:
           - SourceLoader_Detect_SignatureAndExtensionDisagree_TrustsSignature
           - SourceLoader_Detect_SvgTextWithoutExtension_ReturnsSvg
           - SourceLoader_Detect_ScadMentioningSvg_ReturnsScad
+          - SourceLoader_Detect_MermaidMentioningSvg_ReturnsMermaid
           - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
           - SourceLoader_Detect_ZipPackage_UsesExtension
           - SourceLoader_Detect_ZipPackages_UsesEntriesOverExtension
@@ -99,12 +100,12 @@ sections:
         title: >-
           The SourceLoader class shall, when it loads an SVG file, hand the SVG library the image resolver that
           CanvasNetViewer creates for the folder of the SVG file the user named (so that an image element with a
-          relative href draws a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, or the first page of
-          a PDF, PPTX, or VSDX document from that folder and below only, decided by the file name extension, with
-          the sandbox, nesting, and count limits of the core library); shall not pass the outer sizing, page,
-          resolution, and model options on to an embedded file; shall add the notes and printed lines of an
-          embedded file to the result, each note starting with the href; and shall list each file that the SVG
-          file itself embeds, and no file embedded further down, as an embed operation.
+          relative href draws a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram, or the
+          first page of a PDF, PPTX, or VSDX document from that folder and below only, decided by the file name
+          extension, with the sandbox, nesting, and count limits of the core library); shall not pass the outer sizing,
+          page, resolution, and model options on to an embedded file; shall add the notes and printed lines of an
+          embedded file to the result, each note starting with the href; and shall list each file that the SVG file
+          itself embeds, and no file embedded further down, as an embed operation.
         justification: |
           A diagram is often the place where a model, a chart, and a picture belong together; the tool wires in
           the one resolver the library provides, so rendering a diagram from an untrusted source cannot read other
@@ -470,6 +471,93 @@ sections:
           - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
           - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
+        title: >-
+          The SourceLoader class shall recognize a Mermaid diagram by the file name extension .mmd or .mermaid (in any
+          case), never take such a file for an SVG drawing whatever its text mentions (a label may hold SVG text), let
+          a signature still win over the name, and not recognize a diagram by its content, so that a Markdown or a
+          text file that holds the text of a diagram stays an unsupported format.
+        justification: |
+          A diagram is text without a signature, and the first line of Mermaid text is too common to sniff safely;
+          the two extensions that Mermaid's own tools use name a diagram for people and for the tool, and a label that
+          shows SVG markup must not turn a diagram into a drawing.
+        tests:
+          - SourceLoader_Detect_MermaidMentioningSvg_ReturnsMermaid
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MermaidProbe
+        title: >-
+          The SourceLoader class shall report for a Mermaid diagram, by parsing and measuring it without drawing it
+          and without loading the pictures of its nodes, the natural size the library lays the diagram out at (its
+          view box rounded up to whole pixels), four channels with transparency, one page, and what the diagram
+          declares (SourceInfo.Diagram, a DiagramFacts: its type, whether this version draws it, its direction, its
+          title and accessible title when it has them, and its numbers of nodes, edges, and subgraphs, zero for a type
+          that is not drawn); and shall report a diagram that lays out larger than the maximum image size with that
+          natural size, not as an error of the probe, so that a size option can still draw it.
+        justification: |
+          Knowing what a diagram is, how big it will be, and whether this version draws its type before committing to
+          render it lets an agent choose sizes and avoid an empty picture, and keeps the information commands cheap;
+          a probe that opened the pictures could read other files or recurse.
+        tests:
+          - SourceLoader_Probe_Mermaid_ReportsDiagramFacts
+          - SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError
+          - SourceLoader_Load_MermaidLargerThanMaximum_NeedsASizeOption
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MermaidRender
+        title: >-
+          The SourceLoader class shall draw a Mermaid diagram at its natural size times the scale, placed exactly as
+          Mermaid places it, when neither a width nor a height is given, and sharply into the box (fitted inside and
+          centered when both sides are given) otherwise; over the background color given, white by default, and
+          transparent when the background has no alpha; with only the bundled fonts, giving the same picture for the
+          same options every time; in the theme of SourceOptions.Mermaid (a DiagramOptions whose theme is one of
+          Mermaid's themes; a theme fragment of the input replaces it, and a theme the text sets itself wins over both,
+          as with the Mermaid command line), measured again in that theme before the target size is worked out; shall
+          describe the drawn size, the background, and the theme when one is set in the render operation; shall
+          return each warning of the library as the note mermaid-warning (the specific code as Detail, the line and
+          column as Location) and each construct it does not draw as an unsupported note named by its feature (a
+          diagram type that is not drawn yet is one note mermaid-diagram-unsupported, with the hint of the library,
+          and an empty picture); and, in strict mode, shall report the first unsupported construct as an
+          unsupported-feature error that names the feature and keeps the hint of the library.
+        justification: |
+          A diagram is a vector source: drawing it at the target size keeps text and lines sharp, and drawing it at
+          its natural size with Mermaid's own placement keeps the picture comparable with what Mermaid draws. The
+          theme is chosen the way Mermaid's tools choose it, so a diagram looks the same in both, and reporting what
+          the library leaves out keeps a partial or empty diagram from being mistaken for a complete one.
+        tests:
+          - SourceLoader_Load_Mermaid_DrawsAtTheNaturalSizeOverWhite
+          - SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions
+          - SourceLoader_Load_MermaidTheme_IsAppliedAndValidated
+          - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme
+          - SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError
+          - SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MermaidErrors
+        title: >-
+          The SourceLoader class shall report text that is not a valid Mermaid diagram and a diagram that cannot be
+          laid out or drawn as a mermaid-error that names the file and the position on one line and keeps the code and
+          the hint of the library, a diagram that exceeds a limit of the library (nodes, edges, nesting, label length,
+          layout work, pictures, or painted pixels) as budget-exceeded, a text longer than the text limit of the
+          library as corrupt-input, a target size larger than the maximum image size as size-limit (a diagram whose
+          natural size is larger can still be drawn with a smaller scale, width, or height), any other argument failure
+          of the library as mermaid-error and never as a usage error, an unsupported construct in strict mode as
+          unsupported-feature, and shall give a picture or an expected error, never an unexpected exception, for a
+          diagram that is cut anywhere, emptied, or garbage.
+        justification: |
+          A diagram is hand-written text and fails in many ways; every failure that is the author's mistake must be a
+          concise, located, coded error that a script can branch on, with the suggestion of the library that says
+          how to fix it, while an unexpected exception stays a defect that is not hidden.
+        tests:
+          - SourceLoader_Probe_MermaidInvalidText_IsMermaidError
+          - SourceLoader_Probe_MermaidLimits_AreBudgetExceededAndCorruptInput
+          - SourceLoader_MapMermaid_MapsByCode
+          - SourceLoader_Load_MermaidLargerThanMaximum_NeedsASizeOption
+          - SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError
+          - SourceLoader_Load_MermaidTruncatedOrDamaged_IsExpectedErrorOrLoads
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+
       - id: CanvasNetViewer-Imaging-SourceLoader-Sizing
         title: >-
           The SourceLoader class shall derive the target size from the natural size and the scale,
@@ -590,11 +678,12 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-DiagnosticDetail
         title: >-
-          The SourceLoader class shall report with each note of an OpenSCAD model or a Vega-Lite chart, besides the
-          generic code (scad-warning, vega-lite-warning, or the feature of an unsupported construct), the finer
-          identifier of the library as Detail (none when the code is already the most specific) and the position in
-          the file as Location (file, line and column, and for a chart the JSON pointer; none when the library gave
-          no position), keep both for the notes of an embedded file, and give no location to a note about a page of a
+          The SourceLoader class shall report with each note of an OpenSCAD model, a Vega-Lite chart, or a Mermaid
+          diagram, besides the generic code (scad-warning, vega-lite-warning, mermaid-warning, or the feature of an
+          unsupported construct), the finer identifier of the library as Detail (none when the code is already the most
+          specific) and the position in the file as Location (file, line and column, and for a chart the JSON pointer;
+          none when the library gave no position), keep both for the notes of an embedded file, and give no location
+          to a note about a page of a
           document.
         justification: |
           A generic code with a position is enough for a tool or an agent to find the line to fix without parsing the
@@ -604,6 +693,7 @@ sections:
           - SourceLoader_Load_ScadGenericWarning_HasNoDetailButHasLocation
           - SourceLoader_Load_ScadUnsupportedFeature_CarriesLocation
           - SourceLoader_Load_VegaLiteNotes_CarryDetailAndPointer
+          - SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures
           - SourceLoader_Load_DocumentNote_HasNoLocation
           - SourceLoader_Load_SvgEmbeddingModel_NotesKeepOriginDetailAndLocation
           - ImageDiagnostic_Equals_ComparesDetailAndLocation
@@ -635,7 +725,8 @@ sections:
           reject a value outside the ranges of the command line (a width or height below 1, a scale that is not
           finite or outside 0.001 to 8192, a resolution that is not finite, not above 0 or above MaxDpi (2400), a
           filter that is not defined, a model view that is not known, an elevation outside -90 to 90, a time outside
-          the limit, a triangle limit below 1, a variable the model library rejects) as a ViewerException with the
+          the limit, a triangle limit below 1, a variable the model library rejects, a Mermaid theme that is not one of
+          Mermaid's themes) as a ViewerException with the
           code usage-error, while a size above the maximum stays size-limit and a page below the first or beyond
           the last stays page-out-of-range.
         justification: |
@@ -648,6 +739,7 @@ sections:
           - SourceLoader_Load_WidthAboveTheMaximum_IsStillSizeLimit
           - SourceLoader_Load_PageBeyondTheLast_IsStillPageOutOfRange
           - SourceLoader_FindOptionProblem_UnknownView_NamesTheViewAndListsTheViews
+          - SourceLoader_Load_MermaidTheme_IsAppliedAndValidated
           - SourceLoader_MaxDpi_Is2400
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartImages
@@ -676,6 +768,36 @@ sections:
           - SourceLoader_Load_VegaLiteImageMoreThanTheLimit_IsBudgetExceeded
           - SourceLoader_Load_SvgEmbeddingChartWithImage_DrawsTheChartsPicture
           - SourceLoader_Probe_VegaLiteImageChart_ReadsTheSizeWithoutThePictures
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-MermaidImages
+        title: >-
+          The SourceLoader class shall give the picture nodes of a Mermaid diagram (@{ img: ... }) the sandboxed image
+          resolver of the viewer, rooted at the folder of the diagram (or the resolver of the embedding document when
+          the diagram is embedded), so that a link draws a raster (stretched to the box of its node), an SVG file, a
+          model, a chart, a page of a document, or another diagram and never a file outside the folder, an absolute
+          path, or a remote resource; list each drawn file once as an embed operation at the size it was drawn and
+          report each note of the resolver once; report a link that was not drawn (including a diagram that shows
+          itself) as the warning of the resolver (svg-image-unresolved) without the library's duplicate warning
+          mermaid-image-unresolved for the same link; fail with unsupported-feature naming the diagram and the link for
+          such a link when the strict option is set; name both files when a picture that is found cannot be loaded;
+          and, when a picture node without its w and h makes a diagram drawn at its natural size larger than the probe
+          measured, charge the load with the size of the surface it returns (refusing it when that does not fit) and
+          report the natural size of the drawn diagram (the drawn size over the scale).
+        justification: |
+          A diagram on the command line must show the files beside it exactly as an SVG drawing and a chart do, under
+          the same sandbox, notes, and strict policy, so a diagram can never read a file outside its folder, and an
+          agent reads one note and one operation for each picture. The pixel budget must hold for the picture that is
+          returned, not for the size guessed without the pictures, and the reported natural size must describe it.
+        tests:
+          - SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations
+          - SourceLoader_Load_MermaidPngPicture_FillsItsBox
+          - SourceLoader_Load_MermaidSelfCycle_IsUnresolved
+          - SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused
+          - SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles
+          - SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture
+          - SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize
+          - SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget
+          - SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartParameters
         title: >-
@@ -708,15 +830,15 @@ sections:
           into facts that carry an InputSelection (SourceLoader.Probe of an InputReference) by reading the fragment with
           the built-in image source of the kind of the file, so that a link of an SVG document and an input path accept
           the same parameters and values (page and slide, view, def. variables including vectors such as $vpt and
-          $vpd, param. chart parameters), refuse a fragment or a value that cannot be used with the code
-          image-fragment-invalid and a page that the file does not have with page-out-of-range, report a missing file
-          with a fragment as input-not-found with a hint about the number sign, report a parameter the kind does not
-          use, a parameter given twice, and a chart parameter the chart does not declare (which it drops) as the
-          warnings image-fragment-unknown-parameter, image-fragment-duplicate-parameter and vl-param-unknown (never
+          $vpd, param. chart parameters, the theme of a diagram), refuse a fragment or a value that cannot be used with
+          the code image-fragment-invalid and a page that the file does not have with page-out-of-range, report a
+          missing file with a fragment as input-not-found with a hint about the number sign, report a parameter the kind
+          does not use, a parameter given twice, and a chart parameter the chart does not declare (which it drops) as
+          the warnings image-fragment-unknown-parameter, image-fragment-duplicate-parameter and vl-param-unknown (never
           as errors, not even in strict mode) once with the first page that is loaded, and lay the selection over the
-          options of the command when a source is loaded (the page and the view of the fragment replace those of the
-          options, the variables and the parameters merge by name with the fragment winning), so that the camera
-          variables of a model set through a fragment or an option fix its scale.
+          options of the command when a source is loaded (the page, the view, and the theme of the fragment replace
+          those of the options, the variables and the parameters merge by name with the fragment winning), so that the
+          camera variables of a model set through a fragment or an option fix its scale.
         justification: |
           A command line must be able to name a version of a file (an assembly at an explode level, a page, a chart
           parameter) the way a link in a diagram does, with one grammar, one set of codes, and one rule for the
@@ -731,6 +853,7 @@ sections:
           - SourceLoader_ProbeInputReference_OverTheLimitsOrMissing_Throws
           - InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView
           - InputSelection_ApplyTo_Chart_MergesParametersByName
+          - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme
           - InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce
           - SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw
           - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException

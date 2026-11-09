@@ -1,0 +1,123 @@
+---
+# Software Unit Requirements for DagreLayout
+#
+# These requirements describe the design-level behavior of the DagreLayout unit of the Dagre subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Dagre): the entry point of the layout (dagre's layout.js and util.js),
+# its input and internal label types (DagreGraph.cs and LayoutModel.cs), and the JavaScript and lodash collection
+# semantics that dagre's results depend on (Lodash.cs).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreLayout Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreLayout-Defaults
+                title: >-
+                  The DagreLayout unit shall apply dagre's defaults to every attribute the caller leaves unset (a
+                  rank separation of 50, an edge separation of 20, a node separation of 50, the direction top to
+                  bottom, no margins, a node and label size of 0, a minimum length of 1, a weight of 1, a label
+                  offset of 10, and the label position r) and use every attribute that is set as given.
+                justification: |
+                  Mermaid sets some attributes and leaves others to dagre; the layout must fill in exactly the
+                  values dagre fills in.
+                tests:
+                  - DagreLayout_Run_SingleNode_PlacedAtHalfSize
+                  - DagreLayout_Run_TwoNodesSameRank_SeparatedByNodeSep
+                  - DagreLayout_Run_TwoConnectedNodes_StackedByRankSep
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-Results
+                title: >-
+                  The DagreLayout unit shall write the results of a layout to the caller's labels: the center of
+                  every node, the size of every node with children, the route of every edge with its ends on the
+                  borders of its nodes, the center of the label of every labeled edge (and none for an edge without
+                  a label), and the size of the drawing with its margins, the same for every run on the same graph.
+                justification: |
+                  The renderer draws nodes, clusters, edges, and labels where the layout puts them and sizes the
+                  picture from the drawing size.
+                tests:
+                  - DagreLayout_Run_TwoConnectedNodes_StackedByRankSep
+                  - DagreLayout_Run_EdgeRoute_EndsOnNodeBorders
+                  - DagreLayout_Run_Cluster_MinimizesHeightAndIsSized
+                  - DagreLayout_Run_ClusterInEveryDirection_SizedAroundMember
+                  - DagreLayout_IntersectRect_PointOutside_OnLineAndBorder
+                  - DagreLayout_Run_Twice_SameResults
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-EdgeLabels
+                title: >-
+                  The DagreLayout unit shall place the label of an edge on a rank of its own between the ranks of the
+                  edge's ends, keep the nodes apart by the size of the label in every rank direction, and move a
+                  label at the left or right of its edge off the edge by its label offset, within the drawing.
+                justification: |
+                  Flowchart edge labels must sit on their edges without overlapping nodes, where Mermaid puts them.
+                tests:
+                  - DagreLayout_Run_LabeledEdge_LabelBetweenNodes
+                  - DagreLayout_Run_LongLabel_SeparatesNodes
+                  - DagreLayout_Run_LabelOffset_MovesSideLabels
+                  - DagreLayout_Run_LeftLabel_StaysInBoundingBox
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-SelfLoops
+                title: >-
+                  The DagreLayout unit shall route an edge from a node to itself as a loop beside the node (five
+                  points between its two ends on the node's border), after the node in its rank, in every rank
+                  direction, with its label at the far point of the loop.
+                justification: |
+                  A flowchart may link a node to itself; dagre draws such a loop beside the node.
+                tests:
+                  - DagreLayout_Run_SelfLoop_RoutedBesideNode
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-CyclesAndClusters
+                title: >-
+                  The DagreLayout unit shall lay out a graph with cycles with every edge's route running from its
+                  tail to its head, and a compound graph with every cluster around its members, including a cluster
+                  that the caller created only by naming it as a parent.
+                justification: |
+                  Flowcharts have cycles and subgraphs, and Mermaid creates some subgraph nodes without a label.
+                tests:
+                  - DagreLayout_Run_ShortCycle_OneEdgeUpOneDown
+                  - DagreLayout_Run_Cluster_MinimizesHeightAndIsSized
+                  - DagreLayout_Run_ImplicitParent_DoesNotFail
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-RankUtilities
+                title: >-
+                  The DagreLayout unit shall provide dagre's shared graph utilities to the stages: collapsing
+                  parallel edges into one with the summed weight and the greatest minimum length, a flat copy
+                  without clusters, the matrix of nodes by rank and order, ranks shifted to start at zero, and the
+                  removal of the empty ranks that are not multiples of the nesting rank factor.
+                justification: |
+                  Every stage of the layout relies on these helpers; they must behave as dagre's util.js does.
+                tests:
+                  - DagreLayout_Simplify_MultiEdges_Collapsed
+                  - DagreLayout_AsNonCompoundGraph_Cluster_Dropped
+                  - DagreLayout_BuildLayerMatrix_RanksAndOrders_Matrix
+                  - DagreLayout_NormalizeRanks_NegativeAndCluster_ShiftedToZero
+                  - DagreLayout_RemoveEmptyRanks_BorderRanks_Removed
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-JavaScriptSemantics
+                title: >-
+                  The DagreLayout unit shall sort, compare, and take the least and greatest of values as dagre does
+                  in JavaScript: with the steps of V8's array sort (stable, exact for lists under 64 items even for a
+                  comparator that is not consistent), with lodash's ascending order of numbers, then undefined, then
+                  NaN, and with lodash's extremes that skip undefined and NaN and keep the first of equal values.
+                justification: |
+                  dagre's barycenter comparator is inconsistent for NaN barycenters and its extremes see undefined
+                  values; any other sort or extreme would order nodes differently from Mermaid.
+                tests:
+                  - Lodash_Sort_ConsistentComparator_MatchesStableSort
+                  - Lodash_Sort_NaNKeys_FollowsBinaryInsertion
+                  - Lodash_SortBy_MixedKeys_NumbersUndefinedNaN
+                  - Lodash_MinMaxMinBy_SkipUndefinedAndNaN
+                  - Lodash_CompareAscending_Keys_MatchesLodash
+
+              - id: CanvasNetMermaid-Dagre-DagreLayout-Failures
+                title: >-
+                  The DagreLayout unit shall refuse to end a route at the center of its node, as dagre does, and
+                  shall report that failure as a located mermaid-render-failed and a stack that runs short as a
+                  located mermaid-limit-exceeded, letting a cancellation pass through.
+                justification: |
+                  A graph that dagre cannot lay out must fail with the documented error, not with an internal
+                  exception or a crash of the process.
+                tests:
+                  - DagreLayout_IntersectRect_PointAtCenter_Throws

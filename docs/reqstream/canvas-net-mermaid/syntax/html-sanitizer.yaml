@@ -1,0 +1,77 @@
+---
+# Software Unit Requirements for HtmlSanitizer
+#
+# These requirements describe the design-level behavior of the HtmlSanitizer unit of the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the clean-up that Mermaid applies to every label it
+# stores, reproducing the results of DOMPurify for the inline HTML of labels, with the named character references of
+# the grouped HtmlEntities table. See docs/verification/canvas-net-mermaid/syntax/html-sanitizer.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: HtmlSanitizer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Syntax-HtmlSanitizer-FastPath
+                title: >-
+                  The HtmlSanitizer unit shall return a label that contains no less-than sign exactly as written.
+                justification: |
+                  DOMPurify leaves such text unchanged, so ampersands and references in plain labels reach the label
+                  builder as Mermaid stores them.
+                tests:
+                  - HtmlSanitizer_Sanitize_Label_MatchesMermaid
+
+              - id: CanvasNetMermaid-Syntax-HtmlSanitizer-Removal
+                title: >-
+                  The HtmlSanitizer unit shall remove, as DOMPurify does with Mermaid's configuration, elements and
+                  attributes outside DOMPurify's default allow lists, the content of script, style, SVG, MathML, and
+                  the other elements whose content DOMPurify removes, comments, tags cut off by the end of the text,
+                  and attribute values with a URI scheme that is not safe, keeping the text of other removed
+                  elements.
+                justification: |
+                  Label HTML comes from untrusted text and must carry nothing that could run or load; the text of a
+                  label must stay as Mermaid keeps it.
+                tests:
+                  - HtmlSanitizer_Sanitize_Label_MatchesMermaid
+
+              - id: CanvasNetMermaid-Syntax-HtmlSanitizer-Links
+                title: >-
+                  The HtmlSanitizer unit shall keep the target of a link, written last, and give a link that opens
+                  a new window the relation noopener, as Mermaid's sanitizer hook does.
+                justification: |
+                  Mermaid keeps link targets in labels; the stored label must be Mermaid's.
+                tests:
+                  - HtmlSanitizer_Sanitize_Label_MatchesMermaid
+
+              - id: CanvasNetMermaid-Syntax-HtmlSanitizer-Serialization
+                title: >-
+                  The HtmlSanitizer unit shall write the cleaned label as a browser serializes HTML - lower-case
+                  names, double-quoted attributes, escaped ampersands, less-than and greater-than signs, and
+                  no-break spaces, void elements without an end tag, every open element closed, and formatting
+                  elements closed out of order reopened.
+                justification: |
+                  The label builder reads the HTML that Mermaid stores, so the text must be the same character for
+                  character.
+                tests:
+                  - HtmlSanitizer_Sanitize_Label_MatchesMermaid
+                  - HtmlSanitizer_Sanitize_ManyUnclosedTags_ClosesThemAll
+
+              - id: CanvasNetMermaid-Syntax-HtmlSanitizer-References
+                title: >-
+                  The HtmlSanitizer unit shall decode numeric character references and the named references of HTML
+                  4 together with apos, equals, num, semi, and colon, and keep any other named reference as written.
+                justification: |
+                  Labels use the common references; the names that Mermaid's own encoding produces must decode.
+                tests:
+                  - HtmlSanitizer_Sanitize_Label_MatchesMermaid
+
+              - id: CanvasNetMermaid-Syntax-HtmlSanitizer-Bounded
+                title: >-
+                  The HtmlSanitizer unit shall clean a label of any markup, including thousands of unclosed tags, in
+                  one pass over the text without recursion, closing every element that is left open.
+                justification: |
+                  A hostile label of deeply nested or unclosed tags must neither exhaust the stack nor fail.
+                tests:
+                  - HtmlSanitizer_Sanitize_ManyUnclosedTags_ClosesThemAll

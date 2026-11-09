@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for DagrePositioning
+#
+# These requirements describe the design-level behavior of the DagrePositioning unit of the Dagre subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's coordinate assignment (position/index.js and
+# the Brandes-Koepf method of position/bk.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-positioning.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagrePositioning Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagrePositioning-Ranks
+                title: >-
+                  The DagrePositioning unit shall stack the ranks from the top, each as tall as its tallest node and
+                  separated by the rank separation, with every node centered vertically in its rank.
+                justification: |
+                  This gives the rows of a top-to-bottom layout their dagre positions.
+                tests:
+                  - DagrePositioning_Position_Ranks_StackedByTallestNode
+
+              - id: CanvasNetMermaid-Dagre-DagrePositioning-Conflicts
+                title: >-
+                  The DagrePositioning unit shall mark the edges that cross an inner segment of a long edge, and the
+                  inner segments that cross the border of a cluster, so that alignment avoids them.
+                justification: |
+                  Long edges are kept straight first; the marked conflicts decide which alignments are allowed.
+                tests:
+                  - DagrePositioning_FindType1Conflicts_Crossing_MarksNonInnerSegment
+                  - DagrePositioning_FindType2Conflicts_InnerCrossesBorder_Marked
+
+              - id: CanvasNetMermaid-Dagre-DagrePositioning-Alignment
+                title: >-
+                  The DagrePositioning unit shall align each node with a median neighbor into vertical blocks - the
+                  left median when possible, the right when the left conflicts - taking the neighbors by position.
+                justification: |
+                  Aligned blocks give straight edges, and the median rule decides which neighbor a node lines up
+                  with.
+                tests:
+                  - DagrePositioning_VerticalAlignment_Medians_AlignsBlocks
+
+              - id: CanvasNetMermaid-Dagre-DagrePositioning-Balance
+                title: >-
+                  The DagrePositioning unit shall combine the four alignments as dagre does: shift them to the
+                  narrowest one (node widths included), then take for each node the average of its two middle
+                  coordinates, or the coordinate of the alignment the graph names.
+                justification: |
+                  Balancing removes the bias of any single alignment; the result must equal dagre's.
+                tests:
+                  - DagrePositioning_FindSmallestWidthAlignment_Widths_PicksNarrowest
+                  - DagrePositioning_AlignCoordinates_ToReference_ShiftsEdges
+                  - DagrePositioning_Balance_FourAlignments_AveragesMedians
+
+              - id: CanvasNetMermaid-Dagre-DagrePositioning-Coordinates
+                title: >-
+                  The DagrePositioning unit shall give every node the horizontal coordinate that dagre gives it, with
+                  neighbors in a rank at least the node or edge separation apart.
+                justification: |
+                  The horizontal positions decide where every node and bend of a flowchart is drawn.
+                tests:
+                  - DagrePositioning_PositionX_SmallGraphs_MatchDagre

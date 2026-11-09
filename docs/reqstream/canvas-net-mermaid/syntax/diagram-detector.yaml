@@ -1,0 +1,83 @@
+---
+# Software Unit Requirements for DiagramDetector
+#
+# These requirements describe the design-level behavior of the DiagramDetector unit of the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the detection of the diagram type of a prepared
+# text with Mermaid's detectors and order, the support level of each type, and the errors and hints for a text of no
+# known type. See docs/verification/canvas-net-mermaid/syntax/diagram-detector.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: DiagramDetector Requirements
+            requirements:
+              - id: CanvasNetMermaid-Syntax-DiagramDetector-KnownTypes
+                title: >-
+                  The DiagramDetector unit shall recognize every diagram type that the pinned Mermaid release
+                  registers, giving Mermaid's detector id, the public type name (with the variants of flowcharts,
+                  class diagrams, and state diagrams under one name each), the keyword as written, and whether the
+                  type is drawn, planned, or not planned.
+                justification: |
+                  A text that Mermaid draws must never be an unknown diagram, and the document reports the type and
+                  whether it is supported without rendering.
+                tests:
+                  - DiagramDetector_Detect_KnownKeyword_GivesTypeAndSupport
+                  - DiagramDetector_DetectorIds_FollowMermaidRegistrationOrder
+
+              - id: CanvasNetMermaid-Syntax-DiagramDetector-MermaidOrder
+                title: >-
+                  The DiagramDetector unit shall try the detectors in Mermaid's registration order, the first that
+                  matches winning, with the matches of Mermaid's detector expressions including their quirks (C4
+                  keywords found anywhere in the text, keyword prefixes, word boundaries, and case-insensitive
+                  keywords).
+                justification: |
+                  The same text must be the same type as in Mermaid, even where Mermaid's expressions are surprising.
+                tests:
+                  - DiagramDetector_DetectorIds_FollowMermaidRegistrationOrder
+                  - DiagramDetector_Detect_MermaidQuirks_AreKept
+
+              - id: CanvasNetMermaid-Syntax-DiagramDetector-RendererSettings
+                title: >-
+                  The DiagramDetector unit shall choose between the variants of the flowchart, class, and state
+                  detectors with the default renderer settings of the effective configuration, as Mermaid does.
+                justification: |
+                  Mermaid's detectors read the configuration; for example, the elk renderer turns a flowchart into
+                  the ELK flowchart type.
+                tests:
+                  - DiagramDetector_Detect_RendererSettings_ChooseVariant
+
+              - id: CanvasNetMermaid-Syntax-DiagramDetector-Cleanup
+                title: >-
+                  The DiagramDetector unit shall ignore a further frontmatter block, the directives, and every
+                  comment before the keyword as Mermaid's type detection does, and locate the keyword in the
+                  original text.
+                justification: |
+                  Comments and directives may precede the keyword, and the keyword's location is where a report
+                  about the diagram type points.
+                tests:
+                  - DiagramDetector_Detect_CleanupBeforeDetection_SkipsCommentsAndDirectives
+                  - DiagramDetector_ReplaceComments_FollowsAnyCommentExpression
+
+              - id: CanvasNetMermaid-Syntax-DiagramDetector-UnknownDiagram
+                title: >-
+                  The DiagramDetector unit shall refuse a text that no detector matches with a located unknown
+                  diagram error that names the keyword and, when one is near, the nearest known keyword, and a text
+                  that starts with three dashes with Mermaid's own message about an unclosed frontmatter.
+                justification: |
+                  An unknown keyword is most often a typo of a known one, and three dashes at the start mean that a
+                  frontmatter was not closed.
+                tests:
+                  - DiagramDetector_Detect_Unknown_ThrowsWithNearestKeyword
+                  - DiagramDetector_Detect_Typo_HintsNearestKeyword
+                  - DiagramDetector_Detect_DashDashDash_ThrowsMermaidMessage
+
+              - id: CanvasNetMermaid-Syntax-DiagramDetector-UnsupportedHint
+                title: >-
+                  The DiagramDetector unit shall give, for a type that is not drawn, a hint that says whether the
+                  type is planned or not supported and names the keywords of the supported types.
+                justification: |
+                  The report of an unsupported diagram type must tell the author what can be drawn instead.
+                tests:
+                  - DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords

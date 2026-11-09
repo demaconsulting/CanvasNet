@@ -1,0 +1,119 @@
+---
+# Software Unit Requirements for Graph
+#
+# These requirements describe the design-level behavior of the Graph unit of the Graphlib subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Graphlib): the port of graphlib's Graph with its edge identity
+# (GraphEdge) and the string-keyed map that keeps the key order of a JavaScript object (ObjectKeyMap).
+# See docs/verification/canvas-net-mermaid/graphlib/graph.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Graphlib Requirements
+        sections:
+          - title: Graph Requirements
+            requirements:
+              - id: CanvasNetMermaid-Graphlib-Graph-Kinds
+                title: >-
+                  The Graph unit shall create a graph that is directed, simple, and flat unless the caller asks
+                  for an undirected graph, a multigraph, or a compound graph, starting without nodes, edges, or a
+                  graph label, and shall keep the graph label that the caller sets.
+                justification: |
+                  graphlib's defaults are part of its contract; dagre and Mermaid create graphs that are directed,
+                  compound, and multi, and rely on the defaults elsewhere.
+                tests:
+                  - Graph_Constructor_Defaults_DirectedSimpleFlat
+
+              - id: CanvasNetMermaid-Graphlib-Graph-Nodes
+                title: >-
+                  The Graph unit shall add a node that is absent with the default node label, keep the label of
+                  a node that is added again without a label, replace the label of a node that is added again with
+                  a label, and answer no label for a node that is absent.
+                justification: |
+                  Mermaid's wrapper and dagre add nodes repeatedly (for example as the ends of edges) and must not
+                  lose the label set first.
+                tests:
+                  - Graph_SetNode_ExistingNode_KeepsOrReplacesLabel
+                  - Graph_SetPath_Nodes_AddsConsecutiveEdges
+
+              - id: CanvasNetMermaid-Graphlib-Graph-Edges
+                title: >-
+                  The Graph unit shall add an edge and its absent ends with the given label or the default edge
+                  label of its tail, head, and name, keep the label of an edge added again without a label, add an
+                  edge between each pair of consecutive nodes of a path, keep the named parallel edges of a
+                  multigraph apart, refuse a new named edge in a simple graph, and find the edge of an undirected
+                  graph from either end.
+                justification: |
+                  Flowchart links between the same two nodes are parallel named edges of a multigraph; the edge
+                  identity and the default label decide which label the layout reads.
+                tests:
+                  - Graph_SetEdge_Multigraph_KeepsParallelEdgesApart
+                  - Graph_SetEdge_NamedEdgeInSimpleGraph_Throws
+                  - Graph_SetEdge_Undirected_FindsEdgeEitherWay
+                  - Graph_SetPath_Nodes_AddsConsecutiveEdges
+
+              - id: CanvasNetMermaid-Graphlib-Graph-Adjacency
+                title: >-
+                  The Graph unit shall list the in-edges, out-edges, and edges of a node (all of them or only those
+                  to or from another node), its predecessors, successors, and neighbors, the sources and sinks of
+                  the graph, and whether a node is a leaf, and shall answer no list for a node that is absent.
+                justification: |
+                  Every dagre stage walks the graph through these queries; an absent node must be told apart from
+                  a node without edges, as graphlib does with undefined.
+                tests:
+                  - Graph_NodeEdges_FilteredByOtherEnd_ListsMatchingEdges
+                  - Graph_Successors_NumericNames_ComeFirst
+                  - Graph_SetEdge_Undirected_FindsEdgeEitherWay
+                  - Graph_SetPath_Nodes_AddsConsecutiveEdges
+
+              - id: CanvasNetMermaid-Graphlib-Graph-Removal
+                title: >-
+                  The Graph unit shall remove a node together with every edge into or out of it (a self loop
+                  included), remove a single edge, ignore the removal of a node that is absent, and list a node
+                  that is removed and added again after the other nodes.
+                justification: |
+                  The layout removes helper nodes and edges between its stages; graphlib's order after a removal
+                  is part of the layout's tie-breaking.
+                tests:
+                  - Graph_RemoveNode_WithEdges_RemovesEdgesAndReordersOnReAdd
+                  - Graph_SetEdge_Multigraph_KeepsParallelEdgesApart
+
+              - id: CanvasNetMermaid-Graphlib-Graph-Compound
+                title: >-
+                  The Graph unit shall track the parent and the children of each node of a compound graph, adding
+                  absent nodes, move the children of a removed node to the top level, refuse a parent that is the
+                  node itself or one of its descendants, and refuse a parent in a graph that is not compound, where
+                  every node is at the top level and has no children.
+                justification: |
+                  Subgraphs are compound nodes; a cycle of parents must fail instead of looping, and the flat graphs
+                  of the layout must answer the same child queries as graphlib.
+                tests:
+                  - Graph_SetParent_Compound_TracksChildren
+                  - Graph_SetParent_CycleOrFlatGraph_Throws
+
+              - id: CanvasNetMermaid-Graphlib-Graph-Filter
+                title: >-
+                  The Graph unit shall copy a graph with only the nodes that pass a filter, the edges between them,
+                  the same kind and graph label, and each kept node placed under its nearest ancestor that is kept.
+                justification: |
+                  graphlib's filterNodes is part of the ported graph surface; a caller that works on a part of a
+                  compound graph must get the structure that graphlib keeps.
+                tests:
+                  - Graph_FilterNodes_Compound_ReparentsToNearestKeptAncestor
+
+              - id: CanvasNetMermaid-Graphlib-Graph-KeyOrder
+                title: >-
+                  The Graph unit shall list nodes, children, predecessors, and successors in JavaScript's own-key
+                  order (names that are array indexes, the canonical decimal integers from 0 to 4294967294, first
+                  in ascending numeric order, then the other names in insertion order, a name that is removed and
+                  added again moving to the end, and a name that is set again keeping its place) and edges in
+                  insertion order.
+                justification: |
+                  graphlib keeps these collections in JavaScript objects and dagre iterates them; the same order is
+                  needed for the same layout with any node names.
+                tests:
+                  - Graph_Nodes_NumericNames_ComeFirstInNumericOrder
+                  - Graph_Successors_NumericNames_ComeFirst
+                  - ObjectKeyMap_Keys_MixedKeys_IndexesFirstThenInsertionOrder
+                  - ObjectKeyMap_Remove_KeyAddedAgain_MovesToEnd
+                  - ObjectKeyMap_IsArrayIndex_Key_MatchesJavaScript

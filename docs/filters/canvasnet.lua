@@ -1,11 +1,12 @@
 --[[
-canvasnet.lua - a Pandoc filter that draws models, charts, and document pages as PNG pictures.
+canvasnet.lua - a Pandoc filter that draws models, charts, diagrams, and document pages as PNG pictures.
 
 A document refers to a source file like any picture, and says how to draw it in attributes:
 
     ![Pump mount](pump-mount.scad){view=iso width=60%}
     ![Sales by region](sales.vl.json){scale=2}
     ![The wiring](wiring.vsdx){page=2 dpi=150}
+    ![Order flow](order-flow.mmd){theme=forest}
 
 The filter handles a picture whose file name ends in one of these (any other picture is left alone,
 and the tool is not even started for it, so PNG, JPEG, and SVG pictures behave as they always did):
@@ -15,6 +16,7 @@ and the tool is not even started for it, so PNG, JPEG, and SVG pictures behave a
     .vsdx       a page of a Visio drawing
     .pptx       a slide of a PowerPoint presentation
     .pdf        a page of a PDF document
+    .mmd        a Mermaid diagram (.mermaid is the same)
 
 Attributes this filter reads (all optional; "all" means every input type above):
 
@@ -35,9 +37,36 @@ Attributes this filter reads (all optional; "all" means every input type above):
     define-NAME  .scad: sets a model variable, for example define-bracket_height=60
     param-NAME   .vl.json, .vl: sets a parameter of the chart (--param NAME=VALUE: a number, true, false, null,
                  text, or JSON such as {"x":[2,6]} for a selection), for example param-cutoff=50
+    theme        .mmd, .mermaid: default, base, dark, forest or neutral (as mmdc -t: a theme the diagram's own
+                 configuration sets still wins)
 
 An attribute for another input type (view on a chart, page on a model) is an error, not ignored.
 Every other attribute (width, height, an id or a class) stays on the picture.
+
+A Mermaid diagram can also be written in the document, as a fenced code block of class mermaid:
+
+    ```{.mermaid caption="Order flow" theme=forest width=80%}
+    flowchart LR
+        A[Order] --> B{Paid?} --> C[Ship]
+    ```
+
+The text is written to docs/generated/canvasnet/<hash>.mmd and drawn like a .mmd picture, and the block becomes
+the picture: a figure with the caption when a caption attribute is given, else a paragraph holding the picture.
+The block reads the same attributes as a .mmd picture (size, scale, background, theme); caption is taken
+as the figure's caption, and every other attribute, the id, and any class but mermaid stay on the picture. A
+picture in a node (A@{ img: "part.png" }, <img src="part.png">) is found from the folder the text is written to,
+not from the document's folder, so a diagram that draws pictures must be a .mmd file of its own, used as
+![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
+
+Diagram types the tool does not draw yet. The tool draws flowchart (and graph) diagrams. For any other type
+(sequenceDiagram, classDiagram, and so on) the tool reports mermaid-diagram-unsupported, and the filter leaves
+the code block (or the .mmd picture) exactly as written, with the tool's message as a warning, so another
+filter can draw it: the CanvasNet build runs mermaid-filter after this filter for that reason. Pandoc runs the
+filters in the order of its command line, a defaults file's filters taking the place of its --defaults option,
+so "--defaults ... --filter mermaid-filter" runs this filter first. A marker in the cache folder
+(<hash>.unsupported, holding the message) saves later builds from starting the tool again for that diagram.
+A flowchart that only embeds a picture of such a type (A@{ img: "seq.mmd" }) is drawn as usual; the tool's report
+about the embedded picture, which names it in its origin, is shown as a warning.
 
 How it works. The filter has two jobs only:
 
@@ -47,7 +76,7 @@ How it works. The filter has two jobs only:
   2. Hash every file the tool will read, so that a change to any of them draws the picture again.
 
 The filter is NOT a security boundary. It runs the author's own documents with the author's permissions,
-and Pandoc itself embeds pictures from any path. What a model or a chart may read is decided by the tool's
+and Pandoc itself embeds pictures from any path. What a model, a chart or a diagram may read is decided by the tool's
 own sandbox when the picture is drawn; the filter does no containment check of its own. A dependency the
 tool refuses still stops the build, with the tool's own message. The filter does not resolve symbolic
 links. Paths are used and compared exactly as written (collapsing "." and ".."), so a file reached through
@@ -64,10 +93,13 @@ that decides the picture:
     local picture that an image mark names (the "url" of the mark, the literal "value" or "datum" of a "url" channel,
     and the links that the "url" field holds in the inline rows; a model with its includes, a chart with its own
     files, any other file as it is; a fragment such as "#page=2" or "#def.width=20" is dropped, and since the link is part of the
-    specification, a changed fragment draws the chart again). The pictures of a chart that come from a data
-    file or from a transform are not tracked; a chart that names more than 512 different data files or
-    pictures, or a model that with its includes is more than 512 files, stops the build,
-    since a file left out of the hash could change without the picture being drawn again;
+    specification, a changed fragment draws the chart again); for a diagram every local picture that a node
+    names (the img of a shape's data and the src of an <img> tag in a label, relative to the diagram's folder,
+    a fragment such as "#theme=dark" dropped; a model, chart or diagram with its own files, any other file as
+    it is). The pictures of a chart that come from a data file or from a transform are not tracked; a chart
+    that names more than 512 different data files or pictures, a diagram that names more than 512 pictures,
+    or a model that with its includes is more than 512 files, stops the build, since a file left out of the
+    hash could change without the picture being drawn again;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
     fingerprint of the DLLs beside it; and this filter's version.
@@ -76,9 +108,9 @@ An unchanged source is therefore not drawn again, and a changed one always is. E
 under a temporary name and then renamed, so two builds running at once never read a half-written file.
 Pandoc may run this filter more than once for one document (DocTemplates runs Pandoc first to work out
 the file name); the second run finds the picture already drawn. The filter uses only pandoc.path,
-pandoc.system, pandoc.json, pandoc.sha1 and pandoc.pipe (Pandoc 3.x), and starts the tool with an
-argument list, never through a shell, so it runs the same on Windows and on a Linux build server, and
-no attribute or file name can inject a command.
+pandoc.system, pandoc.json, pandoc.sha1, pandoc.pipe, pandoc.read and pandoc.utils (Pandoc 3.x), and
+starts the tool with an argument list, never through a shell, so it runs the same on Windows and on a
+Linux build server, and no attribute or file name can inject a command.
 
 The tool. The command is "dotnet canvasnet", the tool a repository pins in its .config/dotnet-tools.json:
 
@@ -113,7 +145,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "8"
+local FILTER_VERSION = "9"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -130,9 +162,17 @@ local SUFFIXES = {
   { ".vsdx", "vsdx" },
   { ".pptx", "pptx" },
   { ".pdf", "pdf" },
+  { ".mmd", "mermaid" },
+  { ".mermaid", "mermaid" },
 }
 
+-- The code a diagram the tool does not draw yet gets in its --json diagnostics (a 16x16 empty picture is
+-- written): the filter leaves such a diagram alone, so another filter (mermaid-filter) can draw it.
+local UNSUPPORTED_DIAGRAM = "mermaid-diagram-unsupported"
+
 local SCAD = { scad = true }
+local MERMAID = { mermaid = true }
+local THEMES = { default = true, base = true, dark = true, forest = true, neutral = true }
 local PAGED = { vsdx = true, pptx = true, pdf = true }
 local VIEWS = { iso = true, front = true, back = true, left = true, right = true, top = true, bottom = true }
 local PROJECTIONS = { ortho = true, orthographic = true, perspective = true }
@@ -569,14 +609,15 @@ local function local_image_file(folder, link)
   return local_data_file(folder, (link:gsub("[#?].*$", "")))
 end
 
--- Adds the picture files of a chart to the hash input, so that a changed picture draws the chart again: a
--- model with the files it includes, and a chart that is a picture with its own files, and any other file as
+-- Adds the picture files of a chart or a diagram to the hash input, so that a changed picture draws it again: a
+-- model with the files it includes, a chart or a diagram that is a picture with its own files, and any other file as
 -- it is. The pictures of a chart that come from a data file are not tracked (the documentation says so).
 local add_chart_sources
+local add_mermaid_sources
 
 local function add_image_files(files, root, parts, seen, depth)
   if depth > MAX_DEPTH then
-    fail("charts are drawn inside charts more than " .. MAX_DEPTH .. " levels deep")
+    fail("charts and diagrams are drawn inside each other more than " .. MAX_DEPTH .. " levels deep")
   end
   for _, file in ipairs(files) do
     if not seen[file] then
@@ -586,13 +627,16 @@ local function add_image_files(files, root, parts, seen, depth)
       elseif lower:match("%.vl%.json$") or lower:match("%.vl$") then
         seen[file] = true
         add_chart_sources(file, pandoc.path.directory(file), parts, seen, depth + 1)
+      elseif lower:match("%.mmd$") or lower:match("%.mermaid$") then
+        add_mermaid_sources(file, root, parts, seen, depth + 1)
       else
         seen[file] = true
         local data = read_file(file)
         if data then
           if #parts >= MAX_DEPENDENCIES then
-            fail("the chart and the files it draws are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
-              .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+            fail("the chart or diagram and the files it draws are more than " .. MAX_DEPENDENCIES
+              .. " files; the limit is " .. MAX_DEPENDENCIES
+              .. " (every file must be hashed so that a changed one is drawn again)")
           end
           table.insert(parts, label(root, file) .. "\n" .. data)
         end
@@ -659,6 +703,68 @@ function add_chart_sources(path, root, parts, seen, depth)
       table.insert(pictures, resolved)
     end
   end
+  table.sort(pictures)
+  if #pictures > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' names " .. #pictures .. " pictures; the limit is "
+      .. MAX_DEPENDENCIES .. " (every picture must be hashed so that a changed one is drawn again)")
+  end
+  add_image_files(pictures, root, parts, seen, depth)
+end
+
+-- Collects the links of the pictures that a Mermaid diagram draws in its nodes: the img of a shape's data
+-- (A@{ img: "part.png" }, quoted or not) and the src of an <img> tag in a label. Text that only looks like one (in
+-- a comment, say) can only add a file to the hash.
+local function collect_mermaid_links(content, links)
+  for _, quote in ipairs({ '"', "'" }) do
+    for link in content:gmatch("img%s*:%s*" .. quote .. "([^" .. quote .. "\r\n]*)" .. quote) do
+      links[link] = true
+    end
+  end
+  for link in content:gmatch("img%s*:%s*([^%s\"',}][^,}\r\n]*)") do
+    links[(link:gsub("%s+$", ""))] = true
+  end
+  for tag in content:gmatch("<[iI][mM][gG][^>]*>") do
+    for _, quote in ipairs({ '"', "'" }) do
+      for link in tag:gmatch("[sS][rR][cC]%s*=%s*" .. quote .. "([^" .. quote .. "]*)" .. quote) do
+        links[link] = true
+      end
+    end
+    for link in tag:gmatch("[sS][rR][cC]%s*=%s*([^%s\"'>][^%s>]*)") do
+      links[link] = true
+    end
+  end
+end
+
+-- Adds a Mermaid diagram and the local pictures its nodes name to the hash input: a link is taken from the
+-- diagram's folder without its fragment ("#page=2", "#theme=dark") or query, a remote or absolute link (which
+-- the tool refuses) is skipped, and a linked model, chart or diagram adds its own files. A diagram that names
+-- more than MAX_DEPENDENCIES different local pictures stops the build, as for a chart.
+function add_mermaid_sources(path, root, parts, seen, depth)
+  seen[path] = true
+  local content = read_file(path)
+  if not content then
+    return
+  end
+  if #parts >= MAX_DEPENDENCIES then
+    fail("the diagram and the files it draws are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  table.insert(parts, label(root, path) .. "\n" .. content)
+  local links = {}
+  collect_mermaid_links(content, links)
+  local folder = pandoc.path.directory(path)
+  local pictures = {}
+  local unique = {}
+  for link in pairs(links) do
+    for _, name in ipairs({ link, decode_percent(link) }) do
+      local resolved = local_image_file(folder, name)
+      if resolved and not unique[resolved] and file_exists(resolved) then
+        unique[resolved] = true
+        table.insert(pictures, resolved)
+      end
+    end
+  end
+  -- Sorted, so the order the links are met in cannot change the picture's name.
   table.sort(pictures)
   if #pictures > MAX_DEPENDENCIES then
     fail("'" .. pandoc.path.filename(path) .. "' names " .. #pictures .. " pictures; the limit is "
@@ -759,6 +865,17 @@ local OPTIONS = {
         fail("'" .. src .. "' has projection=" .. value .. "; write ortho or perspective")
       end
       return projection
+    end,
+  },
+  theme = {
+    kinds = MERMAID,
+    applies = "Mermaid diagrams",
+    check = function(src, value)
+      local theme = value:lower()
+      if not THEMES[theme] then
+        fail("'" .. src .. "' has theme=" .. value .. "; write default, base, dark, forest or neutral")
+      end
+      return theme
     end,
   },
 }
@@ -862,14 +979,34 @@ end
 
 math.randomseed(os.time() + math.floor(os.clock() * 1000000))
 
-function Image(img)
-  local kind = kind_of(img.src)
-  if not kind then
-    return nil
+-- Writes a text file under a temporary name and then renames it, so a build running at the same time never reads
+-- a half-written file. A file that is there already holds the same text (its name is a hash of it).
+local function write_atomically(path, content)
+  if file_exists(path) then
+    return
   end
+  local partial = path .. "." .. tostring(math.random(100000000, 999999999)) .. ".partial"
+  local handle = io.open(partial, "wb")
+  if not handle then
+    fail("could not write " .. partial)
+  end
+  handle:write(content)
+  handle:close()
+  if not os.rename(partial, path) then
+    -- Another build wrote the same file first.
+    os.remove(partial)
+    if not file_exists(path) then
+      fail("could not write " .. path)
+    end
+  end
+end
 
-  local source = find_source(img.src)
-  local options, keep = build_options(img.src, kind, img.attributes)
+-- Draws a source file into the cache folder, unless it is there already, and returns the picture's file and the
+-- attributes that stay on the picture. A diagram of a type the tool does not draw yet returns nil (it is left as
+-- written, for another filter): the tool's message is a warning, and a marker in the cache that holds it saves
+-- later builds from starting the tool for it again.
+local function draw(name, source, kind, attributes, stem)
+  local options, keep = build_options(name, kind, attributes)
   local command = find_tool()
 
   local root = pandoc.path.directory(source)
@@ -878,10 +1015,12 @@ function Image(img)
     add_scad_sources(root, source, {}, sources, 0)
   elseif kind == "vegalite" then
     add_chart_sources(source, root, sources)
+  elseif kind == "mermaid" then
+    add_mermaid_sources(source, root, sources, {}, 0)
   else
     local content = read_file(source)
     if not content then
-      fail("cannot read '" .. img.src .. "'")
+      fail("cannot read '" .. name .. "'")
     end
     table.insert(sources, pandoc.path.filename(source) .. "\n" .. content)
   end
@@ -894,53 +1033,146 @@ function Image(img)
     table.concat(sources, "\n\0\n"),
   }, "\n\0\n"))
 
-  local stem = pandoc.path.split_extension(pandoc.path.filename(source))
-  stem = stem:gsub("%.vl$", ""):gsub("[^%w_-]", "-")
   pandoc.system.make_directory(out_dir, true)
   local out_file = pandoc.path.join({ out_dir, stem .. "-" .. key .. ".png" })
+  local marker = pandoc.path.join({ out_dir, key .. ".unsupported" })
+  local left_alone = "; it is left as written, for another filter such as mermaid-filter"
 
-  if not file_exists(out_file) then
-    local suffix = tostring(math.random(100000000, 999999999))
-    local partial = pandoc.path.join({ out_dir, key .. "." .. suffix .. ".partial.png" })
-    local args = {}
-    for _, part in ipairs(command.leading) do
-      table.insert(args, part)
-    end
-    table.insert(args, "render")
-    table.insert(args, source)
-    for _, option in ipairs(options) do
-      table.insert(args, option)
-    end
-    table.insert(args, "--output")
-    table.insert(args, partial)
-    table.insert(args, "--json")
+  if file_exists(out_file) then
+    return out_file, keep
+  end
+  local known = read_file(marker)
+  if known then
+    warn("canvasnet.lua: " .. name .. ": " .. known .. left_alone)
+    return nil
+  end
 
-    local ok, result = pcall(pandoc.pipe, command.program, args, "")
-    if not ok then
+  local suffix = tostring(math.random(100000000, 999999999))
+  local partial = pandoc.path.join({ out_dir, key .. "." .. suffix .. ".partial.png" })
+  local args = {}
+  for _, part in ipairs(command.leading) do
+    table.insert(args, part)
+  end
+  table.insert(args, "render")
+  table.insert(args, source)
+  for _, option in ipairs(options) do
+    table.insert(args, option)
+  end
+  table.insert(args, "--output")
+  table.insert(args, partial)
+  table.insert(args, "--json")
+
+  local ok, result = pcall(pandoc.pipe, command.program, args, "")
+  if not ok then
+    os.remove(partial)
+    fail("drawing '" .. name .. "' failed: " .. describe_failure(result))
+  end
+
+  local doc = decode(result) or {}
+  for _, diagnostic in ipairs(doc.diagnostics or {}) do
+    -- Only the diagram itself being a type the tool does not draw leaves the picture alone; the same report about
+    -- a picture embedded in it (which carries the chain of embedding files in "origin") is an ordinary note.
+    local embedded = type(diagnostic.origin) == "table" and #diagnostic.origin > 0
+    if kind == "mermaid" and diagnostic.code == UNSUPPORTED_DIAGRAM and not embedded then
       os.remove(partial)
-      fail("drawing '" .. img.src .. "' failed: " .. describe_failure(result))
+      local message = tostring(diagnostic.message)
+      write_atomically(marker, message)
+      warn("canvasnet.lua: " .. name .. ": " .. message .. left_alone)
+      return nil
     end
+  end
+  for _, diagnostic in ipairs(doc.diagnostics or {}) do
+    warn("canvasnet.lua: " .. name .. ": " .. tostring(diagnostic.message))
+  end
+  for _, line in ipairs(doc.echo or {}) do
+    warn("canvasnet.lua: " .. name .. ": " .. tostring(line))
+  end
 
-    local doc = decode(result)
-    if doc then
-      for _, diagnostic in ipairs(doc.diagnostics or {}) do
-        warn("canvasnet.lua: " .. img.src .. ": " .. tostring(diagnostic.message))
-      end
-      for _, line in ipairs(doc.echo or {}) do
-        warn("canvasnet.lua: " .. img.src .. ": " .. tostring(line))
-      end
+  if not os.rename(partial, out_file) then
+    -- Another build drew the same picture first; its copy is identical.
+    os.remove(partial)
+    if not file_exists(out_file) then
+      fail("could not write the picture of '" .. name .. "' to " .. out_file)
     end
+  end
+  return out_file, keep
+end
 
-    if not os.rename(partial, out_file) then
-      -- Another build drew the same picture first; its copy is identical.
-      os.remove(partial)
-      if not file_exists(out_file) then
-        fail("could not write the picture of '" .. img.src .. "' to " .. out_file)
-      end
-    end
+function Image(img)
+  local kind = kind_of(img.src)
+  if not kind then
+    return nil
+  end
+
+  local source = find_source(img.src)
+  local stem = pandoc.path.split_extension(pandoc.path.filename(source))
+  stem = stem:gsub("%.vl$", ""):gsub("[^%w_-]", "-")
+  local out_file, keep = draw(img.src, source, kind, img.attributes, stem)
+  if not out_file then
+    return nil
   end
 
   img.src = picture_src(out_file)
   img.attributes = keep
   return img
+end
+
+-- The name a message gives a code block: its identifier, else its first line.
+local function block_name(block)
+  if block.identifier ~= "" then
+    return "mermaid block #" .. block.identifier
+  end
+  local first = (block.text:match("^%s*([^\r\n]*)") or ""):gsub("%s+$", "")
+  local length = utf8.len(first)
+  if length and length > 40 then
+    first = first:sub(1, utf8.offset(first, 41) - 1) .. "..."
+  end
+  return "mermaid block (" .. first .. ")"
+end
+
+-- A fenced code block of class mermaid: the text is written to the cache folder as <hash>.mmd and drawn like a
+-- .mmd picture, and the block becomes the picture (a figure when it has a caption attribute). A diagram type the
+-- tool does not draw yet leaves the block as it is, for mermaid-filter.
+function CodeBlock(block)
+  if not block.classes:includes("mermaid") then
+    return nil
+  end
+
+  local name = block_name(block)
+  local attributes = {}
+  local caption = nil
+  for key, value in pairs(block.attributes) do
+    if key == "caption" then
+      caption = value
+    else
+      attributes[key] = value
+    end
+  end
+
+  pandoc.system.make_directory(out_dir, true)
+  local text = block.text .. "\n"
+  local source = pandoc.path.join({ out_dir, pandoc.sha1("canvasnet.lua mermaid block\n" .. text) .. ".mmd" })
+  write_atomically(source, text)
+
+  local out_file, keep = draw(name, source, "mermaid", attributes, "mermaid")
+  if not out_file then
+    return nil
+  end
+
+  local classes = {}
+  for _, class in ipairs(block.classes) do
+    if class ~= "mermaid" then
+      table.insert(classes, class)
+    end
+  end
+  local description = {}
+  if caption then
+    description = pandoc.utils.blocks_to_inlines(pandoc.read(caption, "markdown").blocks)
+  end
+  local src = picture_src(out_file)
+  if caption then
+    local image = pandoc.Image(description, src, "", pandoc.Attr("", classes, keep))
+    return pandoc.Figure({ pandoc.Plain({ image }) }, { pandoc.Plain(description) }, pandoc.Attr(block.identifier))
+  end
+  return pandoc.Para({ pandoc.Image(description, src, "", pandoc.Attr(block.identifier, classes, keep)) })
 end

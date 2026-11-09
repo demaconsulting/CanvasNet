@@ -1,0 +1,68 @@
+---
+# Software Unit Requirements for DagreOrdering
+#
+# These requirements describe the design-level behavior of the DagreOrdering unit of the Dagre subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's crossing reduction (order/index.js, init-order.js,
+# build-layer-graph.js, sort-subgraph.js, barycenter.js, resolve-conflicts.js, sort.js, cross-count.js and
+# add-subgraph-constraints.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-ordering.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreOrdering Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreOrdering-InitialOrder
+                title: >-
+                  The DagreOrdering unit shall start from the order in which a depth-first search over successors,
+                  started from the nodes in rank order, reaches the nodes of each rank.
+                justification: |
+                  The sweeps improve on a starting order; only dagre's starting order leads to dagre's result.
+                tests:
+                  - DagreOrdering_InitOrder_TwoChains_OrderedBySearch
+
+              - id: CanvasNetMermaid-Dagre-DagreOrdering-Sweeps
+                title: >-
+                  The DagreOrdering unit shall sweep the ranks alternately down and up, with ties biased left and
+                  right in turns, keep the order with the fewest weighted crossings, and stop after four sweeps in a
+                  row without improvement.
+                justification: |
+                  Fewer crossings make a readable flowchart, and dagre's sweep schedule decides which of several
+                  equally good orders is kept.
+                tests:
+                  - DagreOrdering_Order_CrossingGraph_RemovesCrossing
+
+              - id: CanvasNetMermaid-Dagre-DagreOrdering-CrossCount
+                title: >-
+                  The DagreOrdering unit shall count the weighted edge crossings between every two adjacent ranks of
+                  an order.
+                justification: |
+                  The crossing count decides which order the sweeps keep.
+                tests:
+                  - DagreOrdering_CrossCount_Layering_CountsWeightedCrossings
+
+              - id: CanvasNetMermaid-Dagre-DagreOrdering-Barycenter
+                title: >-
+                  The DagreOrdering unit shall order the movable nodes of a rank by the weighted average order of
+                  their neighbors in the fixed rank, ties by their previous index biased left or right, and keep a
+                  node without neighbors there at its previous index.
+                justification: |
+                  This is dagre's barycenter heuristic; the same averages and tie rules give the same order.
+                tests:
+                  - DagreOrdering_Barycenters_MovableLayer_WeightedAverages
+                  - DagreOrdering_Sort_Entries_SortedByBarycenter
+
+              - id: CanvasNetMermaid-Dagre-DagreOrdering-ClusterConstraints
+                title: >-
+                  The DagreOrdering unit shall keep the members of each cluster contiguous in every rank and keep
+                  sibling clusters in the relative order first found, merging nodes whose barycenters contradict
+                  such a constraint.
+                justification: |
+                  A subgraph is drawn as one box, so its members may not be interleaved with other nodes.
+                tests:
+                  - DagreOrdering_ResolveConflicts_NoConflict_Unchanged
+                  - DagreOrdering_ResolveConflicts_Conflicts_Coalesced
+                  - DagreOrdering_ResolveConflicts_NoBarycenter_MergedOnlyWithConstraint
+                  - DagreOrdering_AddSubgraphConstraints_SiblingClusters_Constrained

@@ -107,7 +107,7 @@ public class ValidationTests
             // Act: run the self-validation
             var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
 
-            // Assert: each self-test passed and is named in the results file, and sixteen self-tests ran in all
+            // Assert: each self-test passed and is named in the results file, and seventeen self-tests ran in all
             Assert.Equal(0, context.ExitCode);
             var content = File.ReadAllText(resultsFile);
             foreach (var name in new[] { "CanvasNetTool_Compare", "CanvasNetTool_Montage" })
@@ -116,7 +116,7 @@ public class ValidationTests
                 Assert.Contains(name, content);
             }
 
-            Assert.Contains("Total Tests: 16", stdOut);
+            Assert.Contains("Total Tests: 17", stdOut);
         }
         finally
         {
@@ -153,7 +153,7 @@ public class ValidationTests
     }
 
     /// <summary>
-    ///     Test that Run executes the Vega-Lite self-test, records it in the results file, and that sixteen self-tests ran.
+    ///     Test that Run executes the Vega-Lite self-test, records it in the results file, and that seventeen self-tests ran.
     /// </summary>
     [Fact]
     public void Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded()
@@ -168,18 +168,77 @@ public class ValidationTests
             // Act: run the self-validation
             var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
 
-            // Assert: the chart self-test passed, is named in the results file, and all sixteen self-tests passed
+            // Assert: the chart self-test passed, is named in the results file, and all seventeen self-tests passed
             Assert.Equal(0, context.ExitCode);
             Assert.Contains("✓ CanvasNetTool_RenderVegaLite - Passed", stdOut);
             Assert.Contains("CanvasNetTool_RenderVegaLite", File.ReadAllText(resultsFile));
-            Assert.Contains("Total Tests: 16", stdOut);
-            Assert.Contains("Passed: 16", stdOut);
+            Assert.Contains("Total Tests: 17", stdOut);
+            Assert.Contains("Passed: 17", stdOut);
             Assert.Contains("Failed: 0", stdOut);
         }
         finally
         {
             File.Delete(resultsFile);
         }
+    }
+
+    /// <summary>
+    ///     Test that Run executes the Mermaid self-test and records it in the results file.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_MermaidSelfTest_PassesAndIsRecorded()
+    {
+        // Arrange: a temporary TRX path and a context that is not silent
+        var resultsFile = Path.Combine(Path.GetTempPath(), $"canvasnet_validation_test_{Guid.NewGuid()}.trx");
+
+        try
+        {
+            using var context = Context.Create(["--results", resultsFile]);
+
+            // Act: run the self-validation
+            var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+
+            // Assert: the diagram self-test passed, is named in the results file, and no test failed
+            Assert.Equal(0, context.ExitCode);
+            Assert.Contains("✓ CanvasNetTool_RenderMermaid - Passed", stdOut);
+            Assert.Contains("CanvasNetTool_RenderMermaid", File.ReadAllText(resultsFile));
+            Assert.Contains("Failed: 0", stdOut);
+        }
+        finally
+        {
+            File.Delete(resultsFile);
+        }
+    }
+
+    /// <summary>
+    ///     Test that Run executes the seventeen self-tests in their documented order, with the Mermaid self-test right after the
+    ///     Vega-Lite one and the help-examples self-test last.
+    /// </summary>
+    [Fact]
+    public void Validation_Run_SeventeenSelfTests_RunInTheDocumentedOrder()
+    {
+        // Arrange: a silent-free context without a results file
+        using var context = Context.Create([]);
+
+        // Act: run the self-validation
+        var (stdOut, _) = ToolHost.Capture(() => Validation.Run(context));
+
+        // Assert: the names of the passed tests, in the order they were printed
+        var names = stdOut.Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("✓ ", StringComparison.Ordinal))
+            .Select(line => line[2..line.IndexOf(" - ", StringComparison.Ordinal)])
+            .ToList();
+        Assert.Equal(
+            [
+                "CanvasNetTool_VersionDisplay", "CanvasNetTool_HelpDisplay", "CanvasNetTool_Formats", "CanvasNetTool_RenderPng",
+                "CanvasNetTool_ConvertFormats", "CanvasNetTool_Info", "CanvasNetTool_RenderSvg", "CanvasNetTool_PdfMinimal",
+                "CanvasNetTool_RenderScad", "CanvasNetTool_RenderVegaLite", "CanvasNetTool_RenderMermaid", "CanvasNetTool_CropResize",
+                "CanvasNetTool_RotateFlipPad", "CanvasNetTool_Compare", "CanvasNetTool_Montage", "CanvasNetTool_Adjustments",
+                "CanvasNetTool_HelpExamples"
+            ],
+            names);
+        Assert.Equal(0, context.ExitCode);
     }
 
     /// <summary>

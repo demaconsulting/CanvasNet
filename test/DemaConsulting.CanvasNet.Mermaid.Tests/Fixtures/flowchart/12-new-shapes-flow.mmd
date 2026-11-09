@@ -1,0 +1,6 @@
+flowchart LR
+    s@{ shape: sm-circ } --> a@{ shape: diam, label: Choice }
+    a --> b@{ shape: hex, label: Prepare }
+    b --> f@{ shape: fork }
+    f --> j@{ shape: f-circ }
+    j --> e@{ shape: fr-circ }

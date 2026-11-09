@@ -1,0 +1,113 @@
+---
+# Software Unit Requirements for Preprocessor
+#
+# These requirements describe the design-level behavior of the Preprocessor unit of the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the preparation of a diagram text exactly as
+# Mermaid prepares it before detection and parsing (line endings, HTML attribute quotes, the YAML frontmatter,
+# directives, comment lines, and entity encoding), the text size limits, and the map from every prepared position
+# back to the original text. See docs/verification/canvas-net-mermaid/syntax/preprocessor.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: Preprocessor Requirements
+            requirements:
+              - id: CanvasNetMermaid-Syntax-Preprocessor-TextCleanup
+                title: >-
+                  The Preprocessor unit shall turn every carriage return and line feed pair and every lone carriage
+                  return into a line feed, and the double quotes around the attribute values of an HTML tag into
+                  single quotes, as Mermaid's text clean-up does.
+                justification: |
+                  Mermaid's parsers see only line feeds and single-quoted HTML attributes; a double quote inside a
+                  tag would otherwise end a quoted label.
+                tests:
+                  - Preprocessor_Run_LineEndings_NormalizedAndMapped
+                  - Preprocessor_CleanupText_HtmlAttributes_UseSingleQuotes
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-Frontmatter
+                title: >-
+                  The Preprocessor unit shall recognize a YAML frontmatter block at the start of a text exactly
+                  where Mermaid's frontmatter expression does (indented, empty, and unclosed blocks included),
+                  remove it from the code, and keep only the title and display mode (converted to text as
+                  JavaScript does, and dropped when falsy) and the configuration of a frontmatter that is a mapping.
+                justification: |
+                  The frontmatter carries the title and configuration of the diagram, and a block that Mermaid does
+                  not take for frontmatter is diagram code.
+                tests:
+                  - Preprocessor_Run_Frontmatter_IsReadAndRemoved
+                  - Preprocessor_Run_FrontmatterTitle_FollowsJavaScriptConversion
+                  - Preprocessor_MatchFrontmatter_Indented_RemovesIndentFromBody
+                  - Preprocessor_MatchFrontmatter_EmptyAndUnclosed_FollowMermaidExpression
+                  - Preprocessor_Run_FrontmatterNotMapping_KeepsNothing
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-FrontmatterErrors
+                title: >-
+                  The Preprocessor unit shall report a frontmatter whose YAML is not valid or uses a refused
+                  construct as a syntax error located on its line of the original text.
+                justification: |
+                  Mermaid fails on invalid frontmatter; the author must be pointed at the offending line, not at a
+                  line of the frontmatter body counted from its own start.
+                tests:
+                  - Preprocessor_Run_FrontmatterInvalidYaml_ThrowsLocated
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-Directives
+                title: >-
+                  The Preprocessor unit shall find every directive of a text as Mermaid finds it - its type, its
+                  arguments with single quotes replaced by double quotes, whether the arguments are a JSON text, and
+                  its location - in text order, and remove every directive from the code.
+                justification: |
+                  Init directives carry configuration that the configuration stage interprets, and directives are not
+                  part of the diagram language.
+                tests:
+                  - Preprocessor_Run_Directives_AreDetectedAndRemoved
+                  - Preprocessor_TryMatchDirective_Forms_FollowMermaidExpression
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-Comments
+                title: >-
+                  The Preprocessor unit shall remove the comment lines of a text (a line that starts with two
+                  percent signs that do not open a directive) together with the blank lines before them, keep a
+                  comment that follows code on its line, and remove the leading white space of the code.
+                justification: |
+                  Mermaid removes whole comment lines before parsing; the rest of the text must stay as written.
+                tests:
+                  - Preprocessor_CleanupComments_RemovesCommentLinesOnly
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-EntityEncoding
+                title: >-
+                  The Preprocessor unit shall give the parsers the code with Mermaid's entity encoding (named and
+                  numeric entities written with a number sign replaced by Mermaid's private markers, and the last
+                  semicolon of a style or class definition line with a color dropped) and a final line feed.
+                justification: |
+                  Mermaid's grammars and label decoding expect the encoded text; a color such as #f9f; must not be
+                  taken for an entity.
+                tests:
+                  - Preprocessor_EncodeEntities_EncodesEntitiesAndStyleSemicolons
+                  - Preprocessor_Run_ParserText_EndsWithLineFeedAndMaps
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-Locations
+                title: >-
+                  The Preprocessor unit shall locate every position of the prepared code and parser text, and of
+                  the frontmatter, at the one-based line and column of the original text, counting line feeds,
+                  carriage return and line feed pairs, and lone carriage returns as line ends.
+                justification: |
+                  Every diagnostic of a later stage must point into the text the author wrote, although the text the
+                  stages read has been rewritten.
+                tests:
+                  - Preprocessor_Run_LineEndings_NormalizedAndMapped
+                  - Preprocessor_Run_Frontmatter_IsReadAndRemoved
+                  - Preprocessor_Run_ParserText_EndsWithLineFeedAndMaps
+
+              - id: CanvasNetMermaid-Syntax-Preprocessor-SizeLimits
+                title: >-
+                  The Preprocessor unit shall refuse, as invalid data, code longer than the text size limit after
+                  the frontmatter, directives, and comment lines are removed, and an original text longer than four
+                  times that limit, and shall prepare a text in time that grows linearly with its length.
+                justification: |
+                  Mermaid's text size limit measures the code; the second bound limits the work done before the code
+                  is known, and no text may make a preparation step quadratic.
+                tests:
+                  - Preprocessor_Run_SizeLimits_ThrowInvalidData
+                  - Preprocessor_Steps_LongRepeatedPattern_Complete

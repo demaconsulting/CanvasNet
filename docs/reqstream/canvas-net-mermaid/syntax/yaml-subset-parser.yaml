@@ -1,0 +1,90 @@
+---
+# Software Unit Requirements for YamlSubsetParser
+#
+# These requirements describe the design-level behavior of the YamlSubsetParser unit of the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the reader of the YAML that Mermaid reads with
+# js-yaml and its JSON schema (the frontmatter and the shape data of nodes and edges), the JavaScript view of the
+# values, the refused constructs, and the nesting limit. See
+# docs/verification/canvas-net-mermaid/syntax/yaml-subset-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: YamlSubsetParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-Documents
+                title: >-
+                  The YamlSubsetParser unit shall read a YAML text that holds at most one document - block and flow
+                  mappings and sequences, plain, single-quoted, double-quoted, literal, and folded scalars with
+                  their chomping and indentation, comments, and line folding - to the value that js-yaml gives
+                  Mermaid for it.
+                justification: |
+                  The frontmatter and the shape data must have the values Mermaid reads from them, whatever YAML
+                  style the author used.
+                tests:
+                  - YamlSubsetParser_Parse_Documents_MatchJsYaml
+
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-ImplicitTypes
+                title: >-
+                  The YamlSubsetParser unit shall resolve a plain scalar with the implicit types of js-yaml's JSON
+                  schema - null, boolean, integer (decimal, hexadecimal, octal, and binary digits), and float (with
+                  infinity and not a number) - and keep any other text as a string.
+                justification: |
+                  Mermaid's frontmatter values are the values of that schema; for example, 1_000 is text and 0x1F
+                  is 31.
+                tests:
+                  - YamlSubsetParser_Parse_ImplicitTypes_MatchJsonSchema
+
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-JavaScriptValues
+                title: >-
+                  The YamlSubsetParser unit shall give every value its JavaScript truthiness and its JavaScript
+                  conversion to text, numbers included.
+                justification: |
+                  Mermaid keeps a frontmatter title only when it is truthy and converts it with String(value); the
+                  text must be the same as Mermaid's.
+                tests:
+                  - YamlSubsetParser_FormatJsNumber_MatchesJavaScript
+                  - YamlNode_TruthinessAndString_FollowJavaScript
+
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-Errors
+                title: >-
+                  The YamlSubsetParser unit shall refuse YAML that js-yaml refuses - including duplicated keys, tab
+                  indentation, bad indentation, unterminated scalars and collections, unknown escapes, and more than
+                  one document - with a YAML syntax error that carries js-yaml's description and is located in the
+                  original text.
+                justification: |
+                  Mermaid fails on such YAML; the author needs the reason and the place.
+                tests:
+                  - YamlSubsetParser_Parse_InvalidYaml_ThrowsLocatedJsYamlError
+
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-RefusedConstructs
+                title: >-
+                  The YamlSubsetParser unit shall refuse anchors, aliases, tags, explicit keys, and directives with
+                  a located unsupported YAML error and a hint, and shall read a merge key as an ordinary key.
+                justification: |
+                  Aliases can expand a small text into a huge value, and no diagram needs any of these constructs;
+                  the JSON schema has no merge type.
+                tests:
+                  - YamlSubsetParser_Parse_RefusedConstruct_ThrowsUnsupported
+
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-Depth
+                title: >-
+                  The YamlSubsetParser unit shall refuse collections nested deeper than the YAML depth limit with a
+                  located limit-exceeded syntax error that names the limit, for block and flow collections, without
+                  exhausting the stack for any input.
+                justification: |
+                  Untrusted YAML must not overflow the stack; the limit is reported when the document is opened.
+                tests:
+                  - YamlSubsetParser_Parse_TooDeep_ThrowsLimitExceeded
+                  - YamlSubsetParser_Parse_HostileNesting_IsBounded
+
+              - id: CanvasNetMermaid-Syntax-YamlSubsetParser-Locations
+                title: >-
+                  The YamlSubsetParser unit shall give every value and every mapping key the location of its first
+                  character in the original text.
+                justification: |
+                  Configuration reports and shape data errors point at the key or value they are about.
+                tests:
+                  - YamlSubsetParser_Parse_Nodes_CarryLocations

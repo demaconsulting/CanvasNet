@@ -25,17 +25,18 @@
         { "term": "input-not-found", "text": "The input file or folder does not exist. Check the path." },
         { "term": "input-unreadable", "text": "The input exists but cannot be read (permissions, a folder, a locked file)." },
         { "term": "unsupported-format", "text": "The input is not a format the tool reads. 'canvasnet formats' lists them." },
-        { "term": "corrupt-input", "text": "The content is damaged, or is not what its extension says, or a model, chart, or SVG file is beyond a size or depth limit. Repair or replace the file." },
+        { "term": "corrupt-input", "text": "The content is damaged, or is not what its extension says, or a model, chart, diagram, or SVG file is beyond a size or depth limit. Repair or replace the file." },
         { "term": "unsupported-feature", "text": "The file is valid but uses a feature the library cannot draw or decode, or any skipped feature with --strict. Remove the feature, or drop --strict if it is only a skipped picture." },
         { "term": "page-out-of-range", "text": "--page, or a page= or slide= fragment of the input, is beyond the last page. Pages are counted from 1; 'canvasnet info' gives the count." },
-        { "term": "image-fragment-invalid", "text": "The fragment of an input ('#...' after the file name, as in part.scad#def.width=20) cannot be used: it is longer than 2048 characters or has more than 32 parameters, a page is not a whole number, a def. or param. value is not valid (a vector must be a JSON array, a param. value valid JSON when it starts with a bracket, brace, or quote), a def. name is not an identifier, or the view is not one of the views. Fix the value, and quote the input in a shell so that & is not read as a command separator. An unknown parameter name is only a warning (image-fragment-unknown-parameter, or vl-param-unknown for a chart)." },
+        { "term": "image-fragment-invalid", "text": "The fragment of an input ('#...' after the file name, as in part.scad#def.width=20) cannot be used: it is longer than 2048 characters or has more than 32 parameters, a page is not a whole number, a def. or param. value is not valid (a vector must be a JSON array, a param. value valid JSON when it starts with a bracket, brace, or quote), a def. name is not an identifier, the view is not one of the views, or the theme is not a Mermaid theme. Fix the value, and quote the input in a shell so that & is not read as a command separator. An unknown parameter name is only a warning (image-fragment-unknown-parameter, or vl-param-unknown for a chart)." },
         { "term": "size-limit", "text": "A requested, declared, or resulting size exceeds {{maxDimension}} pixels on a side. Use a smaller size, resolution, or border." },
         { "term": "same-input-output", "text": "The output file is the input file. Name a different output." },
         { "term": "output-exists", "text": "The output exists and --no-clobber was given." },
         { "term": "output-write-failed", "text": "The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk)." },
         { "term": "scad-error", "text": "An OpenSCAD model has a syntax error, an evaluation error, or an include that cannot be read; the message has file, line, and column." },
         { "term": "vega-lite-error", "text": "A Vega-Lite chart has an invalid specification, a data file that is missing or refused, or cannot be laid out or drawn; the message has file, line, column, and JSON pointer." },
-        { "term": "budget-exceeded", "text": "A model exceeds a rendering limit such as --max-triangles, or a chart exceeds a limit of the chart library. Raise the limit (a model) or simplify the model or chart." },
+        { "term": "mermaid-error", "text": "A Mermaid diagram has a syntax error (mermaid-syntax-error), an unknown diagram type (mermaid-unknown-diagram), invalid frontmatter, or cannot be laid out; the message has file, line, column, and the mermaid-* code, and the hint suggests the fix." },
+        { "term": "budget-exceeded", "text": "A model exceeds a rendering limit such as --max-triangles, or a chart or diagram exceeds a limit of its library (mermaid-limit-exceeded for a diagram). Raise the limit (a model) or simplify the model, chart, or diagram." },
         { "term": "size-mismatch", "text": "compare was given two images of different sizes and no --resize-to." },
         { "term": "threshold-failed", "text": "compare measured a value on the wrong side of a --threshold limit; the result and the pictures were still written." }
       ]
@@ -47,8 +48,8 @@
         { "text": "A diagnostic is a note in diagnostics[] of a successful result: the picture was drawn without a feature (severity unsupported) or with a questionable construct (severity warning). Read diagnostics even when ok is true." },
         { "text": "Without --json each diagnostic is also written to standard error, one line each: 'Unsupported: <code>: <message>' for severity unsupported and 'Warning: <code>: <message>' for severity warning, with the input and page (or the side of a comparison) in parentheses at the end. The exit code stays 0 and standard output keeps only the result. At most 20 are written, then '... and N more diagnostics (use --json for all)'." },
         { "text": "A SCAD model's echo output is written to standard error as the model printed it ('ECHO: <text>'), at most 20 lines. --silent suppresses all of these lines; with --json none are written (standard output is one JSON document and diagnostics[] and echo[] carry the same notes)." },
-        { "text": "Only SCAD models, Vega-Lite charts, PPTX documents (skipped EMF and WMF pictures), VSDX documents, and SVG files (an image that was not drawn, and the notes of the files it embeds) report diagnostics. PDF and raster images do not." },
-        { "text": "The warning codes are scad-warning for a model, vega-lite-warning for a chart, svg-image-unresolved for an SVG image that was not drawn, and svg-image-too-large for an SVG image whose picture is over the pixel budget." },
+        { "text": "Only SCAD models, Vega-Lite charts, Mermaid diagrams, PPTX documents (skipped EMF and WMF pictures), VSDX documents, and SVG files (an image that was not drawn, and the notes of the files it embeds) report diagnostics. PDF and raster images do not." },
+        { "text": "The warning codes are scad-warning for a model, vega-lite-warning for a chart, mermaid-warning for a diagram (the mermaid-* code is in detail), svg-image-unresolved for an SVG image that was not drawn, and svg-image-too-large for an SVG image whose picture is over the pixel budget." },
         { "text": "The fragment of an input path (part.scad#def.width=20) adds three warning codes, the same as for an SVG link: image-fragment-unknown-parameter, image-fragment-duplicate-parameter, and vl-param-unknown (a chart). They never fail a command, not even with --strict. A fragment value that cannot be used is the error image-fragment-invalid, and a page the file does not have is page-out-of-range." }
       ]
     },
@@ -56,9 +57,9 @@
       "id": "strict",
       "title": "What --strict does",
       "items": [
-        { "term": "scad, vega-lite, vsdx", "text": "Every unsupported-feature diagnostic becomes an unsupported-feature error and no output is written." },
+        { "term": "scad, vega-lite, mermaid, vsdx", "text": "Every unsupported-feature diagnostic becomes an unsupported-feature error and no output is written." },
         { "term": "pptx", "text": "A skipped EMF or WMF picture becomes an error. Other unsupported shapes, fills, and pictures are errors with or without --strict." },
-        { "term": "svg", "text": "An image that was not drawn (svg-image-unresolved, or svg-image-too-large) becomes an unsupported-feature error, and so does an unsupported feature of a model or chart it embeds." },
+        { "term": "svg", "text": "An image that was not drawn (svg-image-unresolved, or svg-image-too-large) becomes an unsupported-feature error, and so does an unsupported feature of a model, chart, or diagram it embeds." },
         { "term": "pdf, raster", "text": "No effect: they have no diagnostics channel. A PDF feature that cannot be drawn is an error with or without --strict." }
       ]
     }

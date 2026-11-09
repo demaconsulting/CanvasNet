@@ -6,7 +6,8 @@
 
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
 resolution, and strict mode of the documents), `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
-model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), and `RenderCommandPipelineTests.cs` (the image
+model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), `RenderCommandMermaidTests.cs` (the Mermaid diagrams,
+the `--theme` option, and the theme of `inspect`), and `RenderCommandPipelineTests.cs` (the image
 pipeline options and the verb commands). The command is run
  in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
@@ -49,6 +50,11 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
+- A diagram is rendered at the size Mermaid lays it out at over white, in the theme `--theme` names (the theme
+  fragment of the input wins over the option, and a theme the text sets wins over both), with the operation, the natural
+  size, and the diagnostics in the result; a type that is not drawn yet is the diagnostic `mermaid-diagram-unsupported`
+  or, in strict mode, an error; invalid text is a `mermaid-error` with a hint; a theme that does not exist and
+  `--theme` for another kind of input (`render` and `inspect`) are usage errors; no failure leaves an output.
 - The pipeline operations are applied in the order written, after the source sizing and before the output is written,
   and each is reported with its parameters and result size; a failing operation writes nothing and leaves an
   existing output untouched; a vector source is not scaled twice; the border color default follows the background.
@@ -460,6 +466,35 @@ the larger canvas.
 **RenderCommand_Run_ScadAnchorOutsideTheCrop_IsNotInside** and
 **RenderCommand_Run_ScadAnchorBehindThePerspectiveEye_HasNullPixel**: a corner that a crop cuts away keeps its position
 and has `inside` false, and a point behind a perspective eye has a `null` pixel, `inside` false, and its world point.
+
+**RenderCommand_Run_Mermaid_WritesTheDiagramAndDescribesIt**: a two-node flowchart rendered with `--strict` and
+`--json` writes a PNG whose size is the `natural` size of the `input` object, which names the `mermaid` format, with a
+white corner and more than 500 pixels of the default node fill; the first operation is `render` with the background
+`#FFFFFF` and no `theme` member, and there is no diagnostic.
+
+**RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence**: `--theme Forest` (another case) draws the flowchart
+in the forest theme and lists `theme` `forest` in the operation; `flow.mmd#theme=forest` with `--theme dark` draws
+and lists `forest` (the fragment wins); and a flowchart whose frontmatter sets `theme: forest` is drawn in the forest
+theme with `--theme dark` (the text wins, and the operation lists the option, `dark`).
+
+**RenderCommand_Run_MermaidThemeMistakes_AreUsageErrors**: `--theme sunset` is a `usage-error` ("'sunset' is not a
+Mermaid theme") whose hint lists `default, base, dark, forest, neutral`; `--theme dark` on a model is a `usage-error`
+that says that `--theme` only applies to a Mermaid diagram and names the `scad` kind, and writes no output; and
+`inspect colors` of the model with `--theme dark` exits with 1 and the same usage error.
+
+**RenderCommand_Run_MermaidSequence_IsUnsupportedDiagnosticThenStrictError**: a sequence diagram renders with exactly
+one diagnostic (source `mermaid`, severity `unsupported`, code `mermaid-diagram-unsupported`, a message that says
+sequence diagrams are planned, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
+
+**RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
+supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`
+line after 1; a flowchart with an unclosed bracket returns exit code 1 with the line
+`Error: mermaid-error: Mermaid syntax error: ...` and a `Hint:` line on standard error, a failure document with the
+code `mermaid-error`, and no output.
+
+**InspectCommand_Run_MermaidTheme_ReportsTheThemedColors**: `inspect pixel` of a point a few pixels inside the first
+node (14 and half the height) reports the forest node fill `#CDE498` with `--theme forest` and the default fill
+`#ECECFF` without it, so `inspect` reads a diagram in its theme as `render` does.
 
 **RenderCommand_Run_ParamScalar_SetsTheParameterAndTheNaturalSize**,
 **RenderCommand_Run_ParamSelectionAndRepeat_TakeJsonAndLastWins**,

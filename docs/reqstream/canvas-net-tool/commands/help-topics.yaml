@@ -14,11 +14,11 @@ sections:
     requirements:
       - id: CanvasNetTool-Commands-HelpTopics-Catalog
         title: >-
-          The HelpTopics class shall provide the ten help topics scad, vega-lite, svg, pdf, pptx, vsdx, raster, json,
-          errors, and limits from content shipped inside the tool, in that fixed order, each with a title, a summary,
-          and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and shall give no
-          topic a name or alias that is the name or alias of another topic, of a command, or of the help subjects help
-          and topics.
+          The HelpTopics class shall provide the eleven help topics scad, vega-lite, mermaid, svg, pdf, pptx, vsdx,
+          raster, json, errors, and limits from content shipped inside the tool, in that fixed order, each with a title,
+          a summary, and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and shall
+          give no topic a name or alias that is the name or alias of another topic, of a command, or of the help
+          subjects help and topics.
         justification: |
           A person or an agent learns the formats and the limits of the tool from the tool itself, offline and in the
           version it has installed; stable names and aliases that never collide with a command make the subject of
@@ -31,10 +31,10 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-FormatContent
         title: >-
-          The HelpTopics class shall give the topic of each input format (scad, vega-lite, svg, pdf, pptx, vsdx, and
-          raster) the sections of what is supported, what is not supported, the options that apply, the diagnostics
-          and how the strict option treats them, and the known differences from the original program, and at least two
-          examples.
+          The HelpTopics class shall give the topic of each input format (scad, vega-lite, mermaid, svg, pdf, pptx,
+          vsdx, and raster) the sections of what is supported, what is not supported, the options that apply, the
+          diagnostics and how the strict option treats them, and the known differences from the original program, and
+          at least two examples.
         justification: |
           Whether a feature will render is the first question about a format; an answer that always has the same
           parts, in the same order, can be read by a person and found by an agent without trial and error.
@@ -58,6 +58,7 @@ sections:
           - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
           - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
           - HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles
+          - HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles
           - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
           - HelpTopics_RenderExample_UnknownName_ThrowsUsageErrorListingNames
           - HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent
@@ -154,3 +155,29 @@ sections:
         tests:
           - HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages
           - HelpTopics_ErrorsTopic_ListsEveryErrorCode
+
+      - id: CanvasNetTool-Commands-HelpTopics-Mermaid
+        title: >-
+          The HelpTopics class shall provide the mermaid topic (alias mmd) with what a diagram may use (flowcharts,
+          their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles), each diagram
+          type and construct that is not drawn with the identifier of its diagnostic, the options that apply (--theme,
+          --scale, --background, and --strict), the diagnostics and errors with their codes, and the known differences
+          from Mermaid, a source example of a flowchart that renders with the strict option without a diagnostic, a
+          snippet whose nodes show a model and a chart (the examples of the scad and vega-lite topics) that renders the
+          same way once those files exist and lists one embed operation for each, and command examples for render, the
+          theme, and info; shall quote the limits of the Mermaid library (text size, nodes, edges, and pictures) from
+          the code in the mermaid and limits topics; and shall list .mmd and .mermaid among the file types an image
+          element of an SVG file may link.
+        justification: |
+          An agent that is asked to draw a diagram must learn from the tool itself which diagram types and constructs
+          are drawn, how to choose a theme, and how to show a picture in a node, and get a working diagram to start
+          from; checking the topic against the code keeps every statement of it true for the version installed.
+        tests:
+          - HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles
+          - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
+          - HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+          - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
+          - HelpTopics_Text_HasNoUnresolvedTokens
+          - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
+          - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions

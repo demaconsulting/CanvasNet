@@ -62,6 +62,7 @@ public class ViewerExceptionTests
         Assert.Equal("output-write-failed", ErrorCodes.OutputWriteFailed);
         Assert.Equal("scad-error", ErrorCodes.ScadError);
         Assert.Equal("vega-lite-error", ErrorCodes.VegaLiteError);
+        Assert.Equal("mermaid-error", ErrorCodes.MermaidError);
         Assert.Equal("budget-exceeded", ErrorCodes.BudgetExceeded);
         Assert.Equal("size-mismatch", ErrorCodes.SizeMismatch);
         Assert.Equal("threshold-failed", ErrorCodes.ThresholdFailed);

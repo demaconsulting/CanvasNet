@@ -124,18 +124,25 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`,
-`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`,
-and `threshold-failed`
+`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`,
+`budget-exceeded`, `size-mismatch`, and `threshold-failed`
 (the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also _Program Unit Design_). A code is
 never changed once
 released. For a Vega-Lite chart the codes are exact: `vega-lite-error` is an invalid specification (including a
 nesting or string longer than the parser limit, as the SCAD nesting limit is a `scad-error`) or a chart the library
-cannot lay out or draw (including any argument failure of the library, and a local data file that is missing, outside the
-folder of the specification, or not valid); `budget-exceeded` is a limit applied while the
+cannot lay out or draw (including any argument failure of the library, and a local data file that is missing, outside
+the folder of the specification, or not valid); `budget-exceeded` is a limit applied while the
 chart is laid out or drawn (including the data row, data file, and data byte limits); `corrupt-input` is a
 specification file longer than the limit of the library, as for an
-overlong SCAD model; and `size-limit` is only a chart that lays out larger than the maximum image size. See _SourceLoader
-Unit Design_ for the mapping.
+overlong SCAD model; and `size-limit` is only a chart that lays out larger than the maximum image size. For a Mermaid
+diagram `mermaid-error` is text that is not a valid diagram or a diagram the library cannot lay out or draw (with the
+hint of the library); `budget-exceeded` is a limit of the library (nodes, edges, nesting, label length, layout work,
+pictures, painted pixels); `corrupt-input` is a text longer than the text limit of the library; `size-limit` is a
+target size larger than the maximum image size (a diagram whose natural size is larger is still drawn with a smaller
+`--scale`, `--width`, or `--height`); `unsupported-feature` is a construct or a diagram type that is not drawn yet, with
+`--strict` (without it the diagnostic `mermaid-diagram-unsupported` and an empty picture); and `usage-error` is a
+`--theme` that is not a Mermaid theme or that is given for another kind of input. See _SourceLoader Unit Design_ for the
+mapping.
 
 ## Dependencies
 
@@ -144,10 +151,10 @@ Unit Design_ for the mapping.
   Integration Design_ (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
-  `CanvasNetVegaLite`, and `CanvasNetViewer` systems. The tool calls the operations of the `Imaging` subsystem of
-  `CanvasNetViewer` for everything that touches an image; that subsystem calls `CanvasNetViewer.CreateImageResolver`
-  to let an SVG file embed the files beside it (the tool passes no extra sources: it has no
-  plug-in mechanism), the core `Surface` and `Rgba32` types and the PNG, JPEG,
+  `CanvasNetVegaLite`, `CanvasNetMermaid`, and `CanvasNetViewer` systems. The tool calls the operations of the `Imaging`
+  subsystem of `CanvasNetViewer` for everything that touches an image; that subsystem calls
+  `CanvasNetViewer.CreateImageResolver` to let an SVG file embed the files beside it (the tool passes no extra sources:
+  it has no plug-in mechanism), the core `Surface` and `Rgba32` types and the PNG, JPEG,
   BMP, TIFF, GIF, and JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
   `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
@@ -155,8 +162,10 @@ Unit Design_ for the mapping.
   system, which parses, measures, and draws a chart (only its public API is used, with the options that
   make a render static and deterministic: UTC dates, only the bundled fonts, and no network; the data files of a chart
   are read by the library from the folder of the specification and below it only, because the chart is opened by its
-  path and no other data folder is passed, so there is no `--data-dir` option). The core `Fonts` and
-  `Rendering` subsystems also supply the
+  path and no other data folder is passed, so there is no `--data-dir` option), and the `MermaidDocument` type of the
+  `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the bundled fonts and no network (the
+  tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and `MermaidLimits` for the limits it quotes in
+  its help). The core `Fonts` and `Rendering` subsystems also supply the
   bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
   never depend on the fonts installed on a machine. Each
   reference is a private asset of the tool project: the library assemblies are bundled into the tool
@@ -166,11 +175,13 @@ Unit Design_ for the mapping.
   both properties: it fails if the package's nuspec declares any dependency (a tool package must carry
   everything it needs, including the third-party `DemaConsulting.TestResults` and `System.Numerics.Tensors`
   libraries and the transitively used `CanvasNetCharts` assembly), if it is not a `DotnetTool` package, or if a
-  library assembly (the `CanvasNetVegaLite` assembly included), the tool's dependency manifest (`.deps.json`) or
-  runtime configuration file, or `DotnetToolSettings.xml` is missing from the package for any target framework. The
-  package also carries the third-party license notices of the `CanvasNetVegaLite` system (the BSD-3-Clause texts of
-  Vega and Vega-Lite and the ISC text of d3, with the notice README) in its `licenses` folder, because binary
-  distributions must reproduce them, and the same job checks that they are present. The test
+  library assembly (the `CanvasNetVegaLite` and `CanvasNetMermaid` assemblies included), the tool's dependency manifest
+  (`.deps.json`) or runtime configuration file, or `DotnetToolSettings.xml` is missing from the package for any target
+  framework. The package also carries the third-party license notices of the `CanvasNetVegaLite` system (the
+  BSD-3-Clause texts of Vega and Vega-Lite and the ISC text of d3, with the notice README) and of the `CanvasNetMermaid`
+  system (the notices of Mermaid and of the libraries it was ported from, with its notice README; its d3 text is packed
+  as `Mermaid-LICENSE-d3.txt` because the chart notices already use `LICENSE-d3.txt`) in its `licenses` folder, because
+  binary distributions must reproduce them, and the same job checks that they are present. The test
   project references the libraries directly, which is what places their assemblies next to the tool
   assembly for the out-of-process system tests.
 

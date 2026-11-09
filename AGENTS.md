@@ -139,7 +139,7 @@ reqstream, versionmark, reviewmark, and sysml2tools.
 
 # Scoped Validation (ALL Agents Must Follow)
 
-The solution has eleven source projects and eleven test projects, and a full `pwsh ./build.ps1` builds and
+The solution has twelve source projects and twelve test projects, and a full `pwsh ./build.ps1` builds and
 tests all of them. While developing, build and test **only the affected test projects**; run the full
 build once before a pull request. `build.ps1` is a template-owned script and is deliberately not
 modified for this - use plain `dotnet test` on the test project instead. This policy refines any
@@ -168,6 +168,7 @@ A source project is a dependency of every project that references it, directly o
 | `DemaConsulting.CanvasNet.Render3D` | `Render3D.Tests`, `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Scad` | `Scad.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Viewer.Tests`, `Tool.Tests` |
+| `DemaConsulting.CanvasNet.Mermaid` | `Mermaid.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Viewer` | `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Tool` | `Tool.Tests` |
 | A test project only | That test project only (see the shared test support note below) |

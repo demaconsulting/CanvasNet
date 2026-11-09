@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///         The command parses the command line, checks the options against the kind of the input, and prints the
 ///         result; the work - one pass of load, transform, and write - is <see cref="ImageRenderer"/> of the Viewer
 ///         library. Loading is <see cref="SourceLoader"/>: a vector
-///         source (SVG, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
+///         source (SVG, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
 ///         white unless a background is given; a raster source is decoded, turned upright by its EXIF orientation
 ///         (unless <c>--no-auto-orient</c>), and resized when a size is requested. Writing is
 ///         <see cref="ImageWriter"/>: the format comes from the extension or <c>--format</c>, JPEG is flattened over
@@ -71,8 +71,8 @@ internal sealed partial class RenderCommand : ICommand
     private static string RenderUsage =>
         "canvasnet render <input> -o <output> [options]" + Environment.NewLine
         + Environment.NewLine
-        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, or Vega-Lite (.vl.json, .vl) and" + Environment.NewLine
-        + "writes the format of the output" + Environment.NewLine
+        + "Reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite (.vl.json, .vl), or Mermaid" + Environment.NewLine
+        + "(.mmd, .mermaid) and writes the format of the output" + Environment.NewLine
         + "extension. Vector sources are flattened over white; a JPEG is turned upright by its EXIF orientation." + Environment.NewLine
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
@@ -87,6 +87,10 @@ internal sealed partial class RenderCommand : ICommand
         + "unless its format.parse is \"auto\". --param name=value sets a parameter of the chart (a number, true, false, text," + Environment.NewLine
         + "or a JSON array or object such as brush={\"x\":[2,6]}; repeatable). A feature that is not supported yet is reported" + Environment.NewLine
         + "(an error with --strict)." + Environment.NewLine
+        + "A Mermaid diagram (flowchart) is drawn at the size Mermaid lays it out at, with the bundled fonts; --theme sets" + Environment.NewLine
+        + "its theme (default, base, dark, forest, or neutral) unless the text sets one. A diagram type that is not drawn" + Environment.NewLine
+        + "yet (sequence, class, and so on) is an empty picture with the note mermaid-diagram-unsupported; run" + Environment.NewLine
+        + "'canvasnet help mermaid' for what is supported." + Environment.NewLine
         + "An SVG drawing can embed a picture, model, chart, SVG file, or document page that sits beside it with" + Environment.NewLine
         + "<image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20 and chart.vl.json#param.cutoff=50" + Environment.NewLine
         + "set a variable or a parameter); run 'canvasnet help svg' for the file types," + Environment.NewLine
@@ -110,6 +114,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png" + Environment.NewLine
         + "  canvasnet render chart.vl.json --scale 2 -o chart.png" + Environment.NewLine
         + "  canvasnet render chart.vl.json --param cutoff=50 -o chart.png" + Environment.NewLine
+        + "  canvasnet render flow.mmd --theme dark --scale 2 -o flow.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
         + "  canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json" + Environment.NewLine
@@ -144,6 +149,14 @@ internal sealed partial class RenderCommand : ICommand
                 ErrorCodes.UsageError,
                 $"The option {string.Join(", ", ChartOptionNames)} only applies to a Vega-Lite chart, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
                 "Remove it, or render a .vl.json file.");
+        }
+
+        if (settings.Source.Mermaid != null && !info.Format.IsDiagram())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {string.Join(", ", DiagramOptionNames)} only applies to a Mermaid diagram, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
+                "Remove it, or render a .mmd file.");
         }
 
         // The operation reports the mistakes about the pages and the outputs before any pixels are decoded, then

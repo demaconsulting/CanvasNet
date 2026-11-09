@@ -23,10 +23,11 @@ sections:
       - id: CanvasNetViewer-Imaging-Load
         title: >-
           The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
-          VSDX, SCAD, or Vega-Lite file (a chosen page of a document, a named view of a model, a chart)
-          into pixels at the size and resolution the options ask for, and shall report the facts of a
-          file, including the pages of a document, the declarations of a model, and the marks, data, and
-          parameters of a chart, without decoding or rendering it.
+          VSDX, SCAD, Vega-Lite, or Mermaid file (a chosen page of a document, a named view of a model, a
+          chart, a diagram) into pixels at the size and resolution the options ask for, and shall report the
+          facts of a file, including the pages of a document, the declarations of a model, the marks, data,
+          and parameters of a chart, and the type, direction, titles, and numbers of nodes, edges, and
+          subgraphs of a diagram, without decoding or rendering it.
         justification: |
           Every command needs one place that recognizes a file, reads its header, and produces the
           pixels, so that the formats behave consistently.
@@ -51,6 +52,10 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteRender
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
           - CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidProbe
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidRender
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidErrors
           - CanvasNetViewer-Imaging-SourceLoader-Sizing
           - CanvasNetViewer-Imaging-SourceLoader-Background
           - CanvasNetViewer-Imaging-SourceLoader-Exif
@@ -315,3 +320,16 @@ sections:
         tests:
           - SourceLoader_Load_VegaLiteImagePngAndScad_DrawsBothAndListsEmbedOperations
           - SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError
+
+      - id: CanvasNetViewer-Imaging-DiagramImages
+        title: >-
+          The Imaging subsystem shall show the pictures that the nodes of a Mermaid diagram name through the same
+          sandboxed resolver, notes, operations, and strict policy as the pictures of an SVG file.
+        justification: |
+          One rule for what a document may link keeps the tool from reading files that the user did not mean to
+          expose, whether the link is written in a drawing, a chart, or a diagram.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidImages
+        tests:
+          - SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations
+          - SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused

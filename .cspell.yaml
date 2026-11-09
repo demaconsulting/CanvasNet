@@ -840,6 +840,177 @@ words:
   - mousemove
   - denormal
   - slnx
+  # Mermaid / diagram terms
+  - acyclicer
+  - barycenters
+  - bilayer
+  - Brandes
+  - Colours
+  - composit
+  - cyanaqua
+  - cynefin
+  - dagre
+  - dasharray
+  - dashoffset
+  - Eades
+  - ebnf
+  - edgesep
+  - eventmodeling
+  - Fabio
+  - frontmatter
+  - Gansner
+  - gantt
+  - graphlib
+  - horiz
+  - indegree
+  - ishikawa
+  - jison
+  - Juenger
+  - katex
+  - keyify
+  - khroma
+  - Knut
+  - Koepf
+  - labeloffset
+  - labelpos
+  - labelposes
+  - LALR
+  - Maney
+  - marginx
+  - marginy
+  - mindmap
+  - minlen
+  - mmdc
+  - multigraph
+  - Mutzel
+  - nodesep
+  - Pettitt
+  - postorder
+  - preds
+  - preorder
+  - Puzrin
+  - rankdir
+  - rankdirs
+  - ranksep
+  - reparents
+  - sankey
+  - selfedge
+  - selfloop
+  - Smyth
+  - Spampinato
+  - sucs
+  - Sveidqvist
+  - tarjan
+  - treemap
+  - Vitaly
+  - wardley
+  - xychart
+  - yytext
+  # Mermaid flowchart grammar (jison terminals, shape names) and HTML label terms (DOMPurify allow lists, entities)
+  - apos
+  - autocapitalize
+  - autopictureinpicture
+  - autoplay
+  - basefont
+  - bgcolor
+  - bgsound
+  - Brkt
+  - callbackargs
+  - callbackname
+  - callto
+  - cellspacing
+  - colgroup
+  - commandfor
+  - controlslist
+  - curv
+  - CYLINDEREND
+  - CYLINDERSTART
+  - darr
+  - datalist
+  - Descr
+  - disablepictureinpicture
+  - disableremoteplayback
+  - DOUBLECIRCLEEND
+  - DOUBLECIRCLESTART
+  - enctype
+  - enterkeyhint
+  - exportparts
+  - fieldset
+  - figcaption
+  - foreignobject
+  - harr
+  - hellip
+  - hgroup
+  - hreflang
+  - inputmode
+  - INVTRAPEND
+  - INVTRAPSTART
+  - keygen
+  - laquo
+  - larr
+  - ldquo
+  - LINKSTYLE
+  - lsquo
+  - maxlength
+  - middot
+  - mtext
+  - Mult
+  - ndash
+  - nobr
+  - NODIR
+  - noembed
+  - noframes
+  - noopener
+  - noscript
+  - noshade
+  - novalidate
+  - onclick
+  - optgroup
+  - playsinline
+  - plusmn
+  - popovertarget
+  - popovertargetaction
+  - pubdate
+  - raquo
+  - rarr
+  - rdquo
+  - rowspan
+  - rsquo
+  - samp
+  - selectedcontent
+  - srclang
+  - STADIUMEND
+  - STADIUMSTART
+  - subproc
+  - SUBROUTINEEND
+  - SUBROUTINESTART
+  - tabindex
+  - TAGEND
+  - TAGSTART
+  - TESTSTR
+  - TRAPEND
+  - TRAPSTART
+  - uarr
+  - xmpp
+  # Mermaid label and shape rendering terms (SVG text, HTML blocks, test strings of the shape vectors)
+  - AVAWAY
+  - bbox
+  - cious
+  - eacute
+  - frameset
+  - Größe
+  - Supercalifragilisticexpialido
+  - tspan
+  - tspans
+  # Mermaid edge and subgraph rendering terms (d3 curves, the cluster layout)
+  - hypot
+  - Steffen's
+  - tridiagonal
+  # Mermaid documentation terms (user guide, design, and requirements)
+  - acyclicity
+  - multigraphs
+  - recomputations
+  - unloadable
 
   # SVG / CSS length and font terms
   - vmin
@@ -847,9 +1018,6 @@ words:
   - rlh
   - longhand
   - longhands
-  - dasharray
-  - dashoffset
-  - tspan
   - FFFD
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
@@ -869,3 +1037,4 @@ ignorePaths:
   - "**/PngSuite/**"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"
+  - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlEntities.cs"

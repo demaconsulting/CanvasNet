@@ -3,7 +3,7 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// <summary>
 ///     The <see cref="DemaConsulting.CanvasNet.Viewer"/> namespace is the one-stop package for reading everything
 ///     CanvasNet can read: <see cref="CanvasNetViewer"/> lists the image sources of every format package (SVG, PDF,
-///     PPTX, VSDX, OpenSCAD, Vega-Lite and the raster formats), renders any such file in one call, and creates the
+///     PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid and the raster formats), renders any such file in one call, and creates the
 ///     <see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolver"/> that lets an SVG document embed all of
 ///     them with <c>&lt;image href="..."&gt;</c>. Applications add their own
 ///     <see cref="DemaConsulting.CanvasNet.ImageSources.IImageSource"/> implementations to it, and they take precedence

@@ -147,6 +147,31 @@ sections:
           - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
           - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
 
+      - id: CanvasNetTool-Commands-DiscoveryCommands-Mermaid
+        title: >-
+          The formats command shall list the Mermaid format (mermaid, the kind diagram, the extensions .mmd and
+          .mermaid, vector, not multi-page, the help topic mermaid) in its text and JSON listings, and the info command
+          shall describe a Mermaid diagram by parsing and measuring it, without drawing it or loading its pictures: as
+          one text line with its path, the size it is laid out at, its type and direction (with a note when this
+          version does not draw the type), its numbers of nodes, edges, and subgraphs, its title and accessible title
+          when it has them, and its size in bytes; and as the image object of the JSON document (the laid-out size and
+          four channels) followed by the diagram object with the type, supported (false for a type that is recognized
+          but not drawn yet), the direction, title, and accTitle when the diagram has them, and the nodes, edges, and
+          subgraphs; a theme fragment of the input shall be checked (a name that is not a theme is
+          image-fragment-invalid) and shall not change the description.
+        justification: |
+          An agent decides whether and how to render a diagram from what it declares; the supported member tells it,
+          before it renders, that a type would give an empty picture, and the listing must name the format so that the
+          agent can discover that diagrams are read at all.
+        tests:
+          - DiscoveryCommands_Formats_IncludesMermaidDiagram
+          - DiscoveryCommands_Info_Flowchart_ReportsTheDiagramObject
+          - DiscoveryCommands_Info_SequenceDiagram_IsNotSupported
+          - DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored
+          - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
+          - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
+          - DiscoveryCommands_FormatTables_EveryListedInputFormatIsReadable
+
       - id: CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
         title: >-
           The info command shall report a missing, corrupt, or unsupported input (including a damaged

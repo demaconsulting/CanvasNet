@@ -1,0 +1,115 @@
+---
+# Software Subsystem Requirements for Syntax
+#
+# These requirements decompose the CanvasNetMermaid system's input responsibility into the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the preparation of a diagram text as Mermaid
+# prepares it before parsing, with every position mapped back to the original text (Preprocessor), the detection of
+# the diagram type (DiagramDetector), the reader of the YAML of frontmatter and shape data (YamlSubsetParser), the
+# lexer infrastructure of the diagram parsers (SourceScanner), and the clean-up of the HTML of labels with its named
+# character references (HtmlSanitizer). Each requirement here links down to the unit requirements that implement
+# it. See docs/verification/canvas-net-mermaid/syntax.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Syntax Requirements
+        requirements:
+          - id: CanvasNetMermaid-Syntax-Preprocessing
+            title: >-
+              The Syntax subsystem shall prepare a diagram text as Mermaid does before it detects and parses a
+              diagram - line endings, the quotes of HTML attributes, the YAML frontmatter (its title, display mode,
+              and configuration), the init and wrap directives, and the comment lines - and hand the frontmatter and
+              the directives, in text order and located, to the stages after it.
+            justification: |
+              A text must mean what it means to Mermaid: the frontmatter and the directives carry the title and the
+              configuration of the diagram, and what Mermaid removes before parsing must not reach the parsers.
+            children:
+              - CanvasNetMermaid-Syntax-Preprocessor-TextCleanup
+              - CanvasNetMermaid-Syntax-Preprocessor-Frontmatter
+              - CanvasNetMermaid-Syntax-Preprocessor-FrontmatterErrors
+              - CanvasNetMermaid-Syntax-Preprocessor-Directives
+              - CanvasNetMermaid-Syntax-Preprocessor-Comments
+            tests:
+              - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+
+          - id: CanvasNetMermaid-Syntax-ParserInput
+            title: >-
+              The Syntax subsystem shall give the diagram parsers the prepared text with Mermaid's entity encoding
+              and a final line feed, lex it with the semantics of the lexers that Mermaid's parsers are generated
+              with, and locate every token and every syntax error at the line and column of the original text,
+              listing the expected tokens when a token is not accepted.
+            justification: |
+              The parsers must see the same text and the same tokens as Mermaid's parsers to accept the same
+              diagrams, and an author can only fix an error that points into the text the author wrote.
+            children:
+              - CanvasNetMermaid-Syntax-Preprocessor-EntityEncoding
+              - CanvasNetMermaid-Syntax-Preprocessor-Locations
+              - CanvasNetMermaid-Syntax-SourceScanner-FirstMatch
+              - CanvasNetMermaid-Syntax-SourceScanner-StartConditions
+              - CanvasNetMermaid-Syntax-SourceScanner-EndOfInput
+              - CanvasNetMermaid-Syntax-SourceScanner-LexicalErrors
+              - CanvasNetMermaid-Syntax-SourceScanner-ExpectedTokens
+              - CanvasNetMermaid-Syntax-SourceScanner-GrammarDefects
+              - CanvasNetMermaid-Syntax-SourceScanner-JavaScriptClasses
+            tests:
+              - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+              - Syntax_ScanParserText_AfterFrontmatter_LocatesTokensAndLexicalError
+              - Syntax_ParseParserText_UnexpectedToken_ListsExpectedTokensAtOriginalLocation
+
+          - id: CanvasNetMermaid-Syntax-Detection
+            title: >-
+              The Syntax subsystem shall detect the diagram type of a text as Mermaid does, for every diagram type
+              of the pinned Mermaid release, with the location of its keyword and whether this version draws it,
+              and shall refuse a text of no known type with a located error that names the nearest keyword.
+            justification: |
+              The document reports its type without rendering, a type that is not drawn must be reported rather
+              than mistaken for an error, and an unknown keyword is most often a typo of a known one.
+            children:
+              - CanvasNetMermaid-Syntax-DiagramDetector-KnownTypes
+              - CanvasNetMermaid-Syntax-DiagramDetector-MermaidOrder
+              - CanvasNetMermaid-Syntax-DiagramDetector-RendererSettings
+              - CanvasNetMermaid-Syntax-DiagramDetector-Cleanup
+              - CanvasNetMermaid-Syntax-DiagramDetector-UnknownDiagram
+              - CanvasNetMermaid-Syntax-DiagramDetector-UnsupportedHint
+            tests:
+              - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+
+          - id: CanvasNetMermaid-Syntax-Yaml
+            title: >-
+              The Syntax subsystem shall read the YAML of a frontmatter and of the shape data of a diagram to the
+              values that Mermaid's YAML loader gives with its JSON schema, with the location of every key and
+              value, and report YAML that is not valid as a located syntax error.
+            justification: |
+              The frontmatter carries the configuration and the title, and shape data carries the shape, label, and
+              picture of a node; both must have the values Mermaid reads from them.
+            children:
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-Documents
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-ImplicitTypes
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-JavaScriptValues
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-Errors
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-Locations
+            tests:
+              - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
+
+          - id: CanvasNetMermaid-Syntax-UntrustedInput
+            title: >-
+              The Syntax subsystem shall treat a diagram text as untrusted: it shall refuse a text beyond the text
+              size limit, refuse YAML anchors, aliases, tags, explicit keys, and directives with a located error,
+              bound the nesting of YAML, prepare the text and read its YAML in time that grows linearly with the
+              text, and clean the HTML of a label of everything Mermaid's sanitizer removes without recursion.
+            justification: |
+              Diagram text may come from anyone; a small text must not expand into a huge value, exhaust the stack,
+              or take quadratic time, and label HTML must not carry scripts, event handlers, or unsafe links.
+            children:
+              - CanvasNetMermaid-Syntax-Preprocessor-SizeLimits
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-RefusedConstructs
+              - CanvasNetMermaid-Syntax-YamlSubsetParser-Depth
+              - CanvasNetMermaid-Syntax-HtmlSanitizer-FastPath
+              - CanvasNetMermaid-Syntax-HtmlSanitizer-Removal
+              - CanvasNetMermaid-Syntax-HtmlSanitizer-Links
+              - CanvasNetMermaid-Syntax-HtmlSanitizer-Serialization
+              - CanvasNetMermaid-Syntax-HtmlSanitizer-References
+              - CanvasNetMermaid-Syntax-HtmlSanitizer-Bounded
+            tests:
+              - Syntax_Preprocess_FrontmatterAlias_IsRefusedAtLocation
+              - Syntax_PrepareAndSanitizeLabel_UnsafeHtml_IsCleaned

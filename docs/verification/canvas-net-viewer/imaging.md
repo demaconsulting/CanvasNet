@@ -5,9 +5,9 @@
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
-`ImageComparison`, `ContactSheet`, `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`
-(see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter Unit
-Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
+`ImageComparison`, `ContactSheet`, `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, and
+`MontageBuilder` (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter
+Unit Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
 _GridOverlay Unit Verification Design_, _ImageRenderer Unit Verification Design_, _ImageInspector Unit Verification
 Design_, _ImageComparer Unit Verification Design_, and _MontageBuilder Unit Verification Design_
 under `imaging/`) verify the units in isolation; the rotation, the skew estimation, the comparison metrics and pictures,
@@ -15,17 +15,21 @@ and the analysis of colors are core `Surface` operations verified in the `Canvas
 _SurfaceComparison_, and _SurfaceAnalysis Unit Verification Design_). The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 operation uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
-SCAD, and Vega-Lite) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an input-by-output
-matrix of
-48 cases -
+SCAD, Vega-Lite, and Mermaid) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an
+input-by-output matrix of 52 cases -
 and the output is decoded with the codec of its format and compared with the pixels the codec or the document library
 decodes or renders from the source (or, for the SVG, with the drawing flattened over white, and for the model, the
-library's orthographic isometric render at 800x800, and for the chart, the library's render at its laid-out size):
+library's orthographic isometric render at 800x800, for the chart, the library's render at its laid-out size, and for
+the diagram, the library's render at its natural size over white):
 exactly for a lossless
 output, on average for JPEG. Every named view of a model is also written as every output format and compared with the
 library's render for that view (28 cases). The tests generate their inputs in a temporary directory (see
 `Fixtures/README.md`
-for the fixture files and for how the PDF, PPTX, and VSDX documents and the models are written by the test project).
+for the fixture files and for how the PDF, PPTX, and VSDX documents and the models are written by the test project). The
+pictures that a chart or a diagram shows (the requirements of the Imaging subsystem for chart and diagram images) are
+verified by the tests of the pictures of the `SourceLoader` unit (`SourceLoaderVegaLiteImageTests.cs` and
+`SourceLoaderMermaidImageTests.cs`; see _SourceLoader Unit Verification Design_), which load real files of every
+linked kind through the sandboxed resolver.
 
 ### Test Environment
 
@@ -46,7 +50,7 @@ N/A - standard test environment; the tests write only to temporary directories t
 
 ### Test Scenarios
 
-**Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels**: for each of the 48 combinations the output decodes
+**Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels**: for each of the 52 combinations the output decodes
 to the source pixels - exactly for PNG, BMP, and TIFF outputs, within a mean channel difference of 8 for JPEG (for the
 GIF fixture, a pixel-by-pixel pattern of saturated colors that JPEG's chroma subsampling cannot reproduce, only the
 size is checked).

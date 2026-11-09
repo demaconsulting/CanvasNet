@@ -1,0 +1,104 @@
+---
+# Software Unit Requirements for ThemeResolver
+#
+# These requirements describe the design-level behavior of the ThemeResolver unit of the Configuration subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's five built-in themes
+# (with the JavaScript object model their derivations rely on, ThemeObject) and of the style sheet Mermaid writes for
+# a flowchart (FlowchartStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: ThemeResolver Requirements
+            requirements:
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-FiveThemes
+                title: >-
+                  The ThemeResolver unit shall compute every theme variable of the default, base, dark, forest, and
+                  neutral themes with the same text as the pinned Mermaid, without overrides, with overrides of base
+                  and derived variables, and in dark mode.
+                justification: |
+                  The theme variables are the colors and fonts of every element; Mermaid writes them into its style
+                  sheet as text, so the text must be equal.
+                tests:
+                  - ThemeResolver_GetThemeVariables_MatchesMermaid
+                  - ThemeResolver_GetThemeVariables_DefaultTheme_FlowchartColors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-Overrides
+                title: >-
+                  The ThemeResolver unit shall derive the other colors of a theme from an overridden base color, keep
+                  an overridden derived variable as it was given, and ignore overrides that are not an object.
+                justification: |
+                  Authors customize a theme by overriding a few variables; Mermaid derives the rest from them and
+                  never replaces a value the author set.
+                tests:
+                  - ThemeResolver_GetThemeVariables_BaseOverride_DerivesAndKeepsOverrides
+                  - ThemeResolver_GetThemeVariables_NonObjectOverrides_Ignored
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-JavaScriptSemantics
+                title: >-
+                  The ThemeResolver unit shall evaluate the derivations of a theme with the JavaScript semantics that
+                  Mermaid's theme classes rely on: undefined values, the || and ?? fallbacks, member access on values
+                  that are not objects, insertion order of the keys, and the JSON form without undefined values.
+                justification: |
+                  The derivations of the themes depend on which values are falsy or missing; a different rule changes
+                  which fallback a variable gets.
+                tests:
+                  - ThemeObject_JavaScriptSemantics
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ThemeNames
+                title: >-
+                  The ThemeResolver unit shall recognize exactly the five supported theme names (in their exact letter
+                  case), know the newer Mermaid theme names that this version does not draw, and refuse to compute any
+                  other theme.
+                justification: |
+                  The resolver reports a theme that is not drawn and must tell a newer Mermaid theme from a misspelled
+                  name.
+                tests:
+                  - ThemeResolver_IsTheme_KnowsFiveThemes
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-Bounded
+                title: >-
+                  The ThemeResolver unit shall bound the color-scale iterations of a theme whatever value of
+                  THEME_COLOR_LIMIT is given, and fail with the offending value when a value the theme derives colors
+                  from is not a color.
+                justification: |
+                  A theme variable from untrusted text controls loops; the work must stay bounded, and the caller
+                  needs the offending value to drop it.
+                tests:
+                  - ThemeResolver_GetThemeVariables_HugeColorLimit_IsBounded
+                  - ThemeResolver_GetThemeVariables_NotAColor_ThrowsWithValue
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-FlowchartStyles
+                title: >-
+                  The ThemeResolver unit shall build the global and flowchart style rules that Mermaid writes for a
+                  flowchart from the theme variables of a configuration, and resolve from them the paint of nodes,
+                  subgraphs, edges, and markers, the edge widths, the fonts and colors of node labels, subgraph titles,
+                  and the diagram title, and the edge label background.
+                justification: |
+                  Mermaid paints a flowchart through these rules; resolving them the same way gives the same paint.
+                tests:
+                  - FlowchartStyles_Create_DefaultTheme_ResolvesPaint
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
+                title: >-
+                  The ThemeResolver unit shall apply the themeCSS rules whose selector is one of the flowchart's own
+                  selectors after the theme's rules (an !important theme declaration staying in effect), and report
+                  every other themeCSS rule as mermaid-theme-css-unsupported at the location of themeCSS.
+                justification: |
+                  Mermaid appends the user's CSS after its own, so the user's rules win over the theme's in the
+                  cascade; rules for other elements cannot be applied without a browser.
+                tests:
+                  - FlowchartStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-InvalidDeclarations
+                title: >-
+                  The ThemeResolver unit shall leave out a style declaration whose value is not valid for its property,
+                  such as a theme variable that is not a color, so that the declaration below it in the cascade stays
+                  in effect.
+                justification: |
+                  A browser drops an invalid declaration; the paint must be the one a browser would show.
+                tests:
+                  - FlowchartStyles_Create_InvalidVariable_DropsDeclaration

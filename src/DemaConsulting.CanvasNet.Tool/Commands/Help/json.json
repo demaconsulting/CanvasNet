@@ -31,7 +31,8 @@
       "id": "other-commands",
       "title": "Fields of the other commands",
       "items": [
-        { "term": "info", "text": "input {path, format, bytes} and one of image, document {pageCount, pages[]}, model {modules, functions, directives}, or chart (after an image object with the laid-out size)." },
+        { "term": "info", "text": "input {path, format, bytes} and one of image, document {pageCount, pages[]}, model {modules, functions, directives}, chart, or diagram (chart and diagram follow an image object with the laid-out size)." },
+        { "term": "diagram", "text": "For a Mermaid diagram (info): {type, supported, direction, title, accTitle, nodes, edges, subgraphs}. type is the diagram type (flowchart for flowchart and graph); supported is false for a type this version does not draw yet (sequence, class, and so on), which renders as an empty picture with the diagnostic mermaid-diagram-unsupported; direction, title, and accTitle are present when the diagram has them." },
         { "term": "formats", "text": "tool, library, inputs[], outputs[], quality {min, max, default}, and maxDimension. Each inputs[] entry has format, kind, extensions, multiPage, vector, and helpTopic: the topic of 'canvasnet help <topic>' that describes the format (raster for png, jpeg, bmp, tiff, gif, and jpeg2000)." },
         { "term": "compare, montage, inspect", "text": "Described in their own help: run 'canvasnet help compare', 'canvasnet help montage', or 'canvasnet help inspect'." },
         { "term": "help", "text": "kind is index, command, topic, examples, or example; see the help section below." }
@@ -41,12 +42,12 @@
       "id": "diagnostics",
       "title": "Diagnostics entries",
       "items": [
-        { "term": "source", "text": "Where the report comes from: scad, vega-lite, pptx, vsdx, or svg. PDF and raster images have no diagnostics channel." },
+        { "term": "source", "text": "Where the report comes from: scad, vega-lite, mermaid, pptx, vsdx, or svg. PDF and raster images have no diagnostics channel." },
         { "term": "severity", "text": "unsupported for a feature that was left out, or warning for a questionable construct that still rendered." },
-        { "term": "code", "text": "The stable generic identifier of the report, for example scad-module-surface, vl-mark-geoshape, svg-image-unresolved, or image-page-out-of-range. A warning of a SCAD model always has the code scad-warning and a warning of a Vega-Lite chart the code vega-lite-warning; the finer identifier is in detail." },
-        { "term": "message", "text": "A description; for a model or chart it gives file, line, and column." },
-        { "term": "detail", "text": "Only when the code is generic: the finer identifier of the library, for example scad-anchor-invalid for a scad-warning or vl-unknown-property for a vega-lite-warning. Branch on code and detail, never on the message." },
-        { "term": "location", "text": "Only when the file gave a position: {file, line, column} for a model, or {file, pointer, line, column} for a chart (the JSON pointer of the offending property); a member that is not known is left out." },
+        { "term": "code", "text": "The stable generic identifier of the report, for example scad-module-surface, vl-mark-geoshape, svg-image-unresolved, or image-page-out-of-range. A warning of a SCAD model always has the code scad-warning, a warning of a Vega-Lite chart the code vega-lite-warning, and a warning of a Mermaid diagram the code mermaid-warning; the finer identifier is in detail." },
+        { "term": "message", "text": "A description; for a model, chart, or diagram it gives file, line, and column." },
+        { "term": "detail", "text": "Only when the code is generic: the finer identifier of the library, for example scad-anchor-invalid for a scad-warning, vl-unknown-property for a vega-lite-warning, or mermaid-config-unknown-key for a mermaid-warning. Branch on code and detail, never on the message." },
+        { "term": "location", "text": "Only when the file gave a position: {file, line, column} for a model or a diagram, or {file, pointer, line, column} for a chart (the JSON pointer of the offending property); a member that is not known is left out." },
         { "term": "origin", "text": "Only for a report about an embedded file (an SVG that links other files): the files, outermost first, that lead to it, as folder-relative names (a link that was not drawn names the SVG file that contains it). The message starts with the href as written." },
         { "term": "page", "text": "The page of a document the report belongs to." },
         { "text": "Without --json the same reports are written to standard error as 'Unsupported: <code>: <message>' or 'Warning: <code>: <message>' lines (and echo as 'ECHO: <text>'); with --json standard error carries none of them, so standard output stays one JSON document." }

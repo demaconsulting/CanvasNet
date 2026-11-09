@@ -1,0 +1,114 @@
+---
+# Software Unit Requirements for FlowchartParser
+#
+# These requirements describe the design-level behavior of the FlowchartParser unit of the Flowchart subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Flowchart): the lexer and the grammar of the flowchart language
+# of the pinned Mermaid release, the located errors with Mermaid's expected tokens, and the limits checked while the
+# text is read. See docs/verification/canvas-net-mermaid/flowchart/flowchart-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Flowchart Requirements
+        sections:
+          - title: FlowchartParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-Grammar
+                title: >-
+                  The FlowchartParser unit shall accept exactly the texts that the flowchart grammar of the pinned
+                  Mermaid release accepts and shall declare the same vertices, edges, subgraphs, classes, styles,
+                  directions, and accessibility texts, in the same order and with the same ids, as Mermaid's parser
+                  declares them in its flowchart database.
+                justification: |
+                  Ids, generated DOM ids, edge ids, and subgraph members depend on the order of the declarations, and
+                  the layout depends on all of them.
+                tests:
+                  - FlowchartParser_Parse_UpstreamVector_MatchesMermaid
+                  - FlowchartParser_Vectors_FileHasEnoughCases_AtLeast150
+                  - FlowchartParser_Parse_LinkChain_AddsVerticesAndEdges
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-Tokens
+                title: >-
+                  The FlowchartParser unit shall split a flowchart text into the tokens that Mermaid's flowchart lexer
+                  produces, including words that only start with a keyword being ids, a direction statement written
+                  anywhere on its line, and the white space after a closing brace being removed up to the end of its
+                  line, while keeping every token located in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in many corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - FlowchartParser_Parse_KeywordPrefixes_AreIds
+                  - FlowchartParser_Parse_DirectionAnywhereOnLine_IsDirectionStatement
+                  - FlowchartParser_TrimSpaceAfterBraces_TrailingSpaces_AreRemovedWithLocations
+                  - FlowchartParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-LinearTime
+                title: >-
+                  The FlowchartParser unit shall read long lines - hundreds of chained links, of words with an at
+                  sign, and of repeated direction words - with the results of Mermaid's lexer and without matching
+                  work that grows faster than the length of the line.
+                justification: |
+                  The text is untrusted; the lexer rules that look ahead in Mermaid must not let one long line cost
+                  quadratic or exponential time.
+                tests:
+                  - FlowchartParser_Parse_LongLines_Parse
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-SyntaxErrors
+                title: >-
+                  The FlowchartParser unit shall refuse a token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's parser lists, in its
+                  order, with a hint, and shall refuse text that no lexer rule matches with a located error.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to
+                  write and where.
+                tests:
+                  - FlowchartParser_Parse_WrongCloser_ThrowsLocatedErrorWithExpectedTokens
+                  - FlowchartParser_Parse_UnclosedLabel_ListsEveryCloser
+                  - FlowchartParser_Parse_UnknownDirection_ThrowsLexicalError
+                  - FlowchartParser_Parse_TwoNodesOnALine_ListsSeparators
+                  - FlowchartParser_Parse_UnclosedSubgraph_AsksForEnd
+                  - FlowchartParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-DatabaseErrors
+                title: >-
+                  The FlowchartParser unit shall refuse, with a located MermaidSyntaxException and a hint, what
+                  Mermaid fails on while it fills its flowchart database: a subgraph without an id or a title, a shape
+                  name that is not a known lower-case name without underscores (naming the nearest known shape), and
+                  shape data that is not valid YAML.
+                justification: |
+                  Mermaid stops on these texts with errors that do not say where the problem is; the document must
+                  fail closed at the right place instead.
+                tests:
+                  - FlowchartParser_Parse_AnonymousSubgraph_ThrowsAtKeyword
+                  - FlowchartParser_Parse_UnknownShape_HintsNearestName
+                  - FlowchartParser_Parse_UpperCaseShape_ExplainsLowerCaseRule
+                  - FlowchartParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-Limits
+                title: >-
+                  The FlowchartParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
+                  located at the element that breaches it, a flowchart with subgraphs nested deeper than
+                  MaxNestingDepth, with more edges than MaxEdges, with more vertices and subgraphs together than
+                  MaxNodes, or with a label, subgraph title, link text, shape-data label, accessible title, or
+                  accessible description longer than MaxLabelLength.
+                justification: |
+                  The size of the model, and so the cost of every later stage, must be bounded while untrusted text is
+                  read.
+                tests:
+                  - FlowchartParser_Parse_NestingDeeperThanLimit_ThrowsLimitExceeded
+                  - FlowchartParser_Parse_MoreEdgesThanLimit_ThrowsLimitExceeded
+                  - FlowchartParser_Parse_MoreNodesThanLimit_ThrowsLimitExceeded
+                  - FlowchartParser_Parse_LabelLongerThanLimit_ThrowsLimitExceeded
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartParser-ClickAndAccessibility
+                title: >-
+                  The FlowchartParser unit shall accept every form of the click statement (a callback, call, href, or
+                  a link, with a tooltip and a target) and only mark its nodes clickable, and shall keep the one-line
+                  accessible title and the one-line or multi-line accessible description as text of the diagram.
+                justification: |
+                  A rendered picture has no interaction, but texts written for Mermaid's browser output must still
+                  open, and the accessibility texts are diagram metadata.
+                tests:
+                  - FlowchartParser_Parse_ClickStatements_OnlyAddClickableClass
+                  - FlowchartParser_Parse_AccessibilityStatements_SetTitleAndDescription

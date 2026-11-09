@@ -5,7 +5,8 @@ using DemaConsulting.CanvasNet.ImageSources;
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
 /// <summary>
-///     What the fragment of an input chose: a page, a viewpoint and variables for a model, parameters for a chart. It is
+///     What the fragment of an input chose: a page, a viewpoint and variables for a model, parameters for a chart, a theme
+///     for a diagram. It is
 ///     created by <see cref="SourceLoader.Probe(InputReference)"/> and carried by <see cref="SourceInfo.Selection"/>, so
 ///     every operation that loads the input (render, inspect, compare, montage) applies it.
 /// </summary>
@@ -14,20 +15,21 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <b>The grammar is the grammar of an SVG link.</b> The fragment is read by the built-in image source of the kind
 ///         of the file (the one that draws <c>&lt;image href="part.scad#view=top&amp;def.width=20"&gt;</c>), so an input and a
 ///         link accept the same parameters with the same values: <c>page</c> (and <c>slide</c> for a presentation) for a
-///         document, <c>view</c> and <c>def.&lt;name&gt;</c> for a model, <c>param.&lt;name&gt;</c> for a chart; the values
+///         document, <c>view</c> and <c>def.&lt;name&gt;</c> for a model, <c>param.&lt;name&gt;</c> for a chart, <c>theme</c> for a
+///         Mermaid diagram; the values
 ///         of <c>def.</c> are read like <c>-D</c> (vectors such as <c>def.$vpt=[0,0,20]</c> included) and those of
 ///         <c>param.</c> like <c>--param</c>.
 ///     </para>
 ///     <para>
 ///         <b>Overrides.</b> <see cref="ApplyTo(SourceOptions)"/> lays the choices over the options of the command: the page
 ///         replaces the page of the command; the view replaces the view; a variable replaces a variable of the same name
-///         of the command (the others are kept); a parameter replaces a parameter of the same name. The azimuth, the
+///         of the command (the others are kept); a parameter replaces a parameter of the same name; the theme replaces the theme. The azimuth, the
 ///         elevation, and the projection of the command still refine the view the fragment names.
 ///     </para>
 ///     <para>
 ///         <b>Errors and warnings.</b> A value that cannot be used (the fragment is too long or has too many parameters, a
 ///         page is not a whole number, a vector is not valid, a variable name is not an identifier, a view is not one of the
-///         views) is refused when the input is probed, as <see cref="ErrorCodes.ImageFragmentInvalid"/>; a page the file does
+///         views, a theme is not a Mermaid theme) is refused when the input is probed, as <see cref="ErrorCodes.ImageFragmentInvalid"/>; a page the file does
 ///         not have is <see cref="ErrorCodes.PageOutOfRange"/>. A parameter the kind does not use is the warning
 ///         <c>image-fragment-unknown-parameter</c>, a name given twice with different values is
 ///         <c>image-fragment-duplicate-parameter</c> (the last wins), and a <c>param.</c> name that the chart does not
@@ -61,6 +63,12 @@ public sealed record InputSelection
     public ChartOptions? VegaLite { get; internal init; }
 
     /// <summary>
+    ///     Gets the theme the fragment names for a Mermaid diagram (<c>flow.mmd#theme=dark</c>); <see langword="null"/> when it
+    ///     names none (and for every other kind).
+    /// </summary>
+    public DiagramOptions? Mermaid { get; internal init; }
+
+    /// <summary>
     ///     Gets the notes about the fragment: the warnings listed in the remarks; empty when there are none.
     /// </summary>
     public IReadOnlyList<ImageDiagnostic> Diagnostics { get; internal init; } = [];
@@ -82,7 +90,8 @@ public sealed record InputSelection
         {
             Page = Page ?? options.Page,
             Scad = MergeScad(options.Scad),
-            VegaLite = MergeChart(options.VegaLite)
+            VegaLite = MergeChart(options.VegaLite),
+            Mermaid = Mermaid ?? options.Mermaid
         };
     }
 
@@ -108,11 +117,13 @@ public sealed record InputSelection
         int? page;
         ScadViewOptions? scad;
         ChartOptions? chart;
+        DiagramOptions? diagram;
         try
         {
             page = source.ReadPage(fragment);
             scad = source.ReadScad(fragment);
             chart = source.ReadChart(fragment);
+            diagram = source.ReadDiagram(fragment);
         }
         catch (ImageSourceRefusedException ex)
         {
@@ -136,6 +147,7 @@ public sealed record InputSelection
             Page = page,
             Scad = scad,
             VegaLite = chart,
+            Mermaid = diagram,
             Diagnostics = new ReadOnlyCollection<ImageDiagnostic>(notes)
         };
     }
