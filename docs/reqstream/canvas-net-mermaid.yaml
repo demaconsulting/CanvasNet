@@ -412,6 +412,9 @@ sections:
           - CanvasNetMermaid_Hardening_HostileClassDiagram_RendersOrFailsLocated
           - CanvasNetMermaid_Hardening_ClassWithManyMembers_RendersOrHitsTheWorkLimit
           - CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_ClassTooManyNamespaces_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_ClassNestedNamespaceIds_AreALocatedLimit
+          - CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit
           - CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded
 
       - id: CanvasNetMermaid-Determinism

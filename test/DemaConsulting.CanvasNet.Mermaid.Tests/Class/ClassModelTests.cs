@@ -290,6 +290,110 @@ public class ClassModelTests
     }
 
     /// <summary>
+    ///     Validates that a namespace counts against <see cref="MermaidLimits.MaxNodes"/> together with the classes, as a
+    ///     flowchart subgraph does: a namespace that adds one too many is refused at its name.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddNamespace_TooManyNamespaces_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNodes = 3 };
+        const string Text = "classDiagram\n    class A\n    namespace One {\n        class B\n    }\n" +
+            "    namespace Two {\n        class C\n    }\n";
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(Text, null, limits));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 6, 15), ex.Location);
+        Assert.Contains("more than 3 nodes and subgraphs (MermaidLimits.MaxNodes)", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the implicit ancestors of a dotted namespace count against <see cref="MermaidLimits.MaxNodes"/>
+    ///     too, whether they are drawn or not.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddNamespace_ImplicitAncestors_CountAgainstMaxNodes()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNodes = 2 };
+        const string Text = "classDiagram\n    namespace Geo.Plane.Shapes {\n        class A\n    }\n";
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(Text, null, limits));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 15), ex.Location);
+        Assert.Contains("MermaidLimits.MaxNodes", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that classes and namespaces, implicit ancestors included, that together reach
+    ///     <see cref="MermaidLimits.MaxNodes"/> exactly are accepted.
+    /// </summary>
+    [Fact]
+    public void ClassModel_Limits_NodesAndNamespacesAtTheLimit_AreAccepted()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNodes = 3 };
+
+        // Act
+        var model = ClassFacts.Parse("classDiagram\n    namespace Geo.Plane {\n        class A\n    }\n", null, limits);
+
+        // Assert
+        Assert.Equal((1, 2), (model.NodeCount, model.SubgraphCount));
+    }
+
+    /// <summary>
+    ///     Validates that the qualified id of a nested namespace, which is its drawn label when
+    ///     <c>class.hierarchicalNamespaces</c> is false, is refused when longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>, located at its name, while one at the limit is accepted.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddNamespace_LongQualifiedId_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 10 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(
+            "classDiagram\nnamespace Alpha {\n    namespace Bravo {\n        class C\n    }\n}\n", null, limits));
+        var accepted = ClassFacts.Parse("classDiagram\nnamespace Alpha {\n    namespace Brav {\n        class C\n    }\n}\n", null, limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 3, 15), ex.Location);
+        Assert.Contains("a label is 11 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxLabelLength", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("Alpha.Brav", accepted.Namespaces[^1].Id);
+    }
+
+    /// <summary>
+    ///     Validates that the drawn name of a labeled generic class, the label with the type of the name
+    ///     (<c>Labels&lt;Type&gt;</c>), is refused when longer than <see cref="MermaidLimits.MaxLabelLength"/>, although
+    ///     the name and the label each fit, while one at the limit is accepted.
+    /// </summary>
+    [Fact]
+    public void ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 10 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclass A~Type~[\"Labels\"]\n", null, limits));
+        var accepted = ClassFacts.Parse("classDiagram\nclass A~Type~[\"Name\"]\n", null, limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 7), ex.Location);
+        Assert.Contains("a label is 12 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("Name<Type>", Assert.Single(accepted.Classes).Text);
+    }
+
+    /// <summary>
     ///     Validates the layout data of a relation: Mermaid's id, the markers, a minimum length of 1, the label and the
     ///     cardinalities as terminal labels, with <c>none</c> as no label.
     /// </summary>

@@ -81,10 +81,12 @@ sections:
                 title: >-
                   The ClassParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
                   located at the element that breaches it, namespaces nested deeper than MaxNestingDepth and a name,
-                  member, or text longer than MaxLabelLength.
+                  member, label, note, cardinality, style, link, tooltip, callback, or accessibility text longer than
+                  MaxLabelLength.
                 justification: |
                   The size of the model, and so the cost of every later stage, must be bounded while untrusted text is
                   read.
                 tests:
                   - ClassParser_Parse_NamespacesTooDeep_ThrowsLimitExceeded
                   - ClassParser_Parse_LongMember_ThrowsLimitExceeded
+                  - ClassParser_Parse_LongTextAnywhere_ThrowsLimitExceeded

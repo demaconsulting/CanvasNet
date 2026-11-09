@@ -525,7 +525,7 @@ internal sealed partial class ClassParser
         _model.AddClass(name, location);
         if (label is not null)
         {
-            _model.SetClassLabel(name, label);
+            _model.SetClassLabel(name, label, location);
         }
 
         if (Is(StyleSeparator))

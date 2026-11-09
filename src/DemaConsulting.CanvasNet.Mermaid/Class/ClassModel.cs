@@ -27,8 +27,12 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///         <b>Errors and limits.</b> Where Mermaid's database fails with a JavaScript error (an annotation statement for a
 ///         class that does not exist, a member with a <c>)</c> that is not a method), the model throws a located
 ///         <see cref="MermaidSyntaxException"/> with code <see cref="MermaidDiagnosticCodes.SyntaxError"/> and Mermaid's
-///         message. Classes, namespaces, notes and interfaces count against <see cref="MermaidLimits.MaxNodes"/>, and
-///         relations against <see cref="MermaidLimits.MaxEdges"/> (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>).
+///         message. Classes, notes, interfaces and namespaces (implicit ancestors included) count together against
+///         <see cref="MermaidLimits.MaxNodes"/>, as the flowchart model counts vertices and subgraphs, and relations against
+///         <see cref="MermaidLimits.MaxEdges"/>. The texts the model joins are checked against
+///         <see cref="MermaidLimits.MaxLabelLength"/> where they are drawn: the class name text of a labeled generic class
+///         (<c>label&lt;T&gt;</c>) and the qualified id of a namespace, which is its label when
+///         <c>class.hierarchicalNamespaces</c> is false (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>).
 ///     </para>
 ///     <para>
 ///         The model is filled by one parser on one thread; once parsing is over it is never changed, so it is safe for
@@ -288,14 +292,23 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// </summary>
     /// <param name="id">The class name as written.</param>
     /// <param name="label">The label.</param>
-    public void SetClassLabel(string id, string label)
+    /// <param name="location">The location of the class name, for reports.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the label with the generic type of the name is longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    public void SetClassLabel(string id, string label, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(label);
         var sanitized = label.Length > 0 ? Sanitize(label) : label;
-        var node = RequireClass(SplitClassNameAndType(Sanitize(id)).ClassName, "setting 'label'", default);
+        var node = RequireClass(SplitClassNameAndType(Sanitize(id)).ClassName, "setting 'label'", location);
+
+        // The drawn name joins the label and the generic type of the name, two texts checked apart
+        var text = node.Type.Length > 0 ? $"{sanitized}<{node.Type}>" : sanitized;
+        CheckLabel(text, location);
         node.Label = sanitized;
-        node.Text = node.Type.Length > 0 ? $"{sanitized}<{node.Type}>" : sanitized;
+        node.Text = text;
     }
 
     /// <summary>
@@ -589,11 +602,18 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <param name="label">The label, or null.</param>
     /// <param name="location">The location of the name, for reports.</param>
     /// <returns>The qualified id.</returns>
-    /// <exception cref="MermaidSyntaxException">Thrown, located, when <see cref="MermaidLimits.MaxNodes"/> is exceeded.</exception>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when <see cref="MermaidLimits.MaxNodes"/> is exceeded or the qualified id is longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
     public string AddNamespace(string id, string? label, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(id);
+
+        // The qualified id joins the names of the enclosing namespaces; it is the drawn label when
+        // class.hierarchicalNamespaces is false, which the site configuration may set after parsing
         var qualifiedId = _namespaceStack.Count > 0 ? _namespaceStack[^1] + "." + id : id;
+        CheckLabel(qualifiedId, location);
         _namespaceStack.Add(qualifiedId);
         if (_namespaceIndex.TryGetValue(qualifiedId, out var existing))
         {
@@ -1167,7 +1187,9 @@ internal sealed partial class ClassModel : IMermaidDiagram
                 "declare the class (class Name) before the statement that annotates it");
 
     /// <summary>
-    ///     Checks that one more node (class, namespace, note or interface) fits <see cref="MermaidLimits.MaxNodes"/>.
+    ///     Checks that one more node (class, note or interface) or subgraph (namespace) fits
+    ///     <see cref="MermaidLimits.MaxNodes"/>, which counts them together as the flowchart model counts vertices and
+    ///     subgraphs.
     /// </summary>
     /// <param name="location">The location of the statement that adds it.</param>
     /// <exception cref="MermaidSyntaxException">Thrown, located, when it does not.</exception>
@@ -1177,9 +1199,28 @@ internal sealed partial class ClassModel : IMermaidDiagram
         {
             throw new MermaidSyntaxException(
                 MermaidDiagnosticCodes.LimitExceeded,
-                string.Create(CultureInfo.InvariantCulture, $"the diagram has more than {_limits.MaxNodes} classes, namespaces, notes and interfaces (MermaidLimits.MaxNodes)"),
+                string.Create(CultureInfo.InvariantCulture, $"the diagram has more than {_limits.MaxNodes} nodes and subgraphs (MermaidLimits.MaxNodes)"),
                 location,
                 "split the diagram, or raise MermaidLimits.MaxNodes when the source is trusted");
+        }
+    }
+
+    /// <summary>
+    ///     Checks a drawn text the model joins from texts the parser checked apart against
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>, as the flowchart model checks its labels.
+    /// </summary>
+    /// <param name="text">The joined text.</param>
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the text is too long.</exception>
+    private void CheckLabel(string text, MermaidLocation location)
+    {
+        if (text.Length > _limits.MaxLabelLength)
+        {
+            throw new MermaidSyntaxException(
+                MermaidDiagnosticCodes.LimitExceeded,
+                string.Create(CultureInfo.InvariantCulture, $"a label is {text.Length} characters long, more than the limit of {_limits.MaxLabelLength} (MermaidLimits.MaxLabelLength)"),
+                location,
+                "shorten the label, or raise MermaidLimits.MaxLabelLength when the source is trusted");
         }
     }
 

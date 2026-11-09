@@ -231,7 +231,14 @@ with `mermaid-render-failed` at the participant (line 2), as Mermaid fails.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceHugeStrokeWidth_ShadowIsTheFillsShadow`,
-`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded`
+`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileClassDiagram_RendersOrFailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassWithManyMembers_RendersOrHitsTheWorkLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassTooManyNamespaces_IsALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNestedNamespaceIds_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
 `InvalidDataException` for too long text, refusal of a YAML alias bomb, a label limit that can be raised, a complete
@@ -254,7 +261,14 @@ documented exception types; and that a sequence diagram whose stroke widths roun
 it is fitted to 400 by 300 pixels (a width of 1e300, or an actor margin of 1e60) renders; and that a box around
 participants and a forced menu panel, both with a drop shadow, given a stroke width of 1e300, 1e30, or 40,000 pixels by
 `themeCSS` (`g rect.rect` or `.actorPopupMenuPanel`), render without an exception and with the same pixels as with a
-stroke width of zero (the stroke is not drawn and the shadow is that of the fill).
+stroke width of zero (the stroke is not drawn and the shadow is that of the fill). For class diagrams, asserts that
+hostile settings (paddings, spacings, and font sizes of 1e300 or 1e-308, a dash of 1e300, cardinalities on a self-loop,
+markup in a note) render fitted to 400 by 300 pixels or fail with a located render error; that a class of 1,500
+members renders with the default work budget and fails with `mermaid-limit-exceeded` under a small one; that a seeded
+mutation fuzzer over the class fixtures only ever raises the documented exception types; that 1,000 namespaces of one
+class each fail at the next namespace (line 3,002) with `MaxNodes`; that two nested namespaces of 3,000-character names
+(a 6,001-character qualified id) and a 3,000-character label on a class with a 3,000-character generic type fail with
+`MaxLabelLength` at their line; and that a class diagram under a small work limit fails with `mermaid-limit-exceeded`.
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 

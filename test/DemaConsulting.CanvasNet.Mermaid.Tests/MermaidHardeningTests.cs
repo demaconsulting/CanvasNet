@@ -652,6 +652,64 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that class namespaces count against <see cref="MermaidLimits.MaxNodes"/> with the classes: once 1,000
+    ///     namespaces of one class each reach the limit, the next namespace fails at open, located at the namespace.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassTooManyNamespaces_IsALocatedLimit()
+    {
+        // Arrange: 1,000 namespaces and their 1,000 classes reach the limit; the next namespace is one too many
+        var text = "classDiagram\n" + string.Concat(Enumerable.Range(0, 1_001).Select(i => $"namespace n{i} {{\nclass c{i}\n}}\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert: namespace 1,000 (counted from zero) is on line 2 + 3 * 1,000
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that nested class namespaces whose names each fit <see cref="MermaidLimits.MaxLabelLength"/> but
+    ///     whose qualified id (the drawn label when <c>class.hierarchicalNamespaces</c> is false) does not fail at open,
+    ///     located at the inner namespace.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassNestedNamespaceIds_AreALocatedLimit()
+    {
+        // Arrange: two 3,000-character names give a 6,001-character qualified id
+        var text = $"classDiagram\nnamespace {new string('a', 3_000)} {{\nnamespace {new string('b', 3_000)} {{\nclass C\n}}\n}}\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a labeled generic class whose name and label each fit <see cref="MermaidLimits.MaxLabelLength"/>
+    ///     but whose drawn name (the label with the type) does not fails at open, located at the class.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit()
+    {
+        // Arrange: a 3,000-character type and a 3,000-character label give a 6,002-character drawn name
+        var text = $"classDiagram\nclass A~{new string('T', 3_000)}~[\"{new string('L', 3_000)}\"]\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a class with very many members renders or hits the work limit, and that the work is bounded.
     /// </summary>
     [Fact]

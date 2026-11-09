@@ -124,12 +124,21 @@ sections:
               - id: CanvasNetMermaid-Class-ClassModel-Limits
                 title: >-
                   The ClassModel unit shall refuse, with a located MermaidSyntaxException of code
-                  mermaid-limit-exceeded, more relations than MaxEdges and more classes, namespaces, notes, and
-                  interfaces together than MaxNodes.
+                  mermaid-limit-exceeded, more relations than MaxEdges, more classes, notes, interfaces, and
+                  namespaces (implicit ancestors included) together than MaxNodes, and a drawn text it joins from
+                  texts checked apart - the label of a generic class with its type, or the qualified id of a nested
+                  namespace - longer than MaxLabelLength.
                 justification: |
-                  The size of the model, and so the cost of the layout, must be bounded for untrusted text.
+                  The size of the model, and so the cost of the layout, must be bounded for untrusted text, with
+                  namespaces counted as the flowchart counts subgraphs, and a joined text can be longer than any of its
+                  parts, so it is checked where it is drawn.
                 tests:
                   - ClassModel_Limits_TooManyRelationsOrNodes_ThrowLimitExceeded
+                  - ClassModel_AddNamespace_TooManyNamespaces_ThrowsLimitExceeded
+                  - ClassModel_AddNamespace_ImplicitAncestors_CountAgainstMaxNodes
+                  - ClassModel_Limits_NodesAndNamespacesAtTheLimit_AreAccepted
+                  - ClassModel_AddNamespace_LongQualifiedId_ThrowsLimitExceeded
+                  - ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded
 
               - id: CanvasNetMermaid-Class-ClassModel-LayoutData
                 title: >-

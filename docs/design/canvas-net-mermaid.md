@@ -267,10 +267,12 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
 
 - `MaxTextSize`, 50,000 (Mermaid's `maxTextSize`): checked at open on the code after the frontmatter, directives,
   and comments are removed; the raw text may be at most four times larger. Failure: `InvalidDataException`.
-- `MaxEdges`, 500 (Mermaid's `maxEdges`); `MaxNodes`, 2,000 (subgraphs included; the participants and boxes of a
-  sequence diagram); `MaxLabelLength`, 4,096 (also the accessible title and description, and the type and alias of
-  sequence participant metadata); `MaxNestingDepth`, 32 (subgraphs,
-  and the blocks and boxes of a sequence diagram; at most 256); `MaxYamlDepth`, 32 (at
+- `MaxEdges`, 500 (Mermaid's `maxEdges`; also the relations of a class diagram); `MaxNodes`, 2,000 (subgraphs
+  included; the participants and boxes of a sequence diagram; the classes, notes, lollipop interfaces, and namespaces,
+  implicit dotted parents included, of a class diagram); `MaxLabelLength`, 4,096 (also the accessible title and
+  description, the type and alias of sequence participant metadata, and the texts a class diagram joins: the label of
+  a generic class with its type, and the qualified id of a nested namespace); `MaxNestingDepth`, 32 (subgraphs,
+  namespaces, and the blocks and boxes of a sequence diagram; at most 256); `MaxYamlDepth`, 32 (at
   most 256; YAML aliases, anchors, and tags are refused): checked at open. Failure: `MermaidSyntaxException` with
   `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused YAML construct).
 - `MaxLayoutWork`, 50,000,000 metered layout steps (the dagre stages, and the measuring, wrapping, and placing of a

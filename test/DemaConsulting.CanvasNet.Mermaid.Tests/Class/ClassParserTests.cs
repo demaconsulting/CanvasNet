@@ -256,6 +256,56 @@ public class ClassParserTests
     }
 
     /// <summary>
+    ///     Validates that every text a class diagram draws or reports is checked against
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>: an 11-character text over a limit of 10 is refused, located at its
+    ///     line, wherever it stands.
+    /// </summary>
+    /// <param name="text">The diagram, with one text one character over the limit.</param>
+    /// <param name="line">The line of the long text.</param>
+    [Theory]
+    [InlineData("classDiagram\nclass Elevenchars\n", 2)]
+    [InlineData("classDiagram\nclass A[\"Elevenchars\"]\n", 2)]
+    [InlineData("classDiagram\nclass A~Elevenchars~\n", 2)]
+    [InlineData("classDiagram\nclass A:::Elevenchars\n", 2)]
+    [InlineData("classDiagram\nclass A {\n<<Elevenchars>>\n}\n", 3)]
+    [InlineData("classDiagram\nclass A\n<<Elevenchars>> A\n", 3)]
+    [InlineData("classDiagram\nA : +Elevenchars\n", 2)]
+    [InlineData("classDiagram\nA : method(Elevenchars)\n", 2)]
+    [InlineData("classDiagram\nA --> B : Elevenchars\n", 2)]
+    [InlineData("classDiagram\nA \"Elevenchars\" --> B\n", 2)]
+    [InlineData("classDiagram\nA --> \"Elevenchars\" B\n", 2)]
+    [InlineData("classDiagram\nA --> Elevenchars\n", 2)]
+    [InlineData("classDiagram\nnote \"Elevenchars\"\n", 2)]
+    [InlineData("classDiagram\nclass A\nnote for A \"Elevenchars\"\n", 3)]
+    [InlineData("classDiagram\nnamespace Elevenchars {\nclass A\n}\n", 2)]
+    [InlineData("classDiagram\nnamespace N[\"Elevenchars\"] {\nclass A\n}\n", 2)]
+    [InlineData("classDiagram\nclassDef Elevenchars fill:#f00\n", 2)]
+    [InlineData("classDiagram\nclassDef c fill:#ff00ff00\n", 2)]
+    [InlineData("classDiagram\nclass A\nstyle A fill:#ff00ff00\n", 3)]
+    [InlineData("classDiagram\nclass A\ncssClass \"A\" Elevenchars\n", 3)]
+    [InlineData("classDiagram\nclass A\nlink A \"Elevenchars\"\n", 3)]
+    [InlineData("classDiagram\nclass A\nlink A \"x\" \"Elevenchars\"\n", 3)]
+    [InlineData("classDiagram\nclass A\ncallback A \"Elevenchars\"\n", 3)]
+    [InlineData("classDiagram\nclass A\nclick A call Elevenchars()\n", 3)]
+    [InlineData("classDiagram\nclass A\nclick A href \"Elevenchars\"\n", 3)]
+    [InlineData("classDiagram\naccTitle: Elevenchars\n", 2)]
+    [InlineData("classDiagram\naccDescr: Elevenchars\n", 2)]
+    [InlineData("classDiagram\naccDescr {\nElevenchars\n}\n", 3)]
+    public void ClassParser_Parse_LongTextAnywhere_ThrowsLimitExceeded(string text, int line)
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 10 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(text, null, limits));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(line, ex.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a class name of thousands of tokens is read without recursion.
     /// </summary>
     [Fact]
