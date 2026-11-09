@@ -39,6 +39,186 @@ internal sealed record FlowchartConfig(
     bool ArrowMarkerAbsolute);
 
 /// <summary>
+///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
+///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
+///     differently.
+/// </summary>
+/// <param name="Text">The value as JavaScript's <c>String(value)</c> writes it.</param>
+/// <param name="IsNumber">Whether the value is a number rather than a string.</param>
+internal readonly record struct ConfigScalar(string Text, bool IsNumber)
+{
+    /// <summary>
+    ///     Creates the value of a number.
+    /// </summary>
+    /// <param name="number">The number.</param>
+    /// <returns>The value, with the number's JavaScript text.</returns>
+    public static ConfigScalar FromNumber(double number) => new(ColorMath.FormatNumber(number), true);
+
+    /// <summary>
+    ///     Creates the value of a string.
+    /// </summary>
+    /// <param name="text">The string.</param>
+    /// <returns>The value.</returns>
+    public static ConfigScalar FromText(string text) => new(text, false);
+
+    /// <summary>
+    ///     Reads a JSON number or string.
+    /// </summary>
+    /// <param name="node">The JSON node, or null.</param>
+    /// <returns>The value, or null when the node is neither a finite number nor a string.</returns>
+    public static ConfigScalar? FromJson(JsonNode? node)
+    {
+        if (node is not JsonValue value)
+        {
+            return null;
+        }
+
+        return value.GetValueKind() switch
+        {
+            JsonValueKind.String => FromText(value.GetValue<string>()),
+            JsonValueKind.Number when double.IsFinite(value.GetValue<double>()) => FromNumber(value.GetValue<double>()),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    ///     Gets whether the value is truthy in JavaScript: a non-empty string, or a number other than zero.
+    /// </summary>
+    public bool IsTruthy => IsNumber ? Text is not ("0" or "NaN") : Text.Length > 0;
+
+    /// <summary>
+    ///     Gets the value as JavaScript's <c>String(value)</c> writes it (Mermaid's template strings).
+    /// </summary>
+    /// <returns>The text.</returns>
+    public override string ToString() => Text;
+}
+
+/// <summary>
+///     The font of one kind of sequence text: Mermaid's <c>actorFont</c>, <c>noteFont</c> and <c>messageFont</c>, the
+///     <c>{ fontFamily, fontSize, fontWeight }</c> objects that the sequence renderer measures and draws text with.
+/// </summary>
+/// <param name="Family">The CSS font family list.</param>
+/// <param name="Size">The font size (a number of pixels, or a CSS size string).</param>
+/// <param name="Weight">The font weight (a number, or a CSS weight string).</param>
+internal sealed record MermaidFontConfig(string Family, ConfigScalar Size, ConfigScalar Weight);
+
+/// <summary>
+///     The sequence section of the effective configuration: Mermaid's <c>sequence</c> keys as the sequence renderer reads
+///     them, after its <c>setConf</c> overrides and with the effective wrap setting.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The defaults are those of Mermaid's <c>SequenceDiagramConfig</c>. The fonts are those of the renderer's
+///         <c>setConf</c>, which assigns the top-level configuration over the section: a truthy top-level
+///         <c>fontFamily</c>, <c>fontSize</c> or <c>fontWeight</c> replaces the family, size or weight of all three fonts.
+///         The top-level <c>fontFamily</c> and <c>fontSize</c> always have defaults, so the section's own families and sizes
+///         only matter when the top level sets them to an empty string or zero; its weights apply unless the top level
+///         sets <c>fontWeight</c>.
+///     </para>
+///     <para>
+///         <see cref="Wrap"/> is the value that Mermaid's sequence database falls back to for every text without a
+///         <c>wrap:</c> or <c>nowrap:</c> prefix (its <c>autoWrap</c>): <c>sequence.wrap</c>, which the diagram's
+///         <c>init</c> sets to true when the top-level <c>wrap</c> is true, and false when neither is set. The instance is
+///         immutable.
+///     </para>
+/// </remarks>
+internal sealed record SequenceConfig
+{
+    /// <summary>The default family of the actor font.</summary>
+    internal const string DefaultActorFontFamily = "\"Open Sans\", sans-serif";
+
+    /// <summary>The default family of the note and message fonts.</summary>
+    internal const string DefaultTextFontFamily = "\"trebuchet ms\", verdana, arial, sans-serif";
+
+    /// <summary>Gets a value indicating whether the SVG would be scaled to its container (no meaning for a raster).</summary>
+    public bool UseMaxWidth { get; init; } = true;
+
+    /// <summary>Gets a value indicating whether participants without messages are hidden.</summary>
+    public bool HideUnusedParticipants { get; init; }
+
+    /// <summary>Gets the width of an activation box.</summary>
+    public double ActivationWidth { get; init; } = 10;
+
+    /// <summary>Gets the margin to the left and right of the diagram.</summary>
+    public double DiagramMarginX { get; init; } = 50;
+
+    /// <summary>Gets the margin above and below the diagram.</summary>
+    public double DiagramMarginY { get; init; } = 10;
+
+    /// <summary>Gets the margin between actors.</summary>
+    public double ActorMargin { get; init; } = 50;
+
+    /// <summary>Gets the width of an actor box.</summary>
+    public double Width { get; init; } = 150;
+
+    /// <summary>Gets the height of an actor box.</summary>
+    public double Height { get; init; } = 65;
+
+    /// <summary>Gets the margin around boxes and blocks.</summary>
+    public double BoxMargin { get; init; } = 10;
+
+    /// <summary>Gets the margin around the text of a box.</summary>
+    public double BoxTextMargin { get; init; } = 5;
+
+    /// <summary>Gets the margin around notes.</summary>
+    public double NoteMargin { get; init; } = 10;
+
+    /// <summary>Gets the space between messages (not read by Mermaid's renderer; kept for completeness).</summary>
+    public double MessageMargin { get; init; } = 35;
+
+    /// <summary>Gets the alignment of message text (<c>left</c>, <c>center</c> or <c>right</c>).</summary>
+    public string MessageAlign { get; init; } = "center";
+
+    /// <summary>Gets a value indicating whether the actors are repeated below the diagram.</summary>
+    public bool MirrorActors { get; init; } = true;
+
+    /// <summary>Gets a value indicating whether the actor menus are always shown.</summary>
+    public bool ForceMenus { get; init; }
+
+    /// <summary>Gets the extra margin at the bottom of the diagram.</summary>
+    public double BottomMarginAdj { get; init; } = 1;
+
+    /// <summary>Gets a value indicating whether self messages are drawn with right angles.</summary>
+    public bool RightAngles { get; init; }
+
+    /// <summary>Gets a value indicating whether messages are numbered.</summary>
+    public bool ShowSequenceNumbers { get; init; }
+
+    /// <summary>Gets the font of actor labels, after the top-level overrides.</summary>
+    public MermaidFontConfig ActorFont { get; init; } =
+        new(DefaultActorFontFamily, ConfigScalar.FromNumber(14), ConfigScalar.FromNumber(400));
+
+    /// <summary>Gets the font of notes, after the top-level overrides.</summary>
+    public MermaidFontConfig NoteFont { get; init; } =
+        new(DefaultTextFontFamily, ConfigScalar.FromNumber(14), ConfigScalar.FromNumber(400));
+
+    /// <summary>Gets the alignment of note text (<c>left</c>, <c>center</c> or <c>right</c>).</summary>
+    public string NoteAlign { get; init; } = "center";
+
+    /// <summary>Gets the font of messages (and of block and box titles), after the top-level overrides.</summary>
+    public MermaidFontConfig MessageFont { get; init; } =
+        new(DefaultTextFontFamily, ConfigScalar.FromNumber(16), ConfigScalar.FromNumber(400));
+
+    /// <summary>Gets a value indicating whether texts without a <c>wrap:</c> or <c>nowrap:</c> prefix wrap.</summary>
+    public bool Wrap { get; init; }
+
+    /// <summary>Gets the padding around wrapped text.</summary>
+    public double WrapPadding { get; init; } = 10;
+
+    /// <summary>Gets the width of the label box of a block.</summary>
+    public double LabelBoxWidth { get; init; } = 50;
+
+    /// <summary>Gets the height of the label box of a block.</summary>
+    public double LabelBoxHeight { get; init; } = 20;
+
+    /// <summary>Gets the actor text placement (<c>fo</c>, <c>old</c>, or null for the default <c>tspan</c> placement).</summary>
+    public string? TextPlacement { get; init; }
+
+    /// <summary>Gets the <c>arrowMarkerAbsolute</c> that <c>setConf</c> copies from the top level (markers use plain ids).</summary>
+    public bool ArrowMarkerAbsolute { get; init; }
+}
+
+/// <summary>
 ///     The effective configuration of one measure or render call: Mermaid's current configuration after the site
 ///     configuration, the frontmatter and the directives are applied, with typed access to the keys this version reads.
 /// </summary>
@@ -81,6 +261,7 @@ internal sealed class MermaidConfig
             Number(flowchart, "wrappingWidth", 200),
             Boolean(flowchart, "inheritDir", false),
             Boolean(flowchart, "arrowMarkerAbsolute", false));
+        Sequence = ReadSequence(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -134,6 +315,9 @@ internal sealed class MermaidConfig
     /// <summary>Gets the flowchart section.</summary>
     public FlowchartConfig Flowchart { get; }
 
+    /// <summary>Gets the sequence section, as the sequence renderer reads it.</summary>
+    public SequenceConfig Sequence { get; }
+
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
     ///     state sections, which Mermaid's detectors read.
@@ -172,6 +356,63 @@ internal sealed class MermaidConfig
     /// <param name="key">The top-level key.</param>
     /// <returns>The location.</returns>
     public MermaidLocation LocationOf(string key) => _locations.TryGetValue(key, out var location) ? location : default;
+
+    /// <summary>
+    ///     Reads the sequence section as the sequence renderer sees it: the section's values over Mermaid's defaults, then
+    ///     the top-level font overrides of <c>setConf</c> and the wrap setting of the diagram's <c>init</c>.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The sequence section.</returns>
+    private static SequenceConfig ReadSequence(JsonObject raw)
+    {
+        var sequence = raw["sequence"] as JsonObject ?? [];
+        var defaults = new SequenceConfig();
+
+        // setConf: a truthy top-level fontFamily, fontSize or fontWeight replaces those of all three fonts
+        var family = Text(raw, "fontFamily") is { Length: > 0 } topFamily ? topFamily : null;
+        var size = ConfigScalar.FromJson(raw["fontSize"]) is { IsNumber: true, IsTruthy: true } topSize ? topSize : (ConfigScalar?)null;
+        var weight = ConfigScalar.FromJson(raw["fontWeight"]) is { IsTruthy: true } topWeight ? topWeight : (ConfigScalar?)null;
+        MermaidFontConfig Font(string prefix, MermaidFontConfig fallback) => new(
+            family ?? Text(sequence, prefix + "FontFamily") ?? fallback.Family,
+            size ?? ConfigScalar.FromJson(sequence[prefix + "FontSize"]) ?? fallback.Size,
+            weight ?? ConfigScalar.FromJson(sequence[prefix + "FontWeight"]) ?? fallback.Weight);
+
+        return new SequenceConfig
+        {
+            UseMaxWidth = Boolean(sequence, "useMaxWidth", defaults.UseMaxWidth),
+            HideUnusedParticipants = Boolean(sequence, "hideUnusedParticipants", defaults.HideUnusedParticipants),
+            ActivationWidth = Number(sequence, "activationWidth", defaults.ActivationWidth),
+            DiagramMarginX = Number(sequence, "diagramMarginX", defaults.DiagramMarginX),
+            DiagramMarginY = Number(sequence, "diagramMarginY", defaults.DiagramMarginY),
+            ActorMargin = Number(sequence, "actorMargin", defaults.ActorMargin),
+            Width = Number(sequence, "width", defaults.Width),
+            Height = Number(sequence, "height", defaults.Height),
+            BoxMargin = Number(sequence, "boxMargin", defaults.BoxMargin),
+            BoxTextMargin = Number(sequence, "boxTextMargin", defaults.BoxTextMargin),
+            NoteMargin = Number(sequence, "noteMargin", defaults.NoteMargin),
+            MessageMargin = Number(sequence, "messageMargin", defaults.MessageMargin),
+            MessageAlign = Text(sequence, "messageAlign") ?? defaults.MessageAlign,
+            MirrorActors = Boolean(sequence, "mirrorActors", defaults.MirrorActors),
+            ForceMenus = Boolean(sequence, "forceMenus", defaults.ForceMenus),
+            BottomMarginAdj = Number(sequence, "bottomMarginAdj", defaults.BottomMarginAdj),
+            RightAngles = Boolean(sequence, "rightAngles", defaults.RightAngles),
+            ShowSequenceNumbers = Boolean(sequence, "showSequenceNumbers", defaults.ShowSequenceNumbers),
+            ActorFont = Font("actor", defaults.ActorFont),
+            NoteFont = Font("note", defaults.NoteFont),
+            NoteAlign = Text(sequence, "noteAlign") ?? defaults.NoteAlign,
+            MessageFont = Font("message", defaults.MessageFont),
+
+            // The diagram's init copies a true top-level wrap into sequence.wrap; the database falls back to sequence.wrap
+            Wrap = Boolean(raw, "wrap", false) || Boolean(sequence, "wrap", defaults.Wrap),
+            WrapPadding = Number(sequence, "wrapPadding", defaults.WrapPadding),
+            LabelBoxWidth = Number(sequence, "labelBoxWidth", defaults.LabelBoxWidth),
+            LabelBoxHeight = Number(sequence, "labelBoxHeight", defaults.LabelBoxHeight),
+            TextPlacement = Text(sequence, "textPlacement"),
+
+            // setConf assigns every top-level key over the section, arrowMarkerAbsolute (which has a default) included
+            ArrowMarkerAbsolute = Boolean(raw, "arrowMarkerAbsolute", Boolean(sequence, "arrowMarkerAbsolute", false)),
+        };
+    }
 
     /// <summary>
     ///     Reads a text value.

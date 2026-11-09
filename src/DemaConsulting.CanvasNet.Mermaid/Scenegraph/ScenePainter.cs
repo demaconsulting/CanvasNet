@@ -65,7 +65,8 @@ internal interface ISceneImageLoader
 ///         <b>Order and paints.</b> The surface is first filled with the background (transparent when none), then the items
 ///         are drawn in list order, parents before children, translated by their groups. Fills and strokes are
 ///         anti-aliased by the core path filler; a stroke is built in device space with its width and dashes scaled, so it
-///         looks the same at every scale. A fully transparent paint draws nothing.
+///         looks the same at every scale. A path with a drop shadow gets its shadow painted under it first. A fully
+///         transparent paint draws nothing.
 ///     </para>
 ///     <para>
 ///         <b>Text.</b> Every run is drawn with the face that <see cref="CreateFontResolver"/> resolves for its family, weight
@@ -237,10 +238,34 @@ internal sealed partial class ScenePainter
             return;
         }
 
+        // The shadow first, under the shape
+        if (item.Shadow is { } shadow)
+        {
+            PaintShadow(surface, item, shadow, placement, bounds);
+        }
+
+        FillAndStroke(surface, item, path, placement, bounds, charge: true);
+    }
+
+    /// <summary>
+    ///     Fills and strokes the device path of a path item.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="item">The path item.</param>
+    /// <param name="path">The item's geometry in device space.</param>
+    /// <param name="placement">The placement the geometry was built with.</param>
+    /// <param name="bounds">The bounds of the geometry.</param>
+    /// <param name="charge">Whether the painted pixels are charged to the budget (not for a shadow's silhouette).</param>
+    private void FillAndStroke(Surface surface, ScenePath item, Geometry.Path path, ScenePlacement placement, Geometry.Rect bounds, bool charge)
+    {
         // The fill
         if (item.Fill is { A: > 0 } fill)
         {
-            Charge(surface, bounds.X, bounds.Y, bounds.Right, bounds.Bottom, item);
+            if (charge)
+            {
+                Charge(surface, bounds.X, bounds.Y, bounds.Right, bounds.Bottom, item);
+            }
+
             PathFiller.Fill(surface, path, fill, item.FillRule, FlattenTolerance);
         }
 
@@ -254,7 +279,11 @@ internal sealed partial class ScenePainter
             }
 
             var half = width / 2;
-            Charge(surface, bounds.X - half, bounds.Y - half, bounds.Right + half, bounds.Bottom + half, item);
+            if (charge)
+            {
+                Charge(surface, bounds.X - half, bounds.Y - half, bounds.Right + half, bounds.Bottom + half, item);
+            }
+
             var dash = DashFor(stroke, placement.Scale, item.Segments, out var dashOffset);
             var style = new StrokeStyle(
                 (float)width,

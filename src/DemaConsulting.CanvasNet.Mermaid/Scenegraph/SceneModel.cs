@@ -178,6 +178,16 @@ internal sealed record SceneStroke(Rgba32 Color, double Width)
 }
 
 /// <summary>
+///     A drop shadow drawn under a <see cref="ScenePath"/>: CSS's <c>filter: drop-shadow(...)</c>, the blurred
+///     silhouette of the path's fill and stroke, moved and painted in one color.
+/// </summary>
+/// <param name="OffsetX">The horizontal offset in scene units.</param>
+/// <param name="OffsetY">The vertical offset in scene units.</param>
+/// <param name="Blur">The standard deviation of the Gaussian blur in scene units; zero for a sharp shadow.</param>
+/// <param name="Color">The color; its alpha scales the silhouette's coverage.</param>
+internal sealed record SceneShadow(double OffsetX, double OffsetY, double Blur, Rgba32 Color);
+
+/// <summary>
 ///     The font of a <see cref="SceneTextRun"/>: a CSS family list, a size and a style.
 /// </summary>
 /// <param name="Family">The CSS <c>font-family</c> list (resolved to bundled fonts by the painter).</param>
@@ -262,6 +272,11 @@ internal sealed record ScenePath(IReadOnlyList<SceneSegment> Segments) : SceneIt
     ///     Gets the stroke, or null for no stroke.
     /// </summary>
     public SceneStroke? Stroke { get; init; }
+
+    /// <summary>
+    ///     Gets the drop shadow painted under the path, or null for none.
+    /// </summary>
+    public SceneShadow? Shadow { get; init; }
 }
 
 /// <summary>

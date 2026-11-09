@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Scenegraph;
@@ -87,5 +88,25 @@ public class SceneModelTests
         Assert.Equal((5.0, 6.0, 3.0, 4.0), (cubic.X, cubic.Y, cubic.X2, cubic.Y2));
         Assert.Equal((7.0, 8.0, 30.0, true, false), (arc.X1, arc.Y1, arc.X2, arc.LargeArc, arc.Sweep));
         Assert.Equal(SceneSegmentKind.Close, SceneSegment.Close().Kind);
+    }
+
+    /// <summary>
+    ///     Validates that a path has no drop shadow unless one is given, and that a shadow does not change the bounds
+    ///     (as SVG's <c>getBBox</c> ignores filters).
+    /// </summary>
+    [Fact]
+    public void ScenePath_Shadow_DefaultsToNoneAndKeepsBounds()
+    {
+        // Arrange
+        IReadOnlyList<SceneSegment> square = [SceneSegment.Move(0, 0), SceneSegment.Line(10, 0), SceneSegment.Line(10, 10), SceneSegment.Close()];
+        var plain = new ScenePath(square) { Role = "box" };
+
+        // Act
+        var shadowed = plain with { Shadow = new SceneShadow(1, 2, 2, new Rgba32(185, 185, 185, 255)) };
+
+        // Assert
+        Assert.Null(plain.Shadow);
+        Assert.Equal(new SceneShadow(1, 2, 2, new Rgba32(185, 185, 185, 255)), shadowed.Shadow);
+        Assert.Equal(Scene.BoundsOf([plain]), Scene.BoundsOf([shadowed]));
     }
 }

@@ -5,8 +5,8 @@ using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Scenegraph;
 
 /// <summary>
-///     Unit tests for <see cref="ScenePainter"/>: fills, strokes and dashes, text, pictures, placement, the painted-pixel
-///     limit and cancellation.
+///     Unit tests for <see cref="ScenePainter"/>: fills, strokes and dashes, drop shadows, text, pictures, placement, the
+///     painted-pixel limit and cancellation.
 /// </summary>
 public class ScenePainterTests
 {
@@ -336,6 +336,82 @@ public class ScenePainterTests
         // Assert
         Assert.Equal(NodeFill, surface[2, 2]);
         Assert.Equal(0, surface[10, 10].A);
+    }
+
+    /// <summary>
+    ///     Validates that a sharp drop shadow is the shape's silhouette moved by the offset and painted under the shape.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_SharpShadow_OffsetsSilhouetteUnderShape()
+    {
+        // Arrange: a white square from 20 to 60 with a black shadow 5 pixels right and down
+        var white = new Rgba32(255, 255, 255, 255);
+        var black = new Rgba32(0, 0, 0, 255);
+        var square = new ScenePath(Rectangle(20, 20, 40, 40)) { Role = "box", Fill = white, Shadow = new SceneShadow(5, 5, 0, black) };
+
+        // Act
+        using var surface = Paint(new Scene(new SceneRect(0, 0, 100, 100), [square]));
+
+        // Assert
+        Assert.Equal(white, surface[40, 40]);
+        Assert.Equal(black, surface[62, 40]);
+        Assert.Equal(black, surface[30, 62]);
+        Assert.Equal(0, surface[67, 40].A);
+        Assert.Equal(0, surface[22, 62].A);
+    }
+
+    /// <summary>
+    ///     Validates that a blurred drop shadow fades symmetrically from the shape's edges and vanishes beyond the blur.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_BlurredShadow_FadesSymmetrically()
+    {
+        // Arrange: a white square from 20 to 60 with a centered black shadow of blur 2
+        var square = new ScenePath(Rectangle(20, 20, 40, 40))
+        {
+            Role = "box",
+            Fill = new Rgba32(255, 255, 255, 255),
+            Shadow = new SceneShadow(0, 0, 2, new Rgba32(0, 0, 0, 255)),
+        };
+
+        // Act
+        using var surface = Paint(new Scene(new SceneRect(0, 0, 100, 100), [square]));
+
+        // Assert: pixels 19 - k and 60 + k are mirror images, the shadow fades outward and is gone 20 pixels away
+        for (var k = 0; k < 5; k++)
+        {
+            Assert.InRange(surface[19 - k, 40].A - surface[60 + k, 40].A, -1, 1);
+        }
+
+        Assert.True(surface[60, 40].A > surface[62, 40].A);
+        Assert.True(surface[62, 40].A > surface[64, 40].A);
+        Assert.True(surface[64, 40].A > 0);
+        Assert.Equal(0, surface[80, 40].A);
+        Assert.Equal(0, surface[60, 40].R);
+    }
+
+    /// <summary>
+    ///     Validates that the pixels of a shadow count against the painted-pixel limit and that a transparent shadow
+    ///     paints nothing.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_Shadow_ChargedToPaintedPixelLimit()
+    {
+        // Arrange: a square of 1,600 pixels, under a limit of 2,000
+        var plain = new ScenePath(Rectangle(20, 20, 40, 40)) { Role = "box", Fill = NodeFill };
+        var shadowed = plain with { Shadow = new SceneShadow(5, 5, 0, new Rgba32(0, 0, 0, 255)) };
+        var invisible = plain with { Shadow = new SceneShadow(5, 5, 0, new Rgba32(0, 0, 0, 0)) };
+        var view = new SceneRect(0, 0, 100, 100);
+
+        // Act
+        using var withoutShadow = Paint(new Scene(view, [plain]), maxPixels: 2_000);
+        using var transparent = Paint(new Scene(view, [invisible]), maxPixels: 2_000);
+        var ex = Assert.Throws<MermaidRenderException>(() => Paint(new Scene(view, [shadowed]), maxPixels: 2_000));
+
+        // Assert
+        Assert.Equal(NodeFill, withoutShadow[40, 40]);
+        Assert.Equal(0, transparent[62, 40].A);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
     }
 
     /// <summary>

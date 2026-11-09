@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
-///     global keys and the flowchart, and the set of configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
+///     global keys, the flowchart and the sequence diagram, and the set of configuration keys that Mermaid's
+///     <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {
@@ -159,8 +160,9 @@ internal static partial class MermaidConfigResolver
         ["secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges"];
 
     /// <summary>
-    ///     Builds Mermaid's default configuration for the global keys and the flowchart, with the default theme's
-    ///     variables. A new object is built for every use, because a JSON object is not safe for concurrent reads.
+    ///     Builds Mermaid's default configuration for the global keys, the flowchart and the sequence diagram, with the
+    ///     default theme's variables. A new object is built for every use, because a JSON object is not safe for
+    ///     concurrent reads.
     /// </summary>
     /// <returns>The default configuration.</returns>
     internal static JsonObject CreateDefaults()
@@ -189,6 +191,7 @@ internal static partial class MermaidConfigResolver
                 ["wrappingWidth"] = 200.0,
                 ["inheritDir"] = false,
             },
+            ["sequence"] = CreateSequenceDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -211,4 +214,45 @@ internal static partial class MermaidConfigResolver
             ["themeVariables"] = ThemeResolver.GetThemeVariables("default", null),
         };
     }
+
+    /// <summary>
+    ///     Builds Mermaid's default sequence section (the defaults of <c>SequenceDiagramConfig</c>; the
+    ///     <c>messageFont</c>, <c>noteFont</c> and <c>actorFont</c> functions of <c>defaultConfig.ts</c> have no JSON form).
+    /// </summary>
+    /// <returns>The default sequence section.</returns>
+    private static JsonObject CreateSequenceDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["hideUnusedParticipants"] = false,
+        ["activationWidth"] = 10.0,
+        ["diagramMarginX"] = 50.0,
+        ["diagramMarginY"] = 10.0,
+        ["actorMargin"] = 50.0,
+        ["width"] = 150.0,
+        ["height"] = 65.0,
+        ["boxMargin"] = 10.0,
+        ["boxTextMargin"] = 5.0,
+        ["noteMargin"] = 10.0,
+        ["messageMargin"] = 35.0,
+        ["messageAlign"] = "center",
+        ["mirrorActors"] = true,
+        ["forceMenus"] = false,
+        ["bottomMarginAdj"] = 1.0,
+        ["rightAngles"] = false,
+        ["showSequenceNumbers"] = false,
+        ["actorFontSize"] = 14.0,
+        ["actorFontFamily"] = SequenceConfig.DefaultActorFontFamily,
+        ["actorFontWeight"] = 400.0,
+        ["noteFontSize"] = 14.0,
+        ["noteFontFamily"] = SequenceConfig.DefaultTextFontFamily,
+        ["noteFontWeight"] = 400.0,
+        ["noteAlign"] = "center",
+        ["messageFontSize"] = 16.0,
+        ["messageFontFamily"] = SequenceConfig.DefaultTextFontFamily,
+        ["messageFontWeight"] = 400.0,
+        ["wrap"] = false,
+        ["wrapPadding"] = 10.0,
+        ["labelBoxWidth"] = 50.0,
+        ["labelBoxHeight"] = 20.0,
+    };
 }

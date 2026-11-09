@@ -21,23 +21,23 @@ internal sealed record ShapePaint(Rgba32? Fill, Rgba32? Stroke, double StrokeWid
 internal sealed record TextPaint(string FontFamily, double FontSize, Rgba32 Color);
 
 /// <summary>
-///     The style sheet Mermaid writes for a flowchart (its <c>styles.ts</c> after the global rules of <c>styles.ts</c>),
-///     built from the theme variables of a configuration, with the rules of <c>themeCSS</c> applied after it.
+///     A style sheet Mermaid writes for a diagram, built from the theme variables of a configuration: the global rules of
+///     Mermaid's <c>styles.ts</c>, then the diagram's own rules, then the rules of <c>themeCSS</c>.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         Each rule of Mermaid's style text is kept as a rule here with its selector, so a <c>themeCSS</c> rule for one
 ///         of these selectors overrides it as it does in a browser (the user styles come last). Only the declarations
-///         that change pixels are kept (paint, stroke, dash, opacity, font and the label backgrounds); a declaration whose
-///         value is not valid CSS (a theme variable that is not a color, say) is left out, as a browser drops it.
+///         that change pixels are kept (paint, stroke, dash, opacity, font, filter and the label backgrounds); a
+///         declaration whose value is not valid CSS (a theme variable that is not a color, say) is left out, as a browser
+///         drops it.
 ///     </para>
 ///     <para>
-///         The typed properties resolve the rules the flowchart draws with: <see cref="Node"/>, <see cref="Cluster"/>,
-///         <see cref="EdgeColor"/>, <see cref="MarkerColor"/>, <see cref="NodeLabel"/>, <see cref="ClusterLabel"/> and
-///         the others. An instance is immutable.
+///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="SequenceStyles"/>) share the rule
+///         building, the global rules and the cascade here. An instance is immutable.
 ///     </para>
 /// </remarks>
-internal sealed class FlowchartStyles
+internal abstract class DiagramStyles
 {
     /// <summary>The selector of the root rule (Mermaid's <c>&amp;</c>, the SVG element).</summary>
     public const string Root = "&";
@@ -49,7 +49,7 @@ internal sealed class FlowchartStyles
     ///     Initializes the styles from their rules.
     /// </summary>
     /// <param name="rules">The rules in cascade order.</param>
-    private FlowchartStyles(IReadOnlyList<StyleRule> rules)
+    protected DiagramStyles(IReadOnlyList<StyleRule> rules)
     {
         Rules = rules;
         _resolved = new Dictionary<string, StyleDeclarationSet>(StringComparer.Ordinal);
@@ -61,13 +61,191 @@ internal sealed class FlowchartStyles
         }
     }
 
+    /// <summary>Gets the rules in cascade order: the diagram's, then the user's.</summary>
+    public IReadOnlyList<StyleRule> Rules { get; }
+
+    /// <summary>
+    ///     Gets the cascaded declarations of a selector.
+    /// </summary>
+    /// <param name="selector">The normalized selector.</param>
+    /// <returns>The declarations (empty when the selector has none).</returns>
+    public StyleDeclarationSet Resolve(string selector) =>
+        _resolved.TryGetValue(StyleDeclarations.NormalizeSelector(selector), out var set) ? set : StyleDeclarationSet.Empty;
+
+    /// <summary>
+    ///     Gets the theme variables of a configuration as text.
+    /// </summary>
+    /// <param name="config">The configuration.</param>
+    /// <returns>The variables by name.</returns>
+    protected static Dictionary<string, string?> VariablesOf(MermaidConfig config)
+    {
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var (key, _) in config.ThemeVariables)
+        {
+            variables[key] = config.ThemeVariable(key);
+        }
+
+        return variables;
+    }
+
+    /// <summary>
+    ///     Parses the rules of a configuration's <c>themeCSS</c> whose selectors are known; the rest is reported.
+    /// </summary>
+    /// <param name="config">The configuration.</param>
+    /// <param name="knownSelectors">The selectors of the diagram's style sheet.</param>
+    /// <param name="sink">The report sink, or null.</param>
+    /// <returns>The user rules.</returns>
+    /// <exception cref="MermaidUnsupportedFeatureException">Thrown in strict mode at the first unsupported rule.</exception>
+    protected static IReadOnlyList<StyleRule> UserRules(MermaidConfig config, IReadOnlySet<string> knownSelectors, MermaidReportSink? sink) =>
+        config.ThemeCss is { } css
+            ? StyleDeclarations.ParseSheet(css, knownSelectors, config.LocationOf("themeCSS"), sink)
+            : [];
+
+    /// <summary>
+    ///     Resolves the paint of a shape rule.
+    /// </summary>
+    /// <param name="selector">The selector.</param>
+    /// <param name="defaultWidth">The stroke width when none is declared.</param>
+    /// <returns>The paint.</returns>
+    protected ShapePaint Shape(string selector, double defaultWidth)
+    {
+        var set = Resolve(selector);
+        return new ShapePaint(set.Paint("fill"), set.Paint("stroke"), set.Length("stroke-width", defaultWidth));
+    }
+
+    /// <summary>
+    ///     Resolves a text rule over the root font.
+    /// </summary>
+    /// <param name="selector">The selector.</param>
+    /// <param name="colorProperty">The property that holds the text color.</param>
+    /// <returns>The text paint.</returns>
+    protected TextPaint Text(string selector, string colorProperty)
+    {
+        var root = Resolve(Root);
+        var set = root.Cascade(Resolve(selector));
+        var fontSize = root.Length("font-size", 16);
+        var size = set["font-size"] is { } value && StyleDeclarations.TryParseFontSize(value, fontSize, out var length) ? length : fontSize;
+        return new TextPaint(
+            set["font-family"] ?? MermaidConfigResolver.DefaultFontFamily,
+            size,
+            set.Paint(colorProperty) ?? root.Paint("fill") ?? new Rgba32(0, 0, 0, 255));
+    }
+
+    /// <summary>
+    ///     Builds the rules of a style sheet in cascade order, keeping only the declarations a browser would accept.
+    /// </summary>
+    /// <param name="variables">The theme variables as text.</param>
+    protected sealed class RuleBuilder(IReadOnlyDictionary<string, string?> variables)
+    {
+        /// <summary>Gets the rules added so far, in cascade order.</summary>
+        public List<StyleRule> Rules { get; } = [];
+
+        /// <summary>
+        ///     Gets a theme variable.
+        /// </summary>
+        /// <param name="name">The variable name.</param>
+        /// <returns>The value, or null when it is not set.</returns>
+        public string? Var(string name) => variables.TryGetValue(name, out var value) ? value : null;
+
+        /// <summary>
+        ///     Adds a rule for each selector of a list; declarations with no value or an invalid one are left out.
+        /// </summary>
+        /// <param name="selectors">The selectors, separated by commas.</param>
+        /// <param name="declarations">The declarations; a value may end with <c>!important</c>.</param>
+        public void Add(string selectors, params (string Property, string? Value)[] declarations)
+        {
+            var set = new StyleDeclarationSet(declarations
+                .Where(d => d.Value is not null && IsValid(d.Property, d.Value))
+                .Select(d => ToDeclaration(d.Property, d.Value!)));
+            foreach (var selector in selectors.Split(','))
+            {
+                Rules.Add(new StyleRule(StyleDeclarations.NormalizeSelector(selector), set));
+            }
+        }
+
+        /// <summary>
+        ///     Adds the global rules that Mermaid's <c>getStyles</c> writes before the diagram's own rules.
+        /// </summary>
+        public void AddGlobalRules()
+        {
+            var strokeWidth = Var("strokeWidth");
+            Add(Root, ("font-family", Var("fontFamily")), ("font-size", Var("fontSize")), ("fill", Var("textColor")));
+            Add(".edge-animation-slow", ("stroke-dasharray", "9,5 !important"), ("stroke-dashoffset", "900"));
+            Add(".edge-animation-fast", ("stroke-dasharray", "9,5 !important"), ("stroke-dashoffset", "900"));
+            Add(".error-icon", ("fill", Var("errorBkgColor")));
+            Add(".error-text", ("fill", Var("errorTextColor")), ("stroke", Var("errorTextColor")));
+            Add(".edge-thickness-normal", ("stroke-width", $"{strokeWidth ?? "1"}px"));
+            Add(".edge-thickness-thick", ("stroke-width", "3.5px"));
+            Add(".edge-pattern-solid", ("stroke-dasharray", "0"));
+            Add(".edge-thickness-invisible", ("stroke-width", "0"), ("fill", "none"));
+            Add(".edge-pattern-dashed", ("stroke-dasharray", "3"));
+            Add(".edge-pattern-dotted", ("stroke-dasharray", "2"));
+            Add(".marker", ("fill", Var("lineColor")), ("stroke", Var("lineColor")));
+            Add(".marker.cross", ("stroke", Var("lineColor")));
+            Add("svg", ("font-family", Var("fontFamily")), ("font-size", Var("fontSize")));
+            Add("p", ("margin", "0"));
+        }
+
+        /// <summary>
+        ///     Converts an internal declaration (with an optional <c>!important</c> suffix).
+        /// </summary>
+        /// <param name="property">The property.</param>
+        /// <param name="value">The value.</param>
+        /// <returns>The declaration.</returns>
+        private static StyleDeclaration ToDeclaration(string property, string value)
+        {
+            const string Important = "!important";
+            return value.EndsWith(Important, StringComparison.Ordinal)
+                ? new StyleDeclaration(property, value[..^Important.Length].Trim(), true)
+                : new StyleDeclaration(property, value.Trim(), false);
+        }
+
+        /// <summary>
+        ///     Gets whether an internal declaration has a valid value (a browser drops the invalid ones).
+        /// </summary>
+        /// <param name="property">The property.</param>
+        /// <param name="value">The value.</param>
+        /// <returns>Whether it is valid.</returns>
+        private static bool IsValid(string property, string value)
+        {
+            var text = ToDeclaration(property, value).Value;
+            return property switch
+            {
+                "fill" or "stroke" => StyleDeclarations.TryParsePaint(text, out _),
+                "color" or "background-color" => CssColor.TryParse(text, out _),
+                "stroke-width" => StyleDeclarations.TryParseLength(text, 16, out _),
+                "font-size" => StyleDeclarations.TryParseFontSize(text, 16, out _),
+                "filter" => SequenceStyles.TryParseFilter(text, out _),
+                _ => text.Length > 0,
+            };
+        }
+    }
+}
+
+/// <summary>
+///     The style sheet Mermaid writes for a flowchart (its <c>styles.ts</c> after the global rules of <c>styles.ts</c>),
+///     built from the theme variables of a configuration, with the rules of <c>themeCSS</c> applied after it.
+/// </summary>
+/// <remarks>
+///     The typed properties resolve the rules the flowchart draws with: <see cref="Node"/>, <see cref="Cluster"/>,
+///     <see cref="EdgeColor"/>, <see cref="MarkerColor"/>, <see cref="NodeLabel"/>, <see cref="ClusterLabel"/> and the
+///     others. An instance is immutable.
+/// </remarks>
+internal sealed class FlowchartStyles : DiagramStyles
+{
+    /// <summary>
+    ///     Initializes the styles from their rules.
+    /// </summary>
+    /// <param name="rules">The rules in cascade order.</param>
+    private FlowchartStyles(IReadOnlyList<StyleRule> rules)
+        : base(rules)
+    {
+    }
+
     /// <summary>Gets the selectors of the flowchart's style sheet, which <c>themeCSS</c> may use.</summary>
     public static FrozenSet<string> KnownSelectors { get; } = BuildRules(new Dictionary<string, string?>(), [])
         .Select(rule => rule.Selector)
         .ToFrozenSet(StringComparer.Ordinal);
-
-    /// <summary>Gets the rules in cascade order: the diagram's, then the user's.</summary>
-    public IReadOnlyList<StyleRule> Rules { get; }
 
     /// <summary>Gets the paint of node shapes (<c>.node rect</c>).</summary>
     public ShapePaint Node => Shape(".node rect", 1);
@@ -110,25 +288,8 @@ internal sealed class FlowchartStyles
     public static FlowchartStyles Create(MermaidConfig config, MermaidReportSink? sink)
     {
         ArgumentNullException.ThrowIfNull(config);
-        var variables = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var (key, _) in config.ThemeVariables)
-        {
-            variables[key] = config.ThemeVariable(key);
-        }
-
-        var user = config.ThemeCss is { } css
-            ? StyleDeclarations.ParseSheet(css, KnownSelectors, config.LocationOf("themeCSS"), sink)
-            : [];
-        return new FlowchartStyles(BuildRules(variables, user));
+        return new FlowchartStyles(BuildRules(VariablesOf(config), UserRules(config, KnownSelectors, sink)));
     }
-
-    /// <summary>
-    ///     Gets the cascaded declarations of a selector.
-    /// </summary>
-    /// <param name="selector">The normalized selector.</param>
-    /// <returns>The declarations (empty when the selector has none).</returns>
-    public StyleDeclarationSet Resolve(string selector) =>
-        _resolved.TryGetValue(StyleDeclarations.NormalizeSelector(selector), out var set) ? set : StyleDeclarationSet.Empty;
 
     /// <summary>
     ///     Builds the rules: the global rules of Mermaid's <c>getStyles</c>, the flowchart's <c>styles.ts</c> (in their
@@ -139,37 +300,14 @@ internal sealed class FlowchartStyles
     /// <returns>The rules.</returns>
     private static List<StyleRule> BuildRules(IReadOnlyDictionary<string, string?> v, IReadOnlyList<StyleRule> user)
     {
-        string? Var(string name) => v.TryGetValue(name, out var value) ? value : null;
+        var builder = new RuleBuilder(v);
+        string? Var(string name) => builder.Var(name);
+        void Add(string selectors, params (string Property, string? Value)[] declarations) => builder.Add(selectors, declarations);
         var nodeTextColor = Var("nodeTextColor") is { Length: > 0 } nodeText ? nodeText : Var("textColor");
         var strokeWidth = Var("strokeWidth");
-        var rules = new List<StyleRule>();
-        void Add(string selectors, params (string Property, string? Value)[] declarations)
-        {
-            var set = new StyleDeclarationSet(declarations
-                .Where(d => d.Value is not null && IsValid(d.Property, d.Value))
-                .Select(d => ToDeclaration(d.Property, d.Value!)));
-            foreach (var selector in selectors.Split(','))
-            {
-                rules.Add(new StyleRule(StyleDeclarations.NormalizeSelector(selector), set));
-            }
-        }
 
         // Global rules (styles.ts getStyles) before the diagram styles
-        Add(Root, ("font-family", Var("fontFamily")), ("font-size", Var("fontSize")), ("fill", Var("textColor")));
-        Add(".edge-animation-slow", ("stroke-dasharray", "9,5 !important"), ("stroke-dashoffset", "900"));
-        Add(".edge-animation-fast", ("stroke-dasharray", "9,5 !important"), ("stroke-dashoffset", "900"));
-        Add(".error-icon", ("fill", Var("errorBkgColor")));
-        Add(".error-text", ("fill", Var("errorTextColor")), ("stroke", Var("errorTextColor")));
-        Add(".edge-thickness-normal", ("stroke-width", $"{strokeWidth ?? "1"}px"));
-        Add(".edge-thickness-thick", ("stroke-width", "3.5px"));
-        Add(".edge-pattern-solid", ("stroke-dasharray", "0"));
-        Add(".edge-thickness-invisible", ("stroke-width", "0"), ("fill", "none"));
-        Add(".edge-pattern-dashed", ("stroke-dasharray", "3"));
-        Add(".edge-pattern-dotted", ("stroke-dasharray", "2"));
-        Add(".marker", ("fill", Var("lineColor")), ("stroke", Var("lineColor")));
-        Add(".marker.cross", ("stroke", Var("lineColor")));
-        Add("svg", ("font-family", Var("fontFamily")), ("font-size", Var("fontSize")));
-        Add("p", ("margin", "0"));
+        builder.AddGlobalRules();
 
         // The flowchart's styles.ts
         Add(".label", ("font-family", Var("fontFamily")), ("color", nodeTextColor));
@@ -203,8 +341,8 @@ internal sealed class FlowchartStyles
         Add(".icon-shape .label rect,.image-shape .label rect", ("opacity", "0.5"), ("background-color", Var("edgeLabelBackground")), ("fill", Var("edgeLabelBackground")));
 
         // The user styles come last
-        rules.AddRange(user);
-        return rules;
+        builder.Rules.AddRange(user);
+        return builder.Rules;
     }
 
     /// <summary>
@@ -228,68 +366,5 @@ internal sealed class FlowchartStyles
         {
             return null;
         }
-    }
-
-    /// <summary>
-    ///     Converts an internal declaration (with an optional <c>!important</c> suffix).
-    /// </summary>
-    /// <param name="property">The property.</param>
-    /// <param name="value">The value.</param>
-    /// <returns>The declaration.</returns>
-    private static StyleDeclaration ToDeclaration(string property, string value)
-    {
-        const string Important = "!important";
-        return value.EndsWith(Important, StringComparison.Ordinal)
-            ? new StyleDeclaration(property, value[..^Important.Length].Trim(), true)
-            : new StyleDeclaration(property, value.Trim(), false);
-    }
-
-    /// <summary>
-    ///     Gets whether an internal declaration has a valid value (a browser drops the invalid ones).
-    /// </summary>
-    /// <param name="property">The property.</param>
-    /// <param name="value">The value.</param>
-    /// <returns>Whether it is valid.</returns>
-    private static bool IsValid(string property, string value)
-    {
-        var text = ToDeclaration(property, value).Value;
-        return property switch
-        {
-            "fill" or "stroke" => StyleDeclarations.TryParsePaint(text, out _),
-            "color" or "background-color" => CssColor.TryParse(text, out _),
-            "stroke-width" => StyleDeclarations.TryParseLength(text, 16, out _),
-            "font-size" => StyleDeclarations.TryParseFontSize(text, 16, out _),
-            _ => text.Length > 0,
-        };
-    }
-
-    /// <summary>
-    ///     Resolves the paint of a shape rule.
-    /// </summary>
-    /// <param name="selector">The selector.</param>
-    /// <param name="defaultWidth">The stroke width when none is declared.</param>
-    /// <returns>The paint.</returns>
-    private ShapePaint Shape(string selector, double defaultWidth)
-    {
-        var set = Resolve(selector);
-        return new ShapePaint(set.Paint("fill"), set.Paint("stroke"), set.Length("stroke-width", defaultWidth));
-    }
-
-    /// <summary>
-    ///     Resolves a text rule over the root font.
-    /// </summary>
-    /// <param name="selector">The selector.</param>
-    /// <param name="colorProperty">The property that holds the text color.</param>
-    /// <returns>The text paint.</returns>
-    private TextPaint Text(string selector, string colorProperty)
-    {
-        var root = Resolve(Root);
-        var set = root.Cascade(Resolve(selector));
-        var fontSize = root.Length("font-size", 16);
-        var size = set["font-size"] is { } value && StyleDeclarations.TryParseFontSize(value, fontSize, out var length) ? length : fontSize;
-        return new TextPaint(
-            set["font-family"] ?? MermaidConfigResolver.DefaultFontFamily,
-            size,
-            set.Paint(colorProperty) ?? root.Paint("fill") ?? new Rgba32(0, 0, 0, 255));
     }
 }
