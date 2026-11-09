@@ -223,6 +223,8 @@ with `mermaid-render-failed` at the participant (line 2), as Mermaid fails.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileCorpus_RendersOrFailsLocated`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceDeepBlocks_AreALocatedLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceTooManyParticipants_IsALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceTooManyBoxes_IsALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceMetadataAliasList_IsALocatedLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceLongMessage_IsALocatedLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceWrapBomb_RendersOrHitsTheWorkLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceActivationStorm_RendersHitsTheLimitOrCancels`,
@@ -240,7 +242,9 @@ subgraph, a self-loop on a subgraph) fail with a located `mermaid-render-failed`
 that are zero or infinite in single precision (in `style`, `classDef`, `linkStyle`, an HTML label, and the theme's
 `fontSize`) and dash patterns beyond single precision render a picture. For sequence diagrams, asserts that 33 nested
 blocks fail at open with a located `mermaid-limit-exceeded` while 32 render, that 2,001 participants fail at the
-extra participant (line 2,002), and that a message longer than the label limit fails at its line; that wrapped
+extra participant (line 2,002), that 1,000 boxes of one participant each fail at the next box (line 3,002), that a
+participant metadata alias of 9,000 `1e20` numbers (about 45,000 characters, 197,999 once converted) fails with
+`MaxLabelLength` at its line, and that a message longer than the label limit fails at its line; that wrapped
 messages and notes of one 4,000-character word (Mermaid's hyphenation, quadratic in the word) render within the
 default layout work and fail with `mermaid-limit-exceeded` under a small one; that 300 nested activations render,
 fail with the limit at the diagram keyword under a small budget, and stop on a canceled token; that 200 messages under

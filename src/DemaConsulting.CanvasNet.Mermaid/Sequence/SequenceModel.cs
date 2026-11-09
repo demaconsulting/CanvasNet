@@ -34,10 +34,11 @@ namespace DemaConsulting.CanvasNet.Mermaid.Sequence;
 ///     <para>
 ///         <b>Errors and limits.</b> Mermaid's database errors are located <see cref="MermaidSyntaxException"/>s with
 ///         Mermaid's own message (code <see cref="MermaidDiagnosticCodes.SyntaxError"/>, or
-///         <see cref="MermaidDiagnosticCodes.YamlInvalid"/> for invalid metadata). Participants count against
-///         <see cref="MermaidLimits.MaxNodes"/> (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>); messages are not
-///         limited, as Mermaid applies no <c>maxEdges</c> to sequence diagrams. Every step costs constant time apart from
-///         the text and JSON work, so applying is linear in the statements.
+///         <see cref="MermaidDiagnosticCodes.YamlInvalid"/> for invalid metadata). Participants and boxes count together
+///         against <see cref="MermaidLimits.MaxNodes"/>, and the converted <c>type</c> and <c>alias</c> of participant
+///         metadata against <see cref="MermaidLimits.MaxLabelLength"/> (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>);
+///         messages are not limited, as Mermaid applies no <c>maxEdges</c> to sequence diagrams. Every step costs
+///         constant time apart from the text and JSON work, so applying is linear in the statements.
 ///     </para>
 ///     <para>
 ///         The model is filled by one parser on one thread; once parsing is over it is never changed, so it is safe for
@@ -314,6 +315,7 @@ internal sealed partial class SequenceModel
                 ApplyActorData(data);
                 break;
             case SequenceBoxStartStatement box:
+                CheckNodeLimit(box.Location);
                 _currentBox = new SequenceBox(box.Data.Text, box.Data.Color, box.Data.Wrap, box.Location);
                 _boxes.Add(_currentBox);
                 break;
@@ -403,16 +405,21 @@ internal sealed partial class SequenceModel
         var name = id;
         var assignedBox = _currentBox;
 
-        // The metadata is YAML: one line is wrapped as a flow mapping; its type and alias override the statement's
+        // The metadata is YAML: one line is wrapped as a flow mapping; its type and alias override the statement's.
+        // Both are texts the parser never saw as tokens (a list converts to a joined string far longer than its
+        // source), so they are checked against MaxLabelLength once converted
         var doc = metadata is null ? null : ReadMetadata(metadata) as YamlMapping;
         if (doc?.Get("type") is { } docType and not YamlScalar { Value: null })
         {
             type = docType.ToJsString();
+            CheckLabel(type, docType.Location);
         }
 
         if (doc?.Get("alias") is { IsTruthy: true } alias && (description is null || description.Value.Text == name))
         {
-            description = new SequenceText(alias.ToJsString(), description?.Wrap);
+            var aliasText = alias.ToJsString();
+            CheckLabel(aliasText, alias.Location);
+            description = new SequenceText(aliasText, description?.Wrap);
         }
 
         // A participant declared again keeps its box; a mention without an alias changes nothing else
@@ -435,13 +442,9 @@ internal sealed partial class SequenceModel
                 return;
             }
         }
-        else if (_actors.Count >= _limits.MaxNodes)
+        else
         {
-            throw new MermaidSyntaxException(
-                MermaidDiagnosticCodes.LimitExceeded,
-                string.Create(CultureInfo.InvariantCulture, $"the diagram has more than {_limits.MaxNodes} participants (MermaidLimits.MaxNodes)"),
-                location,
-                "split the diagram, or raise MermaidLimits.MaxNodes when the source is trusted");
+            CheckNodeLimit(location);
         }
 
         // Without an alias, or without a type, the description is the name
@@ -468,6 +471,43 @@ internal sealed partial class SequenceModel
 
         _currentBox?.AddActorKey(id);
         _prevActor = id;
+    }
+
+    /// <summary>
+    ///     Checks a label from participant metadata against <see cref="MermaidLimits.MaxLabelLength"/>, as the flowchart
+    ///     model checks the labels of its shape data.
+    /// </summary>
+    /// <param name="text">The label, converted to a string.</param>
+    /// <param name="location">The location of the YAML value.</param>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the label is too long.</exception>
+    private void CheckLabel(string text, MermaidLocation location)
+    {
+        if (text.Length > _limits.MaxLabelLength)
+        {
+            throw new MermaidSyntaxException(
+                MermaidDiagnosticCodes.LimitExceeded,
+                string.Create(CultureInfo.InvariantCulture, $"a label is {text.Length} characters long, more than the limit of {_limits.MaxLabelLength} (MermaidLimits.MaxLabelLength)"),
+                location,
+                "shorten the label, or raise MermaidLimits.MaxLabelLength when the source is trusted");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that one more participant or box fits <see cref="MermaidLimits.MaxNodes"/>, which counts both together
+    ///     as the flowchart model counts vertices and subgraphs.
+    /// </summary>
+    /// <param name="location">The location of the statement that adds the participant or box.</param>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the limit would be exceeded.</exception>
+    private void CheckNodeLimit(MermaidLocation location)
+    {
+        if (_actors.Count + _boxes.Count >= _limits.MaxNodes)
+        {
+            throw new MermaidSyntaxException(
+                MermaidDiagnosticCodes.LimitExceeded,
+                string.Create(CultureInfo.InvariantCulture, $"the diagram has more than {_limits.MaxNodes} nodes and subgraphs (MermaidLimits.MaxNodes)"),
+                location,
+                "split the diagram, or raise MermaidLimits.MaxNodes when the source is trusted");
+        }
     }
 
     /// <summary>

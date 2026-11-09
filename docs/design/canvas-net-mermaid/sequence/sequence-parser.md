@@ -95,9 +95,11 @@ where jison refuses it, with jison's list of expected tokens.
   hint for sequence diagrams.
 - A block or box nested deeper than `MaxNestingDepth`, and a name or text longer than `MaxLabelLength`, are refused at
   the element with code `mermaid-limit-exceeded`.
-- The errors of the model while the statements are applied (Mermaid's database errors, invalid metadata, and the
-  participant limit) propagate unchanged; because the statements are applied after the whole text has parsed, a
-  grammar error anywhere in the text comes first.
+- The errors of the model while the statements are applied (Mermaid's database errors, invalid metadata, the
+  `MaxNodes` limit on participants and boxes together, and the `MaxLabelLength` check of a metadata `type` or `alias`)
+  propagate unchanged; because the statements are applied after the whole text has parsed, a grammar error anywhere in
+  the text comes first. The parser does not check the `@{ ... }` metadata text itself: the model checks it once it is
+  converted.
 - `Parse` throws `ArgumentNullException` for a null argument.
 
 #### Dependencies

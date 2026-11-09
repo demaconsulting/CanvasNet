@@ -95,7 +95,8 @@ reference layout tests compare their drawings with mermaid-cli renders.
 located `MermaidSyntaxException`: a grammar or lexical error (with Mermaid's expected tokens), what Mermaid's database
 fails on (a participant in two boxes, a misused `create` or `destroy`, the deactivation of a participant that is not
 active, invalid participant metadata), and the limits of the open call (`MaxNestingDepth` and `MaxLabelLength` in the
-parser; `MaxNodes` in the model). A render of an opened sequence diagram reports what it does not draw as Mermaid does
+parser; `MaxNodes`, for participants and boxes together, and `MaxLabelLength` for the metadata type and alias in the
+model). A render of an opened sequence diagram reports what it does not draw as Mermaid does
 (look, participant icons, math, unknown participant types, the `fo` text placement) and then draws; the few texts
 that Mermaid draws at coordinates that are not numbers or crashes on fail the render with a located
 `mermaid-render-failed`.
