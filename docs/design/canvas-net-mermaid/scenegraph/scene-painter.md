@@ -31,8 +31,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   under 0.25 pixel, an entry over `MaxMagnitude` device pixels, or more than 50,000 estimated dashes are drawn solid,
   and a dash offset over `MaxMagnitude` is reduced by whole periods, so every value handed to the core
   `StrokeStyle` is finite in single precision. A text run whose device size is zero in single precision is not
-  drawn, and a stroke (of a path or of a text) whose device width is zero in single precision (a tiny fit scale) is
-  not drawn. `MaxShadowBlur` = 64 device pixels is the largest blur a drop shadow is drawn with.
+  drawn, and a stroke (of a path, of a text, or in a drop shadow's silhouette) whose device width is zero in single
+  precision (a tiny fit scale), not finite, or beyond `MaxMagnitude` is not drawn. `MaxShadowBlur` = 64 device pixels
+  is the largest blur a drop shadow is drawn with.
 
 **Invariants**: `_painted` never exceeds `_maxPaintedPixels`; an instance paints one scene on one thread.
 
@@ -48,16 +49,32 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   the returned surface; on any failure the surface is disposed and the exception propagates.
 - **`PaintPath`** - skips an empty path or one with a coordinate, control point, or arc radius that is not finite or
   beyond `MaxMagnitude` once placed; converts it with `Scene.ToPath`; fills it (a fill with alpha) with the core
-  `PathFiller` under its fill rule, after charging the path's device box; then strokes it (a stroke with alpha and a
-  positive finite width) by building the outline in device space with `PathStroker` (scaled width, cap, join, miter
+  `PathFiller` under its fill rule, after charging the path's device box; then strokes it (a stroke that
+  `DeviceStrokeWidth` draws) by building the outline in device space with `PathStroker` (scaled width, cap, join, miter
   limit 4, scaled dashes and offset) and filling the outline nonzero, after charging the box grown by half the width.
   A path with a drop shadow gets its shadow painted first, under it.
+- **`DeviceStrokeWidth(stroke, scale)`** - the device width a stroke is drawn with (the scaled width in single
+  precision), or zero when it is not drawn: no stroke, a transparent color, or a device width that is not more than
+  zero in single precision, not finite, or beyond `MaxMagnitude`. The paths, the text, and the drop shadows decide
+  with it alone whether a stroke is drawn, so they cannot disagree.
 - **`PaintShadow`** (`ScenePainter.Shadow.cs`) - paints the drop shadow of a path as the SVG `drop-shadow` filter
-  does: the silhouette of the path's fill and stroke, moved by the scaled offset, is drawn as coverage into a buffer
-  that covers its device box grown by the stroke's reach and the reach of the blur, blurred with the three box
-  blurs that the SVG specification gives as the approximation of the Gaussian blur (horizontally, then vertically; a
-  blur at most `MaxShadowBlur` device pixels), and composited in the shadow color under the shape, after charging the
-  shadow's device box. A transparent shadow paints nothing.
+  does: the silhouette of the path's fill and stroke, moved by the scaled offset, is drawn into an RGBA mask over the
+  scratch region that `ShadowRegion` gives, the mask's alpha is copied into a byte buffer and the mask released, the
+  coverage (floats) is blurred with the three box blurs that the SVG specification gives as the approximation of the
+  Gaussian blur (horizontally, then vertically, with running sums in double precision over whole rows and columns; a
+  blur at most `MaxShadowBlur` device pixels), and composited in the shadow color under the shape. The whole scratch
+  region, its margins beyond the surface included, is charged to the limit before any scratch is allocated. The mask
+  (4 bytes a region pixel) and the coverage (4 bytes) are never alive together, so the peak scratch is about 5 bytes
+  a region pixel (the byte buffer and the coverage) plus one row or column of running sums. The coverage stays one
+  buffer of the whole region: blurring it in bounded strips would change the rounding of the running sums or
+  recompute the horizontal pass once per strip, and the output must not change. A transparent shadow paints nothing.
+- **`ShadowRegion(bounds, strokeReach, dx, dy, blurReach, surfaceWidth, surfaceHeight)`** - the scratch region of a
+  shadow: the path's device box grown by the reach of its drawn stroke (twice the device width, the miter limit's
+  bound; zero when `DeviceStrokeWidth` is zero), moved by the offset, and grown by the blur's reach - the shadow's own
+  bounds, so a small shadow on a large surface gets a small region - kept to the surface and the blur's reach around
+  it, and to the surface alone when a side would pass `Surface.MaxDimension`. The edges are computed in double
+  precision and clamped before they become integers, so no value overflows; a region that is not on the surface or
+  not a number is none.
 - **`DashFor`** - the device dash pattern, or null (solid) when there is no pattern, the offset is not finite, an
   entry is negative or not finite, the scaled period is under 0.25 pixel, or the length of the path (estimated from
   its control polygon, an upper bound) divided by the period exceeds 50,000.
@@ -75,8 +92,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   loader for a picture of exactly that size; stretches a picture that comes back at another size to the box with
   `Surface.Resize` (Mermaid's `image` element has `preserveAspectRatio="none"`); and composites it over the surface,
   clipped to it, with the item's opacity (at most 1) as coverage.
-- **`Charge`** - clips a device box to the surface, and when the box has area adds it to `_painted`, throwing when the
-  total would pass the limit.
+- **`Charge`** - clips a device box to the surface, and when the box has area adds it to `_painted` with `ChargeArea`;
+  **`ChargeArea`** adds a number of pixels (also a shadow's whole scratch region), throwing when the total would pass
+  the limit.
 - **`ScenePlacement.Uniform(viewBox, scale)`** - the view box at the surface origin, enlarged by the scale.
 - **`ScenePlacement.Fit(viewBox, width, height)`** - the largest uniform scale at which the view box fits the target,
   centered; a view box without area is placed at the origin unscaled.
@@ -89,9 +107,10 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
 - The constructor throws `ArgumentNullException` for a null resolver and `ArgumentOutOfRangeException` for a limit
   under 1; `Paint` throws `ArgumentNullException` for a null scene.
 - `Paint` checks the cancellation token on entry and before every item and throws `OperationCanceledException`.
-- `Charge` throws `MermaidRenderException` with the code `mermaid-limit-exceeded` (`LimitExceeded` of
-  `MermaidDiagnosticCodes`), the location of the item, a message that names `MermaidLimits.MaxPaintedPixels`, and a
-  hint to render smaller or raise the limit, before any pixel of the item is painted.
+- `Charge` (through `ChargeArea`) throws `MermaidRenderException` with the code `mermaid-limit-exceeded`
+  (`LimitExceeded` of `MermaidDiagnosticCodes`), the location of the item, a message that names
+  `MermaidLimits.MaxPaintedPixels`, and a hint to render smaller or raise the limit, before any pixel of the item is
+  painted.
 - Geometry that is not finite or out of bounds is skipped silently (it cannot be seen on any surface). An invalid
   dash pattern is drawn solid. A loader that returns null draws nothing; the exceptions of a loader propagate (the
   system's `NodeImages` loader reports and limits pictures itself).

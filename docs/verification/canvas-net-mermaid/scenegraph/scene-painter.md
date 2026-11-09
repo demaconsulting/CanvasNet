@@ -114,14 +114,28 @@ Asserts that painting a scene with a token that is already canceled throws `Oper
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_SharpShadow_OffsetsSilhouetteUnderShape`,
 `ScenePainterTests.ScenePainter_Paint_BlurredShadow_FadesSymmetrically`,
-`ScenePainterTests.ScenePainter_Paint_Shadow_ChargedToPaintedPixelLimit`
+`ScenePainterTests.ScenePainter_Paint_Shadow_ChargedToPaintedPixelLimit`,
+`ScenePainterTests.ScenePainter_Paint_ShadowWithHugeStroke_IsTheFillsShadow`,
+`ScenePainterTests.ScenePainter_ShadowRegion_SmallShadowOnLargeSurface_IsTheShadowsBounds`,
+`ScenePainterTests.ScenePainter_ShadowRegion_ExtremeValues_AreClampedWithoutOverflow`,
+`ScenePainterTests.ScenePainter_Paint_Shadow_ChargesItsWholeScratchRegion`
 
 Asserts that a white square from 20 to 60 with a sharp black shadow 5 pixels to the right and down stays white inside,
 has the black shadow beside and below it, and nothing beyond the shadow; that a centered shadow with a blur of 2 is
 symmetric on both sides of the square (within one level), fades outward, is gone 20 pixels away, and is drawn in its
 own color under the white square; and that under a painted-pixel limit of 2,000 the square of 1,600 pixels is painted,
 with a transparent shadow too (which paints nothing), while the square with a visible shadow fails with
-`mermaid-limit-exceeded`, the shadow's pixels being charged.
+`mermaid-limit-exceeded`, the shadow's pixels being charged. Asserts that a square with a blurred shadow and a stroke
+that is not drawn (a width of 1e300 or 1e30 at scale 1, or 20,000 at scale 2, beyond 32,768 device pixels) paints
+without an exception, with its shadow present, and with the same pixels as the square without a stroke. Asserts
+through the internal `ShadowRegion` helper that the scratch region of a 20 by 20 box at (4,000, 4,000) on an 8,192 by
+8,192 surface, with a stroke reach of 2, an offset of (1, 2), and a blur reach of 15, is (3,984, 3,985) to
+(4,038, 4,039): 54 pixels square (20 + 2 x 2 + 2 x 15), the shadow's own bounds and not the surface's; that a stroke
+reach of 1e300 or infinity is clamped to the surface (0, 0) to (8,192, 8,192) without overflow; and that an offset of
+plus or minus 1e300 or a reach that is not a number gives no region. Asserts that a 20 by 20 box at the corner of a
+1,024 by 1,024 surface with a centered shadow of blur 2 (a blur reach of 9) paints under a limit of 400 + 1,444 pixels
+and fails with `mermaid-limit-exceeded` under one pixel less: the whole 38 by 38 scratch region is charged, its margins
+beyond the surface included, and nothing in proportion to the surface.
 
 ##### CanvasNetMermaid-Scenegraph-ScenePainter-StrokedText: Stroked Text Outlines
 

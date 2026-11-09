@@ -269,16 +269,10 @@ internal sealed partial class ScenePainter
             PathFiller.Fill(surface, path, fill, item.FillRule, FlattenTolerance);
         }
 
-        // The stroke, built in device space with the scaled width and dashes
-        if (item.Stroke is { Color.A: > 0 } stroke && stroke.Width > 0 && double.IsFinite(stroke.Width))
+        // The stroke, built in device space with the scaled width and dashes; a width that rounds to zero in single
+        // precision (a tiny fit scale) or that is beyond MaxMagnitude draws nothing
+        if (item.Stroke is { } stroke && DeviceStrokeWidth(stroke, placement.Scale) is var width and > 0)
         {
-            // A width that rounds to zero in single precision (a tiny fit scale) draws nothing
-            var width = (float)(stroke.Width * placement.Scale);
-            if (!(width > 0) || !float.IsFinite(width) || width > MaxMagnitude)
-            {
-                return;
-            }
-
             var half = width / 2.0;
             if (charge)
             {
@@ -296,6 +290,26 @@ internal sealed partial class ScenePainter
             var outline = PathStroker.Stroke(path, style, FlattenTolerance);
             PathFiller.Fill(surface, outline, stroke.Color, FillRule.NonZero, FlattenTolerance);
         }
+    }
+
+    /// <summary>
+    ///     Gets the device width a stroke is drawn with: the scaled width in single precision (the precision of the core
+    ///     stroker), or zero when the stroke is not drawn - no stroke, a transparent color, or a device width that is not
+    ///     more than zero in single precision (a tiny fit scale), not finite, or beyond <see cref="MaxMagnitude"/>. Paths,
+    ///     text and drop shadows decide with it whether a stroke is drawn, so they cannot disagree.
+    /// </summary>
+    /// <param name="stroke">The stroke, or null.</param>
+    /// <param name="scale">The scale.</param>
+    /// <returns>The device width, or zero when the stroke is not drawn.</returns>
+    internal static float DeviceStrokeWidth(SceneStroke? stroke, double scale)
+    {
+        if (stroke is not { Color.A: > 0 })
+        {
+            return 0;
+        }
+
+        var width = (float)(stroke.Width * scale);
+        return width > 0 && float.IsFinite(width) && width <= MaxMagnitude ? width : 0;
     }
 
     /// <summary>
@@ -445,7 +459,17 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        var area = (long)(width * height);
+        ChargeArea((long)(width * height), item);
+    }
+
+    /// <summary>
+    ///     Charges a number of device pixels to the painting budget.
+    /// </summary>
+    /// <param name="area">The number of pixels; not negative.</param>
+    /// <param name="item">The item, for the location of the failure.</param>
+    /// <exception cref="MermaidRenderException">Thrown when the budget would be exceeded.</exception>
+    private void ChargeArea(long area, SceneItem item)
+    {
         if (_painted + area > _maxPaintedPixels)
         {
             throw new MermaidRenderException(
