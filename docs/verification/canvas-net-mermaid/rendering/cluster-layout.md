@@ -60,6 +60,15 @@ subgraph (for the arrowhead) and a link out of it starts on the box, and that a 
 to the outside is moved to a node inside it, starts on the left side of the subgraph's rectangle within its height, and
 keeps its label.
 
+##### CanvasNetMermaid-Rendering-ClusterLayout-LinkAtSubgraph: A Link Still At A Subgraph Fails At The Link
+
+**Tests**: `ClusterLayoutTests.ClusterLayout_Render_LinkStillAtSubgraph_FailsLocatedAtTheLink`
+
+Asserts, for the two diagrams on which Mermaid 11.17.2's render fails in dagre's `longestPath` (a subgraph also used
+as a node of another subgraph with a link from a nested subgraph, and a self-loop on a subgraph next to a link into an
+enclosing subgraph), a `MermaidRenderException` with the code `mermaid-render-failed` on the line of the link
+(line 9), whose message names the link and which has a hint.
+
 ##### CanvasNetMermaid-Rendering-ClusterLayout-SelfLoops: A Self-Loop Is One Compact Loop
 
 **Tests**: `ClusterLayoutTests.ClusterLayout_Render_SelfLoop_IsOneLoopBesideItsNode`

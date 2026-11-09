@@ -9,6 +9,54 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 public class MermaidDocumentTests
 {
     /// <summary>
+    ///     Validates the layout's defect net: the runtime's programming-error exceptions are defects (reported as a
+    ///     located <see cref="MermaidDiagnosticCodes.RenderFailed"/>), while the documented failures, cancellation and
+    ///     an exception of the caller's image resolver are not.
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_IsLayoutDefect_RuntimeDefects_AreDefectsOthersAreNot()
+    {
+        // Arrange
+        var fromResolver = new InvalidOperationException("the host refused the picture");
+        fromResolver.Data[DemaConsulting.CanvasNet.Mermaid.Rendering.NodeImages.ResolverExceptionMark] = true;
+
+        // Act / Assert
+        Assert.All(
+            new Exception[]
+            {
+                new NullReferenceException(), new IndexOutOfRangeException(), new KeyNotFoundException(), new InvalidCastException(),
+                new ArgumentException("x"), new OverflowException(), new InvalidOperationException(),
+            },
+            ex => Assert.True(MermaidDocument.IsLayoutDefect(ex), ex.GetType().Name));
+        Assert.All(
+            new Exception[]
+            {
+                new MermaidRenderException("x"), new MermaidUnsupportedFeatureException("x"), new OperationCanceledException(),
+                new ObjectDisposedException("x"), new InvalidDataException(), fromResolver,
+            },
+            ex => Assert.False(MermaidDocument.IsLayoutDefect(ex), ex.GetType().Name));
+    }
+
+    /// <summary>
+    ///     Validates that an exception of the caller's image resolver propagates unchanged through the layout's defect
+    ///     net (the same instance, not a render failure).
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_Measure_ResolverThrows_PropagatesUnchanged()
+    {
+        // Arrange
+        var thrown = new InvalidOperationException("the host refused the picture");
+        var document = MermaidDocument.Parse("flowchart TD\n  A@{ img: \"x.png\" }\n");
+
+        // Act
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            document.Measure(new MermaidRenderOptions { ImageResolver = new ThrowingResolver(thrown) }, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Same(thrown, exception);
+    }
+
+    /// <summary>
     ///     Validates that a flowchart is detected as the supported type, whether written <c>flowchart</c> or <c>graph</c>.
     /// </summary>
     [Fact]
@@ -181,5 +229,15 @@ public class MermaidDocumentTests
     {
         /// <inheritdoc />
         public override bool CanRead => false;
+    }
+
+    /// <summary>
+    ///     An image resolver that throws a given exception, as a host does when it refuses a picture.
+    /// </summary>
+    /// <param name="exception">The exception to throw.</param>
+    private sealed class ThrowingResolver(Exception exception) : DemaConsulting.CanvasNet.ImageSources.IImageResolver
+    {
+        /// <inheritdoc />
+        public DemaConsulting.CanvasNet.Canvas.Surface? Resolve(string href, int pixelWidth, int pixelHeight) => throw exception;
     }
 }

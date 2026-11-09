@@ -360,6 +360,18 @@ sequenceDiagram
     Write-Result ($remembered.ExitCode -eq 0 -and ([regex]::Matches($remembered.Log, 'remembered-unsupported')).Count -eq 2) `
         'a later run takes an unsupported diagram from its marker without drawing it' $remembered.Log
 
+    # A flowchart that embeds a diagram of a type the tool does not draw is still drawn: the report about the
+    # embedded picture (which names it in its origin) is an ordinary warning, not the whole picture unsupported.
+    Set-Content (Join-Path $guide 'embeds-seq.mmd') -Value "flowchart LR`n    A --> B@{ img: `"seq.mmd`", h: 60, constraint: `"on`" }"
+    $embedBefore = @(Get-Pictures).Count
+    $markersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-seq.mmd)'
+    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-seq-' -and
+        @(Get-Pictures).Count -eq $embedBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $markersBefore -and
+        $embedded.Log -match 'are not drawn by this version' -and $embedded.Log -notmatch 'left as written') `
+        'a flowchart embedding an unsupported diagram is drawn, with the embedded report as a warning' "$($embedded.Log)`n$($embedded.Html)"
+
     # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: the
     # CI runs "--defaults ... --filter mermaid-filter", so canvasnet.lua sees the mermaid blocks first, and a later
     # filter sees only the blocks left as written. A small Lua filter stands in for mermaid-filter here.

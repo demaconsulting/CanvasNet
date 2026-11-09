@@ -273,7 +273,7 @@ internal sealed partial class LabelBuilder
             font = font with { Family = family };
         }
 
-        if (set["font-size"] is { } size && StyleDeclarations.TryParseLength(size, font.Size, out var length) && length > 0)
+        if (set["font-size"] is { } size && StyleDeclarations.TryParseFontSize(size, font.Size, out var length))
         {
             font = font with { Size = length };
         }

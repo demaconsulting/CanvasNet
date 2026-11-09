@@ -110,6 +110,28 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that a dash pattern with an entry longer than the largest drawn magnitude (whose single-precision
+    ///     value could be infinite) is drawn solid, and that a huge dash offset is reduced by whole periods.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_HugeDashOrOffset_DrawsWithoutFailing()
+    {
+        // Arrange: entries beyond float range, and a 9-on 5-off pattern 1e300 periods-ish along
+        IReadOnlyList<SceneSegment> line = [SceneSegment.Move(0, 5), SceneSegment.Line(100, 5)];
+        var huge = new ScenePath(line) { Role = "edge", Stroke = new SceneStroke(NodeStroke, 2) { Dash = [1e39, 1] } };
+        var offset = new ScenePath(line) { Role = "edge", Stroke = new SceneStroke(NodeStroke, 2) { Dash = [9, 5], DashOffset = 1e300 } };
+
+        // Act
+        using var first = Paint(new Scene(new SceneRect(0, 0, 100, 10), [huge]));
+        using var second = Paint(new Scene(new SceneRect(0, 0, 100, 10), [offset]));
+
+        // Assert: the huge pattern is solid (no gap at x = 11); the offset pattern still has dashes and gaps
+        Assert.Equal(255, first[11, 5].A);
+        var painted = Enumerable.Range(0, 100).Count(x => second[x, 5].A == 255);
+        Assert.InRange(painted, 40, 90);
+    }
+
+    /// <summary>
     ///     Validates that text is drawn in the bundled font, anchored at its middle.
     /// </summary>
     [Fact]

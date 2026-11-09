@@ -62,6 +62,10 @@ lays out the diagram.
 - **`Measure(options, cancellationToken)`**: runs the pipeline to a scene and returns the natural size: the view box
   rounded up to whole pixels (at least 1, with a 1e-6 tolerance, as `mmdc` rounds), multiplied by `Scale`, rounded
   half away from zero, and checked to lie within 1 and `Surface.MaxDimension`.
+- **`MeasureNatural(options, cancellationToken)`** (internal): as `Measure` at scale 1 but without the check against
+  `Surface.MaxDimension` (each side capped at `int.MaxValue`; a view box that is not finite fails with a located
+  `mermaid-render-failed`), for `MermaidImageSource`, which needs only the aspect ratio of a diagram that may be
+  larger than the largest surface.
 - **`Render(options, cancellationToken)`**: as `Measure`, then paints with `ScenePlacement.Uniform` at that size.
   **`Render(width, height, ...)`**: validates the size and paints with `ScenePlacement.Fit` (uniform scale, centered).
 - **`Run`** (private): creates the call's `MermaidReportSink`, resolves the configuration with
@@ -71,10 +75,17 @@ lays out the diagram.
   failure with `DeliverIgnoringHandlerFailures` (the original failure wins).
 - **`BuildScene`** (private): `Diagram.Layout(context)` for a supported diagram; otherwise records one
   `mermaid-diagram-unsupported` report at the keyword with `DiagramDetector.UnsupportedHint` and returns an empty
-  16 by 16 scene.
+  16 by 16 scene. The layout is wrapped in the defect net: an exception that `IsLayoutDefect` accepts (a
+  `NullReferenceException`, `IndexOutOfRangeException`, `KeyNotFoundException`, `InvalidCastException`,
+  `ArgumentException`, `ArithmeticException`, or an `InvalidOperationException` other than
+  `MermaidRenderException` and `ObjectDisposedException`, and never one marked by `NodeImages` as the caller's
+  resolver's) becomes a `MermaidRenderException` (`mermaid-render-failed`) located at the keyword, with the
+  original as its inner exception.
 - **`MermaidImageSource.Render(ImageSourceRequest)`**: decodes the content, opens the document named by the file name,
   reads the `theme` fragment (refusing an unknown theme with `ImageSourceRefusedException` and the fragment-invalid
-  code), renders at the requested size or the natural size over a transparent background with the request's
+  code), takes the natural size from `MeasureNatural` (so a requested size smaller than the largest surface works
+  for a diagram whose natural size is larger), renders at the size `ImageSourceRequest.SizeFor` gives (each side
+  at most `Surface.MaxDimension`, the diagram fitted and centered) over a transparent background with the request's
   resolver, strict flag, and token, and maps warnings to `mermaid-warning` diagnostics (`Detail` is the specific code)
   and unsupported features to unsupported diagnostics with their location.
 - **`MermaidReportSink.Warn`/`Unsupported`/`Deliver`**: record a report unless it is an exact duplicate, add one
@@ -93,6 +104,9 @@ lays out the diagram.
   subsystems; a size outside the surface range throws `ArgumentOutOfRangeException` naming the scale and the size.
 - Strict mode throws `MermaidUnsupportedFeatureException` from the sink. Cancellation throws
   `OperationCanceledException` from the stage that observes the token.
+- An unexpected exception of the layout (a defect) is reported as a located `MermaidRenderException`
+  (`mermaid-render-failed`) by `BuildScene`'s defect net; cancellation, the documented failures, and an exception
+  of the caller's image resolver pass unchanged.
 - Reports recorded before any failure are still delivered. Nothing is caught and swallowed except a handler's
   exception after a failure.
 

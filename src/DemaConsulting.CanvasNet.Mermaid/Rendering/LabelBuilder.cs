@@ -309,12 +309,14 @@ internal sealed partial class LabelBuilder
     /// <returns>The advance width.</returns>
     internal double Advance(string text, SceneFont font)
     {
-        if (text.Length == 0 || !(font.Size > 0))
+        // A size that is zero or infinite in single precision (the text renderer's) has no advance
+        var size = (float)font.Size;
+        if (text.Length == 0 || !(size > 0) || !float.IsFinite(size))
         {
             return 0;
         }
 
-        return TextRenderer.MeasureText(text, Face(font.Family, font.Bold, font.Italic), (float)font.Size).Width;
+        return TextRenderer.MeasureText(text, Face(font.Family, font.Bold, font.Italic), size).Width;
     }
 
     /// <summary>

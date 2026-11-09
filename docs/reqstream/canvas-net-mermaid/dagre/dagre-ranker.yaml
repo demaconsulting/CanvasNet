@@ -59,3 +59,13 @@ sections:
                 tests:
                   - DagreRanker_Rank_RankerAttribute_PicksRanker
                   - DagreRanker_LongestPath_Chain_RanksBySinkDistance
+
+              - id: CanvasNetMermaid-Dagre-DagreRanker-UnlabeledNode
+                title: >-
+                  The DagreRanker unit shall fail the longest-path ranking with an InvalidOperationException naming
+                  the node when a node it reaches has no label, where dagre fails on the same graph.
+                justification: |
+                  An edge to a compound node leaves an unlabeled node in dagre's flat graph and dagre's longestPath
+                  fails there; the layout turns this exception into a located render failure instead of a defect.
+                tests:
+                  - DagreRanker_LongestPath_UnlabeledNode_Throws

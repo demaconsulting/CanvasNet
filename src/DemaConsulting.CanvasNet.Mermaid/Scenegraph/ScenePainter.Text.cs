@@ -24,7 +24,7 @@ internal sealed partial class ScenePainter
         foreach (var run in item.Runs)
         {
             var size = run.Font.Size * placement.Scale;
-            if (run.Text.Length == 0 || !(size > 0) || !IsBounded(size))
+            if (run.Text.Length == 0 || !((float)size > 0) || !IsBounded(size))
             {
                 continue;
             }

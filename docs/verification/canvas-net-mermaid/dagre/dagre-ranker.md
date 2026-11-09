@@ -67,3 +67,10 @@ a slack of 0 after the ranks are shifted.
 Asserts that `network-simplex`, `tight-tree`, and no ranker pull a node next to its successor while `longest-path`
 leaves it as low as its successors allow; and that the longest-path ranks of a chain with minimum lengths are -3, -1,
 and 0 with the slacks 1 and 0.
+
+##### CanvasNetMermaid-Dagre-DagreRanker-UnlabeledNode: An Unlabeled Node Fails The Ranking
+
+**Tests**: `DagreRankerTests.DagreRanker_LongestPath_UnlabeledNode_Throws`
+
+Asserts that the longest-path ranking of a graph whose edge ends at a node created without a label (as dagre's flat
+copy leaves the end of an edge at a subgraph) throws `InvalidOperationException` naming that node.

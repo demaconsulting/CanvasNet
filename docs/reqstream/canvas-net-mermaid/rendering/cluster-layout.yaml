@@ -40,6 +40,17 @@ sections:
                   - ClusterLayout_Render_LinksToIsolatedSubgraph_EndOnItsBox
                   - ClusterLayout_Render_LinkFromSubgraphWithOutsideLinks_StartsOutsideIt
 
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-LinkAtSubgraph
+                title: >-
+                  The ClusterLayout unit shall fail with a mermaid-render-failed error located at the link when a link
+                  other than a self-edge still ends at a subgraph that holds other nodes when its graph is laid out.
+                justification: |
+                  Dagre ranks a flat copy of the graph without such subgraphs, so Mermaid 11.17.2's render fails on
+                  these diagrams (for example a subgraph used as a node of another subgraph, or a self-loop on a
+                  subgraph); the port must fail as clearly, at the link to change, instead of with a defect.
+                tests:
+                  - ClusterLayout_Render_LinkStillAtSubgraph_FailsLocatedAtTheLink
+
               - id: CanvasNetMermaid-Rendering-ClusterLayout-SelfLoops
                 title: >-
                   The ClusterLayout unit shall lay out a link from a node to itself through two hidden nodes beside

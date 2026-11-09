@@ -65,6 +65,8 @@ filter can draw it: the CanvasNet build runs mermaid-filter after this filter fo
 filters in the order of its command line, a defaults file's filters taking the place of its --defaults option,
 so "--defaults ... --filter mermaid-filter" runs this filter first. A marker in the cache folder
 (<hash>.unsupported, holding the message) saves later builds from starting the tool again for that diagram.
+A flowchart that only embeds a picture of such a type (A@{ img: "seq.mmd" }) is drawn as usual; the tool's report
+about the embedded picture, which names it in its origin, is shown as a warning.
 
 How it works. The filter has two jobs only:
 
@@ -1068,7 +1070,10 @@ local function draw(name, source, kind, attributes, stem)
 
   local doc = decode(result) or {}
   for _, diagnostic in ipairs(doc.diagnostics or {}) do
-    if diagnostic.code == UNSUPPORTED_DIAGRAM then
+    -- Only the diagram itself being a type the tool does not draw leaves the picture alone; the same report about
+    -- a picture embedded in it (which carries the chain of embedding files in "origin") is an ordinary note.
+    local embedded = type(diagnostic.origin) == "table" and #diagnostic.origin > 0
+    if kind == "mermaid" and diagnostic.code == UNSUPPORTED_DIAGRAM and not embedded then
       os.remove(partial)
       local message = tostring(diagnostic.message)
       write_atomically(marker, message)

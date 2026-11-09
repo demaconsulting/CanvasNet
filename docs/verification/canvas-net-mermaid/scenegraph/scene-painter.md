@@ -51,10 +51,13 @@ has the fill in the ring and an empty hole.
 ##### CanvasNetMermaid-Scenegraph-ScenePainter-Dashes: Dashes Leave Gaps And Invalid Patterns Are Solid
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_DashedStroke_LeavesGaps`,
-`ScenePainterTests.ScenePainter_Paint_InvalidDash_IsSolid`
+`ScenePainterTests.ScenePainter_Paint_InvalidDash_IsSolid`,
+`ScenePainterTests.ScenePainter_Paint_HugeDashOrOffset_DrawsWithoutFailing`
 
-Asserts that a line dashed 9 on and 5 off is inked in its first dash and empty in its first gap, and that a pattern
-with a negative entry and a pattern finer than a quarter of a pixel are drawn solid.
+Asserts that a line dashed 9 on and 5 off is inked in its first dash and empty in its first gap, that a pattern
+with a negative entry and a pattern finer than a quarter of a pixel are drawn solid, that a pattern with an entry of
+1e39 (infinite in single precision) is drawn solid, and that the 9-on 5-off pattern with a dash offset of 1e300 is
+still drawn dashed (between 40 and 90 of the 100 pixels of the line inked).
 
 ##### CanvasNetMermaid-Scenegraph-ScenePainter-Text: Text Runs Are Drawn In The Bundled Fonts At Their Anchor
 

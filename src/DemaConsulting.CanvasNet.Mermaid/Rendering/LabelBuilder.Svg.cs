@@ -100,7 +100,7 @@ internal sealed partial class LabelBuilder
         var inkLeft = double.PositiveInfinity;
         var inkRight = double.NegativeInfinity;
         var pen = 0.0;
-        foreach (var run in runs.Where(run => run.Text.Length > 0))
+        foreach (var run in runs.Where(run => run.Text.Length > 0 && (float)run.Font.Size > 0 && float.IsFinite((float)run.Font.Size)))
         {
             var face = Face(run.Font.Family, run.Font.Bold, run.Font.Italic);
             var bounds = TextRenderer.CreateTextPath(run.Text, face, (float)run.Font.Size, (float)pen, 0).GetBounds(0.05f);

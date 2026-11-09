@@ -53,7 +53,9 @@ which for a layout label is always the first tree node.
 
 `FeasibleTree` throws `InvalidOperationException` when no edge leaves a tree that does not span the graph (a graph that
 is not connected), and `EnterEdge` when no edge crosses the cut; dagre fails in both cases too, and `DagreLayout.Run`
-reports the exception as `mermaid-render-failed`. The recursions (`LongestPath`, `TightTree`, `DfsAssignLowLim`) call
+reports the exception as `mermaid-render-failed`. `LongestPath` throws `InvalidOperationException` naming the node
+when a node it reaches has no label (the end of an edge at a compound node, which the flat graph leaves out), where
+dagre's `label.rank = rank` fails on undefined. The recursions (`LongestPath`, `TightTree`, `DfsAssignLowLim`) call
 `RuntimeHelpers.EnsureSufficientExecutionStack`. Every iteration charges the meter: a longest-path ranking and each
 feasible-tree iteration the nodes and edges, each cut-value computation the tree nodes and graph edges, each leave
 step the tree edges, each enter step the graph edges, and each exchange twice the tree nodes.

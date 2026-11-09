@@ -267,6 +267,7 @@ sections:
           complete graph, a deep nesting) must not stop a build or a service.
         children:
           - CanvasNetMermaid-MermaidDocument-Limits
+          - CanvasNetMermaid-MermaidDocument-DefectNet
           - CanvasNetMermaid-Syntax-UntrustedInput
           - CanvasNetMermaid-Configuration-Reports
           - CanvasNetMermaid-Configuration-Themes
@@ -285,6 +286,7 @@ sections:
           - CanvasNetMermaid_Hardening_CompleteGraph_RendersOrHitsTheWorkLimit
           - CanvasNetMermaid_Hardening_LongChainAndManySubgraphs_Render
           - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_HostileCorpus_RendersOrFailsLocated
 
       - id: CanvasNetMermaid-Determinism
         title: >-

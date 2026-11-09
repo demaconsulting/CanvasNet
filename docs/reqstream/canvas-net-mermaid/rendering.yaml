@@ -28,6 +28,7 @@ sections:
             children:
               - CanvasNetMermaid-Rendering-ClusterLayout-IsolatedSubgraphs
               - CanvasNetMermaid-Rendering-ClusterLayout-SubgraphLinks
+              - CanvasNetMermaid-Rendering-ClusterLayout-LinkAtSubgraph
               - CanvasNetMermaid-Rendering-ClusterLayout-SelfLoops
               - CanvasNetMermaid-Rendering-ClusterLayout-SubgraphRectangles
               - CanvasNetMermaid-Rendering-ClusterLayout-DrawingOrder

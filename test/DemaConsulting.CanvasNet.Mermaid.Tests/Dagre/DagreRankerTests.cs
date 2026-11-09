@@ -196,6 +196,26 @@ public class DagreRankerTests
     }
 
     /// <summary>
+    ///     Validates that a node without a label (the end of an edge at a subgraph, which the flat graph leaves out) fails
+    ///     the longest-path ranking as dagre's does, with an exception the layout reports as a located failure.
+    /// </summary>
+    [Fact]
+    public void DagreRanker_LongestPath_UnlabeledNode_Throws()
+    {
+        // Arrange: without a default node label, graphlib's setEdge creates the missing end without a label, as in
+        // dagre's flat copy of a graph whose edge ends at a subgraph
+        var g = new Graph<LayoutGraphLabel, LayoutNode, LayoutEdge>(multigraph: true, compound: false).SetGraph(new LayoutGraphLabel());
+        g.SetNode("a", new LayoutNode());
+        g.SetEdge("a", "cluster", new LayoutEdge { MinLen = 1, Weight = 1 });
+
+        // Act
+        var exception = Assert.Throws<InvalidOperationException>(() => DagreRanker.LongestPath(g, Meter()));
+
+        // Assert
+        Assert.Contains("'cluster'", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the feasible tree is tight and spans the graph.
     /// </summary>
     [Fact]

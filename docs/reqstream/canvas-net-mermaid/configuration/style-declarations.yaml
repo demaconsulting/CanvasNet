@@ -79,3 +79,17 @@ sections:
                 tests:
                   - StyleDeclarations_TryParseLength
                   - StyleDeclarations_ValueParsers
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-FontSizes
+                title: >-
+                  The StyleDeclarations unit shall accept a font size only when text can be drawn at it - above zero
+                  also in single precision and at most 32768 pixels - and shall report any other font-size value of
+                  a style statement as mermaid-style-ignored, with a hint naming the range, so that the inherited size
+                  stays in effect.
+                justification: |
+                  The text renderer works in single precision and refuses a size that is zero or infinite there; a
+                  font size outside the drawable range must fall back to the inherited size instead of failing the
+                  render with an undocumented exception.
+                tests:
+                  - StyleDeclarations_TryParseFontSize
+                  - StyleDeclarations_ParseItems_FontSizeNotDrawable_IsIgnoredWithHint

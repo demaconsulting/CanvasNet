@@ -39,6 +39,12 @@ internal sealed class NodeImages : ISceneImageLoader
     /// <summary>The size in device pixels at which a picture is asked for to learn its natural size.</summary>
     public const int ProbePixels = 256;
 
+    /// <summary>
+    ///     The key of <see cref="Exception.Data"/> that marks an exception thrown by the caller's resolver, which
+    ///     propagates unchanged and is never taken for a defect of the layout.
+    /// </summary>
+    public const string ResolverExceptionMark = "DemaConsulting.CanvasNet.Mermaid.ImageResolver";
+
     /// <summary>The most characters of a link that a message shows.</summary>
     private const int MaxShownLink = 200;
 
@@ -150,7 +156,18 @@ internal sealed class NodeImages : ISceneImageLoader
         }
 
         Calls++;
-        var picture = _resolver.Resolve(href, Math.Clamp(pixelWidth, 1, Surface.MaxDimension), Math.Clamp(pixelHeight, 1, Surface.MaxDimension));
+        Surface? picture;
+        try
+        {
+            picture = _resolver.Resolve(href, Math.Clamp(pixelWidth, 1, Surface.MaxDimension), Math.Clamp(pixelHeight, 1, Surface.MaxDimension));
+        }
+        catch (Exception ex)
+        {
+            // Marked so that the layout's defect net never takes the resolver's own exception for a defect of the port
+            ex.Data[ResolverExceptionMark] = true;
+            throw;
+        }
+
         if (picture is null)
         {
             Report(href, location, "the image resolver gave no picture for it");

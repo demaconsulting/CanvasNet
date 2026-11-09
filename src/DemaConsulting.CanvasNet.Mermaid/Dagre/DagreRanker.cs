@@ -48,6 +48,7 @@ internal static partial class DagreRanker
     /// </summary>
     /// <param name="g">An acyclic layout graph.</param>
     /// <param name="meter">The work meter.</param>
+    /// <exception cref="InvalidOperationException">Thrown when a reachable node has no label, as dagre fails there.</exception>
     public static void LongestPath(LayoutGraph g, LayoutWorkMeter meter)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal);
@@ -57,10 +58,11 @@ internal static partial class DagreRanker
             Visit(v);
         }
 
-        // The rank of a node from the ranks of its successors
+        // The rank of a node from the ranks of its successors; a node without a label (the end of an edge at a subgraph,
+        // which the flat graph leaves out) fails as dagre's "label.rank = rank" fails on undefined
         double? Visit(string v)
         {
-            var label = g.Node(v)!;
+            var label = g.Node(v) ?? throw new InvalidOperationException($"the node '{v}' has no label to rank (an edge ends at a subgraph)");
             if (!visited.Add(v))
             {
                 return label.Rank;

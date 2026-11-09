@@ -47,7 +47,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-StyleDec
   `IsImportant(property)` - the cascade and the typed reading of a property.
 - The value parsers: `TryParsePaint` (a CSS color through the core `CssColor` grammar, or `none` as no paint),
   `TryParseLength` (pixels, unitless numbers, `em` and `rem` relative to the font size and 16 pixels, and points;
-  negative lengths refused), `TryParseDashArray` (numbers separated by commas or spaces, an odd list repeated, `0`
+  negative lengths refused), `TryParseFontSize` (a length that `IsDrawableFontSize` accepts: above zero also in
+  single precision, the precision of the text renderer, and at most `MaxFontSize` = 32,768 pixels, the painter's
+  largest drawn magnitude), `TryParseDashArray` (numbers separated by commas or spaces, an odd list repeated, `0`
   meaning solid), `TryParseOpacity` (a number or a percentage), `TryParseBold` (`bold`, `bolder`, `normal`,
   `lighter`, and the numeric weights), and `TryParseItalic` (`italic` and `oblique`, with an optional angle, and
   `normal`).
@@ -59,7 +61,11 @@ pure functions of their arguments except for the reports, culture-invariant, and
 
 No method throws for the content of the CSS. A declaration of an unsupported property, a declaration without a colon,
 and a value the property cannot have are reported as the warning `mermaid-style-ignored` at the location of the
-statement (an unsupported property with the list of the supported ones as the hint) and left out. A `themeCSS` rule
+statement (an unsupported property with the list of the supported ones as the hint, a font size that cannot be drawn
+with the drawable range as the hint) and left out, so the inherited value stays in effect. The diagram's own rules
+(the theme) drop such a value silently, as a browser drops an invalid declaration, and the places that resolve a
+font size relative to another (`em` in a label's `style` attribute or an element's label styles, the theme's text
+rules) keep the inherited size when the result is not drawable. A `themeCSS` rule
 that cannot be applied is reported as the unsupported feature `mermaid-theme-css-unsupported` at the location of
 `themeCSS`; in strict mode the sink throws `MermaidUnsupportedFeatureException` at the first one, which propagates to
 the render call.

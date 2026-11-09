@@ -318,7 +318,7 @@ internal static partial class ShapeLibrary
         ArgumentNullException.ThrowIfNull(labelStyles);
         ArgumentNullException.ThrowIfNull(css);
         var family = labelStyles["font-family"] ?? css.FontFamily;
-        var size = labelStyles["font-size"] is { } value && StyleDeclarations.TryParseLength(value, css.FontSize, out var length) && length > 0
+        var size = labelStyles["font-size"] is { } value && StyleDeclarations.TryParseFontSize(value, css.FontSize, out var length)
             ? length
             : css.FontSize;
         var bold = labelStyles["font-weight"] is { } weight && StyleDeclarations.TryParseBold(weight, out var isBold) && isBold;

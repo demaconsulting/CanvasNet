@@ -80,3 +80,13 @@ normalization of white space and of the child combinator.
 Asserts the lengths of `4px`, `4`, `1.5em`, `1rem`, and `3pt` and the refusal of `-1px` and `wide`; the dash arrays
 `5, 5`, `3` (repeated), and `0` (solid) and the refusal of `a b`; the opacity `50%`; the weights `700` and `normal`
 and the refusal of `heavy`; the style `oblique 10deg`; and the paint `none` and the refusal of `nonsense`.
+
+##### CanvasNetMermaid-Configuration-StyleDeclarations-FontSizes: Only Drawable Font Sizes Are Accepted
+
+**Tests**: `StyleDeclarationsTests.StyleDeclarations_TryParseFontSize`,
+`StyleDeclarationsTests.StyleDeclarations_ParseItems_FontSizeNotDrawable_IsIgnoredWithHint`
+
+Asserts the font sizes of `12px`, `2em` (at 10 pixels), and `32768px` and the refusal of `0`, `1e-300px` (zero
+in single precision), `1e300px`, `32769px`, and `1e300em`; and that `font-size:1e-300px` in a style statement is
+reported as `mermaid-style-ignored` at the statement's line with a hint naming 32768 and left out, while the
+statement's `fill` is kept.

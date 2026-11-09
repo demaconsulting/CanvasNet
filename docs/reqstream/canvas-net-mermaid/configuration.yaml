@@ -109,6 +109,7 @@ sections:
               - CanvasNetMermaid-Configuration-StyleDeclarations-Blocks
               - CanvasNetMermaid-Configuration-StyleDeclarations-Cascade
               - CanvasNetMermaid-Configuration-StyleDeclarations-Values
+              - CanvasNetMermaid-Configuration-StyleDeclarations-FontSizes
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
 

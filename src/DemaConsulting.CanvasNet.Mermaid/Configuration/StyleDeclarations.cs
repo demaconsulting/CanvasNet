@@ -163,6 +163,12 @@ internal static class StyleDeclarations
         "fill", "stroke", "stroke-width", "stroke-dasharray", "color", "font-weight", "font-style", "font-size", "font-family", "opacity",
     }.ToFrozenSet(StringComparer.Ordinal);
 
+    /// <summary>
+    ///     The largest font size in pixels that text is laid out and drawn at: the largest magnitude the painter draws
+    ///     (<c>ScenePainter.MaxMagnitude</c>), so a glyph is never larger than any picture.
+    /// </summary>
+    public const double MaxFontSize = 32_768;
+
     /// <summary>The suffix that makes a declaration important.</summary>
     private const string ImportantKeyword = "important";
 
@@ -331,6 +337,24 @@ internal static class StyleDeclarations
         paint = null;
         return false;
     }
+
+    /// <summary>
+    ///     Parses a font size in pixels (a length, see <see cref="TryParseLength"/>) that text can be drawn at.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="fontSize">The font size that <c>em</c> refers to.</param>
+    /// <param name="size">The font size in pixels.</param>
+    /// <returns>Whether the value is a length that <see cref="IsDrawableFontSize"/> accepts.</returns>
+    public static bool TryParseFontSize(string value, double fontSize, out double size) =>
+        TryParseLength(value, fontSize, out size) && IsDrawableFontSize(size);
+
+    /// <summary>
+    ///     Gets whether text can be drawn at a font size: more than zero also in single precision (the precision of the
+    ///     text renderer), and at most <see cref="MaxFontSize"/> pixels.
+    /// </summary>
+    /// <param name="size">The font size in pixels.</param>
+    /// <returns>Whether the size is drawable.</returns>
+    public static bool IsDrawableFontSize(double size) => (float)size > 0 && size <= MaxFontSize;
 
     /// <summary>
     ///     Parses a length in pixels: a number with the unit <c>px</c>, <c>pt</c>, <c>em</c> or <c>rem</c>, or none.
@@ -511,7 +535,10 @@ internal static class StyleDeclarations
 
         if (!IsValidValue(property, value))
         {
-            Ignored(sink, $"'{Shorten(value)}' is not a valid value of the style property '{property}'; it is ignored", location);
+            var hint = property == "font-size"
+                ? string.Create(CultureInfo.InvariantCulture, $"give a font size above zero and at most {MaxFontSize} pixels")
+                : null;
+            Ignored(sink, $"'{Shorten(value)}' is not a valid value of the style property '{property}'; it is ignored", location, hint);
             return null;
         }
 
@@ -528,7 +555,8 @@ internal static class StyleDeclarations
     {
         "fill" or "stroke" => TryParsePaint(value, out _),
         "color" => CssColor.TryParse(value, out _),
-        "stroke-width" or "font-size" => TryParseLength(value, 16, out _),
+        "stroke-width" => TryParseLength(value, 16, out _),
+        "font-size" => TryParseFontSize(value, 16, out _),
         "stroke-dasharray" => TryParseDashArray(value, out _),
         "opacity" => TryParseOpacity(value, out _),
         "font-weight" => TryParseBold(value, out _),

@@ -28,7 +28,10 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   `_maxPaintedPixels` (the limit, at least 1), and `_painted` (the device pixels charged so far in this painting).
 - Constants: `MaxMagnitude` = 32,768 device pixels (four times `Surface.MaxDimension`), the largest magnitude of a
   coordinate, size, or font size that is drawn; a flattening tolerance of 0.1 pixel; dash patterns with a period
-  under 0.25 pixel or more than 50,000 estimated dashes are drawn solid.
+  under 0.25 pixel, an entry over `MaxMagnitude` device pixels, or more than 50,000 estimated dashes are drawn solid,
+  and a dash offset over `MaxMagnitude` is reduced by whole periods, so every value handed to the core
+  `StrokeStyle` is finite in single precision. A text run whose device size is zero in single precision is not
+  drawn.
 
 **Invariants**: `_painted` never exceeds `_maxPaintedPixels`; an instance paints one scene on one thread.
 
@@ -109,8 +112,8 @@ the unit directly through `InternalsVisibleTo`.
   painter maps the common names to the bundled Liberation families and never uses installed fonts, so the pixels are
   the same on every machine but the glyphs differ from those of a browser where the browser finds another font.
 - **Invalid and extreme dash patterns.** A pattern that SVG rejects is drawn solid, as browsers do; in addition, a
-  pattern finer than a quarter of a pixel or one that would make more than 50,000 dashes is drawn solid, where a
-  browser would draw the dashes.
+  pattern finer than a quarter of a pixel, one with a dash longer than 32,768 device pixels, or one that would make
+  more than 50,000 dashes is drawn solid, where a browser would draw the dashes.
 - **Geometry far outside the surface.** An item with a coordinate beyond 32,768 device pixels is not drawn, where a
   browser would draw the part that reaches the visible area.
 - **Pictures fill their box.** A picture is always stretched to its box, as Mermaid's `preserveAspectRatio="none"`

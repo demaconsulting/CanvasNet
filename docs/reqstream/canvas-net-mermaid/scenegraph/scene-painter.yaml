@@ -29,14 +29,17 @@ sections:
               - id: CanvasNetMermaid-Scenegraph-ScenePainter-Dashes
                 title: >-
                   The ScenePainter unit shall stroke a dashed path with its dash pattern scaled with the scene, and
-                  shall stroke it solid when the pattern is invalid for SVG (an entry that is negative or not finite)
-                  or finer than a quarter of a pixel.
+                  shall stroke it solid when the pattern is invalid for SVG (an entry that is negative or not finite),
+                  finer than a quarter of a pixel, or has an entry longer than the largest drawn magnitude, and shall
+                  reduce a dash offset beyond that magnitude by whole periods.
                 justification: |
-                  Dotted and animated links are dashed; a browser draws an invalid pattern solid, and a pattern too
-                  fine to be seen must not make the stroke cost without bound.
+                  Dotted and animated links are dashed; a browser draws an invalid pattern solid, a pattern too fine
+                  to be seen must not make the stroke cost without bound, and a dash or offset beyond single precision
+                  must not fail the render.
                 tests:
                   - ScenePainter_Paint_DashedStroke_LeavesGaps
                   - ScenePainter_Paint_InvalidDash_IsSolid
+                  - ScenePainter_Paint_HugeDashOrOffset_DrawsWithoutFailing
 
               - id: CanvasNetMermaid-Scenegraph-ScenePainter-Text
                 title: >-

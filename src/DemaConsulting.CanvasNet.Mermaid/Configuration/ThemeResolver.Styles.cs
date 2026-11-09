@@ -257,7 +257,8 @@ internal sealed class FlowchartStyles
         {
             "fill" or "stroke" => StyleDeclarations.TryParsePaint(text, out _),
             "color" or "background-color" => CssColor.TryParse(text, out _),
-            "stroke-width" or "font-size" => StyleDeclarations.TryParseLength(text, 16, out _),
+            "stroke-width" => StyleDeclarations.TryParseLength(text, 16, out _),
+            "font-size" => StyleDeclarations.TryParseFontSize(text, 16, out _),
             _ => text.Length > 0,
         };
     }
@@ -285,9 +286,10 @@ internal sealed class FlowchartStyles
         var root = Resolve(Root);
         var set = root.Cascade(Resolve(selector));
         var fontSize = root.Length("font-size", 16);
+        var size = set["font-size"] is { } value && StyleDeclarations.TryParseFontSize(value, fontSize, out var length) ? length : fontSize;
         return new TextPaint(
             set["font-family"] ?? MermaidConfigResolver.DefaultFontFamily,
-            set.Length("font-size", fontSize, fontSize),
+            size,
             set.Paint(colorProperty) ?? root.Paint("fill") ?? new Rgba32(0, 0, 0, 255));
     }
 }

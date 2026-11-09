@@ -95,6 +95,31 @@ public class MermaidImageSourceTests
     }
 
     /// <summary>
+    ///     Validates that a diagram whose natural size is larger than the largest surface is drawn at a smaller requested
+    ///     width, with the height from its natural aspect ratio (the natural size is only needed for the ratio).
+    /// </summary>
+    [Fact]
+    public void MermaidImageSource_Render_NaturalSizeBeyondMaximum_DrawsAtRequestedWidth()
+    {
+        // Arrange: a long chain from left to right, wider than the largest surface
+        var source = new MermaidImageSource();
+        var text = "flowchart LR\n    " + string.Join(" --> ", Enumerable.Range(0, 120).Select(i => $"n{i}[Step {i}]")) + "\n";
+        var document = MermaidDocument.Parse(text);
+        var natural = document.MeasureNatural(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Act
+        var result = source.Render(Request(text, width: 200));
+        using var surface = result.Surface;
+
+        // Assert
+        Assert.True(natural.Width > DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension);
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.Measure(cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(200, surface.Width);
+        Assert.Equal(Math.Max(1, (int)Math.Round(natural.Height * 200.0 / natural.Width, MidpointRounding.AwayFromZero)), surface.Height);
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
+    }
+
+    /// <summary>
     ///     Validates that strict requests throw the unsupported-feature exception.
     /// </summary>
     [Fact]

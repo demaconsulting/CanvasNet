@@ -44,7 +44,8 @@ layout (natural sizes) and the painting (loads), so the image limit counts both.
   nothing is drawn.
 - The call that would pass `MermaidLimits.MaxImages` is not made and throws a located `MermaidRenderException`
   (`mermaid-limit-exceeded`).
-- An exception of the resolver propagates unchanged.
+- An exception of the resolver propagates unchanged. It is marked in its `Exception.Data` with
+  `ResolverExceptionMark` so that `MermaidDocument`'s defect net never takes it for a defect of the layout.
 
 #### Dependencies
 

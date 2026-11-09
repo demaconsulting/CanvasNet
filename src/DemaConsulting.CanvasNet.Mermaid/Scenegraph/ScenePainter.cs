@@ -255,13 +255,14 @@ internal sealed partial class ScenePainter
 
             var half = width / 2;
             Charge(surface, bounds.X - half, bounds.Y - half, bounds.Right + half, bounds.Bottom + half, item);
+            var dash = DashFor(stroke, placement.Scale, item.Segments, out var dashOffset);
             var style = new StrokeStyle(
                 (float)width,
                 stroke.Cap,
                 stroke.Join,
                 4f,
-                DashFor(stroke, placement.Scale, item.Segments),
-                (float)(stroke.DashOffset * placement.Scale));
+                dash,
+                dashOffset);
             var outline = PathStroker.Stroke(path, style, FlattenTolerance);
             PathFiller.Fill(surface, outline, stroke.Color, FillRule.NonZero, FlattenTolerance);
         }
@@ -269,24 +270,31 @@ internal sealed partial class ScenePainter
 
     /// <summary>
     ///     Gets the device dash pattern of a stroke, or null for a solid line (no pattern, an invalid one, one finer than a
-    ///     pixel fraction, or one that would make too many dashes).
+    ///     pixel fraction, one with an entry longer than <see cref="MaxMagnitude"/> pixels, or one that would make too many
+    ///     dashes), and its device dash offset.
     /// </summary>
     /// <param name="stroke">The stroke.</param>
     /// <param name="scale">The scale.</param>
     /// <param name="segments">The geometry, for the length estimate.</param>
+    /// <param name="offset">
+    ///     The device dash offset: zero for a solid line, and an offset beyond <see cref="MaxMagnitude"/> pixels reduced
+    ///     by whole periods (which draws the same dashes) so that it stays finite in single precision.
+    /// </param>
     /// <returns>The pattern, or null.</returns>
-    private static float[]? DashFor(SceneStroke stroke, double scale, IReadOnlyList<SceneSegment> segments)
+    private static float[]? DashFor(SceneStroke stroke, double scale, IReadOnlyList<SceneSegment> segments, out float offset)
     {
+        offset = 0;
         if (stroke.Dash is not { Count: > 0 } dash || !double.IsFinite(stroke.DashOffset))
         {
             return null;
         }
 
-        // A pattern that is invalid for SVG (a negative or non-finite entry, all zeros) is drawn solid, as browsers do
+        // A pattern that is invalid for SVG (a negative or non-finite entry, all zeros) is drawn solid, as browsers do;
+        // so is one with a dash longer than any drawing (whose single-precision value could be infinite)
         var period = 0.0;
         foreach (var d in dash)
         {
-            if (!double.IsFinite(d) || d < 0)
+            if (!double.IsFinite(d) || d < 0 || d * scale > MaxMagnitude)
             {
                 return null;
             }
@@ -299,6 +307,8 @@ internal sealed partial class ScenePainter
             return null;
         }
 
+        var deviceOffset = stroke.DashOffset * scale;
+        offset = (float)(Math.Abs(deviceOffset) <= MaxMagnitude ? deviceOffset : deviceOffset % period);
         return [.. dash.Select(d => (float)(d * scale))];
     }
 

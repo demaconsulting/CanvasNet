@@ -17,9 +17,12 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and ignored.
 ///     </para>
 ///     <para>
-///         The natural size of the diagram is its own (<see cref="MermaidDocument.Measure"/>); the diagram is drawn afresh at
-///         the size <see cref="ImageSourceRequest.SizeFor(int, int, bool)"/> gives, so it is as sharp as the placement
-///         allows, on a transparent background (as Mermaid's SVG). Rendering is deterministic: only the bundled fonts are used.
+///         The natural size of the diagram is its own (the size <see cref="MermaidDocument.Measure"/> gives at scale 1, which
+///         here may be larger than <see cref="DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension"/>); the diagram is drawn
+///         afresh at the size <see cref="ImageSourceRequest.SizeFor(int, int, bool)"/> gives (each side at most
+///         <see cref="DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension"/>, the diagram scaled uniformly to fit and
+///         centered), so it is as sharp as the placement allows, on a transparent background (as Mermaid's SVG). Rendering
+///         is deterministic: only the bundled fonts are used.
 ///     </para>
 ///     <para>
 ///         <b>Notes.</b> Warnings are returned as <see cref="ImageSourceResult.Diagnostics"/> with the source <c>mermaid</c>,
@@ -134,8 +137,9 @@ public sealed class MermaidImageSource : IImageSource, IFragmentImageSource
                 }),
         };
 
-        // The natural size comes from a measure without handlers, so every note is reported once, by the render
-        var natural = document.Measure(new MermaidRenderOptions { Theme = theme }, request.CancellationToken);
+        // The natural size comes from a measure without handlers, so every note is reported once, by the render; it may be
+        // larger than the largest surface, as only its aspect ratio matters for a smaller requested size
+        var natural = document.MeasureNatural(new MermaidRenderOptions { Theme = theme }, request.CancellationToken);
         var (width, height) = request.SizeFor(natural.Width, natural.Height);
         request.EnsureWithinBudget(width, height);
         var surface = document.Render(width, height, options, request.CancellationToken);

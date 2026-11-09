@@ -12,6 +12,63 @@ public class MermaidHardeningTests
     private static readonly MermaidRenderOptions Tenth = new() { Scale = 0.1 };
 
     /// <summary>
+    ///     Gets the hostile corpus: diagrams that once escaped the documented exceptions (found by review), each with
+    ///     the outcome now expected: null when it renders, else the code of the located render failure and its line.
+    /// </summary>
+    public static TheoryData<string, string?, int> HostileCorpus => new()
+    {
+        // A subgraph used as a node of another subgraph, and a self-loop on a subgraph (Mermaid 11.17.2 fails on both)
+        { "flowchart TB\nsubgraph s2\n s1\nend\nsubgraph s1\n subgraph s4\n  n5\n end\n s4 --> n2\nend\n", MermaidDiagnosticCodes.RenderFailed, 9 },
+        { "flowchart TB\nsubgraph s0\n n0\nend\nsubgraph s1\n n3 --> s2\nend\nsubgraph s2\n s0 --> s0\nend\n", MermaidDiagnosticCodes.RenderFailed, 9 },
+
+        // Font sizes that are zero or infinite in single precision, and dash patterns beyond single precision
+        { "flowchart TD\nA\nstyle A font-size:1e-300px\n", null, 0 },
+        { "flowchart TD\nA\nstyle A font-size:1e300px\n", null, 0 },
+        { "flowchart TD\nA:::k\nclassDef k font-size:1e300px\n", null, 0 },
+        { "flowchart TD\nA --> B\nlinkStyle 0 font-size:1e-300px\n", null, 0 },
+        { "%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nflowchart TD\nA --> B\n", null, 0 },
+        { "flowchart TD\nA[\"<span style='font-size:1e300px'>x</span>\"]\n", null, 0 },
+        { "flowchart TD\nA\nstyle A stroke-dasharray:1e300\n", null, 0 },
+        { "flowchart TD\nA\nstyle A stroke-dasharray:1e39 1\n", null, 0 },
+        { "flowchart TD\nA:::k\nclassDef k stroke-dasharray:4e38\n", null, 0 },
+    };
+
+    /// <summary>
+    ///     Validates the hostile corpus through the public API: each diagram renders, or fails with a located
+    ///     <see cref="MermaidRenderException"/> of the expected code at the expected line, and never with another
+    ///     exception.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="code">The code of the expected failure, or null when the diagram renders.</param>
+    /// <param name="line">The line of the expected failure.</param>
+    [Theory]
+    [MemberData(nameof(HostileCorpus))]
+    public void CanvasNetMermaid_Hardening_HostileCorpus_RendersOrFailsLocated(string text, string? code, int line)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
+        });
+
+        // Assert
+        if (code is null)
+        {
+            Assert.Null(exception);
+        }
+        else
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.Equal(code, failure.Code);
+            Assert.Equal(line, failure.Location.Line);
+        }
+    }
+
+    /// <summary>
     ///     Validates that more edges than <see cref="MermaidLimits.MaxEdges"/> fail at open, located at the extra edge.
     /// </summary>
     [Fact]

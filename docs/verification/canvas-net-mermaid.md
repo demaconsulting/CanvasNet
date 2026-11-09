@@ -175,12 +175,17 @@ other known type does the same with its own hint; and that a failing handler's e
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_LongLabel_IsALimitOrWraps`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_CompleteGraph_RendersOrHitsTheWorkLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_LongChainAndManySubgraphs_Render`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileCorpus_RendersOrFailsLocated`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
 `InvalidDataException` for too long text, refusal of a YAML alias bomb, a label limit that can be raised, a complete
 graph of 30 nodes that renders with the default work budget and fails with a small one, long chains and many
-subgraphs that render, and only documented exceptions from the seeded mutation fuzzer.
+subgraphs that render, and only documented exceptions from the seeded mutation fuzzer; and, for a hostile corpus of
+inputs found by review, that the two diagrams on which Mermaid 11.17.2 fails (a subgraph used as a node of another
+subgraph, a self-loop on a subgraph) fail with a located `mermaid-render-failed` at line 9, and that font sizes
+that are zero or infinite in single precision (in `style`, `classDef`, `linkStyle`, an HTML label, and the theme's
+`fontSize`) and dash patterns beyond single precision render a picture.
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 

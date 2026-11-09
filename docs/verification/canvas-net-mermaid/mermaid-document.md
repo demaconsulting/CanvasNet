@@ -69,6 +69,16 @@ unsupported type, and that the frontmatter title becomes the title.
 Asserts the code, location, hint, expected tokens, and message format of each exception type, the general code of
 the standard constructors, the three text forms of a location, and when a location is known.
 
+#### CanvasNetMermaid-MermaidDocument-DefectNet: Layout Defects Fail Closed
+
+**Tests**: `MermaidDocumentTests.MermaidDocument_IsLayoutDefect_RuntimeDefects_AreDefectsOthersAreNot`,
+`MermaidDocumentTests.MermaidDocument_Measure_ResolverThrows_PropagatesUnchanged`
+
+Asserts that the null-reference, index, missing-key, invalid-cast, argument, overflow, and invalid-operation
+exceptions are defects of the layout, while a render failure, an unsupported feature, cancellation, a disposed
+object, invalid data, and an exception marked as the image resolver's are not; and that an exception thrown by the
+caller's image resolver during a measure reaches the caller as the same instance.
+
 #### CanvasNetMermaid-MermaidDocument-DiagnosticCodes: Stable, Distinct Codes
 
 **Tests**: `MermaidRecordsAndExceptionsTests.MermaidDiagnosticCodes_AllCodes_AreDistinctMermaidIdentifiers`,
@@ -116,6 +126,7 @@ when delivering after a failure.
 **Tests**: `MermaidImageSourceTests.MermaidImageSource_Properties_ClaimMermaidExtensionsAndTheme`,
 `MermaidImageSourceTests.MermaidImageSource_Render_UnsupportedType_ReturnsTransparentPictureAndNote`,
 `MermaidImageSourceTests.MermaidImageSource_Render_Flowchart_DrawsTheDiagram`,
+`MermaidImageSourceTests.MermaidImageSource_Render_NaturalSizeBeyondMaximum_DrawsAtRequestedWidth`,
 `MermaidImageSourceTests.MermaidImageSource_Render_UnsupportedTypeStrict_Throws`,
 `MermaidImageSourceTests.MermaidImageSource_Render_ThemeFragment_ValidatedAgainstMermaidThemes`,
 `MermaidImageSourceTests.MermaidImageSource_Render_InvalidText_ThrowsSyntaxException`,
@@ -123,5 +134,6 @@ when delivering after a failure.
 
 Asserts the claimed extensions, schemes, and fragment parameter; a transparent picture at the requested size with one
 located unsupported note for a sequence diagram, and an exception in strict mode; a flowchart at its natural size and
-at a requested size with the `theme=dark` fragment; the refusal of an unknown theme; and the propagation of a syntax
-error and of a null request.
+at a requested size with the `theme=dark` fragment; a 120-node chain wider than the largest surface (whose
+`Measure` refuses the natural size) drawn 200 pixels wide with the height of its natural aspect ratio; the refusal
+of an unknown theme; and the propagation of a syntax error and of a null request.

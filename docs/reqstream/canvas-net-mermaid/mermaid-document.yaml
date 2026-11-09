@@ -65,6 +65,21 @@ sections:
               - MermaidLocation_ToString_Forms_AreFileLineColumn
               - MermaidLocation_IsKnown_DependsOnLine
 
+          - id: CanvasNetMermaid-MermaidDocument-DefectNet
+            title: >-
+              The MermaidDocument unit shall report an exception that escapes the layout of a diagram and that the
+              layout does not document (a null reference, an index out of range, a missing key, an invalid cast,
+              an argument, arithmetic, or invalid-operation exception) as a MermaidRenderException with the code
+              mermaid-render-failed, located at the diagram keyword and carrying the original as its inner
+              exception, and shall let cancellation, the documented failures, and an exception of the caller's image
+              resolver propagate unchanged.
+            justification: |
+              A diagram the port did not foresee must still fail closed with the documented, located shape, while a
+              host's own exceptions (for example a nesting limit of its image resolver) must reach it as thrown.
+            tests:
+              - MermaidDocument_IsLayoutDefect_RuntimeDefects_AreDefectsOthersAreNot
+              - MermaidDocument_Measure_ResolverThrows_PropagatesUnchanged
+
           - id: CanvasNetMermaid-MermaidDocument-DiagnosticCodes
             title: >-
               The MermaidDocument unit shall publish every report and error code as a distinct, stable constant
@@ -130,9 +145,11 @@ sections:
             title: >-
               The MermaidDocument unit shall provide MermaidImageSource, which claims .mmd and .mermaid and the
               theme fragment parameter (refusing a theme that is not a Mermaid theme), draws a diagram at its
-              natural size or at the requested size, returns a transparent picture with one unsupported note for a
-              diagram type it does not draw (an exception in strict mode), maps warnings to mermaid-warning
-              diagnostics with the code and location, lets a syntax error propagate, and rejects a null request.
+              natural size or at the requested size (also when the natural size is larger than the largest
+              surface, whose aspect ratio then gives the missing side), returns a transparent picture with one
+              unsupported note for a diagram type it does not draw (an exception in strict mode), maps warnings to
+              mermaid-warning diagnostics with the code and location, lets a syntax error propagate, and rejects a
+              null request.
             justification: |
               The image-source contract is how SVG documents, the Viewer, and the tool embed a diagram; it must
               behave like the other CanvasNet sources.
@@ -140,6 +157,7 @@ sections:
               - MermaidImageSource_Properties_ClaimMermaidExtensionsAndTheme
               - MermaidImageSource_Render_UnsupportedType_ReturnsTransparentPictureAndNote
               - MermaidImageSource_Render_Flowchart_DrawsTheDiagram
+              - MermaidImageSource_Render_NaturalSizeBeyondMaximum_DrawsAtRequestedWidth
               - MermaidImageSource_Render_UnsupportedTypeStrict_Throws
               - MermaidImageSource_Render_ThemeFragment_ValidatedAgainstMermaidThemes
               - MermaidImageSource_Render_InvalidText_ThrowsSyntaxException

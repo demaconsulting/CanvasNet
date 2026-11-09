@@ -353,11 +353,55 @@ internal sealed partial class ClusterLayout
     /// <param name="graph">The graph.</param>
     /// <param name="parentCluster">The <c>clusterNode</c> whose contents the graph holds, or null for the root graph.</param>
     /// <returns>The drawn graph.</returns>
+    /// <exception cref="MermaidRenderException">Thrown, located, when the work limit is reached or the layout fails.</exception>
     private RenderedGraph RenderGraph(Graph<DagreGraph, ClusterLayoutNode, ClusterLayoutEdge> graph, ClusterLayoutNode? parentCluster)
     {
         var (nodeOrder, labelOrder) = Measure(graph, parentCluster);
+        CheckNoEdgeAtSubgraph(graph);
         DagreLayout.Run(graph, _meter);
         return Paint(graph, nodeOrder, labelOrder);
+    }
+
+    /// <summary>
+    ///     Fails, located at the link, when an edge handed to dagre still ends at a subgraph that holds other nodes of the
+    ///     graph: the anchors did not move it (for example a subgraph used as a node of another subgraph, or a self-loop
+    ///     on a subgraph). Dagre ranks a flat copy of the graph without such subgraphs, so the edge's end has no label
+    ///     there and Mermaid's render fails (<c>Cannot set properties of undefined (setting 'rank')</c> in
+    ///     <c>longestPath</c>).
+    /// </summary>
+    /// <param name="graph">The graph about to be laid out.</param>
+    /// <exception cref="MermaidRenderException">Thrown, located at the link, when an edge ends at a subgraph.</exception>
+    private void CheckNoEdgeAtSubgraph(Graph<DagreGraph, ClusterLayoutNode, ClusterLayoutEdge> graph)
+    {
+        var edges = graph.Edges();
+        _meter.Charge(edges.Length);
+        foreach (var e in edges)
+        {
+            // Dagre removes self-edges before ranking; a subgraph at either end of any other edge fails
+            if (e.V == e.W)
+            {
+                continue;
+            }
+
+            string? subgraph = null;
+            if (graph.Children(e.V) is { Length: > 0 })
+            {
+                subgraph = e.V;
+            }
+            else if (graph.Children(e.W) is { Length: > 0 })
+            {
+                subgraph = e.W;
+            }
+
+            if (subgraph is not null && graph.Edge(e) is { } edge)
+            {
+                throw new MermaidRenderException(
+                    MermaidDiagnosticCodes.RenderFailed,
+                    $"the link '{edge.Data.Id}' cannot be laid out: it still ends at the subgraph '{subgraph}', which holds other nodes (Mermaid fails on this diagram too)",
+                    edge.Data.Location,
+                    "link to a node inside the subgraph instead");
+            }
+        }
     }
 
     /// <summary>

@@ -37,6 +37,7 @@ sections:
               - CanvasNetMermaid-Dagre-DagreRanker-Pivots
               - CanvasNetMermaid-Dagre-DagreRanker-FeasibleTree
               - CanvasNetMermaid-Dagre-DagreRanker-RankerChoice
+              - CanvasNetMermaid-Dagre-DagreRanker-UnlabeledNode
               - CanvasNetMermaid-Dagre-DagreNesting-ClusterBorders
               - CanvasNetMermaid-Dagre-DagreNesting-Cleanup
               - CanvasNetMermaid-Dagre-DagreNesting-DummyChains

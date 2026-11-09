@@ -87,6 +87,12 @@ data, the configuration, and the label measurement.
   where graphlib's `setParent` fails Mermaid's render.
 - A link to a subgraph whose anchor is not inside a subgraph, or to a subgraph without a node to attach to, throws a
   located `MermaidRenderException` (`mermaid-render-failed`), where Mermaid's render fails.
+- A link (other than a self-edge) that still ends at a subgraph holding other nodes when its graph is about to be laid
+  out (`CheckNoEdgeAtSubgraph`, run before each dagre layout) throws a `MermaidRenderException`
+  (`mermaid-render-failed`) located at the link: dagre ranks a flat copy of the graph without such subgraphs, so
+  the end has no label there and Mermaid 11.17.2 fails in `longestPath` ("Cannot set properties of undefined
+  (setting 'rank')"). This happens, for example, when a subgraph is also used as a node of another subgraph, or for a
+  self-loop on a subgraph next to links into the subgraphs around it.
 - The work meter throws a located `MermaidRenderException` (`mermaid-limit-exceeded`) when the layout work limit is
   spent, and `OperationCanceledException` when the call is canceled.
 - The errors of `ShapeLibrary`, `EdgeBuilder`, and the dagre layout propagate unchanged; an unexpected self-loop state

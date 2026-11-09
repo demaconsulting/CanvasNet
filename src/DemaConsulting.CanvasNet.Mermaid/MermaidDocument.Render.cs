@@ -2,6 +2,7 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
+using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -140,6 +141,34 @@ public sealed partial class MermaidDocument
     }
 
     /// <summary>
+    ///     Lays the diagram out under options and returns its natural size in whole pixels (the view box rounded up, as
+    ///     <see cref="Measure"/> computes it at scale 1) without the check that it fits a surface (internal; the
+    ///     <see cref="MermaidImageSource"/> needs the natural size, which may be larger than <see cref="Surface.MaxDimension"/>,
+    ///     only for the aspect ratio of a smaller requested size). The reports are delivered as for <see cref="Measure"/>.
+    /// </summary>
+    /// <param name="options">Optional render options; <see langword="null"/> uses the defaults.</param>
+    /// <param name="cancellationToken">A token that stops the work.</param>
+    /// <returns>The natural size, each side from 1 to <see cref="int.MaxValue"/>.</returns>
+    /// <exception cref="OperationCanceledException">Thrown when the token is canceled before or during the work.</exception>
+    /// <exception cref="MermaidRenderException">Thrown, located, when a limit is exceeded, the layout fails, or the size is not finite.</exception>
+    /// <exception cref="MermaidUnsupportedFeatureException">Thrown when <see cref="MermaidRenderOptions.ThrowOnUnsupportedFeature"/> is set and the diagram uses an unsupported feature (or its type is not drawn).</exception>
+    internal MermaidSize MeasureNatural(MermaidRenderOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var effective = options ?? new MermaidRenderOptions();
+        cancellationToken.ThrowIfCancellationRequested();
+        return Run(effective, cancellationToken, (scene, _) =>
+        {
+            var (width, height) = NaturalSize(scene.ViewBox);
+            if (!double.IsFinite(width) || !double.IsFinite(height))
+            {
+                throw new MermaidRenderException(MermaidDiagnosticCodes.RenderFailed, "the diagram has no finite size", Detected.Location);
+            }
+
+            return new MermaidSize((int)Math.Min(width, int.MaxValue), (int)Math.Min(height, int.MaxValue));
+        });
+    }
+
+    /// <summary>
     ///     Gets the natural size of a scene: its view box rounded up to whole pixels (as <c>mmdc</c> rounds the bounding box
     ///     of the SVG), at least one pixel.
     /// </summary>
@@ -238,13 +267,33 @@ public sealed partial class MermaidDocument
     ///     Builds the scene of the call: the layout of a supported diagram, or the empty scene of a type that is not drawn
     ///     after its report.
     /// </summary>
+    /// <remarks>
+    ///     The layout is fail-closed: an exception that the layout does not document (a defect, for example a
+    ///     <see cref="NullReferenceException"/> on a diagram the port did not foresee) becomes a
+    ///     <see cref="MermaidRenderException"/> with the code <see cref="MermaidDiagnosticCodes.RenderFailed"/>, located
+    ///     at the diagram keyword, with the original exception as its inner exception. Cancellation, limit and
+    ///     unsupported-feature failures pass unchanged.
+    /// </remarks>
     /// <param name="context">The context of the call.</param>
     /// <returns>The scene.</returns>
+    /// <exception cref="MermaidRenderException">Thrown, located, when a limit is exceeded or the layout fails.</exception>
     private Scene BuildScene(DiagramRenderContext context)
     {
         if (Diagram is not null)
         {
-            return Diagram.Layout(context);
+            try
+            {
+                return Diagram.Layout(context);
+            }
+            catch (Exception ex) when (IsLayoutDefect(ex))
+            {
+                throw new MermaidRenderException(
+                    MermaidDiagnosticCodes.RenderFailed,
+                    $"the layout failed unexpectedly ({ex.GetType().Name}: {ex.Message})",
+                    Detected.Location,
+                    "simplify the construct the diagram fails at, and report the diagram to the CanvasNet project",
+                    ex);
+            }
         }
 
         // A known type that is not drawn: one report (strict mode throws here) and nothing to draw
@@ -255,4 +304,23 @@ public sealed partial class MermaidDocument
             DiagramDetector.UnsupportedHint(Detected));
         return new Scene(new SceneRect(0, 0, UnsupportedDiagramSize, UnsupportedDiagramSize), []);
     }
+
+    /// <summary>
+    ///     Decides whether an exception that escaped the layout is a defect to report as a located render failure: one of
+    ///     the runtime's programming-error exceptions, never the documented failures (<see cref="MermaidRenderException"/>,
+    ///     <see cref="MermaidUnsupportedFeatureException"/>), <see cref="OperationCanceledException"/>, nor an exception
+    ///     of the caller's image resolver (marked with <see cref="NodeImages.ResolverExceptionMark"/>), which propagates
+    ///     unchanged.
+    /// </summary>
+    /// <param name="ex">The exception.</param>
+    /// <returns>True when the exception is a defect of the layout.</returns>
+    internal static bool IsLayoutDefect(Exception ex) =>
+        !ex.Data.Contains(NodeImages.ResolverExceptionMark)
+        && ex is NullReferenceException
+            or IndexOutOfRangeException
+            or KeyNotFoundException
+            or InvalidCastException
+            or ArgumentException
+            or ArithmeticException
+            or (InvalidOperationException and not MermaidRenderException and not ObjectDisposedException);
 }

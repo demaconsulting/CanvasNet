@@ -206,4 +206,27 @@ public sealed class ClusterLayoutTests
         Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
         Assert.Equal(1, exception.Location.Line);
     }
+
+    /// <summary>
+    ///     Checks that a link still ending at a subgraph when its graph is laid out (a subgraph used as a node of another
+    ///     subgraph, or a self-loop on a subgraph next to links into enclosing subgraphs) fails located at the link, as
+    ///     Mermaid 11.17.2's render fails on these diagrams (dagre's <c>longestPath</c>: "Cannot set properties of
+    ///     undefined (setting 'rank')").
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="link">The id of the link that ends at the subgraph.</param>
+    [Theory]
+    [InlineData("flowchart TB\nsubgraph s2\n s1\nend\nsubgraph s1\n subgraph s4\n  n5\n end\n s4 --> n2\nend\n", "L_s4_n2_0")]
+    [InlineData("flowchart TB\nsubgraph s0\n n0\nend\nsubgraph s1\n n3 --> s2\nend\nsubgraph s2\n s0 --> s0\nend\n", "L_s0_s0_0")]
+    public void ClusterLayout_Render_LinkStillAtSubgraph_FailsLocatedAtTheLink(string text, string link)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidRenderException>(() => RenderingTestContext.Render(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, exception.Code);
+        Assert.Equal(9, exception.Location.Line);
+        Assert.Contains($"'{link}'", exception.Message, StringComparison.Ordinal);
+        Assert.NotNull(exception.Hint);
+    }
 }

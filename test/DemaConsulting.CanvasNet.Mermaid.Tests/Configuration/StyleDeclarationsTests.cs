@@ -170,6 +170,53 @@ public class StyleDeclarationsTests
     }
 
     /// <summary>
+    ///     Validates the font size parser: a length that text can be drawn at, and not zero, a size that is zero in
+    ///     single precision, nor one above <see cref="StyleDeclarations.MaxFontSize"/>.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="expected">The size, or null when it is not a drawable font size.</param>
+    [Theory]
+    [InlineData("12px", 12.0)]
+    [InlineData("2em", 20.0)]
+    [InlineData("32768px", 32_768.0)]
+    [InlineData("0", null)]
+    [InlineData("1e-300px", null)]
+    [InlineData("1e300px", null)]
+    [InlineData("32769px", null)]
+    [InlineData("1e300em", null)]
+    public void StyleDeclarations_TryParseFontSize(string value, double? expected)
+    {
+        // Act
+        var parsed = StyleDeclarations.TryParseFontSize(value, 10, out var size);
+
+        // Assert
+        Assert.Equal(expected.HasValue, parsed);
+        if (expected is { } pixels)
+        {
+            Assert.Equal(pixels, size, 9);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a font size that cannot be drawn is reported as ignored, with a hint naming the range, and
+    ///     left out of the declarations.
+    /// </summary>
+    [Fact]
+    public void StyleDeclarations_ParseItems_FontSizeNotDrawable_IsIgnoredWithHint()
+    {
+        // Act
+        var (set, warnings, _) = Collect(sink => StyleDeclarations.ParseItems(["font-size:1e-300px", "fill:#f00"], new MermaidLocation(null, 3, 1), sink));
+
+        // Assert
+        Assert.Null(set["font-size"]);
+        Assert.Equal("#f00", set["fill"]);
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MermaidDiagnosticCodes.StyleIgnored, warning.Code);
+        Assert.Equal(3, warning.Location.Line);
+        Assert.Contains("32768", warning.Hint, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the dash array, opacity, weight, style and paint parsers.
     /// </summary>
     [Fact]

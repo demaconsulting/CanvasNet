@@ -73,7 +73,9 @@ public sealed partial class MermaidDocument
   (8192) on a side. A diagram larger than that needs a smaller `Scale` or the sized overload.
 - `MermaidRenderException`: a limit of `MermaidLimits` was met while the diagram was laid out or painted
   (`mermaid-limit-exceeded`), or the diagram cannot be laid out (`mermaid-render-failed`, for example a subgraph that
-  contains itself).
+  contains itself). An unexpected internal error of the layout is reported the same way (`mermaid-render-failed` at
+  the diagram keyword, with the original exception as the inner exception); an exception of your image resolver
+  reaches you unchanged.
 - `MermaidUnsupportedFeatureException`: the first unsupported feature when `ThrowOnUnsupportedFeature` is set.
 - `OperationCanceledException`: the token was canceled before or during the work.
 
@@ -272,12 +274,15 @@ The known differences from Mermaid are:
 - **Interaction and animation.** `click`, `href`, `call`, and tooltips are ignored; an animated edge is drawn as its
   first frame.
 - **CSS.** `classDef`, `style`, `linkStyle`, and `themeCSS` honor only the declarations listed under *Styles*; there are
-  no CSS animations.
+  no CSS animations. A `font-size` that text cannot be drawn at (zero, or more than 32768 pixels) is ignored with a
+  `mermaid-style-ignored` warning and the inherited size is kept, and a `stroke-dasharray` with a dash longer than
+  32768 pixels is drawn solid.
 - **Security.** `securityLevel` changes nothing (no script ever runs). YAML anchors, aliases, and tags are refused,
   although Mermaid's YAML reader accepts them.
 - **Errors.** For invalid text Mermaid draws an error picture; this package throws a located `MermaidSyntaxException`.
-  A few graphs on which Mermaid itself fails (a subgraph that contains itself, a link to a subgraph that has no node) are
-  a located `mermaid-render-failed`. The legacy `A(-text-)` shape, which Mermaid 11 cannot draw, is drawn as an
+  A few graphs on which Mermaid itself fails (a subgraph that contains itself, a link to a subgraph that has no node, a
+  subgraph also used as a node of another subgraph, a self-loop on a subgraph next to links into the subgraphs around
+  it) are a located `mermaid-render-failed`. The legacy `A(-text-)` shape, which Mermaid 11 cannot draw, is drawn as an
   ellipse.
 - **Shapes.** The circles of the newer shapes are true circles where Mermaid draws rough.js curves (a few hundredths
   of a pixel).
