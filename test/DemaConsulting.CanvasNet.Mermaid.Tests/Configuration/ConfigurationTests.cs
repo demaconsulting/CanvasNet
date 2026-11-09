@@ -45,6 +45,37 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a sequence diagram text that configures its section and its style at once: the frontmatter theme
+    ///     and sequence settings take effect, a <c>themeCSS</c> rule of a sequence selector overrides the theme, the
+    ///     participant paint comes from the theme, and a sequence value of the wrong type is reported at its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolveSequenceSectionAndStyles_FullText()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  theme: forest\n  sequence:\n    mirrorActors: false\n    noteAlign: 5\n---\n" +
+                            "%%{init: {'themeCSS': '.note { fill: #ff0000 }'}}%%\n" +
+                            "sequenceDiagram\n  A->>B: x\n";
+        var source = Preprocessor.Run(Text, "seq.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var config = MermaidConfigResolver.Resolve(source, "sequence", null, sink);
+        var styles = SequenceStyles.Create(config, sink);
+        var warnings = new List<MermaidDiagnostic>();
+        sink.Deliver(warnings.Add, null);
+
+        // Assert
+        Assert.Equal("forest", config.Theme);
+        Assert.False(config.Sequence.MirrorActors);
+        Assert.Equal("center", config.Sequence.NoteAlign);
+        Assert.Equal(CssColor.Parse("#ff0000"), styles.Shape(new ShapePaint(null, null, 1), ".note").Fill);
+        Assert.Equal(CssColor.Parse(config.ThemeVariable("actorBkg")!), styles.Shape(new ShapePaint(null, null, 1), ".actor").Fill);
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (warning.Code, warning.Location.Line));
+    }
+
+    /// <summary>
     ///     Validates that each of the five themes gives the flowchart its node fill (the theme's <c>mainBkg</c>) through
     ///     the site theme option.
     /// </summary>

@@ -28,9 +28,11 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-MermaidFidelity
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-Directives
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-TypedView
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ThemeOption_NodeFill
+              - Configuration_ResolveSequenceSectionAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Reports
             title: >-
@@ -77,22 +79,24 @@ sections:
 
           - id: CanvasNetMermaid-Configuration-StyleSheet
             title: >-
-              The Configuration subsystem shall resolve the paint and fonts of the flowchart's element classes from
-              the style sheet Mermaid writes for a flowchart with the theme variables of the configuration, apply the
-              themeCSS rules of the flowchart's own selectors after it, and report every other themeCSS rule as the
-              unsupported feature mermaid-theme-css-unsupported.
+              The Configuration subsystem shall resolve the paint and fonts of the element classes of flowcharts and
+              sequence diagrams from the style sheets Mermaid writes for them with the theme variables of the
+              configuration, apply the themeCSS rules of the diagram's own selectors after them, and report every other
+              themeCSS rule as the unsupported feature mermaid-theme-css-unsupported.
             justification: |
-              Mermaid paints a flowchart through CSS rules built from the theme; reproducing those rules and the
+              Mermaid paints a diagram through CSS rules built from the theme; reproducing those rules and the
               user's overrides of them gives the same paint without a browser, and a rule that cannot be applied
               must be reported rather than silently lost.
             children:
               - CanvasNetMermaid-Configuration-ThemeResolver-FlowchartStyles
+              - CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet
               - CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
               - CanvasNetMermaid-Configuration-ThemeResolver-InvalidDeclarations
               - CanvasNetMermaid-Configuration-StyleDeclarations-StyleSheets
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ThemeOption_NodeFill
+              - Configuration_ResolveSequenceSectionAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Declarations
             title: >-

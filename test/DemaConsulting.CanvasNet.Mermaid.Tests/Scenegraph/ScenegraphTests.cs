@@ -63,6 +63,36 @@ public class ScenegraphTests
     }
 
     /// <summary>
+    ///     Validates that the drop shadow of a path is painted under it, moved by its offset at the scale of the
+    ///     placement, and that it does not change the bounds of the scene.
+    /// </summary>
+    [Fact]
+    public void Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds()
+    {
+        // Arrange: a white 20 by 20 box in a group at (10, 10), with a sharp black shadow 4 right and 4 down
+        var white = new Rgba32(255, 255, 255, 255);
+        var black = new Rgba32(0, 0, 0, 255);
+        IReadOnlyList<SceneSegment> box =
+        [
+            SceneSegment.Move(0, 0), SceneSegment.Line(20, 0), SceneSegment.Line(20, 20), SceneSegment.Line(0, 20), SceneSegment.Close(),
+        ];
+        var group = new SceneGroup(10, 10, [new ScenePath(box) { Role = "box", Fill = white, Shadow = new SceneShadow(4, 4, 0, black) }]) { Role = "box" };
+        var scene = new Scene(new SceneRect(0, 0, 40, 40), [group]);
+
+        // Act
+        var bounds = Scene.BoundsOf(scene.Items);
+        using var surface = new ScenePainter(ScenePainter.CreateFontResolver()).Paint(scene, 80, 80, ScenePlacement.Uniform(scene.ViewBox, 2), null, TestContext.Current.CancellationToken);
+
+        // Assert: the box covers 20 to 60 device pixels and its shadow 28 to 68, under the box
+        Assert.Equal(new SceneRect(10, 10, 20, 20), bounds);
+        Assert.Equal(white, surface[40, 40]);
+        Assert.Equal(black, surface[64, 40]);
+        Assert.Equal(black, surface[40, 64]);
+        Assert.Equal(0, surface[72, 40].A);
+        Assert.Equal(0, surface[24, 64].A);
+    }
+
+    /// <summary>
     ///     Validates that the picture of a scene comes only from the loader the painter is given: it is loaded at the
     ///     device size of its box and fills the box, and without a loader nothing is drawn.
     /// </summary>

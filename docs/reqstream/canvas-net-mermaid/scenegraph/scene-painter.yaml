@@ -112,3 +112,27 @@ sections:
                   A caller that cancels a render must get control back promptly.
                 tests:
                   - ScenePainter_Paint_Canceled_Throws
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-DropShadow
+                title: >-
+                  The ScenePainter unit shall paint the drop shadow of a path under the path as the SVG drop-shadow
+                  filter does - the silhouette of the shape moved by the offset and blurred with the three box blurs
+                  that approximate the filter's Gaussian blur - and shall charge the pixels of the shadow to the
+                  painted-pixel limit.
+                justification: |
+                  The boxes of a sequence diagram carry the theme's drop shadow in every theme; the shadow must look as
+                  in a browser and its work must be bounded like any other paint.
+                tests:
+                  - ScenePainter_Paint_SharpShadow_OffsetsSilhouetteUnderShape
+                  - ScenePainter_Paint_BlurredShadow_FadesSymmetrically
+                  - ScenePainter_Paint_Shadow_ChargedToPaintedPixelLimit
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-StrokedText
+                title: >-
+                  The ScenePainter unit shall stroke the glyph outlines of a text line that has a stroke over its fill,
+                  also when the fill is transparent.
+                justification: |
+                  Mermaid's old text placement draws participant labels filled and stroked by the participant rule;
+                  the outline must show as in a browser.
+                tests:
+                  - ScenePainter_Paint_StrokedText_DrawsTheOutline

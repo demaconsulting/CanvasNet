@@ -101,6 +101,38 @@ public class SequenceTests
     }
 
     /// <summary>
+    ///     Validates that what the subsystem does not draw as Mermaid does is reported in order at its location - the
+    ///     look, a participant image icon and math as unsupported features, and a participant of an unknown type as a
+    ///     warning - and that the diagram is still measured.
+    /// </summary>
+    [Fact]
+    public void Sequence_Render_UnsupportedFeatures_AreReported()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n---\nsequenceDiagram\n    participant A\n" +
+            "    properties A: {\"icon\": \"https://example.com/i.png\"}\n    participant Q@{ \"type\": \"queues\" }\n" +
+            "    A->>Q: $$x^2$$\n";
+        var document = MermaidDocument.Parse(Text, new MermaidOpenOptions { SourceName = "s.mmd" });
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(size.Width > 16 && size.Height > 16);
+        Assert.Equal(
+            [
+                (MermaidDiagnosticCodes.LookUnsupported, 3),
+                (MermaidDiagnosticCodes.IconUnsupported, 6),
+                (MermaidDiagnosticCodes.MathUnsupported, 9),
+            ],
+            unsupported.Select(u => (u.Feature, u.Location.Line)));
+        var warning = Assert.Single(warnings);
+        Assert.Equal((MermaidDiagnosticCodes.ParticipantTypeUnknown, 8), (warning.Code, warning.Location.Line));
+        Assert.All(unsupported, u => Assert.Equal("s.mmd", u.Location.File));
+    }
+
+    /// <summary>
     ///     Validates that every original sequence fixture lays out into a scene with participants and a positive size.
     /// </summary>
     /// <param name="name">The fixture name.</param>

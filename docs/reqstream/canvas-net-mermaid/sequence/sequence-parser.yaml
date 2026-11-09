@@ -1,0 +1,122 @@
+---
+# Software Unit Requirements for SequenceParser
+#
+# These requirements describe the design-level behavior of the SequenceParser unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Sequence): the lexer and the grammar of the sequence diagram
+# language of the pinned Mermaid release, the statements it hands to the sequence database in Mermaid's order, the
+# located errors with Mermaid's expected tokens, and the limits checked while the text is read. See
+# docs/verification/canvas-net-mermaid/sequence/sequence-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Sequence-SequenceParser-Tokens
+                title: >-
+                  The SequenceParser unit shall split a sequence diagram text into the tokens that Mermaid's sequence
+                  lexer produces, including participant names that keep their dashes, spaces, and a following comment
+                  or alias text where Mermaid's lexer keeps them, a keyword at the start of a line being a keyword even
+                  before an arrow, and every arrow with or without spaces around it, while keeping every token located
+                  in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in many corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - SequenceParser_Parse_ParticipantNames_FollowMermaidLexer
+                  - SequenceParser_Parse_Arrow_MapsToLineType
+                  - SequenceParser_Parse_KeywordAsName_FailsAtTheEndLikeMermaid
+                  - SequenceParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-Grammar
+                title: >-
+                  The SequenceParser unit shall accept exactly the texts that the sequence grammar of the pinned
+                  Mermaid release accepts and shall hand the sequence database the same signals, notes, activations
+                  and activation shorthands, central connections, block start, section, and end markers with their
+                  titles, and autonumber settings, in the same order, as Mermaid's parser hands them.
+                justification: |
+                  Message ids, the activation stack, and the block structure depend on the order of the statements,
+                  and the layout depends on all of them.
+                tests:
+                  - SequenceParser_Parse_UpstreamVector_MatchesMermaid
+                  - SequenceParser_Vectors_FileHasEnoughCases_AtLeast150
+                  - SequenceParser_Parse_Signal_AddsParticipantsAndMessage
+                  - SequenceParser_Parse_NotesActivationsAndCentralConnections_ListMessagesInOrder
+                  - SequenceParser_Parse_Blocks_ListMarkersInOrder
+                  - SequenceParser_Parse_Autonumber_KeepsStartStepAndVisibility
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-LinearTime
+                title: >-
+                  The SequenceParser unit shall read long participant names made of many dash-separated parts and texts
+                  of many statements with the results of Mermaid's lexer and without matching work that grows faster
+                  than the length of the text.
+                justification: |
+                  The text is untrusted; the lexer rules that look ahead in Mermaid must not let one long line cost
+                  quadratic or exponential time.
+                tests:
+                  - SequenceParser_Parse_LongDashedNamesAndManyStatements_Parses
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-Errors
+                title: >-
+                  The SequenceParser unit shall refuse a token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's parser lists, in its
+                  order, with a hint; shall refuse text that no lexer rule matches with a located error; and shall
+                  report a grammar error anywhere in the text before an error of the sequence database.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to
+                  write and where, and Mermaid applies the statements only after the whole text has parsed.
+                tests:
+                  - SequenceParser_Parse_MissingText_ThrowsLocatedErrorWithExpectedTokens
+                  - SequenceParser_Parse_TokenAfterStatement_ListsMergedFollowers
+                  - SequenceParser_Parse_MetadataAfterActivatedName_ListsNameFollowers
+                  - SequenceParser_Parse_StrayEnd_ListsLineStartsOnly
+                  - SequenceParser_Parse_MissingParticipantName_ThrowsLexicalError
+                  - SequenceParser_Parse_GrammarAndDatabaseErrors_GrammarErrorFirst
+                  - SequenceParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-ParticipantMetadata
+                title: >-
+                  The SequenceParser unit shall read the participant and actor statements with their aliases (and the
+                  wrap prefix of an alias), the create prefix, and the @{ ... } metadata read as YAML, and shall refuse
+                  metadata that is not valid YAML with a MermaidSyntaxException located inside the metadata.
+                justification: |
+                  The type, the alias, and the place of creation decide how and where a participant is drawn, and a
+                  mistake in the metadata must be found where it is written.
+                tests:
+                  - SequenceParser_Parse_ParticipantStatements_SetTypesAliasesAndMetadata
+                  - SequenceParser_Parse_InvalidMetadata_ThrowsLocatedYamlError
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-InteractionStatements
+                title: >-
+                  The SequenceParser unit shall accept the links, link, properties, and details statements and hand
+                  their texts to the sequence database as Mermaid's parser does.
+                justification: |
+                  A rendered picture has no interaction, but texts written for Mermaid's browser output must still
+                  open, and their menus change the size of the diagram.
+                tests:
+                  - SequenceParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-TitleAndAccessibility
+                title: >-
+                  The SequenceParser unit shall keep the title (cut after its keyword, trailing space kept), the
+                  accessible title, and the one-line or multi-line accessible description (trimmed) as texts of the
+                  diagram.
+                justification: |
+                  The title is drawn and the accessibility texts are diagram metadata; their text must be Mermaid's.
+                tests:
+                  - SequenceParser_Parse_TitleAndAccessibility_SetTexts
+
+              - id: CanvasNetMermaid-Sequence-SequenceParser-Limits
+                title: >-
+                  The SequenceParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
+                  located at the element that breaches it, blocks and boxes nested deeper than MaxNestingDepth and a
+                  name or text longer than MaxLabelLength.
+                justification: |
+                  The size of the model, and so the cost of every later stage, must be bounded while untrusted text is
+                  read.
+                tests:
+                  - SequenceParser_Parse_NestingDeeperThanLimit_ThrowsLimitExceeded
+                  - SequenceParser_Parse_LongText_ThrowsLimitExceeded

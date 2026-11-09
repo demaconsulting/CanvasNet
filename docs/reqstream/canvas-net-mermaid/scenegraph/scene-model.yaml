@@ -56,3 +56,13 @@ sections:
                   the commands at any scale.
                 tests:
                   - Scene_ToPath_AppliesPlacementAndArcs
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-Shadow
+                title: >-
+                  The SceneModel unit shall let a path carry a drop shadow (an offset, a blur, and a color), none unless
+                  one is given, that does not change the bounds of the path.
+                justification: |
+                  Mermaid draws the boxes and menus of a sequence diagram with a drop-shadow filter, and an SVG bounding
+                  box ignores filters, so the view box must not grow with the shadow.
+                tests:
+                  - ScenePath_Shadow_DefaultsToNoneAndKeepsBounds

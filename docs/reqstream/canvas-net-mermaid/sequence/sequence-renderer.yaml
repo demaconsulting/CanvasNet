@@ -1,0 +1,128 @@
+---
+# Software Unit Requirements for SequenceRenderer
+#
+# These requirements describe the design-level behavior of the SequenceRenderer unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Sequence): the port of Mermaid's sequence drawing functions that
+# turn the participants, lifelines, messages and their markers, sequence numbers, notes, activations, block frames,
+# rect backgrounds, boxes, and menus that the SequenceLayout unit places into scene items, with their texts and paint
+# and in Mermaid's paint order. See docs/verification/canvas-net-mermaid/sequence/sequence-renderer.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceRenderer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-ParticipantTypes
+                title: >-
+                  The SequenceRenderer unit shall draw the eight participant types of Mermaid - participant, actor
+                  (a stick figure), boundary, control (with its arrowhead), entity, database, collections, and queue -
+                  with Mermaid's shapes and sizes, start the lifeline of each below its shape as Mermaid does, and draw
+                  nothing for a participant of a type that Mermaid does not define.
+                justification: |
+                  The type of a participant is part of the meaning of the diagram; its shape and the start of its
+                  lifeline must be Mermaid's, and Mermaid draws nothing for an unknown type.
+                tests:
+                  - SequenceRenderer_DrawActor_Actor_IsAStickFigure
+                  - SequenceRenderer_DrawActor_Type_StartsTheLifelineBelowIt
+                  - SequenceRenderer_DrawActor_Control_HasTheFilledHeadControl
+                  - SequenceRenderer_DrawActor_UnknownType_DrawsNothing
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-Arrows
+                title: >-
+                  The SequenceRenderer unit shall draw every arrow of Mermaid with Mermaid's markers at its start and
+                  end, placed at the ends of the line and pointing along it, a solid or a dashed line in the signal
+                  color, and the circles of a central connection on the lifelines it names.
+                justification: |
+                  The arrow tells the kind of a message (synchronous, reply, asynchronous, lost); its markers and line
+                  must look as in Mermaid.
+                tests:
+                  - SequenceRenderer_DrawMessage_Arrow_HasMermaidsMarkers
+                  - SequenceRenderer_DrawMessage_Lines_AreSolidOrDashed
+                  - SequenceRenderer_DrawMessage_Markers_FollowTheLine
+                  - SequenceRenderer_DrawMessage_CentralConnection_DrawsCircles
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-SequenceNumbers
+                title: >-
+                  The SequenceRenderer unit shall draw a sequence number as Mermaid does: a circle at the sender's end
+                  of the message and the number in white inside it, smaller for a longer number.
+                justification: |
+                  Readers refer to the steps of an interaction by their numbers, which must be drawn as in Mermaid.
+                tests:
+                  - SequenceRenderer_DrawMessage_SequenceNumber_IsACircleWithTheNumber
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-Frames
+                title: >-
+                  The SequenceRenderer unit shall draw the frame of a block with dashed sides, a dashed separator for
+                  each further section, the label box with its cut corner, and the keyword, the title, and the section
+                  titles, and shall fail a block with nothing inside with a MermaidRenderException of code
+                  mermaid-render-failed located at its start.
+                justification: |
+                  Blocks show loops, alternatives, and parallel work; Mermaid gives an empty block no size and draws the
+                  rest at coordinates that are not numbers, so the document must fail closed at the block instead.
+                tests:
+                  - SequenceRenderer_DrawLoop_Frame_HasDashedSidesSeparatorsAndLabel
+                  - SequenceRenderer_DrawLoop_EmptyBlock_FailsLocated
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-BackgroundsAndBoxes
+                title: >-
+                  The SequenceRenderer unit shall draw the background of a rect block and a box behind everything in
+                  their colors (a color the browser does not accept taking the inherited fill, a system color the
+                  browser's value), a box with the theme's node border and its title, and a rect background without a
+                  stroke.
+                justification: |
+                  Backgrounds and boxes group parts of a diagram by color; their paint must be what a browser shows for
+                  Mermaid's SVG.
+                tests:
+                  - SequenceRenderer_DrawBackgroundRect_IsBehindEverythingWithoutStroke
+                  - SequenceRenderer_DrawBox_IsBehindWithBorderTitleAndColor
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-Paint
+                title: >-
+                  The SequenceRenderer unit shall paint participants, notes, and activations with the theme's sequence
+                  style rules over Mermaid's attributes, and a participant whose properties name a class with that
+                  class in place of the actor class, falling back to the attributes when the class has no rule.
+                justification: |
+                  Mermaid paints these elements through its style sheet; the same rules give the same colors.
+                tests:
+                  - SequenceRenderer_DrawNoteAndActivation_UseTheThemeColors
+                  - SequenceRenderer_DrawActor_PropertiesClass_ReplacesTheActorPaint
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-PaintOrder
+                title: >-
+                  The SequenceRenderer unit shall order the items of a sequence diagram as Mermaid's SVG orders them:
+                  the mirrored participants, then each participant's lifeline and box lowered to the back, then the
+                  notes and the messages.
+                justification: |
+                  Overlapping elements cover each other in paint order; the picture must show the same element on top
+                  as Mermaid's.
+                tests:
+                  - SequenceRenderer_Items_PaintOrder_IsMermaids
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-Text
+                title: >-
+                  The SequenceRenderer unit shall show a text with Mermaid's entity placeholders turned into their
+                  characters, and with the old text placement draw each participant label as one text as written, below
+                  the middle of its box, in the root font, filled and stroked by the participant rule.
+                justification: |
+                  The text shown must be the text Mermaid shows, also in the older placement that some diagrams
+                  select.
+                tests:
+                  - SequenceRenderer_DisplayText_DecodesEntityPlaceholders
+                  - SequenceRenderer_TextPlacementOld_DrawsStrokedLabels
+
+              - id: CanvasNetMermaid-Sequence-SequenceRenderer-Menus
+                title: >-
+                  The SequenceRenderer unit shall give a participant with links a menu that is an empty group unless the
+                  forceMenus setting is on, whose size still grows the view box as in Mermaid, draw a forced menu as a
+                  panel with its drop shadow and one line per link, and fail links on a participant type without a box
+                  with a located MermaidRenderException, as Mermaid fails.
+                justification: |
+                  Mermaid's hidden menus take room in the picture, so the size must include them, and a forced menu
+                  must be drawn as Mermaid draws it.
+                tests:
+                  - SequenceRenderer_DrawPopup_Hidden_IsEmptyAndGrowsTheViewBox
+                  - SequenceRenderer_DrawPopup_Forced_DrawsThePanelAndLinks
+                  - SequenceRenderer_DrawPopup_ActorWithLinks_FailsLocated
