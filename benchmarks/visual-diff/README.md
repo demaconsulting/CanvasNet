@@ -113,20 +113,26 @@ reads the sequence layout instead: the actors (the top and bottom drawings with 
 lifelines), the messages (lines or sampled self-message paths, markers, texts, sequence numbers, and central-connection
 circles), the notes, activations, frames, `rect` backgrounds, boxes, menus, the title, and the paint order. It also
 records the computed paint (fill, stroke, stroke width, dash, and filter), because Mermaid's CSS overrides many
-attributes. The format is described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
+attributes. Any other diagram of Mermaid's unified renderer (a class diagram, `aria-roledescription="classDiagram"`)
+gets the flowchart layout extended with the diagram type, the title, the drawn parts of each node (each shape and
+label of a class box, with the group that holds it, such as `label-group text` or `divider`), the label and inner
+rectangle of each cluster, the class and marker ids of each edge, and the terminal labels (cardinalities), each
+matched to its edge and end. A flowchart keeps the plain layout, so its goldens do not change. The format is
+described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence] [-Fixture <name>...]
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class] [-Fixture <name>...]
 ```
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
-fixtures (`Fixtures/flowchart`) give `reference/*.layout.json` and the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`. `-Diagram` picks the types (default: both). Excluded fixtures (`38-unicode`, whose
-CJK text Chrome draws with a system font) get no golden; no sequence fixture is excluded. `MermaidReferenceLayoutTests`
-compares CanvasNet's flowchart layout with the goldens. The tolerance is 0.01 px, or 0.1 px for the two fixtures with
-rough.js circles. A golden change is reviewed like code.
+fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
+`reference/sequence/*.layout.json`, and the class fixtures (`Fixtures/class`) give `reference/class/*.layout.json`.
+`-Diagram` picks the types (default: all). Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system
+font) get no golden; no sequence or class fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
+flowchart layout with the goldens. The tolerance is 0.01 px, or 0.1 px for the two fixtures with rough.js circles. A
+golden change is reviewed like code.
 
 ### Upstream Vector Generators
 
@@ -147,6 +153,14 @@ is their vector file.
   line types and wrap flags, created and destroyed actors, title, and accessibility texts) of the cases in
   `sequence-vector-cases.mjs`, or the parse or database error (mermaid in Chrome). Cases may give a site
   configuration, which the wrap cases use. `--probe <file>` prints the results instead.
+- `gen-diagram-vectors.mjs --type class` writes `class-parser.json`: the ClassDB facts (classes with their members,
+  methods and display texts, relations, notes, namespaces, lollipop interfaces, style classes, direction, and
+  accessibility texts) and the reduced `getData()` nodes and edges of the cases in `class-vector-cases.mjs`, or the
+  parse or database error (mermaid in Chrome). Each case runs in a fresh page with a single `getDiagramFromText`, so
+  the DOM id counter starts at 0 as in mermaid-cli; configuration is therefore given as a site configuration. Most
+  inputs are those of mermaid's own class parser specs (MIT), named in each case's `spec` field; the others are
+  original texts and the class fixtures. `--probe <file>` prints the results instead. The generator is generic, so
+  later diagram types add a `<type>-vector-cases.mjs` and their facts.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

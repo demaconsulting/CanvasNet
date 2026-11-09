@@ -1,0 +1,533 @@
+{
+  "source": "07-two-way-relations.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 800.078, 234],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Alpha-0",
+      "shape": "classBox",
+      "x": 42.227,
+      "y": 50,
+      "box": [8, 8, 68.453, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 68.453, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 68.453, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 20, 44.453, 24],
+          "text": "Alpha",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 56, 68.453, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 74, 68.453, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Beta-1",
+      "shape": "classBox",
+      "x": 42.227,
+      "y": 184,
+      "box": [12.883, 142, 58.688, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [12.883, 142, 58.688, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [12.883, 142, 58.688, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [24.883, 154, 34.688, 24],
+          "text": "Beta",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [12.883, 190, 58.688, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [12.883, 208, 58.688, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Gamma-2",
+      "shape": "classBox",
+      "x": 167.805,
+      "y": 50,
+      "box": [126.453, 8, 82.703, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [126.453, 8, 82.703, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [126.453, 8, 82.703, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [138.453, 20, 58.703, 24],
+          "text": "Gamma",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [126.453, 56, 82.703, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [126.453, 74, 82.703, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Delta-3",
+      "shape": "classBox",
+      "x": 167.805,
+      "y": 184,
+      "box": [136.242, 142, 63.125, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [136.242, 142, 63.125, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [136.242, 142, 63.125, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [148.242, 154, 39.125, 24],
+          "text": "Delta",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [136.242, 190, 63.125, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [136.242, 208, 63.125, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Epsilon-4",
+      "shape": "classBox",
+      "x": 300.047,
+      "y": 50,
+      "box": [259.156, 8, 81.781, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [259.156, 8, 81.781, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [259.156, 8, 81.781, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [271.156, 20, 57.781, 24],
+          "text": "Epsilon",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [259.156, 56, 81.781, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [259.156, 74, 81.781, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Zeta-5",
+      "shape": "classBox",
+      "x": 300.047,
+      "y": 184,
+      "box": [271.594, 142, 56.906, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [271.594, 142, 56.906, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [271.594, 142, 56.906, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [283.594, 154, 32.906, 24],
+          "text": "Zeta",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [271.594, 190, 56.906, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [271.594, 208, 56.906, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Eta-6",
+      "shape": "classBox",
+      "x": 415.391,
+      "y": 50,
+      "box": [390.938, 8, 48.906, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [390.938, 8, 48.906, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [390.938, 8, 48.906, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [402.938, 20, 24.906, 24],
+          "text": "Eta",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [390.938, 56, 48.906, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [390.938, 74, 48.906, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Theta-7",
+      "shape": "classBox",
+      "x": 415.391,
+      "y": 184,
+      "box": [382.055, 142, 66.672, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [382.055, 142, 66.672, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [382.055, 142, 66.672, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [394.055, 154, 42.672, 24],
+          "text": "Theta",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [382.055, 190, 66.672, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [382.055, 208, 66.672, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Iota-8",
+      "shape": "classBox",
+      "x": 535.18,
+      "y": 50,
+      "box": [508.953, 8, 52.453, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [508.953, 8, 52.453, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [508.953, 8, 52.453, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [520.953, 20, 28.453, 24],
+          "text": "Iota",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [508.953, 56, 52.453, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [508.953, 74, 52.453, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Kappa-9",
+      "shape": "classBox",
+      "x": 535.18,
+      "y": 184,
+      "box": [498.727, 142, 72.906, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [498.727, 142, 72.906, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [498.727, 142, 72.906, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [510.727, 154, 48.906, 24],
+          "text": "Kappa",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [498.727, 190, 72.906, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [498.727, 208, 72.906, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Lambda-10",
+      "shape": "classBox",
+      "x": 654.078,
+      "y": 50,
+      "box": [611.406, 8, 85.344, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [611.406, 8, 85.344, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [611.406, 8, 85.344, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [623.406, 20, 61.344, 24],
+          "text": "Lambda",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [611.406, 56, 85.344, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [611.406, 74, 85.344, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Mu-11",
+      "shape": "classBox",
+      "x": 654.078,
+      "y": 184,
+      "box": [630.523, 142, 47.109, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [630.523, 142, 47.109, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [630.523, 142, 47.109, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [642.523, 154, 23.109, 24],
+          "text": "Mu",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [630.523, 190, 47.109, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [630.523, 208, 47.109, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Nu-12",
+      "shape": "classBox",
+      "x": 769.414,
+      "y": 50,
+      "box": [746.75, 8, 45.328, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [746.75, 8, 45.328, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [746.75, 8, 45.328, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [758.75, 20, 21.328, 24],
+          "text": "Nu",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [746.75, 56, 45.328, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [746.75, 74, 45.328, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Xi-13",
+      "shape": "classBox",
+      "x": 769.414,
+      "y": 184,
+      "box": [749.852, 142, 39.125, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [749.852, 142, 39.125, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [749.852, 142, 39.125, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [761.852, 154, 15.125, 24],
+          "text": "Xi",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [749.852, 190, 39.125, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [749.852, 208, 39.125, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Alpha_Beta_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": "classDiagram-extensionEnd",
+      "length": 15.5,
+      "points": [
+        [42.227, 109.25],
+        [42.227, 110.025],
+        [42.227, 110.8],
+        [42.227, 111.575],
+        [42.227, 112.35],
+        [42.227, 113.125],
+        [42.227, 113.9],
+        [42.227, 114.675],
+        [42.227, 115.45],
+        [42.227, 116.225],
+        [42.227, 117],
+        [42.227, 117.775],
+        [42.227, 118.55],
+        [42.227, 119.325],
+        [42.227, 120.1],
+        [42.227, 120.875],
+        [42.227, 121.65],
+        [42.227, 122.425],
+        [42.227, 123.2],
+        [42.227, 123.975],
+        [42.227, 124.75]
+      ]
+    },
+    {
+      "id": "id_Gamma_Delta_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-compositionStart",
+      "markerEnd": "classDiagram-compositionEnd",
+      "length": 15.5,
+      "points": [
+        [167.805, 109.25],
+        [167.805, 110.025],
+        [167.805, 110.8],
+        [167.805, 111.575],
+        [167.805, 112.35],
+        [167.805, 113.125],
+        [167.805, 113.9],
+        [167.805, 114.675],
+        [167.805, 115.45],
+        [167.805, 116.225],
+        [167.805, 117],
+        [167.805, 117.775],
+        [167.805, 118.55],
+        [167.805, 119.325],
+        [167.805, 120.1],
+        [167.805, 120.875],
+        [167.805, 121.65],
+        [167.805, 122.425],
+        [167.805, 123.2],
+        [167.805, 123.975],
+        [167.805, 124.75]
+      ]
+    },
+    {
+      "id": "id_Epsilon_Zeta_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-aggregationStart",
+      "markerEnd": "classDiagram-aggregationEnd",
+      "length": 15.5,
+      "points": [
+        [300.047, 109.25],
+        [300.047, 110.025],
+        [300.047, 110.8],
+        [300.047, 111.575],
+        [300.047, 112.35],
+        [300.047, 113.125],
+        [300.047, 113.9],
+        [300.047, 114.675],
+        [300.047, 115.45],
+        [300.047, 116.225],
+        [300.047, 117],
+        [300.047, 117.775],
+        [300.047, 118.55],
+        [300.047, 119.325],
+        [300.047, 120.1],
+        [300.047, 120.875],
+        [300.047, 121.65],
+        [300.047, 122.425],
+        [300.047, 123.2],
+        [300.047, 123.975],
+        [300.047, 124.75]
+      ]
+    },
+    {
+      "id": "id_Eta_Theta_4",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-dependencyStart",
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 38,
+      "points": [
+        [415.391, 98],
+        [415.391, 99.9],
+        [415.391, 101.8],
+        [415.391, 103.7],
+        [415.391, 105.6],
+        [415.391, 107.5],
+        [415.391, 109.4],
+        [415.391, 111.3],
+        [415.391, 113.2],
+        [415.391, 115.1],
+        [415.391, 117],
+        [415.391, 118.9],
+        [415.391, 120.8],
+        [415.391, 122.7],
+        [415.391, 124.6],
+        [415.391, 126.5],
+        [415.391, 128.4],
+        [415.391, 130.3],
+        [415.391, 132.2],
+        [415.391, 134.1],
+        [415.391, 136]
+      ]
+    },
+    {
+      "id": "id_Iota_Kappa_5",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": "classDiagram-dependencyStart",
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 38,
+      "points": [
+        [535.18, 98],
+        [535.18, 99.9],
+        [535.18, 101.8],
+        [535.18, 103.7],
+        [535.18, 105.6],
+        [535.18, 107.5],
+        [535.18, 109.4],
+        [535.18, 111.3],
+        [535.18, 113.2],
+        [535.18, 115.1],
+        [535.18, 117],
+        [535.18, 118.9],
+        [535.18, 120.8],
+        [535.18, 122.7],
+        [535.18, 124.6],
+        [535.18, 126.5],
+        [535.18, 128.4],
+        [535.18, 130.3],
+        [535.18, 132.2],
+        [535.18, 134.1],
+        [535.18, 136]
+      ]
+    },
+    {
+      "id": "id_Lambda_Mu_6",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-compositionStart",
+      "markerEnd": "classDiagram-aggregationEnd",
+      "length": 15.5,
+      "points": [
+        [654.078, 109.25],
+        [654.078, 110.025],
+        [654.078, 110.8],
+        [654.078, 111.575],
+        [654.078, 112.35],
+        [654.078, 113.125],
+        [654.078, 113.9],
+        [654.078, 114.675],
+        [654.078, 115.45],
+        [654.078, 116.225],
+        [654.078, 117],
+        [654.078, 117.775],
+        [654.078, 118.55],
+        [654.078, 119.325],
+        [654.078, 120.1],
+        [654.078, 120.875],
+        [654.078, 121.65],
+        [654.078, 122.425],
+        [654.078, 123.2],
+        [654.078, 123.975],
+        [654.078, 124.75]
+      ]
+    },
+    {
+      "id": "id_Nu_Xi_7",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": "classDiagram-extensionEnd",
+      "length": 15.5,
+      "points": [
+        [769.414, 109.25],
+        [769.414, 110.025],
+        [769.414, 110.8],
+        [769.414, 111.575],
+        [769.414, 112.35],
+        [769.414, 113.125],
+        [769.414, 113.9],
+        [769.414, 114.675],
+        [769.414, 115.45],
+        [769.414, 116.225],
+        [769.414, 117],
+        [769.414, 117.775],
+        [769.414, 118.55],
+        [769.414, 119.325],
+        [769.414, 120.1],
+        [769.414, 120.875],
+        [769.414, 121.65],
+        [769.414, 122.425],
+        [769.414, 123.2],
+        [769.414, 123.975],
+        [769.414, 124.75]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

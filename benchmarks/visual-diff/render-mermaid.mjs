@@ -25,6 +25,10 @@
 // (with their top and bottom drawings and lifelines), messages (with their texts, markers, sequence numbers and
 // central-connection circles), notes, activations, frames, background rects, boxes, menus, the title, and the paint
 // order; see Fixtures/reference/README.md for the format.
+// Any other diagram of the unified renderer (a class diagram, for example) gets the flowchart layout extended with: the
+// diagram (its aria-roledescription), the title, each node's class and drawn parts (shapes and labels, with the group
+// that holds them), each cluster's class, inner rectangle and label, each edge's class and marker ids, and the
+// terminal labels (cardinalities) with their edge. A flowchart keeps the plain layout.
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -124,7 +128,7 @@ try {
     if (layoutDir) {
       const golden = { source: basename(file), mermaid: mermaidVersion, mermaidCli: cliVersion, ...layout };
       mkdirSync(layoutDir, { recursive: true });
-      const json = layout.diagram === 'sequence' ? pretty(golden) : format(golden);
+      const json = layout.diagram ? pretty(golden) : format(golden);
       writeFileSync(join(layoutDir, `${name}.layout.json`), `${json}\n`);
     }
 
@@ -182,20 +186,24 @@ async function readBack(svgText, definition, picture) {
       await Promise.all(Array.from(document.fonts, (font) => font.load()));
       await document.fonts.ready;
     });
-    const { shapes, actors } = await page.evaluate(async (text) => {
+    const { shapes, actors, terminalTexts } = await page.evaluate(async (text) => {
       window.mermaid.initialize({ startOnLoad: false });
       const diagram = await window.mermaid.mermaidAPI.getDiagramFromText(text);
       const data = diagram.db.getData?.();
       return {
-        shapes: Object.fromEntries((data?.nodes ?? []).filter((n) => n.domId).map((n) => [n.domId, n.shape ?? null])),
+        // Keyed by the DOM id, or by the id for nodes without one (class notes and lollipop interfaces)
+        shapes: Object.fromEntries((data?.nodes ?? []).filter((n) => !n.isGroup || n.domId).map((n) => [n.domId ?? n.id, n.shape ?? null])),
         actors: diagram.type === 'sequence'
           ? [...diagram.db.getActors().values()].map((a) => ({ name: a.name, type: a.type, description: a.description }))
           : null,
+        // The terminal label texts of each edge that has one: [start, end]
+        terminalTexts: Object.fromEntries((data?.edges ?? []).filter((e) => e.startLabelRight || e.endLabelLeft)
+          .map((e) => [e.id, [e.startLabelRight || '', e.endLabelLeft || '']])),
       };
     }, definition);
     const layout = actors
       ? await page.evaluate(extractSequence, svgId, samples, actors)
-      : await page.evaluate(extract, svgId, samples, shapes);
+      : await page.evaluate(extract, svgId, samples, shapes, terminalTexts);
     let png;
     if (picture) {
       // The picture is the view box rounded up to whole pixels (the natural size CanvasNet draws at), times the scale
@@ -216,7 +224,7 @@ async function readBack(svgText, definition, picture) {
 }
 
 // Runs in the page.
-function extract(id, count, shapes) {
+function extract(id, count, shapes, terminalTexts) {
   const svg = document.getElementById(id);
   const toSvg = svg.getScreenCTM().inverse();
   const round = (v) => Math.round(v * 1000) / 1000 + 0;
@@ -230,18 +238,64 @@ function extract(id, count, shapes) {
     return [Math.min(a.x, c.x), Math.min(a.y, c.y), Math.abs(c.x - a.x), Math.abs(c.y - a.y)].map(round);
   };
 
+  // A diagram of the unified renderer other than a flowchart (class, for example) gets the extended layout: the
+  // drawn parts of each node, the labels and inner rectangles of the clusters, the edge markers, the terminal labels
+  // and the title. A flowchart keeps the plain layout, so its goldens do not change.
+  const role = svg.getAttribute('aria-roledescription') ?? '';
+  const extended = !/^flowchart/.test(role);
+  // A marker id without the render id prefix (my-svg_classDiagram-extensionStart becomes classDiagram-extensionStart)
+  const marker = (element, name) => {
+    const match = /url\(#(.+)\)/.exec(element.getAttribute(name) ?? '');
+    return match ? (match[1].startsWith(`${id}_`) ? match[1].slice(id.length + 1) : withoutPrefix(match[1])) : null;
+  };
+  const textOf = (element) => element.textContent.replace(/\s+/g, ' ').trim();
+
+  // The drawn parts of a node in document order: each shape (rect, path, line, circle, ellipse, polygon) and each
+  // label (g.label, or a text outside a label) with the class of the node's child group that holds it
+  const partsOf = (node) => {
+    const result = [];
+    const walk = (element, group) => {
+      for (const child of element.children) {
+        if (child.matches('g.label, text')) {
+          const style = child.getAttribute('style');
+          result.push({ tag: child.tagName, class: child.getAttribute('class'), group, box: box(child),
+            text: textOf(child), ...(style ? { style } : {}) });
+        } else if (child.matches('rect, path, line, circle, ellipse, polygon')) {
+          result.push({ tag: child.tagName, class: child.getAttribute('class'), group, box: box(child) });
+        } else if (child.tagName === 'g') {
+          walk(child, group ?? child.getAttribute('class'));
+        }
+      }
+    };
+    walk(node, null);
+    return result;
+  };
+
   const nodes = [];
   for (const node of svg.querySelectorAll('g.node')) {
     const m = matrix(node);
     const nodeId = withoutPrefix(node.id);
-    nodes.push({ id: nodeId, shape: shapes[nodeId] ?? null, x: round(m.e), y: round(m.f), box: box(node) });
+    const entry = { id: nodeId, shape: shapes[nodeId] ?? null, x: round(m.e), y: round(m.f), box: box(node) };
+    if (extended) {
+      entry.class = node.getAttribute('class');
+      entry.parts = partsOf(node);
+    }
+    nodes.push(entry);
   }
 
   const clusters = [];
   for (const cluster of svg.querySelectorAll('g.cluster')) {
     const rect = cluster.querySelector(':scope > rect') ?? cluster.querySelector('rect, path');
     if (rect) {
-      clusters.push({ id: withoutPrefix(cluster.id), box: box(rect) });
+      const entry = { id: withoutPrefix(cluster.id), box: box(rect) };
+      if (extended) {
+        const inner = cluster.querySelector(':scope > rect.inner');
+        const label = cluster.querySelector('.cluster-label');
+        entry.class = cluster.getAttribute('class');
+        entry.inner = inner ? box(inner) : null;
+        entry.label = label ? { text: textOf(label), box: box(label) } : null;
+      }
+      clusters.push(entry);
     }
   }
 
@@ -260,7 +314,10 @@ function extract(id, count, shapes) {
       points.push([round(p.x), round(p.y)]);
     }
 
-    edges.push({ id: edgeId, length: round(length), points });
+    edges.push(extended
+      ? { id: edgeId, class: path.getAttribute('class'), markerStart: marker(path, 'marker-start'),
+        markerEnd: marker(path, 'marker-end'), length: round(length), points }
+      : { id: edgeId, length: round(length), points });
   }
 
   const edgeLabels = [];
@@ -272,7 +329,44 @@ function extract(id, count, shapes) {
   }
 
   const viewBox = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(Number).map(round);
-  return { viewBox, nodes, clusters, edges, edgeLabels };
+  if (!extended) {
+    return { viewBox, nodes, clusters, edges, edgeLabels };
+  }
+
+  // Terminal labels (cardinalities), in document order, with their position (the terminal group's translation). Mermaid
+  // inserts them concurrently, so their order does not name their edge: each is matched to the nearest unmatched
+  // route end whose terminal text (from the diagram's data) is the same, and records that edge and end.
+  const terminals = Array.from(svg.querySelectorAll('g.edgeTerminals'), (element) => {
+    const m = matrix(element);
+    return { edge: null, end: null, text: textOf(element), x: round(m.e), y: round(m.f), box: box(element) };
+  });
+  const candidates = [];
+  for (const edge of edges) {
+    const texts = terminalTexts?.[edge.id];
+    if (!texts) {
+      continue;
+    }
+    [[edge.points[0], 'start', texts[0]], [edge.points[edge.points.length - 1], 'end', texts[1]]].forEach(([p, end, t]) => {
+      terminals.forEach((terminal, i) => {
+        if (t && terminal.text === t) {
+          candidates.push({ i, edge: edge.id, end, distance: Math.hypot(terminal.x - p[0], terminal.y - p[1]) });
+        }
+      });
+    });
+  }
+  candidates.sort((a, b) => a.distance - b.distance);
+  const taken = new Set();
+  for (const c of candidates) {
+    if (terminals[c.i].edge === null && !taken.has(`${c.edge}:${c.end}`)) {
+      terminals[c.i].edge = c.edge;
+      terminals[c.i].end = c.end;
+      taken.add(`${c.edge}:${c.end}`);
+    }
+  }
+
+  const titleElement = svg.querySelector('text[class$="TitleText"]');
+  const title = titleElement ? { class: titleElement.getAttribute('class'), text: textOf(titleElement), box: box(titleElement) } : null;
+  return { diagram: role, viewBox, title, nodes, clusters, edges, edgeLabels, terminals };
 }
 
 // Runs in the page: the layout of a sequence diagram. actors is the database's actor list (name, type, description)

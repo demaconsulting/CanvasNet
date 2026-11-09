@@ -1,0 +1,211 @@
+{
+  "source": "12-direction.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 382.031, 257],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Source-0",
+      "shape": "classBox",
+      "x": 309.906,
+      "y": 133.5,
+      "box": [270.781, 91.5, 78.25, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [270.781, 91.5, 78.25, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [270.781, 91.5, 78.25, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [282.781, 103.5, 54.25, 24],
+          "text": "Source",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [270.781, 139.5, 78.25, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [270.781, 157.5, 78.25, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Filter-1",
+      "shape": "classBox",
+      "x": 189.219,
+      "y": 133.5,
+      "box": [157.656, 91.5, 63.125, 84],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [157.656, 91.5, 63.125, 84]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [157.656, 91.5, 63.125, 84]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [169.656, 103.5, 39.125, 24],
+          "text": "Filter",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [157.656, 139.5, 63.125, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [157.656, 157.5, 63.125, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Sink-2",
+      "shape": "classBox",
+      "x": 45.328,
+      "y": 66.5,
+      "box": [16.43, 24.5, 57.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [16.43, 24.5, 57.797, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [16.43, 24.5, 57.797, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [28.43, 36.5, 33.797, 24],
+          "text": "Sink",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [16.43, 72.5, 57.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [16.43, 90.5, 57.797, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Config-3",
+      "shape": "classBox",
+      "x": 45.328,
+      "y": 200.5,
+      "box": [8, 158.5, 74.656, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 158.5, 74.656, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 158.5, 74.656, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 170.5, 50.656, 24],
+          "text": "Config",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 206.5, 74.656, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 224.5, 74.656, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [
+    {
+      "id": "Pipeline",
+      "box": [132.656, 8, 241.375, 241],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Pipeline", "box": [224.875, 8, 56.937, 24] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "id_Source_Filter_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 44,
+      "points": [
+        [270.781, 133.5],
+        [268.581, 133.5],
+        [266.381, 133.5],
+        [264.181, 133.5],
+        [261.981, 133.5],
+        [259.781, 133.5],
+        [257.581, 133.5],
+        [255.381, 133.5],
+        [253.181, 133.5],
+        [250.981, 133.5],
+        [248.781, 133.5],
+        [246.581, 133.5],
+        [244.381, 133.5],
+        [242.181, 133.5],
+        [239.981, 133.5],
+        [237.781, 133.5],
+        [235.581, 133.5],
+        [233.381, 133.5],
+        [231.181, 133.5],
+        [228.981, 133.5],
+        [226.781, 133.5]
+      ]
+    },
+    {
+      "id": "id_Filter_Sink_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 88.552,
+      "points": [
+        [157.656, 96.113],
+        [154.8, 92.73],
+        [151.94, 89.35],
+        [149.033, 86.011],
+        [146.035, 82.753],
+        [142.921, 79.606],
+        [139.662, 76.61],
+        [136.219, 73.827],
+        [132.54, 71.368],
+        [128.58, 69.395],
+        [124.387, 67.983],
+        [120.049, 67.109],
+        [115.645, 66.669],
+        [111.22, 66.518],
+        [106.793, 66.5],
+        [102.365, 66.5],
+        [97.937, 66.5],
+        [93.51, 66.5],
+        [89.082, 66.5],
+        [84.655, 66.5],
+        [80.227, 66.5]
+      ]
+    },
+    {
+      "id": "id_Filter_Config_3",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 80.13,
+      "points": [
+        [157.656, 170.887],
+        [155.072, 173.948],
+        [152.486, 177.009],
+        [149.87, 180.044],
+        [147.187, 183.019],
+        [144.418, 185.914],
+        [141.541, 188.702],
+        [138.534, 191.348],
+        [135.363, 193.796],
+        [131.987, 195.95],
+        [128.381, 197.69],
+        [124.589, 198.975],
+        [120.675, 199.821],
+        [116.696, 200.287],
+        [112.695, 200.471],
+        [108.688, 200.5],
+        [104.682, 200.5],
+        [100.675, 200.5],
+        [96.669, 200.5],
+        [92.662, 200.5],
+        [88.656, 200.5]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

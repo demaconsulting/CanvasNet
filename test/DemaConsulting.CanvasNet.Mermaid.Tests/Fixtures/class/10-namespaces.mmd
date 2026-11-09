@@ -1,0 +1,23 @@
+classDiagram
+    namespace Shapes {
+        class Triangle
+        class Circle {
+            +double radius
+        }
+    }
+    namespace Geo.Plane {
+        class Point
+        class Vector
+    }
+    namespace Outer {
+        namespace Inner {
+            class Deep
+        }
+        class Shallow
+    }
+    namespace Utils["Utility types"] {
+        class Helper
+    }
+    Triangle --> Point
+    Deep ..> Helper
+    Shallow --> Vector

@@ -1,0 +1,10 @@
+classDiagram-v2
+    direction RL
+    namespace Pipeline {
+        class Source
+        class Filter
+    }
+    class Sink
+    Source --> Filter
+    Filter --> Sink
+    Filter ..> Config

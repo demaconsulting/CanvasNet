@@ -1,0 +1,14 @@
+classDiagram
+    class Plain
+    class Hot:::warm
+    class Cold
+    class Boxed {
+        +int size
+    }
+    cssClass "Cold,Boxed" cool
+    classDef warm fill:#f96,stroke:#333,stroke-width:2px
+    classDef cool fill:#9cf,color:#036
+    classDef default fill:#eee
+    style Plain fill:#ffd,stroke:#c00,stroke-width:3px
+    Hot --> Cold
+    Boxed --> Plain

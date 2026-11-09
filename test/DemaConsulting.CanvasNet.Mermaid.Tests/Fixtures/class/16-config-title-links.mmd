@@ -1,0 +1,27 @@
+---
+title: Configured class diagram
+config:
+  htmlLabels: false
+  class:
+    padding: 8
+  state:
+    nodeSpacing: 80
+    rankSpacing: 70
+  flowchart:
+    curve: linear
+---
+classDiagram
+    accTitle: Gateway diagram
+    accDescr: A gateway, its backend and its documents
+    class Gateway {
+        +String name
+        +route(Request r) Response
+    }
+    class Backend
+    class Docs
+    Gateway --> Backend : forwards
+    Gateway ..> Docs
+    click Gateway href "https://example.com/gateway" "Gateway docs"
+    link Backend "https://example.com/backend"
+    callback Docs "showDocs"
+    click Backend call notify()

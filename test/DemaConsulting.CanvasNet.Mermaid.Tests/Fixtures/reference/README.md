@@ -3,7 +3,8 @@
 The `*.layout.json` files in this folder are **goldens**: the layout that the reference implementation gives each
 flowchart fixture of `../flowchart/`. `MermaidReferenceLayoutTests` compares CanvasNet's layout with them. The
 `sequence/` subfolder holds the goldens of the sequence fixtures of `../sequence/`; their format is described in
-[Sequence Goldens](#sequence-goldens).
+[Sequence Goldens](#sequence-goldens). The `class/` subfolder holds the goldens of the class fixtures of `../class/`;
+their format is described in [Class Goldens](#class-goldens).
 
 ## Provenance
 
@@ -56,12 +57,13 @@ Run `npm ci` in the repository root, then:
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1                        # every fixture of every type
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Fixture 25-subgraph-basic
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram sequence      # the sequence goldens only
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the class goldens only
 ```
 
-A new fixture in `../flowchart/` or `../sequence/` needs a golden, or an entry in the exclusions of the script, the
-test and this file. A golden change in a pull request is reviewed like code: the diff shows which coordinates moved.
-Regenerating can change a few numbers by 0.001: the browser's geometry is single precision, and a value near a rounding
-boundary can round either way.
+A new fixture in `../flowchart/`, `../sequence/` or `../class/` needs a golden, or an entry in the exclusions of the
+script, the test and this file. A golden change in a pull request is reviewed like code: the diff shows which
+coordinates moved. Regenerating can change a few numbers by 0.001: the browser's geometry is single precision, and a
+value near a rounding boundary can round either way.
 
 ## Sequence Goldens
 
@@ -161,3 +163,67 @@ none is excluded:
 | `22-title-menus-hidden` | `title`, `accTitle`, `accDescr`, `link` and `links` (hidden menus), hidden participants |
 | `23-font-size-override` | Top-level `fontSize: 12`, bold weights, right messages, left notes, `showSequenceNumbers` |
 | `24-menus-forced-properties` | `forceMenus`, `properties` with a `class` |
+
+## Class Goldens
+
+The files in `class/` hold the layout that the reference gives each fixture of `../class/`. They have the same
+provenance, fonts, and extraction as the flowchart goldens, but were made with puppeteer 25.16.0, the version that
+`package-lock.json` pins now; regenerating the flowchart and sequence goldens with it gives the same files. Arrays and
+objects that fit in 120 columns are written on one line, as in the sequence goldens.
+
+### Class Layout Content
+
+Each file holds the flowchart content, extended for the diagrams of Mermaid's unified renderer:
+
+- `diagram`: `classDiagram` (the SVG's `aria-roledescription`).
+- `title`: the frontmatter title (`class`, `text`, and `box` of the `classDiagramTitleText` text), or null.
+- `nodes`: the DOM id (`classId-<name>-<n>` for a class, `note<n>` for a note, and `interface<n>` for a lollipop
+  interface), the shape from the diagram's data (`classBox`, `note`, or `rect`), `x`, `y`, and `box` as for a
+  flowchart, then `class` (the node group's classes, with the CSS classes of the class) and `parts`. The parts are the
+  node's drawing in document order: each `rect`, `path`, `line`, `circle`, `ellipse`, and `polygon` with its `tag`,
+  `class`, `box`, and `group`, the class of the node's child group that holds it (`basic label-container outer-path`
+  for the box, `divider` for the two divider lines); and each label (`g.label`, or a `text` outside one) with its
+  `tag`, `class`, `group` (`annotation-group text`, `label-group text`, `members-group text`, or
+  `methods-group text`), `box`, `text`, and its `style` attribute when set (`font-weight: bolder` for the class name,
+  `font-style:italic;` or `text-decoration:underline;` for an abstract or static member).
+- `clusters`: the namespace id and the `box` of its rectangle, then `class`, `inner` (the box of an inner rectangle,
+  or null; a namespace has none), and `label` (`text` and `box` of the cluster label).
+- `edges`: as for a flowchart, with `class` (the path's classes, for example `edge-pattern-dashed relation`), and
+  `markerStart` and `markerEnd` (the marker ids without the render prefix `my-svg_`, for example
+  `classDiagram-extensionStart`, or null).
+- `edgeLabels`: as for a flowchart.
+- `terminals`: the terminal labels (cardinalities) in document order: `edge` and `end` (`start` for the label next to
+  the first class, `end` for the label next to the second), `text`, `x` and `y` (the position of the terminal group),
+  and `box`. Mermaid inserts terminal labels concurrently, so their order does not name their edge: the harness
+  matches each to the nearest route end of an edge whose terminal text is the same.
+
+### Class Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded. The comparison of CanvasNet's class layout with these goldens comes with the class drawing.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic-classes` | Class declarations, an empty class, `:` member lines, an implicit class, a labeled relation |
+| `02-members-methods` | Bodies with attributes, methods, parameters, and return types |
+| `03-visibility-classifiers` | `+`, `-`, `#`, `~`, `$` (underline), and `*` (italic) on attributes and methods |
+| `04-generics` | `~T~` in class names, members, methods, and relations, nested `List~List~int~~` |
+| `05-annotations` | `<<interface>>` in a body, as a statement, and inline; two annotations; `<<enumeration>>` |
+| `06-relations-all` | The 8 relation forms and their reversed forms, solid and dotted, with labels |
+| `07-two-way-relations` | `<\|--\|>`, `*--*`, `o--o`, `<-->`, `<..>`, `*--o`, and `<\|..\|>` |
+| `08-cardinality-labels` | Cardinalities at the start, at the end, and at both ends, with and without labels |
+| `09-lollipop` | `()--` and `--()` interfaces, `direction LR` |
+| `10-namespaces` | Namespaces, dotted and nested namespaces, a namespace label |
+| `11-notes` | `note`, `note for`, and notes with `\n` (drawn as written) and `<br/>` |
+| `12-direction` | The `classDiagram-v2` header, `direction RL`, a namespace |
+| `13-styles` | `classDef`, `classDef default`, `cssClass`, `:::`, and `style` |
+| `14-labels-backticks` | `class X["Label"]`, backtick names, a dash in a name, an id that starts with `o` |
+| `15-hide-empty-members` | `class.hideEmptyMembersBox: true` with empty classes and an annotation-only class |
+| `16-config-title-links` | Frontmatter title, `htmlLabels: false`, `class.padding`, `state` spacing, `click` |
+
+`16-config-title-links` also has `flowchart.curve: linear`, the accessibility texts, `link`, and `callback`. `click`,
+`link`, and `callback` have no effect on the drawing, and `state.nodeSpacing` and `state.rankSpacing` are the keys
+that space a class diagram.
+
+The class texts are drawn as HTML labels by default (a top-level `htmlLabels` that is not set counts as true), so
+only `16-config-title-links` has SVG text labels.

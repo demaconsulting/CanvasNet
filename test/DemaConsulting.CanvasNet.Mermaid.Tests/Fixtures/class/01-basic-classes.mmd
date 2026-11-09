@@ -1,0 +1,11 @@
+classDiagram
+    class Animal
+    class Vehicle
+    class Empty
+    Animal : +int age
+    Animal : +String name
+    Animal : +isMammal() bool
+    Vehicle : wheels
+    Vehicle : drive()
+    Animal <|-- Horse
+    Vehicle <-- Horse : pulls

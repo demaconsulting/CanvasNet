@@ -1,0 +1,205 @@
+{
+  "source": "03-visibility-classifiers.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 257.867, 594],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Shape-0",
+      "shape": "classBox",
+      "x": 128.934,
+      "y": 200,
+      "box": [8, 8, 241.867, 384],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 241.867, 384] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 241.867, 384] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [104.926, 20, 48.016, 24],
+          "text": "Shape",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 68, 95.609, 24],
+          "text": "+String name"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 92, 64.031, 24],
+          "text": "-int sides"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 116, 93.422, 24],
+          "text": "#double area"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 140, 77.828, 24],
+          "text": "~String tag"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 164, 69.828, 24],
+          "text": "+int count",
+          "style": "text-decoration:underline;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 188, 80.047, 24],
+          "text": "String label",
+          "style": "font-style:italic;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 236, 54.688, 24],
+          "text": "+draw()",
+          "style": "font-style:italic;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 260, 124.078, 24],
+          "text": "+create() : Shape",
+          "style": "text-decoration:underline;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 284, 193.859, 24],
+          "text": "-resize(double factor) : void"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 308, 139.641, 24],
+          "text": "#rotate(int degrees)",
+          "style": "font-style:italic;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 332, 135.609, 24],
+          "text": "~describe() : String",
+          "style": "text-decoration:underline;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 356, 138.703, 24],
+          "text": "someAbstract() : int",
+          "style": "font-style:italic;"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 56, 241.867, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 224, 241.867, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Circle-1",
+      "shape": "classBox",
+      "x": 128.934,
+      "y": 514,
+      "box": [49.113, 442, 159.641, 144],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [49.113, 442, 159.641, 144]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [49.113, 442, 159.641, 144]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [106.699, 454, 44.469, 24],
+          "text": "Circle",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [61.113, 502, 101.406, 24],
+          "text": "-double radius",
+          "style": "text-decoration:underline;"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [61.113, 550, 113.406, 24],
+          "text": "+area() : double"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [49.113, 490, 159.641, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [49.113, 538, 159.641, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Shape_Circle_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": null,
+      "length": 32.75,
+      "points": [
+        [128.934, 409.25],
+        [128.934, 410.888],
+        [128.934, 412.525],
+        [128.934, 414.163],
+        [128.934, 415.8],
+        [128.934, 417.438],
+        [128.934, 419.075],
+        [128.934, 420.712],
+        [128.934, 422.35],
+        [128.934, 423.987],
+        [128.934, 425.625],
+        [128.934, 427.263],
+        [128.934, 428.9],
+        [128.934, 430.538],
+        [128.934, 432.175],
+        [128.934, 433.813],
+        [128.934, 435.45],
+        [128.934, 437.087],
+        [128.934, 438.725],
+        [128.934, 440.362],
+        [128.934, 442]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

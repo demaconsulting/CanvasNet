@@ -1,0 +1,7 @@
+classDiagram
+    Customer "1" --> "*" Order : places
+    Order "1" *-- "1..*" LineItem : contains
+    Product "0..1" -- "many" LineItem
+    Customer "1" o-- "0..n" Address : lives at
+    Order --> "1" Payment
+    Invoice "2" ..> Order : bills

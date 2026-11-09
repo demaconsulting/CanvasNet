@@ -1,0 +1,202 @@
+{
+  "source": "01-basic-classes.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 477.453, 342],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Animal-0",
+      "shape": "classBox",
+      "x": 101.578,
+      "y": 92,
+      "box": [8, 8, 187.156, 168],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 187.156, 168] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 187.156, 168] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [74.906, 20, 53.344, 24],
+          "text": "Animal",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "g", "class": "label", "group": "members-group text", "box": [20, 68, 57.391, 24], "text": "+int age" },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 92, 95.609, 24],
+          "text": "+String name"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 140, 136.484, 24],
+          "text": "+isMammal() : bool"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 56, 187.156, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 128, 187.156, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Vehicle-1",
+      "shape": "classBox",
+      "x": 295.852,
+      "y": 92,
+      "box": [245.156, 20, 101.391, 144],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [245.156, 20, 101.391, 144]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [245.156, 20, 101.391, 144]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [268.273, 32, 55.156, 24],
+          "text": "Vehicle",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [257.156, 80, 49.813, 24],
+          "text": "wheels"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [257.156, 128, 45.344, 24],
+          "text": "drive()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [245.156, 68, 101.391, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [245.156, 116, 101.391, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Empty-2",
+      "shape": "classBox",
+      "x": 433,
+      "y": 92,
+      "box": [396.547, 50, 72.906, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [396.547, 50, 72.906, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [396.547, 50, 72.906, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [408.547, 62, 48.906, 24],
+          "text": "Empty",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [396.547, 98, 72.906, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [396.547, 116, 72.906, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Horse-3",
+      "shape": "classBox",
+      "x": 198.715,
+      "y": 292,
+      "box": [164.035, 250, 69.359, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [164.035, 250, 69.359, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [164.035, 250, 69.359, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [176.035, 262, 45.359, 24],
+          "text": "Horse",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [164.035, 298, 69.359, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [164.035, 316, 69.359, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Animal_Horse_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": null,
+      "length": 97.15,
+      "points": [
+        [101.578, 193.25],
+        [101.606, 198.107],
+        [102.441, 202.879],
+        [104.289, 207.364],
+        [106.777, 211.533],
+        [109.67, 215.433],
+        [112.835, 219.117],
+        [116.18, 222.638],
+        [119.638, 226.05],
+        [123.171, 229.384],
+        [126.76, 232.657],
+        [130.392, 235.882],
+        [134.059, 239.068],
+        [137.754, 242.221],
+        [141.473, 245.346],
+        [145.211, 248.448],
+        [148.965, 251.531],
+        [152.729, 254.6],
+        [156.498, 257.665],
+        [160.266, 260.73],
+        [164.035, 263.795]
+      ]
+    },
+    {
+      "id": "id_Vehicle_Horse_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-dependencyStart",
+      "markerEnd": null,
+      "length": 118.437,
+      "points": [
+        [295.852, 170],
+        [295.852, 175.922],
+        [295.786, 181.843],
+        [295.327, 187.745],
+        [294.334, 193.581],
+        [292.776, 199.291],
+        [290.657, 204.819],
+        [288.008, 210.112],
+        [284.876, 215.136],
+        [281.344, 219.887],
+        [277.532, 224.419],
+        [273.521, 228.774],
+        [269.359, 232.987],
+        [265.078, 237.078],
+        [260.703, 241.069],
+        [256.252, 244.974],
+        [251.737, 248.807],
+        [247.175, 252.582],
+        [242.584, 256.322],
+        [237.989, 260.059],
+        [233.395, 263.795]
+      ]
+    }
+  ],
+  "edgeLabels": [{ "id": "id_Vehicle_Horse_2", "box": [279.398, 201, 32.906, 24] }],
+  "terminals": []
+}
