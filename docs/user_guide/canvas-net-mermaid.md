@@ -200,7 +200,7 @@ The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`b
 | Subgraphs | Titles, nesting, their own `direction`, and links to and from a subgraph |
 | Labels | Quoted text, Markdown strings (`` "`**bold** and *italic*`" ``), `<br>` and the common inline tags (`b`, `strong`, `i`, `em`, `span` with a style, `img`), entity codes (`#quot;`, `#35;`), and wrapping at `wrappingWidth` |
 | Styles | `style`, `classDef` (including `classDef default`), `class`, `:::`, and `linkStyle` (including `default` and `interpolate`), with `fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`, `font-weight`, `font-style`, `font-size`, `font-family`, and `opacity` |
-| Configuration | YAML frontmatter (`title`, `config`), `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the flowchart settings, with Mermaid's precedence |
+| Configuration | YAML frontmatter (`title`, `config`), `%%{init: ...}%%` directives, the five themes (`default`, `base`, `dark`, `forest`, `neutral`), `themeVariables`, and the flowchart settings (`nodeSpacing`, `rankSpacing`, `curve`, `padding`, `wrappingWidth`, and so on), with Mermaid's precedence |
 | Pictures | `@{ img: "part.png", label, pos, w, h, constraint }` nodes and `<img>` in labels, through the caller's resolver |
 | Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
 <!-- markdownlint-enable MD013 -->
