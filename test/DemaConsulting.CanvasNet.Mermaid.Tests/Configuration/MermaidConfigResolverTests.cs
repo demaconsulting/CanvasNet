@@ -489,13 +489,65 @@ public class MermaidConfigResolverTests
         // Assert
         Assert.Equal(4, warnings.Count);
         Assert.All(warnings, warning => Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, new MermaidLocation("t.mmd", 1, 1)), (warning.Code, warning.Location)));
-        Assert.Contains(warnings, warning => warning.Message.Contains("sequence.noteAlign", StringComparison.Ordinal) && warning.Message.Contains("left, center or right", StringComparison.Ordinal));
+        Assert.Contains(warnings, warning => warning.Message.Contains("sequence.noteAlign", StringComparison.Ordinal) && warning.Message.Contains("left, center, right, start, middle or end", StringComparison.Ordinal));
         Assert.Contains(warnings, warning => warning.Message.Contains("sequence.actorFontSize", StringComparison.Ordinal) && warning.Message.Contains("a number or a string", StringComparison.Ordinal));
         Assert.True(config.Sequence.MirrorActors);
         Assert.Equal(150, config.Sequence.Width);
         Assert.Equal("center", config.Sequence.NoteAlign);
         Assert.Equal("end", config.Sequence.MessageAlign);
         Assert.Equal("18px", (string?)config.Raw["sequence"]!["messageFontSize"]);
+    }
+
+    /// <summary>
+    ///     Validates that an alignment Mermaid's <c>drawText</c> does not honor is reported with a message and a hint that
+    ///     name all six alignments it does honor (<c>left</c>, <c>center</c>, <c>right</c>, <c>start</c>, <c>middle</c> and
+    ///     <c>end</c>), and is ignored.
+    /// </summary>
+    /// <param name="key">The alignment key of the sequence section.</param>
+    [Theory]
+    [InlineData("messageAlign")]
+    [InlineData("noteAlign")]
+    public void MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues(string key)
+    {
+        // Arrange: an alignment that drawText does not know
+        var text = $"%%{{init: {{\"sequence\": {{\"{key}\": \"justify\"}}}}}}%%\n" + Sequence;
+
+        // Act
+        var (config, warnings) = Resolve(text, diagramId: "sequence");
+
+        // Assert: one located warning naming all six values in the message and the hint; the default is kept
+        var warning = Assert.Single(warnings);
+        Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code);
+        Assert.Contains($"sequence.{key}", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("must be left, center, right, start, middle or end", warning.Message, StringComparison.Ordinal);
+        Assert.Equal("write \"left\", \"center\", \"right\", \"start\", \"middle\" or \"end\"", warning.Hint);
+        Assert.Equal("center", key == "messageAlign" ? config.Sequence.MessageAlign : config.Sequence.NoteAlign);
+    }
+
+    /// <summary>
+    ///     Validates that each of the six alignments Mermaid's <c>drawText</c> honors is accepted without a warning for
+    ///     both sequence alignment keys.
+    /// </summary>
+    /// <param name="value">The alignment.</param>
+    [Theory]
+    [InlineData("left")]
+    [InlineData("center")]
+    [InlineData("right")]
+    [InlineData("start")]
+    [InlineData("middle")]
+    [InlineData("end")]
+    public void MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted(string value)
+    {
+        // Arrange
+        var text = $"%%{{init: {{\"sequence\": {{\"messageAlign\": \"{value}\", \"noteAlign\": \"{value}\"}}}}}}%%\n" + Sequence;
+
+        // Act
+        var (config, warnings) = Resolve(text, diagramId: "sequence");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal(value, config.Sequence.MessageAlign);
+        Assert.Equal(value, config.Sequence.NoteAlign);
     }
 
     /// <summary>

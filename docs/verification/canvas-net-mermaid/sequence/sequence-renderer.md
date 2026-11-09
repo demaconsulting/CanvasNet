@@ -127,10 +127,15 @@ border `#9370DB`.
 
 **Tests**: `SequenceRendererTests.SequenceRenderer_DrawPopup_Hidden_IsEmptyAndGrowsTheViewBox`,
 `SequenceRendererTests.SequenceRenderer_DrawPopup_Forced_DrawsThePanelAndLinks`,
+`SequenceRendererTests.SequenceRenderer_DrawPopup_LabelSizeWithUnit_LinesShareABaseline`,
+`SequenceRendererTests.SequenceRenderer_DrawPopup_NumericSize_LinesSpacedBySize`,
 `SequenceRendererTests.SequenceRenderer_DrawPopup_ActorWithLinks_FailsLocated`
 
 Asserts that a participant with six links has an empty menu group `actor0_popup` and a view box 276 pixels high (the
 participant, 20 pixels and 30 per link of the panel, the margin, and the bottom adjustment); that with `forceMenus`
 the menu panel is drawn at (0, 65), 150 by 80, in the participant fill with a drop shadow, with the link texts `Home`
-and `Help` at x 10; and that links on an `actor` are a `MermaidRenderException` of code `mermaid-render-failed` at
-line 2, the participant's declaration.
+and `Help` at x 10; that with an `actorFontSize` of `18px` (the top-level `fontSize` 0) the two lines of a link label
+have Mermaid's boxes (10, 85, 35.988, 20) and (10, 85, 91.078, 20) on one baseline and the next link's box is
+(10, 115, 45.031, 20), 30 pixels below; that with a top-level `fontSize` of 18 the lines are centered at y 86 and 104,
+18 pixels apart, and the next link at y 125, as in Mermaid; and that links on an `actor` are a
+`MermaidRenderException` of code `mermaid-render-failed` at line 2, the participant's declaration.

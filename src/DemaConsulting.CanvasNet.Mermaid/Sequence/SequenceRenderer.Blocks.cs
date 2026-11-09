@@ -350,6 +350,11 @@ internal sealed partial class SequenceRenderer
         }
 
         var actorFont = _conf.ActorFont;
+
+        // Mermaid's menu byTspan (svgDraw.js) spaces the lines by the raw actorFontSize, unlike the participant text,
+        // which calls parseFontSize: a size with a unit (such as an actorFontSize of "18px", which setConf keeps when the
+        // top-level fontSize is falsy) gives a dy of NaN, which the browser rejects, so the lines of one label share a
+        // baseline. A top-level fontSize with a unit never gets here: the validation reports and ignores it.
         var size = double.TryParse(actorFont.Size.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : double.NaN;
         var font = new SceneFont(
             actorFont.Family,

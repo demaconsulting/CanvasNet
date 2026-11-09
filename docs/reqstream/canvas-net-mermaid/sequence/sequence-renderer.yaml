@@ -117,12 +117,15 @@ sections:
                 title: >-
                   The SequenceRenderer unit shall give a participant with links a menu that is an empty group unless the
                   forceMenus setting is on, whose size still grows the view box as in Mermaid, draw a forced menu as a
-                  panel with its drop shadow and one line per link, and fail links on a participant type without a box
-                  with a located MermaidRenderException, as Mermaid fails.
+                  panel with its drop shadow and one line per link, the lines of a link label spaced by the participant
+                  font size as Mermaid spaces them (on one baseline when the size has a unit), and fail links on a
+                  participant type without a box with a located MermaidRenderException, as Mermaid fails.
                 justification: |
                   Mermaid's hidden menus take room in the picture, so the size must include them, and a forced menu
                   must be drawn as Mermaid draws it.
                 tests:
                   - SequenceRenderer_DrawPopup_Hidden_IsEmptyAndGrowsTheViewBox
                   - SequenceRenderer_DrawPopup_Forced_DrawsThePanelAndLinks
+                  - SequenceRenderer_DrawPopup_LabelSizeWithUnit_LinesShareABaseline
+                  - SequenceRenderer_DrawPopup_NumericSize_LinesSpacedBySize
                   - SequenceRenderer_DrawPopup_ActorWithLinks_FailsLocated

@@ -282,6 +282,8 @@ top-level `fontWeight` replaces the three weights in the same way. Other behavio
 
 - A hidden menu still takes its room: the diagram is as large as if the menu panel below the participant (20 pixels
   plus 30 per link, and as wide as its widest label) were drawn.
+- The lines of a menu link label are drawn on one baseline when the participant font size has a unit, such as an
+  `actorFontSize` of `18px` with the top-level `fontSize` set to 0, because Mermaid spaces them by the size as a number.
 - A participant with a `class` in `properties` is filled `#EDF2AE` and stroked `#666`, unless the class names a rule of
   the style sheet, such as `note`.
 - The color of a `rect` or a `box` can be a CSS color, a color keyword, or a system color. A box gets the theme's

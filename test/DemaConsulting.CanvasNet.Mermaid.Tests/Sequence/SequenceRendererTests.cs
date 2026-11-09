@@ -375,6 +375,49 @@ public class SequenceRendererTests
     }
 
     /// <summary>
+    ///     Validates that the lines of one menu link label share a baseline when the participant font size has a unit, as
+    ///     Mermaid 11.17.2 draws them: its menu <c>byTspan</c> spaces the lines by the raw <c>actorFontSize</c>, so
+    ///     <c>18px</c> (used because the top-level <c>fontSize</c> of 0 does not replace it) gives a <c>dy</c> of NaN
+    ///     that the browser rejects, while the next link stays 30 pixels below. The boxes are the reference renderer's.
+    /// </summary>
+    [Fact]
+    public void SequenceRenderer_DrawPopup_LabelSizeWithUnit_LinesShareABaseline()
+    {
+        // Act: a two-line link label and a second link, with the participant font size written with a unit
+        var (panel, texts) = MenuTexts("\"fontSize\": 0, \"sequence\": {\"forceMenus\": true, \"actorFontSize\": \"18px\"}");
+
+        // Assert: the panel and Mermaid's text boxes, the two lines of the first label on one baseline
+        Assert.Equal(new SceneRect(0, 65, 150, 80), panel);
+        Assert.Equal(["First", "second line", "Other"], texts.Select(text => text.Runs[0].Text));
+        AssertBox(new SceneRect(10, 85, 35.988, 20), texts[0].Box);
+        AssertBox(new SceneRect(10, 85, 91.078, 20), texts[1].Box);
+        AssertBox(new SceneRect(10, 115, 45.031, 20), texts[2].Box);
+        Assert.Equal(texts[0].Baseline, texts[1].Baseline);
+        Assert.Equal(30, texts[2].Baseline - texts[0].Baseline, 6);
+    }
+
+    /// <summary>
+    ///     Validates that the lines of one menu link label are spaced by a top-level <c>fontSize</c> written as a number,
+    ///     as Mermaid 11.17.2 places them: the centers of the lines (their central baselines) 18 pixels apart around the
+    ///     link's center at y 95, and the next link centered 30 pixels below (the reference renderer's boxes are centered
+    ///     at y 86, 104 and 125). Only the centers are compared: the menu text keeps the inherited 16 pixels for a size
+    ///     without a unit, where the reference renderer's boxes are those of 18 pixels.
+    /// </summary>
+    [Fact]
+    public void SequenceRenderer_DrawPopup_NumericSize_LinesSpacedBySize()
+    {
+        // Act: the same menu with the top-level font size as a number
+        var (panel, texts) = MenuTexts("\"fontSize\": 18, \"sequence\": {\"forceMenus\": true}");
+
+        // Assert: the panel, the left edge of the texts, and the centers of the lines
+        Assert.Equal(new SceneRect(0, 65, 150, 80), panel);
+        Assert.Equal(["First", "second line", "Other"], texts.Select(text => text.Runs[0].Text));
+        Assert.All(texts, text => Assert.Equal(10, text.Box.X, 6));
+        Assert.Equal([86.0, 104.0, 125.0], texts.Select(text => Math.Round(text.Box.Y + (text.Box.Height / 2), 2)));
+        Assert.Equal(18, texts[1].Baseline - texts[0].Baseline, 6);
+    }
+
+    /// <summary>
     ///     Validates that links on a participant type without a box fail at the participant, as Mermaid fails.
     /// </summary>
     [Fact]
@@ -467,4 +510,29 @@ public class SequenceRendererTests
         var box = Scene.BoundsOf([item])!.Value;
         return new SceneRect(Math.Round(box.X, 3), Math.Round(box.Y, 3), Math.Round(box.Width, 3), Math.Round(box.Height, 3));
     }
+
+    /// <summary>
+    ///     Lays out a participant with a forced menu of a two-line link label and a one-line link label.
+    /// </summary>
+    /// <param name="init">The members of the init directive.</param>
+    /// <returns>The bounds of the menu panel and the menu texts.</returns>
+    private static (SceneRect Panel, List<SceneText> Texts) MenuTexts(string init)
+    {
+        var diagram =
+            $"%%{{init: {{{init}}}}}%%\nsequenceDiagram\nparticipant A\n" +
+            "link A: First<br>second line @ https://a.example\nlink A: Other @ https://b.example\nA->>A: hi\n";
+        var menu = (SceneGroup)SceneQuery.SequenceItems(SceneQuery.Layout(diagram)).Find("menu", "actor0_popup")!;
+        return (Bounds(menu.Children.OfType<ScenePath>().Single(child => child.Role == "menu-panel")), [.. menu.Children.OfType<SceneText>()]);
+    }
+
+    /// <summary>
+    ///     Asserts that a box matches an expected box within the golden text tolerance (0.02 pixel).
+    /// </summary>
+    /// <param name="expected">The expected box.</param>
+    /// <param name="box">The box.</param>
+    private static void AssertBox(SceneRect expected, SceneRect box) =>
+        Assert.True(
+            Math.Abs(expected.X - box.X) <= 0.02 && Math.Abs(expected.Y - box.Y) <= 0.02 &&
+            Math.Abs(expected.Width - box.Width) <= 0.02 && Math.Abs(expected.Height - box.Height) <= 0.02,
+            $"expected {expected}, got {box}");
 }

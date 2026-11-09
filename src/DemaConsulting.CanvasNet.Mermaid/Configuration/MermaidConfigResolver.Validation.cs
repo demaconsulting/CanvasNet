@@ -225,9 +225,9 @@ internal static partial class MermaidConfigResolver
                 {
                     context.Warn(
                         MermaidDiagnosticCodes.ConfigInvalid,
-                        $"the configuration value '{childPath}' in {Describe(kind)} must be left, center or right; it is ignored",
+                        $"the configuration value '{childPath}' in {Describe(kind)} must be left, center, right, start, middle or end; it is ignored",
                         location,
-                        "write \"left\", \"center\" or \"right\"");
+                        "write \"left\", \"center\", \"right\", \"start\", \"middle\" or \"end\"");
                     obj.Remove(key);
                     continue;
                 }
