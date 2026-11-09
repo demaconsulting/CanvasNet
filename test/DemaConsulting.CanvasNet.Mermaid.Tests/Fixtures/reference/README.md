@@ -112,6 +112,24 @@ Each file holds:
   `lifeline:name`, `actor-top:name`, `activation:i`, `frame:id`, `note:id`, `message:id`, `number:id`,
   `circles:id`, `menu:id`, `title`), where `i` is the index in the list above.
 
+### Sequence Tolerances
+
+`MermaidSequenceReferenceLayoutTests` compares every position and size at **0.01 px**, with two exceptions:
+
+- **Text boxes**, 0.02 px, also for the box of a participant's drawing, which includes its texts: Chrome snaps text
+  baselines to its layout unit of 1/64 px, so a text box is 17.016 px high where CanvasNet gives 17. The largest
+  difference seen is 0.016 px.
+- **Cylinder arcs** (the `queue` and `database` participants), 0.02 px: Chrome's `getBBox` of an arc far from the
+  origin can stop short of the ellipse's extreme (the mirrored queue shows 0.017 px), while the geometry is the same.
+
+The test also makes three allowances, documented in the test:
+
+- An empty line, which Mermaid draws as a zero-width space, is a line without runs with the same box.
+- The harness lists a mirrored participant's menu panel as an `actor-bottom` key just before its `menu` key, because
+  the panel has the box's class; the comparison drops that key.
+- The arrowhead of the `control` participant (role `actor-marker`) is left out of the parts and the box, as the
+  harness leaves markers out.
+
 ### Fixtures
 
 The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and

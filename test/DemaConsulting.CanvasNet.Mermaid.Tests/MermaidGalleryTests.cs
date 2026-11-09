@@ -14,6 +14,9 @@ public class MermaidGalleryTests
     /// <summary>The fewest diagrams the gallery must hold.</summary>
     private const int MinimumDiagrams = 6;
 
+    /// <summary>The diagram types this version draws, which the gallery shows.</summary>
+    private static readonly string[] DrawnTypes = ["flowchart", "sequence"];
+
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -57,10 +60,11 @@ public class MermaidGalleryTests
     }
 
     /// <summary>
-    ///     Validates that the gallery holds at least six diagrams and that every one is a supported flowchart.
+    ///     Validates that the gallery holds at least six diagrams, that every one is a supported flowchart or sequence
+    ///     diagram, and that both types are shown.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowcharts()
+    public void CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams()
     {
         // Arrange
         var files = Directory.GetFiles(GalleryFolder(), "mermaid-*.mmd");
@@ -68,10 +72,12 @@ public class MermaidGalleryTests
         // Act
         var documents = files.Select(path => MermaidDocument.Open(path)).ToList();
 
-        // Assert: enough diagrams, each of a type this version draws
+        // Assert: enough diagrams, each of a type this version draws, and both drawn types present
         Assert.True(files.Length >= MinimumDiagrams, $"the gallery holds {files.Length} diagrams");
-        Assert.All(documents, d => Assert.Equal("flowchart", d.DiagramType));
+        Assert.All(documents, d => Assert.Contains(d.DiagramType, DrawnTypes));
         Assert.All(documents, d => Assert.True(d.IsSupported));
+        Assert.Contains(documents, d => d.DiagramType == "flowchart");
+        Assert.Contains(documents, d => d.DiagramType == "sequence");
     }
 
     /// <summary>

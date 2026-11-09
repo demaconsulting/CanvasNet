@@ -21,7 +21,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///     <para>
 ///         <b>Diagram types.</b> Every diagram type that Mermaid knows is recognized (<see cref="DiagramType"/>), but only the
 ///         supported ones are drawn (<see cref="IsSupported"/>): in this version flowcharts (<c>flowchart</c> and
-///         <c>graph</c>). Any other known type (<c>sequenceDiagram</c>, <c>classDiagram</c>, <c>pie</c>, ...) opens without
+///         <c>graph</c>) and sequence diagrams (<c>sequenceDiagram</c>). Any other known type (<c>classDiagram</c>,
+///         <c>stateDiagram</c>, <c>pie</c>, ...) opens without
 ///         error; measuring or rendering it reports the unsupported feature
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> and gives an empty, transparent picture of 16 by 16 pixels
 ///         (twice Mermaid's diagram padding), or throws <see cref="MermaidUnsupportedFeatureException"/> in strict mode.
@@ -90,22 +91,25 @@ public sealed partial class MermaidDocument
 
     /// <summary>
     ///     Gets the direction of a diagram that has one (<c>TB</c>, <c>TD</c>, <c>BT</c>, <c>LR</c> or <c>RL</c>), or
-    ///     <see langword="null"/>.
+    ///     <see langword="null"/> (always for a sequence diagram).
     /// </summary>
     public string? Direction => Diagram?.Direction;
 
     /// <summary>
-    ///     Gets the number of nodes of the diagram (subgraphs not included); zero for a type that is not supported.
+    ///     Gets the number of nodes of the diagram (subgraphs not included; the participants of a sequence diagram); zero
+    ///     for a type that is not supported.
     /// </summary>
     public int NodeCount => Diagram?.NodeCount ?? 0;
 
     /// <summary>
-    ///     Gets the number of edges (links) of the diagram; zero for a type that is not supported.
+    ///     Gets the number of edges (links; the messages of a sequence diagram) of the diagram; zero for a type that is not
+    ///     supported.
     /// </summary>
     public int EdgeCount => Diagram?.EdgeCount ?? 0;
 
     /// <summary>
-    ///     Gets the number of subgraphs of the diagram; zero for a type that is not supported or has none.
+    ///     Gets the number of subgraphs (the boxes of a sequence diagram) of the diagram; zero for a type that is not
+    ///     supported or has none.
     /// </summary>
     public int SubgraphCount => Diagram?.SubgraphCount ?? 0;
 

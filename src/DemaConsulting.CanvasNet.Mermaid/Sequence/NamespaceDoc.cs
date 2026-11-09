@@ -1,8 +1,9 @@
 namespace DemaConsulting.CanvasNet.Mermaid.Sequence;
 
 /// <summary>
-///     The <c>Sequence</c> namespace reads sequence diagrams (<c>sequenceDiagram</c>): a port of Mermaid's
-///     <c>sequenceDiagram.jison</c> grammar and of its sequence database (<c>sequenceDb.ts</c>).
+///     The <c>Sequence</c> namespace reads and draws sequence diagrams (<c>sequenceDiagram</c>): a port of Mermaid's
+///     <c>sequenceDiagram.jison</c> grammar, of its sequence database (<c>sequenceDb.ts</c>), of its sequence renderer
+///     (<c>sequenceRenderer.ts</c>) and of its drawing functions (<c>svgDraw.js</c>).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -14,7 +15,13 @@ namespace DemaConsulting.CanvasNet.Mermaid.Sequence;
 ///         <c>wrap:</c> or <c>nowrap:</c> prefix, so the configuration of each render decides the rest.
 ///     </para>
 ///     <para>
-///         The namespace is internal to the package. A parsed model is immutable and safe for concurrent use.
+///         For each render, <c>SequenceLayout</c> sizes and places the participants, messages, notes, activations,
+///         blocks, boxes and menus from top to bottom as <c>sequenceRenderer.ts</c> does, and <c>SequenceRenderer</c>
+///         turns them into scene items with the paint of the theme's sequence style sheet, in Mermaid's paint order.
+///     </para>
+///     <para>
+///         The namespace is internal to the package. A parsed model is immutable and safe for concurrent use; a layout and
+///         a renderer serve one render on one thread.
 ///     </para>
 /// </remarks>
 internal static class NamespaceDoc

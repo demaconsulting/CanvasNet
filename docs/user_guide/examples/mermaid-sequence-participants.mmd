@@ -1,0 +1,25 @@
+sequenceDiagram
+    box LightYellow Outside
+        actor Visitor
+        participant Gate@{ "type": "boundary" } as Web gate
+    end
+    box rgb(230, 240, 255) Inside
+        participant Rules@{ "type": "control" }
+        participant Account@{ "type": "entity" }
+        participant Users@{ "type": "database" }
+        participant Events@{ "type": "queue" }
+        participant Reports@{ "type": "collections" }
+    end
+    Visitor->>Gate: Sign up
+    Gate->>Rules: Check the form
+    Rules->>Rules: Validate the fields
+    Rules->>Users: Is the name free?
+    Users-->>Rules: Yes
+    create participant Session
+    Rules->>Session: Open
+    Rules->>Account: Create
+    Account->>Events: Account created
+    Events-)Reports: Count a new account
+    destroy Session
+    Session-->>Gate: Signed in
+    Gate-->>Visitor: Welcome

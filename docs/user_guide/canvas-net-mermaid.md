@@ -8,10 +8,11 @@
 `DemaConsulting.CanvasNet.Mermaid` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet`
 package - see the Installation section of the project README. It reads diagrams written in the Mermaid v11 text
 language and draws them as **static pictures** with Mermaid's own layout: a flowchart is laid out by a port of the
-dagre layout that Mermaid uses, so the nodes, edges, and labels land where Mermaid 11 puts them. This version draws
-**flowcharts** (the `flowchart` and `graph` keywords). Every other diagram type that Mermaid knows is recognized and
-reported, never drawn wrongly: sequence diagrams are planned next, and class, state, entity relationship, pie, gantt,
-and mindmap diagrams later. The package is derived with attribution from the Mermaid project and the libraries it uses,
+dagre layout that Mermaid uses, and a sequence diagram by a port of Mermaid's sequence renderer, so the nodes, edges,
+participants, messages, and labels land where Mermaid 11 puts them. This version draws **flowcharts** (the `flowchart`
+and `graph` keywords) and **sequence diagrams** (the `sequenceDiagram` keyword). Every other diagram type that Mermaid
+knows is recognized and reported, never drawn wrongly: class, state, entity relationship, pie, gantt, and mindmap
+diagrams are planned later. The package is derived with attribution from the Mermaid project and the libraries it uses,
 and it is **not affiliated with or endorsed by** the Mermaid project (see *Mermaid Third-Party Attribution*). A document
 is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
 times, from several threads at once, each call giving the same result for the same options.
@@ -24,14 +25,14 @@ public sealed partial class MermaidDocument
     public static MermaidDocument Open(Stream stream, MermaidOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "flowchart" (also for "graph"), or "sequence", "class", "pie", ...
+    public string DiagramType { get; }      // "flowchart" (also for "graph"), "sequence", or "class", "pie", ...
     public bool IsSupported { get; }        // true when this version draws the type
-    public string? Title { get; }           // the frontmatter title
+    public string? Title { get; }           // the title statement, else the frontmatter title
     public string? AccTitle { get; }        // accTitle, metadata only
-    public string? Direction { get; }       // TB, TD, BT, LR, or RL
-    public int NodeCount { get; }
-    public int EdgeCount { get; }
-    public int SubgraphCount { get; }
+    public string? Direction { get; }       // TB, TD, BT, LR, or RL; null for a sequence diagram
+    public int NodeCount { get; }           // the participants of a sequence diagram
+    public int EdgeCount { get; }           // the messages of a sequence diagram
+    public int SubgraphCount { get; }       // the boxes of a sequence diagram
 
     public MermaidSize Measure(
         MermaidRenderOptions? options = null,
@@ -54,8 +55,9 @@ public sealed partial class MermaidDocument
   supported diagram is parsed with a port of its grammar. A file or stream is read as strict UTF-8 (a byte order mark
   is removed, invalid UTF-8 is rejected). Reading fails fast with a located `MermaidSyntaxException` and never opens
   another file or uses the network. `Open(Stream)` reads from the current position and leaves the stream open.
-- The descriptive properties come from the text only. For a type that is not drawn, `IsSupported` is `false`, the
-  counts are zero, and `Direction` and `AccTitle` are `null`.
+- The descriptive properties come from the text only. For a sequence diagram, `NodeCount` is the number of
+  participants, `EdgeCount` the number of messages, and `SubgraphCount` the number of boxes. For a type that is not
+  drawn, `IsSupported` is `false`, the counts are zero, and `Direction` and `AccTitle` are `null`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
 - `Render()` draws the diagram onto a new `Surface` at its **natural size** (the view box of Mermaid's SVG, rounded up
@@ -73,9 +75,9 @@ public sealed partial class MermaidDocument
   (8192) on a side. A diagram larger than that needs a smaller `Scale` or the sized overload.
 - `MermaidRenderException`: a limit of `MermaidLimits` was met while the diagram was laid out or painted
   (`mermaid-limit-exceeded`), or the diagram cannot be laid out (`mermaid-render-failed`, for example a subgraph that
-  contains itself). An unexpected internal error of the layout is reported the same way (`mermaid-render-failed` at
-  the diagram keyword, with the original exception as the inner exception); an exception of your image resolver
-  reaches you unchanged.
+  contains itself or an empty sequence block). An unexpected internal error of the layout is reported the same way
+  (`mermaid-render-failed` at the diagram keyword, with the original exception as the inner exception); an exception
+  of your image resolver reaches you unchanged.
 - `MermaidUnsupportedFeatureException`: the first unsupported feature when `ThrowOnUnsupportedFeature` is set.
 - `OperationCanceledException`: the token was canceled before or during the work.
 
@@ -131,12 +133,12 @@ wall-clock bound.
 | Property | Default | What it bounds | When it is exceeded |
 | -------- | ------- | -------------- | ------------------- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
-| `MaxEdges` | 500 | The links of a diagram (Mermaid's `maxEdges`) | `MermaidSyntaxException` |
-| `MaxNodes` | 2,000 | The nodes, subgraphs included | `MermaidSyntaxException` |
+| `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid does not check for a sequence diagram) | `MermaidSyntaxException` |
+| `MaxNodes` | 2,000 | The nodes, subgraphs included, or the participants of a sequence diagram | `MermaidSyntaxException` |
 | `MaxLabelLength` | 4,096 | One label, in UTF-16 characters | `MermaidSyntaxException` |
-| `MaxNestingDepth` | 32 | Subgraphs inside subgraphs (at most 256) | `MermaidSyntaxException` |
+| `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
-| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning) | `MermaidRenderException` |
+| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement and placement of a sequence diagram) | `MermaidRenderException` |
 | `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |
 | `MaxPaintedPixels` | 250,000,000 | The device pixels one render paints (after `Scale`) | `MermaidRenderException` |
 | `MaxDiagnostics` | 1,000 | The reports kept per call; the rest become one `mermaid-diagnostics-suppressed` warning | (rendering continues) |
@@ -184,7 +186,8 @@ flowchart LR
 The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`basis` by default; `linear`,
 `natural`, `step`, `stepBefore`, `stepAfter`, `monotoneX`, `monotoneY`, `cardinal`, `catmullRom`, `bumpX`, `bumpY`, and
 `rounded`), `padding`, `diagramPadding`, `wrappingWidth`, `htmlLabels`, `titleTopMargin`, `subGraphTitleMargin`, and
-`inheritDir`, with the global `fontFamily`, `fontSize`, and `markdownAutoWrap`.
+`inheritDir`, with the global `fontFamily`, `fontSize`, and `markdownAutoWrap`. The sequence settings are listed under
+*Supported Sequence Syntax*.
 
 ### Supported Flowchart Syntax
 
@@ -202,6 +205,92 @@ The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`b
 | Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
 <!-- markdownlint-enable MD013 -->
 
+### Supported Sequence Syntax
+
+A sequence diagram starts with `sequenceDiagram`. It is laid out by a port of Mermaid's sequence renderer: the
+participants stand in a row in the order they appear, and every message, note, activation, and block is placed below
+the one before it, where Mermaid 11 puts it.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `sequenceDiagram` |
+| Participants | `participant` and `actor`, aliases (`participant Bank as Payment provider`), and participants named only by a message |
+| Participant types | The eight types of `@{ type: ... }`: `participant`, `actor`, `boundary`, `control`, `entity`, `database`, `collections`, and `queue`, with the `alias` key |
+| Boxes | `box` with a color and a title (`box LightBlue Front end` ... `end`), with a color only, or with a title only |
+| Create and destroy | `create participant` and `create actor` just before the first message of the participant, and `destroy` just before its last message |
+| Messages | The arrows in the table below, self messages, and central connections (`A->>()B`, `A()->>B`, `A()->>()B`) |
+| Activations | `activate` and `deactivate`, and the `+` and `-` shorthands on a message, nested |
+| Notes | `Note left of`, `right of`, and `over` one or two participants |
+| Blocks | `loop`, `alt` and `else`, `opt`, `par` and `and`, `par_over`, `critical` and `option`, and `break`, nested; `rect` backgrounds with a CSS color |
+| Numbers | `autonumber`, with a start and a step, and `autonumber off`; the `showSequenceNumbers` setting |
+| Text | `<br>` line breaks, the `wrap:` and `nowrap:` prefixes, wrapping when `wrap` is on (a word wider than the line is hyphenated), and entity codes |
+| Menus and properties | `link`, `links`, and `properties`; a menu is drawn only with `forceMenus`, and a `class` in `properties` changes the paint of the participant |
+| Titles | The `title` statement, else the frontmatter `title`, is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the sequence settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+| Arrow | Line | End |
+| ----- | ---- | --- |
+| `->` | Solid | None |
+| `-->` | Dotted | None |
+| `->>` | Solid | Arrowhead |
+| `-->>` | Dotted | Arrowhead |
+| `<<->>` | Solid | Arrowheads at both ends |
+| `<<-->>` | Dotted | Arrowheads at both ends |
+| `-x` | Solid | Cross |
+| `--x` | Dotted | Cross |
+| `-)` | Solid | Open arrowhead (asynchronous) |
+| `--)` | Dotted | Open arrowhead (asynchronous) |
+
+The half-arrow heads draw one side of a head: `-|\` and `-|/` draw a solid half head at the top or at the bottom, and
+`-\\` and `-//` a stick half head; with `--` the line is dotted (`--|\`, `--//`, and so on). Written before the line,
+they point back at the sender: `/|-`, `\|-`, `//-`, and `\\-`, and the dotted `/|--`, `\|--`, `//--`, and `\\--`.
+
+The sequence settings follow Mermaid (`config.sequence` in the frontmatter, a directive, or
+`MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `mirrorActors` | `true` | Draws the participants again below the diagram |
+| `actorMargin` | 50 | The least space between two participants |
+| `width`, `height` | 150, 65 | The size of a participant box |
+| `boxMargin`, `boxTextMargin` | 10, 5 | The margins around blocks and boxes, and around their text |
+| `noteMargin` | 10 | The margin around a note |
+| `activationWidth` | 10 | The width of an activation |
+| `diagramMarginX`, `diagramMarginY` | 50, 10 | The margins around the diagram |
+| `bottomMarginAdj` | 1 | The extra space below the diagram |
+| `messageAlign` | `center` | The alignment of message text: `left`, `center`, or `right` (also `start`, `middle`, and `end`) |
+| `noteAlign` | `center` | The alignment of note text, with the same values |
+| `rightAngles` | `false` | Draws a self message with right angles |
+| `showSequenceNumbers` | `false` | Numbers the messages without `autonumber` |
+| `hideUnusedParticipants` | `false` | Leaves out the participants that no message, note, or activation names |
+| `forceMenus` | `false` | Draws the menus of `link` and `links` |
+| `wrap` | `false` | Wraps every text without a `nowrap:` prefix; a top-level `wrap: true` does the same |
+| `wrapPadding` | 10 | The padding of wrapped text |
+| `labelBoxWidth`, `labelBoxHeight` | 50, 20 | The size of the label box of a block |
+| `textPlacement` | (none) | `old` draws the participant labels with Mermaid's older text placement; `fo` is reported and drawn with the default placement |
+| `actorFontWeight`, `noteFontWeight`, `messageFontWeight` | 400 | The weight of the participant, note, and message text |
+| `actorFontSize`, `noteFontSize`, `messageFontSize`, and the three font families | 14, 14, 16 | Replaced by the top-level `fontSize` and `fontFamily`, as in Mermaid |
+| `useMaxWidth`, `arrowMarkerAbsolute` | | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+As in Mermaid, the top-level `fontFamily` and `fontSize` replace the font families and sizes of the sequence settings,
+so every sequence text is 16 pixels in the theme's font by default; set the top-level `fontSize` to change it. A
+top-level `fontWeight` replaces the three weights in the same way. Other behaviors that follow Mermaid:
+
+- A hidden menu still takes its room: the diagram is as large as if the menu panel below the participant (20 pixels
+  plus 30 per link, and as wide as its widest label) were drawn.
+- A participant with a `class` in `properties` is filled `#EDF2AE` and stroked `#666`, unless the class names a rule of
+  the style sheet, such as `note`.
+- The color of a `rect` or a `box` can be a CSS color, a color keyword, or a system color. A box gets the theme's
+  `nodeBorder` stroke and `dropShadow`; a `rect` background gets neither.
+- The `boundary`, `entity`, and `database` participants are `labelBoxHeight` taller than their figure, and `control`
+  twice that.
+- A participant type that Mermaid does not define draws nothing, and is reported as `mermaid-participant-type-unknown`.
+- Note text is drawn in normal weight whatever `noteFontWeight` says, while the note is sized for that weight.
+
 ### Mermaid Unsupported Features and Strict Mode
 
 A construct that Mermaid defines but this package does not draw is reported as a `MermaidUnsupportedFeature` with a
@@ -213,13 +302,15 @@ fail on a warning.
 <!-- markdownlint-disable MD013 -->
 | Code | Kind | Reported when |
 | ---- | ---- | ------------- |
-| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart` and `graph`); the picture is empty |
-| `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node); the node keeps its shape and label without the icon |
+| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, and `sequenceDiagram`); the picture is empty |
+| `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant); the node or participant keeps its shape and label without the icon |
+| `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
 | `mermaid-layout-unsupported` | Unsupported | A `layout` other than `dagre` (`elk`, also the `flowchart-elk` keyword); the diagram is laid out with dagre |
 | `mermaid-theme-css-unsupported` | Unsupported | A `themeCSS` rule with a selector other than the diagram's own (such as `.node rect`) |
 | `mermaid-config-unknown-key` | Warning | A configuration key Mermaid does not define; it is ignored |
-| `mermaid-config-invalid` | Warning | A configuration value of the wrong type or range, or a theme that is not available; it is ignored |
+| `mermaid-config-invalid` | Warning | A configuration value of the wrong type or range, or a theme that is not available; it is ignored (`sequence.textPlacement: fo` is drawn with the default placement) |
+| `mermaid-participant-type-unknown` | Warning | A sequence participant has a type Mermaid does not define; it is not drawn, as in Mermaid, and the hint names the nearest type |
 | `mermaid-config-secure-key` | Warning | The text tried to change a secure key; the change is ignored |
 | `mermaid-style-ignored` | Warning | A style declaration outside the supported subset (see *Supported Flowchart Syntax*) |
 | `mermaid-html-tag-ignored` | Warning | An HTML tag outside the supported label subset; the tag is dropped and its text is kept |
@@ -261,8 +352,9 @@ surfaces, not the bytes of two PNG files, because the PNG encoder of .NET 9 and 
 same pixels.
 
 The layout is checked against Mermaid itself: a set of reference diagrams is drawn by Mermaid 11.17.2 (with the same
-Liberation Sans font) and every node, edge, and subgraph of the CanvasNet layout matches within a hundredth of a pixel.
-The known differences from Mermaid are:
+Liberation Sans font) and every node, edge, and subgraph of the CanvasNet layout matches within a hundredth of a pixel,
+as does every participant, message, note, activation, block, and box of a sequence diagram (text boxes within two
+hundredths). The known differences from Mermaid are:
 
 - **Fonts.** Mermaid uses the fonts of the browser, so its pictures differ from these where Trebuchet MS is installed.
   Against Mermaid drawn with Liberation Sans the text widths agree to a fraction of a pixel.
@@ -287,6 +379,14 @@ The known differences from Mermaid are:
   ellipse.
 - **Shapes.** The circles of the newer shapes are true circles where Mermaid draws rough.js curves (a few hundredths
   of a pixel).
+- **Sequence diagrams.** Mermaid draws a broken sequence diagram or fails for an empty block (a block with no message
+  or note inside), for `link` or `links` on an `actor`, `boundary`, `control`, or `entity` participant, and for a
+  `properties` icon that is not text; these are a located `mermaid-render-failed` instead. `$$` math is drawn and
+  measured as written (`mermaid-math-unsupported`), and `textPlacement: fo` (HTML labels) is drawn with the default
+  placement. The color keywords and system colors of a `box` or a `rect` background take the values of headless Chrome
+  in the light scheme (system colors depend on the platform in a browser). The width of a text is the advance of its
+  glyphs grown to the pixels its first and last glyphs reach, as Chrome measures it; for fonts or sizes other than those
+  of the reference diagrams, a width can differ by a pixel, which can move the margins by up to a pixel.
 - **Pictures.** A picture that cannot be loaded leaves the node's frame (Mermaid fails the whole render).
 - **Background and size.** The background is transparent by default (as the SVG is), and `useMaxWidth` has no meaning
   for a picture of a fixed size.
@@ -298,11 +398,12 @@ The known differences from Mermaid are:
 ### Mermaid Third-Party Attribution
 
 `DemaConsulting.CanvasNet.Mermaid` is **derived with attribution**: to draw diagrams the way Mermaid draws them, its
-preprocessing, diagram detection, flowchart parser and model, configuration defaults, themes, shapes, edges, labels,
-and layout are ports of these projects (all MIT unless stated):
+preprocessing, diagram detection, flowchart and sequence parsers and models, configuration defaults, themes, shapes,
+edges, labels, and layouts are ports of these projects (all MIT unless stated):
 
 - **mermaid** (Copyright (c) 2014 - 2022 Knut Sveidqvist): the preprocessing, detectors, flowchart grammar and
-  database, configuration and the five themes, the shapes, clusters, edges, markers, and label rules of its renderer;
+  database, configuration and the five themes, the shapes, clusters, edges, markers, and label rules of its renderer,
+  the sequence grammar, database, renderer, drawing functions, and style sheet, and the text utilities they use;
 - **dagre-d3-es**, derived from **dagre** and **graphlib** (Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
   contributors): the graph and the layered layout;
 - **js-yaml** (Copyright (C) 2011-2015 by Vitaly Puzrin): the YAML reader of the frontmatter and shape data;
@@ -501,10 +602,10 @@ left as written, with the tool's message as a warning, so that another filter, s
 
 ### Example 57: The Mermaid Gallery
 
-The gallery is a set of small flowcharts that together use the major features of the package. Every diagram is
-**original to this repository**, lies in `docs/user_guide/examples` as `mermaid-*.mmd`, and is drawn below by the
-Pandoc filter, so the pictures are always those of the version of the library that built this guide. A test
-(`MermaidGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any warning, so a
+The gallery is a set of small flowcharts and sequence diagrams that together use the major features of the package.
+Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `mermaid-*.mmd`, and is drawn
+below by the Pandoc filter, so the pictures are always those of the version of the library that built this guide. A
+test (`MermaidGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any warning, so a
 diagram of the gallery cannot use a feature that is only reported. The same files can be drawn with the tool, for
 example `canvasnet render docs/user_guide/examples/mermaid-shapes.mmd --strict --scale 2 -o shapes.png`.
 
@@ -537,3 +638,86 @@ link that keeps two nodes in one rank:
 the `dark` theme to the subgraphs diagram, over a dark background:
 
 ![The dark theme](examples/mermaid-subgraphs.mmd){theme=dark background=#333333 scale=2 width=60%}
+
+*Sequence blocks.* A frontmatter title, an activation, `loop`, `alt` and `else`, `opt`, `par` and `and`, a `rect`
+background inside a loop, an asynchronous message, and a note over two participants:
+
+![Sequence blocks](examples/mermaid-sequence-blocks.mmd){scale=2 width=80%}
+
+*Participant types.* The eight participant types, two boxes with a color and a title, a self message, and a
+participant that is created and destroyed:
+
+![Participant types](examples/mermaid-sequence-participants.mmd){scale=2 width=100%}
+
+*Sequence arrows.* `autonumber`, solid and dotted arrows, open, cross, and two-headed arrows, a half arrowhead, central
+connections, and a note that wraps, in the `forest` theme without the mirrored participants:
+
+![Sequence arrows](examples/mermaid-sequence-arrows.mmd){scale=2 width=70%}
+
+### Example 58: Rendering a Mermaid Sequence Diagram
+
+A sequence diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the participants, the
+messages, and the boxes, and it has no direction:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    ---
+    title: Checkout
+    ---
+    sequenceDiagram
+        autonumber
+        actor Buyer
+        participant Shop
+        participant Bank as Payment provider
+        Buyer->>+Shop: Place the order
+        Shop->>Bank: Charge the card
+        alt Card accepted
+            Bank-->>Shop: Approved
+            Shop-->>Buyer: Order confirmed
+        else Card declined
+            Bank-->>Shop: Declined
+            Shop-->>Buyer: Try another card
+        end
+        deactivate Shop
+        Note over Buyer,Shop: The receipt is sent by email
+    """);
+
+Console.WriteLine($"{diagram.DiagramType} {diagram.Direction ?? "-"}");   // Output: sequence -
+Console.WriteLine(diagram.Title);                                         // Output: Checkout
+Console.WriteLine($"{diagram.NodeCount} participants, {diagram.EdgeCount} messages, {diagram.SubgraphCount} boxes");
+                                                                          // Output: 3 participants, 6 messages, 0 boxes
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 650x622
+var white = new Rgba32(255, 255, 255, 255);
+using var picture = diagram.Render(new MermaidRenderOptions { Theme = "forest", Scale = 2, Background = white });
+PngCodec.Save(picture, "checkout.png");                                   // 1300x1244 pixels
+```
+
+The same text in a Pandoc document, drawn by the filter in the `forest` theme:
+
+```{.mermaid caption="A checkout, drawn from a code block" theme=forest scale=2 width=70%}
+---
+title: Checkout
+---
+sequenceDiagram
+    autonumber
+    actor Buyer
+    participant Shop
+    participant Bank as Payment provider
+    Buyer->>+Shop: Place the order
+    Shop->>Bank: Charge the card
+    alt Card accepted
+        Bank-->>Shop: Approved
+        Shop-->>Buyer: Order confirmed
+    else Card declined
+        Bank-->>Shop: Declined
+        Shop-->>Buyer: Try another card
+    end
+    deactivate Shop
+    Note over Buyer,Shop: The receipt is sent by email
+```

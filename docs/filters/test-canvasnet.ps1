@@ -10,8 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), a diagram type the tool does not draw yet is left as written for another filter, and the
-    defaults-file filters run before a command-line filter (as the CI's mermaid-filter is run).
+    hashed), a sequence diagram is drawn by the filter itself, a diagram type the tool does not draw yet is left as
+    written for another filter, and the defaults-file filters run before a command-line filter (as the CI's
+    mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -331,6 +332,30 @@ flowchart TD
     Write-Result ($mmdChanged.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $mmdBefore + 4) `
         'a changed picture of a node draws the diagram again' $mmdChanged.Log
     Copy-Item (Join-Path $repo 'Icon.png') (Join-Path $guide 'pic.png') -Force
+
+    # A sequence diagram is drawn by the filter itself, as a code block and as a .mmd picture: it is not left as
+    # written for another filter, and no marker is left in the cache.
+    Set-Content (Join-Path $guide 'talk.mmd') -Value "sequenceDiagram`n    Alice->>Bob: Hello`n    Bob-->>Alice: Hi"
+    $sequences = @'
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    Client->>+Server: Request
+    Server-->>-Client: Response
+```
+
+![t](talk.mmd)
+'@
+    $sequencesBefore = @(Get-Pictures).Count
+    $sequenceMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $sequence = Invoke-Filter 'mermaid-sequence' $sequences
+    Write-Result ($sequence.ExitCode -eq 0 -and $sequence.Html -notmatch '<code' -and
+        $sequence.Html -match 'generated/canvasnet/mermaid-' -and $sequence.Html -match 'generated/canvasnet/talk-' -and
+        @(Get-Pictures).Count -eq $sequencesBefore + 2 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $sequenceMarkersBefore -and
+        $sequence.Log -notmatch 'left as written') `
+        'a sequence block and a sequence .mmd picture are drawn by the filter itself' "$($sequence.Log)`n$($sequence.Html)"
 
     # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
     # marker in the cache remembers it: the next run warns from the marker and does not draw it.

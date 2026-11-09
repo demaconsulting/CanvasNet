@@ -12,7 +12,8 @@ This user guide covers:
 - Installation of the library and of the `canvasnet` command-line tool
 - Basic usage and examples
 - API reference
-- Rendering Mermaid flowcharts (`DemaConsulting.CanvasNet.Mermaid`), with a gallery of original diagrams
+- Rendering Mermaid flowcharts and sequence diagrams (`DemaConsulting.CanvasNet.Mermaid`), with a gallery of original
+  diagrams
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References
