@@ -69,7 +69,7 @@ side-by-side pictures for a manual visual review and never gates.
 A system-level test run passes when every scenario below passes on every target framework and platform without an
 exception beyond those explicitly asserted. A layout that differs from a golden beyond its documented tolerance
 (0.01 pixel, 0.1 pixel for the two fixtures with rough.js circles; for the sequence goldens 0.01 pixel, 0.02 pixel for
-text boxes and cylinder arcs; for the class goldens 0.01 pixel, 1 pixel for `16-config-title-links`, whose class
+text boxes and cylinder arcs; for the class goldens 0.01 pixel, 0.23 pixel for `16-config-title-links`, whose class
 texts are SVG text), a fixture that gives a report it should not give
 in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the mutation
 fuzzer, or two renders of the same document that differ constitutes a failure.
@@ -203,7 +203,7 @@ messages with their markers, texts, numbers, and circles, the notes, activations
 and the paint order) within the documented tolerances and allowances, and asserts that every sequence fixture has a
 golden; compares the scene of each class fixture with its golden (the view box, the nodes and the parts of each class
 box, the namespaces with their titles, the edges, the edge labels, the terminal labels, and the title box) at 0.01
-pixel, 1 pixel for `16-config-title-links`, and asserts that every class fixture has a golden.
+pixel, 0.23 pixel for `16-config-title-links`, and asserts that every class fixture has a golden.
 
 ### CanvasNetMermaid-MeasureRender: Natural Size, Scale, Exact Size, And Background
 

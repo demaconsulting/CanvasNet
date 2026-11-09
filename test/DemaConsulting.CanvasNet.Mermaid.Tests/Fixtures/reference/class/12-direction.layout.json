@@ -111,7 +111,7 @@
       "box": [132.656, 8, 241.375, 241],
       "class": "cluster undefined",
       "inner": null,
-      "label": { "text": "Pipeline", "box": [224.875, 8, 56.937, 24] }
+      "label": { "text": "Pipeline", "box": [224.875, 8, 56.938, 24] }
     }
   ],
   "edges": [

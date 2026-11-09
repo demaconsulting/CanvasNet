@@ -204,13 +204,15 @@ each part of its drawing (a rectangle drawn as a fill path and a stroke path wit
 lines of a label are united), each namespace rectangle and title, each edge as a flowchart edge is compared, each
 edge label's center, each terminal label's position, and the title's box. There is one exception:
 
-- **`16-config-title-links`**, 1 px. Its class texts are SVG text (`htmlLabels: false`), and Chrome takes the box of
-  SVG text from the glyphs it rasterizes at their place on the device pixel grid, so the same text measures
-  differently where the class box first measures it and where it is finally drawn (the name `Backend` is 66.922 px
-  wide in the first place and 66.89 px in the second). CanvasNet gives the advance, grown to the glyph outlines
-  rounded out to whole pixels. The text boxes differ by up to 0.88 px (the bold name `Gateway`), and the class boxes,
-  the node positions, the edges and the view box sized from them by up to 0.57 px. The vertical positions agree at
-  0.01 px.
+- **`16-config-title-links`**, 0.23 px. Its class texts are SVG text (`htmlLabels: false`). Chrome's `getBBox` of an
+  SVG text does not depend on where the text is: it is the advance, grown to the boxes its font rasterizer gives the
+  first and last glyphs, and CanvasNet grows it the same way (the rule of the sequence texts), so `Gateway`,
+  `+String name`, the method and `Docs` match at 0.01 px. The rasterizer's box of the bold `d` at 16 px reaches to
+  10 px, one pixel further than the rule gives (its outline ends at 8.72 px; the bold `s` at 8.24 px ends at 9 px
+  as the rule gives), so `Backend` is 66.922 px wide in Chrome and 66.695 px (the advance) in CanvasNet. The class box
+  of `Backend` is 0.227 px narrower, and the nodes and edges laid out beside it move by up to 0.06 px. The goldens are
+  read back at a scale of exactly 1: shown at its `max-width`, which is the view box width rounded to 0.001 px, the
+  diagram is scaled by about 0.99995, and Chrome then lays the SVG texts out about 0.03 px narrower.
 
 ### Class Fixtures
 

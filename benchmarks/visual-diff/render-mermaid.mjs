@@ -201,9 +201,33 @@ async function readBack(svgText, definition, picture) {
           .map((e) => [e.id, [e.startLabelRight || '', e.endLabelLeft || '']])),
       };
     }, definition);
+
+    // A diagram of the unified renderer other than a flowchart is read back at a scale of exactly 1: shown at its
+    // max-width (the view box width rounded to 0.001 px), Chrome lays its SVG texts out with a font scaled by about
+    // 0.99995, which narrows their boxes by up to 0.1 px. The view box is grown to whole pixels from the same origin,
+    // so nothing moves; extract reports the original view box, which is restored for the picture.
+    const viewBoxText = actors ? null : await page.$eval(`#${svgId}`, (element) => {
+      const text = element.getAttribute('viewBox');
+      if (/^flowchart/.test(element.getAttribute('aria-roledescription') ?? '') || !text) {
+        return null;
+      }
+      const [x, y, w, h] = text.trim().split(/[\s,]+/).map(Number);
+      element.dataset.layoutViewBox = text;
+      element.setAttribute('viewBox', `${x} ${y} ${Math.ceil(w)} ${Math.ceil(h)}`);
+      element.style.maxWidth = 'none';
+      element.style.width = `${Math.ceil(w)}px`;
+      element.style.height = `${Math.ceil(h)}px`;
+      return text;
+    });
     const layout = actors
       ? await page.evaluate(extractSequence, svgId, samples, actors)
       : await page.evaluate(extract, svgId, samples, shapes, terminalTexts);
+    if (viewBoxText) {
+      await page.$eval(`#${svgId}`, (element, text) => {
+        element.setAttribute('viewBox', text);
+        delete element.dataset.layoutViewBox;
+      }, viewBoxText);
+    }
     let png;
     if (picture) {
       // The picture is the view box rounded up to whole pixels (the natural size CanvasNet draws at), times the scale
@@ -328,7 +352,7 @@ function extract(id, count, shapes, terminalTexts) {
     }
   }
 
-  const viewBox = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(Number).map(round);
+  const viewBox = (svg.dataset.layoutViewBox ?? svg.getAttribute('viewBox')).trim().split(/[\s,]+/).map(Number).map(round);
   if (!extended) {
     return { viewBox, nodes, clusters, edges, edgeLabels };
   }

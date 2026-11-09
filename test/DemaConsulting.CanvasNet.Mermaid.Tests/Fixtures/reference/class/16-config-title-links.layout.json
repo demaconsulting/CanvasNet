@@ -4,11 +4,7 @@
   "mermaidCli": "11.16.0",
   "diagram": "classDiagram",
   "viewBox": [0, -47, 276.785, 310],
-  "title": {
-    "class": "classDiagramTitleText",
-    "text": "Configured class diagram",
-    "box": [47.732, -39.001, 181.322, 17.001]
-  },
+  "title": { "class": "classDiagramTitleText", "text": "Configured class diagram", "box": [47.682, -39, 181.422, 17] },
   "nodes": [
     {
       "id": "classId-Gateway-0",
@@ -24,7 +20,7 @@
           "tag": "g",
           "class": "label",
           "group": "label-group text",
-          "box": [104.936, 13.499, 66.882, 17.001],
+          "box": [104.936, 13.5, 66.914, 17],
           "text": "Gateway",
           "style": "font-weight: bolder"
         },
@@ -32,14 +28,14 @@
           "tag": "g",
           "class": "label",
           "group": "members-group text",
-          "box": [16, 46.499, 95.662, 17.001],
+          "box": [16, 46.5, 95.711, 17],
           "text": "+String name"
         },
         {
           "tag": "g",
           "class": "label",
           "group": "methods-group text",
-          "box": [16, 79.499, 211.218, 17.001],
+          "box": [16, 79.5, 211.328, 17],
           "text": "+route(Request r) : Response"
         },
         { "tag": "path", "class": null, "group": "divider", "box": [8, 41, 260.785, 0.001] },
@@ -60,7 +56,7 @@
           "tag": "g",
           "class": "label",
           "group": "label-group text",
-          "box": [30.395, 203.499, 66.89, 17.001],
+          "box": [30.395, 203.5, 66.922, 17],
           "text": "Backend",
           "style": "font-weight: bolder"
         },
@@ -82,7 +78,7 @@
           "tag": "g",
           "class": "label",
           "group": "label-group text",
-          "box": [193.316, 203.499, 39.21, 17.001],
+          "box": [193.316, 203.5, 39.227, 17],
           "text": "Docs",
           "style": "font-weight: bolder"
         },

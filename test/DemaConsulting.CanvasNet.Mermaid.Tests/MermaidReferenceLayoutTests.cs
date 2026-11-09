@@ -34,13 +34,13 @@ public class MermaidReferenceLayoutTests
     /// <summary>
     ///     The class diagram fixtures that need a looser tolerance, with the tolerance; the reasons are in
     ///     <c>Fixtures/reference/README.md</c>: <c>16-config-title-links</c> draws its class box texts as SVG text
-    ///     (<c>htmlLabels: false</c>), whose box Chrome takes from its rasterized glyphs at their place on the device
-    ///     pixel grid (the same text measures differently where the class box first measures it and where it is finally
-    ///     drawn), so the text boxes differ by up to 0.9 px and the boxes sized from them by up to 0.6 px.
+    ///     (<c>htmlLabels: false</c>), and Chrome's box of the bold <c>d</c> that ends <c>Backend</c> reaches one pixel
+    ///     further than the glyph box rule gives, so that class box is 0.227 px narrower and the boxes and edges laid out
+    ///     beside it move by up to 0.06 px.
     /// </summary>
     private static readonly Dictionary<string, double> ClassLooserTolerances = new(StringComparer.Ordinal)
     {
-        ["16-config-title-links"] = 1.0,
+        ["16-config-title-links"] = 0.23,
     };
 
     /// <summary>

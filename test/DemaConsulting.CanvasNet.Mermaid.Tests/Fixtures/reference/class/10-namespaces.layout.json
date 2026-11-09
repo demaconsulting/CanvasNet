@@ -82,7 +82,7 @@
     {
       "id": "classId-Vector-3",
       "shape": "classBox",
-      "x": 471.562,
+      "x": 471.563,
       "y": 370,
       "box": [435.102, 328, 72.922, 84],
       "class": "node default",
@@ -126,7 +126,7 @@
     {
       "id": "classId-Shallow-5",
       "shape": "classBox",
-      "x": 471.562,
+      "x": 471.563,
       "y": 118,
       "box": [429.336, 76, 84.453, 84],
       "class": "node default",

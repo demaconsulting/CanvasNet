@@ -339,7 +339,7 @@ The 16 original class fixtures are compared the same way (`Fixtures/reference/cl
 position and box and each part of each class box (annotation, name, members, methods, and dividers), the namespace
 rectangles and titles, every edge (its length and 21 sampled points), the edge label centers, the terminal label
 positions, and the title box, at 0.01 pixel; only `16-config-title-links`, the one fixture with SVG class texts, is
-compared at 1 pixel (item 27 below), and no class fixture is excluded.
+compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
 
 **Known and accepted differences from Mermaid:**
 
@@ -437,12 +437,12 @@ compared at 1 pixel (item 27 below), and no class fixture is excluded.
     `unset`, and `revert` take the root fill. Menus are not interactive: a menu is an empty group, as Mermaid's hidden
     menu draws nothing, but its size still grows the diagram; `forceMenus` draws it. Links and `details` are kept as
     data only.
-27. **Class SVG text measuring.** With `htmlLabels: false` (fixture `16-config-title-links`), Chrome takes the
-    `getBBox` of SVG text from the glyphs it rasterizes at their place on the device pixel grid, so the same text
-    measures differently in two places; the port grows the advance to the glyph outlines rounded out to whole pixels.
-    The widths differ by up to 0.9 pixel (`Gateway` in bold, 66 pixels against Chrome's 66.882), which moves the
-    class boxes, the edges, and the view box width by up to 0.6 pixel; the HTML labels of the default configuration
-    are not affected.
+27. **Class SVG text measuring.** With `htmlLabels: false` (fixture `16-config-title-links`), the port measures a
+    class text as Chrome's `getBBox` does, with the rule of the sequence texts: the advance, grown to the boxes the
+    font rasterizer gives the first and last glyphs. The rule takes those boxes from the glyph outlines, and Chrome's
+    rasterizer gives a few glyphs a box one pixel wider: the bold `d` that ends `Backend` reaches 10 pixels in Chrome
+    and 9 by the rule, so that class box is 0.227 pixel narrower and the nodes and edges beside it move by up to 0.06
+    pixel; the HTML labels of the default configuration are not affected.
 28. **Class reports.** A `style` or `classDef` declaration of a class that is ignored (`mermaid-style-ignored`) is
     located at the class's first mention, not at the statement, because the layout data carries no style locations.
     The links, tooltips, and callbacks of `link`, `click`, and `callback` are not reported: they are kept as data,

@@ -117,7 +117,9 @@ attributes. Any other diagram of Mermaid's unified renderer (a class diagram, `a
 gets the flowchart layout extended with the diagram type, the title, the drawn parts of each node (each shape and
 label of a class box, with the group that holds it, such as `label-group text` or `divider`), the label and inner
 rectangle of each cluster, the class and marker ids of each edge, and the terminal labels (cardinalities), each
-matched to its edge and end. A flowchart keeps the plain layout, so its goldens do not change. The format is
+matched to its edge and end. Such a diagram is read at a scale of exactly 1 (its view box grown to whole pixels from
+the same origin), because at its `max-width` Chrome scales it by about 0.99995 and lays its SVG texts out narrower. A
+flowchart keeps the plain layout, so its goldens do not change. The format is
 described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens

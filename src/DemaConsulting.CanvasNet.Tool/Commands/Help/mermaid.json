@@ -140,7 +140,7 @@
         { "text": "$$ math is drawn and measured as written (mermaid-math-unsupported), and textPlacement: fo (HTML labels) is drawn with the default placement." },
         { "text": "The color keywords and system colors of a box or a rect background take the values of headless Chrome in the light scheme (system colors depend on the platform in a browser)." },
         { "text": "The width of a text is the advance of its glyphs grown to the pixels its first and last glyphs reach, as Chrome measures it; for fonts or sizes other than those of the reference diagrams, a width can differ by a pixel, which can move the margins by up to a pixel." },
-        { "text": "With htmlLabels: false the texts of a class box are SVG text, whose box Chrome takes from the glyphs it draws at their place on the pixel grid, so such a class box can differ from Mermaid's by up to a pixel." },
+        { "text": "With htmlLabels: false the texts of a class box are SVG text, measured as Chrome measures them; Chrome's box of a few glyphs at the end of a text is a pixel wider, so such a class box can differ from Mermaid's by up to a pixel." },
         { "text": "Mermaid's fix-up of an SVG class text that holds &gt (a generic) is not ported; the entities are decoded instead, which gives the same characters for a text of one line." },
         { "text": "$$ math in a class text is drawn and measured as written, without a report." },
         { "text": "A style declaration of a class diagram outside the supported subset is reported at the first mention of the class, not at the style statement." }

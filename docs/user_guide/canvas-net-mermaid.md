@@ -465,8 +465,9 @@ drawn with HTML labels. The known differences from Mermaid are:
   in the light scheme (system colors depend on the platform in a browser). The width of a text is the advance of its
   glyphs grown to the pixels its first and last glyphs reach, as Chrome measures it; for fonts or sizes other than those
   of the reference diagrams, a width can differ by a pixel, which can move the margins by up to a pixel.
-- **Class diagrams.** With `htmlLabels: false` the texts of a class box are SVG text, whose box Chrome takes from the
-  glyphs it draws at their place on the pixel grid, so such a class box can differ from Mermaid's by up to a pixel.
+- **Class diagrams.** With `htmlLabels: false` the texts of a class box are SVG text, measured as Chrome measures
+  them; Chrome's box of a few glyphs at the end of a text is a pixel wider, so such a class box can differ from
+  Mermaid's by up to a pixel.
   Mermaid's fix-up of an SVG text that holds `&gt` (a generic) is not ported; the entities are decoded instead, which
   gives the same characters for a text of one line. `$$` math in a class text is drawn and measured as written, without
   a report. A `style` declaration outside the supported subset is reported at the first mention of the class, not at

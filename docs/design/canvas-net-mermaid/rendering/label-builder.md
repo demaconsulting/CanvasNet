@@ -70,7 +70,8 @@ wrap. The unit's behavior is specified by the
   words and `fa:` names kept as text), split to the wrapping width measured in the inherited root font size
   (`splitLineToFitWidth`, a word wider than it split at characters), baselines at `(1 + 1.1 i)` font sizes, centered on
   x 0 for node and edge labels, and a box from the rounded ascent above the first baseline to the rounded descent below
-  the last, widened to the glyph outlines rounded out to whole pixels, plus 2 pixels on every side with a background.
+  the last, widened to the boxes of the glyphs at the ends of each run (`SvgLineExtent`, the rule of the sequence
+  texts), plus 2 pixels on every side with a background.
   A word is bold when it is strong markdown or, with `SvgInheritsWeight`, when the label's font is bold, and is
   measured in that weight, so an inherited bold weight widens the line.
 - `MarkdownToHtml`, `MarkdownToLines`, `NonMarkdownToHtml`, `NonMarkdownToLines`, and `Dedent` - the functions of

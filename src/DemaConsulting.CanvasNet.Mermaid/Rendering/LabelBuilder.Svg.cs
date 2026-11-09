@@ -91,35 +91,26 @@ internal sealed partial class LabelBuilder
 
     /// <summary>
     ///     Gets the horizontal extent of a line's box as the browser's <c>getBBox</c> gives it: the advance, grown to
-    ///     the glyph outlines rounded out to whole pixels from the start of the line.
+    ///     the boxes of the glyphs at the ends of each run (<see cref="SvgLineExtent"/>, the rule of the sequence
+    ///     texts), each at its own origin.
     /// </summary>
     /// <param name="runs">The runs.</param>
     /// <param name="width">The advance of the line.</param>
     /// <returns>The left and right ends relative to the start of the line.</returns>
     private (double Left, double Right) InkExtent(List<LabelRun> runs, double width)
     {
-        var inkLeft = double.PositiveInfinity;
-        var inkRight = double.NegativeInfinity;
+        var left = 0.0;
+        var right = width;
         var pen = 0.0;
-        foreach (var run in runs.Where(run => run.Text.Length > 0 && (float)run.Font.Size > 0 && float.IsFinite((float)run.Font.Size)))
+        foreach (var run in runs)
         {
-            var face = Face(run.Font.Family, run.Font.Bold, run.Font.Italic);
-            var bounds = TextRenderer.CreateTextPath(run.Text, face, (float)run.Font.Size, (float)pen, 0).GetBounds(0.05f);
-            if (!bounds.IsEmpty)
-            {
-                inkLeft = Math.Min(inkLeft, bounds.X);
-                inkRight = Math.Max(inkRight, bounds.X + bounds.Width);
-            }
-
+            var (_, runLeft, runRight) = SvgLineExtent(run.Text, run.Font);
+            left = Math.Min(left, pen + runLeft);
+            right = Math.Max(right, pen + runRight);
             pen += run.Width;
         }
 
-        if (double.IsInfinity(inkLeft))
-        {
-            return (0, width);
-        }
-
-        return (Math.Min(0, Math.Floor(inkLeft)), Math.Max(width, Math.Ceiling(inkRight)));
+        return (left, right);
     }
 
     /// <summary>

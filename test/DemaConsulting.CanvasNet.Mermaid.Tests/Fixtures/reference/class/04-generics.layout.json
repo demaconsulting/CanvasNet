@@ -20,7 +20,7 @@
           "tag": "g",
           "class": "label",
           "group": "label-group text",
-          "box": [122.937, 214, 58.688, 24],
+          "box": [122.938, 214, 58.688, 24],
           "text": "Box<T>",
           "style": "font-weight: bolder"
         },
