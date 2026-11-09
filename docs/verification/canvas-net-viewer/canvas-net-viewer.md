@@ -59,6 +59,7 @@ null extra sources are rejected.
 **Tests**: `CanvasNetViewer_Render_PathNatural_ReturnsNaturalSizeAndFormat`,
 `CanvasNetViewer_Render_PathSized_ReturnsRequestedSize`,
 `CanvasNetViewer_Render_MaxDecodedPixels_IsPassedToTheResolver`,
+`CanvasNetViewer_Render_MermaidPictureEnlargingTheLayout_IsChargedAtTheDrawnSize`,
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`,
 `CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget`,
 `CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded`,
@@ -72,7 +73,10 @@ Asserts the natural size and format name, that disposing the result disposes the
 requested
 size and a raster fitted into the box (or scaled for one dimension), that `MaxDecodedPixels` reaches the resolver (null
 keeps the default, a cap that fits renders, a smaller cap throws `ImageSourceBudgetException`, a negative one is
-rejected), that a width or height of 0, -1, or `Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException`
+rejected), that a Mermaid diagram whose picture node without `w` and `h` (a 400 by 300 PNG) enlarges the layout is held
+to `MaxDecodedPixels` at its drawn size (300 000 pixels, enough for both picture loads and the probed size, throws
+`ImageSourceBudgetException`; 400 000 draws it larger than the probed size, about 416 by 316), that a width or height
+of 0, -1, or `Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException`
 (parameter `options`, message naming `ViewerRenderOptions.Width` or `Height`) before the file is read while 1 and
 `Surface.MaxDimension` pass the validation, that the final buffer of a resized render is charged to the budget in
 addition to the surface of the source (a 10 by 10 picture resized to 1 by 1 needs 101 pixels: a cap of 100 throws

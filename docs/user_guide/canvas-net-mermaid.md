@@ -246,7 +246,8 @@ another diagram. `MaxImages` bounds the pictures of one render.
 
 The size of a picture node follows Mermaid: `w` and `h` set the picture size, and with `constraint: "on"` the picture
 keeps its aspect ratio. Give a picture node its `w` and `h` so that the layout does not depend on the picture: the
-`canvasnet info` command and the Viewer's probe lay a diagram out without loading its pictures.
+`canvasnet info` command and the Viewer's probe lay a diagram out without loading its pictures. A Viewer load at the
+natural size reports and charges the size of the diagram it drew, with its pictures.
 
 ### Fonts, Determinism, and Known Differences
 

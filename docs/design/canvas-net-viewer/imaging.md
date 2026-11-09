@@ -124,7 +124,8 @@ pixels unless a size is given, with the variables and limits the options set; th
 directives name are read from the folder of the model and below it only. A chart is laid out by the library at its
 natural size, which the probe reports, and is drawn at the target size with UTC dates and only the bundled fonts over
 its own background (white by default); nothing is read from the network. A diagram is laid out by the library at its
-natural size, which the probe reports without loading the pictures of its nodes, and is drawn at that size times the
+natural size, which the probe reports without loading the pictures of its nodes (a load at that size charges and
+reports the size it drew), and is drawn at that size times the
 scale exactly where Mermaid places it, or fitted into the box of the size options, with only the bundled fonts over
 white (or the background given), in the theme the options or the fragment of the input choose; the pictures of its nodes
 are read through the same sandboxed resolver as those of an SVG file. A write is: resolve the format, check the target,

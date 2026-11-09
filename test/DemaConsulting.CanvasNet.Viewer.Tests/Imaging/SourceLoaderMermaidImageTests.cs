@@ -10,7 +10,8 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
 ///     files that lie beside it through the sandboxed resolver of the viewer, rooted at the folder of the diagram. The tests
 ///     draw diagrams whose pictures are a generated PNG, a model (<c>.scad</c>) and a chart (<c>.vl.json</c>), and the
 ///     failures (a link that leaves the folder, a remote URL, a missing file, a cycle, a broken file), and assert the pixels,
-///     the notes, the <c>embed</c> operations and the <c>--strict</c> policy.
+///     the notes, the <c>embed</c> operations and the <c>--strict</c> policy, and that a picture that enlarges a diagram drawn
+///     at its natural size is charged and reported at the drawn size.
 /// </summary>
 public class SourceLoaderMermaidImageTests
 {
@@ -221,5 +222,74 @@ public class SourceLoaderMermaidImageTests
         Assert.Equal(new Rgba32(255, 0, 0, 255), loaded.Surface[1, 1]);
         Assert.Empty(loaded.Diagnostics);
         Assert.Equal(["sub/flow.mmd"], Embeds(loaded));
+    }
+
+    /// <summary>
+    ///     Writes a 400 by 300 PNG and a diagram of one picture node without its <c>w</c> and <c>h</c>, which takes the size of
+    ///     the picture: the probe (without pictures) measures a small diagram, the draw a much larger one.
+    /// </summary>
+    /// <param name="directory">The folder of the files.</param>
+    /// <returns>The input of the diagram and its probe.</returns>
+    private static (SourceLoader.SourceInput Input, SourceInfo Probe) WriteEnlargingPicture(TempDirectory directory)
+    {
+        File.WriteAllBytes(directory.Combine("big.png"), ViewerFixtures.Png(400, 300, Green));
+        var path = FixtureFactory.WriteText(directory.Path, "big.mmd", "flowchart LR\n    p@{ img: \"big.png\" }\n");
+        var input = SourceLoader.SourceInput.FromFile(path);
+        return (input, SourceLoader.ProbeInput(input, SourceKind.Mermaid));
+    }
+
+    /// <summary>
+    ///     Test that a diagram drawn at its natural size whose picture node enlarges it is charged the pixels of the surface it
+    ///     returns, and reports the natural size of the drawn diagram rather than the size probed without the picture.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var (input, probe) = WriteEnlargingPicture(directory);
+        var charges = new List<(int Width, int Height)>();
+        var context = new SourceLoader.LoadContext { Charge = (w, h) => charges.Add((w, h)) };
+
+        // Act
+        using var pages = SourceLoader.OpenInputPages(input, probe, new SourceOptions(), context);
+        using var loaded = pages.ReadPage(1);
+
+        // Assert: the picture enlarged the diagram, every drawn pixel was charged, and the natural size is the drawn one
+        Assert.True((long)loaded.Surface.Width * loaded.Surface.Height > (long)probe.Width * probe.Height);
+        Assert.Equal((long)loaded.Surface.Width * loaded.Surface.Height, charges.Sum(c => (long)c.Width * c.Height));
+        Assert.Equal((loaded.Surface.Width, loaded.Surface.Height), (loaded.Info.Width, loaded.Info.Height));
+    }
+
+    /// <summary>
+    ///     Test that a diagram drawn at its natural size whose picture node enlarges it beyond the pixel budget is refused, even
+    ///     though the size the probe measured without the picture fits.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget()
+    {
+        // Arrange: a budget that holds the probed size but not the drawn one
+        using var directory = new TempDirectory();
+        var (input, probe) = WriteEnlargingPicture(directory);
+        const long Budget = 10_000;
+        Assert.True((long)probe.Width * probe.Height < Budget);
+        long charged = 0;
+        var context = new SourceLoader.LoadContext
+        {
+            Charge = (w, h) =>
+            {
+                var pixels = (long)w * h;
+                if (charged + pixels > Budget)
+                {
+                    throw new ImageSourceBudgetException(pixels, Budget - charged);
+                }
+
+                charged += pixels;
+            },
+        };
+        using var pages = SourceLoader.OpenInputPages(input, probe, new SourceOptions(), context);
+
+        // Act / Assert
+        Assert.Throws<ImageSourceBudgetException>(() => pages.ReadPage(1).Dispose());
     }
 }

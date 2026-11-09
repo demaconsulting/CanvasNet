@@ -798,7 +798,9 @@ chart, a page of a document, or another diagram, and nothing outside that folder
 missing file, a path outside the folder, a network URL) is the warning `svg-image-unresolved` with the reason, and
 `--strict` makes it a failure. The pictures that were drawn are listed as `embed` operations. `info` lays the diagram
 out without loading any picture, so give a picture node its `w` and `h`: otherwise the drawn diagram can be a little
-larger or smaller than the size `info` reports.
+larger or smaller than the size `info` reports. A render without `--width` and `--height` reports the natural size of
+the diagram it drew (`natural` in `render --json`), and a render that embeds the diagram charges its pixel budget for
+that drawn size.
 
 **Diagnostics and errors.** A construct the library recognizes but cannot draw (an icon, the `handDrawn` look, the
 `elk` layout, a `themeCSS` rule with an arbitrary selector) is left out and reported in `diagnostics` with its stable

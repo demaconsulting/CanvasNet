@@ -779,11 +779,15 @@ sections:
           report each note of the resolver once; report a link that was not drawn (including a diagram that shows
           itself) as the warning of the resolver (svg-image-unresolved) without the library's duplicate warning
           mermaid-image-unresolved for the same link; fail with unsupported-feature naming the diagram and the link for
-          such a link when the strict option is set; and name both files when a picture that is found cannot be loaded.
+          such a link when the strict option is set; name both files when a picture that is found cannot be loaded;
+          and, when a picture node without its w and h makes a diagram drawn at its natural size larger than the probe
+          measured, charge the load with the size of the surface it returns (refusing it when that does not fit) and
+          report the natural size of the drawn diagram.
         justification: |
           A diagram on the command line must show the files beside it exactly as an SVG drawing and a chart do, under
           the same sandbox, notes, and strict policy, so a diagram can never read a file outside its folder, and an
-          agent reads one note and one operation for each picture.
+          agent reads one note and one operation for each picture. The pixel budget must hold for the picture that is
+          returned, not for the size guessed without the pictures, and the reported natural size must describe it.
         tests:
           - SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations
           - SourceLoader_Load_MermaidPngPicture_FillsItsBox
@@ -791,6 +795,8 @@ sections:
           - SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused
           - SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles
           - SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture
+          - SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize
+          - SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartParameters
         title: >-
