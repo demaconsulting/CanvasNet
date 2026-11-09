@@ -1,0 +1,14 @@
+package CanvasNet {
+    part def MermaidFlowchart {
+        doc /* The internal subsystem in the DemaConsulting.CanvasNet.Mermaid.Flowchart namespace that reads and draws flowcharts (the flowchart and graph keywords, and flowchart-elk, which opens as a flowchart), the only diagram type of this release: a port of the flowchart diagram of the pinned Mermaid release. The FlowchartParser unit reads the preprocessed text with a port of the lexer of the generated flow.jison parser (its 122 rules and 21 start conditions as scanners that never backtrack) and a recursive-descent parser that accepts the language of its LALR(1) grammar, calls the model in the order Mermaid's parser calls its database, applies the clean-up of flowParser.ts, and refuses invalid text with a located MermaidSyntaxException that lists Mermaid's expected tokens, and subgraphs nested beyond MaxNestingDepth. The FlowchartModel unit is Mermaid's flowchart database (flowDb.ts): vertices, edges, subgraphs, classes, link styles, and accessibility texts with Mermaid's ids and merge rules, located errors for what Mermaid's database fails on, and the MaxEdges, MaxNodes, and MaxLabelLength limits; it gives the document its metadata, maps itself for each render to the layout input of the Rendering subsystem with that render's configuration (getData and the settings of flowRenderer-v3-unified.ts), reports looks, layouts, and icons it does not draw, and draws the diagram through the ClusterLayout with the frontmatter title and the view box grown by the diagram padding. A parsed model is immutable and safe for concurrent renders. As of this release, its constituent units are FlowchartParser and FlowchartModel. */
+
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartTests.cs (with the original fixtures test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/) */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/flowchart.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/flowchart.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/flowchart.yaml */
+        comment /* Within the CanvasNetMermaid system the Flowchart subsystem depends on the Syntax subsystem (scanner, mapped text, YAML subset reader, HTML sanitizer), the Configuration subsystem (effective configuration and style sheet), the Rendering subsystem (layout input, shape names, cluster layout, labels, node images), the Dagre subsystem (layout work meter), the Scenegraph subsystem (scene types), and the Graphlib subsystem (the JavaScript array-index rule); it is called by the document pipeline of the system. */
+
+        part flowchartParser : FlowchartParser;
+        part flowchartModel : FlowchartModel;
+    }
+}
