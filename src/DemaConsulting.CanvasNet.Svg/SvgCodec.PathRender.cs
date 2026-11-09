@@ -159,7 +159,7 @@ public static partial class SvgCodec
             return;
         }
 
-        var paint = ResolvePaint(state.Fill, state.FillOpacity * state.Opacity, localPath, transform, context);
+        var paint = ResolvePaint(state.Fill, state.FillOpacity * state.Opacity, localPath, transform, context, state);
         FillWithPaint(context.Surface, pixelPath, paint, state.FillRule);
     }
 
@@ -250,7 +250,7 @@ public static partial class SvgCodec
         object? paint = null;
         if (patternElement == null)
         {
-            paint = ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, localPath, transform, context);
+            paint = ResolvePaint(state.Stroke, state.StrokeOpacity * state.Opacity, localPath, transform, context, state);
             if (paint == null)
             {
                 return;

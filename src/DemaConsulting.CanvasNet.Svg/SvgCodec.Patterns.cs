@@ -263,10 +263,10 @@ public static partial class SvgCodec
             (string?)patternElement.Attribute("patternUnits"), "userSpaceOnUse", StringComparison.Ordinal);
         var placementTransform = patternUnitsIsUserSpace ? Matrix3x2.Identity : ComputeObjectBoundingBoxMap(referenceBounds);
 
-        var tileX = GetGradientCoordinateOrDefault(patternElement, "x", 0f);
-        var tileY = GetGradientCoordinateOrDefault(patternElement, "y", 0f);
-        var tileWidth = GetGradientCoordinateOrDefault(patternElement, "width", 0f);
-        var tileHeight = GetGradientCoordinateOrDefault(patternElement, "height", 0f);
+        var tileX = GetGradientCoordinateOrDefault(patternElement, "x", 0f, state, patternUnitsIsUserSpace);
+        var tileY = GetGradientCoordinateOrDefault(patternElement, "y", 0f, state, patternUnitsIsUserSpace);
+        var tileWidth = GetGradientCoordinateOrDefault(patternElement, "width", 0f, state, patternUnitsIsUserSpace);
+        var tileHeight = GetGradientCoordinateOrDefault(patternElement, "height", 0f, state, patternUnitsIsUserSpace);
         if (!float.IsFinite(tileWidth) || !float.IsFinite(tileHeight) || tileWidth <= 0f || tileHeight <= 0f)
         {
             return;
@@ -309,7 +309,7 @@ public static partial class SvgCodec
         // codec's sole guard against a pattern-reference cycle
         var tileBuffer = new Surface(tilePixelWidth, tilePixelHeight);
         var tileContext = context with { Surface = tileBuffer };
-        var tileBaseState = RenderState.Initial with
+        var tileBaseState = RenderState.InitialWithin(state) with
         {
             ViewportWidth = contentViewportWidth,
             ViewportHeight = contentViewportHeight

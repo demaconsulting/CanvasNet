@@ -409,9 +409,12 @@ public static partial class SvgCodec
     private static List<(string Property, string Value)> ParseDeclarationBlock(string text)
     {
         var result = new List<(string, string)>();
+        var sourceDeclarations = 0;
         foreach (var segment in SplitTopLevel(StripComments(text), ';'))
         {
-            if (result.Count >= MaxCssDeclarationsPerRule)
+            // The cap counts source declarations, not the longhands a shorthand expands to, so a
+            // 'font' shorthand costs one declaration exactly like any other
+            if (sourceDeclarations >= MaxCssDeclarationsPerRule)
             {
                 break;
             }
@@ -434,6 +437,29 @@ public static partial class SvgCodec
             var value = StripImportant(trimmed[(colonIndex + 1)..].Trim());
             if (property.Length == 0 || value.Length == 0)
             {
+                continue;
+            }
+
+            sourceDeclarations++;
+
+            // The 'font' shorthand is expanded in place into its longhands, so the cascade's
+            // existing last-declaration-wins and per-property specificity rules apply unchanged and
+            // the longhands the shorthand omits are reset to 'normal' as CSS requires. An invalid
+            // shorthand (or a system-font keyword) drops the whole declaration.
+            if (property == "font")
+            {
+                if (ExpandFontShorthand(value) is { } longhands)
+                {
+                    result.AddRange(longhands);
+                }
+
+                continue;
+            }
+
+            if (!IsValidFontLonghand(property, value, RenderState.Initial))
+            {
+                // An invalid font longhand is dropped at parse time, so it can never mask a valid
+                // value from a lower-precedence source (CSS Syntax 3); only font properties are filtered
                 continue;
             }
 

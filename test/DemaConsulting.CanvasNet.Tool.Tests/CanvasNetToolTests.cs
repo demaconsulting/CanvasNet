@@ -619,6 +619,49 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that the render command accepts CSS length units - the reported case, a
+    ///     <c>font-size="10px"</c> text that used to fail with <c>corrupt-input</c> - and converts a
+    ///     unit-bearing root size and shape size to user units (1in is 96).
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Render_SvgWithLengthUnits_RendersWithoutCorruptInput()
+    {
+        // Arrange: a 1in x 1in drawing with a red 0.5in square and px-sized black text over it
+        using var directory = new TempDirectory();
+        var svg = directory.Combine("units.svg");
+        File.WriteAllText(
+            svg,
+            "<svg xmlns='http://www.w3.org/2000/svg' width='1in' height='1in'>" +
+            "<rect x='0' y='0' width='0.5in' height='0.5in' fill='red'/>" +
+            "<text x='4' y='30' font-size='10px' fill='black' font-family='sans-serif'>Hamburg</text></svg>");
+        var output = directory.Combine("units.png");
+
+        // Act: run the render command as a real process
+        var exitCode = Runner.Run(out var text, "dotnet", _dllPath, "render", svg, "-o", output);
+
+        // Assert: success (no corrupt-input), a 96x96 image, the red square 48 wide, and dark text pixels
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("corrupt-input", text, StringComparison.Ordinal);
+        using var image = PngCodec.Load(output);
+        Assert.Equal((96, 96), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), image[40, 40]);
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[60, 60]);
+        var dark = 0;
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                if (image[x, y].R < 100 && image[x, y].G < 100)
+                {
+                    dark++;
+                }
+            }
+        }
+
+        Assert.True(dark > 0, "The rendered image has no dark pixels, so the 10px SVG text was not drawn.");
+    }
+
+    /// <summary>
     ///     Test that the render command writes exactly one JSON document with the documented keys when --json is given.
     /// </summary>
     [Fact]

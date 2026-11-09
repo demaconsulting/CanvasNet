@@ -48,7 +48,15 @@ public static partial class SvgCodec
         ///     CSS/SVG-defined basis for a <c>font-size</c> percentage, distinct from every
         ///     viewport-relative basis above.
         /// </summary>
-        FontSize
+        FontSize,
+
+        /// <summary>
+        ///     An objectBoundingBox fraction (gradient, pattern and mask coordinates in their default
+        ///     units mode): a <c>%</c> is a fraction of <c>1</c> (<c>50%</c> is <c>0.5</c>), and, as
+        ///     the SVG grammar for these attributes is <c>&lt;number&gt; | &lt;percentage&gt;</c>, a
+        ///     math expression may resolve to either a number or a length/percentage.
+        /// </summary>
+        Fraction
     }
 
     /// <summary>
@@ -77,6 +85,7 @@ public static partial class SvgCodec
         PercentageAxis.Vertical => state.ViewportHeight,
         PercentageAxis.Diagonal => ComputeDiagonalBasis(state.ViewportWidth, state.ViewportHeight),
         PercentageAxis.FontSize => state.FontSize,
+        PercentageAxis.Fraction => 1f,
         _ => throw new ArgumentOutOfRangeException(nameof(axis), axis, "Unrecognized percentage axis.")
     };
 
@@ -87,10 +96,9 @@ public static partial class SvgCodec
     /// <param name="axis">Which viewport-relative basis a trailing <c>%</c> resolves against.</param>
     /// <param name="defaultValue">The value to use if the attribute is absent. Defaults to <c>0</c>.</param>
     /// <returns>The parsed value.</returns>
-    /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number/percentage.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is present but parses to a non-finite value - see
-    ///     <see cref="ParseGeometryCoordinate"/>.
+    ///     Thrown when the attribute is present but is not a valid length, or resolves to a
+    ///     non-finite or over-magnitude value - see <see cref="ParseGeometryCoordinate"/>.
     /// </exception>
     private static float GetFloatAttribute(XElement element, string name, RenderState state, PercentageAxis axis, float defaultValue = 0f)
     {
@@ -104,10 +112,9 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state, supplying <paramref name="axis"/>'s resolution basis.</param>
     /// <param name="axis">Which viewport-relative basis a trailing <c>%</c> resolves against.</param>
     /// <returns>The parsed value, or <see langword="null"/> if the attribute is absent.</returns>
-    /// <exception cref="FormatException">Thrown when the attribute is present but not a valid number/percentage.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when the attribute is present but parses to a non-finite value - see
-    ///     <see cref="ParseGeometryCoordinate"/>.
+    ///     Thrown when the attribute is present but is not a valid length, or resolves to a
+    ///     non-finite or over-magnitude value - see <see cref="ParseGeometryCoordinate"/>.
     /// </exception>
     private static float? GetOptionalFloat(XElement element, string name, RenderState state, PercentageAxis axis)
     {
@@ -128,42 +135,42 @@ public static partial class SvgCodec
     /// <param name="state">The cascaded render state, supplying <paramref name="axis"/>'s resolution basis.</param>
     /// <param name="axis">Which viewport-relative basis a trailing <c>%</c> resolves against.</param>
     /// <returns>The parsed value, or <see langword="null"/> if <paramref name="raw"/> is <see langword="null"/>.</returns>
-    /// <exception cref="FormatException">Thrown when <paramref name="raw"/> is present but not a valid number/percentage.</exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="raw"/> is present but parses to a non-finite value - see
-    ///     <see cref="ParseGeometryCoordinate"/>.
+    ///     Thrown when <paramref name="raw"/> is present but is not a valid length, or resolves to
+    ///     a non-finite or over-magnitude value - see <see cref="ParseGeometryCoordinate"/>.
     /// </exception>
     private static float? GetOptionalFloat(string? raw, string name, RenderState state, PercentageAxis axis) =>
         raw == null ? null : ParseGeometryCoordinate(raw, name, state, axis);
 
     /// <summary>
-    ///     Parses a shape/text geometry attribute's numeric value, resolving a trailing <c>%</c>
-    ///     suffix against <paramref name="axis"/>'s current basis (see
-    ///     <see cref="ResolvePercentageBasis"/>) - unlike opacity-family attributes (see
-    ///     <see cref="ParseOpacityValue"/>), which are always basis-1 percentages of a
-    ///     <c>[0, 1]</c> range, and gradient coordinates/<c>stop</c> <c>offset</c> (see
-    ///     <see cref="ParsePercentOrNumber"/>), which are always resolved as basis-1 fractions of
-    ///     the gradient's own coordinate space - both unaffected by, and unrelated to, this method.
-    ///     Percentage resolution happens entirely inside <see cref="ParseCoordinate"/>'s own
-    ///     choke point, so its existing finite/magnitude guards still apply to the resolved pixel
-    ///     value, not just the pre-resolution percentage literal.
+    ///     Parses a shape/text geometry attribute's <c>&lt;length&gt;</c> value to user units: a
+    ///     bare number (user units), a number with a CSS unit (<c>px</c>, <c>pt</c>, <c>in</c>,
+    ///     <c>em</c>, <c>rem</c>, <c>vw</c>...), a percentage resolved against
+    ///     <paramref name="axis"/>'s current basis (see <see cref="ResolvePercentageBasis"/>), or a
+    ///     <c>calc()</c>/<c>min()</c>/<c>max()</c>/<c>clamp()</c> expression - see
+    ///     <see cref="TryResolveLength"/> for the grammar and conversions. Unlike opacity-family
+    ///     attributes (see <see cref="ParseOpacityValue"/>), which are always basis-1 percentages of
+    ///     a <c>[0, 1]</c> range, and gradient/pattern/mask coordinates and <c>stop</c>
+    ///     <c>offset</c>, which resolve against their own coordinate space (see
+    ///     <see cref="PercentageAxis.Fraction"/>), this method is the strict (class S) length parser.
+    ///     A math expression keeps its type: one that resolves to a number (<c>calc(1 + 1)</c>) is
+    ///     user units, like a literal number, because SVG 2 "Attribute syntax" (Types 4.2) inserts
+    ///     <c>&lt;number&gt;</c> into <c>&lt;length&gt;</c>/<c>&lt;length-percentage&gt;</c> for a
+    ///     presentation attribute; a mixed expression (<c>calc(1 + 1px)</c>, <c>calc(10% + 1)</c>)
+    ///     is rejected.
     /// </summary>
     /// <param name="raw">The raw attribute text.</param>
-    /// <param name="attributeName">The attribute's name (unused, retained for call-site clarity/future diagnostics).</param>
-    /// <param name="state">The cascaded render state, supplying <paramref name="axis"/>'s resolution basis.</param>
+    /// <param name="attributeName">The attribute's name, used in the error message.</param>
+    /// <param name="state">The cascaded render state, supplying unit and <paramref name="axis"/> bases.</param>
     /// <param name="axis">Which viewport-relative basis a trailing <c>%</c> resolves against.</param>
-    /// <returns>The parsed value.</returns>
-    /// <exception cref="FormatException">Propagates from <see cref="ParseCoordinate"/>.</exception>
+    /// <returns>The parsed value, in user units.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="raw"/> parses (after any percentage resolution) to a
-    ///     non-finite value or a value exceeding <see cref="MaxCoordinateMagnitude"/> - see
-    ///     <see cref="ParseCoordinate"/>.
+    ///     Thrown when <paramref name="raw"/> is not a valid length (including an unknown unit or a
+    ///     malformed math expression), or resolves to a non-finite value or a value exceeding
+    ///     <see cref="MaxCoordinateMagnitude"/>. Never a raw <see cref="FormatException"/>.
     /// </exception>
-    private static float ParseGeometryCoordinate(string raw, string attributeName, RenderState state, PercentageAxis axis)
-    {
-        _ = attributeName;
-        return ParseCoordinate(raw.Trim(), ResolvePercentageBasis(state, axis));
-    }
+    private static float ParseGeometryCoordinate(string raw, string attributeName, RenderState state, PercentageAxis axis) =>
+        ResolveLengthStrict(raw, attributeName, state, axis);
 
     /// <summary>
     ///     The maximum absolute magnitude a single coordinate/length value parsed by
@@ -211,31 +218,32 @@ public static partial class SvgCodec
     private const float MaxCoordinateMagnitude = 1_000_000f;
 
     /// <summary>
-    ///     Strictly parses a single coordinate/length/opacity-style numeric attribute value,
-    ///     resolving a trailing <c>%</c> against <paramref name="percentageBasis"/>.
+    ///     Strictly parses a single opacity-style numeric attribute value (a number or a percentage
+    ///     with a fixed basis), resolving a trailing <c>%</c> against <paramref name="percentageBasis"/>.
+    ///     Lengths with units go through <see cref="TryResolveLength"/> instead; this method keeps the
+    ///     opacity family's unit-less grammar (<c>fill-opacity</c>, <c>stroke-opacity</c>,
+    ///     <c>opacity</c>, <c>stop-opacity</c>).
     /// </summary>
     /// <param name="raw">The raw attribute text.</param>
     /// <param name="percentageBasis">The value a <c>100%</c> percentage resolves to.</param>
     /// <returns>The resolved value.</returns>
-    /// <exception cref="FormatException">
-    ///     Thrown when <paramref name="raw"/> (with any <c>%</c> suffix stripped) is not a valid
-    ///     number - propagates uncaught to this class's top-level <c>Load</c>/<c>GetInfo</c>
-    ///     boundary, which rewraps it as <see cref="InvalidDataException"/>.
-    /// </exception>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="raw"/> parses to a non-finite value (<c>NaN</c>,
-    ///     <c>Infinity</c>, or <c>-Infinity</c>) - such a value is syntactically a valid float but
-    ///     is never a meaningful coordinate/length/opacity, and would otherwise silently propagate
-    ///     into rendering or reported image size - or a finite value whose absolute magnitude
-    ///     exceeds <see cref="MaxCoordinateMagnitude"/>.
+    ///     Thrown when <paramref name="raw"/> (with any <c>%</c> suffix stripped) is not a valid
+    ///     number, parses to a non-finite value (<c>NaN</c>, <c>Infinity</c>, or <c>-Infinity</c>) -
+    ///     syntactically a valid float but never a meaningful opacity, and would otherwise silently
+    ///     propagate into rendering - or a finite value whose absolute magnitude exceeds
+    ///     <see cref="MaxCoordinateMagnitude"/>.
     /// </exception>
     private static float ParseCoordinate(string raw, float percentageBasis)
     {
         var trimmed = raw.Trim();
-        var value = trimmed.EndsWith('%')
-            ? float.Parse(trimmed[..^1], NumberStyles.Float, CultureInfo.InvariantCulture) / 100f * percentageBasis
-            : float.Parse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture);
+        var isPercentage = trimmed.EndsWith('%');
+        if (!float.TryParse(isPercentage ? trimmed[..^1] : trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidDataException($"The numeric value '{raw}' is not a valid number.");
+        }
 
+        var value = isPercentage ? parsed / 100f * percentageBasis : parsed;
         // Reject NaN/Infinity here rather than letting them silently propagate: they are valid
         // float literals but never a meaningful coordinate/length/opacity value
         if (!float.IsFinite(value))
@@ -310,55 +318,46 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Parses a <c>stroke-dasharray</c> attribute's whitespace/comma-separated number list,
-    ///     resolving a trailing <c>%</c> on any individual entry against
-    ///     <paramref name="percentageBasis"/> (the SVG specification's "diagonal" basis - see
-    ///     <see cref="PercentageAxis.Diagonal"/>) - a distinct parsing path from
-    ///     <see cref="ParseNumberList"/> (used by <c>viewBox</c>/transform-function arguments,
-    ///     neither of which is ever percentage-eligible per spec), since only this one caller
-    ///     needs per-entry percentage resolution.
+    ///     Parses a <c>stroke-dasharray</c> attribute's whitespace/comma-separated length list.
+    ///     Each entry is a full <c>&lt;length-percentage&gt; | &lt;number&gt;</c> (SVG 2 Painting: a
+    ///     number, a number with a CSS unit, a
+    ///     percentage resolved against the SVG specification's "diagonal" basis - see
+    ///     <see cref="PercentageAxis.Diagonal"/> - or a math function, where a number-typed result
+    ///     such as <c>calc(1 + 1)</c> is user units like a literal), resolved through
+    ///     <see cref="TryResolveLength"/> so the dash array honors exactly the same units as every
+    ///     other length. A distinct parsing path from <see cref="ParseNumberList"/> (used by
+    ///     <c>viewBox</c>/transform-function arguments, neither of which is a <c>&lt;length&gt;</c>
+    ///     per spec).
     /// </summary>
     /// <param name="raw">The raw, non-<see langword="null"/> list text (may be blank).</param>
-    /// <param name="percentageBasis">The value a <c>100%</c> entry resolves to.</param>
-    /// <returns>The parsed, percentage-resolved numbers, in order; empty if <paramref name="raw"/> is blank.</returns>
+    /// <param name="state">The cascaded state supplying the unit and diagonal-percentage bases.</param>
+    /// <returns>The parsed, resolved lengths in user units, in order; empty if <paramref name="raw"/> is blank.</returns>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when non-whitespace/comma content remains that does not form a valid number
-    ///     (matching <see cref="ParseNumberList"/>'s own message convention), when a resolved
-    ///     percentage entry is non-finite or exceeds <see cref="MaxCoordinateMagnitude"/> (mirroring
-    ///     <see cref="ParseCoordinate"/>'s own post-resolution guards, since this parser's own
-    ///     per-entry percentage math sits outside that choke point), or when more than
-    ///     <see cref="MaxNumberListLength"/> numbers are present.
+    ///     Thrown when non-whitespace/comma content remains that does not form a valid length
+    ///     (matching <see cref="ParseNumberList"/>'s own message convention), when an entry
+    ///     resolves to a non-finite or over-<see cref="MaxCoordinateMagnitude"/> value, or when more
+    ///     than <see cref="MaxNumberListLength"/> entries are present.
     /// </exception>
-    private static List<float> ParseDashArrayNumberList(string raw, float percentageBasis)
+    private static List<float> ParseDashArrayNumberList(string raw, RenderState state)
     {
         var numbers = new List<float>();
         var position = 0;
         while (true)
         {
+            // Distinguish "end of list" from "malformed entry": TryReadLengthListEntry returns
+            // false for both, but only a malformed entry leaves content after the separators
             SkipSeparators(raw, ref position);
             if (position >= raw.Length)
             {
                 break;
             }
 
-            if (!TryReadNumber(raw, ref position, out var value))
+            if (!TryReadLengthListEntry(raw, ref position, out var entry))
             {
                 throw new InvalidDataException($"Malformed number list: unexpected character at position {position}.");
             }
 
-            // A trailing '%' is not part of TryReadNumber's own number grammar (it stops at the
-            // first non-digit character), so it is recognized and consumed here instead, then the
-            // raw literal is rescaled against the diagonal basis - after which the same
-            // finite/magnitude guards ParseCoordinate applies to every other percentage-eligible
-            // attribute are re-applied explicitly, since this resolution happens outside that
-            // choke point.
-            if (position < raw.Length && raw[position] == '%')
-            {
-                position++;
-                value = ResolveDashArrayPercentage(raw, value, percentageBasis);
-            }
-
-            numbers.Add(value);
+            numbers.Add(ResolveLengthStrict(entry, "stroke-dasharray", state, PercentageAxis.Diagonal));
 
             // Charged incrementally - see ParseNumberList's identical rationale.
             if (numbers.Count > MaxNumberListLength)
@@ -368,31 +367,6 @@ public static partial class SvgCodec
         }
 
         return numbers;
-    }
-
-    /// <summary>
-    ///     Resolves one <c>stroke-dasharray</c> percentage entry against the diagonal basis,
-    ///     re-applying the finite/magnitude guards <see cref="ParseCoordinate"/> applies.
-    /// </summary>
-    /// <param name="raw">The raw list text, for error messages.</param>
-    /// <param name="value">The entry's literal value (the number before the <c>%</c>).</param>
-    /// <param name="percentageBasis">The value a <c>100%</c> entry resolves to.</param>
-    /// <returns>The resolved value.</returns>
-    /// <exception cref="InvalidDataException">Thrown when the resolved value is non-finite or exceeds <see cref="MaxCoordinateMagnitude"/>.</exception>
-    private static float ResolveDashArrayPercentage(string raw, float value, float percentageBasis)
-    {
-        var resolved = value / 100f * percentageBasis;
-        if (!float.IsFinite(resolved))
-        {
-            throw new InvalidDataException($"The stroke-dasharray percentage value '{raw}' is not a finite number.");
-        }
-
-        if (MathF.Abs(resolved) > MaxCoordinateMagnitude)
-        {
-            throw new InvalidDataException($"The stroke-dasharray percentage value '{raw}' exceeds the maximum supported magnitude.");
-        }
-
-        return resolved;
     }
 
     /// <summary>

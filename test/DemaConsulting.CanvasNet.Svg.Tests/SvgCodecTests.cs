@@ -1420,6 +1420,78 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves an omitted <c>x2</c> of a <c>userSpaceOnUse</c> linear gradient is <c>100%</c> of the
+    ///     viewport width (SVG 2, Paint Servers) - the same basis an explicit <c>x2="100%"</c> uses -
+    ///     rather than the single user unit <c>1</c>, and that the default
+    ///     <c>objectBoundingBox</c> mode (a fraction of <c>1</c>) is unchanged.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_LinearGradientUserSpaceOnUseOmittedX2_SpansViewportWidth()
+    {
+        // Arrange: a 200x100 viewport so the width basis (200) differs from the height basis (100)
+        const string Template = """
+            <svg viewBox='0 0 200 100'>
+              <defs>
+                <linearGradient id='g' {0}>
+                  <stop offset='0' stop-color='black'/>
+                  <stop offset='1' stop-color='white'/>
+                </linearGradient>
+              </defs>
+              <rect width='200' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var omitted = SvgLengthTestSupport.Render(string.Format(Template, "gradientUnits='userSpaceOnUse'"), 200, 100);
+        var explicitPercent = SvgLengthTestSupport.Render(string.Format(Template, "gradientUnits='userSpaceOnUse' x2='100%'"), 200, 100);
+        var boundingBoxOmitted = SvgLengthTestSupport.Render(string.Format(Template, string.Empty), 200, 100);
+        var boundingBoxExplicit = SvgLengthTestSupport.Render(string.Format(Template, "x2='1'"), 200, 100);
+
+        // Assert: black at the left, mid-gray at half the width, white at the right; same as explicit 100%
+        Assert.InRange((int)omitted[50, 50].R, 50, 78);
+        Assert.InRange((int)omitted[100, 50].R, 116, 140);
+        Assert.InRange((int)omitted[150, 50].R, 178, 205);
+        Assert.True(SvgLengthTestSupport.AreIdentical(explicitPercent, omitted));
+        Assert.True(SvgLengthTestSupport.AreIdentical(boundingBoxExplicit, boundingBoxOmitted));
+    }
+
+    /// <summary>
+    ///     Proves omitted <c>cx</c>, <c>cy</c> and <c>r</c> of a <c>userSpaceOnUse</c> radial gradient
+    ///     are <c>50%</c> of the viewport width, height and diagonal basis (SVG 2, Paint Servers), so the
+    ///     gradient renders exactly like the explicit <c>50%</c> values, and the focal point follows an
+    ///     explicit center.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_RadialGradientUserSpaceOnUseOmittedCenterAndRadius_UsesHalfViewport()
+    {
+        // Arrange: a 200x100 viewport, so the center is (100, 50) rather than (0.5, 0.5)
+        const string Template = """
+            <svg viewBox='0 0 200 100'>
+              <defs>
+                <radialGradient id='g' gradientUnits='userSpaceOnUse' {0}>
+                  <stop offset='0' stop-color='white'/>
+                  <stop offset='1' stop-color='black'/>
+                </radialGradient>
+              </defs>
+              <rect width='200' height='100' fill='url(#g)'/>
+            </svg>
+            """;
+
+        // Act
+        var omitted = SvgLengthTestSupport.Render(string.Format(Template, string.Empty), 200, 100);
+        var explicitPercent = SvgLengthTestSupport.Render(string.Format(Template, "cx='50%' cy='50%' r='50%'"), 200, 100);
+        var implicitFocus = SvgLengthTestSupport.Render(string.Format(Template, "cx='150' cy='25' r='20'"), 200, 100);
+        var explicitFocus = SvgLengthTestSupport.Render(string.Format(Template, "cx='150' cy='25' r='20' fx='150' fy='25'"), 200, 100);
+
+        // Assert: the center is white and the far corner black, the same as the explicit percentages;
+        // the omitted focal point is the explicit center
+        Assert.True(omitted[100, 50].R > 240);
+        Assert.True(omitted[0, 0].R < 20);
+        Assert.True(SvgLengthTestSupport.AreIdentical(explicitPercent, omitted));
+        Assert.True(SvgLengthTestSupport.AreIdentical(explicitFocus, implicitFocus));
+    }
+
+    /// <summary>
     ///     Proves that a <c>radialGradient</c> with a negative <c>r</c> - below
     ///     <see cref="DemaConsulting.CanvasNet.Drawing.RadialGradient"/>'s documented contract of
     ///     "finite and greater than or equal to zero" - falls back to the default radius
@@ -10645,6 +10717,38 @@ public class SvgCodecTests
 
         // Assert: the pattern fill painted nothing at all - the background rect remains visible -
         // and no exception was thrown
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
+    }
+
+    /// <summary>
+    ///     Pins the declined review finding: a <c>pattern</c> that omits <c>width</c>/<c>height</c>
+    ///     uses the SVG 2 initial value <c>0</c>, which disables rendering (SVG 2, Paint Servers:
+    ///     "A value of zero disables rendering of the element"), in either units mode.
+    /// </summary>
+    /// <param name="units">The <c>patternUnits</c> attribute (or none for the default).</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("patternUnits='userSpaceOnUse'")]
+    public void SvgCodec_Load_PatternWithoutWidthHeight_PaintsNothing(string units)
+    {
+        // Arrange
+        var svg = $"""
+            <svg viewBox='0 0 10 10'>
+              <defs>
+                <pattern id='p' {units}>
+                  <rect x='0' y='0' width='10' height='10' fill='rgb(0,255,0)'/>
+                </pattern>
+              </defs>
+              <rect x='0' y='0' width='10' height='10' fill='rgb(255,0,0)'/>
+              <rect x='0' y='0' width='10' height='10' fill='url(#p)'/>
+            </svg>
+            """;
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 10, 10);
+
+        // Assert: the pattern painted nothing, so the background rect remains visible
         Assert.Equal(new Rgba32(255, 0, 0, 255), surface[5, 5]);
     }
 

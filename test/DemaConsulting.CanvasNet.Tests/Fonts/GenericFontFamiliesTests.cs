@@ -103,4 +103,53 @@ public class GenericFontFamiliesTests
         Assert.Empty(GenericFontFamilies.SplitFamilyList("   "));
         Assert.Empty(GenericFontFamilies.SplitFamilyList(null));
     }
+
+    /// <summary>
+    ///     Proves CSS backslash escapes are decoded: an escaped quote or comma neither ends a string nor splits the
+    ///     list, an escaped backslash is a backslash, a hexadecimal escape (with its one optional trailing white-space
+    ///     character) is that code point, an invalid code point becomes U+FFFD, and a trailing lone backslash is dropped.
+    /// </summary>
+    [Fact]
+    public void GenericFontFamilies_SplitFamilyList_HonorsBackslashEscapes()
+    {
+        Assert.Equal(["Say \"hi\"", "serif"], GenericFontFamilies.SplitFamilyList("\"Say \\\"hi\\\"\", serif"));
+        Assert.Equal(["It's"], GenericFontFamilies.SplitFamilyList("'It\\'s'"));
+        Assert.Equal(["Acme, Sans", "serif"], GenericFontFamilies.SplitFamilyList("Acme\\, Sans, serif"));
+        Assert.Equal(["a\\b"], GenericFontFamilies.SplitFamilyList("\"a\\\\b\""));
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\\41 cme"));
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\\000041cme"));
+        Assert.Equal(["A\u00E9"], GenericFontFamilies.SplitFamilyList("\"A\\e9\""));
+        Assert.Equal(["\uFFFD"], GenericFontFamilies.SplitFamilyList("\\110000"));
+        Assert.Equal(["abc"], GenericFontFamilies.SplitFamilyList("abc\\"));
+    }
+
+    /// <summary>
+    ///     Proves a backslash before a newline (line feed, carriage return, form feed or CR LF) is a line
+    ///     continuation inside a quoted string - it contributes nothing - and an invalid escape outside one, which
+    ///     makes the whole list empty; and that the white space a hexadecimal escape consumes is CSS white space
+    ///     (CR LF as one unit), not a no-break space.
+    /// </summary>
+    [Fact]
+    public void GenericFontFamilies_SplitFamilyList_HandlesBackslashNewline()
+    {
+        // Line continuation inside strings: every newline form joins the lines, CR LF as one
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\nBar\""));
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\rBar\""));
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\fBar\""));
+        Assert.Equal(["FooBar"], GenericFontFamilies.SplitFamilyList("\"Foo\\\r\nBar\""));
+        Assert.Equal(["AB", "serif"], GenericFontFamilies.SplitFamilyList("'A\\\nB', serif"));
+
+        // Not a valid escape in an identifier: the whole list is invalid
+        Assert.Empty(GenericFontFamilies.SplitFamilyList("Foo\\\nBar, serif"));
+        Assert.Empty(GenericFontFamilies.SplitFamilyList("serif, Foo\\\r\nBar"));
+
+        // A hexadecimal escape consumes one CSS white space (CR LF is one), and nothing else
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\"\\41\r\ncme\""));
+        Assert.Equal(["Acme"], GenericFontFamilies.SplitFamilyList("\"\\41\tcme\""));
+        Assert.Equal(["A\u00A0cme"], GenericFontFamilies.SplitFamilyList("\"\\41\u00A0cme\""));
+        Assert.Equal(["A\u2028cme"], GenericFontFamilies.SplitFamilyList("\"\\41\u2028cme\""));
+
+        // The existing trailing lone backslash behavior is unchanged
+        Assert.Equal(["abc"], GenericFontFamilies.SplitFamilyList("abc\\"));
+    }
 }

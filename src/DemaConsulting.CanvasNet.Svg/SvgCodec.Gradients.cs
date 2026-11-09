@@ -32,6 +32,7 @@ public static partial class SvgCodec
     /// <param name="localPath">The shape's local-space outline, used as the object-bounding-box basis.</param>
     /// <param name="elementTransform">The accumulated transform from local space into pixel space.</param>
     /// <param name="context">The fixed per-document render context.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a coordinate written with a CSS unit.</param>
     /// <returns>
     ///     The resolved <see cref="Gradient"/>, or <see langword="null"/> if it resolves to zero
     ///     stops (tolerated as "no paint"), <paramref name="element"/> is not itself a
@@ -56,7 +57,8 @@ public static partial class SvgCodec
         float alphaMultiplier,
         Path localPath,
         Matrix3x2 elementTransform,
-        RenderContext context)
+        RenderContext context,
+        RenderState state)
     {
         var stops = ApplyAlphaToStops(ResolveGradientStops(element, context), alphaMultiplier);
         if (stops.Count == 0)
@@ -82,8 +84,8 @@ public static partial class SvgCodec
 
         return element.Name.LocalName switch
         {
-            "linearGradient" => BuildLinearGradient(element, stops, spread, transform),
-            "radialGradient" => BuildRadialGradient(element, stops, spread, transform),
+            "linearGradient" => BuildLinearGradient(element, stops, spread, transform, state, isUserSpace),
+            "radialGradient" => BuildRadialGradient(element, stops, spread, transform, state, isUserSpace),
             _ => null
         };
     }
@@ -265,17 +267,76 @@ public static partial class SvgCodec
     /// <param name="element">The gradient element to inspect.</param>
     /// <param name="name">The attribute name to read.</param>
     /// <param name="fallback">The value to use if the attribute is absent or unparseable.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a value written with a CSS unit or a percentage.</param>
+    /// <param name="isUserSpaceOnUse">
+    ///     <see langword="true"/> when the paint server's units mode is <c>userSpaceOnUse</c>.
+    /// </param>
     /// <returns>The resolved coordinate value.</returns>
     /// <remarks>
-    ///     A <c>%</c> suffix is always resolved as a fraction of <c>1</c> (matching the
-    ///     objectBoundingBox unit convention), even in <c>userSpaceOnUse</c> mode, where a
-    ///     percentage should properly resolve against the current viewport - a documented,
-    ///     bounded simplification.
+    ///     A plain percentage and a percentage inside a math function resolve against the same
+    ///     basis (SVG 2, Paint Servers: <c>gradientUnits</c>/<c>patternUnits</c>). Under
+    ///     <c>objectBoundingBox</c> (the default) a <c>%</c> is a fraction of <c>1</c> (see
+    ///     <see cref="PercentageAxis.Fraction"/>). Under <c>userSpaceOnUse</c> a <c>%</c> is relative to the current viewport on
+    ///     the attribute's own axis: width for <c>x</c>/<c>x1</c>/<c>x2</c>/<c>cx</c>/<c>fx</c>/<c>width</c>,
+    ///     height for the <c>y</c> family and <c>height</c>, and the diagonal basis for <c>r</c>/<c>fr</c>.
+    ///     A value with a CSS unit (<c>px</c>, <c>em</c>...) or a math function is converted to
+    ///     user units whatever the units mode (SVG forbids units under <c>objectBoundingBox</c>;
+    ///     converting rather than rejecting is the tolerant choice). A number-typed math expression
+    ///     (<c>calc(1 + 1)</c>) is a number, so it resolves like a literal in either mode (SVG 2
+    ///     "Attribute syntax", Types 4.2); an unrecognized value - including a mixed-type math
+    ///     expression - falls back like any other unparseable one. The caller computes percentage
+    ///     initial values (<c>x2</c> <c>100%</c>, <c>cx</c> <c>50%</c>...) with
+    ///     <see cref="GetPaintServerDefault"/> so an omitted attribute uses the same basis as an
+    ///     explicit percentage.
     /// </remarks>
-    private static float GetGradientCoordinateOrDefault(XElement element, string name, float fallback)
+    private static float GetGradientCoordinateOrDefault(
+        XElement element, string name, float fallback, RenderState state, bool isUserSpaceOnUse)
     {
         var raw = (string?)element.Attribute(name);
-        return raw == null ? fallback : ParsePercentOrNumber(raw, 1f) ?? fallback;
+        return raw != null &&
+               TryResolveLength(raw, state, GetPaintServerAxis(name, isUserSpaceOnUse), out var value, out _, enforceMagnitude: false)
+            ? value
+            : fallback;
+    }
+
+    /// <summary>
+    ///     Computes the value of an omitted paint-server coordinate attribute whose initial value is a
+    ///     percentage, against the same basis an explicit percentage in that attribute would use.
+    /// </summary>
+    /// <param name="name">The attribute name (<c>x2</c>, <c>cx</c>, <c>r</c>...).</param>
+    /// <param name="fraction">The initial value as a fraction (<c>1</c> for <c>100%</c>, <c>0.5</c> for <c>50%</c>).</param>
+    /// <param name="state">The referencing element's cascaded state, supplying the viewport.</param>
+    /// <param name="isUserSpaceOnUse"><see langword="true"/> when the paint server's units mode is <c>userSpaceOnUse</c>.</param>
+    /// <returns>
+    ///     <paramref name="fraction"/> itself under <c>objectBoundingBox</c> (the basis is <c>1</c>), or
+    ///     <paramref name="fraction"/> times the viewport width, height or diagonal basis under
+    ///     <c>userSpaceOnUse</c> (SVG 2, Paint Servers: initial values are percentages).
+    /// </returns>
+    private static float GetPaintServerDefault(string name, float fraction, RenderState state, bool isUserSpaceOnUse) =>
+        fraction * ResolvePercentageBasis(state, GetPaintServerAxis(name, isUserSpaceOnUse));
+
+    /// <summary>
+    ///     Selects the percentage axis for a gradient/pattern/mask-region coordinate attribute.
+    /// </summary>
+    /// <param name="name">The attribute name (<c>x1</c>, <c>cy</c>, <c>r</c>, <c>width</c>...).</param>
+    /// <param name="isUserSpaceOnUse">
+    ///     <see langword="true"/> for <c>userSpaceOnUse</c>; <see langword="false"/> for
+    ///     <c>objectBoundingBox</c>, where every attribute uses <see cref="PercentageAxis.Fraction"/>.
+    /// </param>
+    /// <returns>The axis a <c>%</c> in this attribute resolves against.</returns>
+    private static PercentageAxis GetPaintServerAxis(string name, bool isUserSpaceOnUse)
+    {
+        if (!isUserSpaceOnUse)
+        {
+            return PercentageAxis.Fraction;
+        }
+
+        return name switch
+        {
+            "x" or "x1" or "x2" or "cx" or "fx" or "width" => PercentageAxis.Horizontal,
+            "y" or "y1" or "y2" or "cy" or "fy" or "height" => PercentageAxis.Vertical,
+            _ => PercentageAxis.Diagonal
+        };
     }
 
     /// <summary>
@@ -298,31 +359,44 @@ public static partial class SvgCodec
     /// <param name="element">The gradient element to inspect.</param>
     /// <param name="name">The attribute name to read (<c>r</c> or <c>fr</c>).</param>
     /// <param name="fallback">The value to use if the attribute is absent, unparseable, or negative.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a value written with a CSS unit or a percentage.</param>
+    /// <param name="isUserSpaceOnUse"><see langword="true"/> when the gradient's units mode is <c>userSpaceOnUse</c>.</param>
     /// <returns>The resolved, non-negative radius value.</returns>
-    private static float GetGradientRadiusOrDefault(XElement element, string name, float fallback)
+    private static float GetGradientRadiusOrDefault(
+        XElement element, string name, float fallback, RenderState state, bool isUserSpaceOnUse)
     {
-        var value = GetGradientCoordinateOrDefault(element, name, fallback);
+        var value = GetGradientCoordinateOrDefault(element, name, fallback, state, isUserSpaceOnUse);
         return value >= 0f ? value : fallback;
     }
 
     /// <summary>Builds a <c>linearGradient</c> element's <see cref="LinearGradient"/>.</summary>
+    /// <remarks>
+    ///     The omitted-attribute defaults are the specification's percentages (<c>x1</c> <c>0%</c>,
+    ///     <c>y1</c> <c>0%</c>, <c>x2</c> <c>100%</c>, <c>y2</c> <c>0%</c>) against the same basis as
+    ///     an explicit percentage, so under <c>userSpaceOnUse</c> an omitted <c>x2</c> is the viewport
+    ///     width (see <see cref="GetPaintServerDefault"/>).
+    /// </remarks>
     /// <param name="element">The <c>linearGradient</c> element.</param>
     /// <param name="stops">The resolved, alpha-adjusted color stops.</param>
     /// <param name="spread">The resolved spread method.</param>
     /// <param name="transform">The combined gradient-to-pixel-space transform.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a coordinate written with a CSS unit or a percentage.</param>
+    /// <param name="isUserSpaceOnUse"><see langword="true"/> when the gradient's units mode is <c>userSpaceOnUse</c>.</param>
     /// <returns>The built gradient.</returns>
     private static LinearGradient BuildLinearGradient(
         XElement element,
         IReadOnlyList<GradientStop> stops,
         GradientSpread spread,
-        Matrix3x2 transform)
+        Matrix3x2 transform,
+        RenderState state,
+        bool isUserSpaceOnUse)
     {
         var start = new Vector2(
-            GetGradientCoordinateOrDefault(element, "x1", 0f),
-            GetGradientCoordinateOrDefault(element, "y1", 0f));
+            GetGradientCoordinateOrDefault(element, "x1", 0f, state, isUserSpaceOnUse),
+            GetGradientCoordinateOrDefault(element, "y1", 0f, state, isUserSpaceOnUse));
         var end = new Vector2(
-            GetGradientCoordinateOrDefault(element, "x2", 1f),
-            GetGradientCoordinateOrDefault(element, "y2", 0f));
+            GetGradientCoordinateOrDefault(element, "x2", GetPaintServerDefault("x2", 1f, state, isUserSpaceOnUse), state, isUserSpaceOnUse),
+            GetGradientCoordinateOrDefault(element, "y2", 0f, state, isUserSpaceOnUse));
 
         return new LinearGradient(start, end, stops, spread, transform);
     }
@@ -332,24 +406,31 @@ public static partial class SvgCodec
     /// <param name="stops">The resolved, alpha-adjusted color stops.</param>
     /// <param name="spread">The resolved spread method.</param>
     /// <param name="transform">The combined gradient-to-pixel-space transform.</param>
+    /// <param name="state">The referencing element's cascaded state, used to resolve a coordinate written with a CSS unit or a percentage.</param>
+    /// <param name="isUserSpaceOnUse"><see langword="true"/> when the gradient's units mode is <c>userSpaceOnUse</c>.</param>
     /// <returns>The built gradient.</returns>
     /// <remarks>
-    ///     The focal point (<c>fx</c>/<c>fy</c>) defaults to the end circle's own center
-    ///     (<c>cx</c>/<c>cy</c>) per the SVG specification, and the focal radius (<c>fr</c>,
-    ///     SVG 2) defaults to zero.
+    ///     The center (<c>cx</c>/<c>cy</c>) and radius (<c>r</c>) default to <c>50%</c> (SVG 2, Paint
+    ///     Servers), resolved against the same basis as an explicit percentage: <c>0.5</c> under
+    ///     <c>objectBoundingBox</c>, half the viewport width, height and diagonal basis under
+    ///     <c>userSpaceOnUse</c> (see <see cref="GetPaintServerDefault"/>). The focal point
+    ///     (<c>fx</c>/<c>fy</c>) defaults to the end circle's own center (<c>cx</c>/<c>cy</c>) per the SVG
+    ///     specification, and the focal radius (<c>fr</c>, SVG 2) defaults to zero.
     /// </remarks>
     private static RadialGradient BuildRadialGradient(
         XElement element,
         IReadOnlyList<GradientStop> stops,
         GradientSpread spread,
-        Matrix3x2 transform)
+        Matrix3x2 transform,
+        RenderState state,
+        bool isUserSpaceOnUse)
     {
-        var cx = GetGradientCoordinateOrDefault(element, "cx", 0.5f);
-        var cy = GetGradientCoordinateOrDefault(element, "cy", 0.5f);
-        var r = GetGradientRadiusOrDefault(element, "r", 0.5f);
-        var fx = GetGradientCoordinateOrDefault(element, "fx", cx);
-        var fy = GetGradientCoordinateOrDefault(element, "fy", cy);
-        var fr = GetGradientRadiusOrDefault(element, "fr", 0f);
+        var cx = GetGradientCoordinateOrDefault(element, "cx", GetPaintServerDefault("cx", 0.5f, state, isUserSpaceOnUse), state, isUserSpaceOnUse);
+        var cy = GetGradientCoordinateOrDefault(element, "cy", GetPaintServerDefault("cy", 0.5f, state, isUserSpaceOnUse), state, isUserSpaceOnUse);
+        var r = GetGradientRadiusOrDefault(element, "r", GetPaintServerDefault("r", 0.5f, state, isUserSpaceOnUse), state, isUserSpaceOnUse);
+        var fx = GetGradientCoordinateOrDefault(element, "fx", cx, state, isUserSpaceOnUse);
+        var fy = GetGradientCoordinateOrDefault(element, "fy", cy, state, isUserSpaceOnUse);
+        var fr = GetGradientRadiusOrDefault(element, "fr", 0f, state, isUserSpaceOnUse);
 
         return new RadialGradient(new Vector2(fx, fy), fr, new Vector2(cx, cy), r, stops, spread, transform);
     }

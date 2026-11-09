@@ -131,6 +131,17 @@ whose `width` is a percentage value, through the public API. Asserts the rendere
 the viewport-relative resolved width, confirming percentage resolution integrates correctly with
 shape geometry.
 
+### Integration: Svg Length Units Accepts Font Size Px And Converts Inches
+
+**Test**: `CanvasNetSvg_SystemIntegration_SvgLengthUnits_AcceptsFontSizePxAndConvertsInches`
+
+Exercises end-to-end system behavior for CSS length units through the public API: rasterizes a
+document with a `1in` by `1in` `rect` and a `font-size="10px"` text (the reported defect, which used
+to fail with invalid numeric data). Asserts the rect fills exactly 96 by 96 user units, the text
+renders as a glyph of the 10 pixel size, and `GetInfo` reports a `2in` by `1in` root as 192 by 96.
+The Tool-level regression `CanvasNetTool_Render_SvgWithLengthUnits_RendersWithoutCorruptInput` renders
+the same kind of document through `canvasnet render` and asserts success without `corrupt-input`.
+
 ### Integration: Svg Get Info Returns View Box Dimensions
 
 **Test**: `CanvasNetSvg_SystemIntegration_SvgGetInfo_ReturnsViewBoxDimensions`

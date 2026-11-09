@@ -310,6 +310,34 @@ sections:
           - SvgCodec_Load_FontSizePercentage_ResolvesAgainstParentFontSize
           - SvgCodec_Load_StrokeDasharrayPercentage_ResolvesAgainstDiagonalBasis
 
+      - id: CanvasNetSvg-Lib-SvgLengthUnits
+        title: >-
+          The library shall accept CSS length units (px, pt, pc, in, cm, mm, Q, em, ex, ch, rem,
+          lh, rlh, vw, vh, vmin, vmax), calc() and its min/max/clamp siblings on every SVG length
+          (a math result that is a number being user units where SVG 2 allows a number, and a
+          mixed number-and-length result being malformed)
+          and shall read font-size (lengths, keywords, and the font shorthand) from attributes,
+          style, and stylesheets, converting each to user units rather than rejecting a document
+          that uses them (for example font-size="10px"), with a consistent malformed-value policy.
+        tags: [system]
+        justification: |
+          Real SVG documents - notably Vega and Vega-Lite output with font-size="10px" - use
+          units and font shorthands. A document that a browser renders must not be rejected as
+          corrupt, and a unit must convert (1in is 96 user units) instead of being stripped.
+        children:
+          - CanvasNetSvg-SvgCodec-LengthUnitsResolved
+          - CanvasNetSvg-SvgCodec-FontSizeSourcesAndKeywords
+          - CanvasNetSvg-SvgCodec-LengthMath
+          - CanvasNetSvg-SvgCodec-LengthMalformedPolicy
+        tests:
+          - CanvasNetSvg_SystemIntegration_SvgLengthUnits_AcceptsFontSizePxAndConvertsInches
+          - CanvasNetTool_Render_SvgWithLengthUnits_RendersWithoutCorruptInput
+          - SvgCodec_Load_FontSizePx_RendersSameAsUnitless
+          - SvgCodec_Load_AbsoluteUnit_ConvertsToUserUnits
+          - SvgCodec_Load_VegaPxFontSizeFixture_RendersSameAsStrippedPx
+          - SvgCodec_Load_MathFunction_Evaluates
+          - SvgCodec_Load_MalformedGeometryLength_ThrowsInvalidDataException
+
       - id: CanvasNetSvg-Lib-SvgGetInfo
         title: >-
           The library shall report an SVG document's resolved intrinsic width, height, channel

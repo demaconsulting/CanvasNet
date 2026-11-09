@@ -402,6 +402,42 @@ public class SvgSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that the system accepts CSS length units end to end through the public API - the
+    ///     reported defect, a <c>font-size="10px"</c> text that used to be rejected as invalid
+    ///     numeric data, now loads - and converts a unit-bearing length to user units
+    ///     (<c>1in</c> is 96), including the root size reported by <see cref="SvgCodec.GetInfo(Stream)"/>.
+    ///     See <c>SvgLengthUnitTests</c>/<c>SvgFontSizeTests</c> for the full unit matrix.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_SvgLengthUnits_AcceptsFontSizePxAndConvertsInches()
+    {
+        // Arrange: a px font-size text (the reported case) and a 1in x 1in rect, in a 120x120 viewBox
+        const string svg = "<svg viewBox='0 0 120 120'>" +
+                            "<rect x='0' y='0' width='1in' height='1in' fill='red'/>" +
+                            "<text x='100' y='118' font-family='TestFont' font-size='10px' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act: rasterize through the public API (this threw "invalid numeric data" before)
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 120, 120, fonts);
+
+        // Assert: the inch rect fills exactly 96x96 user units
+        Assert.Equal(new Rgba32(255, 0, 0, 255), surface[95, 95]);
+        Assert.Equal(0, surface[96, 50].A);
+        Assert.Equal(0, surface[50, 96].A);
+
+        // Assert: the 10px text rendered as a 5x5 square (half the font size) above the baseline
+        Assert.Equal(255, surface[102, 115].A);
+        Assert.Equal(0, surface[106, 115].A);
+
+        // Assert: GetInfo converts a unit-bearing root size too
+        using var infoStream = ToStream("<svg width='2in' height='1in'></svg>");
+        var info = SvgCodec.GetInfo(infoStream);
+        Assert.Equal(192, info.Width);
+        Assert.Equal(96, info.Height);
+    }
+
+    /// <summary>
     ///     Proves that the system reports an SVG document's resolved <c>viewBox</c> dimensions via
     ///     the public <see cref="SvgCodec.GetInfo(Stream)"/> entry point. See <c>SvgCodecTests</c>
     ///     for the full unit test coverage of the width/height/CSS-default fallback chain.
