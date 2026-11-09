@@ -227,7 +227,7 @@ the one before it, where Mermaid 11 puts it.
 | Text | `<br>` line breaks, the `wrap:` and `nowrap:` prefixes, wrapping when `wrap` is on (a word wider than the line is hyphenated), and entity codes |
 | Menus and properties | `link`, `links`, and `properties`; a menu is drawn only with `forceMenus`, and a `class` in `properties` changes the paint of the participant |
 | Titles | The `title` statement, else the frontmatter `title`, is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
-| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the sequence settings below, with Mermaid's precedence |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the sequence settings (`actorMargin`, `mirrorActors`, `rightAngles`, `messageAlign`, `noteAlign`, `wrap`, and so on), with Mermaid's precedence |
 <!-- markdownlint-enable MD013 -->
 
 | Arrow | Line | End |
