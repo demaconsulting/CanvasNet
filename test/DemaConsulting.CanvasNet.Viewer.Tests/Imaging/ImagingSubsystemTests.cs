@@ -1,6 +1,7 @@
 // cspell:ignore jpeg tiff tif exif gif jpeg2000 scad deskew deskewed
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -82,6 +83,9 @@ public class ImagingSubsystemTests
                     SourceLoader.DefaultScadSize,
                     SourceLoader.DefaultScadSize,
                     new ScadRenderOptions { Projection = CameraProjection.Orthographic });
+
+            case "mermaid":
+                return MermaidDocument.Open(path).Render(new MermaidRenderOptions { Background = new Rgba32(255, 255, 255, 255) }, TestContext.Current.CancellationToken);
 
             case "vega-lite":
                 var chart = VegaLiteDocument.Open(path);

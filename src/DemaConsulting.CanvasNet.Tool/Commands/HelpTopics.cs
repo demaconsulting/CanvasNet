@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
@@ -139,13 +140,13 @@ internal static partial class HelpTopics
     ///     without this list (and the tests that go with it) being updated.
     /// </remarks>
     public static IReadOnlyList<string> TopicNames { get; } =
-        ["scad", "vega-lite", "svg", "pdf", "pptx", "vsdx", "raster", "json", "errors", "limits"];
+        ["scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster", "json", "errors", "limits"];
 
     /// <summary>
     ///     Gets the names of the topics that describe one format (and so list supported and unsupported features).
     /// </summary>
     public static IReadOnlyList<string> FormatTopicNames { get; } =
-        ["scad", "vega-lite", "svg", "pdf", "pptx", "vsdx", "raster"];
+        ["scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster"];
 
     /// <summary>
     ///     Gets the values of the <c>{{name}}</c> tokens, taken from the constants of the code.
@@ -193,6 +194,7 @@ internal static partial class HelpTopics
     {
         var scad = ScadLimits.Default;
         var vegaLite = VegaLiteLimits.Default;
+        var mermaid = MermaidLimits.Default;
         return new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["schemaVersion"] = Format(ResultWriter.SchemaVersion),
@@ -209,6 +211,10 @@ internal static partial class HelpTopics
             ["vlMaxDataRows"] = Format(vegaLite.MaxDataRows),
             ["vlMaxImages"] = Format(vegaLite.MaxImages),
             ["vlMaxPaintedPixels"] = Format(vegaLite.MaxPaintedPixels),
+            ["mmdMaxTextSize"] = Format(mermaid.MaxTextSize),
+            ["mmdMaxEdges"] = Format(mermaid.MaxEdges),
+            ["mmdMaxNodes"] = Format(mermaid.MaxNodes),
+            ["mmdMaxImages"] = Format(mermaid.MaxImages),
             ["fragmentMaxLength"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxLength),
             ["fragmentMaxParameters"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxParameters)
         };

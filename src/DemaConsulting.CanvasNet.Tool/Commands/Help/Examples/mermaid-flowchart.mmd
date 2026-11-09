@@ -1,0 +1,13 @@
+---
+title: Order flow
+---
+flowchart LR
+    start([New order]) --> stock{In stock?}
+    stock -- yes --> pack[Pack the order]
+    stock -- no --> reorder[/Reorder/]
+    reorder --> stock
+    subgraph ship [Shipping]
+        pack --> send((Send))
+    end
+    classDef done fill:#cfc,stroke:#393
+    class send done

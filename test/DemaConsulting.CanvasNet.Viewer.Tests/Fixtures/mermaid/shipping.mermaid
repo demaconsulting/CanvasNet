@@ -1,0 +1,12 @@
+---
+title: Shipping
+---
+flowchart TB
+    accTitle: Shipping steps
+    subgraph pack [Packing]
+        direction LR
+        p1[Pick] --> p2[Box]
+    end
+    p2 --> s((Send))
+    classDef done fill:#cfc,stroke:#393
+    class s done

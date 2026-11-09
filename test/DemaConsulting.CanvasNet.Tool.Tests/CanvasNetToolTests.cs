@@ -924,8 +924,8 @@ public partial class CanvasNetToolTests
         cases.Add((text, "unsupported-format"));
         foreach (var (key, extension) in FixtureFactory.Sources)
         {
-            // A model is text: a truncated one is usually still a valid model, so only the garbage case applies to it
-            if (key != "scad")
+            // A model or a diagram is text: a truncated one is usually still valid, so only the garbage case applies to it
+            if (key is not "scad" and not "mermaid")
             {
                 var truncated = FixtureFactory.WriteSource(directory.Path, key);
                 File.WriteAllBytes(truncated, File.ReadAllBytes(truncated)[..16]);
@@ -936,7 +936,7 @@ public partial class CanvasNetToolTests
 
             var garbage = directory.Combine($"garbage-{key}{extension}");
             File.WriteAllBytes(garbage, FixtureFactory.CreateGarbage(200));
-            cases.Add((garbage, key switch { "scad" => "scad-error", "vega-lite" => "vega-lite-error", _ => "corrupt-input" }));
+            cases.Add((garbage, key switch { "scad" => "scad-error", "vega-lite" => "vega-lite-error", "mermaid" => "mermaid-error", _ => "corrupt-input" }));
         }
 
         foreach (var (input, code) in cases)

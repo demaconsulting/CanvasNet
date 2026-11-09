@@ -2,6 +2,7 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 
@@ -316,6 +317,11 @@ public static partial class SourceLoader
         if (options.Scad is { } scad && FindScadProblem(scad) is { } scadProblem)
         {
             return scadProblem;
+        }
+
+        if (options.Mermaid is { Theme: { } theme } && !MermaidRenderOptions.ThemeNames.Contains(theme, StringComparer.Ordinal))
+        {
+            return new OptionProblem($"'{theme}' is not a Mermaid theme.", $"The themes are: {string.Join(", ", MermaidRenderOptions.ThemeNames)}.");
         }
 
         return options.VegaLite is { } chart ? FindChartProblem(chart) : null;

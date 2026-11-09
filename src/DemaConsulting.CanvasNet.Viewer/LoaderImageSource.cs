@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -83,7 +84,8 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
 ///         and the page, slide or view the fragment of the link names (<c>#page=2</c>, <c>#slide=2</c>,
 ///         <c>#view=front</c>), the variables it sets for a model (<c>#def.width=20</c>, like <c>-D width=20</c>) and the
 ///         parameters it sets for a chart (<c>#param.threshold=5</c>, like <c>--param threshold=5</c>; a name the chart
-///         does not declare is the warning <c>vl-param-unknown</c>, not an error). It never inherits the options of its
+///         does not declare is the warning <c>vl-param-unknown</c>, not an error) and the theme it names for a Mermaid
+///         diagram (<c>#theme=dark</c>, like <c>--theme dark</c>). It never inherits the options of its
 ///         embedding file. <b>A direct render</b> gets its options
 ///         from <see cref="DirectRenderOptions"/>.
 ///     </para>
@@ -135,19 +137,30 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private readonly string[] _prefixes;
 
     /// <summary>
+    ///     Whether the fragment parameter <c>theme</c> chooses the theme of a Mermaid diagram.
+    /// </summary>
+    private readonly bool _acceptsTheme;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="LoaderImageSource"/> class.
     /// </summary>
     /// <param name="claims">The package source whose name, extensions and schemes this source claims.</param>
     /// <param name="kinds">The kinds of file the source draws; one, or the raster kinds.</param>
     /// <param name="pageParameters">The fragment parameters that choose the page; empty when the source has no pages.</param>
     /// <param name="acceptsView">Whether the fragment parameter <c>view</c> chooses a viewpoint.</param>
+    /// <remarks>
+    ///     The parameters that only one kind takes are added by the kind: <c>def.</c> for a model, <c>param.</c> for a chart,
+    ///     and <c>theme</c> for a Mermaid diagram.
+    /// </remarks>
     public LoaderImageSource(IImageSource claims, SourceKind[] kinds, string[] pageParameters, bool acceptsView)
     {
         _claims = claims;
         _kinds = kinds;
         _pageParameters = pageParameters;
         _acceptsView = acceptsView;
-        FragmentParameters = new ReadOnlyCollection<string>([.. pageParameters, .. acceptsView ? new[] { "view" } : []]);
+        _acceptsTheme = kinds is [SourceKind.Mermaid];
+        FragmentParameters = new ReadOnlyCollection<string>(
+            [.. pageParameters, .. acceptsView ? new[] { "view" } : [], .. _acceptsTheme ? new[] { MermaidImageSource.ThemeParameter } : []]);
         if (kinds is [SourceKind.Scad])
         {
             _prefixes = [ScadImageSource.DefinePrefix];
@@ -328,7 +341,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             Height = vector && request.PixelHeight is { } h ? Math.Clamp(h, 1, Surface.MaxDimension) : null,
             Background = direct?.Background ?? DefaultBackground(kind),
             Scad = scad,
-            VegaLite = chart
+            VegaLite = chart,
+            Mermaid = ReadDiagram(request.Fragment)
         };
     }
 
@@ -411,6 +425,26 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
 
         // A link is not a command line: a name the chart does not declare is a warning and the chart is drawn without it
         return new ChartOptions { Parameters = parameters, WarnOnUnknownParameters = true };
+    }
+
+    /// <summary>
+    ///     Reads the theme of a Mermaid diagram from the <c>theme=</c> parameter of a fragment.
+    /// </summary>
+    /// <param name="fragment">The fragment of the link or of the input.</param>
+    /// <returns>The options, or <see langword="null"/> when the source is not a diagram or the fragment names no theme.</returns>
+    /// <exception cref="ImageSourceRefusedException">Thrown with the invalid-fragment code when the value is not a Mermaid theme.</exception>
+    internal DiagramOptions? ReadDiagram(ImageFragment fragment)
+    {
+        if (!_acceptsTheme || fragment.GetValue(MermaidImageSource.ThemeParameter) is not { } name)
+        {
+            return null;
+        }
+
+        return SourceLoader.FindMermaidTheme(name) is { } theme
+            ? new DiagramOptions { Theme = theme }
+            : throw new ImageSourceRefusedException(
+                FolderImageResolver.FragmentInvalidCode,
+                $"the fragment parameter '{MermaidImageSource.ThemeParameter}' must be one of {string.Join(", ", MermaidRenderOptions.ThemeNames)}, not {Show(name)}");
     }
 
     /// <summary>

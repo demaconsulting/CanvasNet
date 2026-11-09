@@ -25,9 +25,9 @@ public class CanvasNetViewerSystemIntegrationTests
         var sources = CanvasNetViewer.ImageSources;
 
         // Assert: one source per format, and the extensions are exactly the union of what they claim
-        Assert.Equal(["raster", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite"], sources.Select(s => s.Name));
+        Assert.Equal(["raster", "svg", "pdf", "pptx", "vsdx", "scad", "vega-lite", "mermaid"], sources.Select(s => s.Name));
         Assert.Equal(
-            [".bmp", ".gif", ".j2c", ".j2k", ".jp2", ".jpeg", ".jpg", ".pdf", ".png", ".pptx", ".scad", ".svg", ".tif", ".tiff", ".vl", ".vl.json", ".vsdx"],
+            [".bmp", ".gif", ".j2c", ".j2k", ".jp2", ".jpeg", ".jpg", ".mermaid", ".mmd", ".pdf", ".png", ".pptx", ".scad", ".svg", ".tif", ".tiff", ".vl", ".vl.json", ".vsdx"],
             CanvasNetViewer.Extensions);
         Assert.Equal(sources.SelectMany(s => s.Extensions).Order(StringComparer.Ordinal), CanvasNetViewer.Extensions);
         Assert.All(sources, s => Assert.Empty(s.Schemes));
@@ -75,6 +75,40 @@ public class CanvasNetViewerSystemIntegrationTests
             resolver.Embedded.Select(e => e.Format).Distinct().Order(StringComparer.Ordinal));
         Assert.Equal(5, resolver.Embedded.Count(e => e.Depth == 0));
         Assert.Equal("img.png", Assert.Single(resolver.Embedded, e => e.Depth == 1).Href);
+    }
+
+    /// <summary>
+    ///     Proves that a Mermaid diagram is drawn by the viewer directly (transparent, as Mermaid's own picture, with the fill of the
+    ///     default theme) and as a picture of an SVG document, where the <c>theme</c> fragment of the link chooses the theme and a
+    ///     name that is not a theme refuses the link with <c>image-fragment-invalid</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_MermaidDiagram_RendersDirectlyAndEmbeddedWithTheme()
+    {
+        // Arrange: a flowchart, and an SVG document that shows it twice in the dark theme and once with a theme that does not exist
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("flow.mmd", "flowchart LR\n    a[Start] --> b[Stop]\n");
+        var defaultFill = new Rgba32(0xEC, 0xEC, 0xFF, 255);
+        var darkFill = new Rgba32(0x1F, 0x20, 0x20, 255);
+        var svg = ViewerFixtures.Svg(ViewerFixtures.Cell("flow.mmd#theme=dark", 0) + ViewerFixtures.Cell("flow.mmd#theme=midnight", 1));
+        var resolver = CanvasNetViewer.CreateImageResolver(folder.Path);
+
+        // Act
+        using var direct = CanvasNetViewer.Render(Path.Combine(folder.Path, "flow.mmd"));
+        using var embedded = ViewerFixtures.RenderSvg(svg, resolver);
+
+        // Assert: the direct render is a transparent diagram with the default fill and no note
+        Assert.Equal("mermaid", direct.Format);
+        Assert.Equal(0, direct.Surface[0, 0].A);
+        Assert.Contains(Enumerable.Range(0, direct.Surface.Width), x => direct.Surface[x, direct.Surface.Height / 2] == defaultFill);
+        Assert.Empty(direct.Diagnostics);
+
+        // Assert: the first cell is drawn in the dark theme, and the second link is refused with its code
+        Assert.Contains(Enumerable.Range(0, 100), x => embedded[x, 50] == darkFill);
+        Assert.Equal("flow.mmd#theme=dark", Assert.Single(resolver.Embedded).Href);
+        var refused = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.FragmentInvalidCode, refused.Code);
+        Assert.Contains("theme", refused.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

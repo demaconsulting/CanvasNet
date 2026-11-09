@@ -52,6 +52,7 @@ internal static class Validation
         RunPdfMinimalTest(context, testResults);
         RunRenderScadTest(context, testResults);
         RunRenderVegaLiteTest(context, testResults);
+        RunRenderMermaidTest(context, testResults);
         RunCropResizeTest(context, testResults);
         RunRotateFlipPadTest(context, testResults);
         RunCompareTest(context, testResults);
@@ -561,6 +562,56 @@ internal static class Validation
                           && rendered[right - 150, 80] == barColor
                           && rendered[right - 150, 15] == white;
             return correct ? null : "The rendered chart has the wrong pixels";
+        });
+    }
+
+    /// <summary>
+    ///     Runs a test that describes and renders a three-node Mermaid flowchart written by the test, and checks the picture.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunRenderMermaidTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_RenderMermaid", directory =>
+        {
+            var input = PathHelpers.SafePathCombine(directory, "flow.mmd");
+            var output = PathHelpers.SafePathCombine(directory, "flow.png");
+            File.WriteAllText(input, "flowchart LR\n    A[One] --> B[Two] --> C[Three]\n");
+
+            // The diagram is parsed and measured, not drawn: a flowchart that this version draws, with three nodes and two edges
+            var json = RunCommand(directory, "info", input, "--json");
+            int width;
+            int height;
+            using (var document = JsonDocument.Parse(json))
+            {
+                var diagram = document.RootElement.GetProperty("diagram");
+                var image = document.RootElement.GetProperty("image");
+                width = image.GetProperty("width").GetInt32();
+                height = image.GetProperty("height").GetInt32();
+                if (document.RootElement.GetProperty("input").GetProperty("format").GetString() != "mermaid"
+                    || diagram.GetProperty("type").GetString() != "flowchart"
+                    || !diagram.GetProperty("supported").GetBoolean()
+                    || diagram.GetProperty("nodes").GetInt32() != 3
+                    || diagram.GetProperty("edges").GetInt32() != 2)
+                {
+                    return "The info document does not describe the diagram";
+                }
+            }
+
+            // The picture has the laid-out size, a white background, and the three nodes in a row across its middle
+            RunCommand(directory, "render", input, "-o", output);
+            using var rendered = PngCodec.Load(output);
+            if (rendered.Width != width || rendered.Height != height || width <= height)
+            {
+                return "The rendered diagram has the wrong size";
+            }
+
+            // The first node starts at the diagram padding of 8 pixels: a few pixels inside its border is the fill of the
+            // default theme, left of its label
+            var white = new Rgba32(255, 255, 255, 255);
+            var nodeFill = new Rgba32(0xEC, 0xEC, 0xFF, 255);
+            var correct = rendered[0, 0] == white && rendered[14, height / 2] == nodeFill;
+            return correct ? null : "The rendered diagram has the wrong pixels";
         });
     }
 

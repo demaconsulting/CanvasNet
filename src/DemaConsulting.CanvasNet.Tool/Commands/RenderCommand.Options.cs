@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet jpeg tif tiff RRGGBB RRGGBBAA deskew otsu midtones
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -18,7 +19,7 @@ internal sealed partial class RenderCommand
     ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>) come first, then the options of
     ///     an OpenSCAD model (<c>--view</c>, <c>--azimuth</c>, <c>--elevation</c>, <c>--projection</c>, <c>--define</c>,
     ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the option of a Vega-Lite chart (<c>--param</c>),
-    ///     then the image pipeline
+    ///     then the option of a Mermaid diagram (<c>--theme</c>), then the image pipeline
     ///     (<c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--allow-upscale</c>, <c>--rotate</c>, <c>--rotate-fill</c>,
     ///     <c>--flip</c>, <c>--pad</c>, <c>--pad-color</c>, <c>--grayscale</c>, <c>--invert</c>, <c>--threshold</c>,
     ///     <c>--levels</c>, <c>--brightness</c>, <c>--contrast</c>, <c>--auto-levels</c>, <c>--auto-levels-clip</c>,
@@ -47,6 +48,7 @@ internal sealed partial class RenderCommand
         new("--default-color", [], true, "SCAD model: the color of surfaces the model does not color (default gray)", "color"),
         new("--max-triangles", [], true, "SCAD model: the most triangles the model may produce (default 5000000)", "N"),
         new("--param", [], true, "Vega-Lite chart: set a parameter, for example --param cutoff=50 or --param brush={\"x\":[2,6]} (repeatable)", "name=value"),
+        new("--theme", [], true, "Mermaid diagram: the theme - default, base, dark, forest, or neutral (a theme the diagram sets itself wins)", "name"),
         new(ImagePipelineParser.CropOption, [], true, "Crop to a rectangle x,y,w,h or WxH+X+Y, each value in pixels or percent (repeatable; operations run in the order written)", "geometry"),
         new(ImagePipelineParser.ResizeOption, [], true, "Resample to exactly this size, for example 800x600", "WxH"),
         new(ImagePipelineParser.FitOption, [], true, "Shrink to fit inside this box, keeping the aspect ratio (an image that already fits is unchanged)", "WxH"),
@@ -222,8 +224,37 @@ internal sealed partial class RenderCommand
                 ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)
                 : ResamplingMode.Auto,
             Scad = ReadScadOptions(reader),
-            VegaLite = ReadChartOptions(reader)
+            VegaLite = ReadChartOptions(reader),
+            Mermaid = ReadDiagramOptions(reader)
         };
+    }
+
+    /// <summary>
+    ///     The options that only apply to a Mermaid diagram.
+    /// </summary>
+    internal static readonly string[] DiagramOptionNames = ["--theme"];
+
+    /// <summary>
+    ///     Reads the options that apply to a Mermaid diagram.
+    /// </summary>
+    /// <param name="reader">The parsed arguments of a command that declares <c>--theme</c>.</param>
+    /// <returns>The diagram options, or <see langword="null"/> when no diagram option was given.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the theme is not one of Mermaid's themes.</exception>
+    internal static DiagramOptions? ReadDiagramOptions(ArgumentReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        if (reader.Get("--theme") is not { } text)
+        {
+            return null;
+        }
+
+        var theme = MermaidRenderOptions.ThemeNames.FirstOrDefault(name => string.Equals(name, text, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new ToolException(
+                        ErrorCodes.UsageError,
+                        $"'{text}' is not a Mermaid theme.",
+                        $"The themes are: {string.Join(", ", MermaidRenderOptions.ThemeNames)}.");
+        return new DiagramOptions { Theme = theme };
     }
 
     /// <summary>

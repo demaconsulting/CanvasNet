@@ -27,7 +27,7 @@ public class SourceLoaderTests
         get
         {
             var data = new TheoryData<string, string>();
-            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key != "scad"))
+            foreach (var (key, _) in FixtureFactory.Sources.Where(s => s.Key is not "scad" and not "mermaid"))
             {
                 foreach (var damage in new[] { "empty", "garbage", "one-byte", "header-only", "half", "missing-last-byte" })
                 {
@@ -35,7 +35,8 @@ public class SourceLoaderTests
                 }
             }
 
-            // A model is text, so cutting it often leaves a valid (shorter) model: SourceLoaderScadTests does its own sweep
+            // A model or a diagram is text, so cutting it often leaves a valid (shorter) one: SourceLoaderScadTests and
+            // SourceLoaderMermaidTests do their own sweeps
             return data;
         }
     }
@@ -139,6 +140,32 @@ public class SourceLoaderTests
     }
 
     /// <summary>
+    ///     Test that a file named .mmd or .mermaid is a Mermaid diagram even when its text holds an SVG element (an SVG label),
+    ///     and that a Markdown file with the text of a diagram is not one (there is no content sniffing).
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Detect_MermaidMentioningSvg_ReturnsMermaid()
+    {
+        // Arrange: a diagram whose label holds the text of an SVG element, under both extensions, and the same text as Markdown
+        using var directory = new TempDirectory();
+        const string text = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>\nflowchart LR\n  a[\"<svg/>\"] --> b\n";
+        var mmd = FixtureFactory.WriteText(directory.Path, "flow.mmd", text);
+        var mermaid = FixtureFactory.WriteText(directory.Path, "Flow.MERMAID", text);
+        var markdown = FixtureFactory.WriteText(directory.Path, "flow.md", "flowchart LR\n  a --> b\n");
+
+        // Act / Assert: the extension decides for a diagram; a Markdown file is not a supported format
+        Assert.Equal(SourceKind.Mermaid, SourceLoader.Detect(mmd));
+        Assert.Equal(SourceKind.Mermaid, SourceLoader.Detect(mermaid));
+        Assert.Equal(SourceKind.Mermaid, SourceLoader.DetectContent("<svg/>"u8, ".mmd"));
+        Assert.Equal(ErrorCodes.UnsupportedFormat, Assert.Throws<ViewerException>(() => SourceLoader.Detect(markdown)).Code);
+        Assert.True(SourceKind.Mermaid.IsVector());
+        Assert.True(SourceKind.Mermaid.IsDiagram());
+        Assert.False(SourceKind.Mermaid.IsChart());
+        Assert.False(SourceKind.VegaLite.IsDiagram());
+        Assert.Equal("mermaid", SourceKind.Mermaid.ToFormatName());
+    }
+
+    /// <summary>
     ///     Test that the extension decides when the content says nothing.
     /// </summary>
     /// <param name="extension">The extension.</param>
@@ -153,6 +180,8 @@ public class SourceLoaderTests
     [InlineData(".pdf", "pdf")]
     [InlineData(".scad", "scad")]
     [InlineData(".vl", "vega-lite")]
+    [InlineData(".mmd", "mermaid")]
+    [InlineData(".MERMAID", "mermaid")]
     public void SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension(string extension, string expected)
     {
         // Arrange: a file with content no signature matches
@@ -301,7 +330,7 @@ public class SourceLoaderTests
             "pptx" => (FixtureFactory.PptxSlideWidth, FixtureFactory.PptxSlideHeight),
             "vsdx" => (FixtureFactory.VsdxPageWidth, FixtureFactory.VsdxPageHeight),
             "scad" => (SourceLoader.DefaultScadSize, SourceLoader.DefaultScadSize),
-            "vega-lite" => (info.Width, info.Height),
+            "vega-lite" or "mermaid" => (info.Width, info.Height),
             _ => (FixtureFactory.Width, FixtureFactory.Height)
         };
         Assert.Equal(width, info.Width);
@@ -835,6 +864,7 @@ public class SourceLoaderTests
         {
             "scad" => ErrorCodes.ScadError,
             "vega-lite" => ErrorCodes.VegaLiteError,
+            "mermaid" => ErrorCodes.MermaidError,
             _ => ErrorCodes.CorruptInput
         };
         Assert.Equal(expectedCode, exception.Code);

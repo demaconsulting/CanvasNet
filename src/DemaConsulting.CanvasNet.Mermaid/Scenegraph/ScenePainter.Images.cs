@@ -13,7 +13,9 @@ internal sealed partial class ScenePainter
     /// <remarks>
     ///     The box is snapped to whole device pixels (left and top rounded down, right and bottom rounded up), the loader
     ///     is asked for a picture of exactly that size, and the picture is composited over the surface with the opacity of
-    ///     the item. A painter without a loader, a box without area, or a loader that returns nothing draws nothing.
+    ///     the item. A picture that comes back at another size (a raster at its own size) is stretched to the box, as
+    ///     Mermaid's <c>image</c> element has <c>preserveAspectRatio="none"</c>. A painter without a loader, a box without
+    ///     area, or a loader that returns nothing draws nothing.
     /// </remarks>
     /// <param name="surface">The surface.</param>
     /// <param name="item">The picture item.</param>
@@ -48,6 +50,14 @@ internal sealed partial class ScenePainter
         using var picture = _images.Load(item.Href, width, height);
         if (picture is null)
         {
+            return;
+        }
+
+        // A raster comes back at its own size; Mermaid's image has preserveAspectRatio="none", so it is stretched to the box
+        if (picture.Width != width || picture.Height != height)
+        {
+            using var stretched = picture.Resize(width, height);
+            Composite(surface, stretched, x0, y0, Math.Min(item.Opacity, 1));
             return;
         }
 

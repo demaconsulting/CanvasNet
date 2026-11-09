@@ -23,7 +23,7 @@ public class CanvasNetViewerTests
         var extensions = CanvasNetViewer.Extensions;
 
         // Assert
-        Assert.Equal(7, sources.Count);
+        Assert.Equal(8, sources.Count);
         Assert.Same(sources, CanvasNetViewer.ImageSources);
         Assert.False(sources is IList<IImageSource> { IsReadOnly: false });
         Assert.Equal(extensions.Order(StringComparer.Ordinal), extensions);
@@ -46,6 +46,7 @@ public class CanvasNetViewerTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
+    [InlineData(7)]
     public void CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly(int index)
     {
         // Arrange

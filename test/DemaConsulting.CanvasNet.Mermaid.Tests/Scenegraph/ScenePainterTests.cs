@@ -245,6 +245,29 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that a picture that comes back at another size than its box (a raster at its own size) is stretched to the
+    ///     whole box, as Mermaid's <c>image</c> element has <c>preserveAspectRatio="none"</c>.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_ImageAtItsOwnSize_IsStretchedToTheBox()
+    {
+        // Arrange: a loader that always gives a 2 by 1 picture, and a 12 by 8 box
+        var loader = new SolidLoader(new Rgba32(0, 0, 255, 255), (2, 1));
+        var image = new SceneImage(new SceneRect(4, 1, 12, 8), "blue.png") { Role = "image" };
+        var scene = new Scene(new SceneRect(0, 0, 20, 10), [image]);
+
+        // Act
+        using var surface = Paint(scene, images: loader);
+
+        // Assert: the box is covered from corner to corner, and nothing outside it
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[4, 1]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), surface[15, 8]);
+        Assert.Equal(0, surface[3, 5].A);
+        Assert.Equal(0, surface[16, 5].A);
+        Assert.Equal(0, surface[10, 9].A);
+    }
+
+    /// <summary>
     ///     Validates that a painter without a loader draws no picture.
     /// </summary>
     [Fact]
@@ -297,7 +320,8 @@ public class ScenePainterTests
     ///     A picture loader that returns solid pictures and records the requests.
     /// </summary>
     /// <param name="color">The color of the pictures.</param>
-    private sealed class SolidLoader(Rgba32 color) : ISceneImageLoader
+    /// <param name="ownSize">The size every picture comes back at, or null for the requested size.</param>
+    private sealed class SolidLoader(Rgba32 color, (int Width, int Height)? ownSize = null) : ISceneImageLoader
     {
         /// <summary>
         ///     Gets the requests made.
@@ -308,7 +332,8 @@ public class ScenePainterTests
         public Surface? Load(string href, int pixelWidth, int pixelHeight)
         {
             Requests.Add((href, pixelWidth, pixelHeight));
-            var surface = new Surface(pixelWidth, pixelHeight);
+            var (width, height) = ownSize ?? (pixelWidth, pixelHeight);
+            var surface = new Surface(width, height);
             surface.Clear(color);
             return surface;
         }

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
@@ -33,7 +34,7 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a topic may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|pptx|vsdx|pdf|svg|image-fragment|image-page)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|pptx|vsdx|pdf|svg|image-fragment|image-page)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -100,6 +101,7 @@ public partial class HelpTopicsTests
             ["openscad"] = "scad",
             ["vegalite"] = "vega-lite",
             ["vl"] = "vega-lite",
+            ["mmd"] = "mermaid",
             ["powerpoint"] = "pptx",
             ["visio"] = "vsdx",
             ["png"] = "raster",
@@ -164,6 +166,10 @@ public partial class HelpTopicsTests
         Assert.Contains($"{Surface.MaxDimension} pixels", limits);
         Assert.Contains($"Default {ScadLimits.Default.MaxTriangles} triangles", limits);
         Assert.Contains($"At most {VegaLiteLimits.Default.MaxDataFiles} files", limits);
+        Assert.Equal(MermaidLimits.Default.MaxEdges.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["mmdMaxEdges"]);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxNodes} nodes and {MermaidLimits.Default.MaxEdges} edges", limits);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxTextSize} characters", limits);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxImages} pictures", limits);
         Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
@@ -200,6 +206,7 @@ public partial class HelpTopicsTests
         {
             ["scad"] = ".scad",
             ["vega-lite"] = ".vl.json",
+            ["mermaid"] = ".mmd",
             ["svg"] = ".svg"
         };
 
@@ -230,6 +237,7 @@ public partial class HelpTopicsTests
 
         Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "scad");
         Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "vega-lite");
+        Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "mermaid");
         Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "svg");
     }
 
@@ -381,6 +389,40 @@ public partial class HelpTopicsTests
         Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
         Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         Assert.Equal(links.Count, document.RootElement.GetProperty("operations").EnumerateArray().Count(o => o.GetProperty("op").GetString() == "embed"));
+        Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that the <c>pictures</c> snippet of the <c>mermaid</c> topic, which the render drift test skips because it links
+    ///     sibling files, renders under <c>--strict</c> without a diagnostic once its model and chart exist (the examples of the
+    ///     <c>scad</c> and <c>vega-lite</c> topics), and draws one <c>embed</c> operation for each picture.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles()
+    {
+        // Arrange: the snippet, which is not a source example, and the model and the chart it shows
+        var topic = HelpTopics.Find("mermaid")!;
+        var snippet = Assert.Single(topic.Examples, e => e.Kind == HelpTopics.SnippetKind);
+        Assert.DoesNotContain(HelpTopics.SourceExamples(), e => e.Example == snippet);
+        using var directory = new TempDirectory();
+        var input = directory.Combine(snippet.FileName!);
+        File.WriteAllText(input, snippet.Content);
+        File.WriteAllText(directory.Combine("part.scad"), HelpTopics.RenderExample(HelpTopics.Find("scad")!, "plate"));
+        File.WriteAllText(directory.Combine("chart.vl.json"), HelpTopics.RenderExample(HelpTopics.Find("vega-lite")!, "bar"));
+
+        // Act: render with --strict
+        var output = directory.Combine("out.png");
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "--json", "-o", output);
+
+        // Assert: it succeeded without a diagnostic and listed each picture once
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        var embeds = document.RootElement.GetProperty("operations").EnumerateArray()
+            .Where(o => o.GetProperty("op").GetString() == "embed")
+            .Select(o => o.GetProperty("href").GetString())
+            .ToList();
+        Assert.Equal(["part.scad", "chart.vl.json"], embeds);
         Assert.True(File.Exists(output));
     }
 
@@ -762,6 +804,7 @@ public partial class HelpTopicsTests
     [
         typeof(ScadDocument).Assembly,
         typeof(VegaLiteDocument).Assembly,
+        typeof(MermaidDocument).Assembly,
         typeof(PdfDocument).Assembly,
         typeof(PptxDocument).Assembly,
         typeof(VsdxDocument).Assembly,

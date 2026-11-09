@@ -34,6 +34,16 @@
       ]
     },
     {
+      "id": "diagrams",
+      "title": "Mermaid diagrams",
+      "items": [
+        { "term": "Text", "text": "At most {{mmdMaxTextSize}} characters (Mermaid's maxTextSize); a longer text is corrupt-input." },
+        { "term": "Graph", "text": "At most {{mmdMaxNodes}} nodes and {{mmdMaxEdges}} edges (Mermaid's maxEdges); beyond that the diagram fails with budget-exceeded (mermaid-limit-exceeded). The text cannot raise a limit: a directive that tries is ignored with the warning mermaid-config-secure-key." },
+        { "term": "Pictures", "text": "At most {{mmdMaxImages}} pictures (@{ img } nodes); beyond that the diagram fails with budget-exceeded." },
+        { "term": "Size", "text": "A diagram that lays out larger than {{maxDimension}} pixels on a side is size-limit unless --scale, --width, or --height makes it smaller." }
+      ]
+    },
+    {
       "id": "documents",
       "title": "SVG and documents",
       "items": [

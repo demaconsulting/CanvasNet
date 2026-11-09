@@ -57,6 +57,9 @@ public static class ErrorCodes
     /// <summary>A Vega-Lite chart has a specification error or cannot be rendered.</summary>
     public const string VegaLiteError = "vega-lite-error";
 
+    /// <summary>A Mermaid diagram has a syntax error or cannot be laid out or drawn.</summary>
+    public const string MermaidError = "mermaid-error";
+
     /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
     public const string BudgetExceeded = "budget-exceeded";
 
