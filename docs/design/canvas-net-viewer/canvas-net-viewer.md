@@ -23,10 +23,10 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 
 ### Data Model
 
-- **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, seven
-  `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, and vega-lite, in that order, with the names,
-  extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union of
-  their
+- **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, eight
+  `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, vega-lite, and mermaid, in that order, with the
+  names, extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union
+  of their
   extensions,
   computed through an `ImageSourceSet` so that the claims are validated once. Both are exposed as read-only lists
   (`ImageSources`, `Extensions`). The sources are stateless and thread-safe, so the shared instances serve any number of
@@ -35,8 +35,8 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   `SourceLoader` of the `Imaging` subsystem, so that the tool, `Render` and a linked file are drawn by the same code.
   It is built from the claims of the package source it stands for, the `SourceKind`s it draws, the fragment parameters
   of its pages (`page` for PDF and Visio, `page` and `slide` for PowerPoint) and whether it accepts `view` (the model
-  source only). It also declares the prefix of the parameters whose names the link author chooses
-  (`FragmentParameterPrefixes`):
+  source only); the Mermaid source alone also accepts `theme` (`MermaidImageSource.ThemeParameter`). It also declares
+  the prefix of the parameters whose names the link author chooses (`FragmentParameterPrefixes`):
   `def.` for the model source and `param.` for the chart source (the constants of `ScadImageSource` and
   `VegaLiteImageSource`), none for the others. It cannot be the package source itself: the format packages cannot call
   `SourceLoader`, which depends on
@@ -71,7 +71,9 @@ a
 for a
 chart (`ReadChart`: `ImageParameterValues.ReadParameters`, the values checked by constructing `VegaLiteRenderOptions`,
 the
-result a `ChartOptions` with `WarnOnUnknownParameters` set, because a link is not a command line), a value or name that
+result a `ChartOptions` with `WarnOnUnknownParameters` set, because a link is not a command line), the `theme=<name>`
+of a Mermaid diagram (`ReadDiagram`: the name compared with `MermaidRenderOptions.ThemeNames` without regard to case by
+`SourceLoader.FindMermaidTheme`, the result a `DiagramOptions` with the canonical name), a value or name that
 is not
 usable being an `ImageSourceRefusedException` with the code `image-fragment-invalid`, the strictness switch,
 a transparent background for a vector source, none for a chart, and for a vector source the placement as `Width` and
@@ -158,7 +160,8 @@ and
 `RasterImageSource` for its claims), the
 `Imaging` subsystem (`SourceLoader` and its `SourceInput`, `LoadContext`, and option validator; `ImageDiagnostic`), the
 `Canvas` subsystem (`Surface.FitInto`, `Surface.Resize`, `Rgba32`), and the claims of the sources of the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, and `CanvasNetVegaLite` systems.
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, and `CanvasNetMermaid` systems
+(and, for the theme fragment, `MermaidImageSource.ThemeParameter` and `MermaidRenderOptions.ThemeNames`).
 
 ### Callers
 

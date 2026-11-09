@@ -7,8 +7,8 @@
 #### Purpose
 
 `RenderCommand` is the `render` command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`,
-`flip`, and `pad`: it loads an image, drawing, document page, 3D model view, or Vega-Lite chart, transforms it with
-the image
+`flip`, and `pad`: it loads an image, drawing, document page, 3D model view, Vega-Lite chart, or Mermaid diagram,
+transforms it with the image
 pipeline (including the photo tools: tone adjustments, deskew, trim, and grid), and writes it as PNG, JPEG, BMP, or
 TIFF. Its single responsibility is to turn a command line into one
 pass of load, transform, and write for one page or every page, and to report the result. The unit is the partial
@@ -26,7 +26,7 @@ verb and `render` share every line of the run, `crop in.png 10,10,100,100 -o out
 `--background <color>`, `--no-auto-orient`, `--strict`, the options of an OpenSCAD model `--view <name>`,
 `--azimuth <degrees>`, `--elevation <degrees>`, `--projection <type>`, `--define <name=value>` (alias `-D`,
 repeatable), `--time <T>`, `--default-color <color>`, and `--max-triangles <N>`, the option of a Vega-Lite chart
-`--param <name=value>` (repeatable), the options of the image
+`--param <name=value>` (repeatable), the option of a Mermaid diagram `--theme <name>`, the options of the image
 pipeline `--crop <geometry>`, `--resize <WxH>`, `--fit <WxH>`, `--allow-upscale`, `--rotate <degrees>`,
 `--rotate-fill <color>`, `--flip <axis>`, `--pad <N|l,t,r,b>`, `--pad-color <color>`, the photo tools
 `--grayscale`, `--invert`, `--threshold <0-255|auto>`, `--levels <black,white[,gamma]>`, `--brightness <n>`,
@@ -57,8 +57,11 @@ background, with UTC dates and the bundled fonts; its local CSV, TSV, DSV (`form
 read from the folder of the specification
 and below it only, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
 there is no data-folder option, and nothing is read from the network; its only option is `--param`, which sets the
-parameters of the chart, and the usage text shows the option and the `param.` fragment of a link). A verb has no alias,
-and its
+parameters of the chart, and the usage text shows the option and the `param.` fragment of a link), and how a Mermaid
+diagram is drawn (a flowchart at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme` sets
+unless the text sets one; a diagram type that is not drawn yet is an empty picture with the note
+`mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
+`flow.mmd --theme dark --scale 2`). A verb has no alias, and its
 usage text is `canvasnet {verb} <input>
 {operand} -o <output> [options]` with the description of its operand, a statement that it takes every option of
 `render`, and its examples.
@@ -83,7 +86,8 @@ combined with `--scale`, `--width`, or `--height`, and `--scale` combined with `
 `ArgumentReader.ParseDpi` (greater than 0 and at most 2400); reads `--strict`; reads `--background` with `ParseColor`;
 reads `--no-auto-orient`; reads `--filter` (which the
 loader uses for the resize of a raster that `--scale`, `--width`, or `--height` ask for, and the pipeline uses for
-`--resize` and `--fit`); reads the model options with `ReadScadOptions` and the chart option with `ReadChartOptions`. It
+`--resize` and `--fit`); reads the model options with `ReadScadOptions`, the chart option with `ReadChartOptions`, and
+the diagram option with `ReadDiagramOptions`. It
 returns the `SourceOptions`. The options
 of the output (`--output`, `--format`, `--quality`, `--no-clobber`, `--all-pages`) are not read here.
 
@@ -116,6 +120,16 @@ with the
 declared names, and the loader lays the chart out again with the parameters, so the natural size in the result
 (`input.natural`) is
 that of the parameterized chart. `compare` and `montage` have no chart options; `--param` is not in their tables.
+
+**ReadDiagramOptions(reader)**: when `--theme` was not given, returns `null`; otherwise a `DiagramOptions` whose `Theme`
+is the name of `MermaidRenderOptions.ThemeNames` that equals the value without regard to case (so `--theme Dark` is
+reported as `dark`), and a value that is not a theme is a `usage-error` whose hint lists the themes (`default`, `base`,
+`dark`, `forest`, `neutral`). The table `DiagramOptionNames` (`--theme`) is `internal` like `ChartOptionNames`. `Run`
+(and `inspect`) refuse the option for an input that is not a diagram with a `usage-error` that names the kind ("only
+applies to a Mermaid diagram"), before anything is drawn. The loader applies the theme: the theme fragment of the input
+(`flow.mmd#theme=dark`) wins over the option, a theme the text of the diagram sets itself wins over both (as with the
+Mermaid command line), and the `render` operation lists the theme. `compare` and `montage` have no diagram option;
+`--theme` is not in their tables.
 
 **SpecsFor(names)**: `internal`; returns the declarations of `OptionTable` with the given long names, in that order
 (`ArgumentException` for a name the table does not declare), so that another command accepts an option with the same
@@ -212,9 +226,9 @@ fields after the envelope, in this order:
 | --- | ----- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `input` | object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page rendered at the resolution) |
-| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model (the `view`, `azimuth`, and `elevation` are those asked for when a view was chosen explicitly, otherwise those the library used: `iso`, 45, 35.264... for a 3D model, `top`, 0, 90 for a model that is entirely 2D, and `custom` with the angles for a view the model set with its viewport variables), `render` (`width`, `height`, `timeZone` (`UTC`), `background` when one was given, and `params` - a list of `name=value` in name order, the value as JSON - when `--param` was given) for a Vega-Lite chart, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
+| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model (the `view`, `azimuth`, and `elevation` are those asked for when a view was chosen explicitly, otherwise those the library used: `iso`, 45, 35.264... for a 3D model, `top`, 0, 90 for a model that is entirely 2D, and `custom` with the angles for a view the model set with its viewport variables), `render` (`width`, `height`, `timeZone` (`UTC`), `background` when one was given, and `params` - a list of `name=value` in name order, the value as JSON - when `--param` was given) for a Vega-Lite chart, `render` (`width` and `height` as drawn, `background`, and `theme` when one is set) for a Mermaid diagram, followed by one `embed` (`href`, `format`, `width`, `height`) for each picture of a node that was drawn, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
 | `outputs` | array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a document `page` |
-| `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, `vega-lite`, or `svg`), `severity` (`unsupported`, or `warning` for a model, a chart, or a fragment warning), `code` (the feature token, `scad-warning`, `vega-lite-warning`, or an image-link code such as `svg-image-unresolved`, `image-fragment-invalid`, or `image-page-out-of-range`), `message`, `page` (documents only), and then, only when present, `detail`, `location` (`file`, `line`, `column`, `pointer`; unknown members omitted), and `origin` (list of files), written by `ResultWriter.WriteDiagnosticExtras` |
+| `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`, or `svg`), `severity` (`unsupported`, or `warning` for a model, a chart, a diagram, or a fragment warning), `code` (the feature token such as `mermaid-diagram-unsupported`, `scad-warning`, `vega-lite-warning`, `mermaid-warning`, or an image-link code such as `svg-image-unresolved`, `image-fragment-invalid`, or `image-page-out-of-range`), `message`, `page` (documents only), and then, only when present, `detail`, `location` (`file`, `line`, `column`, `pointer`; unknown members omitted), and `origin` (list of files), written by `ResultWriter.WriteDiagnosticExtras` |
 | `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |
 | `anchors` | **only for a model** (no member for any other input), after `echo`: an array of objects in echo order, duplicates included, `name`, `point` (the world `[x, y, z]`), `pixel` (`[x, y]` in the written image, continuous with the origin at the top-left corner, rounded to three decimals, or `null` when the position is unknown: a point behind a perspective eye or after a deskew that corrected the image) and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel); `[]` when the model declares none (`WriteAnchors`) |
 <!-- markdownlint-enable MD013 -->
@@ -224,18 +238,18 @@ lines of the declarations (and the `scad-anchor-invalid` warnings) are on standa
 warning.
 
 **Input fragment.** `Run` probes the input with `SourceLoader.Probe(InputReference.Parse(settings.Input))`, so a `#`
-fragment on the input path (`part.scad#view=top&def.width=20`, `report.pdf#page=3`) is read and checked before any pixel
-is decoded: the page, the view and variables of a model, and the chart parameters it names override `--page`,
-`--view`, `-D` and `--param` for this input (the library applies the selection over `settings.Source`), and a page it
-names makes the render a single page whatever `--all-pages` says (`WriteJsonFields` then writes `page`). The text result
-names the input with its fragment (`SourceInfo.Specifier`), the `input` object of the JSON result has the
-`fragment` member, and the warnings of the fragment are among the `diagnostics` of the result (so the `input` is named
-with its fragment on standard error). A fragment that cannot be used is `image-fragment-invalid`, a page that does not
-exist `page-out-of-range`, and an unknown or repeated parameter name a warning, never an error (also with
-`--strict`); the check of the model and chart options for the kind of the input applies to the options of the command
-only, so `render "part.scad#def.x=1"` of a PNG is a warning and not a usage error. A `#` is a fragment only when no
-file has that exact name (see `InputReference` in the _SourceLoader Unit Design_). The verb commands inherit all of
-it, because they are this class.
+fragment on the input path (`part.scad#view=top&def.width=20`, `report.pdf#page=3`, `flow.mmd#theme=dark`) is read and
+checked before any pixel is decoded: the page, the view and variables of a model, the chart parameters, and the theme of
+a diagram it names override `--page`, `--view`, `-D`, `--param`, and `--theme` for this input (the library applies the
+selection over `settings.Source`), and a page it names makes the render a single page whatever `--all-pages` says
+(`WriteJsonFields` then writes `page`). The text result names the input with its fragment (`SourceInfo.Specifier`), the
+`input` object of the JSON result has the `fragment` member, and the warnings of the fragment are among the
+`diagnostics` of the result (so the `input` is named with its fragment on standard error). A fragment that cannot be
+used is `image-fragment-invalid`, a page that does not exist `page-out-of-range`, and an unknown or repeated parameter
+name a warning, never an error (also with `--strict`); the check of the model, chart, and diagram options for the kind
+of the input applies to the options of the command only, so `render "part.scad#def.x=1"` of a PNG is a warning and not a
+usage error. A `#` is a fragment only when no file has that exact name (see `InputReference` in the _SourceLoader Unit
+Design_). The verb commands inherit all of it, because they are this class.
 
 #### Error Handling
 
@@ -244,7 +258,8 @@ unknown option, contradictory or malformed sizes,
 a quality out of range, an unknown format, `--page` with `--all-pages`, a page or a resolution that is not a
 number in range, `--all-pages` with an output that is the same file for every page, a view or projection that does
 not exist, a model value that is malformed or out of range, a definition that is not `name=value`, a model
-option for an input that is not a model, a malformed or out-of-range operation value (an angle that is not a number, a
+option for an input that is not a model, a `--theme` that is not a Mermaid theme or that is given for an input that is
+not a diagram, a malformed or out-of-range operation value (an angle that is not a number, a
 threshold, levels, brightness, contrast, clip, tolerance, or grid spacing out of range),
 `--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a rotation or `--deskew`,
 `--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, and a crop that starts outside the
@@ -254,11 +269,12 @@ smaller than a pixel) are `ViewerException` (the library's, or the tool's own `T
 maximum, or a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from
 `SourceLoader`
 (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` - also with
-`--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model or a chart -
-`page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a failed `assert`, or an `include` that cannot be
-read, `vega-lite-error` for an invalid chart specification or a chart that cannot be rendered, and `budget-exceeded`
-for a model that exceeds a limit such as `--max-triangles` or a chart that exceeds a limit of the library) and output
-failures
+`--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model, a chart, or a diagram
+(including a diagram type that is not drawn yet) - `page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a
+failed `assert`, or an `include` that cannot be read, `vega-lite-error` for an invalid chart specification or a chart
+that cannot be rendered, `mermaid-error` for diagram text that is not valid or a diagram that cannot be laid out, with
+the hint of the library, and `budget-exceeded` for a model that exceeds a limit such as `--max-triangles` or a chart or
+a diagram that exceeds a limit of the library) and output failures
 from `ImageWriter` (`same-input-output`, `output-exists`, `output-write-failed`); none of them leaves an output file
 for the page that failed. Null arguments throw `ArgumentNullException`. The registry records the command name on
 every `ToolException`.

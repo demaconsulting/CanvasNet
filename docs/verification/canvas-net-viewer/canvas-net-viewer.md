@@ -39,9 +39,9 @@ embedded image record, a wrong exception type, or a disposed surface that is sti
 **Tests**: `CanvasNetViewer_ImageSources_AreFixedAndExtensionsAreSortedUnion`,
 `CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly`, `CanvasNetViewer_Collections_AreReadOnly`
 
-Asserts that the list is the same read-only list on every call (not an `IList` that can be modified), has seven sources,
+Asserts that the list is the same read-only list on every call (not an `IList` that can be modified), has eight sources,
 and that `Extensions` is sorted, has no duplicate, has `.vl.json` but not `.json`, and equals the union of the claims of
-the sources. A theory over the seven built-in sources asserts that each source's `Extensions` and `Schemes` are
+the sources. A theory over the eight built-in sources asserts that each source's `Extensions` and `Schemes` are
 read-only: not a `string[]` or `List<string>`, and when cast to `IList<string>` they report read-only and throw
 `NotSupportedException` on `Add`. A further scenario asserts the same for `ImageSources`, `Extensions`, the extension
 and scheme lists of a created resolver, and the `Diagnostics`, `Echo`, and `Embedded` lists of a rendered `ViewerImage`.
@@ -107,7 +107,9 @@ outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without
 `CanvasNetViewer_Render_HostileFragment_IsRefusedAndShortInTheMessage`,
 `SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks`,
 `SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument`
-(`CanvasNetViewerFragmentTests.cs`)
+(`CanvasNetViewerFragmentTests.cs`),
+`InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme`,
+`SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid` (`InputSelectionTests.cs`)
 
 Writes the two-page PDF, the two-slide presentation and the two-page drawing of the shared fixtures next to an SVG that
 links their pages with `#page=N` and `#slide=N`, and asserts by the color of the pixels that the chosen page is the one
@@ -121,7 +123,9 @@ a warning with the last value used, and the same value twice silent; that a `?qu
 the parsed fragment, and that an extra source for a built-in extension wins and gets the fragment; that a nested SVG
 file
 draws its pages through the scoped resolver; that a fragment of thousands of characters is refused with a short message;
-and that `Strict` fails for the two refused codes only.
+and that `Strict` fails for the two refused codes only. Through the built-in Mermaid source (which reads the fragment of
+an input as it reads that of a link), `#theme=Dark&page=2` of a diagram is read as the canonical theme `dark` and draws
+in it, `page` being an unknown parameter of a diagram (a warning), and `#theme=midnight` is `image-fragment-invalid`.
 
 #### CanvasNetViewer-CanvasNetViewer-Parameters: Variables And Parameters Set From The Link And The Options
 

@@ -13,16 +13,17 @@ fails the build. The content is checked against the things it describes, so that
   the default `CommandRegistry` (a known command and only options that command or the tool declares);
 - the `errors` topic is compared with the error code constants of the tool through reflection;
 - the numbers (the largest image side, the resolution limit, the quality range, the triangle budget, and the Vega-Lite
-  limits) are the tokens substituted from the live constants, and the `limits` topic is checked to quote them;
-- every diagnostic identifier a topic cites (`scad-...`, `vl-...`, `pptx-...`, `vsdx-...`, and `pdf-...`) is either
-  produced by a tiny model or chart in the trigger table (the **trigger-table test**, which runs the real pipeline
-  through `ToolHost`; a second test proves that `--strict` turns the report into `unsupported-feature`), or is an error
-  code, or is a string literal
+  and Mermaid limits) are the tokens substituted from the live constants, and the `limits` topic is checked to quote
+  them;
+- every diagnostic identifier a topic cites (`scad-...`, `vl-...`, `mermaid-...`, `pptx-...`, `vsdx-...`, and `pdf-...`)
+  is either produced by a tiny model or chart in the trigger table (the **trigger-table test**, which runs the real
+  pipeline through `ToolHost`; a second test proves that `--strict` turns the report into `unsupported-feature`), or is
+  an error code, or is a string literal
   found in the compiled library assemblies (the **assembly-literal check**, which searches the UTF-16 text of the
   assemblies of the libraries for the literal part of the identifier); an identifier that is none of these makes the
   test fail, so a topic cannot cite an identifier that does not exist;
-- every source example (OpenSCAD, Vega-Lite, and SVG) is written to a file and rendered through the real entry point
-  (`ToolHost.Invoke`) with `--strict` (the **strict-clean example test**), and must succeed without a diagnostic;
+- every source example (OpenSCAD, Vega-Lite, Mermaid, and SVG) is written to a file and rendered through the real entry
+  point (`ToolHost.Invoke`) with `--strict` (the **strict-clean example test**), and must succeed without a diagnostic;
 - the **file types** the `svg` topic lists for `<image href>` are compared with `CanvasNetViewer.Extensions` (the
   extensions of the image sources the tool wires in, the sorted union of what the registered sources claim) in
   both directions and with the extensions of the `formats` table; a plain `.json` must not be linkable and `.vl.json`
@@ -32,7 +33,10 @@ fails the build. The content is checked against the things it describes, so that
   `snippet` and the strict-clean example test skips it (it enumerates only `source` examples). A dedicated test parses
   it as XML, checks that every `href` ends in a supported extension, writes each sibling file from the examples of the
   matching topic (`scad`, `vega-lite`, `svg`), and renders it with `--strict` (decision: a new kind rather than a
-  special case in the drift test, so a snippet is visible as such in `--examples` and in the JSON).
+  special case in the drift test, so a snippet is visible as such in `--examples` and in the JSON);
+- the **`pictures` snippet** of the `mermaid` topic is a diagram whose nodes show a model and a chart, so it is a
+  snippet too; a dedicated test writes it with the `plate` example of the `scad` topic as `part.scad` and the `bar`
+  example of the `vega-lite` topic as `chart.vl.json` and renders it with `--strict`.
 
 The text and JSON renderings are checked for every topic with theory tests. The interaction with the registry
 (`help` and its options) is verified by `CommandRegistryTests.cs` and at the subsystem level by
@@ -60,8 +64,8 @@ delete.
   codes of the tool.
 - Every cited diagnostic identifier is triggered by a tiny input, is an error code, or exists in a library; each
   trigger produces its identifier, and `--strict` turns a report into `unsupported-feature`.
-- Every source example renders with `--strict` and no diagnostic; the snippet renders with `--strict` and no diagnostic
-  once its sibling files exist.
+- Every source example renders with `--strict` and no diagnostic; each snippet (of the `svg` and `mermaid` topics)
+  renders with `--strict` and no diagnostic once its sibling files exist.
 - The file types the `svg` topic lists for `<image href>` are exactly the extensions of `CanvasNetViewer` and of the
   `formats` table; the `image-links` section states the size rule, the folder rule, `svg-image-unresolved`,
   `svg-image-too-large`, and the
@@ -78,10 +82,10 @@ delete.
 order; every topic has a title, a summary, sections that each have items, and examples; and the topic files embedded in
 the assembly are exactly the catalog (no orphan and no missing file).
 
-**HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented alias (`openscad`, `vegalite`, `vl`, `powerpoint`,
-`visio`, `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, and `jp2`) resolves to its topic in lower and
-upper case, every canonical name resolves to itself, the alias count is the documented one, and an unknown name resolves
-to nothing.
+**HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented alias (`openscad`, `vegalite`, `vl`, `mmd`,
+`powerpoint`, `visio`, `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, and `jp2`) resolves to its topic
+in lower and upper case, every canonical name resolves to itself, the alias count is the documented one, and an unknown
+name resolves to nothing.
 
 **HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther**: the names and aliases of the topics are unique, and none
 is
@@ -89,25 +93,25 @@ a name or alias of a command of the default registry, `help`, or `topics`.
 
 **HelpTopics_Text_HasNoUnresolvedTokens**: no string of any topic contains `{{`; the token table holds the live values
 of `Surface.MaxDimension`, `ScadLimits.Default.MaxTriangles`, `ArgumentReader.MaxDpi`, and
-`ResultWriter.SchemaVersion`, and `VegaLiteLimits.Default.MaxPaintedPixels`; and the `limits` topic quotes the image
-size, the triangle budget, the number of data
-files, the painted pixels, and the quality range from the constants.
+`ResultWriter.SchemaVersion`, `VegaLiteLimits.Default.MaxPaintedPixels`, and `MermaidLimits.Default.MaxEdges`; and the
+`limits` topic quotes the image size, the triangle budget, the number of data files, the painted pixels, the Mermaid
+nodes and edges, text size, and pictures, and the quality range from the constants.
 
-**HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples**: each of the seven format
+**HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples**: each of the eight format
 topics has the five filled sections and at least two examples.
 
 **HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty**: example names are unique within a topic; content is
 non-empty, has no carriage return and no trailing line feed; a command example starts with the tool name `canvasnet`
 and has no file name; a source example or snippet has a file name with the extension of its format (`.scad`,
-`.vl.json`, or `.svg`); and the `scad`, `vega-lite`, and `svg` topics each have a source example.
+`.vl.json`, `.mmd`, or `.svg`); and the `scad`, `vega-lite`, `mermaid`, and `svg` topics each have a source example.
 
 **HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics**: a theory over every text example (the OpenSCAD models, the
-Vega-Lite charts, and the SVG drawings; not the snippet): the example is saved under its file name and rendered with
-`render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0, `ok` is true, there is no
-diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid anchors, one inside a
-`translate` and a `rotate`) is covered by this theory, so an anchor example that warned would fail it; the
-`scad-anchor-invalid` identifier the topic cites is a string literal of the Scad library, so the cited-identifier
-drift test finds it without a trigger entry.
+Vega-Lite charts, the Mermaid diagrams, and the SVG drawings; not the snippets): the example is saved under its file
+name and rendered with `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0,
+`ok` is true, there is no diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid
+anchors, one inside a `translate` and a `rotate`) is covered by this theory, so an anchor example that warned would fail
+it; the `scad-anchor-invalid` identifier the topic cites is a string literal of the Scad library, so the
+cited-identifier drift test finds it without a trigger entry.
 
 **HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions**: the extensions found in the `href file types`
 item of the `image-links` section of the `svg` topic have no duplicate, are all in `CanvasNetViewer.Extensions`,
@@ -129,6 +133,12 @@ fragment) ends in a supported extension, and after the sibling files are written
 examples, and the PDF, PPTX, and VSDX documents of the shared fixtures), `render <snippet> --strict --json` succeeds
 with
 no diagnostic, one `embed` operation per link, and the picture written.
+
+**HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles**: the one snippet of the `mermaid` topic
+(`pictures`) is not a source example; written under its file name beside `part.scad` (the `plate` example of the
+`scad` topic) and `chart.vl.json` (the `bar` example of the `vega-lite` topic), `render <snippet> --strict --json`
+exits with 0 with no diagnostic, exactly the two `embed` operations `part.scad` and `chart.vl.json` in that order, and
+the picture written.
 
 **HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` item names the grammar
 (`name=value`), `page=N`, `slide=N`, `view=`, the counting from 1, and the live limits; the `page example` item shows
@@ -164,12 +174,13 @@ option or alias of `render` or a global option.
 values of the error code constants of the tool.
 
 **HelpTopics_CitedDiagnosticIds_ExistInTheLibraries**: every diagnostic identifier cited anywhere in the topics (found
-with a pattern for the families `scad-`, `vl-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`, and `image-page-`) is an
-entry
+with a pattern for the families `scad-`, `vl-`, `mermaid-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`, and
+`image-page-`) is an entry
 of the trigger table, an error
 code, one of the image-link codes (`svg-image-*` and the four fragment codes, which the theory above renders), or a
 placeholder of the naming rule; otherwise the literal part of the identifier (before a `<type>`
-placeholder) must be a string literal in one of the library assemblies (the assembly-literal check).
+placeholder) must be a string literal in one of the library assemblies, the Mermaid assembly included (the
+assembly-literal check).
 
 **HelpTopics_DiagnosticTriggers_ProduceTheCitedIds**: a theory over the trigger table: for each cited identifier, a tiny
 model or chart is run through the real pipeline and the identifier is reported in the diagnostics (a Vega-Lite warning

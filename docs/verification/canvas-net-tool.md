@@ -33,10 +33,11 @@ run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_Render
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`,
 `CanvasNetTool_Adjustments`,
-`CanvasNetTool_RenderVegaLite`, and `CanvasNetTool_HelpExamples`), which
+`CanvasNetTool_RenderVegaLite`, `CanvasNetTool_RenderMermaid`, and `CanvasNetTool_HelpExamples`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (sixteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
-operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart, the help self-test renders
+kept small (seventeen tests, in a documented order); the compare, montage, and adjustments self-tests are smoke tests
+(the last runs every photo operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart,
+the Mermaid self-test a smoke test of one three-node flowchart, the help self-test renders
 every source example of the help topics with `--strict`, and the detailed
 coverage of these commands and operations is in the unit,
 subsystem, and system tests.
@@ -45,7 +46,7 @@ start-up files, the library assemblies, and the third-party libraries bundled fo
 Vega-Lite assembly and the licenses folder
 that carries the third-party notices of the Vega-Lite library) and smoke-tests the installed tool (`formats --json`, an
 SVG `render`, a `crop`, and the `info` and `render` of a small Vega-Lite chart); the self-validation covers the PDF,
-SCAD (OpenSCAD), and Vega-Lite paths of the bundled libraries.
+SCAD (OpenSCAD), Vega-Lite, and Mermaid paths of the bundled libraries.
 
 ## Test Environment
 
@@ -71,8 +72,8 @@ belong to the "Sequential" collection because console redirection is process-wid
   text or JSON, `help <topic> --example <name>` prints only the source or command line of an example, and an unknown
   help subject is a usage error that lists the valid subjects.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
-  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, and Vega-Lite charts) with the
-  documented defaults
+  JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams)
+  with the documented defaults
   (overwrite, flatten
   over white, EXIF orientation, 96 dpi, 800x800 for a model, 8192-pixel limit), the same bytes for the same input, and
   a stable error for
@@ -81,9 +82,14 @@ belong to the "Sequential" collection because console redirection is process-wid
   chart is recognized by its `.vl.json` or `.vl` file name or its Vega-Lite `$schema`, drawn at its laid-out size over
   its own background with UTC dates and the bundled fonts, and an invalid chart is a `vega-lite-error` (a chart that
   exceeds a limit while it is laid out or drawn is `budget-exceeded`, an overlong specification file `corrupt-input`
-  as for a model, and only a chart that lays out larger than 8192 pixels is `size-limit`);
+  as for a model, and only a chart that lays out larger than 8192 pixels is `size-limit`); a diagram is recognized by
+  its `.mmd` or `.mermaid` file name, drawn at the size Mermaid lays it out at over white with the bundled fonts in the
+  theme `--theme` names, its pictures read from its folder only, a type that is not drawn yet is the diagnostic
+`mermaid-diagram-unsupported` (an `unsupported-feature` error with `--strict`), invalid text is a `mermaid-error` with a
+hint, and `--theme` on another kind of input is a `usage-error`;
   `info` describes a
-  file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, without
+  file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, and the
+  type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn yet), without
   rendering it.
 - `compare` reports exact metrics (MAE, RMSE, PSNR, SSIM, largest channel difference, differing-pixel ratio) and a
   grid of per-cell errors, writes the difference, side-by-side, and overlay pictures, refuses images of different sizes
@@ -344,6 +350,21 @@ diagnostic in the JSON result (nothing is fetched), and with `--strict` returns 
 no output; and `--data-dir` is a `usage-error`, because this release has no option for another data folder. The
 self-validation suite had fifteen tests when chart data was added: no self-test was added for chart data, and the existing
 `CanvasNetTool_RenderVegaLite` self-test still renders an inline chart.
+
+**CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage**: a three-node flowchart (`flowchart LR` with `One`,
+`Two`, and `Three` in a row) is listed, described, rendered, and explained by real processes (so the Mermaid assembly
+bundled next to the tool is loaded): `formats --json` lists the `mermaid` format; `info --json` names the `mermaid`
+format and has the `diagram` object with the type `flowchart`, `supported` true, three `nodes`, and two `edges`;
+`render --json` names the format, and the PNG has exactly the size `info` reported, a white corner, and the node fill
+`#ECECFF` of the default theme at (14, h/2) inside the first node; and `help mmd` (the alias) prints the topic that
+starts with `Topic: Mermaid diagrams`; every process exits with 0.
+
+**CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract**: in-process through the entry point, a diagram whose
+first keyword is not a Mermaid keyword (`drawing LR`) returns exit code 1 with an `Error: mermaid-error:` line that
+names `mermaid-unknown-diagram` and a `Hint:` line; a sequence diagram renders with exit code 0 and an
+`Unsupported: mermaid-diagram-unsupported:` line on standard error, and with `--strict` returns exit code 1 with an
+`Error: unsupported-feature:` line; and `--theme dark` on an SVG file returns exit code 1 with an
+`Error: usage-error:` line.
 
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
 processes, as text with `--threshold rmse=0` (one `identical` line and the passed check) and as JSON (`identical`
