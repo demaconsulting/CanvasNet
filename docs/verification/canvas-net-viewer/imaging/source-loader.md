@@ -25,7 +25,7 @@ an unsupported encryption handler, and a broken part. Charts are JSON text writt
 sandbox, and the data errors are verified with real files); one original chart is a fixture file
 (`baskets.vl.json`). Diagrams are the fixture files `Fixtures/mermaid/flow.mmd` (a small flowchart),
 `shipping.mermaid` (a flowchart with frontmatter, an accessible title, a subgraph, and a class), `sequence.mmd` (a
-two-participant sequence diagram), and `pie.mmd` (a
+two-participant sequence diagram), `class.mmd` (a class diagram of two classes and one relation), and `pie.mmd` (a
 pie chart, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
 are the colors of Mermaid's default and dark themes. The other fixture files are an original SVG
 drawing and a JPEG 2000
@@ -291,6 +291,11 @@ with the fields `width`, `height`, and `background` `#FFFFFF`, in that order.
 **SourceLoader_Load_MermaidSequence_ProbesAndDraws**: `sequence.mmd` is probed with the facts `sequence`, supported,
 no direction or titles, two nodes (the participants), one edge (the message), and no subgraph; loaded in strict mode it
 is drawn at the probed size with a white corner, more than 2,000 pixels of the default participant fill, and no note.
+
+**SourceLoader_Load_MermaidClass_ProbesAndDraws**: `class.mmd` is probed with the facts `class`, supported, the
+direction `TB`, no titles, two nodes (the classes), one edge (the relation), and no subgraph; loaded in strict mode it
+is drawn at the probed size with a white corner, more than 2,000 pixels of the default node fill (the class boxes), and
+no note.
 
 **SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
 the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the

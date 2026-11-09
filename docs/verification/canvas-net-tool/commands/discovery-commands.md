@@ -36,7 +36,8 @@ console.
 - The listing names the `mermaid` format (kind `diagram`, extensions `.mmd` and `.mermaid`, help topic `mermaid`) in
   text and JSON, and `info` describes a diagram as one text line and as the `image` and `diagram` objects, with
   `supported` false for a type that is not drawn yet and the counts named participants, messages, and boxes for a
-  sequence diagram; a theme fragment is checked and does not change the description.
+  sequence diagram (a class diagram counts its classes, relations, and namespaces as nodes, edges, and subgraphs); a
+  theme fragment is checked and does not change the description.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
 
@@ -171,6 +172,12 @@ box, two participants, and two messages is described with the type `sequence`, `
 member, the title `Talk`, and 2 nodes, 2 edges, and 1 subgraph; its text line is exactly
 `<path>: mermaid, WxH px (laid out), sequence, 2 participants, 2 messages, 1 box, title "Talk", <bytes> bytes`, the
 counts named for a sequence diagram.
+
+**DiscoveryCommands_Info_ClassDiagram_ReportsClassesAndRelations**: a class diagram with the direction `LR`, a
+namespace `Zoo` holding the class `Duck`, the inheritance `Animal <|-- Duck`, the lollipop `Duck --() Swimmer`, and a
+note for `Duck` is described with the type `class`, `supported` true, the direction `LR`, and 2 nodes, 2 edges, and 1
+subgraph (the classes, the relations, and the namespace; the note and the lollipop interface are not counted); its
+text line is exactly `<path>: mermaid, WxH px (laid out), class LR, 2 nodes, 2 edges, 1 subgraph, <bytes> bytes`.
 
 **DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and

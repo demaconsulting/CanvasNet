@@ -2,8 +2,9 @@
 
 This document describes the unit-level verification strategy for the `ClusterLayout` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace: the internal `ClusterLayout` class (Mermaid's dagre renderer,
-in `ClusterLayout.cs`, `ClusterLayout.Extractor.cs`, and `ClusterLayout.SelfLoops.cs`) and the layout data records
-`LayoutData`, `LayoutNode`, and `LayoutEdge` that it reads.
+in `ClusterLayout.cs`, `ClusterLayout.Extractor.cs`, and `ClusterLayout.SelfLoops.cs`, and the framing of a whole
+diagram in `ClusterLayout.Diagram.cs`) and the layout data records `LayoutData`, `LayoutNode`, and `LayoutEdge` that it
+reads.
 
 #### Verification Approach
 
@@ -11,13 +12,17 @@ The unit is verified by laying out small flowcharts with `ClusterLayout.Render` 
 geometry of the drawn graph. The test helper `RenderingTestContext` parses the text, maps it to layout data with the
 `Flowchart` subsystem, builds the `ShapeContext` of the text (its configuration, style sheet, and the real
 `LabelBuilder` with the bundled fonts), and runs the layout with a `LayoutWorkMeter` of a given budget; the drawn
-graph is read with `SceneQuery` (nodes, subgraph rectangles, edges, and edge labels in absolute coordinates, by their
-Mermaid ids and roles). The assertions are structural (a subgraph laid out on its own is one `subgraph` group; a
-self-loop is one path) and geometric with hand-derived relations (a node moved down by the title margin, a rectangle
-widened around the same center, a route ending 4 pixels short of a box for the arrowhead). The exact agreement with
-Mermaid's numbers is verified at the subsystem level. The real shapes, labels, edges, and dagre layout are used; no
-mocking or stubbing is required, and the internal types are reached through the test assembly's `InternalsVisibleTo`
-access.
+graph is read with `SceneQuery` (nodes, subgraph rectangles, edges, edge labels, and terminal labels in absolute
+coordinates, by their Mermaid ids and roles). The class diagram behavior is verified with layout data built in the
+test (rectangular class nodes and solid class relations with cardinalities as terminal labels, under a chosen diagram
+type), laid out with the `ShapeContext` of a class diagram text (`RenderingTestContext.CreateClass`) through
+`RenderingTestContext.RenderData` or `ClusterLayout.RenderDiagram`. The assertions are structural (a subgraph laid out
+on its own is one `subgraph` group; a self-loop is one path, or three for a type that does not merge it; the terminal
+labels follow their edge's label) and geometric with hand-derived relations (a node moved down by the title margin, a
+rectangle widened around the same center, a route ending 4 pixels short of a box for the arrowhead, a view box grown by
+the padding). The exact agreement with Mermaid's numbers is verified at the subsystem level. The real shapes, labels,
+edges, and dagre layout are used; no mocking or stubbing is required, and the internal types are reached through the
+test assembly's `InternalsVisibleTo` access.
 
 Unit tests reside in `ClusterLayoutTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
 `Rendering` folder.
@@ -34,7 +39,8 @@ Unit tests reside in `ClusterLayoutTests.cs` within the `DemaConsulting.CanvasNe
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
 asserted. A subgraph laid out in the wrong graph or direction, a link attached or cut elsewhere, a self-loop drawn as
-more than one path or inside its node, a layer or subgraph drawn out of order, or a work limit that is not enforced
+more than one path or inside its node (or merged for a type that does not merge it), a layer, subgraph, or terminal
+label drawn out of order, a title or view box other than the hand-derived one, or a work limit that is not enforced
 constitutes a failure.
 
 #### Unit-Level Test Scenarios
@@ -100,3 +106,30 @@ subtree `A` and `D`), and that an empty diagram draws the four layers `clusters`
 
 Asserts that a layout with a tiny work budget stops with a `MermaidRenderException` whose code is
 `mermaid-limit-exceeded`, located on the line of the construct the meter was made for.
+
+##### CanvasNetMermaid-Rendering-ClusterLayout-SelfLoopMergeByType: Self-Loops Are Merged Only For Merging Types
+
+**Tests**: `ClusterLayoutTests.ClusterLayout_Render_SelfLoop_IsMergedOnlyForMergingTypes`
+
+Lays out a class node with a relation to itself that carries the terminal labels `1` and `2`, as a `classDiagram` and
+as the legacy `class` (a theory), and asserts that the class diagram draws one edge, `e1`, which carries both terminal
+labels, while the legacy type draws the three laid-out segments `A-cyclic-special-1`, `A-cyclic-special-mid`, and
+`A-cyclic-special-2`, the first carrying the start label and the last the end label.
+
+##### CanvasNetMermaid-Rendering-ClusterLayout-TerminalLabels: Terminal Labels Follow Their Edge's Label
+
+**Tests**: `ClusterLayoutTests.ClusterLayout_Render_RelationWithCardinalities_DrawsTerminalLabelsAfterItsLabel`
+
+Lays out two class nodes joined by the relation `r1` with the label `has`, the cardinalities `1` and `*`, and a
+composition at its end, and asserts that the `edgeLabels` layer holds, in this order, the `edge-label` and the two
+`edge-terminal` groups, all with the edge's id `r1`.
+
+##### CanvasNetMermaid-Rendering-ClusterLayout-DiagramViewBox: A Diagram Is Framed With Its Title And Padding
+
+**Tests**: `ClusterLayoutTests.ClusterLayout_RenderDiagram_Title_IsAboveTheDrawingInsideThePaddedViewBox`
+
+Renders one class node with `RenderDiagram`, the title `Animals`, a title margin of 25, and a padding of 8, and asserts
+that the scene holds the `root` group and then the `title` line; that the title is anchored in the middle of the
+drawing's bounds with its baseline at y = -25, in the class diagram's root font of 16 pixels (its title class has no
+rule); that the view box is the union of the drawing and the title's box grown by 8 on every side; and that without a
+title the view box is the drawing's bounds grown by 8.

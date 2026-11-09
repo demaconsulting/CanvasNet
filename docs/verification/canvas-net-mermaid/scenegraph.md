@@ -15,11 +15,13 @@ from `SceneModel` records as the layout builds it, with the location of its cons
 `Scene.BoundsOf` and painted by `ScenePainter` with the font resolver of a call, twice at scale 1 and once at scale 2,
 under a painted-pixel limit smaller than the node, and with a canceled token; and a scene of one picture inside a
 translated group is painted at scale 2 with and without a picture loader; and a scene of a box with a drop shadow in a
-translated group is measured and painted at scale 2. The expectations are analytic: the bounds
+translated group is measured and painted at scale 2; and a line of two text runs, the first underlined, is painted at
+scale 2. The expectations are analytic: the bounds
 are the rectangle moved by the group translation; the fill color is found at the node center at both scales; the
 label leaves ink at the center of the node; the two paintings at scale 1 are identical pixel by pixel; the picture is
 asked for at the device size of its box and covers exactly the device pixels of the box; the shadow is the box moved
-by its scaled offset, under the box and outside its bounds; and the failures carry the
+by its scaled offset, under the box and outside its bounds; the underline bar lies under the advance of the
+underlined run only; and the failures carry the
 code and the location of the node. No golden images are used.
 
 The scenarios use a test picture loader that gives a red picture of the requested size and records the requests, as
@@ -47,23 +49,29 @@ scenario in the two unit verification documents passes without error or unexpect
 #### CanvasNetMermaid-Scenegraph-Model: The Scene Describes The Diagram
 
 **Tests**: `ScenegraphTests.Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled`,
-`ScenegraphTests.Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds`
+`ScenegraphTests.Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds`,
+`ScenegraphTests.Scenegraph_PaintUnderlinedRun_BarsOnlyThatRun`
 
 Builds a node scene from a group with an offset of (48, 28) holding a rectangle from (-40, -20) to (40, 20) with a
 role and Mermaid's element id and a label line, and asserts that the bounds of the scene are the rectangle (8, 8, 80,
 40), the stroke excluded; and builds a white 20 by 20 box with a sharp black drop shadow 4 to the right and 4 down in a
-group at (10, 10), and asserts that its bounds are the box (10, 10, 20, 20), the shadow excluded.
+group at (10, 10), and asserts that its bounds are the box (10, 10, 20, 20), the shadow excluded. Builds a text line of
+two runs of `HHH` in Mermaid's default family stack at 32 pixels on the baseline y = 20, the first marked underlined,
+which the painter then draws with its bar (see the next scenario).
 
 #### CanvasNetMermaid-Scenegraph-Painting: The Scene Is Painted At A Placement
 
 **Tests**: `ScenegraphTests.Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled`,
-`ScenegraphTests.Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds`
+`ScenegraphTests.Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds`,
+`ScenegraphTests.Scenegraph_PaintUnderlinedRun_BarsOnlyThatRun`
 
 Paints the node scene over a transparent background at scale 1 and at scale 2 and asserts that the node fill is at
 the same scene point of both surfaces and that the label, drawn in the bundled font for Mermaid's default family
 stack, leaves ink at the center of the node; and paints the box scene at scale 2 and asserts that the box is white
 inside, that its shadow is black in the 8 device pixels to the right of and below the box (moved by the scaled
-offset) and under it, and that the pixels beyond the shadow are transparent.
+offset) and under it, and that the pixels beyond the shadow are transparent. Paints the line of two runs at scale 2
+and asserts that the device row y = 44, under the baseline and below the capitals, is fully covered for 130 to 140
+pixels under the first run (twice its advance of about 69 units) and has no ink at all under the second run.
 
 #### CanvasNetMermaid-Scenegraph-Pictures: Pictures Come Only From The Scene's Loader
 

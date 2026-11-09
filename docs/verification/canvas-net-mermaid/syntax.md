@@ -63,8 +63,9 @@ text with a frontmatter and a comment line with a grammar of words and line feed
 column 5 of the original text, and that the `?` that no rule matches is a `mermaid-syntax-error` at line 7, column 5
 that names the character. Reads a second word where the grammar accepts only a line feed, after a frontmatter, and
 asserts a `mermaid-syntax-error` at line 4, column 14 whose expected tokens are the grammar's description `a new line`
-and whose message names the word found. The full lexing semantics are verified by the `SourceScanner` unit scenarios
-and, end to end, by the `Flowchart` subsystem.
+and whose message names the word found. The full lexing semantics, including the letters outside ASCII of the
+`UNICODE_TEXT` rule that the flowchart and class grammars share (the `SourceScanner-UnicodeLetters` child), are verified
+by the `SourceScanner` unit scenarios and, end to end, by the `Flowchart`, `Sequence`, and `Class` subsystems.
 
 #### CanvasNetMermaid-Syntax-Detection: The Type Of The Prepared Code Is Detected At Its Keyword
 

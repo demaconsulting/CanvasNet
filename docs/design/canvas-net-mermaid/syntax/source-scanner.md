@@ -5,9 +5,9 @@
 The `SourceScanner` unit is the fourth software unit in the `Syntax` subsystem. It is three source files in the
 `DemaConsulting.CanvasNet.Mermaid.Syntax` namespace: `SourceScanner.cs` defines the internal sealed class
 `SourceScanner`, the delegate `ScanMatcher`, the record `ScanRule`, and the record struct `ScanToken`;
-`SourceScanner.Patterns.cs` defines the grouped static class `ScanPatterns` (the matcher building blocks and the
-JavaScript character classes); and `SourceScanner.Tokens.cs` defines the grouped sealed class `TokenCursor` (the
-one-token lookahead of a parser).
+`SourceScanner.Patterns.cs` defines the grouped static class `ScanPatterns` (the matcher building blocks, the
+JavaScript character classes, and the letters of Mermaid's `UNICODE_TEXT` rule); and `SourceScanner.Tokens.cs`
+defines the grouped sealed class `TokenCursor` (the one-token lookahead of a parser).
 
 #### Purpose
 
@@ -35,6 +35,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Syntax-SourceScanner-*
   `INITIAL`), the stack of start conditions, the position, the current match, and jison's `done` flag.
 - `TokenCursor` state - the scanner, the description of token kinds for messages, and the one lookahead token
   `Current`.
+- `ScanPatterns.UnicodeLetters` (private) - the letters outside ASCII that the `UNICODE_TEXT` rule of Mermaid's jison
+  grammars matches, as sorted, inclusive, disjoint ranges of UTF-16 code units (from U+00AA to U+FFDC), generated from
+  the character classes of the rule. The flowchart and class grammars share the rule, so the table is defined once
+  here rather than in each lexer; it holds no ASCII character, because the grammars match ASCII letters with their
+  own rules.
 
 A scanner and a cursor lex one input on one thread; `ScanPatterns` is stateless.
 
@@ -59,6 +64,10 @@ A scanner and a cursor lex one input on one thread; `ScanPatterns` is stateless.
   that replace the parts of the regular expressions of Mermaid's grammars, each linear in what it inspects;
   `IsJsWhitespace`, `IsJsLineTerminator`, and `IsJsWordChar` - JavaScript's `\s`, the characters that `.` does not
   match, and `\w`.
+- `ScanPatterns.IsUnicodeLetter(char c)` - whether a character is one of the `UNICODE_TEXT` letters: a binary search
+  of the range table, so the time is logarithmic in the number of ranges and independent of the input. It is true only
+  for letters outside ASCII (an ASCII letter is false); the flowchart and class lexers use it for the rule that lexes
+  one such letter as a text token, so both accept names in the same scripts as Mermaid.
 
 **Preconditions and postconditions**: the condition table must contain the initial condition and name only rules
 that exist; a rule that matches nothing and produces no token must change the state. Every token's positions are
@@ -84,10 +93,12 @@ positions of the scanner input, which map to the original text.
 
 #### Callers
 
-`FlowchartParser` of the `Flowchart` subsystem builds its 122 rules and 21 start conditions on `SourceScanner` and
-`ScanPatterns` and parses with a `TokenCursor`; `ScanPatterns`' JavaScript character classes are also used by
-`Preprocessor`, `DiagramDetector`, `FlowchartModel`, `LabelBuilder` of the `Rendering` subsystem, and the color
-parsers of the `Configuration` subsystem. The tests in
+`FlowchartParser` of the `Flowchart` subsystem builds its 122 rules and 21 start conditions, and `ClassParser` of the
+`Class` subsystem its 99 rules and 15 start conditions, on `SourceScanner` and `ScanPatterns` and parses with a
+`TokenCursor`; both lexers take the letters of their `UNICODE_TEXT` rule from `ScanPatterns.IsUnicodeLetter`;
+`ScanPatterns`' JavaScript character classes are also used by
+`Preprocessor`, `DiagramDetector`, `FlowchartModel`, `ClassModel`, `LabelBuilder` of the `Rendering` subsystem, and
+the color parsers of the `Configuration` subsystem. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs` drive a small grammar through the unit via
 `InternalsVisibleTo`.
 

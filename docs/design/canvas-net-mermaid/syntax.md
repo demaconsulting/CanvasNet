@@ -57,7 +57,9 @@ detects again with the resolved renderer settings, and uses the edit distance fo
 `Flowchart` subsystem lexes the parser text with `SourceScanner` and `TokenCursor`, reads shape data with
 `YamlSubsetParser`, and sanitizes labels with `HtmlSanitizer`; the `Sequence` subsystem lexes the parser text with
 `SourceScanner` and `TokenCursor`, reads participant metadata with `YamlSubsetParser`, sanitizes texts with
-`HtmlSanitizer`, and uses the edit distance for the nearest participant type; the `Rendering` subsystem (`LabelBuilder`)
+`HtmlSanitizer`, and uses the edit distance for the nearest participant type; the `Class` subsystem lexes the parser
+text with `SourceScanner` and `TokenCursor` (its names in every script through `ScanPatterns.IsUnicodeLetter`, as the
+flowchart's do) and sanitizes texts with `HtmlSanitizer`; the `Rendering` subsystem (`LabelBuilder`)
 sanitizes label HTML and decodes character references with `HtmlSanitizer`, and `ShapeNames` uses the edit distance.
 
 ### Design

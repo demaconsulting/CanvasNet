@@ -105,18 +105,24 @@ diagnostics (as does `svg`; the drift test accepts the identifier because it is 
 `scad` topic shows
 `#def.` in its link item. A unit test checks the three topics, the usage text, and that the documented command runs.
 
-The `mermaid` topic (alias `mmd`) has the five sections of a format topic: `supported` (flowcharts and their shapes,
-links, subgraphs, labels, styles, configuration and themes, picture nodes, and titles; what `info` reports),
-`unsupported` (one term per identifier the renderer reports instead of drawing: `mermaid-diagram-unsupported` for every
+The `mermaid` topic (alias `mmd`) has the five sections of a format topic and one more, `class` (after `supported`):
+`supported` (flowcharts and their shapes, links, subgraphs, labels, styles, configuration and themes, picture nodes,
+and titles, sequence diagrams and their statements, arrows, participant types, and settings, and what `info`
+reports), `class` (the class diagram syntax, relation, and setting rows, item by item and in the order of the
+tables of the Mermaid user guide, which a unit test compares with the guide's rows), `unsupported` (one term per
+identifier the renderer reports instead of drawing: `mermaid-diagram-unsupported` for every
 other diagram type, which `render` draws as an empty picture and `info` reports with `supported` false, and the icon,
-look, layout, and theme-CSS identifiers), `options` (`--theme` with the theme fragment, `--scale`, `--background`, and
-`--strict`), `diagnostics` (`mermaid-warning` with the specific code in `detail`, the codes of the errors and of the
-warnings of the library, and the text limit), and `differences` (the bundled fonts, a static picture, the layout without
-the pictures that `info` reports, the white background, and the located errors where Mermaid would crash). Its examples
-are `flowchart` (a source example: a decision, a subgraph, link labels, and a class, rendered with `--strict` by the
-drift test and the self-test), `pictures` (a snippet whose nodes show `part.scad` and `chart.vl.json`, rendered by its
-own test with the `plate` example of `scad` and the `bar` example of `vega-lite` as its siblings, which requires one
-`embed` operation per picture and no diagnostic), and the commands `render`, `theme`, and `info`. The `svg` topic lists
+math, look, layout, and theme-CSS identifiers), `options` (`--theme` with the theme fragment, `--scale`,
+`--background`, and `--strict`), `diagnostics` (`mermaid-warning` with the specific code in `detail`, the codes of the
+errors and of the warnings of the library, and the text limit), and `differences` (the bundled fonts, a static picture,
+the layout without the pictures that `info` reports, the white background, and the located errors where Mermaid would
+crash). The same unit test checks that every code of the guide's table of unsupported features and warnings is an item
+of the `unsupported` or `diagnostics` section with the same text. Its examples are `flowchart` (a source example: a
+decision, a subgraph, link labels, and a class), `sequence` and `class` (source examples of a sequence diagram and of a
+class diagram), all three rendered with `--strict` by the drift test and the self-test, `pictures` (a snippet whose
+nodes show `part.scad` and `chart.vl.json`, rendered by its own test with the `plate` example of `scad` and the `bar`
+example of `vega-lite` as its siblings, which requires one `embed` operation per picture and no diagnostic), and the
+commands `render`, `theme`, and `info`. The `svg` topic lists
 `.mmd` and `.mermaid` among the `href file types` and `theme=` in its page fragment item, and the `limits` topic has a
 section for diagrams with the `mmd*` tokens. The identifier pattern of the drift test includes the `mermaid-` prefix,
 and the identifiers it finds are looked up in the Mermaid assembly as well.

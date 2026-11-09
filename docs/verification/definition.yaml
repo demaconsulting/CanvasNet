@@ -200,6 +200,9 @@ input-files:
   - docs/verification/canvas-net-mermaid/sequence/sequence-model.md
   - docs/verification/canvas-net-mermaid/sequence/sequence-layout.md
   - docs/verification/canvas-net-mermaid/sequence/sequence-renderer.md
+  - docs/verification/canvas-net-mermaid/class.md
+  - docs/verification/canvas-net-mermaid/class/class-parser.md
+  - docs/verification/canvas-net-mermaid/class/class-model.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

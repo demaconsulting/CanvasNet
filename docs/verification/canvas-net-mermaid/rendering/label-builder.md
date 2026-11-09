@@ -15,10 +15,11 @@ into Mermaid's lines with the same line tops and starts (within 0.02 pixel) and 
 same text. The other tests are analytic: the markdown and plain-string functions are compared with the HTML and the
 lines Mermaid makes of the same text, and the layout rules are checked with numbers derived from the CSS and the font
 metrics (a 16 pixel font gives 24 pixel HTML line boxes and SVG baselines 17.6 pixels apart; a lone picture of natural
-size 40 by 30 is 80 by 60 pixels). The text utilities are checked the same way, with numbers derived from Mermaid's
-`utils.ts` and the font metrics and confirmed against the boxes of the reference's `getBBox` (a line of Liberation
-Sans at 16 pixels is 17 pixels high; `Async to itself` is 100.258 pixels wide). The builder is created with the font
-resolver of the painter (the bundled fonts), a
+size 40 by 30 is 80 by 60 pixels); the bold weight an SVG label inherits for the name of a class box is checked by
+building the same label with and without it. The text utilities are checked the same way, with numbers derived from
+Mermaid's `utils.ts` and the font metrics and confirmed against the boxes of the reference's `getBBox` (a line of
+Liberation Sans at 16 pixels is 17 pixels high; `Async to itself` is 100.258 pixels wide). The builder is created with
+the font resolver of the painter (the bundled fonts), a
 report sink whose warnings are delivered to a list, and, for pictures, a `NodeImages` over a test resolver; no mocking
 of the unit's own collaborators is required, and the internal types are reached through the test assembly's
 `InternalsVisibleTo` access.
@@ -156,3 +157,11 @@ break is missed and it is wrapped, that the miss resets the search, that a wrapp
 builder finds the break; that the first measurement of a text resets the search while a repeated measurement does not;
 and that hyphenating a word of 1,000 characters under a work limit of 10,000 fails with
 `mermaid-limit-exceeded` at the meter's location.
+
+##### CanvasNetMermaid-Rendering-LabelBuilder-InheritedWeight: An SVG Label Inherits A Bold Weight When Asked
+
+**Tests**: `LabelBuilderTests.LabelBuilder_Build_SvgInheritsWeight_DrawsTheLabelBold`
+
+Builds the SVG label `Name` in a bold font, not centered, once with `SvgInheritsWeight` (as a class box draws its
+name) and once without, and asserts that the run of the first is bold and that of the second is not (only strong
+markdown is bold there), that the bold line is wider than the regular one, and that the line starts at x = 0.

@@ -2,16 +2,17 @@
 
 This document describes the unit-level verification strategy for the `SceneModel` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the immutable scene records (`SceneRect`, `SceneSegment`,
-`SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun`, the items `SceneGroup`, `ScenePath`, `SceneText`, and
-`SceneImage`, and `Scene`) with `Scene.BoundsOf` and `Scene.ToPath`.
+`SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun` (with its underline), the items `SceneGroup`, `ScenePath`,
+`SceneText`, and `SceneImage`, and `Scene`) with `Scene.BoundsOf` and `Scene.ToPath`.
 
 #### Verification Approach
 
 The unit is verified by building records and comparing the results of their helpers with values worked out by hand:
 rectangle unions and offsets; the fields that each segment factory fills; the bounds of a cubic curve whose control
 points reach y = -40 while the curve itself reaches y = -30 (three quarters of the control height, from the Bezier
-formula at t = 0.5); and the device bounds of a half circle of radius 10 converted at scale 2 and moved by (5, 50),
-which reaches 20 device pixels above its chord. The unit depends only on the core `Path` and `PathBuilder`, which
+formula at t = 0.5); the device bounds of a half circle of radius 10 converted at scale 2 and moved by (5, 50),
+which reaches 20 device pixels above its chord; and the underline flag of a text run, off by default and without effect
+on the bounds of its line. The unit depends only on the core `Path` and `PathBuilder`, which
 are real, so no mocking or stubbing is required; the internal types are reached through the test assembly's
 `InternalsVisibleTo` access.
 
@@ -68,3 +69,11 @@ and asserts that the path starts at the placed origin and spans x from 5 to 45 a
 
 Asserts that a path has no drop shadow unless one is given, that a path given the shadow (1, 2, 2, `#B9B9B9`) carries
 it, and that the shadow does not change the bounds of the path, as SVG's `getBBox` ignores filters.
+
+##### CanvasNetMermaid-Scenegraph-SceneModel-Underline: A Text Run Can Be Underlined
+
+**Tests**: `SceneModelTests.SceneTextRun_Underline_DefaultsToFalse`
+
+Asserts that a text run is not underlined unless marked, that a copy marked underlined is, and that a text line of the
+underlined run keeps the box it was given (0, 0, 8, 18) as its bounds, so the underline does not change what
+`Scene.BoundsOf` reports.

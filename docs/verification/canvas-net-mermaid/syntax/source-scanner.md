@@ -12,9 +12,11 @@ string condition and a closing quote that pops it, words, an `=>` rule whose act
 end-of-input rule. The token kinds, texts, and positions it produces are compared with what a jison-generated lexer
 produces for the same rules, and the errors are checked for their code, message, expected tokens, and location in
 the original text. Separate rule sets check the defensive refusals. The matcher building blocks and the JavaScript
-character classes are compared with the matches of the corresponding JavaScript regular expression parts. No
+character classes are compared with the matches of the corresponding JavaScript regular expression parts, and the
+shared `UNICODE_TEXT` letters with letters and non-letters inside and outside ASCII. No
 mocking or stubbing is required; the internal types are reached through the test assembly's `InternalsVisibleTo`
-access. The full lexer of the flowchart grammar on top of this unit is verified by the `Flowchart` subsystem.
+access. The full lexers of the flowchart and class grammars on top of this unit are verified by the `Flowchart` and
+`Class` subsystems.
 
 Unit tests reside in `SourceScannerTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
 `Syntax` folder.
@@ -93,3 +95,13 @@ Asserts a case-insensitive literal followed by optional white space, an ordered 
 run with a minimum length; that the no-break space, the byte-order mark, and a four-per-em space are JavaScript white
 space while a zero-width space is not; that the line separator is a line terminator; and that an accented letter is
 not a word character.
+
+##### CanvasNetMermaid-Syntax-SourceScanner-UnicodeLetters: The Grammar Letters Outside ASCII Are Shared
+
+**Tests**: `SourceScannerTests.ScanPatterns_IsUnicodeLetter_FollowsTheGrammarLetters`
+
+Asserts that `ScanPatterns.IsUnicodeLetter`, the one table of the `UNICODE_TEXT` letters that the flowchart and class
+lexers share, is true for letters of several scripts - the feminine ordinal indicator U+00AA, the Latin letters U+00C0
+and U+00E9, the Cyrillic U+0416, and the CJK ideograph U+4E2D - and false for the ASCII letter `a`, the digit `1`, the
+underscore, the space, the no-break space U+00A0, and the multiplication and division signs U+00D7 and U+00F7 that sit
+inside the Latin-1 letters; ASCII is matched by the grammars' own rules, not by this table.

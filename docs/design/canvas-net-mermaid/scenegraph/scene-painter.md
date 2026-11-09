@@ -34,6 +34,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   drawn, and a stroke (of a path, of a text, or in a drop shadow's silhouette) whose device width is zero in single
   precision (a tiny fit scale), not finite, or beyond `MaxMagnitude` is not drawn. `MaxShadowBlur` = 64 device pixels
   is the largest blur a drop shadow is drawn with.
+- **`UnderlineMetrics`** - the underline position (the top of the bar, negative below the baseline) and thickness of
+  the bundled faces in font units, from their OpenType `post` tables, by family and weight: Liberation Sans -67 and
+  150 (bold -2 and 215), Liberation Serif -123 and 100 (bold -28 and 195), and Liberation Mono -393 and 84 (bold -272
+  and 205), of 2048 units to the em. The values of the bundled files are held here because the core font reader does
+  not expose the `post` table.
 
 **Invariants**: `_painted` never exceeds `_maxPaintedPixels`; an instance paints one scene on one thread.
 
@@ -82,10 +87,14 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   measures it at the scaled size with `TextRenderer.MeasureText`, skipping empty runs and runs whose size is not
   bounded; places the line at its anchor (start, centered on it, or ending at it) on the scaled baseline; charges the
   line box (from the largest ascent to the largest descent, grown by half the stroke width of a stroked line) once;
-  then fills each run with a color that has alpha with `TextRenderer.CreateTextPath`, one after the other, and, for a
-  line with a stroke (a color with alpha and a positive bounded width), strokes the glyph outlines over the fill with
-  `PathStroker`, also when the fill is transparent. Characters missing from a face come from the core's
-  bundled fallback fonts.
+  then fills each run with a color that has alpha with `TextRenderer.CreateTextPath`, one after the other, followed,
+  for an underlined run, by its underline bar in the same color; and, for a line with a stroke (a color with alpha and
+  a positive bounded width), strokes the glyph outlines over the fill with `PathStroker`, also when the fill is
+  transparent. Characters missing from a face come from the core's bundled fallback fonts.
+- **`UnderlineBar(face, size, x, baseline, width)`** - the bar of CSS's `text-decoration: underline` under a run, in
+  device space: a rectangle across the run's whole advance from its start, its top the face's underline position below
+  the baseline and its height the face's thickness, both scaled by the font size over the face's units per em; a face
+  not in `UnderlineMetrics` takes the metrics of regular Liberation Sans.
 - **`PaintImage`** (`ScenePainter.Images.cs`) - draws nothing without a loader or with an opacity that is not
   positive; maps the box to device space and snaps it outward to whole pixels (left and top down, right and bottom
   up); skips a box that is not bounded, has no area, or exceeds `Surface.MaxDimension`; charges the box; asks the
@@ -120,11 +129,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
 
 - **SceneModel** - the scene records and `Scene.ToPath` of the same subsystem
 - **Core `CanvasNet`** - `Surface` and `Rgba32` (`Canvas`), `PathFiller`, `PathStroker`, `StrokeStyle`, and `FillRule`
-  (`Drawing`), `FontResolver`, `FontResolverOptions`, and `TrueTypeFont` (`Fonts`), and `TextRenderer` (`Rendering`),
-  through the public API
+  (`Drawing`), `Path` and `PathBuilder` (`Geometry`, for the underline bar), `FontResolver`, `FontResolverOptions`,
+  `ResolvedFont`, and `TrueTypeFont` (`Fonts`), and `TextRenderer` (`Rendering`), through the public API
 - **System public API** - `MermaidRenderException`, `MermaidDiagnosticCodes`, and `MermaidLimits` (for the limit's
   name)
-- **.NET base class library** - `System.Math`, LINQ, and invariant-culture formatting
+- **.NET base class library** - `System.Math`, `System.Numerics.Vector2`, LINQ, and invariant-culture formatting
 
 #### Callers
 
@@ -132,8 +141,10 @@ The `MermaidDocument` unit creates the font resolver of every call with `CreateF
 measurement of the `Rendering` subsystem), and paints the laid-out scene with a painter built from that resolver, the
 scene's picture loader, and `MermaidLimits.MaxPaintedPixels`, with `ScenePlacement.Uniform` for the natural size or
 `ScenePlacement.Fit` for an exact size. The `NodeImages` unit of the `Rendering` subsystem implements
-`ISceneImageLoader`. The tests in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePainterTests.cs` call
-the unit directly through `InternalsVisibleTo`.
+`ISceneImageLoader`. The underlined runs it paints come from the class boxes of the `Rendering` subsystem's
+`ShapeLibrary`, which a class diagram (the `ClassModel` unit of the `Class` subsystem) draws. The tests in
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePainterTests.cs` call the unit directly through
+`InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
 
@@ -151,3 +162,8 @@ the unit directly through `InternalsVisibleTo`.
   as browsers do, but the rounding of the box sizes and the compositing may differ from a browser's by a few levels;
   a blur beyond 64 device pixels is drawn at 64. The shadow duplicates the blur of the private filter code of the
   `CanvasNetSvg` package, because the Mermaid package may only reference the core package.
+- **Underline position.** The bar of an underlined run is placed with the `post` table's underline position taken as
+  the top of the bar and its thickness as its height, across the run's advance; a browser's own placement and rounding
+  of the underline (which Chrome may adjust to the glyphs and the pixel grid) is not reproduced, so the bar can sit a
+  little higher or lower than in Mermaid's picture. The underline does not enter any measured box, so the layout is
+  unaffected.

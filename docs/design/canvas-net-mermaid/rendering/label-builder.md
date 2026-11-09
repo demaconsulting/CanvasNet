@@ -19,7 +19,8 @@ fonts: plain and markdown strings, HTML labels (a `foreignObject` whose box the 
 (`tspan` lines). The measured box decides the size of every node, subgraph title, and edge label, and the lines are
 drawn as scene text. It also measures and wraps text as Mermaid's text utilities do (`calculateTextDimensions`,
 `wrapLabel`, `breakString`, `parseFontSize`, and `splitBreaks` of `utils.ts` and `common.ts`), which decide the sizes
-of the participants, messages, notes, and frames of a sequence diagram. The unit's behavior is specified by the
+of the participants, messages, notes, and frames of a sequence diagram and the width at which the texts of a class box
+wrap. The unit's behavior is specified by the
 `CanvasNetMermaid-Rendering-LabelBuilder-*` requirements in
 `docs/reqstream/canvas-net-mermaid/rendering/label-builder.yaml`.
 
@@ -31,7 +32,9 @@ of the participants, messages, notes, and frames of a sequence diagram. The unit
   `HtmlLabels`, the wrapping `Width` (200 by default; infinity never wraps), `IsNode`, `AddBackground`,
   `ParagraphPadding`, `MarkdownAutoWrap`, `Prepare` (decode the entity placeholders and sanitize first, as for node
   labels), `ConfigFontSize` (which sizes a picture alone in a label), `RootFontSize` (with which SVG lines are wrapped),
-  `CenterSvgText`, and the `Location` of the element for reports.
+  `CenterSvgText`, `SvgInheritsWeight` (the lines of an SVG label take the weight of `Font`, as the name of a class box
+  inherits the bold weight of its group because Mermaid removes the `font-weight` of its `tspan` elements; otherwise
+  only strong markdown is bold), and the `Location` of the element for reports.
 - `LabelRun(Text, Font, Color, Width)` and `LabelLine(X, Baseline, Width, Box, Runs)` - the styled runs of a line and
   the line with its left end, baseline, advance, and box (the line box of an HTML label, the glyph box of an SVG label).
 - `LabelImage(Box, Href)` - a picture of an HTML label.
@@ -68,6 +71,8 @@ of the participants, messages, notes, and frames of a sequence diagram. The unit
   (`splitLineToFitWidth`, a word wider than it split at characters), baselines at `(1 + 1.1 i)` font sizes, centered on
   x 0 for node and edge labels, and a box from the rounded ascent above the first baseline to the rounded descent below
   the last, widened to the glyph outlines rounded out to whole pixels, plus 2 pixels on every side with a background.
+  A word is bold when it is strong markdown or, with `SvgInheritsWeight`, when the label's font is bold, and is
+  measured in that weight, so an inherited bold weight widens the line.
 - `MarkdownToHtml`, `MarkdownToLines`, `NonMarkdownToHtml`, `NonMarkdownToLines`, and `Dedent` - the functions of
   `handle-markdown-text.ts` over the markdown lexer: paragraphs, `**strong**` and `__strong__`, `*em*` and `_em_` with
   CommonMark's delimiter rules, backslash escapes, code spans, inline HTML, the common indentation removed as `ts-dedent`
@@ -130,12 +135,15 @@ function of the request and the bundled fonts.
 
 #### Callers
 
-`ShapeLibrary` measures node labels and subgraph titles through `ShapeContext.MeasureLabel`, which `FlowchartModel`
-(the `Flowchart` subsystem) sets to `Build` and also uses for the metrics of the diagram title; `EdgeBuilder` measures
-edge labels through the same delegate and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem,
-`SequenceLayout` creates a builder for each render (charged to the render's work meter) and measures and wraps with
-the text utilities, and `SequenceRenderer` boxes and places its text lines with them. The tests in
-`LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
+`ShapeLibrary` measures node labels, subgraph titles, and the texts of a class box through `ShapeContext.MeasureLabel`,
+which `FlowchartModel` (the `Flowchart` subsystem) and `ClassModel` (the `Class` subsystem) set to `Build`; `ClassModel`
+also sets `ShapeContext.TextWidth` to `CalculateTextWidth` in the configured font, at whose width plus 50 pixels the
+class box texts wrap, and charges the builder's measuring to the render's work meter. `ClusterLayout.RenderDiagram`
+uses `Advance` and `VerticalMetrics` for the box of the diagram title. `EdgeBuilder` measures edge and terminal labels
+through the same delegate and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem, `SequenceLayout`
+creates a builder for each render (charged to the render's work meter) and measures and wraps with the text utilities,
+and `SequenceRenderer` boxes and places its text lines with them. The tests in `LabelBuilderTests.cs` call the unit
+directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
 
@@ -143,7 +151,9 @@ the text utilities, and `SequenceRenderer` boxes and places its text lines with 
   character outside the bundled fonts is drawn as the missing-glyph box (a browser would take a system fallback font,
   so such a label can be narrower than in Mermaid).
 - The box of an SVG label emulates the browser's `getBBox` (rounded metrics and outline rounding); the residual is
-  typically 0.1 pixel and at most 1.6 pixels. HTML labels match to the layout unit.
+  typically 0.1 pixel and at most 1.6 pixels. The SVG texts of a class box differ by up to 0.882 pixel in the class
+  references, because Chrome takes the box of SVG text from the glyphs it rasterizes at their place on the device pixel
+  grid, so the same text measures differently where it is drawn. HTML labels match to the layout unit.
 - Only the HTML elements `b`, `strong`, `i`, `em`, `br`, `img`, `span` (with a style), and `p` are understood; any
   other element (`sup`, `code`, `u`, `a`, and so on) is dropped with its text kept and reported, and its size changes
   are not modeled. Mixed font sizes on one line use the line box of the tallest font.

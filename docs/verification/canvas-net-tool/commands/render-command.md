@@ -50,8 +50,8 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
-- A diagram (a flowchart or a sequence diagram) is rendered at the size Mermaid lays it out at over white, in the
-  theme `--theme` names (the theme
+- A diagram (a flowchart, a sequence diagram, or a class diagram) is rendered at the size Mermaid lays it out at over
+  white, in the theme `--theme` names (the theme
   fragment of the input wins over the option, and a theme the text sets wins over both), with the operation, the natural
   size, and the diagnostics in the result; a type that is not drawn yet is the diagnostic `mermaid-diagram-unsupported`
   or, in strict mode, an error; invalid text is a `mermaid-error` with a hint; a theme that does not exist and
@@ -490,6 +490,11 @@ pie diagrams are planned, location line 1), and with `--strict` it is `unsupport
 **RenderCommand_Run_MermaidSequence_DrawsTheParticipants**: a two-message sequence diagram rendered with `--strict` and
 `--json` writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000
 pixels of the default participant fill, and there is no diagnostic.
+
+**RenderCommand_Run_MermaidClass_DrawsTheClassBoxes**: a class diagram of the class `Animal` with the attribute
+`+String name` and the method `+eat()` and the inheritance `Animal <|-- Duck`, rendered with `--strict` and `--json`,
+writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000 pixels of
+the default node fill (the class boxes), and there is no diagnostic.
 
 **RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
 supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`
