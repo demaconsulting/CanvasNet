@@ -33,7 +33,7 @@ internal sealed record TextPaint(string FontFamily, double FontSize, Rgba32 Colo
 ///         drops it.
 ///     </para>
 ///     <para>
-///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="SequenceStyles"/>) share the rule
+///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="ClassStyles"/>, <see cref="SequenceStyles"/>) share the rule
 ///         building, the global rules and the cascade here. An instance is immutable.
 ///     </para>
 /// </remarks>
@@ -223,15 +223,85 @@ internal abstract class DiagramStyles
 }
 
 /// <summary>
+///     The style sheet of a diagram that Mermaid draws with its unified renderer (<c>rendering-util</c>): the selectors
+///     that the shared shapes, clusters, edges, labels and the diagram title read, whatever diagram's <c>styles.js</c>
+///     wrote them.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The rendering units (the shape library, the edge builder, the cluster layout) are shared by every unified
+///         diagram, so they read a diagram's sheet only through these members. Each diagram's sheet (the flowchart's,
+///         the class diagram's) supplies its own rules, its title selector and the rule its label colors come from.
+///     </para>
+///     <para>
+///         An instance is immutable.
+///     </para>
+/// </remarks>
+internal abstract class UnifiedStyles : DiagramStyles
+{
+    /// <summary>
+    ///     Initializes the styles from their rules.
+    /// </summary>
+    /// <param name="rules">The rules in cascade order.</param>
+    protected UnifiedStyles(IReadOnlyList<StyleRule> rules)
+        : base(rules)
+    {
+    }
+
+    /// <summary>Gets the paint of node shapes (<c>.node rect</c>).</summary>
+    public ShapePaint Node => Shape(".node rect", 1);
+
+    /// <summary>Gets the paint of subgraph rectangles (<c>.cluster rect</c>).</summary>
+    public ShapePaint Cluster => Shape(".cluster rect", 1);
+
+    /// <summary>Gets the font and color of node labels, from the rule the diagram's sheet colors them with.</summary>
+    public abstract TextPaint NodeLabel { get; }
+
+    /// <summary>
+    ///     Gets the font and color of edge labels; the node label's unless the diagram's sheet colors edge labels with a
+    ///     rule of their own.
+    /// </summary>
+    public virtual TextPaint EdgeLabel => NodeLabel;
+
+    /// <summary>Gets the font and color of subgraph titles (<c>.cluster-label span</c>).</summary>
+    public TextPaint ClusterLabel => Text(".cluster-label span", "color");
+
+    /// <summary>Gets the font and color of the diagram title (the rule of <see cref="TitleSelector"/> on the root font).</summary>
+    public TextPaint Title => Text(TitleSelector, "fill");
+
+    /// <summary>Gets the background of edge labels (<c>.edgeLabel</c>), or null for none.</summary>
+    public Rgba32? EdgeLabelBackground => Resolve(".edgeLabel").Paint("background-color");
+
+    /// <summary>
+    ///     Gets the selector of the diagram title (the CSS class that Mermaid's <c>insertTitle</c> gives the title text,
+    ///     which may have no rule of its own, in which case the title takes the root font).
+    /// </summary>
+    protected abstract string TitleSelector { get; }
+
+    /// <summary>
+    ///     Gets the font and color of an edge's terminal label (a class relation's cardinality, Mermaid's
+    ///     <c>g.edgeTerminals</c>): the size of the <c>.edgeTerminals</c> rule on the root font, and the color of an edge
+    ///     label for an HTML label (its span has the <c>edgeLabel</c> class) or the root's fill for an SVG label.
+    /// </summary>
+    /// <param name="html">Whether the label is an HTML label.</param>
+    /// <returns>The text paint.</returns>
+    public TextPaint TerminalLabel(bool html)
+    {
+        var text = Text(".edgeTerminals", "fill");
+        return html ? text with { Color = EdgeLabel.Color } : text;
+    }
+}
+
+/// <summary>
 ///     The style sheet Mermaid writes for a flowchart (its <c>styles.ts</c> after the global rules of <c>styles.ts</c>),
 ///     built from the theme variables of a configuration, with the rules of <c>themeCSS</c> applied after it.
 /// </summary>
 /// <remarks>
-///     The typed properties resolve the rules the flowchart draws with: <see cref="Node"/>, <see cref="Cluster"/>,
-///     <see cref="EdgeColor"/>, <see cref="MarkerColor"/>, <see cref="NodeLabel"/>, <see cref="ClusterLabel"/> and the
-///     others. An instance is immutable.
+///     The typed properties resolve the rules the flowchart draws with: <see cref="UnifiedStyles.Node"/>,
+///     <see cref="UnifiedStyles.Cluster"/>, <see cref="EdgeColor"/>, <see cref="MarkerColor"/>, <see cref="NodeLabel"/>,
+///     <see cref="UnifiedStyles.ClusterLabel"/> and the others. An instance is immutable.
 /// </remarks>
-internal sealed class FlowchartStyles : DiagramStyles
+internal sealed class FlowchartStyles : UnifiedStyles
 {
     /// <summary>
     ///     Initializes the styles from their rules.
@@ -247,12 +317,6 @@ internal sealed class FlowchartStyles : DiagramStyles
         .Select(rule => rule.Selector)
         .ToFrozenSet(StringComparer.Ordinal);
 
-    /// <summary>Gets the paint of node shapes (<c>.node rect</c>).</summary>
-    public ShapePaint Node => Shape(".node rect", 1);
-
-    /// <summary>Gets the paint of subgraph rectangles (<c>.cluster rect</c>).</summary>
-    public ShapePaint Cluster => Shape(".cluster rect", 1);
-
     /// <summary>Gets the color of edge lines (<c>.flowchart-link</c>).</summary>
     public Rgba32? EdgeColor => Resolve(".flowchart-link").Paint("stroke");
 
@@ -265,17 +329,11 @@ internal sealed class FlowchartStyles : DiagramStyles
     /// <summary>Gets the color of arrowheads and other markers (<c>.marker</c>).</summary>
     public Rgba32? MarkerColor => Resolve(".marker").Paint("fill");
 
-    /// <summary>Gets the font and color of node labels (<c>.label</c> on the root font).</summary>
-    public TextPaint NodeLabel => Text(".label", "color");
+    /// <summary>Gets the font and color of node and edge labels (<c>.label</c> on the root font).</summary>
+    public override TextPaint NodeLabel => Text(".label", "color");
 
-    /// <summary>Gets the font and color of subgraph titles (<c>.cluster-label span</c>).</summary>
-    public TextPaint ClusterLabel => Text(".cluster-label span", "color");
-
-    /// <summary>Gets the font and color of the diagram title (<c>.flowchartTitleText</c>).</summary>
-    public TextPaint Title => Text(".flowchartTitleText", "fill");
-
-    /// <summary>Gets the background of edge labels (<c>.edgeLabel</c>), or null for none.</summary>
-    public Rgba32? EdgeLabelBackground => Resolve(".edgeLabel").Paint("background-color");
+    /// <summary>Gets the selector of the diagram title (<c>.flowchartTitleText</c>).</summary>
+    protected override string TitleSelector => ".flowchartTitleText";
 
     /// <summary>
     ///     Builds the styles of a configuration: the flowchart's rules from its theme variables, then the known rules of

@@ -1,5 +1,6 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -11,16 +12,52 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 /// </summary>
 /// <param name="Fill">The fill, or null for none.</param>
 /// <param name="Stroke">The stroke color, or null for none.</param>
-internal sealed record MarkerPaint(Rgba32? Fill, Rgba32? Stroke);
+internal sealed record MarkerPaint(Rgba32? Fill, Rgba32? Stroke)
+{
+    /// <summary>
+    ///     Gets the stroke width that the style sheet gives the marker (the user-space markers inherit it from their
+    ///     marker element; the view-box markers have their own in <see cref="EdgeBuilder.MarkerGeometry"/>).
+    /// </summary>
+    public double StrokeWidth { get; init; } = 1;
+}
 
 /// <content>
-///     The flowchart's edge markers (<c>markers.js</c>: <c>point</c>, <c>circle</c> and <c>cross</c>, each with its start
-///     variant), placed as SVG places a marker: its <c>refX</c>/<c>refY</c> on the path's end vertex, scaled from its
-///     view box to its <c>markerWidth</c> in user units, and turned along the path's direction there
-///     (<c>orient="auto"</c>).
+///     The edge markers of <c>markers.js</c>, placed as SVG places a marker: its <c>refX</c>/<c>refY</c> on the path's
+///     end vertex, turned along the path's direction there (<c>orient="auto"</c>). The flowchart's markers
+///     (<c>point</c>, <c>circle</c> and <c>cross</c>) are scaled from their view box to their <c>markerWidth</c>; the
+///     class diagram's markers (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c> and
+///     <c>lollipop</c>) have no view box and are drawn in user units (<c>markerUnits="userSpaceOnUse"</c>).
 /// </content>
 internal static partial class EdgeBuilder
 {
+    /// <summary>
+    ///     The marker types whose colored copy fills the shape with the edge's stroke color too (the <c>fill</c> flag of
+    ///     <c>edgeMarker.ts</c>'s <c>arrowTypesMap</c>).
+    /// </summary>
+    private static readonly HashSet<string> ColorFilledMarkers = new(StringComparer.Ordinal) { "point", "barb", "composition", "dependency" };
+
+    /// <summary>
+    ///     A marker of <c>markers.js</c> without a view box, drawn in user units: its marker type (the CSS class of the
+    ///     marker element, which its paint comes from), its reference point and its shapes.
+    /// </summary>
+    /// <remarks>
+    ///     The marker's viewport (<c>markerWidth</c> by <c>markerHeight</c>) clips it, but every shape of the class
+    ///     markers lies inside it except the half-pixel miter tip of the stroke of <c>extensionStart</c>, so the clip is
+    ///     not modeled.
+    /// </remarks>
+    /// <param name="Type">The marker type (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c>, <c>lollipop</c>).</param>
+    /// <param name="RefX">The x of the reference point, in user units.</param>
+    /// <param name="RefY">The y of the reference point, in user units.</param>
+    /// <param name="Parts">The shapes in drawing order.</param>
+    internal sealed record UserSpaceMarker(string Type, double RefX, double RefY, IReadOnlyList<MarkerPart> Parts);
+
+    /// <summary>
+    ///     One shape of a <see cref="UserSpaceMarker"/>: its path in marker units and the fill attribute the shape element
+    ///     carries, which wins over the fill it inherits from the marker element.
+    /// </summary>
+    /// <param name="Segments">The path, in marker units.</param>
+    /// <param name="Fill">The shape's own <c>fill</c> attribute (the lollipop's <c>transparent</c>), or null when it inherits.</param>
+    internal sealed record MarkerPart(IReadOnlyList<SceneSegment> Segments, string? Fill = null);
     /// <summary>
     ///     The geometry of a marker of <c>markers.js</c>: its view box size, its size in user units, its reference point
     ///     and its stroke width, in view box units.
@@ -57,12 +94,38 @@ internal static partial class EdgeBuilder
     };
 
     /// <summary>
-    ///     Draws the markers of an edge path.
+    ///     Gets the user-space marker of an arrow type at one end of an edge (<c>edgeMarker.ts</c>'s
+    ///     <c>arrowTypesMap</c> with the class markers of <c>markers.js</c>), or null when there is none.
+    /// </summary>
+    /// <param name="arrowType">The arrow type (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c>, <c>lollipop</c>).</param>
+    /// <param name="start">Whether the marker is at the start of the path.</param>
+    /// <returns>The marker, or null.</returns>
+    internal static UserSpaceMarker? UserSpaceMarkerOf(string? arrowType, bool start)
+    {
+        // The paths of markers.js, in marker units
+        ShapePoint[] diamond = [new(18, 7), new(9, 13), new(1, 7), new(9, 1)];
+        return (arrowType, start) switch
+        {
+            ("aggregation" or "composition", true) => new UserSpaceMarker(arrowType, 18, 7, [new MarkerPart(Polygon(diamond))]),
+            ("aggregation" or "composition", false) => new UserSpaceMarker(arrowType, 1, 7, [new MarkerPart(Polygon(diamond))]),
+            ("extension", true) => new UserSpaceMarker("extension", 18, 7, [new MarkerPart(Polygon([new(1, 7), new(18, 13), new(18, 1)]))]),
+            ("extension", false) => new UserSpaceMarker("extension", 1, 7, [new MarkerPart(Polygon([new(1, 1), new(1, 13), new(18, 7)]))]),
+            ("dependency", true) => new UserSpaceMarker("dependency", 6, 7, [new MarkerPart(Polygon([new(5, 7), new(9, 13), new(1, 7), new(9, 1)]))]),
+            ("dependency", false) => new UserSpaceMarker("dependency", 13, 7, [new MarkerPart(Polygon([new(18, 7), new(9, 13), new(14, 7), new(9, 1)]))]),
+            ("lollipop", true) => new UserSpaceMarker("lollipop", 13, 7, [new MarkerPart(Circle(7, 7, 6), "transparent")]),
+            ("lollipop", false) => new UserSpaceMarker("lollipop", 1, 7, [new MarkerPart(Circle(7, 7, 6), "transparent")]),
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    ///     Draws the markers of an edge path: at each end, the view-box marker of its arrow type, else its user-space
+    ///     marker, else none.
     /// </summary>
     /// <param name="segments">The path.</param>
     /// <param name="arrowTypeStart">The arrow type at the start.</param>
     /// <param name="arrowTypeEnd">The arrow type at the end.</param>
-    /// <param name="paintOf">The paint of a marker shape.</param>
+    /// <param name="paintOf">The paint of a marker type.</param>
     /// <param name="id">The edge id.</param>
     /// <returns>The marker items (start first).</returns>
     internal static List<SceneItem> DrawMarkers(
@@ -78,18 +141,118 @@ internal static partial class EdgeBuilder
             return items;
         }
 
-        if (MarkerOf(arrowTypeStart, true) is { } startMarker && StartOf(segments) is { } start)
+        foreach (var (arrowType, start) in new[] { (arrowTypeStart, true), (arrowTypeEnd, false) })
         {
-            items.AddRange(DrawMarker(startMarker, start.X, start.Y, start.Angle, paintOf(startMarker.Shape), id));
-        }
+            if ((start ? StartOf(segments) : EndOf(segments)) is not { } vertex)
+            {
+                continue;
+            }
 
-        if (MarkerOf(arrowTypeEnd, false) is { } endMarker && EndOf(segments) is { } end)
-        {
-            items.AddRange(DrawMarker(endMarker, end.X, end.Y, end.Angle, paintOf(endMarker.Shape), id));
+            if (MarkerOf(arrowType, start) is { } marker)
+            {
+                items.AddRange(DrawMarker(marker, vertex.X, vertex.Y, vertex.Angle, paintOf(marker.Shape), id));
+            }
+            else if (UserSpaceMarkerOf(arrowType, start) is { } userMarker)
+            {
+                items.AddRange(DrawUserSpaceMarker(userMarker, vertex.X, vertex.Y, vertex.Angle, paintOf(userMarker.Type), id));
+            }
         }
 
         return items;
     }
+
+    /// <summary>
+    ///     Draws one user-space marker at a vertex: each shape moved so the reference point is on the vertex, turned by
+    ///     the path's direction, filled with its own fill or the marker's, and stroked with the marker's stroke.
+    /// </summary>
+    /// <param name="marker">The marker.</param>
+    /// <param name="x">The vertex x.</param>
+    /// <param name="y">The vertex y.</param>
+    /// <param name="angle">The direction of the path at the vertex, in radians.</param>
+    /// <param name="paint">The paint of the marker element.</param>
+    /// <param name="id">The edge id.</param>
+    /// <returns>The items, one per shape.</returns>
+    internal static List<SceneItem> DrawUserSpaceMarker(UserSpaceMarker marker, double x, double y, double angle, MarkerPaint paint, string id)
+    {
+        var (cos, sin) = (Math.Cos(angle), Math.Sin(angle));
+        var degrees = angle * 180 / Math.PI;
+        ShapePoint Map(double mx, double my)
+        {
+            var (ux, uy) = (mx - marker.RefX, my - marker.RefY);
+            return new ShapePoint(x + (ux * cos) - (uy * sin), y + (ux * sin) + (uy * cos));
+        }
+
+        SceneSegment MapSegment(SceneSegment s)
+        {
+            var end = Map(s.X, s.Y);
+            switch (s.Kind)
+            {
+                case SceneSegmentKind.QuadraticTo:
+                    {
+                        var c = Map(s.X1, s.Y1);
+                        return SceneSegment.Quadratic(c.X, c.Y, end.X, end.Y);
+                    }
+
+                case SceneSegmentKind.CubicTo:
+                    {
+                        var (c1, c2) = (Map(s.X1, s.Y1), Map(s.X2, s.Y2));
+                        return SceneSegment.Cubic(c1.X, c1.Y, c2.X, c2.Y, end.X, end.Y);
+                    }
+
+                case SceneSegmentKind.ArcTo:
+                    return SceneSegment.Arc(s.X1, s.Y1, s.X2 + degrees, s.LargeArc, s.Sweep, end.X, end.Y);
+                case SceneSegmentKind.Close:
+                    return s;
+                default:
+                    return s with { X = end.X, Y = end.Y };
+            }
+        }
+
+        // A transparent fill (the lollipop's own attribute, or the extension's transparent rule) paints nothing
+        var stroke = paint.Stroke is { } color && paint.StrokeWidth > 0 ? new SceneStroke(color, paint.StrokeWidth) : null;
+        var items = new List<SceneItem>();
+        foreach (var part in marker.Parts)
+        {
+            var fill = paint.Fill;
+            if (part.Fill is { } own)
+            {
+                fill = StyleDeclarations.TryParsePaint(own, out var parsed) ? parsed : null;
+            }
+
+            items.Add(new ScenePath([.. part.Segments.Select(MapSegment)])
+            {
+                Role = "marker",
+                Id = id,
+                Fill = fill is { A: > 0 } ? fill : null,
+                Stroke = stroke,
+            });
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    ///     Gets whether the colored copy of a marker type (an edge with its own stroke color) fills the shape with that
+    ///     color too.
+    /// </summary>
+    /// <param name="type">The marker type.</param>
+    /// <returns>Whether the copy fills.</returns>
+    internal static bool FillsWithStrokeColor(string type) => ColorFilledMarkers.Contains(type);
+
+    /// <summary>
+    ///     Makes the path of a circle in marker units: two half arcs from its right end.
+    /// </summary>
+    /// <param name="cx">The center x.</param>
+    /// <param name="cy">The center y.</param>
+    /// <param name="r">The radius.</param>
+    /// <returns>The segments.</returns>
+    private static List<SceneSegment> Circle(double cx, double cy, double r) =>
+    [
+        SceneSegment.Move(cx + r, cy),
+        SceneSegment.Arc(r, r, 0, false, true, cx - r, cy),
+        SceneSegment.Arc(r, r, 0, false, true, cx + r, cy),
+        SceneSegment.Close(),
+    ];
 
     /// <summary>
     ///     Draws one marker at a vertex.

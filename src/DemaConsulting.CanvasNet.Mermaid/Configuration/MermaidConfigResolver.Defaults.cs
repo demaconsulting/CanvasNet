@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
-///     global keys, the flowchart and the sequence diagram, and the set of configuration keys that Mermaid's
-///     <c>sanitizeDirective</c> accepts.
+///     global keys, the flowchart, the sequence diagram and the class diagram, and the set of configuration keys that
+///     Mermaid's <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {
@@ -160,9 +160,9 @@ internal static partial class MermaidConfigResolver
         ["secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges"];
 
     /// <summary>
-    ///     Builds Mermaid's default configuration for the global keys, the flowchart and the sequence diagram, with the
-    ///     default theme's variables. A new object is built for every use, because a JSON object is not safe for
-    ///     concurrent reads.
+    ///     Builds Mermaid's default configuration for the global keys, the flowchart, the sequence diagram and the class
+    ///     diagram, with the default theme's variables. A new object is built for every use, because a JSON object is not
+    ///     safe for concurrent reads.
     /// </summary>
     /// <returns>The default configuration.</returns>
     internal static JsonObject CreateDefaults()
@@ -192,6 +192,14 @@ internal static partial class MermaidConfigResolver
                 ["inheritDir"] = false,
             },
             ["sequence"] = CreateSequenceDefaults(),
+
+            // defaultConfig.ts replaces the schema's class section; padding is deliberately left undefined
+            ["class"] = new JsonObject
+            {
+                ["defaultRenderer"] = "dagre-wrapper",
+                ["hideEmptyMembersBox"] = false,
+                ["hierarchicalNamespaces"] = true,
+            },
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,

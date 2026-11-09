@@ -194,6 +194,59 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that an underlined run gets a bar under its baseline across its whole advance, where the plain run
+    ///     has no ink.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_UnderlinedRun_DrawsABarUnderTheBaseline()
+    {
+        // Arrange: capitals without descenders on a baseline at y = 20, 32 pixels high (the bar spans y 21.05 to 23.39)
+        var font = new SceneFont("\"trebuchet ms\", verdana, arial, sans-serif", 32, false, false);
+        var run = new SceneTextRun("HHH", font, new Rgba32(0, 0, 0, 255));
+        SceneText Line(SceneTextRun r) => new(10, 20, SceneTextAnchor.Start, [r], new SceneRect(10, 0, 90, 30)) { Role = "label" };
+
+        // Act
+        using var plain = Paint(new Scene(new SceneRect(0, 0, 100, 30), [Line(run)]));
+        using var underlined = Paint(new Scene(new SceneRect(0, 0, 100, 30), [Line(run with { Underline = true })]));
+        var plainInk = Enumerable.Range(0, 100).Count(x => plain[x, 22].A > 0);
+        var barInk = Enumerable.Range(0, 100).Count(x => underlined[x, 22].A == 255);
+
+        // Assert
+        Assert.Equal(0, plainInk);
+        Assert.InRange(barInk, 65, 70);
+    }
+
+    /// <summary>
+    ///     Validates the underline bar of each bundled face: the position and thickness of its <c>post</c> table, under
+    ///     the whole advance.
+    /// </summary>
+    /// <param name="family">The family.</param>
+    /// <param name="bold">Whether bold.</param>
+    /// <param name="position">The underline position in font units.</param>
+    /// <param name="thickness">The underline thickness in font units.</param>
+    [Theory]
+    [InlineData("Liberation Sans", false, -67, 150)]
+    [InlineData("Liberation Sans", true, -2, 215)]
+    [InlineData("Liberation Serif", false, -123, 100)]
+    [InlineData("Liberation Serif", true, -28, 195)]
+    [InlineData("Liberation Mono", false, -393, 84)]
+    [InlineData("Liberation Mono", true, -272, 205)]
+    public void ScenePainter_UnderlineBar_BundledFaces_FollowThePostTable(string family, bool bold, double position, double thickness)
+    {
+        // Arrange
+        var face = ScenePainter.CreateFontResolver().Resolve(family, bold, false, out _);
+
+        // Act
+        var bounds = ScenePainter.UnderlineBar(face, 2048, 10, 100, 500).GetBounds(0.01f);
+
+        // Assert: at 2048 pixels one font unit is one pixel
+        Assert.Equal(10, bounds.X, 3);
+        Assert.Equal(500, bounds.Width, 3);
+        Assert.Equal(100 - position, bounds.Y, 3);
+        Assert.Equal(thickness, bounds.Height, 3);
+    }
+
+    /// <summary>
     ///     Validates the background fill and that a scaled placement scales geometry.
     /// </summary>
     [Fact]

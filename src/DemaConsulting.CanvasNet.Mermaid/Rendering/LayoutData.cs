@@ -24,7 +24,10 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 /// <param name="Config">The effective configuration of the render.</param>
 internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList<LayoutEdge> Edges, MermaidConfig Config)
 {
-    /// <summary>Gets the diagram type as Mermaid names it (<c>flowchart-v2</c>).</summary>
+    /// <summary>
+    ///     Gets the diagram type as Mermaid names it (<c>flowchart-v2</c>, <c>classDiagram</c>, the legacy
+    ///     <c>class</c>, ...); it decides whether self-loops are merged into one compact loop.
+    /// </summary>
     public required string DiagramType { get; init; }
 
     /// <summary>Gets the layout algorithm (always <c>dagre</c>; other layouts fall back to it).</summary>
@@ -115,9 +118,43 @@ internal sealed record LayoutNode
     /// <summary>Gets the aspect constraint of an image (<c>on</c> or <c>off</c>), or null.</summary>
     public string? Constraint { get; init; }
 
+    /// <summary>Gets the texts of a class box (a node of shape <c>classBox</c>), or null for any other node.</summary>
+    public LayoutClassBox? ClassBox { get; init; }
+
     /// <summary>Gets the location of the node's first mention in the text, for reports.</summary>
     public MermaidLocation Location { get; init; }
 }
+
+/// <summary>
+///     The texts of a class box as Mermaid's <c>classBox</c> shape reads them from a class node: the drawn name, the
+///     annotations, the attributes and the methods.
+/// </summary>
+/// <remarks>
+///     The texts are as the class database holds them (Mermaid's <c>ClassNode.text</c> and <c>ClassMember.text</c>):
+///     generics already written as <c>&amp;lt;T&amp;gt;</c> and a visibility escaped with a backslash; the shape decodes
+///     and draws them. The record is immutable.
+/// </remarks>
+/// <param name="Text">The class name as drawn (<c>ClassNode.text</c>: the name with its generic type).</param>
+/// <param name="Annotations">The annotations in order, without the angle quotes Mermaid draws around them (only the first is drawn).</param>
+/// <param name="Members">The attributes in order.</param>
+/// <param name="Methods">The methods in order.</param>
+/// <param name="Styles">The class's own styles (<c>ClassNode.styles</c>: its <c>style</c> statements and class styles).</param>
+internal sealed record LayoutClassBox(
+    string Text,
+    IReadOnlyList<string> Annotations,
+    IReadOnlyList<LayoutClassMember> Members,
+    IReadOnlyList<LayoutClassMember> Methods,
+    IReadOnlyList<string> Styles);
+
+/// <summary>
+///     An attribute or a method of a class box: its text and the style of its classifier.
+/// </summary>
+/// <param name="Text">The member's text as the class database holds it (<c>ClassMember.text</c>).</param>
+/// <param name="CssStyle">
+///     The style of its classifier (<c>parseClassifier()</c>): <c>font-style:italic;</c> for an abstract member,
+///     <c>text-decoration:underline;</c> for a static one, else empty.
+/// </param>
+internal sealed record LayoutClassMember(string Text, string CssStyle);
 
 /// <summary>
 ///     An edge of <see cref="LayoutData"/> (Mermaid's <c>Edge</c>).
@@ -192,6 +229,18 @@ internal sealed record LayoutEdge
 
     /// <summary>Gets the curve: the edge's own, else the <c>linkStyle default</c> one, else the configured one.</summary>
     public string? Curve { get; init; }
+
+    /// <summary>
+    ///     Gets the terminal label beside the start of the edge (Mermaid's <c>startLabelRight</c>: a class relation's
+    ///     first cardinality), empty for none.
+    /// </summary>
+    public string StartLabelRight { get; init; } = string.Empty;
+
+    /// <summary>
+    ///     Gets the terminal label beside the end of the edge (Mermaid's <c>endLabelLeft</c>: a class relation's second
+    ///     cardinality), empty for none.
+    /// </summary>
+    public string EndLabelLeft { get; init; } = string.Empty;
 
     /// <summary>Gets the location of the link in the text, for reports.</summary>
     public MermaidLocation Location { get; init; }

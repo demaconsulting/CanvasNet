@@ -92,6 +92,15 @@ internal static partial class MermaidConfigResolver
         ["sequence.labelBoxWidth"] = ValueKind.Number,
         ["sequence.labelBoxHeight"] = ValueKind.Number,
         ["sequence.textPlacement"] = ValueKind.Text,
+        ["class"] = ValueKind.Object,
+        ["class.defaultRenderer"] = ValueKind.Text,
+        ["class.hideEmptyMembersBox"] = ValueKind.Boolean,
+        ["class.hierarchicalNamespaces"] = ValueKind.Boolean,
+        ["class.padding"] = ValueKind.Number,
+        ["state"] = ValueKind.Object,
+        ["state.nodeSpacing"] = ValueKind.Number,
+        ["state.rankSpacing"] = ValueKind.Number,
+        ["state.titleTopMargin"] = ValueKind.Number,
     };
 
     /// <summary>

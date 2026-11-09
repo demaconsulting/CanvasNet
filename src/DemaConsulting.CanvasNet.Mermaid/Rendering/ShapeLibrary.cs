@@ -78,7 +78,7 @@ internal sealed class ShapeContext
     public required MermaidConfig Config { get; init; }
 
     /// <summary>Gets the style sheet of the diagram.</summary>
-    public required FlowchartStyles Styles { get; init; }
+    public required UnifiedStyles Styles { get; init; }
 
     /// <summary>Gets the label measurement.</summary>
     public required Func<LabelRequest, LabelLayout> MeasureLabel { get; init; }

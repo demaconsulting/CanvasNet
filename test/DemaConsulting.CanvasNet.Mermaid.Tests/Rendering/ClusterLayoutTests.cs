@@ -2,6 +2,8 @@ using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Graphlib;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
+using LayoutEdge = DemaConsulting.CanvasNet.Mermaid.Rendering.LayoutEdge;
+using LayoutNode = DemaConsulting.CanvasNet.Mermaid.Rendering.LayoutNode;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Rendering;
 
@@ -208,6 +210,80 @@ public sealed class ClusterLayoutTests
     }
 
     /// <summary>
+    ///     Checks that a self-loop is merged into one compact loop only for the diagram types Mermaid merges: a class
+    ///     diagram draws one loop, the legacy <c>class</c> id draws the three laid-out segments, each with the terminal
+    ///     label of its own end.
+    /// </summary>
+    /// <param name="diagramType">The diagram type.</param>
+    /// <param name="edges">The ids of the drawn edges.</param>
+    /// <param name="terminals">The ids of the drawn edges that carry the two terminal labels.</param>
+    [Theory]
+    [InlineData("classDiagram", new[] { "e1" }, new[] { "e1", "e1" })]
+    [InlineData("class", new[] { "A-cyclic-special-1", "A-cyclic-special-mid", "A-cyclic-special-2" }, new[] { "A-cyclic-special-1", "A-cyclic-special-2" })]
+    public void ClusterLayout_Render_SelfLoop_IsMergedOnlyForMergingTypes(string diagramType, string[] edges, string[] terminals)
+    {
+        // Arrange
+        var loop = Relation("e1", "A", "A") with { StartLabelRight = "1", EndLabelLeft = "2" };
+        var data = new LayoutData([Box("A")], [loop], RenderingTestContext.CreateClass().Config) { DiagramType = diagramType, Direction = "TB" };
+
+        // Act
+        var scene = RenderingTestContext.SceneOf(RenderingTestContext.RenderData(data, RenderingTestContext.CreateClass()));
+
+        // Assert
+        Assert.Equal(edges.Order(StringComparer.Ordinal), SceneQuery.Edges(scene).Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(terminals, SceneQuery.OfRole(scene, "edge-terminal").Select(item => item.Id!));
+    }
+
+    /// <summary>
+    ///     Checks that a relation's terminal labels are drawn in the edge label layer right after its label.
+    /// </summary>
+    [Fact]
+    public void ClusterLayout_Render_RelationWithCardinalities_DrawsTerminalLabelsAfterItsLabel()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateClass();
+        var relation = Relation("r1", "A", "B") with { Label = "has", StartLabelRight = "1", EndLabelLeft = "*", ArrowTypeEnd = "composition" };
+        var data = new LayoutData([Box("A"), Box("B")], [relation], context.Config) { DiagramType = "classDiagram", Direction = "TB" };
+
+        // Act
+        var graph = RenderingTestContext.RenderData(data, context);
+
+        // Assert
+        var labels = Assert.IsType<SceneGroup>(Assert.Single(graph.Items, item => item.Role == "edgeLabels"));
+        Assert.Equal(["edge-label", "edge-terminal", "edge-terminal"], labels.Children.Select(item => item.Role));
+        Assert.All(labels.Children, item => Assert.Equal("r1", item.Id));
+    }
+
+    /// <summary>
+    ///     Checks the shared end of a diagram's drawing: the drawing as the root group, the title centered above it with
+    ///     its baseline the title margin above the origin, in the class diagram's root font (its title class has no
+    ///     rule), and the view box grown by the padding.
+    /// </summary>
+    [Fact]
+    public void ClusterLayout_RenderDiagram_Title_IsAboveTheDrawingInsideThePaddedViewBox()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateClass();
+        var data = new LayoutData([Box("A")], [], context.Config) { DiagramType = "classDiagram", Direction = "TB" };
+        var labels = new LabelBuilder(ScenePainter.CreateFontResolver(), null, null);
+        var meter = new LayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
+        var drawing = RenderingTestContext.RenderData(data, context).Bounds!.Value;
+
+        // Act
+        var scene = new ClusterLayout(context, meter).RenderDiagram(data, "Animals", 25, 8, labels);
+        var untitled = new ClusterLayout(context, meter).RenderDiagram(data, null, 25, 8, labels);
+
+        // Assert
+        Assert.Equal(["root", "title"], scene.Items.Select(item => item.Role));
+        var title = Assert.IsType<SceneText>(scene.Items[1]);
+        Assert.Equal((drawing.X + (drawing.Width / 2), -25.0, SceneTextAnchor.Middle), (title.X, title.Baseline, title.Anchor));
+        Assert.Equal(16, title.Runs[0].Font.Size);
+        var all = drawing.Union(title.Box);
+        Assert.Equal(new SceneRect(all.X - 8, all.Y - 8, all.Width + 16, all.Height + 16), scene.ViewBox);
+        Assert.Equal(new SceneRect(drawing.X - 8, drawing.Y - 8, drawing.Width + 16, drawing.Height + 16), untitled.ViewBox);
+    }
+
+    /// <summary>
     ///     Checks that a link still ending at a subgraph when its graph is laid out (a subgraph used as a node of another
     ///     subgraph, or a self-loop on a subgraph next to links into enclosing subgraphs) fails located at the link, as
     ///     Mermaid 11.17.2's render fails on these diagrams (dagre's <c>longestPath</c>: "Cannot set properties of
@@ -229,4 +305,30 @@ public sealed class ClusterLayoutTests
         Assert.Contains($"'{link}'", exception.Message, StringComparison.Ordinal);
         Assert.NotNull(exception.Hint);
     }
+
+    /// <summary>
+    ///     Makes a rectangle node.
+    /// </summary>
+    /// <param name="id">The node id.</param>
+    /// <returns>The node.</returns>
+    private static LayoutNode Box(string id) => new() { Id = id, DomId = "classId-" + id, Label = id, Shape = "rect", Padding = 8, LabelType = "text" };
+
+    /// <summary>
+    ///     Makes a solid class relation without markers.
+    /// </summary>
+    /// <param name="id">The edge id.</param>
+    /// <param name="start">The start node.</param>
+    /// <param name="end">The end node.</param>
+    /// <returns>The edge.</returns>
+    private static LayoutEdge Relation(string id, string start, string end) => new()
+    {
+        Id = id,
+        Start = start,
+        End = end,
+        Type = "normal",
+        Thickness = "normal",
+        Pattern = "solid",
+        Classes = "relation",
+        MinLen = 1,
+    };
 }

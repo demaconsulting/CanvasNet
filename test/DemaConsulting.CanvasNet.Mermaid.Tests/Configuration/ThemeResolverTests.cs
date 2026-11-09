@@ -255,6 +255,65 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the class diagram's style rules of the default theme: the global rules first, the node and cluster
+    ///     paint, the <c>classText</c> labels, the title in the root font (its class has no rule), the dividers, the 11
+    ///     pixel terminal labels and the marker rules.
+    /// </summary>
+    [Fact]
+    public void ClassStyles_Create_DefaultTheme_ResolvesClassRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "classDiagram\n  class A\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+
+        // Act
+        var styles = ClassStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new ShapePaint(Color("#ECECFF"), Color("#9370DB"), 1), styles.Node);
+        Assert.Equal(new ShapePaint(Color("#ffffde"), Color("#aaaa33"), 1), styles.Cluster);
+        Assert.Equal(new TextPaint(Family, 16, Color("#131300")), styles.NodeLabel);
+        Assert.Equal(new TextPaint(Family, 16, Color("#131300")), styles.EdgeLabel);
+        Assert.Equal(new TextPaint(Family, 16, Color("#333")), styles.Title);
+        Assert.Equal(new ShapePaint(null, Color("#9370DB"), 1), styles.Divider);
+        Assert.Equal(new TextPaint(Family, 11, Color("#131300")), styles.TerminalLabel(true));
+        Assert.Equal(new TextPaint(Family, 11, Color("#333")), styles.TerminalLabel(false));
+        Assert.Equal(("#333333", "#333333", "transparent", "#ECECFF"), (
+            styles.Resolve(".composition")["fill"],
+            styles.Resolve(".dependency")["stroke"],
+            styles.Resolve(".extension")["fill"],
+            styles.Resolve(".lollipop")["fill"]));
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule of a class selector overrides the theme, and that the important marker
+    ///     fills are kept against it.
+    /// </summary>
+    [Fact]
+    public void ClassStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".divider { stroke: #ff0000 } .composition { fill: blue } .edgeTerminals { font-size: 14px }\"}}%%\nclassDiagram\n  class A\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "classDiagram", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = ClassStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Empty(reports);
+        Assert.Equal(Color("#ff0000"), styles.Divider.Stroke);
+        Assert.Equal("#333333", styles.Resolve(".composition")["fill"]);
+        Assert.Equal(14, styles.TerminalLabel(true).FontSize);
+    }
+
+    /// <summary>
     ///     Validates that the flowchart and sequence style sheets start with the same global rules of Mermaid's
     ///     <c>getStyles</c>.
     /// </summary>
