@@ -132,6 +132,10 @@ package CanvasNet {
         expose MermaidSequence;
     }
 
+    view MermaidClassView {
+        expose MermaidClass;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

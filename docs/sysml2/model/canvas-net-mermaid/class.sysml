@@ -1,0 +1,14 @@
+package CanvasNet {
+    part def MermaidClass {
+        doc /* The internal subsystem in the DemaConsulting.CanvasNet.Mermaid.Class namespace that reads class diagrams (the classDiagram and classDiagram-v2 keywords, and the legacy class id that a class.defaultRenderer other than dagre-wrapper selects) and lays them out through the shared unified renderer: a port of the class diagram of the pinned Mermaid release. The ClassParser unit reads the preprocessed text with a port of the lexer of the generated classDiagram.jison parser (its rules and start conditions as matchers that never backtrack) and a recursive-descent parser that accepts the language of its LALR(1) grammar with jison's error states and expected tokens, running each database action where jison reduces its rule. The ClassModel unit is Mermaid's class database (classDb.ts): classes with labels, generics, members, methods, and annotations, relations with cardinalities and labels, lollipop interfaces, namespaces with implicit dotted ancestors, notes, style classes, styles, and link data checked as the strict security level checks it, with Mermaid's database errors located in the text and the MaxNodes, MaxEdges, and MaxLabelLength limits; it gives the document its metadata (classes, relations, and the namespaces drawn under the text's own configuration as the node, edge, and subgraph counts, and the direction), maps the diagram for each render to the LayoutData of the Rendering subsystem as getData does, reports a look other than classic and a layout other than dagre, and has the cluster layout draw the scene with the class style sheet, the title, and the padding of the class renderer. The class boxes, markers, and cardinalities are drawn by the Rendering subsystem. A parsed model is immutable and safe for concurrent renders. As of this release, its constituent units are ClassParser and ClassModel. */
+
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassTests.cs (with the original fixtures test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/class/) */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/class.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/class.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/class.yaml */
+        comment /* Within the CanvasNetMermaid system the Class subsystem depends on the Syntax subsystem (scanner, mapped text, and the shared UNICODE_TEXT letters), the Configuration subsystem (effective configuration with its class section and the state spacing, and the class style sheet), the Rendering subsystem (layout data, cluster layout, label builder, and node images), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+
+        part classParser : ClassParser;
+        part classModel : ClassModel;
+    }
+}
