@@ -74,9 +74,10 @@ level by the hardening tests.
 **Tests**: `SequenceTests.Sequence_Layout_Fixture_DrawsParticipants`
 
 Every original fixture (a theory with one case for each file) lays out into a scene with a positive view box and at
-least one participant drawn at the top. The exact geometry of the participants, messages, notes, activations, created
-and destroyed participants, sequence numbers, and the view box is verified at the unit level (see the SequenceLayout
-unit verification design) and against Mermaid by the system-level reference layout tests.
+least one participant drawn at the top. The exact geometry of the participants, messages, notes, activations, block
+frames and rect backgrounds, boxes, menus, created and destroyed participants, sequence numbers, and the view box is
+verified at the unit level (see the SequenceLayout unit verification design) and against Mermaid by the system-level
+reference layout tests.
 
 #### CanvasNetMermaid-Sequence-Drawing: Sequence Diagrams Are Drawn
 

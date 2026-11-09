@@ -39,6 +39,7 @@ sections:
                 justification: |
                   The layout walks this list in order; any difference from Mermaid's list changes the drawing.
                 tests:
+                  - SequenceModel_Apply_Messages_KeepMermaidsListAndAddParticipants
                   - SequenceParser_Parse_UpstreamVector_MatchesMermaid
 
               - id: CanvasNetMermaid-Sequence-SequenceModel-Activations

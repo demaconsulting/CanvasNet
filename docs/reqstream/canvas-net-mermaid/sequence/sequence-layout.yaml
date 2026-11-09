@@ -41,6 +41,21 @@ sections:
                   - SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures
                   - SequenceLayout_Draw_SelfMessage_IsALoopOrRightAngles
 
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-NotePlacement
+                title: >-
+                  The SequenceLayout unit shall place each note below the message or note before it as Mermaid's
+                  sequence renderer does: a note left of or right of a participant beside its lifeline, a note over
+                  one participant centered on its lifeline, and a note over two participants, named in either order,
+                  across both lifelines; at least the configured note width and widened for its text, with its text
+                  aligned by the noteAlign setting, and with the margins between the participants widened so that a
+                  wide note fits.
+                justification: |
+                  Notes explain the steps of an interaction; their places and sizes change the width and height of the
+                  diagram and the places of the participants, and must be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_Notes_BesideOverAndAcrossParticipants
+                  - SequenceLayout_Draw_NoteAlign_AnchorsTheNoteText
+
               - id: CanvasNetMermaid-Sequence-SequenceLayout-Activations
                 title: >-
                   The SequenceLayout unit shall place an activation from just below its start to its end on the
@@ -62,6 +77,45 @@ sections:
                   Mermaid.
                 tests:
                   - SequenceLayout_Draw_CreateAndDestroy_MoveTheParticipants
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Blocks
+                title: >-
+                  The SequenceLayout unit shall enclose the messages of a loop, alt, opt, par, par_over, critical, or
+                  break block in a frame divided at each else, and, or option section, and the messages of a rect
+                  block in a background, each block inside the block around it with Mermaid's box margins, as
+                  Mermaid's sequence renderer does.
+                justification: |
+                  Blocks group the steps of an interaction; the bounds of their frames, sections, and backgrounds, and
+                  the room they take, must be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_NestedLoopAndAlt_FramesEncloseTheirSections
+                  - SequenceLayout_Draw_NestedRects_BackgroundsEncloseTheirMessages
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Boxes
+                title: >-
+                  The SequenceLayout unit shall draw each box around its participants with Mermaid's box margins and
+                  its title centered at its top, move the participants down to make room for the box titles and the
+                  participants after a box right by its margin, and widen a box whose title is wider than its
+                  participants with the participants centered in it, as Mermaid's sequence renderer does.
+                justification: |
+                  Boxes group participants; the room a box and its title take moves the participants, and must be
+                  Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_Boxes_EncloseTheirParticipantsBelowTheTitles
+                  - SequenceLayout_Draw_BoxTitleWiderThanParticipants_CentersThem
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Menus
+                title: >-
+                  The SequenceLayout unit shall place the menu of each drawn participant that has links below the
+                  participant, 20 pixels plus 30 for each link high and as wide as the participant or its widest link
+                  label, and grow the view box to hold every menu, whether the forceMenus setting shows it or it stays
+                  hidden.
+                justification: |
+                  Mermaid sizes the diagram for its menus even when they are hidden, which users see as extra room; the
+                  size of the picture must still be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_HiddenMenus_GrowTheViewBox
+                  - SequenceLayout_Draw_ForceMenus_PanelBelowTheParticipant
 
               - id: CanvasNetMermaid-Sequence-SequenceLayout-SequenceNumbers
                 title: >-

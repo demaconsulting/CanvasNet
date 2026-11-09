@@ -80,16 +80,23 @@ sections:
             title: >-
               The Sequence subsystem shall lay out an opened sequence diagram, for each render, as Mermaid's sequence
               renderer does under the effective configuration of that render: the participants and their margins, the
-              messages and notes one under another, self messages, activations, created and destroyed participants,
-              the mirrored and the hidden participants, the sequence numbers, the title, and the view box.
+              messages and notes one under another, the notes beside, over, or across their participants, self
+              messages, activations, the frames of the blocks with their sections and the rect backgrounds, nested,
+              the boxes and their titles, created and destroyed participants, the mirrored and the hidden
+              participants, the sequence numbers, the participant menus, which take their room even when hidden, the
+              title, and the view box.
             justification: |
               The size of a sequence diagram and the place of every element must be Mermaid's for the same text and
               configuration, and the configuration of a render is known only when the render starts.
             children:
               - CanvasNetMermaid-Sequence-SequenceLayout-ActorMargins
               - CanvasNetMermaid-Sequence-SequenceLayout-MessagePlacement
+              - CanvasNetMermaid-Sequence-SequenceLayout-NotePlacement
               - CanvasNetMermaid-Sequence-SequenceLayout-Activations
               - CanvasNetMermaid-Sequence-SequenceLayout-CreateDestroy
+              - CanvasNetMermaid-Sequence-SequenceLayout-Blocks
+              - CanvasNetMermaid-Sequence-SequenceLayout-Boxes
+              - CanvasNetMermaid-Sequence-SequenceLayout-Menus
               - CanvasNetMermaid-Sequence-SequenceLayout-SequenceNumbers
               - CanvasNetMermaid-Sequence-SequenceLayout-Configuration
               - CanvasNetMermaid-Sequence-SequenceLayout-ViewBox

@@ -13,10 +13,13 @@ The unit is verified by laying out short texts through the document pipeline (th
 text, resolves the configuration as a render does, and returns the scene of `SequenceModel.Layout`) and asserting the
 geometry of the scene items that the layout places, found by their roles and ids (`SceneQuery.SequenceItems`): the
 boxes of the participants and their mirrors, the ends of the message lines, the segments of self messages, the boxes
-of activations, the lifelines, the sequence numbers, the title, and the view box. The expected values are Mermaid's
+of activations, the lifelines, the sequence numbers, the notes, the lines of the block frames, the rect backgrounds,
+the boxes and their titles, the menu panels, the title, and the view box. The expected values are Mermaid's
 for the same text, worked out from `sequenceRenderer.ts` and confirmed against the pinned Mermaid release (for example
 participants 150 wide and 50 apart, the first message line 44 below the participants, and the view box grown by the
-diagram margins of 50 and 10). The layout's agreement with Mermaid on whole diagrams is verified as well by the
+diagram margins of 50 and 10). The expected values for notes, blocks, boxes, and menus were recorded by running the
+reference renderer (`benchmarks/visual-diff/render-mermaid.mjs`, the pinned Mermaid release) on the same texts. The
+layout's agreement with Mermaid on whole diagrams is verified as well by the
 system-level reference layout tests, which compare every fixture with a mermaid-cli golden; the work limit and
 cancellation of the layout are verified at the system level.
 
@@ -63,6 +66,18 @@ Asserts that the line of one message runs from x 76 to x 271 at y 109 (the lifel
 the mirrored participant at y 129; and that a self message starts at the lifeline (76, 109) and is Mermaid's cubic to
 (76, 129) through (136, 99) and (136, 139).
 
+##### CanvasNetMermaid-Sequence-SequenceLayout-NotePlacement: Notes Beside, Over, And Across Participants
+
+**Tests**: `SequenceLayoutTests.SequenceLayout_Draw_Notes_BesideOverAndAcrossParticipants`,
+`SequenceLayoutTests.SequenceLayout_Draw_NoteAlign_AnchorsTheNoteText`
+
+Asserts that, for two participants, six notes are placed one under another, each 37 high and 47 below the one before
+it: left of A at (-100, 75) and right of A at (100, 122), both 150 wide; over B at (279, 169), 150 wide; over A,B and
+over B,A both at x 50 and 329 wide, at y 216 and 263; and a wide note over A at (-154, 310), 458 wide, which moves B
+to x 279 (200 without it), with the view box (-204, -10, 683, 453). Asserts as well that with `noteAlign: left` a note
+over A,B at (50, 75, 250, 37) and a note right of B at (300, 122, 150, 37) have their texts at x 60 and 310 anchored
+at the start, and that with `noteAlign: right` the same notes have their texts at x 290 and 440 anchored at the end.
+
 ##### CanvasNetMermaid-Sequence-SequenceLayout-Activations: Activations Stack And End The Lines
 
 **Tests**: `SequenceLayoutTests.SequenceLayout_Draw_Activations_StackAndMoveTheLines`
@@ -78,6 +93,39 @@ that is open when it is placed, less the arrowhead room.
 Asserts that a created participant is drawn at x 475, centered vertically on its creating line, which ends 7 pixels
 before its box; and that a destroyed participant's mirror is drawn half its height above the destroying line, where
 its lifeline ends.
+
+##### CanvasNetMermaid-Sequence-SequenceLayout-Blocks: Frames, Sections, And Backgrounds, Nested
+
+**Tests**: `SequenceLayoutTests.SequenceLayout_Draw_NestedLoopAndAlt_FramesEncloseTheirSections`,
+`SequenceLayoutTests.SequenceLayout_Draw_NestedRects_BackgroundsEncloseTheirMessages`
+
+Asserts that a loop holding a message and an alt with an else section is framed from (54, 75) to (296, 352); that the
+alt frame inside it runs from (64, 164) to (286, 342), 10 pixels inside on each side, with its else separator at y 258
+and the section title `[No]` at x 175; and that the view box is (-50, -10, 450, 458). Asserts as well that a rect
+holding a message and a nested rect has the backgrounds (54, 75, 242, 138) and (64, 139, 222, 64), in that scene
+order, with the view box (-50, -10, 450, 319).
+
+##### CanvasNetMermaid-Sequence-SequenceLayout-Boxes: Boxes And Their Titles
+
+**Tests**: `SequenceLayoutTests.SequenceLayout_Draw_Boxes_EncloseTheirParticipantsBelowTheTitles`,
+`SequenceLayoutTests.SequenceLayout_Draw_BoxTitleWiderThanParticipants_CentersThem`
+
+Asserts that a box titled "Front end" around A and B is (-20, -5, 400, 334) with its title at x 180, that an untitled
+box around C is (400, -5, 200, 334) with no text, that the participants A, B, C, and D are at x 5, 205, 425, and 640
+and y 27, below the titles, and that the view box is (-50, -10, 890, 340). Asserts as well that a box whose title is
+wider than its only participant is (-20, -5, 322, 246) with its title at x 141, that the participant is centered in it
+at (66, 27, 150, 65), that the next participant is at x 342, and that the view box is (-50, -10, 592, 252).
+
+##### CanvasNetMermaid-Sequence-SequenceLayout-Menus: Menus, Shown Or Hidden, Take Their Room
+
+**Tests**: `SequenceLayoutTests.SequenceLayout_Draw_HiddenMenus_GrowTheViewBox`,
+`SequenceLayoutTests.SequenceLayout_Draw_ForceMenus_PanelBelowTheParticipant`
+
+Asserts that the view box of one message is (-50, -10, 450, 215) without links, (-50, -10, 450, 336) when B has eight
+links (a hidden panel 20 + 8 x 30 = 260 high), and (-50, -10, 639, 215) when B has one link with a label wider than B,
+while the hidden menu draws nothing. Asserts as well that with `forceMenus: true` the menu panel of B with two links is
+drawn at (200, 65, 339, 80), below B, 20 + 2 x 30 high, and as wide as the wide label, with both link texts at x 210,
+and that the view box is (-50, -10, 639, 215).
 
 ##### CanvasNetMermaid-Sequence-SequenceLayout-SequenceNumbers: Numbering From Autonumber And The Setting
 

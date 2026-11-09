@@ -54,11 +54,16 @@ alias after `as`.
 
 ##### CanvasNetMermaid-Sequence-SequenceModel-Messages: Mermaid's Message List
 
-**Tests**: `SequenceVectorTests.SequenceParser_Parse_UpstreamVector_MatchesMermaid`
+**Tests**: `SequenceModelTests.SequenceModel_Apply_Messages_KeepMermaidsListAndAddParticipants`,
+`SequenceVectorTests.SequenceParser_Parse_UpstreamVector_MatchesMermaid`
 
-Asserts, for every valid upstream vector, that the messages of the model (signals with their line types, notes with
-their placement, activations, central connections, block markers, and autonumber settings) and the participants that
-messages add are those of Mermaid's database, in order.
+Asserts that a text with a signal, notes right of one and over two participants, a loop, and an alt with an else
+gives Mermaid's eleven messages in order (ids 0-10, with from, to, text, line type, and note placement; the block
+markers have no participants, and the end markers have empty text), and that the two participants named only by
+messages are added after the declared one with their neighbors; and, for every valid upstream vector, that the
+messages of the model (signals with their line types, notes with their placement, activations, central connections,
+block markers, and autonumber settings) and the participants that messages add are those of Mermaid's database, in
+order.
 
 ##### CanvasNetMermaid-Sequence-SequenceModel-Activations: The Activation Check
 

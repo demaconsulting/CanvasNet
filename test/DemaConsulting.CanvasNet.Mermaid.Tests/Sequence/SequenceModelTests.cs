@@ -64,6 +64,46 @@ public class SequenceModelTests
     }
 
     /// <summary>
+    ///     Validates the message list as Mermaid 11.17.2's sequence database lists it for the same text: the signals with
+    ///     their line types, the notes with their placement, the start, section, and end markers of the blocks in the
+    ///     order of the text, and the participants named only by messages added after the declared one.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_Messages_KeepMermaidsListAndAddParticipants()
+    {
+        // Arrange
+        const string Diagram =
+            "sequenceDiagram\n    participant A\n    A->>B: hello\n    Note right of B: think\n    loop Every minute\n" +
+            "        B-->>A: tick\n    end\n    alt Ok\n        A->>C: go\n    else Failed\n        A-xC: stop\n    end\n" +
+            "    Note over A,C: done\n";
+
+        // Act
+        var model = SequenceFacts.Parse(Diagram);
+
+        // Assert: the messages in Mermaid's order, ids, participants, texts, line types, and placements
+        Assert.Equal(
+            [
+                ("0", (string?)"A", (string?)"B", "hello", SequenceLineType.Solid, (int?)null),
+                ("1", "B", "B", "think", SequenceLineType.Note, SequencePlacement.RightOf),
+                ("2", null, null, "Every minute", SequenceLineType.LoopStart, null),
+                ("3", "B", "A", "tick", SequenceLineType.Dotted, null),
+                ("4", null, null, "", SequenceLineType.LoopEnd, null),
+                ("5", null, null, "Ok", SequenceLineType.AltStart, null),
+                ("6", "A", "C", "go", SequenceLineType.Solid, null),
+                ("7", null, null, "Failed", SequenceLineType.AltElse, null),
+                ("8", "A", "C", "stop", SequenceLineType.SolidCross, null),
+                ("9", null, null, "", SequenceLineType.AltEnd, null),
+                ("10", "A", "C", "done", SequenceLineType.Note, SequencePlacement.Over),
+            ],
+            model.Messages.Select(m => (m.Id, m.From, m.To, m.Text, m.Type, m.Placement)));
+
+        // Assert: B and C added by the messages, with their neighbors
+        Assert.Equal(
+            [("A", (string?)null, (string?)"B"), ("B", "A", "C"), ("C", "B", null)],
+            model.Actors.Select(a => (a.Id, a.PrevActor, a.NextActor)));
+    }
+
+    /// <summary>
     ///     Validates how a box statement splits into a color and a title, as Mermaid's <c>parseBoxData</c> with the
     ///     browser's color check does.
     /// </summary>
