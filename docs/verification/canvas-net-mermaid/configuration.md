@@ -56,7 +56,7 @@ selects each of the five themes.
 
 Asserts that a frontmatter value of the wrong type (`rankSpacing: wide`) is reported as `mermaid-config-invalid` at
 its key and the default is kept, that a secure key in the frontmatter of a flowchart is delivered by a render call as
-`mermaid-config-secure-key` at its location, and that the secure and unknown keys of a sequence diagram (not drawn by
+`mermaid-config-secure-key` at its location, and that the secure and unknown keys of a class diagram (not drawn by
 this version) produce no warning, only the unsupported diagram report.
 
 #### CanvasNetMermaid-Configuration-Themes: Five Themes With Mermaid's Variables

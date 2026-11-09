@@ -153,15 +153,15 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 ### CanvasNetMermaid-UnsupportedFeatures: Reported Once, In Order, And Strict Mode
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Reports_AreCodedAndLocated`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_SequenceDiagram_ReportsOnceAndDrawsTransparentPlaceholder`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_SequenceDiagramStrict_Throws`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Measure_SequenceDiagram_ReportsAndGivesScaledPlaceholderSize`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_SequenceDiagramWithBackground_FillsBackground`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_ClassDiagram_ReportsOnceAndDrawsTransparentPlaceholder`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_ClassDiagramStrict_Throws`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Measure_ClassDiagram_ReportsAndGivesScaledPlaceholderSize`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_ClassDiagramWithBackground_FillsBackground`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_FailingHandler_Propagates`
 
 Asserts the `mermaid-look-unsupported` report at its frontmatter line and the `mermaid-style-ignored` warning at the
-styled node while the diagram is drawn; that a sequence diagram gives one located report with the planned hint and a
+styled node while the diagram is drawn; that a class diagram gives one located report with the planned hint and a
 transparent 16 by 16 picture (scaled by the scale, filled by a background), throws in strict mode, and that every
 other known type does the same with its own hint; and that a failing handler's exception reaches the caller.
 

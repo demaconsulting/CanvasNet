@@ -63,13 +63,13 @@ public partial class CanvasNetToolTests
         // Arrange
         using var directory = new TempDirectory();
         var unknown = FixtureFactory.WriteText(directory.Path, "unknown.mmd", "drawing LR\n    a --> b\n");
-        var sequence = FixtureFactory.WriteText(directory.Path, "talk.mmd", "sequenceDiagram\n    Alice->>Bob: Hello\n");
+        var classes = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "classDiagram\n    Animal <|-- Duck\n");
         var svg = FixtureFactory.WriteSource(directory.Path, "svg");
 
         // Act
         var (unknownExit, _, unknownErr) = ToolHost.Invoke("render", unknown, "-o", directory.Combine("u.png"));
-        var (sequenceExit, _, sequenceErr) = ToolHost.Invoke("render", sequence, "-o", directory.Combine("s.png"));
-        var (strictExit, _, strictErr) = ToolHost.Invoke("render", sequence, "--strict", "-o", directory.Combine("t.png"));
+        var (classesExit, _, classesErr) = ToolHost.Invoke("render", classes, "-o", directory.Combine("s.png"));
+        var (strictExit, _, strictErr) = ToolHost.Invoke("render", classes, "--strict", "-o", directory.Combine("t.png"));
         var (themeExit, _, themeErr) = ToolHost.Invoke("render", svg, "--theme", "dark", "-o", directory.Combine("v.png"));
 
         // Assert
@@ -77,8 +77,8 @@ public partial class CanvasNetToolTests
         Assert.Contains("Error: mermaid-error:", unknownErr, StringComparison.Ordinal);
         Assert.Contains("mermaid-unknown-diagram", unknownErr, StringComparison.Ordinal);
         Assert.Contains("Hint: ", unknownErr, StringComparison.Ordinal);
-        Assert.Equal(0, sequenceExit);
-        Assert.Contains("Unsupported: mermaid-diagram-unsupported:", sequenceErr, StringComparison.Ordinal);
+        Assert.Equal(0, classesExit);
+        Assert.Contains("Unsupported: mermaid-diagram-unsupported:", classesErr, StringComparison.Ordinal);
         Assert.Equal(1, strictExit);
         Assert.Contains("Error: unsupported-feature:", strictErr, StringComparison.Ordinal);
         Assert.Equal(1, themeExit);

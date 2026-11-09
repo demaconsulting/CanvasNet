@@ -482,9 +482,9 @@ Mermaid theme") whose hint lists `default, base, dark, forest, neutral`; `--them
 that says that `--theme` only applies to a Mermaid diagram and names the `scad` kind, and writes no output; and
 `inspect colors` of the model with `--theme dark` exits with 1 and the same usage error.
 
-**RenderCommand_Run_MermaidSequence_IsUnsupportedDiagnosticThenStrictError**: a sequence diagram renders with exactly
+**RenderCommand_Run_MermaidClass_IsUnsupportedDiagnosticThenStrictError**: a class diagram renders with exactly
 one diagnostic (source `mermaid`, severity `unsupported`, code `mermaid-diagram-unsupported`, a message that says
-sequence diagrams are planned, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
+class diagrams are planned, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
 
 **RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
 supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`

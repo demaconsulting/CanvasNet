@@ -122,7 +122,7 @@ public class ConfigurationTests
     public void Configuration_Document_UnsupportedType_ConfigurationSilent()
     {
         // Arrange
-        const string Text = "---\nconfig:\n  securityLevel: loose\n  notAKey: 1\n---\nsequenceDiagram\n  A->>B: hi\n";
+        const string Text = "---\nconfig:\n  securityLevel: loose\n  notAKey: 1\n---\nclassDiagram\n  A <|-- B\n";
         var document = MermaidDocument.Parse(Text);
         var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
 

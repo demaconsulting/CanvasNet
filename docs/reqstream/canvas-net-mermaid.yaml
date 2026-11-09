@@ -247,10 +247,10 @@ sections:
           - CanvasNetMermaid-Flowchart-UnsupportedFeatures
         tests:
           - CanvasNetMermaid_Reports_AreCodedAndLocated
-          - CanvasNetMermaid_Render_SequenceDiagram_ReportsOnceAndDrawsTransparentPlaceholder
-          - CanvasNetMermaid_Render_SequenceDiagramStrict_Throws
-          - CanvasNetMermaid_Measure_SequenceDiagram_ReportsAndGivesScaledPlaceholderSize
-          - CanvasNetMermaid_RenderSized_SequenceDiagramWithBackground_FillsBackground
+          - CanvasNetMermaid_Render_ClassDiagram_ReportsOnceAndDrawsTransparentPlaceholder
+          - CanvasNetMermaid_Render_ClassDiagramStrict_Throws
+          - CanvasNetMermaid_Measure_ClassDiagram_ReportsAndGivesScaledPlaceholderSize
+          - CanvasNetMermaid_RenderSized_ClassDiagramWithBackground_FillsBackground
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
           - CanvasNetMermaid_Render_FailingHandler_Propagates
 

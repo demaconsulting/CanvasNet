@@ -161,9 +161,9 @@ two titles, 3, 2, 1); the text is exactly one line
 `<path>: mermaid, WxH px (laid out), flowchart TB, 3 nodes, 2 edges, 1 subgraph, title "Shipping", accTitle
 "Shipping steps", <bytes> bytes`.
 
-**DiscoveryCommands_Info_SequenceDiagram_IsNotSupported**: a sequence diagram is described with the type `sequence`,
+**DiscoveryCommands_Info_ClassDiagram_IsNotSupported**: a class diagram is described with the type `class`,
 `supported` false, no `direction` and no `title` member, and zero nodes, and its text line says
-`sequence (not drawn by this version), 0 nodes`.
+`class (not drawn by this version), 0 nodes`.
 
 **DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and

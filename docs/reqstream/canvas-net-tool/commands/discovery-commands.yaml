@@ -166,7 +166,7 @@ sections:
         tests:
           - DiscoveryCommands_Formats_IncludesMermaidDiagram
           - DiscoveryCommands_Info_Flowchart_ReportsTheDiagramObject
-          - DiscoveryCommands_Info_SequenceDiagram_IsNotSupported
+          - DiscoveryCommands_Info_ClassDiagram_IsNotSupported
           - DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored
           - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
           - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds
