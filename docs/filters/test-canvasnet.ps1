@@ -9,6 +9,9 @@
     left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
+    Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
+    hashed), a diagram type the tool does not draw yet is left as written for another filter, and the
+    defaults-file filters run before a command-line filter (as the CI's mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -286,6 +289,100 @@ try {
     Invoke-Filter 'img-frag' '![c](img-frag.vl.json)' | Out-Null
     Write-Result (@(Get-Pictures).Count -eq $fragFileAfter + 1) 'a changed #def. fragment draws the chart again'
 
+    # --- Mermaid diagrams: code blocks, .mmd pictures and the types the tool does not draw yet ----------------
+    # A mermaid code block becomes the picture (a figure with a caption attribute); its attributes are read or kept.
+    $blocks = @'
+```{.mermaid #order caption="Order flow" theme=forest width=80%}
+flowchart LR
+    A[Order] --> B[Ship]
+```
+
+```mermaid
+flowchart TD
+    X --> Y
+```
+'@
+    $blockBefore = @(Get-Pictures).Count
+    $block = Invoke-Filter 'mermaid-block' $blocks
+    $blockImages = @([regex]::Matches($block.Html, 'src="([^"]+)"') | ForEach-Object { $_.Groups[1].Value } |
+            Where-Object { $_ -match '^\.\./\.\./generated/canvasnet/mermaid-[^/]+\.png$' })
+    Write-Result ($block.ExitCode -eq 0 -and $blockImages.Count -eq 2 -and @(Get-Pictures).Count -eq $blockBefore + 2) `
+        'mermaid code blocks are drawn and replaced by their pictures' "$($block.Log)`n$($blockImages -join "`n")"
+    Write-Result ($block.Html -match '<figure[^>]*id="order"' -and $block.Html -match '<figcaption[^>]*>Order flow</figcaption>' -and
+        $block.Html -match 'width:80(\.0)?%' -and $block.Html -notmatch '<code|theme=|caption=') `
+        'a caption makes a figure; theme is consumed and width stays on the picture' $block.Html
+    Write-Result (@(Get-ChildItem -LiteralPath $cache -Filter '*.mmd').Count -ge 2) 'the text of a block is written to the cache folder'
+    $blockStamp = Get-Stamp
+    $blockAgain = Invoke-Filter 'mermaid-block' $blocks
+    Write-Result ($blockAgain.ExitCode -eq 0 -and (Get-Stamp) -eq $blockStamp) 'a second run draws no code block again' $blockAgain.Log
+    Invoke-Filter 'mermaid-block' ($blocks -replace 'theme=forest', 'theme=dark') | Out-Null
+    Write-Result (@(Get-Pictures).Count -eq $blockBefore + 3) 'a changed block attribute draws the block again'
+
+    # A .mmd picture is drawn, and the local pictures of its nodes are hashed: a changed one draws it again.
+    Set-Content (Join-Path $guide 'flow.mmd') -Value "flowchart LR`n    A[Start] --> p@{ img: `"pic.png#x`", w: 40, h: 40, constraint: `"on`" }"
+    Copy-Item (Join-Path $guide 'flow.mmd') (Join-Path $guide 'same.mermaid')
+    $mmdBefore = @(Get-Pictures).Count
+    $mmd = Invoke-Filter 'mermaid-file' "![f](flow.mmd){theme=dark}`n`n![g](same.mermaid)"
+    Write-Result ($mmd.ExitCode -eq 0 -and $mmd.Html -match 'generated/canvasnet/flow-' -and
+        $mmd.Html -match 'generated/canvasnet/same-' -and @(Get-Pictures).Count -eq $mmdBefore + 2) `
+        '.mmd and .mermaid pictures are drawn' $mmd.Log
+    Copy-Item (Join-Path $repo 'docs/images/showcase.png') (Join-Path $guide 'pic.png') -Force
+    $mmdChanged = Invoke-Filter 'mermaid-file' "![f](flow.mmd){theme=dark}`n`n![g](same.mermaid)"
+    Write-Result ($mmdChanged.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $mmdBefore + 4) `
+        'a changed picture of a node draws the diagram again' $mmdChanged.Log
+    Copy-Item (Join-Path $repo 'Icon.png') (Join-Path $guide 'pic.png') -Force
+
+    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
+    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
+    Set-Content (Join-Path $guide 'seq.mmd') -Value "sequenceDiagram`n    Alice->>Bob: Hi"
+    $sequence = @'
+```mermaid
+sequenceDiagram
+    Alice->>Bob: Hello
+```
+
+![s](seq.mmd)
+'@
+    $seqBefore = @(Get-Pictures).Count
+    $unsupported = Invoke-Filter 'mermaid-unsupported' $sequence
+    Write-Result ($unsupported.ExitCode -eq 0 -and $unsupported.Html -match '<code class="[^"]*mermaid"' -and
+        $unsupported.Html -match 'sequenceDiagram' -and
+        $unsupported.Html -match 'src="seq\.mmd"' -and @(Get-Pictures).Count -eq $seqBefore) `
+        'an unsupported diagram type is left as written, as a code block and as a picture' "$($unsupported.Log)`n$($unsupported.Html)"
+    Write-Result ($unsupported.Log -match 'are not drawn by this version' -and $unsupported.Log -match 'left as written') `
+        'an unsupported diagram type is a warning with the tool message' $unsupported.Log
+    $markers = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported')
+    Write-Result ($markers.Count -eq 2) 'an unsupported diagram leaves a marker in the cache' "$($markers.Count) markers"
+    foreach ($marker in $markers) {
+        Set-Content -LiteralPath $marker.FullName -Value 'remembered-unsupported' -NoNewline
+    }
+    $remembered = Invoke-Filter 'mermaid-unsupported' $sequence
+    Write-Result ($remembered.ExitCode -eq 0 -and ([regex]::Matches($remembered.Log, 'remembered-unsupported')).Count -eq 2) `
+        'a later run takes an unsupported diagram from its marker without drawing it' $remembered.Log
+
+    # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: the
+    # CI runs "--defaults ... --filter mermaid-filter", so canvasnet.lua sees the mermaid blocks first, and a later
+    # filter sees only the blocks left as written. A small Lua filter stands in for mermaid-filter here.
+    Set-Content (Join-Path $root 'defaults.yaml') -Value "filters:`n  - docs/filters/canvasnet.lua"
+    Set-Content (Join-Path $root 'observe.lua') -Value (
+        'function CodeBlock(b) return pandoc.Para{ pandoc.Str("OBSERVED-" .. (b.text:match("^(%S+)") or "")) } end')
+    Set-Content (Join-Path $guide 'order.md') -Value $blocks.Replace('X --> Y', 'X --> Y --> Z') -NoNewline
+    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $sequence.Replace('![s](seq.mmd)', ''))
+    Push-Location $tree
+    try {
+        $orderLog = & dotnet pandoc --defaults (Join-Path $root 'defaults.yaml') --lua-filter (Join-Path $root 'observe.lua') `
+            --from markdown --to html5 --resource-path docs/guide --output docs/guide/generated/order.html docs/guide/order.md 2>&1 |
+            Out-String
+        $orderCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    $orderHtml = Get-Content -LiteralPath (Join-Path $guide 'generated/order.html') -Raw -ErrorAction SilentlyContinue
+    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-sequenceDiagram' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
+        ([regex]::Matches($orderHtml, 'generated/canvasnet/mermaid-')).Count -eq 2) `
+        'defaults-file filters run before a command-line filter, which sees only the unsupported blocks' "$orderLog`n$orderHtml"
+
     # --- Pictures the filter ignores never start the tool -----------------------------------------------
     $saved = $env:CANVASNET_TOOL
     $env:CANVASNET_TOOL = 'no-such-program-canvasnet'
@@ -320,6 +417,9 @@ try {
         'a bad define name'          = @('![m](t.scad){define-1x=3}', 'variable name')
         'an out-of-range elevation'  = @('![m](t.scad){elevation=120}', 'elevation')
         'a missing file'             = @('![m](nothing-here.scad)', "cannot find 'nothing-here.scad' in the document's resource path")
+        'theme on a model'           = @('![m](t.scad){theme=dark}', 'theme applies to Mermaid diagrams only')
+        'a bad theme'                = @('![m](flow.mmd){theme=sepia}', 'write default, base, dark, forest or neutral')
+        'a bad code block attribute' = @("``````{.mermaid page=2}`nflowchart LR`n    A --> B`n``````", "'mermaid block (flowchart LR)' has page=2")
     }
     foreach ($case in $errors.Keys) {
         $run = Invoke-Filter ('err-' + ($case -replace '\W', '-')) $errors[$case][0]

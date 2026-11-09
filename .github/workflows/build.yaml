@@ -390,6 +390,7 @@ jobs:
               'DemaConsulting.CanvasNet.Render3D.dll',
               'DemaConsulting.CanvasNet.Scad.dll',
               'DemaConsulting.CanvasNet.VegaLite.dll',
+              'DemaConsulting.CanvasNet.Mermaid.dll',
               'DemaConsulting.CanvasNet.Viewer.dll',
               'DemaConsulting.TestResults.dll',
               'System.Numerics.Tensors.dll'
@@ -402,12 +403,21 @@ jobs:
                 }
               }
             }
-            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC) must
-            # accompany the binaries, so they travel in the package's licenses folder.
+            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC) and
+            # of the bundled Mermaid library (MIT and ISC) must accompany the binaries, so they
+            # travel in the package's licenses folder (Mermaid's d3 notice under its own name).
             $notices = @(
               'licenses/LICENSE-vega.txt',
               'licenses/LICENSE-d3.txt',
-              'licenses/VegaLite-third-party-README.md'
+              'licenses/VegaLite-third-party-README.md',
+              'licenses/LICENSE-mermaid.txt',
+              'licenses/LICENSE-dagre.txt',
+              'licenses/LICENSE-js-yaml.txt',
+              'licenses/LICENSE-khroma.txt',
+              'licenses/LICENSE-lodash.txt',
+              'licenses/LICENSE-marked.txt',
+              'licenses/Mermaid-LICENSE-d3.txt',
+              'licenses/Mermaid-third-party-README.md'
             )
             foreach ($notice in $notices) {
               if (-not ($zip.Entries.FullName -contains $notice)) {
@@ -473,6 +483,7 @@ jobs:
           grep -q '"ok":true' formats.json || { echo "✗ Formats result is not a success document"; exit 1; }
           grep -q '"format":"scad"' formats.json || { echo "✗ Formats result does not list scad"; exit 1; }
           grep -q '"format":"vega-lite"' formats.json || { echo "✗ Formats result does not list vega-lite"; exit 1; }
+          grep -q '"format":"mermaid"' formats.json || { echo "✗ Formats result does not list mermaid"; exit 1; }
           echo "✓ Formats command succeeded"
 
       - name: Test render and crop
@@ -510,6 +521,24 @@ jobs:
           test -s smoke/chart.png \
             || { echo "✗ Chart render wrote no output file"; exit 1; }
           echo "✓ Vega-Lite chart render succeeded"
+
+      - name: Test Mermaid diagram render
+        shell: bash
+        run: |
+          echo "Testing canvasnet render of a Mermaid diagram..."
+          mkdir -p smoke
+          printf 'flowchart LR\n    A[One] --> B[Two] --> C[Three]\n' > smoke/flow.mmd
+          canvasnet info smoke/flow.mmd --json > smoke/flow-info.json \
+            || { echo "✗ Info command failed"; exit 1; }
+          grep -q '"format":"mermaid"' smoke/flow-info.json \
+            || { echo "✗ Info result does not name mermaid"; exit 1; }
+          canvasnet render smoke/flow.mmd -o smoke/flow.png --json > smoke/flow-render.json \
+            || { echo "✗ Diagram render command failed"; exit 1; }
+          grep -q '"ok":true' smoke/flow-render.json \
+            || { echo "✗ Diagram render result is not a success document"; exit 1; }
+          test -s smoke/flow.png \
+            || { echo "✗ Diagram render wrote no output file"; exit 1; }
+          echo "✓ Mermaid diagram render succeeded"
 
       - name: Run self-validation
         shell: bash
