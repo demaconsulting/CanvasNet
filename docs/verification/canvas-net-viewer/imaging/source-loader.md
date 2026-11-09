@@ -105,7 +105,9 @@ N/A - standard test environment; the tests need no network and write only to tem
   maximum `size-limit`; a cut or damaged diagram is an expected error or a shorter diagram that loads.
 - The pictures of the nodes of a diagram are drawn through the sandboxed resolver of the folder of the diagram (a raster
   fills its box), listed once each as `embed` operations, a link outside the sandbox or a cycle is one
-  `svg-image-unresolved` warning (an error in strict mode), and a broken picture is an error naming both files.
+  `svg-image-unresolved` warning (an error in strict mode), and a broken picture is an error naming both files; a
+  picture node without `w` and `h` that enlarges a diagram drawn at its natural size is charged at the drawn size
+  (refused when that does not fit) and reported with the drawn natural size.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
 
 #### Test Scenarios
@@ -689,8 +691,11 @@ and its mark types.
 **SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations**,
 **SourceLoader_Load_MermaidPngPicture_FillsItsBox**, **SourceLoader_Load_MermaidSelfCycle_IsUnresolved**,
 **SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused**,
-**SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles**, and
-**SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture** (`SourceLoaderMermaidImageTests.cs`):
+**SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles**,
+**SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture**,
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize**,
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget**, and
+**SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize** (`SourceLoaderMermaidImageTests.cs`):
 diagrams with picture nodes (`@{ img: ... }`) are loaded from a temporary folder through the real sandboxed resolver of
 the viewer. A flowchart whose two nodes show the model of the fixtures (`part.scad`, 120 by 120) and the two-bar chart
 (`chart.vl.json`) draws more than 500 pixels of the bar color and changes more than 500 pixels of the half that holds
@@ -707,7 +712,14 @@ note. A diagram that shows itself is the warning `svg-image-unresolved` that nam
 syntax error shown by a node is a `scad-error` whose message names both the diagram and the model. And an SVG file
 that places `sub/flow.mmd` (whose picture `logo.png` lies in `sub`) over a red rectangle draws the green picture through
 the resolver of the SVG file, keeps the red where the diagram is transparent, reports nothing in strict mode, and lists
-the one `embed` operation `sub/flow.mmd`.
+the one `embed` operation `sub/flow.mmd`. A diagram whose one picture node has no `w` and `h` and shows a 400 by 300
+PNG, loaded at its natural size with a recording `Charge` hook, returns a surface larger than the probed size, the
+charges add up to exactly the pixels of that surface, and the natural size of the result equals the surface size. The
+same diagram under a `Charge` hook that holds a budget of 10 000 pixels (more than the probed size, less than the drawn
+one) throws `ImageSourceBudgetException` whose requested pixels are the pixels of the surface drawn without a budget and
+whose remaining pixels are the whole 10 000 (the charge before the draw given back), and the hook holds only the probed
+size. Loaded at a scale of 2 and of 1.5, the same diagram reports the natural size of the diagram drawn at a scale of 1
+and returns a surface of that size times the scale, rounded.
 
 **Chart parameters** (`SourceLoader_Load_ChartOptions_AreAppliedAndReportedInTheOperation`,
 `SourceLoader_Load_InvalidChartOptions_ThrowsUsageErrorBeforeTouchingTheFile`, and the tests of

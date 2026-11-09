@@ -60,6 +60,7 @@ sections:
               - CanvasNetViewer_Render_PathNatural_ReturnsNaturalSizeAndFormat
               - CanvasNetViewer_Render_PathSized_ReturnsRequestedSize
               - CanvasNetViewer_Render_MaxDecodedPixels_IsPassedToTheResolver
+              - CanvasNetViewer_Render_MermaidPictureEnlargingTheLayout_IsChargedAtTheDrawnSize
               - CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading
               - CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted
               - CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget

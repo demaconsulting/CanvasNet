@@ -225,6 +225,13 @@ public static partial class SourceLoader
         ///     surface the loader is about to allocate, before it allocates it; it throws
         ///     <see cref="ImageSourceBudgetException"/> when the size does not fit.
         /// </summary>
+        /// <remarks>
+        ///     A Mermaid diagram drawn at its natural size is charged at the size the probe measured without the pictures
+        ///     of its nodes; when a picture node without its <c>w</c> and <c>h</c> enlarges it, its size is known only after
+        ///     the draw, so the rest of its pixels are charged right after the draw (as one row of that many pixels), before
+        ///     the surface is returned, and the surface is disposed when they do not fit. The refusal reports the pixels of
+        ///     the whole surface and the budget left once the charge before the draw is refunded.
+        /// </remarks>
         public Action<int, int>? Charge { get; init; }
 
         /// <summary>

@@ -17,8 +17,10 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         inside it and centered when both sides are given. The probe lays the diagram out without the pictures of its
 ///         nodes (it reads no other file), so a picture node without its <c>w</c> and <c>h</c> can make the drawn diagram a
 ///         little larger or smaller than the probed size (fitted into the box when there is one); give such a node its size
-///         for a layout that does not depend on the picture. The diagram is
-///         drawn over the background of the options, white when there is none (Mermaid's own SVG is transparent; a
+///         for a layout that does not depend on the picture. A load at the natural size charges the surface it drew (the
+///         pixels beyond the probed size are charged after the draw, and the surface is refused when they do not fit) and
+///         reports the natural size of the drawn diagram, so the loaded picture's size and charge are the drawn size. The
+///         diagram is drawn over the background of the options, white when there is none (Mermaid's own SVG is transparent; a
 ///         background with zero alpha keeps that). <see cref="SourceOptions.Mermaid"/> chooses the site-level theme, which
 ///         a theme the text sets itself still overrides, as with <c>mmdc -t</c>.
 ///     </para>
@@ -295,6 +297,20 @@ public static partial class SourceLoader
     }
 
     /// <summary>
+    ///     Gives the natural size of a side a diagram was drawn at, from the side of the surface and the scale.
+    /// </summary>
+    /// <param name="drawn">The side of the surface in pixels.</param>
+    /// <param name="scale">The scale the diagram was drawn at.</param>
+    /// <returns>
+    ///     The natural side in pixels, at least one: exact at a scale of 1 or more (the drawn side is the natural side
+    ///     times the scale, rounded), and the nearest consistent natural side below 1.
+    /// </returns>
+    private static int Unscale(int drawn, double scale)
+    {
+        return Math.Max(1, (int)Math.Round(drawn / scale, MidpointRounding.AwayFromZero));
+    }
+
+    /// <summary>
     ///     Converts the position the Mermaid library reports to the location of a note.
     /// </summary>
     /// <param name="location">The position in the text.</param>
@@ -381,7 +397,8 @@ public static partial class SourceLoader
                 Options.Strict,
                 exact ? Options.Scale ?? 1 : 1);
 
-            // The surface is charged before the diagram is drawn, so a diagram that cannot be paid for costs nothing
+            // The surface is charged before the diagram is drawn, so a diagram that cannot be paid for costs nothing; a diagram
+            // its pictures enlarge is charged the rest after the draw, when its size is known
             Context.ChargeSurface(width, height);
             Surface surface;
             try
@@ -397,8 +414,39 @@ public static partial class SourceLoader
                 throw images.Map(ex);
             }
 
-            // The pictures of the nodes can change the layout of a scaled diagram (a node takes the size of its picture), so the
-            // size is the one that was drawn
+            // The pictures of the nodes can change the layout of a diagram drawn at its natural size (a node without its w
+            // and h takes the size of its picture), which the probe measured without them: the pixels drawn beyond the
+            // charge are charged now (the surface is refused when they do not fit), and the natural size and the render
+            // operation report the size that was drawn
+            var drawnPixels = (long)surface.Width * surface.Height;
+            var excess = drawnPixels - (long)width * height;
+            if (excess > 0)
+            {
+                try
+                {
+                    // At most Surface.MaxDimension squared, so it fits an int; charged as one row of pixels
+                    Context.ChargeSurface((int)excess, 1);
+                }
+                catch (ImageSourceBudgetException ex)
+                {
+                    // The refusal names the whole surface against what remains once the charge before the draw is given
+                    // back (the resolver refunds it), as the resolver reports a surface larger than its charge
+                    surface.Dispose();
+                    throw new ImageSourceBudgetException(drawnPixels, ex.RemainingPixels + ((long)width * height));
+                }
+                catch
+                {
+                    surface.Dispose();
+                    throw;
+                }
+            }
+
+            if (exact && (surface.Width != width || surface.Height != height))
+            {
+                var scale = Options.Scale ?? 1;
+                info = info with { Width = Unscale(surface.Width, scale), Height = Unscale(surface.Height, scale) };
+            }
+
             var fields = new List<(string Name, object Value)>
             {
                 ("width", surface.Width),

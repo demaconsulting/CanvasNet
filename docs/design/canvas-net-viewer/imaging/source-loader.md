@@ -170,8 +170,8 @@ size is the library's view box rounded up to whole pixels, there are 4 channels 
 gets the standard `size-limit` of `ComputeTargetSize`. A message that does not match is `size-limit` itself, and any
 other `ArgumentException` of the measure is `mermaid-error` ("Mermaid measure error: ..."). A node that shows a picture
 without its own `w` and `h` takes the size of the picture when it is drawn, so the drawn diagram can be a little larger
-or smaller than the probed size; the `mermaid` help topic documents this. No
-pixels
+or smaller than the probed size; the `mermaid` help topic documents this, and a load at the natural size charges and
+reports the size it drew (see the Mermaid load). No pixels
 are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
@@ -381,8 +381,19 @@ such as `mermaid-icon-unsupported`, and `file:line:column: message (hint)`, `Des
 is recognized but not drawn yet (a class diagram, for example) is one such note, `mermaid-diagram-unsupported`, whose
 hint says that the type is planned and which types are drawn, and the picture is the background alone; in strict mode
 the library throws instead (see *Error Handling*). The surface is charged to the `LoadContext` before the library draws
-it. The operation recorded is `render` with the `width` and the `height` of the surface that was drawn (the pictures of
-the nodes can change the layout of a scaled diagram), the `background`, and, when one is set, the `theme`.
+it. Without a size option the pictures of the nodes can enlarge the drawn diagram (a picture node without its `w` and
+`h` takes the size of its picture, and the probe measured the diagram without them), and that size is known only after
+the draw: a surface larger than the charge is charged the rest (as one row of the excess pixels, through the same
+`Charge` hook) before it is returned, and is disposed and refused when the rest does not fit. The surface is therefore
+allocated before the excess is validated, bounded by `Surface.MaxDimension` squared, as the resolver already accepts for
+a source that under-charges; measuring with the pictures first would resolve every picture a third time and lay the
+diagram out once more. A refusal reports the pixels of the whole surface and the budget left once the charge before the
+draw is refunded. When the pictures make the diagram smaller than the probe, the larger probed size stays charged:
+`LoadContext` has no way to give pixels back, and that over-charge, bounded by the probed size, only makes the budget
+stricter. The `SourceInfo` of the result then carries the natural size of the drawn diagram (the drawn size
+over the scale, rounded, at least one pixel; exact at a scale of 1 or more), so the loaded picture's size and charge are
+the drawn size while `info` still reports the size without the pictures. The operation recorded is `render` with the
+`width` and the `height` of the surface that was drawn, the `background`, and, when one is set, the `theme`.
 
 *Diagram pictures.* A node written `@{ img: "part.png", ... }` shows a file that lies beside the diagram, through the
 same wiring as the pictures of a chart: unless the caller supplied the resolver of an embedding document
@@ -509,7 +520,8 @@ render parses a document once. A per-thread counter (`DocumentParseCount`) count
 `LoadContext` carries the hooks of a render that embeds the file: a `CancellationToken` (checked before each load, and
 passed to the model and chart renderers), `Charge(width, height)` (called once for every surface before it is
 allocated, so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size
-check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error), `ScopedResolver` (used
+check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error; a Mermaid diagram that its
+pictures enlarge is charged the rest right after the draw, before it is returned), `ScopedResolver` (used
 instead of building an `SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget
 limits of the embedding render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document
 page

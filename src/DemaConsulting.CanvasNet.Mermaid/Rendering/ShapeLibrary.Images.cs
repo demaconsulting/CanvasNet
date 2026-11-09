@@ -208,6 +208,9 @@ internal static partial class ShapeLibrary
                     new(dx - (width / 2), dy - (nh / 2) + bh + labelPadding), new(dx - (bw / 2), dy - (nh / 2) + bh + labelPadding),
                 ]
                 :
+                // dx + bw / 2 / 2 (a quarter of the label width) is Mermaid's own vertex in the intersection outline of
+                // imageSquare, icon, iconSquare, and iconRounded (x: dx + bbox.width / 2 / 2); it is kept on purpose so that
+                // edges end exactly where Mermaid ends them
                 [
                     new(dx - (width / 2), dy - (nh / 2)), new(dx + (width / 2), dy - (nh / 2)), new(dx + (width / 2), dy - (nh / 2) + height),
                     new(dx + (bw / 2), dy - (nh / 2) + height), new(dx + (bw / 2 / 2), dy + (nh / 2)), new(dx - (bw / 2), dy + (nh / 2)),

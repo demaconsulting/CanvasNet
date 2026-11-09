@@ -179,6 +179,34 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
+    ///     Test that a Mermaid diagram whose picture node without its <c>w</c> and <c>h</c> enlarges the layout is held to
+    ///     <see cref="ViewerRenderOptions.MaxDecodedPixels"/> at the size it is drawn at, not at the smaller size probed
+    ///     without the picture.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_MermaidPictureEnlargingTheLayout_IsChargedAtTheDrawnSize()
+    {
+        // Arrange: a 400 by 300 picture (120 000 pixels, loaded twice: once for its natural size, once to draw it) in a
+        // node that takes its size, so the diagram is drawn at about 416 by 316 (about 131 000 pixels) while the probe
+        // measures it at a few hundred pixels
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("big.png", ViewerFixtures.Png(400, 300, ViewerFixtures.Green));
+        var path = folder.WriteText("big.mmd", "flowchart LR\n    p@{ img: \"big.png\" }\n");
+        var probe = Viewer.Imaging.SourceLoader.Probe(path);
+
+        // Act: 300 000 pays for both picture loads and the probed size but not the drawn diagram; 400 000 pays for all
+        var refused = Assert.Throws<ImageSourceBudgetException>(() => CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 300_000 }));
+        using var drawn = CanvasNetViewer.Render(path, new ViewerRenderOptions { MaxDecodedPixels = 400_000 });
+
+        // Assert: the refusal is for the drawn pixels, and the diagram that fits is drawn larger than the probe measured
+        Assert.Equal((long)drawn.Surface.Width * drawn.Surface.Height, refused.RequestedPixels);
+        Assert.True(refused.RequestedPixels > refused.RemainingPixels);
+        Assert.True(drawn.Surface.Width > probe.Width && drawn.Surface.Height > probe.Height);
+        Assert.InRange(drawn.Surface.Width, 400, 440);
+        Assert.InRange(drawn.Surface.Height, 300, 340);
+    }
+
+    /// <summary>
     ///     Test that a width or height that is not from 1 to <see cref="Surface.MaxDimension"/> is rejected with
     ///     <see cref="ArgumentOutOfRangeException"/> before anything is read, by both overloads: the file does not exist
     ///     and the stream is not touched, yet the exception is the one for the option.
