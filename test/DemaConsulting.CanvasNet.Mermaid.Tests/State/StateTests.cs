@@ -118,4 +118,73 @@ public class StateTests
         Assert.Equal("stateDiagram", data.DiagramType);
         Assert.Equal(["root_start", "A", "B"], data.Nodes.Select(n => n.Id));
     }
+
+    /// <summary>
+    ///     Validates that the document reports a state diagram as supported, with its metadata: states as nodes,
+    ///     transitions as edges, composite states as subgraphs (notes, note links and concurrent regions not counted) and
+    ///     the direction that lays it out.
+    /// </summary>
+    [Fact]
+    public void State_Document_IsSupportedWithMetadata()
+    {
+        // Act
+        var document = MermaidDocument.Parse("stateDiagram-v2\n    direction LR\n    [*] --> Active\n    state Active {\n" +
+            "        [*] --> NumOff\n        --\n        [*] --> CapsOff\n    }\n    Active --> [*]\n    note left of Active : keys\n");
+
+        // Assert
+        Assert.Equal(("state", true), (document.DiagramType, document.IsSupported));
+        Assert.Equal((6, 4, 1), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
+        Assert.Equal("LR", document.Direction);
+    }
+
+    /// <summary>
+    ///     Validates that every original state fixture lays out into a scene with a node for each state that is not a
+    ///     composite state, a cluster for each composite state, transitions of the model as its edges (two self
+    ///     transitions of one state are one edge, as in Mermaid's graph) and a positive size.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(Fixtures))]
+    public void State_Layout_Fixture_DrawsStatesAndTransitions(string name)
+    {
+        // Arrange
+        var text = File.ReadAllText(Path.Combine(FixtureFolder, name));
+        var model = StateFacts.Parse(text, name);
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+
+        // Assert
+        Assert.True(scene.ViewBox.Width > 0 && scene.ViewBox.Height > 0);
+        var nodes = SceneQuery.Nodes(scene);
+        var clusters = SceneQuery.Clusters(scene);
+        Assert.All(model.Nodes.Where(n => !n.IsGroup), node => Assert.Contains(node.DomId, nodes.Keys));
+        Assert.All(model.Nodes.Where(n => n.IsGroup && n.Shape != "noteGroup"), node => Assert.Contains(node.DomId, clusters.Keys));
+        var edges = SceneQuery.Edges(scene);
+        Assert.NotEmpty(edges);
+        Assert.All(edges.Keys, id => Assert.Contains(id, model.Edges.Select(edge => edge.Id)));
+    }
+
+    /// <summary>
+    ///     Validates that what the subsystem does not draw as Mermaid does is reported in order at its location - the
+    ///     legacy renderer, the look and the layout as unsupported features - and that the diagram is still drawn.
+    /// </summary>
+    [Fact]
+    public void State_Render_UnsupportedFeatures_AreReported()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n  layout: elk\n  state:\n    defaultRenderer: dagre-d3\n---\nstateDiagram\n    A --> B\n";
+        var document = MermaidDocument.Parse(Text, new MermaidOpenOptions { SourceName = "s.mmd" });
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(size.Width > 16 && size.Height > 16);
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LayoutUnsupported, 5), (MermaidDiagnosticCodes.LookUnsupported, 3), (MermaidDiagnosticCodes.LayoutUnsupported, 4)],
+            unsupported.Select(u => (u.Feature, u.Location.Line)));
+        Assert.Empty(warnings);
+    }
 }

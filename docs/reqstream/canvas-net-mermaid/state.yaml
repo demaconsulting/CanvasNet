@@ -1,0 +1,137 @@
+---
+# Software Subsystem Requirements for State
+#
+# These requirements decompose the CanvasNetMermaid system's state diagram responsibility into the State subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.State): reading the state diagram language exactly as the
+# pinned Mermaid release reads it (StateParser), and keeping what it declares as Mermaid's state database keeps it,
+# mapping it to the layout data of the shared unified renderer, and framing the drawing as Mermaid's state renderer
+# does (StateModel). The states, composite states, concurrent regions, notes, and transitions are drawn by the shared
+# Rendering subsystem. Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/state.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: State Requirements
+        requirements:
+          - id: CanvasNetMermaid-State-Language
+            title: >-
+              The State subsystem shall open every state diagram text (the stateDiagram-v2 and stateDiagram keywords,
+              and the legacy state id) that the state grammar of the pinned Mermaid release accepts - states with
+              descriptions and the as form, transitions with labels, the start and end states, composite states with
+              their own directions, concurrent regions, the fork, join, and choice states, notes, the classDef, class,
+              and style statements, the direction, the click statements, and the accessibility statements - into the
+              same statements, states, transitions, notes, and styles that Mermaid's state database records for it,
+              keeping the click statements only as data.
+            justification: |
+              A state diagram can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's grammar and database, not by a description of them. A
+              static picture has no interaction, but texts written for Mermaid's browser output must still open.
+            children:
+              - CanvasNetMermaid-State-StateParser-Tokens
+              - CanvasNetMermaid-State-StateParser-Grammar
+              - CanvasNetMermaid-State-StateParser-LinearTime
+              - CanvasNetMermaid-State-StateModel-Translation
+              - CanvasNetMermaid-State-StateModel-States
+              - CanvasNetMermaid-State-StateModel-Notes
+              - CanvasNetMermaid-State-StateModel-Styles
+            tests:
+              - State_Parse_Fixture_GivesConsistentLayoutData
+              - State_Parse_WholeText_GivesModelAndLayoutData
+
+          - id: CanvasNetMermaid-State-Metadata
+            title: >-
+              The State subsystem shall give the accessible title, the direction that lays the diagram out, and the
+              numbers of states (as nodes, the start, end, fork, join, and choice states included), transitions (as
+              edges), and composite states (as subgraphs) of an opened state diagram, without rendering it, counting
+              no notes, note groups, note links, or concurrent regions.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of a state diagram must keep the meaning of the document's node, edge, and subgraph counts.
+            children:
+              - CanvasNetMermaid-State-StateModel-Metadata
+            tests:
+              - State_Parse_WholeText_GivesModelAndLayoutData
+              - State_Document_IsSupportedWithMetadata
+
+          - id: CanvasNetMermaid-State-FailClosed
+            title: >-
+              The State subsystem shall refuse, when the document is opened, a state diagram text that its grammar does
+              not accept, that Mermaid's state database rejects, or that exceeds the node, edge, label length, or
+              nesting limits of the open call, with a coded MermaidSyntaxException located in the original text, with
+              a hint, and for a grammar error with the tokens that Mermaid lists as expected; the concurrent regions
+              and the note groups count as nodes, a concurrent region counts as a nesting level, and the links of
+              notes do not count as edges.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it. The regions and note groups
+              are clusters of the layout, so they must count against the limits that bound it.
+            children:
+              - CanvasNetMermaid-State-StateParser-Errors
+              - CanvasNetMermaid-State-StateParser-Limits
+              - CanvasNetMermaid-State-StateModel-Errors
+              - CanvasNetMermaid-State-StateModel-Limits
+            tests:
+              - State_Parse_DatabaseError_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-State-Layout
+            title: >-
+              The State subsystem shall give the shared renderer, for each render, the layout data that Mermaid's state
+              data fetcher gives its renderer under the effective configuration of that render - the composite states
+              and concurrent regions as clusters with their directions, the states with their shapes and descriptions,
+              the notes in their note groups and their links, the transitions with the barb marker, and the spacing
+              Mermaid's state renderer reads - so that the states, composite states, and transitions land where
+              Mermaid puts them.
+            justification: |
+              The layout of a state diagram is Mermaid's only when the renderer starts from the same graph, and the
+              configuration of a render is known only when the render starts.
+            children:
+              - CanvasNetMermaid-State-StateModel-LayoutData
+              - CanvasNetMermaid-State-StateModel-Notes
+            tests:
+              - State_Parse_WholeText_GivesModelAndLayoutData
+              - State_Layout_Fixture_DrawsStatesAndTransitions
+
+          - id: CanvasNetMermaid-State-Drawing
+            title: >-
+              The State subsystem shall draw a state diagram through the shared renderer with the state style sheet of
+              the theme, the frontmatter title above the drawing, and the view box of Mermaid's state renderer, and
+              shall fail, located, a diagram on which Mermaid's render fails (a note on a state that appears nowhere
+              before it).
+            justification: |
+              The pixels and the size of a state diagram must be Mermaid's for the same text, configuration, and
+              theme, and a diagram that Mermaid cannot draw must not be drawn as a guess.
+            children:
+              - CanvasNetMermaid-State-StateModel-Drawing
+            tests:
+              - State_Layout_Fixture_DrawsStatesAndTransitions
+
+          - id: CanvasNetMermaid-State-UnsupportedFeatures
+            title: >-
+              The State subsystem shall report, at their locations and in order before drawing, a look other than
+              classic and a layout other than dagre as unsupported features with their stable mermaid-* codes, draw
+              the diagram in the classic look with the dagre layout, and stop at the first unsupported feature in
+              strict mode.
+            justification: |
+              The host must know when the picture differs from what Mermaid would draw, and a strict host must be able
+              to refuse it.
+            children:
+              - CanvasNetMermaid-State-StateModel-Unsupported
+            tests:
+              - State_Render_UnsupportedFeatures_AreReported
+
+          - id: CanvasNetMermaid-State-LegacyRenderer
+            title: >-
+              The State subsystem shall open a stateDiagram text whose state.defaultRenderer selects Mermaid's legacy
+              state renderer as the legacy state id, read its statements in the legacy order, draw it with the unified
+              renderer as a stateDiagram-v2 is drawn, and report the legacy renderer first as mermaid-layout-unsupported
+              located at the state settings.
+            justification: |
+              This version draws state diagrams with Mermaid's unified renderer only; a text written for the legacy
+              renderer must still be drawn, and the host must learn that its picture may differ from the legacy one.
+            children:
+              - CanvasNetMermaid-State-StateModel-Translation
+              - CanvasNetMermaid-State-StateModel-Unsupported
+            tests:
+              - State_Parse_LegacyStateId_KeepsItsIdAndTheUnifiedDiagramType
+              - State_Render_UnsupportedFeatures_AreReported

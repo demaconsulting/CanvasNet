@@ -1,0 +1,151 @@
+---
+# Software Unit Requirements for StateModel
+#
+# These requirements describe the design-level behavior of the StateModel unit of the State subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.State): the state database of the pinned Mermaid release (the translation
+# of the statement tree, the states, descriptions, notes, style classes, and links), its data fetcher, its located
+# errors and limits, the metadata of the diagram, the mapping to the layout data of the unified renderer, and the
+# state renderer's reports and frame of the drawing. See docs/verification/canvas-net-mermaid/state/state-model.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: State Requirements
+        sections:
+          - title: StateModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-State-StateModel-Translation
+                title: >-
+                  The StateModel unit shall translate the statement tree as Mermaid's state database does - each start
+                  and end state named after the document that holds it, a state used before its body made a composite
+                  state, the statements of a concurrent region kept in their region also after a trailing divider -
+                  and, for the legacy state id, apply the statements before the translation as Mermaid's legacy
+                  database does.
+                justification: |
+                  The ids of the start and end states and the regions decide the clusters and the DOM ids of the
+                  drawing; the legacy order numbers them as Mermaid's legacy database does.
+                tests:
+                  - StateModel_SetRootDocument_StartAndEndStates_TakeTheirParentsId
+                  - StateModel_SetRootDocument_TrailingDivider_KeepsTheStatements
+                  - StateModel_SetRootDocument_LegacyDiagram_AppliesStatementsBeforeTranslating
+
+              - id: CanvasNetMermaid-State-StateModel-States
+                title: >-
+                  The StateModel unit shall keep each state once with its type and its descriptions, the first
+                  description its label and the others drawn under it, a description making a choice state a plain
+                  state, as Mermaid's database does.
+                justification: |
+                  The type and the descriptions of a state decide its shape and its size.
+                tests:
+                  - StateModel_GetData_Descriptions_FirstIsTheLabelAndTheRestAreDescriptions
+                  - StateModel_GetData_StatesAndTransitions_HaveMermaidsFields
+
+              - id: CanvasNetMermaid-State-StateModel-Notes
+                title: >-
+                  The StateModel unit shall place each note on a state in a note group of its own at the top level,
+                  linked from the note for a left note and to it otherwise, with the DOM ids of the counter that the
+                  transitions share, and shall give a state that only a note names no shape, as Mermaid leaves it
+                  undefined.
+                justification: |
+                  Notes are drawn beside their states in their own clusters; their ids and links decide the order and
+                  the place of the drawing.
+                tests:
+                  - StateModel_GetData_Notes_AreGroupedAndLinkedWithTheSharedCounter
+                  - StateModel_GetData_NoteOnAnUnseenState_HasNoShape
+
+              - id: CanvasNetMermaid-State-StateModel-Styles
+                title: >-
+                  The StateModel unit shall apply the classDef styles of the style classes a state carries, the class
+                  and ::: statements, and the style statements as Mermaid's database does, a color making a text style
+                  and the semicolons of a style statement dropped.
+                justification: |
+                  The paint of a state depends on the style statements and their order, which authors see in Mermaid's
+                  picture.
+                tests:
+                  - StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid
+
+              - id: CanvasNetMermaid-State-StateModel-Errors
+                title: >-
+                  The StateModel unit shall refuse a statement on which Mermaid's state database fails - a description
+                  of a composite state beyond its title - with a MermaidSyntaxException of code mermaid-syntax-error,
+                  located at the statement, that carries Mermaid's own message.
+                justification: |
+                  Mermaid fails the whole render on these statements; the port must fail closed at the same texts and
+                  show the author where.
+                tests:
+                  - StateModel_SetRootDocument_CompositeWithDescription_ThrowsLocatedGroupError
+
+              - id: CanvasNetMermaid-State-StateModel-Metadata
+                title: >-
+                  The StateModel unit shall give the accessible title, the direction (the last top-level direction
+                  statement, else TB), and the numbers of states (the start, end, fork, join, and choice states
+                  included), transitions, and composite states, not counting notes, note groups, note links, or
+                  concurrent regions, and no title of its own.
+                justification: |
+                  The counts must keep the meaning of the document's node, edge, and subgraph counts, and the direction
+                  must be the one the diagram is laid out in.
+                tests:
+                  - StateModel_Metadata_CountsStatesTransitionsAndComposites
+
+              - id: CanvasNetMermaid-State-StateModel-Limits
+                title: >-
+                  The StateModel unit shall refuse, with a located MermaidSyntaxException of code
+                  mermaid-limit-exceeded, more transitions than MaxEdges (the links of notes not counted), more states,
+                  composite states, concurrent regions, notes, and note groups together than MaxNodes (a state that only
+                  a class statement names included), concurrent regions that nest deeper than MaxNestingDepth (each
+                  region a level), and a text it joins or derives from texts checked apart - the descriptions under a
+                  title, the id of a start or end state, or a text style - longer than MaxLabelLength.
+                justification: |
+                  The size of the model, and so the cost of the layout, must be bounded for untrusted text; the regions
+                  and note groups are clusters of the layout, and a joined text can be longer than any of its parts,
+                  so it is checked where it is made.
+                tests:
+                  - StateModel_Limits_ClustersNotesAndGroups_CountAgainstMaxNodes
+                  - StateModel_Limits_TooManyStates_ThrowsLimitExceeded
+                  - StateModel_Limits_TooManyTransitions_ThrowsLimitExceeded
+                  - StateModel_Limits_ConcurrentRegions_CountAsNestingLevels
+                  - StateModel_Limits_JoinedTexts_ThrowLimitExceeded
+                  - StateModel_Limits_JoinedTextsAtTheLimit_AreAccepted
+
+              - id: CanvasNetMermaid-State-StateModel-LayoutData
+                title: >-
+                  The StateModel unit shall map the diagram, under the configuration of a render, to the layout data
+                  that Mermaid's state renderer receives - the states with Mermaid's radius, padding, and centered
+                  label, the composite states and concurrent regions as clusters with their directions and classes,
+                  the notes with the flowchart padding inside note groups, the transitions with the barb end and the
+                  links of notes without one, the barb marker, the direction, and the node and rank spacing of the
+                  state section.
+                justification: |
+                  Comparing the layout data with Mermaid's own is the strongest proof that the drawing starts from the
+                  same graph.
+                tests:
+                  - StateModel_GetData_StatesAndTransitions_HaveMermaidsFields
+                  - StateModel_GetData_Descriptions_FirstIsTheLabelAndTheRestAreDescriptions
+                  - StateModel_GetData_Notes_AreGroupedAndLinkedWithTheSharedCounter
+                  - StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid
+
+              - id: CanvasNetMermaid-State-StateModel-Unsupported
+                title: >-
+                  The StateModel unit shall report, in order and located at their keys with hints, the legacy state
+                  renderer of the legacy state id (mermaid-layout-unsupported at the state settings), a look other than
+                  classic (mermaid-look-unsupported), and a layout other than dagre (mermaid-layout-unsupported).
+                justification: |
+                  The host must learn of each setting whose picture differs from Mermaid's, at the place where it is
+                  written.
+                tests:
+                  - StateModel_ReportUnsupported_LegacyLookAndLayout_AreReportedInOrder
+
+              - id: CanvasNetMermaid-State-StateModel-Drawing
+                title: >-
+                  The StateModel unit shall, when it is laid out for a render, deliver its reports first, fail with a
+                  mermaid-render-failed error located at the note when a state has no shape (Mermaid's render fails on
+                  it too), and then draw the state diagram through the shared rendering with the state style sheet, the
+                  frontmatter title centered above the drawing at the title margin of the state section, and a view
+                  box of the drawn bounds grown by a padding of 8.
+                justification: |
+                  Reports must reach the host before any work is spent on drawing, a diagram Mermaid cannot draw must
+                  fail clearly, and the size of the picture must be Mermaid's.
+                tests:
+                  - StateModel_Layout_Title_IsAboveTheDrawingInsideThePaddedViewBox
+                  - StateModel_Layout_StateWithoutShape_FailsLocatedAtItsNote

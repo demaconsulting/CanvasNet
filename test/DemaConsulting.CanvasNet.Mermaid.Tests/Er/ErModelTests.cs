@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Mermaid.Er;
+using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Er;
 
@@ -245,5 +246,73 @@ public class ErModelTests
         Assert.Equal("default c ab", model.Entities[0].CssClasses);
         Assert.Equal(["fill:colo"], model.Entities[0].CssCompiledStyles);
         Assert.Equal(["fill:colo", "s"], model.Subgraphs[0].CssCompiledStyles);
+    }
+
+    /// <summary>
+    ///     Validates the metadata the model reports: the drawn entities are counted as nodes (not the hidden entity that a
+    ///     relationship to a subgraph adds), the relationships as edges and the subgraphs as subgraphs; the direction is
+    ///     the last top-level statement's, the accessible title is kept, and the grammar declares no title.
+    /// </summary>
+    [Fact]
+    public void ErModel_Metadata_CountsEntitiesRelationshipsAndSubgraphs()
+    {
+        // Arrange
+        const string Text = "erDiagram\n    accTitle: Shop\n    direction LR\n    subgraph Sales\n        ORDER\n    end\n" +
+            "    CUSTOMER ||--o{ ORDER : places\n    CUSTOMER ||--|| Sales : owns\n    direction RL\n";
+
+        // Act
+        var model = ErFacts.Parse(Text);
+
+        // Assert
+        Assert.Equal((2, 2, 1), (model.NodeCount, model.EdgeCount, model.SubgraphCount));
+        Assert.Equal(3, model.Entities.Count);
+        Assert.Equal(("RL", "Shop"), (model.Direction, model.AccTitle));
+        Assert.Null(model.Title);
+    }
+
+    /// <summary>
+    ///     Validates that a look other than classic and a layout other than dagre are reported in order, located at their
+    ///     keys, with hints.
+    /// </summary>
+    [Fact]
+    public void ErModel_ReportUnsupported_LookAndLayout_AreReportedInOrder()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n  layout: elk\n---\nerDiagram\n    A ||--o{ B : has\n";
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        ErModel.ReportUnsupported(ErFacts.DefaultConfig(Text), sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LookUnsupported, 3), (MermaidDiagnosticCodes.LayoutUnsupported, 4)],
+            reports.Select(r => (r.Feature, r.Location.Line)));
+        Assert.All(reports, r => Assert.NotNull(r.Hint));
+    }
+
+    /// <summary>
+    ///     Validates the entity relationship renderer's frame of the drawing: the frontmatter title is drawn centered above
+    ///     the drawing at the er section's title margin, and the view box is the drawn bounds grown by the padding of 8.
+    /// </summary>
+    [Fact]
+    public void ErModel_Layout_Title_IsAboveTheDrawingInsideThePaddedViewBox()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("---\ntitle: Shop\nconfig:\n  er:\n    titleTopMargin: 30\n---\nerDiagram\n    CUSTOMER\n");
+
+        // Act
+        var scene = document.LayoutScene(null, TestContext.Current.CancellationToken);
+
+        // Assert
+        var title = Assert.IsType<SceneText>(Assert.Single(SceneQuery.OfRole(scene, "title")));
+        Assert.Equal((SceneTextAnchor.Middle, -30.0), (title.Anchor, title.Baseline));
+        Assert.True(scene.ViewBox.Encloses(title.Box));
+        var box = Assert.Single(SceneQuery.Nodes(scene)).Value.Box;
+        Assert.Equal(box.X - 8, scene.ViewBox.X, 0.001);
+        Assert.Equal(box.X + box.Width + 8, scene.ViewBox.X + scene.ViewBox.Width, 0.001);
+        Assert.Equal(box.Y + box.Height + 8, scene.ViewBox.Y + scene.ViewBox.Height, 0.001);
     }
 }

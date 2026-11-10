@@ -446,6 +446,43 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks that a node's label is measured with its SVG text centered on its anchor only when the diagram's sheet
+    ///     centers it (a flowchart's <c>.node .label text</c> rule), and starting at its anchor for a state diagram, whose
+    ///     sheet has no such rule.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_SvgNodeText_IsCenteredOnlyWhenTheSheetCentersIt()
+    {
+        // Arrange
+        var requests = new List<LabelRequest>();
+        var state = StateContext(request =>
+        {
+            requests.Add(request);
+            return new SceneRect(0, 0, 40, 24);
+        });
+        var flowchartRequests = new List<LabelRequest>();
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "flowchart TD\n  A\n");
+        var flowchart = new ShapeContext
+        {
+            Config = config,
+            Styles = FlowchartStyles.Create(config, null),
+            MeasureLabel = request =>
+            {
+                flowchartRequests.Add(request);
+                return LabelLayout.Of(request.HtmlLabels, new SceneRect(0, 0, 40, 24));
+            },
+        };
+
+        // Act
+        ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "rect", Rx = 10, Ry = 10, Padding = 8, Label = "A", CenterLabel = true }, state);
+        ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "rect", Padding = 8, Label = "A" }, flowchart);
+
+        // Assert
+        Assert.False(Assert.Single(requests).CenterSvgText);
+        Assert.True(Assert.Single(flowchartRequests).CenterSvgText);
+    }
+
+    /// <summary>
     ///     Checks that the state shapes are painted as a state diagram's sheet and Mermaid's attributes give them: the
     ///     start circle by <c>.node circle.state-start</c>; the end circles, the fork bar, the choice diamond and the note
     ///     by the rough.js attributes, which the sheet has no <c>.node path</c> rule to override.

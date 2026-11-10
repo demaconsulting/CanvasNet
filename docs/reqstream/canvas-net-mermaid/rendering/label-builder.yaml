@@ -148,3 +148,25 @@ sections:
                   the name and so the size of the class box.
                 tests:
                   - LabelBuilder_Build_SvgInheritsWeight_DrawsTheLabelBold
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-SvgRunGrid
+                title: >-
+                  The LabelBuilder unit shall advance each run of SVG text by its width rounded up to a 64th of a
+                  pixel, as the browser lays out SVG text runs, so that a label whose words are runs of their own and a
+                  text measured as one run have the widths Mermaid measures.
+                justification: |
+                  Mermaid writes each word of an SVG label as its own run; the rounding of each run changes the width
+                  of the label and so the size of the node and the place of the title.
+                tests:
+                  - LabelBuilder_SvgRunAdvance_RoundsUpToTheLayoutUnit
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-SvgBackgroundSize
+                title: >-
+                  The LabelBuilder unit shall measure the background rectangle of an SVG label in the font size the
+                  label inherits when its own font size differs, and draw the text in its own size, as Mermaid measures
+                  the text before the label takes its own size.
+                justification: |
+                  The background decides the size of the label in the layout; an entity relationship role is measured
+                  by Mermaid at the diagram's size and drawn at its own.
+                tests:
+                  - LabelBuilder_Build_SvgBackgroundInAnInheritedSize_IsMeasuredInThatSize

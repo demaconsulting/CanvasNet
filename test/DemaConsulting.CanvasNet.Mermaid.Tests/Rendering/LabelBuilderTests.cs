@@ -671,6 +671,36 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Validates the background rectangle of an SVG label whose own font size differs from the size it inherits (an
+    ///     entity relationship label of 14 pixels in a 16 pixel diagram): Mermaid measures the text before the label takes
+    ///     its own size, so the rectangle is the box of the text in the inherited size grown by the padding, while the
+    ///     text is drawn in its own size; with the same size the rectangle is the drawn text's box grown by the padding.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_Build_SvgBackgroundInAnInheritedSize_IsMeasuredInThatSize()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var small = Font with { Size = 14 };
+        var request = new LabelRequest("has", small) { HtmlLabels = false, AddBackground = true, Prepare = false, CenterSvgText = true, Width = double.PositiveInfinity };
+
+        // Act
+        var inherited = builder.Build(request with { RootFontSize = 16 });
+        var own = builder.Build(request with { RootFontSize = 14 });
+        var large = builder.Build(request with { Font = Font, RootFontSize = 16 });
+
+        // Assert
+        Assert.Equal(own.Lines[0].Box, inherited.Lines[0].Box);
+        Assert.Equal(14, inherited.Lines[0].Runs[0].Font.Size);
+        var pad = LabelBuilder.SvgBackgroundPadding;
+        var text = own.Lines[0].Box;
+        Assert.Equal(new SceneRect(text.X - pad, text.Y - pad, text.Width + (2 * pad), text.Height + (2 * pad)), own.Box);
+        Assert.Equal(large.Box.Width, inherited.Box.Width, 9);
+        Assert.Equal(large.Box.Height, inherited.Box.Height, 9);
+        Assert.True(inherited.Box.Height > own.Box.Height);
+    }
+
+    /// <summary>
     ///     Validates the x-height: the top of Liberation Sans's <c>x</c>, 1082 units of 2048, and zero for a size that
     ///     draws nothing.
     /// </summary>

@@ -452,6 +452,33 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the facts every unified sheet gives the rendering: only the flowchart and class sheets center the
+    ///     SVG text of a node's label on its anchor (the state and entity relationship sheets have no such rule), and the
+    ///     root text is the diagram's root font and its text color.
+    /// </summary>
+    [Fact]
+    public void UnifiedStyles_Create_EachSheet_CentersSvgNodeTextAndGivesTheRootText()
+    {
+        // Arrange
+        var flowchart = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "flowchart TD\n  A\n");
+        var classes = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "classDiagram\n  class A\n");
+        var state = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "stateDiagram-v2\n  A --> B\n");
+        var er = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "erDiagram\n  A ||--o{ B : has\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+
+        // Act
+        var sheets = new UnifiedStyles[]
+        {
+            FlowchartStyles.Create(flowchart, null), ClassStyles.Create(classes, null), StateStyles.Create(state, null), ErStyles.Create(er, null),
+        };
+
+        // Assert
+        Assert.Equal([true, true, false, false], sheets.Select(sheet => sheet.CentersNodeSvgText));
+        Assert.Equal(new TextPaint(Family, 16, Color(er.ThemeVariable("textColor")!)), sheets[3].RootText);
+        Assert.All(sheets, sheet => Assert.Equal(16, sheet.RootText.FontSize));
+    }
+
+    /// <summary>
     ///     Validates that the flowchart and sequence style sheets start with the same global rules of Mermaid's
     ///     <c>getStyles</c>.
     /// </summary>

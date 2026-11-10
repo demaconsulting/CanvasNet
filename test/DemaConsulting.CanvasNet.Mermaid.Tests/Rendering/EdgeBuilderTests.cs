@@ -442,6 +442,32 @@ public sealed class EdgeBuilderTests
     }
 
     /// <summary>
+    ///     Checks a placed SVG edge label whose own font size is smaller than the diagram's (an entity relationship role of
+    ///     14 pixels in a 16 pixel diagram): the text as drawn is centered on the label's position, and its background,
+    ///     measured in the diagram's size, is taller than the text with its padding.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawLabel_SvgInASmallerSize_IsCenteredOnItsDrawnText()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateEr("---\nconfig:\n  htmlLabels: false\n---\nerDiagram\n  A ||--o{ B : has\n");
+        var label = EdgeBuilder.MeasureLabel(Edge(), "has", context);
+
+        // Act
+        var drawing = EdgeBuilder.DrawLabel(label, new ShapePoint(100, 50), Edge(), "e", context.Styles);
+
+        // Assert
+        Assert.False(label.IsHtml);
+        Assert.Equal(14, label.Lines[0].Runs[0].Font.Size);
+        var group = Assert.IsType<SceneGroup>(Assert.Single(drawing.Items));
+        var text = Scene.BoundsOf([.. group.Children.Where(c => c is SceneText)])!.Value.Offset(group.OffsetX, group.OffsetY);
+        Assert.Equal(100, text.X + (text.Width / 2), 6);
+        Assert.Equal(50, text.Y + (text.Height / 2), 6);
+        var background = Scene.BoundsOf([Assert.Single(group.Children, c => c.Role == "edge-label-background")])!.Value;
+        Assert.True(background.Height > text.Height + (2 * LabelBuilder.SvgBackgroundPadding));
+    }
+
+    /// <summary>
     ///     Checks the class diagram's edge label backgrounds: an HTML label's are the node background of the class
     ///     sheet (<c>.labelBkg</c> and <c>.edgeLabel .label span</c>), and an SVG label's rectangle is too
     ///     (<c>.edgeLabel .label rect</c>).

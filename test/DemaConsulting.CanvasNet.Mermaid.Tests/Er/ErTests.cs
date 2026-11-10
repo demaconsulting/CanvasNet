@@ -98,4 +98,67 @@ public class ErTests
         Assert.Equal(6, ex.Location.Line);
         Assert.Equal(["COLON", "STYLE_SEPARATOR"], ex.Expected);
     }
+
+    /// <summary>
+    ///     Validates that the document reports an entity relationship diagram as supported, with its metadata: the drawn
+    ///     entities as nodes, relationships as edges, subgraphs as subgraphs and the direction that lays it out.
+    /// </summary>
+    [Fact]
+    public void Er_Document_IsSupportedWithMetadata()
+    {
+        // Act
+        var document = MermaidDocument.Parse("erDiagram\n    direction LR\n    subgraph Sales\n        ORDER\n    end\n" +
+            "    CUSTOMER ||--o{ ORDER : places\n    ORDER ||--|{ LINE : holds\n");
+
+        // Assert
+        Assert.Equal(("er", true), (document.DiagramType, document.IsSupported));
+        Assert.Equal((3, 2, 1), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
+        Assert.Equal("LR", document.Direction);
+    }
+
+    /// <summary>
+    ///     Validates that every original entity relationship fixture lays out into a scene with a node for each drawn
+    ///     entity, a cluster for each subgraph, the relationships as edges and a positive size.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(Fixtures))]
+    public void Er_Layout_Fixture_DrawsEntitiesAndRelationships(string name)
+    {
+        // Arrange
+        var text = File.ReadAllText(Path.Combine(FixtureFolder, name));
+        var model = ErFacts.Parse(text, name);
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+
+        // Assert
+        Assert.True(scene.ViewBox.Width > 0 && scene.ViewBox.Height > 0);
+        Assert.Equal(model.NodeCount, SceneQuery.Nodes(scene).Count);
+        Assert.Equal(model.Subgraphs.Select(s => s.Id).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), SceneQuery.Clusters(scene).Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(model.Relationships.Count, SceneQuery.Edges(scene).Count);
+    }
+
+    /// <summary>
+    ///     Validates that what the subsystem does not draw as Mermaid does is reported in order at its location - the look
+    ///     and the layout as unsupported features - and that the diagram is still drawn.
+    /// </summary>
+    [Fact]
+    public void Er_Render_UnsupportedFeatures_AreReported()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n  layout: elk\n---\nerDiagram\n    CUSTOMER ||--o{ ORDER : places\n";
+        var document = MermaidDocument.Parse(Text, new MermaidOpenOptions { SourceName = "e.mmd" });
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var size = document.Measure(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(size.Width > 16 && size.Height > 16);
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LookUnsupported, 3), (MermaidDiagnosticCodes.LayoutUnsupported, 4)],
+            unsupported.Select(u => (u.Feature, u.Location.Line)));
+        Assert.Empty(warnings);
+    }
 }

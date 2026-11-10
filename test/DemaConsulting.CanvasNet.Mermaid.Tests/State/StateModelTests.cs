@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.State;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -309,5 +310,102 @@ public class StateModelTests
         // Assert
         Assert.Equal(["de", "fgh"], model.Nodes[0].Descriptions!);
         Assert.Contains(model.Nodes, n => n.Id == "Abcd_start");
+    }
+
+    /// <summary>
+    ///     Validates the metadata the model reports: the states (the start, end, fork and choice states included) are
+    ///     counted as nodes, the transitions as edges and the composite states as subgraphs, while notes, note groups,
+    ///     note links and concurrent regions are not; the direction is the last top-level statement's, the accessible
+    ///     title is kept, and the grammar declares no title.
+    /// </summary>
+    [Fact]
+    public void StateModel_Metadata_CountsStatesTransitionsAndComposites()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\n    accTitle: Keys\n    direction LR\n    [*] --> Active\n    state Active {\n" +
+            "        [*] --> NumOff\n        --\n        [*] --> CapsOff\n    }\n    state split <<fork>>\n    Active --> split\n" +
+            "    split --> [*]\n    note right of Active : two regions\n    direction RL\n";
+
+        // Act
+        var model = StateFacts.Parse(Text);
+
+        // Assert
+        Assert.Equal((7, 5, 1), (model.NodeCount, model.EdgeCount, model.SubgraphCount));
+        Assert.Equal(("RL", "Keys"), (((IMermaidDiagram)model).Direction, model.AccTitle));
+        Assert.Null(model.Title);
+    }
+
+    /// <summary>
+    ///     Validates that the legacy renderer, a look other than classic and a layout other than dagre are reported in
+    ///     that order, located at their keys, with hints, and that the unified diagram reports neither renderer.
+    /// </summary>
+    [Fact]
+    public void StateModel_ReportUnsupported_LegacyLookAndLayout_AreReportedInOrder()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: handDrawn\n  layout: elk\n  state:\n    defaultRenderer: dagre-d3\n---\nstateDiagram\n    A --> B\n";
+        var legacy = StateFacts.Parse(Text, settings: new DetectorSettings(null, null, "dagre-d3"));
+        var unified = StateFacts.Parse("stateDiagram-v2\n    A --> B\n");
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var plain = new MermaidReportSink(100, throwOnUnsupported: false);
+        var reports = new List<MermaidUnsupportedFeature>();
+        var none = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        legacy.ReportUnsupported(StateFacts.DefaultConfig(Text), sink);
+        unified.ReportUnsupported(StateFacts.DefaultConfig("stateDiagram-v2\n    A --> B\n"), plain);
+        sink.Deliver(null, reports.Add);
+        plain.Deliver(null, none.Add);
+
+        // Assert
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LayoutUnsupported, 5), (MermaidDiagnosticCodes.LookUnsupported, 3), (MermaidDiagnosticCodes.LayoutUnsupported, 4)],
+            reports.Select(r => (r.Feature, r.Location.Line)));
+        Assert.All(reports, r => Assert.NotNull(r.Hint));
+        Assert.Contains("dagre-d3", reports[0].Message, StringComparison.Ordinal);
+        Assert.Empty(none);
+    }
+
+    /// <summary>
+    ///     Validates the state renderer's frame of the drawing: the frontmatter title is drawn centered above the drawing
+    ///     at the state section's title margin, and the view box is the drawn bounds grown by the padding of 8.
+    /// </summary>
+    [Fact]
+    public void StateModel_Layout_Title_IsAboveTheDrawingInsideThePaddedViewBox()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("---\ntitle: Lights\n---\nstateDiagram-v2\n    WaitingForTheFirstSwitch\n");
+
+        // Act
+        var scene = document.LayoutScene(null, TestContext.Current.CancellationToken);
+
+        // Assert
+        var title = Assert.IsType<SceneText>(Assert.Single(SceneQuery.OfRole(scene, "title")));
+        Assert.Equal((SceneTextAnchor.Middle, -25.0), (title.Anchor, title.Baseline));
+        Assert.True(scene.ViewBox.Encloses(title.Box));
+        var box = Assert.Single(SceneQuery.Nodes(scene)).Value.Box;
+        Assert.Equal(box.X - 8, scene.ViewBox.X, 0.001);
+        Assert.Equal(box.X + box.Width + 8, scene.ViewBox.X + scene.ViewBox.Width, 0.001);
+        Assert.Equal(box.Y + box.Height + 8, scene.ViewBox.Y + scene.ViewBox.Height, 0.001);
+    }
+
+    /// <summary>
+    ///     Validates that a state without a shape (a note on a state seen nowhere before it) fails the render, located at
+    ///     the note, with Mermaid's own message, as Mermaid's render fails.
+    /// </summary>
+    [Fact]
+    public void StateModel_Layout_StateWithoutShape_FailsLocatedAtItsNote()
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("stateDiagram-v2\n    A --> B\n    note right of X : hello\n", new MermaidOpenOptions { SourceName = "s.mmd" });
+
+        // Act
+        var exception = Assert.Throws<MermaidRenderException>(() => document.LayoutScene(null, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, exception.Code);
+        Assert.Equal(new MermaidLocation("s.mmd", 3, 5), exception.Location);
+        Assert.Contains("No such shape: undefined", exception.Message, StringComparison.Ordinal);
+        Assert.NotNull(exception.Hint);
     }
 }
