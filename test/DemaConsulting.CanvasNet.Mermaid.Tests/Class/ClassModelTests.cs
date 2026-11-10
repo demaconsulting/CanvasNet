@@ -1,3 +1,4 @@
+// cspell:ignore avascript Aavascript dfavascript javascrip msgbox
 using DemaConsulting.CanvasNet.Mermaid.Class;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
@@ -33,7 +34,10 @@ public class ClassModelTests
         { "Plain", "Plain" },
     };
 
-    /// <summary>Links and what Mermaid's <c>strict</c> URL check makes of them.</summary>
+    /// <summary>
+    ///     Links and what Mermaid's <c>strict</c> URL check makes of them (the bundled sanitize-url's results): safe links
+    ///     as sanitize-url writes them, and <c>about:blank</c> for every encoded form of an unsafe scheme.
+    /// </summary>
     public static TheoryData<string, string?> UrlCases => new()
     {
         { "google.com", "google.com" },
@@ -41,6 +45,15 @@ public class ClassModelTests
         { "/relative/page", "/relative/page" },
         { "mailto:someone@example.com", "mailto:someone@example.com" },
         { "javascript:alert(1)", "about:blank" },
+        { "&#106;avascript:alert(1)", "about:blank" },
+        { "&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x31&#x29", "about:blank" },
+        { "java&#9;script:alert(1)", "about:blank" },
+        { "java\tscript:alert(1)", "about:blank" },
+        { "JaVa&Tab;ScRiPt&colon;alert(1)", "about:blank" },
+        { "%6Aavascript:alert(1)", "about:blank" },
+        { "javascrip\\%74t:alert(1)", "about:blank" },
+        { "\u00e9javascript:alert(1)", "about:blank" },
+        { "  data:text/html,x  ", "about:blank" },
         { "  ", null },
     };
 
@@ -299,19 +312,25 @@ public class ClassModelTests
     }
 
     /// <summary>
-    ///     Validates that links are checked as Mermaid's <c>strict</c> security level does.
+    ///     Validates that a class keeps only the link Mermaid's <c>strict</c> security level check gives, never the link as
+    ///     written: an encoded unsafe scheme is kept as <c>about:blank</c>.
     /// </summary>
     /// <param name="link">The link as written.</param>
     /// <param name="expected">The expected link, or null for none.</param>
     [Theory]
     [MemberData(nameof(UrlCases))]
-    public void ClassModel_FormatUrl_Link_IsCheckedLikeMermaid(string link, string? expected)
+    public void ClassModel_SetLink_Link_KeepsOnlyTheCheckedLink(string link, string? expected)
     {
+        // Arrange
+        var model = CreateModel();
+        model.AddClass("Shape", default);
+
         // Act
-        var actual = ClassModel.FormatUrl(link);
+        model.SetLink("Shape", link, null, default);
 
         // Assert
-        Assert.Equal(expected, actual);
+        var shape = Assert.Single(model.Classes);
+        Assert.Equal((expected, "_blank"), (shape.Link, shape.LinkTarget));
     }
 
     /// <summary>

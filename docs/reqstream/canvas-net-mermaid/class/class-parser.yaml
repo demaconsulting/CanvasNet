@@ -49,6 +49,7 @@ sections:
                   - ClassParser_Parse_RelationWithCardinalitiesAndLabel_KeepsThem
                   - ClassParser_Parse_LoneName_DoesNothing
                   - ClassParser_Parse_ClickStatements_KeepLinkData
+                  - ClassParser_Parse_EncodedUnsafeLinks_KeepOnlyTheCheckedLink
 
               - id: CanvasNetMermaid-Class-ClassParser-Errors
                 title: >-

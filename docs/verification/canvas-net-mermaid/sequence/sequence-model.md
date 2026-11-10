@@ -101,13 +101,17 @@ located, with a hint that names the participant.
 
 **Tests**: `SequenceModelTests.SequenceModel_Apply_LinksAndProperties_ReadLikeMermaid`,
 `SequenceModelTests.SequenceModel_Apply_LinksArrayAndString_AddIndexes`,
+`SequenceModelTests.SequenceModel_Apply_UnsafeLinks_KeepOnlyTheCheckedUrls`,
 `SequenceModelTests.SequencePropertyMap_Keys_JavaScriptOrder`
 
 Asserts that `link` splits at the at sign (the URL keeps its query with `&`) and, when there is none, takes as
 JavaScript's `slice` does the text without its last two characters as the label and the whole text as the link, that
 `links` adds JSON keys, that text that is not JSON is ignored, that `properties` adds the class,
 and that `details` adds nothing, with the keys in JavaScript order (`2`, `Docs`, `no at sign`, `b`); that a JSON array
-and a JSON string given to `links` add their indexes as keys (an object value kept as JSON, a character as text); and
+and a JSON string given to `links` add their indexes as keys (an object value kept as JSON, a character as text); that
+`link` with a percent-encoded letter and with an escaped white space, and `links` with a tab inside the scheme, a
+`DATA:` link after spaces, and a mixed-case `javascript` link keep `about:blank`, while a safe `https` link is kept as
+sanitize-url writes it (host lower-cased, dot segments resolved) and a number is kept as a number; and
 that a property map enumerates array-index keys first in numeric order and then the other keys in insertion order (`01`
 is not an index), a key set again keeping its place and taking the new value.
 

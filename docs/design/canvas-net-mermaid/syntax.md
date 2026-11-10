@@ -24,7 +24,8 @@ through `InternalsVisibleTo`, to the test assembly. It contains five units:
   (`syntax/yaml-subset-parser.md`)
 - **SourceScanner** - the internal `SourceScanner` with `ScanRule`, `ScanToken`, and the `ScanMatcher` delegate
   (`SourceScanner.cs`), the matcher building blocks `ScanPatterns` (`SourceScanner.Patterns.cs`), and the lookahead
-  `TokenCursor` (`SourceScanner.Tokens.cs`): the lexer infrastructure that the diagram parsers build on; see
+  `TokenCursor` (`SourceScanner.Tokens.cs`): the lexer infrastructure that the diagram parsers build on, with the
+  link check `UrlSanitizer` (`SourceScanner.Urls.cs`) that every diagram applies to the links it keeps; see
   _SourceScanner Unit Design_ (`syntax/source-scanner.md`)
 - **HtmlSanitizer** - the internal static `HtmlSanitizer` (`HtmlSanitizer.cs`) and the grouped table of named
   character references `HtmlEntities` (`HtmlEntities.cs`): the clean-up that Mermaid applies to every label it stores;
@@ -44,8 +45,8 @@ JavaScript string helper `Preprocessor.TrimJs`; `MappedText` (`Text`, `Locate`, 
 `DiagramDetector.EditDistance`; `YamlSubsetParser.Parse(string, Func<int, MermaidLocation>, int)` and the `YamlNode`
 tree with `IsTruthy`, `ToJsString`, and `YamlMapping.Get`; `SourceScanner` (`Next`, `Begin`, `PopState`, `TopState`,
 `Less`, `Locate`, `LexicalError`), `ScanRule`, `ScanToken`, `ScanPatterns`, and `TokenCursor` (`Current`, `Is`,
-`Advance`, `Expect`, `Error`, `JoinAlternatives`); and `HtmlSanitizer.Sanitize` and
-`HtmlSanitizer.DecodeReferences`.
+`Advance`, `Expect`, `Error`, `JoinAlternatives`); `UrlSanitizer.Sanitize` and `UrlSanitizer.FormatUrl`; and
+`HtmlSanitizer.Sanitize` and `HtmlSanitizer.DecodeReferences`.
 
 **Consumed**: the public `MermaidLimits` (`MaxTextSize`, `MaxYamlDepth`), `MermaidLocation`,
 `MermaidSyntaxException`, and `MermaidDiagnosticCodes` of the root namespace, and the .NET base class library. The
@@ -57,10 +58,11 @@ detects again with the resolved renderer settings, and uses the edit distance fo
 `Flowchart` subsystem lexes the parser text with `SourceScanner` and `TokenCursor`, reads shape data with
 `YamlSubsetParser`, and sanitizes labels with `HtmlSanitizer`; the `Sequence` subsystem lexes the parser text with
 `SourceScanner` and `TokenCursor`, reads participant metadata with `YamlSubsetParser`, sanitizes texts with
-`HtmlSanitizer`, and uses the edit distance for the nearest participant type; the `Class` subsystem lexes the parser
-text with `SourceScanner` and `TokenCursor` (its names in every script through `ScanPatterns.IsUnicodeLetter`, as the
-flowchart's do) and sanitizes texts with `HtmlSanitizer`; the `Rendering` subsystem (`LabelBuilder`)
-sanitizes label HTML and decodes character references with `HtmlSanitizer`, and `ShapeNames` uses the edit distance.
+`HtmlSanitizer`, checks the link texts of participants with `UrlSanitizer`, and uses the edit distance for the nearest
+participant type; the `Class` subsystem lexes the parser text with `SourceScanner` and `TokenCursor` (its names in
+every script through `ScanPatterns.IsUnicodeLetter`, as the flowchart's do), sanitizes texts with `HtmlSanitizer`,
+and checks the links of classes with `UrlSanitizer.FormatUrl`; the `Rendering` subsystem (`LabelBuilder`) sanitizes
+label HTML and decodes character references with `HtmlSanitizer`, and `ShapeNames` uses the edit distance.
 
 ### Design
 
@@ -93,8 +95,11 @@ the results of DOMPurify, the sanitizer Mermaid's `sanitizeText` runs, for the i
 **Untrusted input is bounded.** The original text may be at most four times `MermaidLimits.MaxTextSize` long and the
 code at most `MaxTextSize`; YAML collections may nest at most `MermaidLimits.MaxYamlDepth` deep, a limit reported at
 open time as a `MermaidSyntaxException` with `mermaid-limit-exceeded`; anchors, aliases, tags, explicit keys, and
-directives are refused in YAML, so a small text cannot expand into a huge value; and the sanitizer removes scripts,
-event handlers, and unsafe links from label HTML in one pass without recursion.
+directives are refused in YAML, so a small text cannot expand into a huge value; the sanitizer removes scripts,
+event handlers, and unsafe links from label HTML in one pass without recursion; and every link a diagram keeps is
+checked by `UrlSanitizer` exactly as the sanitize-url that Mermaid bundles checks it, so a `javascript`, `data`, or
+`vbscript` link hidden by character references, control characters, escaped white space, or percent escapes is kept
+only as `about:blank`.
 
 **Errors are located and hinted.** Invalid YAML is `mermaid-yaml-invalid` with js-yaml's description, a refused
 construct is `mermaid-yaml-unsupported`, an unknown diagram type is `mermaid-unknown-diagram` with the nearest known
@@ -103,7 +108,8 @@ the size limits is an `InvalidDataException`. Every type is immutable or used by
 subsystem is safe for concurrent use.
 
 **Attribution.** The preparation, the detector, and the lexer semantics are derived from Mermaid (MIT), and the YAML
-reader from js-yaml as bundled by Mermaid (MIT); the source files carry the derivation header and the provenance of
+reader from js-yaml as bundled by Mermaid (MIT), and the link check from sanitize-url (MIT) and Mermaid's `formatUrl`;
+the source files carry the derivation header and the provenance of
 each unit is listed in `third-party/README.md`. The `HtmlSanitizer` and its `HtmlEntities` table are original work
 that reproduces the results of DOMPurify with the standard HTML names it allows by default.
 

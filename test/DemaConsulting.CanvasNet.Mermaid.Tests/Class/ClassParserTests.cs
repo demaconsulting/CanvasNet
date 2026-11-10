@@ -1,3 +1,4 @@
+// cspell:ignore avascript Aavascript dfavascript javascrip msgbox
 using DemaConsulting.CanvasNet.Mermaid.Class;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Class;
@@ -155,6 +156,42 @@ public class ClassParserTests
         Assert.Equal(("https://example.com/g", "_self", "Gateway docs"), (gateway.Link, gateway.LinkTarget, gateway.Tooltip));
         Assert.Equal("default clickable", gateway.CssClasses);
         Assert.True(model.Classes[1].HaveCallback);
+    }
+
+    /// <summary>
+    ///     Validates that the <c>link</c> and <c>click ... href</c> statements keep only the checked link, with the pinned
+    ///     Mermaid's results (recorded in headless Chrome): every encoded form of an unsafe scheme that reaches the link
+    ///     check is <c>about:blank</c>, a numeric reference stays in Mermaid's entity encoding (so it never decodes to a
+    ///     scheme), and safe links are written as sanitize-url writes them.
+    /// </summary>
+    [Fact]
+    public void ClassParser_Parse_EncodedUnsafeLinks_KeepOnlyTheCheckedLink()
+    {
+        // Arrange
+        (string Name, string Statement, string Link)[] cases =
+        [
+            ("A", "link A \"java\tscript:alert(1)\"", "about:blank"),
+            ("B", "click B href \"%6Aavascript:alert(1)\"", "about:blank"),
+            ("C", "link C \"&#106;avascript:alert(1)\"", "&\ufb02\u00b0\u00b0106\u00b6\u00dfavascript:alert(1)"),
+            ("D", "click D href \"JaVa&Tab;ScRiPt&colon;alert(1)\" \"tip\" _self", "about:blank"),
+            ("E", "link E \"https://Example.com/a/../b c\"", "https://example.com/b%20c"),
+            ("F", "link F \"javascrip\\%74t:alert(1)\"", "about:blank"),
+            ("G", "link G \"  data:text/html,x  \"", "about:blank"),
+            ("H", "click H href \"\u00e9javascript:alert(1)\"", "about:blank"),
+            ("I", "link I \"java%09script:alert(1)\"", "about:blank"),
+            ("J", "click J href \"%2520javascript:alert(1)\"", "about:blank"),
+            ("K", "link K \"vbscript:msgbox(1)\"", "about:blank"),
+            ("L", "link L \"./docs/page.html\"", "./docs/page.html"),
+            ("M", "link M \"mailto:Someone@Example.com\"", "mailto:Someone@Example.com"),
+            ("N", "link N \"java&NewLine;script:alert(1)\"", "about:blank"),
+        ];
+        var text = "classDiagram\n" + string.Concat(cases.Select(c => $"class {c.Name}\n")) + string.Concat(cases.Select(c => c.Statement + "\n"));
+
+        // Act
+        var model = ClassFacts.Parse(text);
+
+        // Assert
+        Assert.Equal(cases.Select(c => (c.Name, (string?)c.Link)), model.Classes.Select(c => (c.Id, c.Link)));
     }
 
     /// <summary>

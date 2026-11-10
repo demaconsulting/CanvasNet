@@ -569,6 +569,24 @@ sections:
           - CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_ErDiagram_WorkLimit_FailsWithLimitExceeded
 
+      - id: CanvasNetMermaid-UnsafeLinks
+        title: >-
+          The library shall check every link a diagram keeps (the link and click href of a class diagram, the link
+          and links of a sequence diagram) exactly as the pinned Mermaid checks it at its strict security level,
+          whatever the configured security level, so that a javascript, data, or vbscript link in any encoding is
+          kept only as about:blank, and shall never expose a link as written in any output.
+        tags: [system, security]
+        justification: |
+          Links are kept as data for a host that reads the diagram; a link whose scheme hides behind character
+          references, control characters, or percent escapes would run code where it is used, as a partial check
+          would let it through.
+        children:
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Class-InteractionIgnored
+          - CanvasNetMermaid-Sequence-Language
+        tests:
+          - CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput
+
       - id: CanvasNetMermaid-Determinism
         title: >-
           The library shall produce identical pixels and identical reports for the same document and options on

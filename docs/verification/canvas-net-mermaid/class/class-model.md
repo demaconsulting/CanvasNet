@@ -126,11 +126,14 @@ text style `bgFill:#f96,color:#036`; and that `cssClass` for `1Alpha,Beta` leave
 
 ##### CanvasNetMermaid-Class-ClassModel-Links: Links Checked As The Strict Security Level Checks Them
 
-**Tests**: `ClassModelTests.ClassModel_FormatUrl_Link_IsCheckedLikeMermaid`
+**Tests**: `ClassModelTests.ClassModel_SetLink_Link_KeepsOnlyTheCheckedLink`
 
-Asserts what six links become (a theory): `google.com` and `/relative/page` are kept, `https://Example.com` is
-normalized to `https://example.com/`, `mailto:someone@example.com` is kept, `javascript:alert(1)` is refused as
-`about:blank`, and a link of spaces is no link.
+Asserts what the class keeps for fifteen links given to `SetLink` (a theory), with the target `_blank`: `google.com`
+and `/relative/page` are kept, `https://Example.com` is normalized to `https://example.com/`,
+`mailto:someone@example.com` is kept, a link of spaces is no link, and `about:blank` is kept for `javascript:alert(1)`
+and for every encoded form of an unsafe scheme - a decimal reference, hexadecimal references without semicolons, a
+reference and a raw tab inside the scheme, `&Tab;` with `&colon;` in mixed case, a percent-encoded letter, an escaped
+white space, a letter outside ASCII before the scheme, and a `data` link with spaces around it.
 
 ##### CanvasNetMermaid-Class-ClassModel-Metadata: Counts, Direction, And Titles
 

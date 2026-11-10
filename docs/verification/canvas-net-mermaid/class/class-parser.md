@@ -68,7 +68,8 @@ name), `Box~T~` (a generic name, kept as `Box` with the type `T`), and `Città` 
 `ClassParserTests.ClassParser_Parse_RelationForm_MapsToRelationCodes`,
 `ClassParserTests.ClassParser_Parse_RelationWithCardinalitiesAndLabel_KeepsThem`,
 `ClassParserTests.ClassParser_Parse_LoneName_DoesNothing`,
-`ClassParserTests.ClassParser_Parse_ClickStatements_KeepLinkData`
+`ClassParserTests.ClassParser_Parse_ClickStatements_KeepLinkData`,
+`ClassParserTests.ClassParser_Parse_EncodedUnsafeLinks_KeepOnlyTheCheckedLink`
 
 Asserts that every upstream vector (a theory with one case for each) gives Mermaid's database and layout facts or
 Mermaid's error, and that the file holds at least 120 cases with between 10 and all but 100 errors; that
@@ -80,7 +81,11 @@ theory with one case for each form); that `Customer "1" --> "*" Order : places` 
 the label `places`, while `Order --> "1" Payment` has the first cardinality `none` and no label; that a lone name and a
 `title A title` line add no class; and that `click Gateway href "https://example.com/g" "Gateway docs" _self` keeps the
 link, the target `_self`, and the tooltip and gives the CSS classes `default clickable`, while `callback Docs "show"`
-records the callback.
+records the callback; and that fourteen `link` and `click ... href` statements keep the links the pinned Mermaid keeps
+(recorded in headless Chrome): `about:blank` for a raw tab, a percent-encoded letter, `&Tab;` with `&colon;`, an
+escaped white space, spaces around a `data` link, a letter outside ASCII before the scheme, `%09`, `%2520`, a
+`vbscript` link, and `&NewLine;`; a numeric reference kept in Mermaid's entity encoding (it never decodes to a scheme);
+and `https://Example.com/a/../b c`, a relative link, and a `mailto:` link written as sanitize-url writes them.
 
 ##### CanvasNetMermaid-Class-ClassParser-Errors: Errors With Jison's Expected Tokens
 

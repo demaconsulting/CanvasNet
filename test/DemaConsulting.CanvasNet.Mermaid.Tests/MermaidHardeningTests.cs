@@ -1,3 +1,4 @@
+// cspell:ignore avascript Aavascript dfavascript javascrip msgbox
 using System.Text;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
@@ -650,6 +651,61 @@ public class MermaidHardeningTests
             Assert.True(failure.Location.Line > 0, failure.Message);
         }
     }
+
+    /// <summary>
+    ///     Gets diagrams of every type that has links (class <c>link</c> and <c>click ... href</c>, flowchart <c>click</c>
+    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>), each with encoded forms of unsafe links that a partial
+    ///     check lets through: a tab inside the scheme, a percent-encoded letter, an escaped white space, and mixed case.
+    /// </summary>
+    public static TheoryData<string> UnsafeLinkDiagrams =>
+    [
+        "classDiagram\nclass A\nclass B\nclass C\nlink A \"java\tscript:alert(1)\" \"tip\"\nclick B href \"%6Aavascript:alert(2)\" _self\n" +
+        "link C \"JaVa&Tab;ScRiPt&colon;alert(3)\"\n",
+        "flowchart TD\nA --> B\nclick A href \"java\tscript:alert(1)\" \"tip\" _blank\nclick B \"%6Aavascript:alert(2)\"\n",
+        "sequenceDiagram\nparticipant A\nlink A: Docs @ %6Aavascript:alert(1)\nlinks A: {\"Run\": \"javascrip\\\\%74t:alert(2)\", \"Go\": \"JaVaScRiPt:alert(3)\"}\nA->>A: hi\n",
+    ];
+
+    /// <summary>
+    ///     Validates through the public API that an encoded unsafe link appears in no output of a document: the diagram
+    ///     renders, no report, hint, title or accessible title carries the link, and the only links the parsed diagram
+    ///     keeps are the checked ones (<c>about:blank</c>; a flowchart keeps none).
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [MemberData(nameof(UnsafeLinkDiagrams))]
+    public void CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput(string text)
+    {
+        // Arrange
+        var outputs = new List<string>();
+        var options = new MermaidRenderOptions
+        {
+            WarningHandler = report => outputs.AddRange([report.ToString(), report.Hint ?? string.Empty]),
+            UnsupportedFeatureHandler = report => outputs.AddRange([report.ToString(), report.Hint ?? string.Empty]),
+        };
+
+        // Act
+        var document = MermaidDocument.Parse(text);
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+        outputs.AddRange([document.Title ?? string.Empty, document.AccTitle ?? string.Empty]);
+
+        // Assert
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
+        Assert.DoesNotContain(outputs, output => output.Contains("alert(", StringComparison.Ordinal));
+        Assert.All(KeptLinks(document), link => Assert.Equal("about:blank", link));
+    }
+
+    /// <summary>
+    ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram and the link texts of the
+    ///     participants of a sequence diagram (a flowchart keeps none).
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The kept links.</returns>
+    private static List<string?> KeptLinks(MermaidDocument document) => document.Diagram switch
+    {
+        global::DemaConsulting.CanvasNet.Mermaid.Class.ClassModel model => [.. model.Classes.Where(c => c.Link is not null).Select(c => c.Link)],
+        global::DemaConsulting.CanvasNet.Mermaid.Sequence.SequenceModel model => [.. model.Actors.SelectMany(a => a.Links.Keys.Select(key => a.Links.TryGetValue(key, out var value) ? (string?)value : null))],
+        _ => [],
+    };
 
     /// <summary>
     ///     Validates that class namespaces count against <see cref="MermaidLimits.MaxNodes"/> with the classes: once 1,000
