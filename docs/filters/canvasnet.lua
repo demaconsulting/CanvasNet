@@ -9,7 +9,8 @@ A document refers to a source file like any picture, and says how to draw it in 
     ![Order flow](order-flow.mmd){theme=forest}
 
 The filter handles a picture whose file name ends in one of these (any other picture is left alone,
-and the tool is not even started for it, so PNG, JPEG, and SVG pictures behave as they always did):
+and the tool is not even started for it, so PNG and JPEG pictures, and SVG pictures that link none of these,
+behave as they always did):
 
     .scad       an OpenSCAD model (the subset the tool draws)
     .vl.json    a Vega-Lite chart (.vl is the same)
@@ -17,14 +18,16 @@ and the tool is not even started for it, so PNG, JPEG, and SVG pictures behave a
     .pptx       a slide of a PowerPoint presentation
     .pdf        a page of a PDF document
     .mmd        a Mermaid diagram (.mermaid is the same)
+    .svg        an SVG drawing whose <image> elements link one of the above, directly or through a nested .svg
+                file: flattened with "canvasnet flatten", see below; any other SVG drawing is left alone
 
 Attributes this filter reads (all optional; "all" means every input type above):
 
-    size         all: the picture in pixels, WIDTHxHEIGHT; for a model the default is 1600x1200 (unless
-                 scale is given), the others are drawn at their natural size (dpi and scale apply)
+    size         all but .svg: the picture in pixels, WIDTHxHEIGHT; for a model the default is 1600x1200
+                 (unless scale is given), the others are drawn at their natural size (dpi and scale apply)
     scale        all: multiply the natural size by a number, 0.001 to 8192, for example 2
-                 (not together with size)
-    background   all: a color such as #F0F0F0 or #F0F0F0FF, a name such as white, or transparent
+                 (not together with size); for .svg, the size of the pictures that replace the links
+    background   all but .svg: a color such as #F0F0F0 or #F0F0F0FF, a name such as white, or transparent
                  (default: white; the tool's own default for charts and documents)
     page         .vsdx, .pptx, .pdf: the page or slide, counted from 1 (default 1)
     dpi          .vsdx, .pptx, .pdf: the resolution of the page in dots per inch, above 0 up to 2400
@@ -41,7 +44,19 @@ Attributes this filter reads (all optional; "all" means every input type above):
                  configuration sets still wins)
 
 An attribute for another input type (view on a chart, page on a model) is an error, not ignored.
-Every other attribute (width, height, an id or a class) stays on the picture.
+Every other attribute (width, height, an id or a class) stays on the picture. An .svg picture reads only
+scale; every other attribute of it stays on the picture.
+
+SVG drawings. An SVG reader such as WeasyPrint draws nothing for an <image href="flow.mmd"> (or a .scad, .vl.json,
+.pdf, .pptx, or .vsdx link, or a nested .svg file that links one). For an .svg picture the filter reads the drawing
+and the .svg files it links (href and xlink:href of every image element, entities decoded, a fragment and a query
+dropped, remote and data: links skipped); when none of them links such a file, the picture is left alone and the
+tool is not started, so a plain SVG drawing stays a vector picture exactly as before. Otherwise the tool writes a
+copy ("canvasnet flatten ... --json") in which each such link is a PNG picture of its placement size (times scale)
+as a data: URI, and the picture points at the copy, docs/generated/canvasnet/<name>-<hash>.svg; the tool rewrites the
+relative links that are left (rasters, plain .svg files) so they still find their files from there. When the tool
+finds nothing to flatten (a diagram that the drawing never shows, which it reports as a warning), the picture is
+left alone and a marker (<hash>.plain) saves later builds from starting the tool again.
 
 A Mermaid diagram can also be written in the document, as a fenced code block of class mermaid:
 
@@ -83,7 +98,8 @@ tool refuses still stops the build, with the tool's own message. The filter does
 links. Paths are used and compared exactly as written (collapsing "." and ".."), so a file reached through
 two spellings is simply hashed twice, which is harmless.
 
-The picture is drawn by the canvasnet tool ("canvasnet render ... --json"), and the PNG is written to
+The picture is drawn by the canvasnet tool ("canvasnet render ... --json", or "canvasnet flatten ... --json"
+for an SVG drawing), and the PNG (the SVG copy) is written to
 docs/generated/canvasnet/ (git-ignored through **/generated/) under a name made from a SHA-1 of everything
 that decides the picture:
 
@@ -100,7 +116,10 @@ that decides the picture:
     it is). The pictures of a chart that come from a data file or from a transform are not tracked; a chart
     that names more than 512 different data files or pictures, a diagram that names more than 512 pictures,
     or a model that with its includes is more than 512 files, stops the build, since a file left out of the
-    hash could change without the picture being drawn again;
+    hash could change without the picture being drawn again; for an SVG drawing every local file its image
+    elements link (an .svg file with its own links, a model, chart or diagram with its own files, any other
+    file as it is; a link in a comment, or in a tag with a ">" inside an attribute before the link, may be
+    over- or under-counted, which can only add a file to the hash or miss a change in an unusual file);
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
     fingerprint of the DLLs beside it; and this filter's version.
@@ -146,7 +165,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "9"
+local FILTER_VERSION = "10"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -428,8 +447,8 @@ end
 
 -- The source file as an absolute path, found the way Pandoc finds a picture: an absolute name is used if
 -- the file opens; a relative name is joined to each resource-path folder in turn and the first file that
--- opens is taken. No containment check: the filter is not a security boundary (see the header).
-local function find_source(src)
+-- opens is taken, or nil. No containment check: the filter is not a security boundary (see the header).
+local function locate_source(src)
   local names = { src }
   local decoded = decode_percent(src)
   if decoded ~= src then
@@ -450,7 +469,12 @@ local function find_source(src)
       end
     end
   end
-  fail("cannot find '" .. src .. "' in the document's resource path")
+  return nil
+end
+
+-- The source file, or an error that stops the build and names the picture when no file is found.
+local function find_source(src)
+  return locate_source(src) or fail("cannot find '" .. src .. "' in the document's resource path")
 end
 
 -- The text a dependency is hashed under: its path from the source's folder, so the picture's name does not
@@ -610,11 +634,13 @@ local function local_image_file(folder, link)
   return local_data_file(folder, (link:gsub("[#?].*$", "")))
 end
 
--- Adds the picture files of a chart or a diagram to the hash input, so that a changed picture draws it again: a
--- model with the files it includes, a chart or a diagram that is a picture with its own files, and any other file as
--- it is. The pictures of a chart that come from a data file are not tracked (the documentation says so).
+-- Adds the picture files of a chart, a diagram or an SVG drawing to the hash input, so that a changed picture draws it
+-- again: a model with the files it includes, a chart, a diagram or an SVG file that is a picture with its own files,
+-- and any other file as it is. The pictures of a chart that come from a data file are not tracked (the documentation
+-- says so).
 local add_chart_sources
 local add_mermaid_sources
+local add_svg_sources
 
 local function add_image_files(files, root, parts, seen, depth)
   if depth > MAX_DEPTH then
@@ -630,6 +656,8 @@ local function add_image_files(files, root, parts, seen, depth)
         add_chart_sources(file, pandoc.path.directory(file), parts, seen, depth + 1)
       elseif lower:match("%.mmd$") or lower:match("%.mermaid$") then
         add_mermaid_sources(file, root, parts, seen, depth + 1)
+      elseif lower:match("%.svg$") then
+        add_svg_sources(file, root, parts, seen, depth + 1)
       else
         seen[file] = true
         local data = read_file(file)
@@ -772,6 +800,103 @@ function add_mermaid_sources(path, root, parts, seen, depth)
       .. MAX_DEPENDENCIES .. " (every picture must be hashed so that a changed one is drawn again)")
   end
   add_image_files(pictures, root, parts, seen, depth)
+end
+
+-- The five predefined XML entities; a character reference (&#N; or &#xN;) is decoded too.
+local XML_ENTITIES = { amp = "&", lt = "<", gt = ">", quot = '"', apos = "'" }
+
+local function decode_entities(text)
+  return (text:gsub("&(#?[%w]+);", function(name)
+    if XML_ENTITIES[name] then
+      return XML_ENTITIES[name]
+    end
+    local code = nil
+    if name:match("^#[xX]%x+$") then
+      code = tonumber(name:sub(3), 16)
+    elseif name:match("^#%d+$") then
+      code = tonumber(name:sub(2))
+    end
+    if code and code < 0x110000 then
+      return utf8.char(code)
+    end
+    return nil
+  end))
+end
+
+-- Collects the links of the image elements of an SVG text (with or without a namespace prefix): the value of every
+-- href and xlink:href attribute, in double or single quotes, entities decoded and white space trimmed. A tag in a
+-- comment, or one with a ">" inside an attribute before the link, can only add a file to the hash or leave one out.
+local function collect_svg_links(content, links)
+  for name, attributes in content:gmatch("<([%w_%.%-:]+)([^>]*)>") do
+    if name == "image" or name:match(":image$") then
+      for _, quote in ipairs({ '"', "'" }) do
+        local pattern = "%s([%w_%.%-]*:?)href%s*=%s*" .. quote .. "([^" .. quote .. "]*)" .. quote
+        for prefix, link in (" " .. attributes):gmatch(pattern) do
+          if prefix == "" or prefix:match(":$") then
+            local value = decode_entities(link):gsub("^%s+", ""):gsub("%s+$", "")
+            links[value] = true
+          end
+        end
+      end
+    end
+  end
+end
+
+-- Adds an SVG drawing and the local files its image elements link to the hash input, and tells whether it links a
+-- file that only the tool draws (a model, chart, diagram, or document page), directly or through a nested .svg file.
+-- A link is taken from the drawing's folder without its fragment or query, a remote, data: or absolute link (which
+-- the tool never reads) is skipped, a nested .svg file is followed with its own links, and a linked model, chart or
+-- diagram adds its own files. While a drawing is being read its entry in "seen" is true, and afterwards "composite" or
+-- "plain", so a drawing linked twice is read once and a cycle ends. More than MAX_DEPENDENCIES files stops the build.
+function add_svg_sources(path, root, parts, seen, depth)
+  if depth > MAX_DEPTH then
+    fail("SVG drawings are linked inside each other more than " .. MAX_DEPTH .. " levels deep")
+  end
+  seen[path] = true
+  local content = read_file(path)
+  if not content then
+    seen[path] = "plain"
+    return false
+  end
+  if #parts >= MAX_DEPENDENCIES then
+    fail("the drawing and the files it links are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  table.insert(parts, label(root, path) .. "\n" .. content)
+  local links = {}
+  collect_svg_links(content, links)
+  local folder = pandoc.path.directory(path)
+  local files = {}
+  local unique = {}
+  for link in pairs(links) do
+    for _, name in ipairs({ link, decode_percent(link) }) do
+      local resolved = local_image_file(folder, name)
+      if resolved and not unique[resolved] and file_exists(resolved) then
+        unique[resolved] = true
+        table.insert(files, resolved)
+      end
+    end
+  end
+  -- Sorted, so the order the links are met in cannot change the picture's name.
+  table.sort(files)
+  if #files > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' links " .. #files .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  local composite = false
+  for _, file in ipairs(files) do
+    if file:lower():match("%.svg$") then
+      if not seen[file] then
+        add_svg_sources(file, root, parts, seen, depth + 1)
+      end
+      composite = composite or seen[file] == "composite"
+    else
+      composite = composite or kind_of(file) ~= nil
+      add_image_files({ file }, root, parts, seen, depth + 1)
+    end
+  end
+  seen[path] = composite and "composite" or "plain"
+  return composite
 end
 
 -- Attribute checks. Each returns the normalized value, or stops the build with a message that names the
@@ -1099,16 +1224,118 @@ local function draw(name, source, kind, attributes, stem)
   return out_file, keep
 end
 
+-- The stem of a cache file name: the source's file name without its extension (and .vl), with every character that
+-- is not a letter, a digit, "_" or "-" made a "-".
+local function stem_of(source)
+  local stem = pandoc.path.split_extension(pandoc.path.filename(source))
+  return (stem:gsub("%.vl$", ""):gsub("[^%w_-]", "-"))
+end
+
+-- Whether a picture is a local SVG drawing.
+local function is_svg(src)
+  return not src:match("^%a[%w+.-]+:") and src:lower():match("%.svg$") ~= nil
+end
+
+-- An SVG drawing: left alone when it links no file only the tool draws; else the tool writes a flattened copy into
+-- the cache folder, unless it is there already, and the picture points at it. Only scale is read; every other
+-- attribute stays. When the tool finds nothing to flatten (a link the drawing never shows), a marker in the cache
+-- saves later builds from starting it again and the picture is left alone.
+local function flatten_svg(img)
+  local name = img.src
+  -- A drawing Pandoc cannot find is left to Pandoc, as before (it reports it)
+  local source = locate_source(name)
+  if not source then
+    return nil
+  end
+  local root = pandoc.path.directory(source)
+  local sources = {}
+  if not add_svg_sources(source, root, sources, {}, 0) then
+    return nil
+  end
+
+  local options = {}
+  local keep = {}
+  for key, value in pairs(img.attributes) do
+    if key == "scale" then
+      plain_text(name, key, value)
+      table.insert(options, "--scale=" .. OPTIONS.scale.check(name, value))
+    else
+      keep[key] = value
+    end
+  end
+
+  local command = find_tool()
+  local key = pandoc.sha1(table.concat({
+    "canvasnet.lua " .. FILTER_VERSION,
+    "svg",
+    command.identity,
+    table.concat(options, ";"),
+    table.concat(sources, "\n\0\n"),
+  }, "\n\0\n"))
+
+  pandoc.system.make_directory(out_dir, true)
+  local out_file = pandoc.path.join({ out_dir, stem_of(source) .. "-" .. key .. ".svg" })
+  local marker = pandoc.path.join({ out_dir, key .. ".plain" })
+  if file_exists(marker) then
+    return nil
+  end
+  if not file_exists(out_file) then
+    -- The copy is written in the cache folder itself, so the links the tool rebases are right after the rename
+    local partial = pandoc.path.join({ out_dir, key .. "." .. tostring(math.random(100000000, 999999999)) .. ".partial.svg" })
+    local args = {}
+    for _, part in ipairs(command.leading) do
+      table.insert(args, part)
+    end
+    for _, arg in ipairs({ "flatten", source, table.unpack(options) }) do
+      table.insert(args, arg)
+    end
+    for _, arg in ipairs({ "--output", partial, "--json" }) do
+      table.insert(args, arg)
+    end
+
+    local ok, result = pcall(pandoc.pipe, command.program, args, "")
+    if not ok then
+      os.remove(partial)
+      fail("flattening '" .. name .. "' failed: " .. describe_failure(result))
+    end
+
+    local doc = decode(result) or {}
+    for _, diagnostic in ipairs(doc.diagnostics or {}) do
+      warn("canvasnet.lua: " .. name .. ": " .. tostring(diagnostic.message))
+    end
+    for _, line in ipairs(doc.echo or {}) do
+      warn("canvasnet.lua: " .. name .. ": " .. tostring(line))
+    end
+    if doc.flattened ~= true then
+      os.remove(partial)
+      write_atomically(marker, "nothing to flatten")
+      return nil
+    end
+    if not os.rename(partial, out_file) then
+      -- Another build wrote the same copy first; it is identical.
+      os.remove(partial)
+      if not file_exists(out_file) then
+        fail("could not write the flattened copy of '" .. name .. "' to " .. out_file)
+      end
+    end
+  end
+
+  img.src = picture_src(out_file)
+  img.attributes = keep
+  return img
+end
+
 function Image(img)
+  if is_svg(img.src) then
+    return flatten_svg(img)
+  end
   local kind = kind_of(img.src)
   if not kind then
     return nil
   end
 
   local source = find_source(img.src)
-  local stem = pandoc.path.split_extension(pandoc.path.filename(source))
-  stem = stem:gsub("%.vl$", ""):gsub("[^%w_-]", "-")
-  local out_file, keep = draw(img.src, source, kind, img.attributes, stem)
+  local out_file, keep = draw(img.src, source, kind, img.attributes, stem_of(source))
   if not out_file then
     return nil
   end
