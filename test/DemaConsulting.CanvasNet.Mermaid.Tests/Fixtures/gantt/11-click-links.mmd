@@ -1,0 +1,9 @@
+gantt
+    dateFormat YYYY-MM-DD
+    section Links
+    Documentation   :doc, 2024-08-01, 6d
+    Download        :dl, after doc, 4d
+    Script          :js, after dl, 3d
+    click doc href "https://mermaid.js.org/"
+    click dl call download("x")
+    click js href "javascript:alert(1)"

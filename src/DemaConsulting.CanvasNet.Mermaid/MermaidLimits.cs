@@ -105,8 +105,8 @@ public sealed class MermaidLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of nodes of a diagram, subgraphs included (the section statements of a pie chart);
-    ///     2,000 by default.
+    ///     Gets the maximum number of nodes of a diagram, subgraphs included (the section statements of a pie chart, the
+    ///     task and section statements of a gantt chart); 2,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxNodes
@@ -117,7 +117,7 @@ public sealed class MermaidLimits
 
     /// <summary>
     ///     Gets the maximum length of one label (the text of a node, an edge or a subgraph title, a pie chart's title,
-    ///     labels and legend texts) in UTF-16 characters; 4,096 by default.
+    ///     labels and legend texts, every text of a gantt chart and its axis labels) in UTF-16 characters; 4,096 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxLabelLength
@@ -151,8 +151,8 @@ public sealed class MermaidLimits
     ///     Gets the maximum number of metered steps of the layout of one diagram; 50,000,000 by default.
     /// </summary>
     /// <remarks>
-    ///     The layout stages charge their iterative work (network-simplex pivots, ordering sweeps, coordinate passes) to
-    ///     this budget, so a pathological graph fails with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> instead of
+    ///     The layout stages charge their iterative work (network-simplex pivots, ordering sweeps, coordinate passes, and
+    ///     a gantt chart's date passes, excluded days and ticks) to this budget, so a pathological graph fails with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> instead of
     ///     running for minutes. <see cref="MermaidDocument.Measure"/> lays the diagram out too and is bounded the same way.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>

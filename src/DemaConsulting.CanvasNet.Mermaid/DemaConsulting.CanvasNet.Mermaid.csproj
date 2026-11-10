@@ -11,13 +11,13 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Mermaid renders diagrams written in the Mermaid v11 text language onto a CanvasNet Surface (MermaidDocument.Render): a bounded, deterministic, offline reader with file/line/column diagnostics, hints and resource limits. Flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams and pie charts are drawn with ports of Mermaid's own layouts. Diagram types and features that are not supported yet are reported with stable identifiers, never silently skipped. Not affiliated with the Mermaid project.</Description>
+    <Description>DemaConsulting.CanvasNet.Mermaid renders diagrams written in the Mermaid v11 text language onto a CanvasNet Surface (MermaidDocument.Render): a bounded, deterministic, offline reader with file/line/column diagnostics, hints and resource limits. Flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie charts and gantt charts are drawn with ports of Mermaid's own layouts. Diagram types and features that are not supported yet are reported with stable identifiers, never silently skipped. Not affiliated with the Mermaid project.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>canvas;dotnet-library;mermaid;diagrams;flowchart;sequence;class-diagram;uml;state-diagram;er-diagram;pie-chart;rendering</PackageTags>
+    <PackageTags>canvas;dotnet-library;mermaid;diagrams;flowchart;sequence;class-diagram;uml;state-diagram;er-diagram;pie-chart;gantt-chart;rendering</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
     <Title>CanvasNet.Mermaid</Title>
     <Product>DemaConsulting.CanvasNet.Mermaid</Product>

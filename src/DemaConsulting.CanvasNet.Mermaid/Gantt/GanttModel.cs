@@ -76,7 +76,7 @@ internal sealed class GanttRawTask
 /// <summary>
 ///     A parsed gantt chart: the state of Mermaid's gantt database (<c>ganttDb.js</c> with the title and accessibility
 ///     texts of <c>commonDb.ts</c>) and the metadata of the document; a render compiles its task dates
-///     (<see cref="Compile"/>) and lays it out with the gantt renderer.
+///     (<see cref="Compile"/>) and lays it out with <see cref="GanttRenderer"/>.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -232,7 +232,7 @@ internal sealed partial class GanttModel : IMermaidDiagram
     public Scene Layout(DiagramRenderContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        throw new MermaidRenderException(MermaidDiagnosticCodes.RenderFailed, "gantt charts are not drawn yet", KeywordLocation);
+        return new GanttRenderer(this, context).Draw();
     }
 
     /// <summary>

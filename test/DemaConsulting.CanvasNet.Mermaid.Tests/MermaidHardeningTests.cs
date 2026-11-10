@@ -1637,6 +1637,208 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every gantt fixture renders the same pixels twice, and the same pixels on parallel threads.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GanttFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var options = new MermaidRenderOptions { Now = new DateTimeOffset(2024, 6, 12, 10, 30, 0, TimeSpan.Zero) };
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gantt"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.AsParallel().Where(document =>
+        {
+            using var first = document.Render(options, TestContext.Current.CancellationToken);
+            using var second = document.Render(options, TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile gantt charts through the public API, fitted to 400 by 300 pixels: huge and zero sizes and
+    ///     paddings, many tiny ticks, every kind of failing date, enormous durations, odd section names in compact mode,
+    ///     an empty chart and markup in the texts each render, or end in a located render failure or limit.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  gantt:\n    barHeight: 1e300\n    fontSize: 1e300\n    sectionFontSize: 0\n    useWidth: 1e9\n---\ngantt\nA :a, 2024-01-01, 1d\n")]
+    [InlineData("---\nconfig:\n  gantt:\n    barHeight: -5\n    barGap: -100\n    topPadding: -100\n    leftPadding: 1e6\n    numberSectionStyles: 0\n---\ngantt\nA :a, 2024-01-01, 1d\n")]
+    [InlineData("gantt\ndateFormat YYYY-MM-DD\ntickInterval 1millisecond\nA :a, 2024-01-01, 100y\n")]
+    [InlineData("gantt\ndateFormat YYYY-MM-DD\ntickInterval 100000000second\nA :a, 2024-01-01, 100y\n")]
+    [InlineData("gantt\ndateFormat YYYY-MM-DD\naxisFormat %c%c%c%c%c%c%c%c%c%c\nA :a, 2024-01-01, 1d\n")]
+    [InlineData("gantt\ndateFormat YYYY-MM-DD\nA :a, 2024-01-01, 100000y\nB :b, 2024-01-01, 1000000000d\n")]
+    [InlineData("---\ndisplayMode: compact\n---\ngantt\nsection constructor\nA :a, 2024-01-01, 1d\n")]
+    [InlineData("gantt\nsection __proto__\nA :a, 2024-01-01, 1d\nsection 7\nB :b, 2024-01-01, 1d\n")]
+    [InlineData("gantt\ntitle only a title\n")]
+    [InlineData("gantt\ntitle <b>x</b> #amp; <script>y</script>\nsection a<br>b<br/>c\nT <i>x</i> #35; :a, 2024-01-01, 2d\n")]
+    [InlineData("gantt\nA :a, after b, 1d\nB :b, after a, 1d\n")]
+    [InlineData("gantt\ndateFormat YYYY-MM-DD w\nexcludes monday\nA :a, 2024-01-01, 1d\n")]
+    [InlineData("gantt\nA :a, 2024-01-10, until b\nB :b, 2024-01-01, 1d\n")]
+    [InlineData("gantt\ntodayMarker stroke-width:1e300px,stroke-dasharray:1e-300\nA :a, 2024-06-01, 30d\n")]
+    public void CanvasNetMermaid_Hardening_HostileGanttChart_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+        var options = new MermaidRenderOptions { Now = new DateTimeOffset(2024, 6, 12, 10, 30, 0, TimeSpan.Zero) };
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, options, TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("gantt", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that more task and section statements than the default <see cref="MermaidLimits.MaxNodes"/> fail at
+    ///     open, located at the first one over the limit, the sections counting too.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GanttManyTasksAndSections_IsALocatedNodeLimit()
+    {
+        // Arrange: 1,000 sections of one task each, then one more section
+        var text = "gantt\n" + string.Concat(Enumerable.Repeat("section s\nT :1d\n", 1_000)) + "section over\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that every text of a gantt chart that is longer than the default
+    ///     <see cref="MermaidLimits.MaxLabelLength"/> fails at open, located at its statement.
+    /// </summary>
+    /// <param name="statement">The statement.</param>
+    [Theory]
+    [InlineData("title {0}")]
+    [InlineData("section {0}")]
+    [InlineData("{0} :1d")]
+    [InlineData("T :{0}, 2024-01-01, 1d")]
+    [InlineData("dateFormat {0}")]
+    [InlineData("axisFormat {0}")]
+    [InlineData("tickInterval {0}")]
+    [InlineData("excludes {0}")]
+    [InlineData("todayMarker {0}")]
+    [InlineData("accTitle: {0}")]
+    [InlineData("accDescr {{ {0}\n}}")]
+    [InlineData("click a href \"{0}\"")]
+    [InlineData("click a call f({0})")]
+    public void CanvasNetMermaid_Hardening_GanttLongTexts_AreALocatedLabelLimit(string statement)
+    {
+        // Arrange
+        var text = "gantt\nA :a, 2024-01-01, 1d\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, statement, new string('x', 4_097)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the gantt chart's work limits at render: excluded days stepped over a long span, tiny tick steps
+    ///     filtered over a long domain, a long date format with many excluded days, and a tick label that a format makes
+    ///     longer than <see cref="MermaidLimits.MaxLabelLength"/>; each is a located limit failure (under a smaller work
+    ///     limit, so the test is quick), and cancellation is honored.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GanttWorkAndLabelLimits_FailLocated()
+    {
+        // Arrange
+        var excludes = MermaidDocument.Parse("gantt\ndateFormat YYYY-MM-DD\nexcludes 2024-01-02\nA :a, 2024-01-01, 200000y\n");
+        var ticks = MermaidDocument.Parse("gantt\ndateFormat YYYY-MM-DD\ntickInterval 100000000second\nA :a, 2024-01-01, 100y\n");
+        var format = MermaidDocument.Parse("gantt\ndateFormat " + string.Concat(Enumerable.Repeat("YYYY ", 800)) + "\nexcludes " + string.Join(' ', Enumerable.Range(0, 800).Select(i => "x" + i)) + "\nA :a, " + string.Concat(Enumerable.Repeat("2024 ", 800)) + ", 3000d\n");
+        var label = MermaidDocument.Parse("gantt\ndateFormat YYYY-MM-DD\naxisFormat " + string.Concat(Enumerable.Repeat("%c", 200)) + "\nA :a, 2024-01-01, 1d\n");
+        var limited = new MermaidRenderOptions { Limits = new MermaidLimits { MaxLayoutWork = 2_000_000 } };
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+
+        // Act
+        var excludesFailure = Assert.Throws<MermaidRenderException>(() => excludes.Measure(limited, TestContext.Current.CancellationToken));
+        var ticksFailure = Assert.Throws<MermaidRenderException>(() => ticks.Measure(limited, TestContext.Current.CancellationToken));
+        var formatFailure = Assert.Throws<MermaidRenderException>(() => format.Measure(limited, TestContext.Current.CancellationToken));
+        var labelFailure = Assert.Throws<MermaidRenderException>(() => label.Measure(cancellationToken: TestContext.Current.CancellationToken));
+        var cancellation = Record.Exception(() => excludes.Measure(cancellationToken: canceled.Token));
+
+        // Assert
+        Assert.All([excludesFailure, ticksFailure, formatFailure], failure =>
+        {
+            Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, failure.Code);
+            Assert.Contains("MaxLayoutWork", failure.Message, StringComparison.Ordinal);
+            Assert.True(failure.Location.IsKnown);
+        });
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, labelFailure.Code);
+        Assert.Contains("MaxLabelLength", labelFailure.Message, StringComparison.Ordinal);
+        Assert.IsAssignableFrom<OperationCanceledException>(cancellation);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the gantt fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedGanttFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "gantt", "section ", "title ", ":", ", ", "after ", "until ", "2024-01-01", "3d", "1.5w", "100000y", "done, ",
+            "milestone, ", "vert, ", "click a href \"x\"", "call f()", "excludes weekends", "dateFormat x", "axisFormat %c",
+            "tickInterval 1day", "todayMarker off", "%%", "%", "\n", "  ", "#", ";", "<br>", "#35;",
+        ];
+        var random = new Random(20261110);
+        var options = new MermaidRenderOptions { Now = new DateTimeOffset(2024, 6, 12, 10, 30, 0, TimeSpan.Zero) };
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gantt"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 12; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(options, TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+    /// <summary>
     ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
     ///     state, so each adds two nesting levels.
     /// </summary>

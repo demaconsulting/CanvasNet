@@ -65,7 +65,7 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 ///         <c>graph</c>), <c>sequenceDiagram</c>, <c>classDiagram</c> (written <c>classDiagram</c> or
 ///         <c>classDiagram-v2</c>, under Mermaid's <c>classDiagram</c> id or its legacy <c>class</c> id) and
 ///         <c>stateDiagram</c> (written <c>stateDiagram</c> or <c>stateDiagram-v2</c>, under Mermaid's
-///         <c>stateDiagram</c> id or its legacy <c>state</c> id), <c>erDiagram</c> and <c>pie</c> are drawn; the types of the
+///         <c>stateDiagram</c> id or its legacy <c>state</c> id), <c>erDiagram</c>, <c>pie</c> and <c>gantt</c> are drawn; the types of the
 ///         following phases are planned; the rest is not planned. A type that is not drawn is reported by the document as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         <see cref="UnsupportedHint(DetectedDiagram)"/>.
 ///     </para>
@@ -81,7 +81,7 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 internal static class DiagramDetector
 {
     /// <summary>The keywords of the supported diagram types, for hints.</summary>
-    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie"];
+    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt"];
 
     /// <summary>
     ///     The known diagram types in Mermaid's detection order: the detector id, the public type name, the support and
@@ -108,7 +108,7 @@ internal static class DiagramDetector
         new("class", "class", DiagramSupport.Supported, (text, settings) =>
             settings.ClassRenderer != "dagre-wrapper" && StartsWithKeyword(text, "classDiagram")),
         new("er", "er", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "erDiagram")),
-        new("gantt", "gantt", DiagramSupport.Planned, (text, _) => StartsWithKeyword(text, "gantt")),
+        new("gantt", "gantt", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "gantt")),
         new("info", "info", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "info")),
         new("pie", "pie", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "pie")),
         new("requirement", "requirement", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "requirement")),
@@ -156,7 +156,7 @@ internal static class DiagramDetector
     ];
 
     /// <summary>
-    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c>, <c>classDiagram</c>, <c>stateDiagram</c>, <c>erDiagram</c> and <c>pie</c>).
+    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c>, <c>classDiagram</c>, <c>stateDiagram</c>, <c>erDiagram</c>, <c>pie</c> and <c>gantt</c>).
     /// </summary>
     public static IReadOnlyList<string> SupportedDiagramKeywords => SupportedKeywords;
 
