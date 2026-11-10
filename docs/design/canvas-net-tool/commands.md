@@ -15,7 +15,8 @@ their tiny examples, which the built-in `help` command of the registry prints; `
 `formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb); `CompareCommand`, which provides `compare`; `MontageCommand`, which
-provides `montage`; and `InspectCommand`, which provides `inspect` with the subcommands `colors` and `pixel`.
+provides `montage`; `InspectCommand`, which provides `inspect` with the subcommands `colors` and `pixel`; and
+`FlattenCommand`, which provides `flatten`.
 
 ### Interfaces
 
@@ -44,15 +45,17 @@ ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `cro
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
 
-**Imaging** (consumed, from the `CanvasNetViewer` system): the `info`, `render`, verb, `compare`, `montage`, and `inspect`
-commands read, compare, compose,
+**Imaging** (consumed, from the `CanvasNetViewer` system): the `info`, `render`, verb, `compare`, `montage`, `inspect`,
+and `flatten` commands read, compare, compose,
 transform, analyze, and write files only through the `Imaging` subsystem of the Viewer library (`SourceLoader` for `info`,
-and the operations `ImageRenderer`, `ImageComparer`, `MontageBuilder`, and `ImageInspector`, with `ImagePipeline`,
+and the operations `ImageRenderer`, `ImageComparer`, `MontageBuilder`, `ImageInspector`, and `SvgFlattener`, with
+`ImagePipeline`,
 `ImageComparison`, `ContactSheet`, and `ImageWriter` behind them) and the core `Surface` (comparison and analysis); a
 command never calls a codec directly. A command passes the library plain request records and prints the plain result
 records; the library knows nothing of the command line.
 
-**Shared option declarations**: `CompareCommand` and `MontageCommand` take the declarations of the options they share
+**Shared option declarations**: `CompareCommand`, `MontageCommand`, and `FlattenCommand` take the declarations of the
+options they share
 with `render` (`--page`, `--dpi`, the options of an OpenSCAD model, `--filter`, `--quality`, `--no-clobber`, and so on)
 from `RenderCommand.OptionTable` through `RenderCommand.SpecsFor`, and read the model options with
 `RenderCommand.ReadScadOptions`, so the grammar and the help text of a shared option are the same in every command.

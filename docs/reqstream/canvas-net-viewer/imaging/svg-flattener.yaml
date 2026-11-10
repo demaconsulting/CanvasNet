@@ -1,0 +1,136 @@
+---
+# Software Unit Requirements for the SvgFlattener Class
+#
+# The SvgFlattener class is the flatten operation of the library: given the facts about an SVG drawing and a request,
+# it draws the drawing once with the image resolver of the render operation, draws every image link that only
+# CanvasNet can draw (a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document,
+# and a nested SVG file that links one) at its placement size, and writes a copy of the drawing in which only the
+# values of those links are PNG data URIs. It is the library form of the flatten command of the canvasnet tool.
+
+sections:
+  - title: SvgFlattener Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Detect
+        title: >-
+          The SvgFlattener class shall replace the link of every image element that the drawing shows and that names a
+          Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document (with or
+          without a fragment), or an SVG file that links such a file at any depth, reading the href attribute, or the
+          xlink:href attribute when there is no href, as the SVG library does; and shall leave raster pictures, SVG
+          files that link only rasters and SVG files, data URIs, same-document links, and network links as they are.
+        justification: |
+          An SVG reader other than CanvasNet (a browser, WeasyPrint) shows nothing for a link to a file that only
+          CanvasNet draws; replacing exactly those links makes the drawing look the same everywhere, while the plain
+          pictures and links keep working as they are and a data URI of the input is never followed.
+        tests:
+          - SvgFlattener_Execute_MermaidImage_ReplacedWithPngDataUri
+          - SvgFlattener_Execute_PlainRasterAndPlainSvg_NothingWritten
+          - SvgFlattener_Execute_DataUriAndFragmentLinks_LeftUntouched
+          - SvgFlattener_Execute_NestedSvgLinkingDiagram_ReplacedAsWhole
+          - SvgFlattener_Execute_DeeplyNestedComposite_ReplacedAtTopLevel
+          - SvgFlattener_Execute_XlinkHrefWithFragment_FragmentApplied
+          - SvgFlattener_Execute_HrefAndXlinkHref_OnlyEffectiveAttributeRewritten
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-PlacementSize
+        title: >-
+          The SvgFlattener class shall draw each replaced picture at the size of its placement in the drawing at its
+          natural size, through the viewBox and every transform (the lengths of the edges of a rotated placement), times
+          the scale of the request, and shall draw a link that is shown more than once once, at its largest placement.
+        justification: |
+          A picture of the placement size is sharp where it is shown without being larger than it needs to be; the
+          scale makes it sharper for print, and the reader still fits it with preserveAspectRatio as before.
+        tests:
+          - SvgFlattener_Execute_ViewBoxTransformAndScale_RenderAtPlacementSize
+          - SvgFlattener_Execute_RotatedPlacement_UsesEdgeLengths
+          - SvgFlattener_Execute_LargeDrawing_PictureKeepsFullPlacementSize
+          - SvgFlattener_Execute_SameHrefTwice_BothReplacedAtLargestSize
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Rewrite
+        title: >-
+          The SvgFlattener class shall write a copy of the drawing in which only the values of the replaced link
+          attributes differ from the input, keeping comments, character data, unknown elements, spacing, quotes, line
+          endings, and a byte order mark byte for byte, and the same input shall give the same bytes.
+        justification: |
+          A copy that differs only where it must is easy to review and diff, keeps everything the author wrote, and
+          cannot change the meaning of anything else in the drawing.
+        tests:
+          - SvgFlattener_Execute_ReplacedLink_OnlyAttributeValueChanges
+          - SvgFlattener_Execute_BomAndLineEndings_Preserved
+          - SvgFlattener_FindImageLinks_TabsNewlinesAndSpacesAroundEquals_LocatesValue
+          - SvgFlattener_FindImageLinks_SurrogatePairsBeforeAttribute_LocatesValue
+          - SvgFlattener_FindImageLinks_CrOnlyLineBreaks_LocatesValue
+          - SvgFlattener_FindImageLinks_BomInput_LocatesValue
+          - SvgFlattener_FindImageLinks_EntitiesInValue_SpanIsRawValueHrefIsDecoded
+          - SvgFlattener_FindImageLinks_ImageInCommentOrCdata_Ignored
+          - SvgFlattener_FindImageLinks_PrefixedSvgImage_Found
+          - SvgFlattener_Execute_SameInputTwice_WritesIdenticalBytes
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Rebase
+        title: >-
+          When the copy is written to another folder than the drawing, the SvgFlattener class shall rewrite each
+          relative image link that is left so that it names the same file from the folder of the copy, keeping its query
+          and fragment, and shall report each rewritten link.
+        justification: |
+          A copy written next to other build output (the cache folder of the Pandoc filter) must still show the raster
+          pictures and plain SVG files that the drawing links.
+        tests:
+          - SvgFlattener_Execute_OutputInOtherFolder_RebasesRemainingRelativeLinks
+          - SvgFlattener_RebaseLink_SiblingAndParent_RelativePaths
+          - SvgFlattener_RebaseLink_FragmentAndSpecialCharacters_KeptAndEscaped
+          - SvgFlattener_RebaseLink_NotRelativePath_Untouched
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-NothingToReplace
+        title: >-
+          When no link is replaced, the SvgFlattener class shall write nothing and shall report that nothing was
+          flattened, and it shall report each link to a file only CanvasNet draws that the drawing never shows with the
+          warning svg-flatten-image-not-drawn and its line and column.
+        justification: |
+          A caller (the Pandoc filter) must be able to keep a plain drawing as the vector original, and a diagram that
+          is hidden or unused must not disappear silently.
+        tests:
+          - SvgFlattener_Execute_PlainRasterAndPlainSvg_NothingWritten
+          - SvgFlattener_Execute_HiddenDiagram_ReportsNotDrawnAndWritesNothing
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Limits
+        title: >-
+          The SvgFlattener class shall follow the links with the resolver of the render operation (the folder of the
+          drawing as the sandbox, at most 64 pictures, 4 levels of nesting, cycles stopped, and the pixel budget),
+          reporting a link that is not drawn as render does, and shall refuse a copy larger than the output limit of the
+          request with the size-limit code without writing anything.
+        justification: |
+          The drawing and every file it links are untrusted; the same sandbox and limits as render keep a hostile
+          drawing from reading other files or using unbounded memory, and the output limit bounds the copy.
+        tests:
+          - SvgFlattener_Execute_MissingLinkedFile_ReportsUnresolved
+          - SvgFlattener_Execute_LinkOutsideFolder_RefusedBySandbox
+          - SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle
+          - SvgFlattener_Execute_MoreThan64Images_ExtraLinksStayAndAreReported
+          - SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Strict
+        title: >-
+          With the strict option, the SvgFlattener class shall fail with the unsupported-feature code when a link is not
+          drawn, as the render operation does.
+        justification: |
+          A build that must not ship a drawing with a missing picture needs the same strict policy as render.
+        tests:
+          - SvgFlattener_Execute_MissingLinkedFileStrict_ThrowsUnsupportedFeature
+
+      - id: CanvasNetViewer-Imaging-SvgFlattener-Errors
+        title: >-
+          The SvgFlattener class shall refuse an input that is not an SVG drawing (unsupported-format), a drawing that
+          is not well-formed UTF-8 XML or declares a DTD (corrupt-input), a drawing that declares another encoding and
+          is not plain ASCII (unsupported-feature), a scale out of range (usage-error), an output that is the input
+          (same-input-output) or that exists with no-clobber (output-exists), and a linked file that is found but broken
+          (the code of render, naming both files).
+        justification: |
+          Every expected failure is a ViewerException with a stable code that a program can act on, as for every other
+          operation of the library.
+        tests:
+          - SvgFlattener_Execute_NotSvg_ThrowsUnsupportedFormat
+          - SvgFlattener_Execute_Doctype_ThrowsCorruptInput
+          - SvgFlattener_Execute_InvalidUtf8_ThrowsCorruptInput
+          - SvgFlattener_Execute_NonUtf8Declaration_ThrowsUnsupportedFeature
+          - SvgFlattener_Execute_ScaleOutOfRange_ThrowsUsageError
+          - SvgFlattener_Execute_OutputIsInput_ThrowsSameInputOutput
+          - SvgFlattener_Execute_NoClobberExisting_ThrowsOutputExists
+          - SvgFlattener_Execute_BrokenLinkedModel_ThrowsScadErrorNamingBothFiles

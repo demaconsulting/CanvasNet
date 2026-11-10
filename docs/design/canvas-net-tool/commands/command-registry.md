@@ -34,7 +34,8 @@ results, depth, and log), shown in every help screen.
 **CreateDefault**: creates a registry with every command the tool ships with: `formats`
 (`DiscoveryCommands.Formats`), `info` (`DiscoveryCommands.Info`), `render` with its alias `convert`
 (`RenderCommand`), the verbs `crop`, `resize`, `rotate`, `flip`, and `pad` (each a `RenderCommand` constructed with the
-verb), `compare` (`CompareCommand`), `montage` (`MontageCommand`), and `inspect` (`InspectCommand`), in that order.
+verb), `compare` (`CompareCommand`), `montage` (`MontageCommand`), `inspect` (`InspectCommand`), and `flatten`
+(`FlattenCommand`), in that order.
 A command is added to this method
 in the change that implements it.
 

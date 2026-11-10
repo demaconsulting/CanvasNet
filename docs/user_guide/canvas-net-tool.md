@@ -214,7 +214,7 @@ parse standard output alone in both cases; the text report on standard error is 
 | `compare` | Measure how much two images differ, write pictures of the differences, and check thresholds |
 | `montage` | Compose images and document pages into one contact sheet |
 | `inspect` | Report the dominant colors and luma statistics (`colors`), or the value of a pixel (`pixel`) |
-| `flatten` | Write a copy of an SVG drawing whose pictures that only CanvasNet can draw are PNG pictures, so any SVG reader shows them |
+| `flatten` | Copy an SVG drawing, with the pictures only CanvasNet can draw as PNG pictures, for any SVG reader |
 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
@@ -1517,7 +1517,7 @@ canvasnet flatten dashboard.svg -o print/dashboard.svg --scale 2 --json
 | Option | Meaning |
 | --- | --- |
 | `-o`, `--output <file>` | The copy (required); it may not be the input, and a missing folder is created |
-| `--scale <factor>` | Multiplies the size of each picture, from 0.001 to 8192 (default 1); 2 gives sharper pictures in print |
+| `--scale <factor>` | Multiplies the size of each picture, 0.001 to 8192 (default 1); 2 is sharper in print |
 | `--strict` | A link that is not drawn is an `unsupported-feature` error, as for `render` |
 | `--no-clobber` | Fail instead of replacing an existing copy |
 
@@ -1748,7 +1748,9 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 
 `compare --json` adds `a`, `b`, `size`, `options`, `metrics`, `grid`, `worstCells`, `thresholds`, and `outputs`, and
 `montage --json` adds `sheet`, `cells`, and `outputs`; both documents are described in the sections of the commands
-(*compare* and *montage*). `inspect --json` adds `subcommand` and the fields described in *inspect*.
+(*compare* and *montage*). `inspect --json` adds `subcommand` and the fields described in *inspect*, and
+`flatten --json` adds `tool`, `input`, `scale`, `flattened`, `replaced`, `rebased`, `outputs`, `diagnostics`, and
+`echo` (see *flatten*).
 
 ### Help Documents
 
@@ -1853,6 +1855,7 @@ and hint may be improved at any time.
 | Compare and montage: background | Opaque white | `--background <opaque color>` |
 | Montage: cell, spacing, padding, fit, labels | `256x256`, 8, 8, `contain`, none | `--cell`, `--spacing`, `--padding`, `--fit`, `--labels` |
 | Montage: columns | The square root of the number of cells, rounded up | `--columns` |
+| Flatten: size of a replaced picture | The size of its placement in the drawing at its natural size | `--scale` |
 | Largest side of an image | 8192 pixels | Not adjustable |
 | Banner | Only for `--help` (not with `--json`), `--validate`, and an empty command line | Not adjustable |
 
@@ -1880,8 +1883,9 @@ filters:
 ```
 
 A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.mmd`, `.mermaid`, `.vsdx`, `.pptx`, or `.pdf` is then
-drawn as a PNG, and the attributes written after it choose how. Any other picture (a PNG, a JPEG, an SVG, an address on
-the internet) is left alone, and the tool is not started for it.
+drawn as a PNG, and the attributes written after it choose how. An SVG picture whose `<image>` elements link one of
+those files (directly or through a nested `.svg` file) is flattened, see below. Any other picture (a PNG, a JPEG, an SVG
+that links none of those files, an address on the internet) is left alone, and the tool is not started for it.
 
 ```markdown
 ![Pump mount](pump-mount.scad){view=top define-hole_radius=4 width=60%}
@@ -1892,9 +1896,9 @@ the internet) is left alone, and the tool is not started for it.
 
 | Attribute | Applies to | Meaning |
 | --- | --- | --- |
-| `size` | all | The picture in pixels, `WIDTHxHEIGHT` (a model is 1600x1200 unless `scale` is given) |
-| `scale` | all | Multiplies the natural size by a number from 0.001 to 8192 (not with `size`) |
-| `background` | all | `#RRGGBB`, `#RRGGBBAA`, a color name, or `transparent` (a model is drawn over white) |
+| `size` | all but `.svg` | The picture in pixels, `WIDTHxHEIGHT` (a model is 1600x1200 unless `scale` is given) |
+| `scale` | all | Multiplies the natural size, 0.001 to 8192 (not with `size`); for `.svg`, the replaced pictures |
+| `background` | all but `.svg` | `#RRGGBB`, `#RRGGBBAA`, a color name, or `transparent` (a model is drawn over white) |
 | `page` | `.vsdx`, `.pptx`, `.pdf` | The page or slide, counted from 1 (default 1) |
 | `dpi` | `.vsdx`, `.pptx`, `.pdf` | The resolution in dots per inch, above 0 up to 2400 (whole number for `.vsdx`) |
 | `view` | `.scad` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom` (see the model options) |
@@ -1921,6 +1925,17 @@ yet (the tool reports `mermaid-diagram-unsupported` for `pie`, `gantt`, and so o
 as written, with the tool's message as a Pandoc warning, so that another filter can draw it. Pandoc runs the filters in
 the order of its command line, and the filters of a defaults file take the place of its `--defaults` option, so
 `--defaults ... --filter mermaid-filter` runs this filter first; the CanvasNet build does this.
+
+**SVG drawings.** WeasyPrint, which turns the HTML into the PDF, draws nothing for an `<image href="flow.mmd">` (or a
+model, a chart, or a page of a document) inside an SVG picture. For an `.svg` picture the filter reads the drawing and
+the `.svg` files it links (`href` and `xlink:href` of each `image` element); when none of them links such a file the
+picture is left alone and the tool is not started, so a plain SVG stays a vector picture. Otherwise the filter runs
+`canvasnet flatten ... --json` and the picture points at the flattened copy in `docs/generated/canvasnet/`, in which
+each such link is a PNG picture of its placement size (`scale=2` for sharper pictures in print; every other attribute
+stays on the picture) and the relative links that are left are rewritten to find their files from there. The copy is
+cached like the PNG pictures, by a hash of the drawing and of every file it links. A drawing that the tool finds
+nothing to flatten in (a diagram the drawing never shows, reported as a warning) is left alone, with a marker in the
+cache so that the tool is not started again for it.
 
 Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
 found stops the build with a message that names the picture. All other attributes
@@ -2191,6 +2206,9 @@ pictures side by side.
 - **SVG embedding.** Only relative references below the folder of the SVG file are followed (never the network, an
   absolute path, or a link), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
   default view; the `feImage` filter primitive reads only a `data:` URI.
+- **SVG flatten.** `flatten` reads UTF-8 drawings only (a drawing that declares another encoding must be plain ASCII),
+  replaces only `image` links (an external `use`, a CSS `url()`, or an `feImage` is neither replaced nor rewritten for
+  another folder), and leaves a link the drawing never shows as it is; the copy is at most 64 MiB.
 - **One frame.** A GIF is read as its first frame.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.

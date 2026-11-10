@@ -1,0 +1,62 @@
+---
+# Software Unit Requirements for the FlattenCommand Class
+#
+# The FlattenCommand class is the flatten command: it writes a copy of an SVG drawing in which every image link that
+# only CanvasNet can draw is a PNG picture, so that any SVG reader shows it, and reports what it replaced as one text
+# line or one JSON document. The command is a shell: it parses the options and prints the result, and the drawing, the
+# rewrite, and the writing are done by the SvgFlattener unit of the Viewer library.
+
+sections:
+  - title: FlattenCommand Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-FlattenCommand-Options
+        title: >-
+          The flatten command shall take one SVG file and declare its options (output, scale, strict, and no-clobber)
+          in one table that also drives the help, reusing the declarations of the render command for strict and
+          no-clobber, and shall be registered under the name flatten.
+        justification: |
+          Declaring the options once keeps the help from drifting from what the command accepts, and reusing the
+          declarations of the render command gives the shared options the same grammar and meaning everywhere.
+        tests:
+          - FlattenCommand_Help_ShowsUsageAndOptions
+          - FlattenCommand_Run_Scale_DoublesReplacedSize
+
+      - id: CanvasNetTool-Commands-FlattenCommand-Result
+        title: >-
+          The flatten command shall write the copy and report it as one text line that names the output, its size, and
+          each replaced link with the size and format of its picture, or, with the JSON option, as one JSON document
+          with the tool, input, scale, flattened, replaced, rebased, outputs, diagnostics, and echo keys in that order,
+          and shall write the notes to standard error when the JSON option is not given.
+        justification: |
+          A person reads one line; a script or an agent reads a fixed JSON shape to decide whether to use the copy; a
+          link that was not drawn must not be silent.
+        tests:
+          - FlattenCommand_Run_CompositeSvg_WritesCopyAndPrintsSummary
+          - FlattenCommand_Run_Json_HasDocumentedShapeAndKeyOrder
+          - FlattenCommand_Run_HiddenDiagram_WarnsOnStandardError
+
+      - id: CanvasNetTool-Commands-FlattenCommand-NothingToFlatten
+        title: >-
+          When the drawing links no picture that only CanvasNet draws, the flatten command shall write nothing, say
+          nothing to flatten (flattened false with the JSON option), and exit with code 0.
+        justification: |
+          A build can run the command on every SVG file and keep the original of a plain drawing, which stays a vector
+          picture; nothing to do is not a failure.
+        tests:
+          - FlattenCommand_Run_PlainSvg_PrintsNothingToFlattenAndWritesNothing
+          - FlattenCommand_Run_Json_PlainSvg_FlattenedFalse
+
+      - id: CanvasNetTool-Commands-FlattenCommand-Errors
+        title: >-
+          The flatten command shall report a missing output, more or fewer than one input, an input that is not an SVG
+          drawing, an existing output with no-clobber, and, with the strict option, a link that is not drawn, as
+          expected errors with the codes usage-error, unsupported-format, output-exists, and unsupported-feature.
+        justification: |
+          Every failure of a command is an expected error with a stable code, so a script or an agent can tell a
+          mistake in the command line from a problem with the drawing.
+        tests:
+          - FlattenCommand_Run_NoOutput_UsageError
+          - FlattenCommand_Run_TwoInputs_UsageError
+          - FlattenCommand_Run_NotSvg_UnsupportedFormat
+          - FlattenCommand_Run_NoClobber_OutputExists
+          - FlattenCommand_Run_Strict_UnresolvedLink_FailsUnsupportedFeature

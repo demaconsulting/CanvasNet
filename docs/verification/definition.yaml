@@ -223,6 +223,7 @@ input-files:
   - docs/verification/canvas-net-viewer/imaging/image-inspector.md
   - docs/verification/canvas-net-viewer/imaging/image-comparer.md
   - docs/verification/canvas-net-viewer/imaging/montage-builder.md
+  - docs/verification/canvas-net-viewer/imaging/svg-flattener.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md
@@ -238,6 +239,7 @@ input-files:
   - docs/verification/canvas-net-tool/commands/compare-command.md
   - docs/verification/canvas-net-tool/commands/montage-command.md
   - docs/verification/canvas-net-tool/commands/inspect-command.md
+  - docs/verification/canvas-net-tool/commands/flatten-command.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

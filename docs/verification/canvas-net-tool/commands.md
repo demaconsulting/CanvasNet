@@ -5,18 +5,19 @@
 ### Verification Approach
 
 The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`,
-`RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` (see
+`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand` (see
 _CommandRegistry Unit Verification Design_, _HelpTopics Unit Verification Design_, _DiscoveryCommands Unit Verification
 Design_, _RenderCommand Unit
-Verification Design_, _CompareCommand Unit Verification Design_, _MontageCommand Unit Verification Design_, and
-_InspectCommand Unit Verification Design_
+Verification Design_, _CompareCommand Unit Verification Design_, _MontageCommand Unit Verification Design_,
+_InspectCommand Unit Verification Design_, and _FlattenCommand Unit Verification Design_
 under `commands/`)
 verify the registry and the commands in isolation. The subsystem tests in
 `CommandsSubsystemTests.cs` verify the registry working with `Context` and `Program` through the program's
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
 unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`,
-transform verb, `compare`, `montage`, and `inspect` commands are registered, run, and are listed in the help, and that
+transform verb, `compare`, `montage`, `inspect`, and `flatten` commands are registered, run, and are listed in the help,
+and that
 the help topics are shown by name, by alias, and as JSON, their examples are printed, and an unknown help subject is
 reported. The shipped
 commands are verified by their own unit tests. The content of the help topics, which the help requirement of the
@@ -113,3 +114,8 @@ and `inspect pixel --json` each succeed with nothing on standard error (the JSON
 subcommand), an unknown subcommand is an expected `usage-error` on standard error with exit code 1, the top-level help
 lists `inspect` with its summary, and `inspect --help` and `help inspect` show both usage lines and the options of
 `render` such as `--deskew` and `--radius <R>`.
+
+**CommandsSubsystem_Flatten_DefaultRegistry_RunsFlattenAndListsItInHelp**: through the default registry `flatten`
+writes the copy of a drawing that links a Mermaid diagram with nothing on standard error, a missing output is an
+expected `usage-error` on standard error with exit code 1, the top-level help lists `flatten` with its summary, and
+`help flatten` shows its usage and `--scale <factor>`.

@@ -9,8 +9,9 @@
 #   adjustment, rotation, and skew estimation), draws a coordinate grid (GridOverlay), checks a comparison of two
 #   images, which the core Surface computes, against thresholds (ImageComparison), composes a contact sheet
 #   (ContactSheet), and turns pixels into files (ImageWriter). The operation units ImageRenderer, ImageInspector,
-#   ImageComparer, and MontageBuilder chain those units into the render, inspect, compare, and montage operations
-#   of the tool; the failures of all of them are ViewerException values with the stable ErrorCodes (a
+#   ImageComparer, MontageBuilder, and SvgFlattener chain those units into the render, inspect, compare, montage,
+#   and flatten operations of the tool; the failures of all of them are ViewerException values with the stable
+#   ErrorCodes (a
 #   requirement of the CanvasNetViewer system). The subsystem is free of command-line concerns: the canvasnet
 #   tool (CanvasNetTool) parses its arguments into the operation records and prints the results
 # - Subsystem requirements describe the externally visible load, compare, compose, and write behavior and are
@@ -199,6 +200,27 @@ sections:
         tests:
           - Imaging_Montage_LoadedSourcesAreComposedAndWritten
           - Imaging_Montage_BuilderComposesSeveralKinds_AndWritesOneSheet
+
+      - id: CanvasNetViewer-Imaging-Flatten
+        title: >-
+          The Imaging subsystem shall write a copy of an SVG drawing in which every image link that only CanvasNet can
+          draw (a model, a chart, a diagram, a document page, or a nested SVG file that links one) is a PNG picture of
+          its placement size drawn by the loader, and every other byte is kept.
+        justification: |
+          A drawing that embeds models, charts, diagrams, and document pages must be shown by other SVG readers (a
+          browser, WeasyPrint when a document is turned into a PDF); the loader already draws those links, so the copy
+          shows them as CanvasNet does.
+        children:
+          - CanvasNetViewer-Imaging-SvgFlattener-Detect
+          - CanvasNetViewer-Imaging-SvgFlattener-PlacementSize
+          - CanvasNetViewer-Imaging-SvgFlattener-Rewrite
+          - CanvasNetViewer-Imaging-SvgFlattener-Rebase
+          - CanvasNetViewer-Imaging-SvgFlattener-NothingToReplace
+          - CanvasNetViewer-Imaging-SvgFlattener-Limits
+          - CanvasNetViewer-Imaging-SvgFlattener-Strict
+          - CanvasNetViewer-Imaging-SvgFlattener-Errors
+        tests:
+          - Imaging_Flatten_ComposedSvg_ReplacesOnlyCanvasNetImages
 
       - id: CanvasNetViewer-Imaging-Adjust
         title: >-
