@@ -826,9 +826,16 @@ The tool and the Viewer draw it through that resolver, with no warning even unde
 canvasnet render docs/user_guide/examples/composition-dashboard.svg --strict --scale 2 -o dashboard.png
 ```
 
-The Pandoc filter does not draw it: the filter leaves an `.svg` picture to Pandoc and the writer, and the writer does
-not follow links to diagrams, models, or charts. In a Pandoc document, link each part as a picture of its own (as the
-other examples do), or draw the SVG with the tool first and link the PNG.
+In a Pandoc document, link the SVG as a picture. The Pandoc filter sees that it links diagrams, models, and charts that
+the writer cannot draw, and runs `canvasnet flatten`: the copy it links replaces only those links with PNG pictures
+drawn at their size on the page times `scale`, so the frame, the panels, and the titles stay vector. An SVG that links
+no such file is left to the writer as before.
+
+```markdown
+![Release dashboard](examples/composition-dashboard.svg){scale=2 width=100%}
+```
+
+![Release dashboard](examples/composition-dashboard.svg){scale=2 width=100%}
 
 ### Example 57: Drawing a Mermaid Diagram in a Pandoc Document
 
