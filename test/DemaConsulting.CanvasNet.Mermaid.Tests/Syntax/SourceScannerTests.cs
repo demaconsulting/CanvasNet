@@ -1,4 +1,3 @@
-// cspell:ignore avascript
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Syntax;
@@ -288,7 +287,6 @@ public class SourceScannerTests
         Assert.All(['a', '1', '_', ' ', '\u00a0', '\u00d7', '\u00f7'], c => Assert.False(ScanPatterns.IsUnicodeLetter(c), $"U+{(int)c:X4}"));
     }
 
-    // cspell:disable (the test vectors are encoded links, not words)
 
     /// <summary>
     ///     Gets links that sanitize-url refuses: the attack vectors of its own test file (numeric character references with
@@ -567,7 +565,6 @@ public class SourceScannerTests
         { "http://a/y/.x/.", "http://a/y/.x/" },
     };
 
-    // cspell:enable
 
     /// <summary>
     ///     Validates that every encoded form of a <c>javascript</c>, <c>data</c> or <c>vbscript</c> link that sanitize-url

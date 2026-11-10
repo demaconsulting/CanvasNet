@@ -1,4 +1,3 @@
-// cspell:ignore avascript Aavascript dfavascript javascrip msgbox
 using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Sequence;
