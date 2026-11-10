@@ -2617,8 +2617,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBrushIntegrationTests.cs"  # brush mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSelectionExtentIntegrationTests.cs"  # extent tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs"  # documentation gallery tests
-      - "benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
-      - "benchmarks/visual-diff/README.md"                            # developer visual-diff harness documentation
+      - "tools/README.md"                                        # developer tools overview
+      - "tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
+      - "tools/visual-diff/README.md"                            # developer visual-diff harness documentation
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/FuzzRandom.cs"  # seeded random source of the fuzz suite
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/HangGuard.cs"  # generous wall-clock hang guard
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzGenerator.cs"  # specification generator

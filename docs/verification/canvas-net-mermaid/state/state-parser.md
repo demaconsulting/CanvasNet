@@ -8,7 +8,7 @@ two partial files) and the token names of `StateTokens`.
 
 The unit is verified in two ways. `StateVectorTests` parses the 157 cases of
 `Fixtures/upstream-vectors/state-parser.json`, recorded from the pinned Mermaid release in headless Chrome by
-`benchmarks/visual-diff/mermaid/gen-diagram-vectors.mjs --type state` from the inputs of Mermaid's state parser specs
+`tools/visual-diff/mermaid/gen-diagram-vectors.mjs --type state` from the inputs of Mermaid's state parser specs
 (97 cases), the original texts of `state-vector-cases.mjs` (46 cases), and the 14 state fixtures: for each of the 145
 valid texts the facts of Mermaid's state diagram (the type, the direction of `getDirection`, the accessibility texts,
 the translated statement tree `rootDoc`, the states, the transitions, the style classes, the links, and the direction,
@@ -38,7 +38,7 @@ Unit tests reside in `StateParserTests.cs` and `StateVectorTests.cs` (with the h
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/state-parser.json`, generated from the pinned Mermaid by
-  `benchmarks/visual-diff/mermaid/gen-diagram-vectors.mjs --type state`
+  `tools/visual-diff/mermaid/gen-diagram-vectors.mjs --type state`
 - **Isolation**: Each test parses its own text; the fixture is read only
 
 #### Acceptance Criteria

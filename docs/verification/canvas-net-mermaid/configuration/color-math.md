@@ -24,7 +24,7 @@ Unit tests reside in `ColorMathTests.cs` within the `DemaConsulting.CanvasNet.Me
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/themes.json` (the khroma calls), generated from the khroma that the pinned
-  Mermaid uses by `benchmarks/visual-diff/mermaid/gen-theme-vectors.mjs`
+  Mermaid uses by `tools/visual-diff/mermaid/gen-theme-vectors.mjs`
 - **Isolation**: Pure functions; the fixture is read only
 
 #### Acceptance Criteria

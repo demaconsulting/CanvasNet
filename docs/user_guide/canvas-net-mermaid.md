@@ -960,7 +960,36 @@ PngCodec.Save(picture, "pictures.png");
 
 ![Pictures in nodes](examples/mermaid-pictures.mmd){scale=2 width=80%}
 
-### Example 56: Drawing a Mermaid Diagram in a Pandoc Document
+### Example 56: Embedding a Mermaid Diagram in an SVG
+
+Example 55 in the other direction: an SVG document shows diagrams next to a model and a chart. Any SVG
+`<image href>` can name a `.mmd` or `.mermaid` file, and a fragment such as `#theme=dark` chooses the diagram's theme
+(see *Using As An Embedded Image*). The pictures inside a diagram are found relative to the `.mmd` file, not to the
+SVG. All the nesting goes through the one resolver of the render: every link stays inside the folder of the outer
+document and shares its budgets, nesting is limited in depth, and a file that embeds itself is cut as a cycle.
+
+`examples/composition-dashboard.svg` has four panels: the flowchart of Example 55 (which itself shows `bracket.scad`,
+`swatch.svg`, and `stall-sales.vl.json`), the OpenSCAD model `bracket.scad`, the sequence diagram
+`mermaid-sequence-blocks.mmd` in the forest theme, and the Vega-Lite chart `stall-sales.vl.json`:
+
+```xml
+<image x="30" y="92" width="500" height="190" href="mermaid-pictures.mmd"/>
+<image x="570" y="92" width="300" height="190" href="bracket.scad"/>
+<image x="30" y="342" width="500" height="190" href="mermaid-sequence-blocks.mmd#theme=forest"/>
+<image x="570" y="342" width="300" height="190" href="stall-sales.vl.json"/>
+```
+
+The tool and the Viewer draw it through that resolver, with no warning even under `--strict`:
+
+```text
+canvasnet render docs/user_guide/examples/composition-dashboard.svg --strict --scale 2 -o dashboard.png
+```
+
+The Pandoc filter does not draw it: the filter leaves an `.svg` picture to Pandoc and the writer, and the writer does
+not follow links to diagrams, models, or charts. In a Pandoc document, link each part as a picture of its own (as the
+other examples do), or draw the SVG with the tool first and link the PNG.
+
+### Example 57: Drawing a Mermaid Diagram in a Pandoc Document
 
 The Pandoc filter `docs/filters/canvasnet.lua` draws a picture whose file is a `.mmd` or `.mermaid` diagram, and a
 fenced code block of class `mermaid` written in the document itself. The block reads the attributes of a `.mmd` picture
@@ -988,7 +1017,7 @@ cache folder and drawn from there, so a diagram that shows pictures must be a `.
 55). A block or a `.mmd` picture of a type that this version does not draw (`mindmap`, `journey`, ...) is
 left as written, with the tool's message as a warning, so that another filter, such as `mermaid-filter`, can draw it.
 
-### Example 57: The Mermaid Gallery
+### Example 58: The Mermaid Gallery
 
 The gallery is a set of small flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship
 diagrams, pie charts, and gantt charts that together use the major features of the package.
@@ -1094,7 +1123,7 @@ each room on as few rows as keep them apart, a top axis, and a task with a link 
 
 ![Compact mode](examples/mermaid-gantt-compact.mmd){scale=2 width=100%}
 
-### Example 58: Rendering a Mermaid Sequence Diagram
+### Example 59: Rendering a Mermaid Sequence Diagram
 
 A sequence diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the participants, the
 messages, and the boxes, and it has no direction:
@@ -1162,7 +1191,7 @@ sequenceDiagram
     Note over Buyer,Shop: The receipt is sent by email
 ```
 
-### Example 59: Rendering a Mermaid Class Diagram
+### Example 60: Rendering a Mermaid Class Diagram
 
 A class diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the classes, the relations,
 and the namespaces; a note is not counted:
@@ -1251,7 +1280,7 @@ classDiagram
     note for Loan "Due in three weeks"
 ```
 
-### Example 60: Rendering a Mermaid State Diagram
+### Example 61: Rendering a Mermaid State Diagram
 
 A state diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the states (the start and end
 states included), the transitions, and the composite states; a note is not counted:
@@ -1316,7 +1345,7 @@ stateDiagram-v2
     note right of Paid : confirmed by the bank
 ```
 
-### Example 61: Rendering a Mermaid Entity Relationship Diagram
+### Example 62: Rendering a Mermaid Entity Relationship Diagram
 
 An entity relationship diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the entities,
 the relationships, and the subgraphs:

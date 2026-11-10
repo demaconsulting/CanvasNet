@@ -26,7 +26,7 @@ internal static class Program
         var runs = int.TryParse(ValueOf(args, "--runs"), NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : defaultRuns;
         if (args.Contains("--help") || args.Contains("-h"))
         {
-            Console.WriteLine("Usage: dotnet run --project benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release -- [--smoke] [--runs N] [--filter TEXT] [--no-calibration]");
+            Console.WriteLine("Usage: dotnet run --project tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release -- [--smoke] [--runs N] [--filter TEXT] [--no-calibration]");
             return 0;
         }
 

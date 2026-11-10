@@ -20,7 +20,7 @@
     The fixtures in $Excluded get no golden; Fixtures/reference/README.md gives the reason of each. A golden change
     in a pull request is reviewed like code: the diff shows which coordinates moved.
 
-    Needs Node.js 20 or later and "npm ci" in the repository root (it installs @mermaid-js/mermaid-cli, mermaid and
+    Needs Node.js 20 or later and "npm install" in the repository root (it installs @mermaid-js/mermaid-cli, mermaid and
     puppeteer with its headless Chrome); it refuses any mermaid but the pinned 11.17.2.
 
 .PARAMETER Diagram
@@ -69,14 +69,14 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     throw 'Node.js is needed (node was not found on the path).'
 }
 if (-not (Test-Path (Join-Path $repoRoot 'node_modules/@mermaid-js/mermaid-cli/package.json'))) {
-    throw 'The pinned mermaid-cli is not installed: run "npm ci" in the repository root first.'
+    throw 'The pinned mermaid-cli is not installed: run "npm install" in the repository root first.'
 }
 
 # The goldens are those of the pinned mermaid only
 $PinnedMermaid = '11.17.2'
 $mermaidVersion = (Get-Content -Raw (Join-Path $repoRoot 'node_modules/mermaid/package.json') | ConvertFrom-Json).version
 if ($mermaidVersion -ne $PinnedMermaid) {
-    throw "The installed mermaid is $mermaidVersion, not the pinned ${PinnedMermaid}: run ""npm ci"" in the repository root."
+    throw "The installed mermaid is $mermaidVersion, not the pinned ${PinnedMermaid}: run ""npm install --no-save mermaid@${PinnedMermaid}"" in the repository root."
 }
 
 $total = 0

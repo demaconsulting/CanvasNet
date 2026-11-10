@@ -2,7 +2,7 @@
 // @mermaid-js/mermaid-cli and mermaid in headless Chrome through puppeteer) and writes, for each diagram, the
 // picture (PNG) and its layout read back from the live SVG (a .layout.json file).
 //
-// Developer tooling of benchmarks/visual-diff; see the README there. Usage (from anywhere, after "npm ci" in the
+// Developer tooling of tools/visual-diff; see the README there. Usage (from anywhere, after "npm install" in the
 // repository root):
 //
 //     node render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] <diagram.mmd>...

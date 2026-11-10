@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 
 /// <summary>
 ///     Access to the upstream vectors under <c>Fixtures/upstream-vectors/</c>: expectations recorded from the pinned
-///     Mermaid by the generator scripts of <c>benchmarks/visual-diff/mermaid/</c>.
+///     Mermaid by the generator scripts of <c>tools/visual-diff/mermaid/</c>.
 /// </summary>
 internal static class UpstreamVectors
 {

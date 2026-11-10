@@ -9,7 +9,7 @@ relationship markers in `EdgeBuilder.Markers.cs`, and the terminal labels in `Ed
 
 The unit is verified at two levels. The vector test compares d3's line generator with every curve Mermaid offers for
 edges against the upstream vectors `Fixtures/upstream-vectors/curves.json` (144 cases: 12 curves on 12 point sets),
-recorded from d3-shape in Node by `benchmarks/visual-diff/mermaid/gen-curve-vectors.mjs`; the path text must be equal
+recorded from d3-shape in Node by `tools/visual-diff/mermaid/gen-curve-vectors.mjs`; the path text must be equal
 character for character. The other tests are analytic: routes, boxes, markers, and terminal label positions with
 numbers worked out by hand from Mermaid's formulas (a right angle rounded off 5 pixels each side of the corner, an
 arrowhead tip 4 pixels beyond the pulled-back end, the middle of a route by length, the quirks of `intersection` and

@@ -86,7 +86,7 @@ results of DOMPurify, the sanitizer Mermaid uses, for the inline HTML of labels;
 allows are the standard HTML names that DOMPurify allows by default), the resource limits other than
 `maxTextSize` and `maxEdges`, the diagnostics, hints and codes, and the tests are original work of this repository.
 The test fixtures are original diagrams. The upstream vectors under `Fixtures/upstream-vectors/` of the tests
-are generated from the pinned mermaid and khroma by `benchmarks/visual-diff/mermaid/gen-theme-vectors.mjs` and
+are generated from the pinned mermaid and khroma by `tools/visual-diff/mermaid/gen-theme-vectors.mjs` and
 `gen-flowchart-vectors.mjs` (whose flowchart texts in `flowchart-vector-cases.mjs` are original),
 `gen-sequence-vectors.mjs` (whose sequence texts in `sequence-vector-cases.mjs` are original) and
 `gen-shape-vectors.mjs` (single nodes of every shape and label kind, measured in headless Chrome with the bundled
@@ -115,7 +115,7 @@ of their texts in `gantt-vector-cases.mjs` are the inputs of mermaid's gantt spe
 and `diagrams/gantt/ganttDb.spec.ts` of mermaid 11.17.2, MIT, same copyright notice as `LICENSE-mermaid.txt`; the
 database calls of the latter written as gantt texts), each named in its case's `spec` field; the others are original
 texts and the gantt fixtures. The dagre stage
-goldens (`dagre-layouts.json`) are generated from dagre-d3-es by `benchmarks/visual-diff/mermaid/gen-dagre-goldens.mjs`
+goldens (`dagre-layouts.json`) are generated from dagre-d3-es by `tools/visual-diff/mermaid/gen-dagre-goldens.mjs`
 on graphs from a seeded generator, so their inputs are original too. The dagre unit tests under `Dagre/` include cases
 ported from the test files of dagre-d3-es (`*.test.js`, MIT, same copyright notices as `LICENSE-dagre.txt`). The link check tests of `UrlSanitizer` (`Syntax/`) include the inputs of the test file of sanitize-url 7.1.2 (`src/__tests__/index.test.ts`, MIT, same copyright notice as `LICENSE-sanitize-url.txt`), with expected values that are its results. The
 JavaScript key order of `ObjectKeyMap` (`Graphlib/`) follows the ECMAScript specification, and the work budget of
