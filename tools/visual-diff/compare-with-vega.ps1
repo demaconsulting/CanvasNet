@@ -25,7 +25,7 @@
     The tool is "dotnet canvasnet" from the tool manifest, or the command in -ToolCommand / the CANVASNET_TOOL
     environment variable, for example a local build:
 
-        pwsh benchmarks/visual-diff/compare-with-vega.ps1 -Spec docs/user_guide/examples/gallery/01-scatter.vl.json `
+        pwsh tools/visual-diff/compare-with-vega.ps1 -Spec docs/user_guide/examples/gallery/01-scatter.vl.json `
             -ToolCommand "dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/DemaConsulting.CanvasNet.Tool.dll"
 
 .PARAMETER Spec

@@ -37,7 +37,7 @@ Unit tests reside in `ThemeResolverTests.cs` within the `DemaConsulting.CanvasNe
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/themes.json` (the site theme cases), generated from the pinned Mermaid by
-  `benchmarks/visual-diff/mermaid/gen-theme-vectors.mjs`
+  `tools/visual-diff/mermaid/gen-theme-vectors.mjs`
 - **Isolation**: Pure computations; the fixture is read only
 
 #### Acceptance Criteria

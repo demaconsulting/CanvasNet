@@ -2,7 +2,7 @@
 // and YAML files that the published bundle was built from) to a folder, so a developer can read the code that the
 // CanvasNet.Mermaid port follows.
 //
-// Developer tooling of benchmarks/visual-diff; see the README there. Usage:
+// Developer tooling of tools/visual-diff; see the README there. Usage:
 //
 //     node extract-sources.mjs [--modules <folder>] [--out <folder>]
 //
@@ -15,7 +15,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// The repository root is three folders above benchmarks/visual-diff/mermaid
+// The repository root is three folders above tools/visual-diff/mermaid
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 // Read the two optional arguments

@@ -25,7 +25,7 @@
     The tool is "dotnet canvasnet" from the tool manifest, or the command in -ToolCommand / the CANVASNET_TOOL
     environment variable, for example a local build:
 
-        pwsh benchmarks/visual-diff/compare-with-mermaid.ps1 `
+        pwsh tools/visual-diff/compare-with-mermaid.ps1 `
             -Diagram test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/25-subgraph-basic.mmd -Scale 2 `
             -ToolCommand "dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/DemaConsulting.CanvasNet.Tool.dll"
 

@@ -173,7 +173,7 @@ is not reported: the pinned Mermaid's flowchart database records the name and th
 - **No OTS runtime dependency.** Mermaid, dagre-d3-es, graphlib, d3-shape, d3-path, khroma, js-yaml, lodash, marked,
   and sanitize-url are **not** dependencies: their behavior is ported into local source (see _Third-Party Provenance and
   Attribution_). The pinned `mermaid`, `@mermaid-js/mermaid-cli`, `dagre-d3-es`, and `puppeteer` npm packages of the
-  repository are used only by the developer scripts in `benchmarks/visual-diff/` that generate the test vectors and
+  repository are used only by the developer scripts in `tools/visual-diff/` that generate the test vectors and
   layout goldens; CI never runs them.
 
 ## Risk Control Measures
@@ -323,7 +323,7 @@ without porting its code), `StyleDeclarations`, `ObjectKeyMap`, `LayoutWorkMeter
 `maxTextSize` and `maxEdges`, the diagnostics, and all tests and fixtures are original work. The package is not
 affiliated with, and not endorsed by, the Mermaid project or the authors of the other projects. The upstream test
 vectors are generated from the pinned packages from original inputs by the developer scripts in
-`benchmarks/visual-diff/mermaid/`.
+`tools/visual-diff/mermaid/`.
 
 ### Untrusted Input and Limits
 
@@ -379,7 +379,7 @@ vectors, 53
 configuration cases and 622 khroma calls, 224 dagre
 stage goldens (ranks and orders exact, coordinates within 1e-9), 286 shape vectors, and 144 d3 curve vectors. The
 whole layout is compared against reference layouts extracted from mermaid-cli renders of the 42 original flowchart
-fixtures with the bundled Liberation Sans (`benchmarks/visual-diff/render-mermaid.mjs` with `liberation.css`): the
+fixtures with the bundled Liberation Sans (`tools/visual-diff/render-mermaid.mjs` with `liberation.css`): the
 view box, node centers and sizes, subgraph rectangles, 21 arc-length samples of every edge, and edge label centers.
 The tolerance is 0.01 pixel, and 0.1 pixel for the fixtures `12-new-shapes-flow` and `14-new-shapes-symbols` (the
 rough.js circles, item 1 below); in practice 39 fixtures agree to within 0.001 pixel. The fixture `38-unicode` is

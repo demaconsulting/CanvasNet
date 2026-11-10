@@ -94,7 +94,7 @@ both: the `Graphlib` graph keeps its nodes and edges in JavaScript's key order (
 then the other names in insertion order), the `Lodash` helpers reproduce `_.sortBy`, `_.min`, `_.max`, `_.minBy`, and
 V8's TimSort steps, and values that JavaScript leaves `undefined` are nullable or NaN where only arithmetic sees them.
 The result is checked against 224 layouts recorded from dagre-d3-es by
-`benchmarks/visual-diff/mermaid/gen-dagre-goldens.mjs` (`Fixtures/upstream-vectors/dagre-layouts.json`): ranks and
+`tools/visual-diff/mermaid/gen-dagre-goldens.mjs` (`Fixtures/upstream-vectors/dagre-layouts.json`): ranks and
 orders equal, coordinates, sizes, routes, label centers, and the drawing size within 1e-9 relative (in practice
 bit-equal). The graphs come from a seeded generator and cover acyclic, cyclic (with both cycle breakers), compound,
 deeply nested, large compound, self-loop, simple, tiny, and empty graphs, with numeric and Mermaid-style names,

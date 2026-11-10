@@ -9,7 +9,7 @@ preprocessed text of a flowchart into a `FlowchartModel` as Mermaid's generated 
 
 The unit is verified in two ways. **Upstream vectors**: `FlowchartVectorTests` runs every case of
 `Fixtures/upstream-vectors/flowchart-parser.json` (207 cases recorded from the pinned Mermaid release in a browser by
-the vector generator of the benchmarks folder): for the 171 valid texts the facts of the parsed model (vertices, edges,
+the vector generator of the tools folder): for the 171 valid texts the facts of the parsed model (vertices, edges,
 subgraphs, classes, defaults, direction, accessibility texts) and its layout input, written by the test helper
 `FlowchartFacts` with the keys and omissions of `JSON.stringify`, must equal Mermaid's database facts and layout data
 exactly; for the 36 invalid texts the open must fail where Mermaid fails, with the same unexpected token and the
