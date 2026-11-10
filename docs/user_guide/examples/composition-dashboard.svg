@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560">
+  <rect width="900" height="560" fill="#f7f7fb"/>
+  <text x="24" y="40" font-family="Liberation Sans" font-size="24px" font-weight="bold" fill="#333">Release dashboard</text>
+
+  <!-- A Mermaid flowchart whose own nodes embed bracket.scad, swatch.svg and stall-sales.vl.json -->
+  <rect x="20" y="60" width="520" height="230" rx="8" fill="white" stroke="#ccc"/>
+  <text x="32" y="84" font-family="Liberation Sans" font-size="14px" fill="#555">Pipeline (Mermaid flowchart with pictures)</text>
+  <image x="30" y="92" width="500" height="190" href="mermaid-pictures.mmd"/>
+
+  <!-- An OpenSCAD model -->
+  <rect x="560" y="60" width="320" height="230" rx="8" fill="white" stroke="#ccc"/>
+  <text x="572" y="84" font-family="Liberation Sans" font-size="14px" fill="#555">Part (OpenSCAD)</text>
+  <image x="570" y="92" width="300" height="190" href="bracket.scad"/>
+
+  <!-- A Mermaid sequence diagram, drawn with the forest theme through a fragment -->
+  <rect x="20" y="310" width="520" height="230" rx="8" fill="white" stroke="#ccc"/>
+  <text x="32" y="334" font-family="Liberation Sans" font-size="14px" fill="#555">Nightly backup (Mermaid sequence diagram)</text>
+  <image x="30" y="342" width="500" height="190" href="mermaid-sequence-blocks.mmd#theme=forest"/>
+
+  <!-- A Vega-Lite chart that reads stall-sales.csv -->
+  <rect x="560" y="310" width="320" height="230" rx="8" fill="white" stroke="#ccc"/>
+  <text x="572" y="334" font-family="Liberation Sans" font-size="14px" fill="#555">Sales (Vega-Lite)</text>
+  <image x="570" y="342" width="300" height="190" href="stall-sales.vl.json"/>
+</svg>
