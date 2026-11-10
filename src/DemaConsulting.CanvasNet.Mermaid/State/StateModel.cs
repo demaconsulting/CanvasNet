@@ -639,9 +639,10 @@ internal sealed partial class StateModel : IMermaidDiagram
     }
 
     /// <summary>
-    ///     Checks that one more state or node fits <see cref="MermaidLimits.MaxNodes"/>, which counts states, composite
-    ///     states, concurrency regions, notes and note groups together, as the flowchart model counts vertices and
-    ///     subgraphs.
+    ///     Checks that one more state or node fits <see cref="MermaidLimits.MaxNodes"/>, on either of two counts: the
+    ///     states of the database (a state that only a <c>class</c> or <c>style</c> statement names included, in
+    ///     <c>AddState</c>) or the drawn nodes - states, composite states, concurrency regions, notes and note groups
+    ///     together, in <c>Insert</c> - as the flowchart model counts vertices and subgraphs.
     /// </summary>
     /// <param name="count">The number there already is.</param>
     /// <param name="location">The location of the statement that adds it.</param>

@@ -91,15 +91,16 @@ sections:
               - id: CanvasNetMermaid-State-StateModel-Limits
                 title: >-
                   The StateModel unit shall refuse, with a located MermaidSyntaxException of code
-                  mermaid-limit-exceeded, more transitions than MaxEdges (the links of notes not counted), more states,
-                  composite states, concurrent regions, notes, and note groups together than MaxNodes (a state that only
-                  a class statement names included), concurrent regions that nest deeper than MaxNestingDepth (each
-                  region a level), and a text it joins or derives from texts checked apart - the descriptions under a
-                  title, the id of a start or end state, a text style, the CSS classes of a state (joined with spaces),
-                  the styles or text styles of a style class or the compiled styles of a state (joined with
-                  semicolons) - longer than MaxLabelLength; and shall refuse in its layout data, with a located
-                  MermaidRenderException of code mermaid-limit-exceeded, composite states nested deeper than
-                  MaxNestingDepth through their parents, however the statements nest them.
+                  mermaid-limit-exceeded, more transitions than MaxEdges (the links of notes not counted), more states
+                  in its database than MaxNodes (a state that only a class or style statement names included), more
+                  drawn states, composite states, concurrent regions, notes, and note groups together than MaxNodes,
+                  concurrent regions that nest deeper than MaxNestingDepth (each region a level), and a text it joins or
+                  derives from texts checked apart - the descriptions under a title, the id of a start or end state, a
+                  text style, the CSS classes of a state (joined with spaces), the styles or text styles of a style
+                  class or the compiled styles of a state (joined with semicolons) - longer than MaxLabelLength; and
+                  shall refuse in its layout data, with a located MermaidRenderException of code mermaid-limit-exceeded,
+                  composite states nested deeper than MaxNestingDepth through their parents, however the statements nest
+                  them.
                 justification: |
                   The size of the model, and so the cost of the layout, must be bounded for untrusted text; the regions
                   and note groups are clusters of the layout, and a joined text can be longer than any of its parts,

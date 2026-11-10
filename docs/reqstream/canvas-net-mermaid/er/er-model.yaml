@@ -40,9 +40,10 @@ sections:
               - id: CanvasNetMermaid-Er-ErModel-Subgraphs
                 title: >-
                   The ErModel unit shall keep each subgraph with its trimmed id, its sanitized and trimmed title, its
-                  direction, and its nodes - the trimmed values of its statements without duplicates and without the
-                  nodes of the subgraphs that end before it - and give the subgraphs to the layout first, the last one
-                  first, each node in the first subgraph that holds it.
+                  direction, and its nodes - the values of its statements as written, without empty values or
+                  duplicates (both compared trimmed) and without the nodes of the subgraphs that end before it - and
+                  give the subgraphs to the layout first, the last one first, each node in the first subgraph that
+                  holds it.
                 justification: |
                   The subgraphs group entities into the clusters of the drawing, and Mermaid's order decides which
                   subgraph is laid out first.

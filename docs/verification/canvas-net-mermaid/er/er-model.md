@@ -68,14 +68,14 @@ solid line.
 `ErModelTests.ErModel_GetData_SubgraphsComeFirstInReverseOrder`
 
 Asserts that a subgraph `" S "[" Sales area "]` holding `A`, the relationship `A ||--o{ B : r`, and a nested subgraph
-`T` holding `B`, followed by a subgraph `U` holding `A` and `C`, gives the subgraphs `T`, `S`, and `U` in the order
-they end, with the nodes `B` for `T`, `A` and `T` for `S` (the repeated `A` once, and `B` left to the nested `T` that
-ended first), and `C` for `U` (`A` is already in `S`), the trimmed id `S`, and the trimmed title `Sales area`; and that
-a subgraph `Outer["Outer area"]` holding `A` and a nested `Inner` (with `direction LR`) holding `B`, followed by a
-subgraph `Other` holding `C`, gives the layout nodes `Other`, `Outer`, `Inner`, `entity-A-0`, `entity-B-1`, and
-`entity-C-2` in that order (the clusters first, the last subgraph first) with the parents none, none, `Outer`,
-`Outer`, `Inner`, and `Other`, the cluster `Outer` with the label `Outer area`, the shape `rect`, the group flag, and a
-padding of 8, and the cluster `Inner` with the direction `LR`.
+`T` holding `B`, followed by a subgraph `U` holding `A` and `C`, gives the subgraphs `T`, `S`, and `U` in the order they
+end, with the nodes `B` for `T`, `A` and `T` for `S` (the repeated `A` once, compared trimmed, and `B` left to the
+nested `T` that ended first), and `C` for `U` (`A` is already in `S`), the trimmed id `S`, and the trimmed title
+`Sales area`; and that a subgraph `Outer["Outer area"]` holding `A` and a nested `Inner` (with `direction LR`) holding
+`B`, followed by a subgraph `Other` holding `C`, gives the layout nodes `Other`, `Outer`, `Inner`, `entity-A-0`,
+`entity-B-1`, and `entity-C-2` in that order (the clusters first, the last subgraph first) with the parents none, none,
+`Outer`, `Outer`, `Inner`, and `Other`, the cluster `Outer` with the label `Outer area`, the shape `rect`, the group
+flag, and a padding of 8, and the cluster `Inner` with the direction `LR`.
 
 ##### CanvasNetMermaid-Er-ErModel-Styles: Style Classes, Classes, And Styles
 

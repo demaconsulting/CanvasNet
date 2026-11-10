@@ -129,15 +129,16 @@ accessible title `Keys`, and no title.
 
 Asserts (a theory with two cases) that a composite state `C` with the regions holding `a` and `b` has five nodes (the
 composite state, the two regions, and the two states) and that a state `A` with a note has three nodes (the state, the
-note group, and the note), each accepted with `MaxNodes` equal to its count and refused with one less as
-`mermaid-limit-exceeded` at the line of the node too many (line 5 and line 3), with a message that ends
-`nodes and subgraphs (MermaidLimits.MaxNodes)`. Asserts that with `MaxNodes` of 3 the statement `class a,b,c,d hot`,
-which names four states that are never drawn, is `mermaid-limit-exceeded` at line 2. Asserts that with `MaxEdges` of 1
-a transition and a note on its state are accepted with two edges (the note link is not counted), while a second
-transition is `mermaid-limit-exceeded` at its line (line 3) with a message that names `MermaidLimits.MaxEdges`.
-Asserts that a composite state `A` holding a composite state `B` with two regions is accepted with `MaxNestingDepth`
-of 3, with two regions, and refused with `MaxNestingDepth` of 2 as `mermaid-limit-exceeded` at the region too deep (the
-divider at line 5), with a message that names `MermaidLimits.MaxNestingDepth`. Asserts that with `MaxLabelLength` of 10,
+note group, and the note), each accepted with `MaxNodes` equal to its count and refused with one less (the drawn nodes,
+counted together) as `mermaid-limit-exceeded` at the line of the node too many (line 5 and line 3), with a message that
+ends `nodes and subgraphs (MermaidLimits.MaxNodes)`. Asserts that with `MaxNodes` of 3 the statement
+`class a,b,c,d hot`, which names four states that are never drawn (the states of the database, counted apart from the
+drawn nodes), is `mermaid-limit-exceeded` at line 2. Asserts that with `MaxEdges` of 1 a transition and a note on its
+state are accepted with two edges (the note link is not counted), while a second transition is
+`mermaid-limit-exceeded` at its line (line 3) with a message that names `MermaidLimits.MaxEdges`. Asserts that a
+composite state `A` holding a composite state `B` with two regions is accepted with `MaxNestingDepth` of 3, with two
+regions, and refused with `MaxNestingDepth` of 2 as `mermaid-limit-exceeded` at the region too deep (the divider at
+line 5), with a message that names `MermaidLimits.MaxNestingDepth`. Asserts that with `MaxLabelLength` of 10,
 where every token fits, three joined or derived texts are `mermaid-limit-exceeded` at their lines with a message that
 names `MermaidLimits.MaxLabelLength` (a theory): the descriptions `yellow` and `purple` under the title `orange`, 17
 characters when joined with `<br/>` (line 4); the start id `Abcdefgh_start` of 14 characters (line 3); and the text

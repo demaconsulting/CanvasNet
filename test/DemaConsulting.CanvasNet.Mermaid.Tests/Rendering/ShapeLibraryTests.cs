@@ -256,13 +256,17 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
-    ///     Checks that a shape this version does not draw fails, located, with a suggestion.
+    ///     Checks that a shape this version does not draw on a node - a name that is no shape, or the entity box on a
+    ///     node without the data of an entity - fails, located, with a hint that suggests a documented shape.
     /// </summary>
-    [Fact]
-    public void ShapeLibrary_Draw_UndrawnShape_ThrowsRenderFailed()
+    /// <param name="shape">The shape name.</param>
+    [Theory]
+    [InlineData("notAShape")]
+    [InlineData("erBox")]
+    public void ShapeLibrary_Draw_UndrawnShape_ThrowsRenderFailed(string shape)
     {
         // Arrange
-        var node = new LayoutNode { Id = "A", Shape = "erBox", Location = new MermaidLocation(null, 3, 1) };
+        var node = new LayoutNode { Id = "A", Shape = shape, Location = new MermaidLocation(null, 3, 1) };
 
         // Act
         var exception = Assert.Throws<MermaidRenderException>(() => ShapeLibrary.Draw(node, Context()));
@@ -270,6 +274,10 @@ public sealed class ShapeLibraryTests
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.RenderFailed, exception.Code);
         Assert.Equal(3, exception.Location.Line);
+        Assert.Contains($"'{shape}'", exception.Message, StringComparison.Ordinal);
+        Assert.NotNull(exception.Hint);
+        var suggestion = exception.Hint.Split('\'')[1];
+        Assert.True(ShapeNames.IsKnown(suggestion), $"the hint suggests '{suggestion}', which is not a shape");
     }
 
     /// <summary>

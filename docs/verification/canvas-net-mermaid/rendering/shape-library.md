@@ -81,8 +81,10 @@ drawing function, and that a misspelled name gets the nearest name the flowchart
 
 Asserts that every documented short name, the undocumented shapes a flowchart accepts, the icon and image shapes, and
 the legacy `ellipse` are drawn with a positive size, that the vectors cover every documented shape with a short, a
-wrapping, and an SVG label, and that `erBox` on a node without the data of an entity (a shape a flowchart node cannot
-draw) fails with `mermaid-render-failed` at the node's line.
+wrapping, and an SVG label, and (a theory with two cases) that a name that is no shape (`notAShape`, the "not drawn by
+this version" arm) and `erBox` on a node without the data of an entity (a shape a flowchart node cannot draw) fail
+with `mermaid-render-failed` at the node's line, with a message that names the shape and a hint whose suggested shape
+is a shape of the registry.
 
 ##### CanvasNetMermaid-Rendering-ShapeLibrary-Geometry: Shapes Have Mermaid's Geometry
 
