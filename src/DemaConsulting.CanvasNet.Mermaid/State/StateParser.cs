@@ -495,7 +495,7 @@ internal sealed partial class StateParser
 
     /// <summary>
     ///     Parses a click statement: <c>click id "url" "tooltip"</c> or <c>click id href "url"</c>, each ended by a line
-    ///     break; the link is kept and never drawn.
+    ///     break; the link is kept and never drawn, its URL only as <see cref="StateModel.CheckLink(string)"/> checks it.
     /// </summary>
     /// <returns>The statement.</returns>
     private StateStatement ParseClick()
@@ -527,7 +527,8 @@ internal sealed partial class StateParser
 
         Expect(Nl);
         CheckEnd();
-        return new StateStatement { Stmt = "click", Target = target, Url = url, Tooltip = tooltip, Location = location };
+        // Only the checked URL is kept, never the URL as written
+        return new StateStatement { Stmt = "click", Target = target, Url = StateModel.CheckLink(url), Tooltip = tooltip, Location = location };
     }
 
     /// <summary>

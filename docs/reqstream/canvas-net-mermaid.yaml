@@ -572,9 +572,10 @@ sections:
       - id: CanvasNetMermaid-UnsafeLinks
         title: >-
           The library shall check every link a diagram keeps (the link and click href of a class diagram, the link
-          and links of a sequence diagram) exactly as the pinned Mermaid checks it at its strict security level,
-          whatever the configured security level, so that a javascript, data, or vbscript link in any encoding is
-          kept only as about:blank, and shall never expose a link as written in any output.
+          and links of a sequence diagram, the click and click href of a state diagram) exactly as the pinned
+          Mermaid checks it at its strict security level, whatever the configured security level, so that a
+          javascript, data, or vbscript link in any encoding is kept only as about:blank, and shall never expose a
+          link as written in any output.
         tags: [system, security]
         justification: |
           Links are kept as data for a host that reads the diagram; a link whose scheme hides behind character
@@ -584,6 +585,7 @@ sections:
           - CanvasNetMermaid-Syntax-UntrustedInput
           - CanvasNetMermaid-Class-InteractionIgnored
           - CanvasNetMermaid-Sequence-Language
+          - CanvasNetMermaid-State-Language
         tests:
           - CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput
 

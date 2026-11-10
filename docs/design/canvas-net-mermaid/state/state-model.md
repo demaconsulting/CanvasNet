@@ -39,8 +39,8 @@ statements, and the database sanitizes the text of their notes):
   `fork`, `join`, `choice`, or `divider`), the description or the two `DescriptionParts` of
   `state "description" as id:text`, the document of a composite state or region, the note, the start flag of a
   translated `[*]`, the `:::` classes, the direction of a `dir` statement, the styles of `classDef`, the styles of
-  `style` or the class of `class` (`StyleClass`), the URL and tooltip of a click (with their quotes), the two states of
-  a transition, the target of a click, and the location of the statement;
+  `style` or the class of `class` (`StyleClass`), the URL of a click as `CheckLink` checks it and its tooltip (with
+  its quotes), the two states of a transition, the target of a click, and the location of the statement;
 - **`StateNote`**: the position as written (`left of` or `right of`, in its case) and the text.
 
 **The database** (Mermaid's `getStates`, `getRelations`, `getClasses`, and `getLinks` of the top-level document):
@@ -50,8 +50,8 @@ statements, and the database sanitizes the text of their notes):
   grammar never sets);
 - the **transitions** in order (`StateRelation`: the two state ids and the sanitized label);
 - the **style classes** of `classDef` in insertion order and by id (`StateStyleClass`: the styles and the text styles);
-- the **links** of the click statements (`StateLink`: the click's state statement, the URL, and the tooltip, with their
-  quotes), kept and never drawn.
+- the **links** of the click statements (`StateLink`: the click's state statement, the checked URL, and the tooltip,
+  with its quotes), kept and never drawn.
 
 **The data fetcher** (Mermaid's `nodeDb`, `nodes`, and `edges`):
 
@@ -99,6 +99,12 @@ parsing, so it is safe for concurrent renders.
 - **`Apply`** (one step of Mermaid's `extract`) applies a top-level statement: a state (`AddState`, without the
   classes of a lone `id:::class`, which Mermaid does not apply), a transition (`AddRelation`), a `classDef`
   (`AddStyleClass`), a `style` (`SetStyles`), a `class` (`SetCssClass`), or a click (the link is recorded).
+- **`CheckLink`** checks the URL of a click as the link of Mermaid's finished picture would carry it: the quotes removed
+  as Mermaid's state renderer removes them (`/^"+|"+$/g`), Mermaid's entity placeholders decoded as its
+  `decodeEntities` decodes the finished picture (`LabelBuilder.DecodeEntities`), then checked by the shared link check
+  of the `Syntax` subsystem (`UrlSanitizer.Sanitize`, sanitize-url's `sanitizeUrl`), so an unsafe or empty URL is
+  `about:blank`. The parser stores only its result in the click statement, and the link takes it from there, so the
+  URL as written is never kept.
 - **`AddState`** (Mermaid's `addState`) adds a state unless it exists (checking `MaxNodes`) and otherwise keeps a
   document it did not have yet; adds the descriptions (`AddDescription`: a leading colon removed, sanitized), the note
   (whose text is sanitized in place, so a note in a composite state's document is left for the label pipeline to
@@ -262,6 +268,13 @@ parsing, so it is safe for concurrent renders.
   when the diagram is laid out, as a `MermaidRenderException` with the same code. Mermaid has no such limits.
 - **Interaction.** The links of the click statements are kept only as data; they are never drawn or bound and are not
   reported.
+- **Links.** Mermaid's state database keeps the URL of a click as written, quotes included, and its renderer puts it
+  into the link of the state without sanitize-url; only the clean-up of the finished picture at the strict security
+  level (DOMPurify) drops an unsafe link. The library draws no link and has no such clean-up, so it keeps only
+  `CheckLink`'s result (without the quotes, checked by sanitize-url) in the statement tree and in the links alike: a
+  `javascript`, `data`, or `vbscript` URL in any encoding is kept only as `about:blank`, and a safe URL is written as
+  sanitize-url writes it (an `http` or `https` URL normalized). The upstream vectors compare the URL Mermaid recorded
+  after the same check.
 - **Security level.** Texts are always sanitized as Mermaid sanitizes them at its strict security level, the only level
   modeled.
 - **Accessibility.** `accTitle` and `accDescr` are metadata only; a rendered picture has no SVG title or description.

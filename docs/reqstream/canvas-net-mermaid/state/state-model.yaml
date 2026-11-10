@@ -65,6 +65,21 @@ sections:
                 tests:
                   - StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid
 
+              - id: CanvasNetMermaid-State-StateModel-Links
+                title: >-
+                  The StateModel unit shall keep the link and tooltip of a click statement only as data, and shall keep,
+                  in the link and in the click statement alike, only the URL that the shared link check of the Syntax
+                  subsystem gives for the URL Mermaid's picture would carry (its quotes removed and Mermaid's entity
+                  placeholders decoded), never the URL as written, although Mermaid's state database keeps it as
+                  written.
+                justification: |
+                  A static picture has no interaction, but texts written for Mermaid's browser output must still open,
+                  and an unsafe link, however it is encoded, must never be kept as written; Mermaid itself relies on the
+                  clean-up of its finished picture, which the library does not produce.
+                tests:
+                  - StateModel_CheckLink_ClickUrl_KeepsOnlyTheCheckedUrl
+                  - StateModel_SetRootDocument_EncodedUnsafeClicks_KeepOnlyTheCheckedUrls
+
               - id: CanvasNetMermaid-State-StateModel-Errors
                 title: >-
                   The StateModel unit shall refuse a statement on which Mermaid's state database fails - a description

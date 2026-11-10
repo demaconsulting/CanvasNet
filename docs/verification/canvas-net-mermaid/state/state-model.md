@@ -93,6 +93,24 @@ Asserts that `classDef hot fill:#f96,color:#036`, `A:::hot --> B`, and `style B 
 `color` written `fill`); the node `A` with the CSS classes `hot statediagram-state` and the compiled styles `fill:#f96`
 and `color:#036`; and the node `B` with the style `stroke:#333`, its semicolon dropped.
 
+##### CanvasNetMermaid-State-StateModel-Links: Click Links Kept Only As Checked
+
+**Tests**: `StateModelTests.StateModel_CheckLink_ClickUrl_KeepsOnlyTheCheckedUrl`,
+`StateModelTests.StateModel_SetRootDocument_EncodedUnsafeClicks_KeepOnlyTheCheckedUrls`
+
+Asserts that the check of a click URL as written (a theory with one case for each URL) removes the quotes and gives
+sanitize-url's result: `google.com`, `./docs/page.html`, and `https://example.com/` (for `https://Example.com`) for
+safe links; `about:blank` for an empty URL and for `javascript:`, `&#106;`, `&#0x6A;`, Mermaid's entity placeholder of
+`&#106;`, `java&#9;script:`, a tab inside the scheme, `%6A`, `&colon;`, `&Tab;` with `&CoLoN;` in mixed case, an
+upper-case `JAVASCRIPT:`, `data:` (also padded and in mixed case), and `vbscript:` (also with `&colon;`); and
+`avascript:alert(1)` for `&#x6A;avascript:alert(1)`, which sanitize-url reads as U+0000 and removes. Asserts that a
+diagram with ten click statements (`click` with a tooltip and `click ... href`) on ten states keeps, in its links and in
+the click statements of its statement tree alike, `about:blank` for `&#106;`, a tab inside the scheme, `%6A`,
+`&colon;`, `&Tab;` with `&CoLoN;` in mixed case, `data:`, and `vbscript:`; `&&x6A;avascript:alert(1)` and
+`java&script:alert(1)` for `&#x6A;` and `java&#9;script:`, whose references Mermaid's entity encoding changes so that
+the scheme is no longer `javascript`; `https://example.com/b%20c` for `https://Example.com/a/../b c`; and the tooltip
+`"tip"` with its quotes, as Mermaid keeps it.
+
 ##### CanvasNetMermaid-State-StateModel-Errors: Mermaid's Database Error, Located
 
 **Tests**: `StateModelTests.StateModel_SetRootDocument_CompositeWithDescription_ThrowsLocatedGroupError`

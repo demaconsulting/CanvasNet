@@ -22,11 +22,12 @@ sections:
               their own directions, concurrent regions, the fork, join, and choice states, notes, the classDef, class,
               and style statements, the direction, the click statements, and the accessibility statements - into the
               same statements, states, transitions, notes, and styles that Mermaid's state database records for it,
-              keeping the click statements only as data.
+              keeping the click statements only as data, with their links only as checked data.
             justification: |
               A state diagram can only be drawn the way Mermaid draws it when its text means exactly what it means to
               Mermaid; the language is defined by Mermaid's grammar and database, not by a description of them. A
-              static picture has no interaction, but texts written for Mermaid's browser output must still open.
+              static picture has no interaction, but texts written for Mermaid's browser output must still open, and
+              an unsafe link must never be kept as written.
             children:
               - CanvasNetMermaid-State-StateParser-Tokens
               - CanvasNetMermaid-State-StateParser-Grammar
@@ -35,6 +36,7 @@ sections:
               - CanvasNetMermaid-State-StateModel-States
               - CanvasNetMermaid-State-StateModel-Notes
               - CanvasNetMermaid-State-StateModel-Styles
+              - CanvasNetMermaid-State-StateModel-Links
             tests:
               - State_Parse_Fixture_GivesConsistentLayoutData
               - State_Parse_WholeText_GivesModelAndLayoutData

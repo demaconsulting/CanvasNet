@@ -1,6 +1,7 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Globalization;
 using System.Text;
+using DemaConsulting.CanvasNet.Mermaid.Rendering;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.State;
@@ -20,7 +21,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.State;
 ///         with Mermaid's generated id (<c>id-random-N</c> here: Mermaid's <c>generateId</c> puts a random number where this
 ///         port writes <c>random</c>, so the ids stay deterministic). The top-level statements are then applied to the
 ///         database (<c>extract</c>): states with their descriptions, notes, CSS classes and styles, transitions, style
-///         classes (<c>classDef</c>) and links (kept, never drawn). The legacy diagram (Mermaid id <c>state</c>, version 1)
+///         classes (<c>classDef</c>) and links (never drawn; the URL kept only as sanitize-url checks it, see
+///         <see cref="CheckLink(string)"/>). The legacy diagram (Mermaid id <c>state</c>, version 1)
 ///         applies them before the translation, as Mermaid does, so its start and end states are <c>start1</c>,
 ///         <c>start2</c>, ... in the database. Last, the data fetcher maps the translated tree to the nodes and edges of the
 ///         layout, with Mermaid's DOM ids (<c>state-&lt;id&gt;-&lt;n&gt;</c>, where <c>n</c> counts the transitions and
@@ -295,6 +297,23 @@ internal sealed partial class StateModel : IMermaidDiagram
     /// <param name="text">The text.</param>
     /// <returns>The sanitized text.</returns>
     internal static string Sanitize(string text) => text.Length == 0 ? text : HtmlSanitizer.Sanitize(text);
+
+    /// <summary>
+    ///     Checks the URL of a click statement as the link of Mermaid's finished picture would carry it: the quotes around
+    ///     it removed, as Mermaid's renderer removes them (<c>/^"+|"+$/g</c>), Mermaid's entity placeholders decoded, as
+    ///     its <c>decodeEntities</c> decodes the finished picture, then checked by sanitize-url
+    ///     (<see cref="UrlSanitizer.Sanitize(string?)"/>), so an unsafe or empty URL is <c>about:blank</c>.
+    /// </summary>
+    /// <remarks>
+    ///     Mermaid's state database keeps the URL as written, quotes included, and its renderer puts it into the link
+    ///     without sanitize-url (only the clean-up of the finished picture at the <c>strict</c> level drops an unsafe
+    ///     link). The library keeps only the checked URL, in the statement and in the link alike, so a refused URL is
+    ///     never kept as written; the placeholders are decoded first so that a character reference such as
+    ///     <c>&amp;#106;</c> is checked as the reference the picture would carry.
+    /// </remarks>
+    /// <param name="url">The URL as written, with its quotes.</param>
+    /// <returns>The checked URL; never null.</returns>
+    internal static string CheckLink(string url) => UrlSanitizer.Sanitize(LabelBuilder.DecodeEntities(url.Trim('"')));
 
     /// <summary>
     ///     Removes a leading colon and the white space around a text (Mermaid's <c>trimColon</c>).
@@ -740,7 +759,10 @@ internal sealed class StateStatement
     /// <summary>Gets the styles of a <c>style</c> statement or the class of a <c>class</c> statement, or null.</summary>
     public string? StyleClass { get; init; }
 
-    /// <summary>Gets the URL of a click statement, with its quotes, or null.</summary>
+    /// <summary>
+    ///     Gets the URL of a click statement as <see cref="StateModel.CheckLink(string)"/> checks it (without its quotes;
+    ///     never the URL as written), or null.
+    /// </summary>
     public string? Url { get; init; }
 
     /// <summary>Gets the tooltip of a click statement, with its quotes, or null.</summary>
@@ -842,9 +864,10 @@ internal sealed record StateStyleClass(string Id)
 
 /// <summary>
 ///     The link of a click statement, as Mermaid keeps it (keyed by the statement of the state, with the quotes of the
-///     URL and tooltip); links are never drawn.
+///     tooltip), except that the URL is kept only as <see cref="StateModel.CheckLink(string)"/> checks it; links are
+///     never drawn.
 /// </summary>
 /// <param name="Target">The state statement of the click.</param>
-/// <param name="Url">The URL, with its quotes.</param>
+/// <param name="Url">The checked URL (without its quotes).</param>
 /// <param name="Tooltip">The tooltip, with its quotes, or empty.</param>
 internal sealed record StateLink(StateStatement Target, string Url, string Tooltip);

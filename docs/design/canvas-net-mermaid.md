@@ -314,7 +314,7 @@ third-party/README.md`:
 | js-yaml | MIT | `YamlSubsetParser` |
 | lodash | MIT | `Lodash` helpers of `DagreLayout` (sorting, extremes, unique ids) |
 | marked | MIT | the markdown subset of `LabelBuilder` |
-| sanitize-url (a dependency of mermaid) | MIT | the link check `UrlSanitizer` (class and sequence links, never drawn) |
+| sanitize-url (a dependency of mermaid) | MIT | the link check `UrlSanitizer` (class, sequence, and state links, never drawn) |
 
 The license texts ship in the package's `licenses/` folder (and in the tool package, where the d3 notice is renamed
 `Mermaid-LICENSE-d3.txt` because the Vega-Lite package ships a different `LICENSE-d3.txt`). The public API, the scene
@@ -431,7 +431,7 @@ groups, and subgraphs), every edge (its length and 21 sampled points), the edge 
 8. **Interaction and animation.** `click`, `href`, `call`, callbacks, tooltips, and links are parsed and ignored
    (only the `clickable` class is kept; the links of a class diagram are checked as Mermaid's `strict` security level
    checks them, the only level modeled, and kept as data, and the `click` statements of a state diagram are kept as
-   data and never drawn); an animated edge is drawn as its first frame (dash `9,5`,
+   data, with their URLs checked by the same link check, and never drawn); an animated edge is drawn as its first frame (dash `9,5`,
    offset 900);
    `accTitle` and `accDescr` are metadata only.
 9. **CSS.** `style`, `classDef`, `linkStyle`, and `themeCSS` honor only the declarations that change pixels (fill,
@@ -532,7 +532,10 @@ groups, and subgraphs), every edge (its length and 21 sampled points), the edge 
     so on from a counter of the document, where Mermaid draws random numbers; the ids are never drawn, so only their
     order in the layout (which follows the counter in both) matters, and every render is the same.
 33. **State links and sanitizing.** The `click` statements of a state diagram are read and kept as data, never drawn
-    or bound, and nothing is reported for them. The labels and notes are always sanitized as Mermaid's `strict`
+    or bound, and nothing is reported for them. Mermaid keeps their URLs as written and leaves an unsafe one to the
+    clean-up of its finished picture; the library, which draws no link, keeps only the URL that sanitize-url gives
+    for the link the picture would carry (the quotes removed, the entity placeholders decoded), so an unsafe URL in
+    any encoding is kept only as `about:blank`. The labels and notes are always sanitized as Mermaid's `strict`
     security level sanitizes them, the only level modeled, whatever `securityLevel` the configuration gives.
 34. **The legacy state renderer.** A `stateDiagram` text whose `state.defaultRenderer` selects the legacy `state` id
     is read with the legacy database order and drawn by the unified renderer, with the same pixels as the

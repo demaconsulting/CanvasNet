@@ -23,7 +23,7 @@ errors as located `MermaidSyntaxException`s that list the expected tokens as jis
 The unit also holds the link check of the parsers' models (`UrlSanitizer`), grouped here because it is built from
 the same JavaScript semantics (JavaScript's white space, line terminators, `\w`, `trim`, and `toLowerCase`) as the
 matchers. A diagram can keep links (the `link` and `click ... href` of a class diagram, the `link` and `links` of a
-sequence participant), and a link whose scheme is `javascript`, `data`, or `vbscript` runs code where it is used.
+sequence participant, the `click` and `click ... href` of a state diagram), and a link whose scheme is `javascript`, `data`, or `vbscript` runs code where it is used.
 Mermaid refuses those schemes with sanitize-url, which first undoes every encoding that can hide a scheme; a check
 that undoes only the common encodings lets an encoded scheme through. `UrlSanitizer` is therefore an exact port of the
 whole of sanitize-url's `sanitizeUrl` (the version the pinned Mermaid bundles), shared by every diagram type, and a
@@ -142,7 +142,8 @@ positions of the scanner input, which map to the original text.
 `ScanPatterns`' JavaScript character classes are also used by
 `Preprocessor`, `DiagramDetector`, `FlowchartModel`, `ClassModel`, `LabelBuilder` of the `Rendering` subsystem, and
 the color parsers of the `Configuration` subsystem. `UrlSanitizer` is called by `ClassModel` of the `Class` subsystem
-(`link` and `click ... href`) and `SequenceModel` of the `Sequence` subsystem (`link` and `links`); `FlowchartModel`
+(`link` and `click ... href`), `SequenceModel` of the `Sequence` subsystem (`link` and `links`), and `StateModel` of
+the `State` subsystem (`click` and `click ... href`); `FlowchartModel`
 keeps no link, so a flowchart needs no check. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs` drive a small grammar through the unit via
 `InternalsVisibleTo`, and check `UrlSanitizer` with the inputs of sanitize-url's own tests and further encoded forms,

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DemaConsulting.CanvasNet.Mermaid.State;
 using DemaConsulting.CanvasNet.Mermaid.Tests.Configuration;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.State;
@@ -6,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.State;
 /// <summary>
 ///     The upstream vectors of the state parser and model: every case of <c>state-parser.json</c>, recorded from the
 ///     pinned Mermaid by <c>gen-diagram-vectors.mjs --type state</c>, must give exactly Mermaid's database facts, its
-///     translated statement tree and the facts of its <c>getData()</c>, or fail where Mermaid fails.
+///     translated statement tree and the facts of its <c>getData()</c> (with the URL of a click compared as the library
+///     checks it), or fail where Mermaid fails.
 /// </summary>
 public sealed class StateVectorTests
 {
@@ -70,8 +72,63 @@ public sealed class StateVectorTests
         }
 
         Assert.True(failure is null, $"{name}: {failure?.Message}");
-        var difference = UpstreamVectors.Difference(expected, actual);
+        var difference = UpstreamVectors.Difference(WithCheckedUrls(expected), actual);
         Assert.True(difference is null, $"{name}: {difference}");
+    }
+
+    /// <summary>
+    ///     Gets Mermaid's facts with the URL of every click (in <c>links</c> and in the click statements of
+    ///     <c>rootDoc</c>) as the library keeps it. Mermaid keeps the URL as written, quotes included, and never checks it
+    ///     with sanitize-url; the library keeps only <see cref="StateModel.CheckLink(string)"/> of it, so the recorded URL
+    ///     is compared as that check gives it (sanitize-url of the URL Mermaid's picture would carry). Every other fact,
+    ///     the tooltip included, is compared as recorded.
+    /// </summary>
+    /// <param name="expected">Mermaid's facts; not changed.</param>
+    /// <returns>A copy of the facts with the checked URLs.</returns>
+    private static JsonObject WithCheckedUrls(JsonObject expected)
+    {
+        var result = expected.DeepClone().AsObject();
+        foreach (var link in result["links"]?.AsArray() ?? [])
+        {
+            CheckUrl(link);
+        }
+
+        foreach (var statement in result["rootDoc"]?.AsArray() ?? [])
+        {
+            CheckClicks(statement);
+        }
+
+        return result;
+    }
+
+    /// <summary>Replaces the URL of every click statement of a statement and its documents with the checked URL.</summary>
+    /// <param name="statement">The statement facts.</param>
+    private static void CheckClicks(JsonNode? statement)
+    {
+        if (statement is not JsonObject facts)
+        {
+            return;
+        }
+
+        if ((string?)facts["stmt"] == "click")
+        {
+            CheckUrl(facts);
+        }
+
+        foreach (var child in facts["doc"]?.AsArray() ?? [])
+        {
+            CheckClicks(child);
+        }
+    }
+
+    /// <summary>Replaces a recorded URL with the checked URL.</summary>
+    /// <param name="facts">The facts that hold the URL.</param>
+    private static void CheckUrl(JsonNode? facts)
+    {
+        if (facts is JsonObject holder && holder["url"] is JsonValue value && value.TryGetValue<string>(out var url))
+        {
+            holder["url"] = StateModel.CheckLink(url);
+        }
     }
 
     /// <summary>

@@ -570,8 +570,9 @@ labels. The known differences from Mermaid are:
   a `mermaid-style-ignored` warning; the radii of Mermaid's own style sheet are drawn.
 - **Security.** `securityLevel` changes nothing (no script ever runs), and the texts of class and state diagrams are
   always cleaned as at Mermaid's `strict` level. The links a diagram keeps as data (the `link` and `click ... href` of
-  a class diagram, the `link` and `links` of a sequence participant) are always checked as Mermaid's `strict` level
-  checks them, with Mermaid's own link check (sanitize-url), even when the configuration asks for `loose`: a
+  a class diagram, the `link` and `links` of a sequence participant, the `click` and `click ... href` of a state
+  diagram) are always checked as Mermaid's `strict` level checks them, with Mermaid's own link check (sanitize-url),
+  even when the configuration asks for `loose`: a
   `javascript:`, `data:`, or `vbscript:` link, however it is encoded (character references, tabs or control characters
   inside the scheme, percent escapes), is kept only as `about:blank`. YAML anchors, aliases, and tags are refused,
   although Mermaid's YAML reader accepts them.
@@ -637,8 +638,8 @@ configuration defaults, themes, shapes, edges, labels, and layouts are ports of 
 - **lodash** (Copyright OpenJS Foundation and other contributors): the sort and extremum rules the layout depends on;
 - **marked** (Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey): the Markdown of labels;
 - **d3-shape** and **d3-path** (ISC, Copyright Mike Bostock): the edge curves;
-- **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links that class and
-  sequence diagrams keep, which are never drawn.
+- **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links that class,
+  sequence, and state diagrams keep, which are never drawn.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
 assembly), and `src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md` records what was ported, from which

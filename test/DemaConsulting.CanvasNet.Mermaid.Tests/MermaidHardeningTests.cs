@@ -654,8 +654,9 @@ public class MermaidHardeningTests
 
     /// <summary>
     ///     Gets diagrams of every type that has links (class <c>link</c> and <c>click ... href</c>, flowchart <c>click</c>
-    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>), each with encoded forms of unsafe links that a partial
-    ///     check lets through: a tab inside the scheme, a percent-encoded letter, an escaped white space, and mixed case.
+    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>, state <c>click</c> and <c>click ... href</c>), each with
+    ///     encoded forms of unsafe links that a partial check lets through: a tab inside the scheme, a percent-encoded
+    ///     letter, an escaped white space, a character reference, and mixed case.
     /// </summary>
     public static TheoryData<string> UnsafeLinkDiagrams =>
     [
@@ -663,6 +664,8 @@ public class MermaidHardeningTests
         "link C \"JaVa&Tab;ScRiPt&colon;alert(3)\"\n",
         "flowchart TD\nA --> B\nclick A href \"java\tscript:alert(1)\" \"tip\" _blank\nclick B \"%6Aavascript:alert(2)\"\n",
         "sequenceDiagram\nparticipant A\nlink A: Docs @ %6Aavascript:alert(1)\nlinks A: {\"Run\": \"javascrip\\\\%74t:alert(2)\", \"Go\": \"JaVaScRiPt:alert(3)\"}\nA->>A: hi\n",
+        "stateDiagram-v2\nA --> B\nB --> C\nC --> D\nclick A \"java\tscript:alert(1)\" \"tip\"\nclick B href \"%6Aavascript:alert(2)\"\n" +
+        "click C href \"JaVa&Tab;ScRiPt&colon;alert(3)\"\nclick D \"&#106;avascript:alert(4)\" \"tip\"\n",
     ];
 
     /// <summary>
@@ -695,8 +698,9 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
-    ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram and the link texts of the
-    ///     participants of a sequence diagram (a flowchart keeps none).
+    ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram, the link texts of the
+    ///     participants of a sequence diagram, and the URLs of the links and click statements of a state diagram (a
+    ///     flowchart keeps none).
     /// </summary>
     /// <param name="document">The document.</param>
     /// <returns>The kept links.</returns>
@@ -704,6 +708,8 @@ public class MermaidHardeningTests
     {
         global::DemaConsulting.CanvasNet.Mermaid.Class.ClassModel model => [.. model.Classes.Where(c => c.Link is not null).Select(c => c.Link)],
         global::DemaConsulting.CanvasNet.Mermaid.Sequence.SequenceModel model => [.. model.Actors.SelectMany(a => a.Links.Keys.Select(key => a.Links.TryGetValue(key, out var value) ? (string?)value : null))],
+        global::DemaConsulting.CanvasNet.Mermaid.State.StateModel model =>
+            [.. model.Links.Select(l => l.Url), .. model.RootDocument.Where(s => s.Stmt == "click").Select(s => s.Url)],
         _ => [],
     };
 

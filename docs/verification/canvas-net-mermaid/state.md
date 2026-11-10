@@ -54,8 +54,8 @@ transition to `Active:::warm`, a composite state `Active` with two concurrent re
 `[*] --> CapsOff`), a note on `Active`, and a click gives the database states `root_start` and `Active`, the layout
 nodes `root_start`, `Active`, `divider-id-1`, `divider-id-1_start`, `NumOff`, `id-random-1`, `id-random-1_start`,
 `CapsOff`, `Active----parent`, and `Active----note-3` in that order, the compiled style `fill:#f96` on `Active`, the
-edges `edge0`, `edge1`, `edge2`, and `Active-Active----note-3`, and one link whose URL is kept as data with its quotes
-(`"https://example.com"`).
+edges `edge0`, `edge1`, `edge2`, and `Active-Active----note-3`, and one link whose URL is kept as data only as the
+shared link check gives it, without its quotes (`https://example.com/`).
 
 #### CanvasNetMermaid-State-Metadata: Metadata Without Rendering
 

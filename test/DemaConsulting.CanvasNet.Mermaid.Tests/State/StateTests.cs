@@ -79,7 +79,7 @@ public class StateTests
             data.Nodes.Select(n => n.Id));
         Assert.Equal(["fill:#f96"], data.Nodes[1].CssCompiledStyles);
         Assert.Equal(["edge0", "edge1", "edge2", "Active-Active----note-3"], data.Edges.Select(e => e.Id));
-        Assert.Equal("\"https://example.com\"", Assert.Single(model.Links).Url);
+        Assert.Equal("https://example.com/", Assert.Single(model.Links).Url);
     }
 
     /// <summary>

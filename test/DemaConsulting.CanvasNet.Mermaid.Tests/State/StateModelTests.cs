@@ -435,6 +435,92 @@ public class StateModelTests
     }
 
     /// <summary>
+    ///     Gets click URLs as written (with their quotes) and what the model keeps of them: safe links as sanitize-url
+    ///     writes them, and <c>about:blank</c> for an empty URL and for every encoded form of an unsafe scheme. A
+    ///     reference sanitize-url cannot read as a number (<c>&amp;#x6A;</c>, where JavaScript's <c>Number</c> needs
+    ///     <c>0x</c>) becomes U+0000 and is removed, so the scheme is no longer <c>javascript</c>.
+    /// </summary>
+    public static TheoryData<string, string> ClickUrlCases => new()
+    {
+        { "\"google.com\"", "google.com" },
+        { "\"https://Example.com\"", "https://example.com/" },
+        { "\"./docs/page.html\"", "./docs/page.html" },
+        { "\"\"", "about:blank" },
+        { "\"javascript:alert(1)\"", "about:blank" },
+        { "\"&#x6A;avascript:alert(1)\"", "avascript:alert(1)" },
+        { "\"&#0x6A;avascript:alert(1)\"", "about:blank" },
+        { "\"&#106;avascript:alert(1)\"", "about:blank" },
+        { "\"&\ufb02\u00b0\u00b0106\u00b6\u00dfavascript:alert(1)\"", "about:blank" },
+        { "\"java&#9;script:alert(1)\"", "about:blank" },
+        { "\"java\tscript:alert(1)\"", "about:blank" },
+        { "\"%6Aavascript:alert(1)\"", "about:blank" },
+        { "\"javascript&colon;alert(1)\"", "about:blank" },
+        { "\"JaVa&Tab;ScRiPt&CoLoN;alert(1)\"", "about:blank" },
+        { "\"JAVASCRIPT:alert(1)\"", "about:blank" },
+        { "\"data:text/html;base64,PHNjcmlwdD4=\"", "about:blank" },
+        { "\"  DaTa:text/html,x  \"", "about:blank" },
+        { "\"vbscript:msgbox(1)\"", "about:blank" },
+        { "\"VbScRiPt&colon;msgbox(1)\"", "about:blank" },
+    };
+
+    /// <summary>
+    ///     Validates that the URL of a click is kept only as sanitize-url checks it, never as written: the quotes are
+    ///     removed as Mermaid's renderer removes them, Mermaid's entity placeholders are decoded, and an encoded unsafe
+    ///     scheme is <c>about:blank</c>.
+    /// </summary>
+    /// <param name="url">The URL as written, with its quotes.</param>
+    /// <param name="expected">The URL the model keeps.</param>
+    [Theory]
+    [MemberData(nameof(ClickUrlCases))]
+    public void StateModel_CheckLink_ClickUrl_KeepsOnlyTheCheckedUrl(string url, string expected)
+    {
+        // Act
+        var checkedUrl = StateModel.CheckLink(url);
+
+        // Assert
+        Assert.Equal(expected, checkedUrl);
+    }
+
+    /// <summary>
+    ///     Validates through the source that the links of click statements, and the click statements of the statement
+    ///     tree, keep only the checked URL: every encoded form of an unsafe scheme (character references, which reach
+    ///     the model as Mermaid's entity placeholders, a tab or a tab reference inside the scheme, a percent-encoded
+    ///     letter, <c>&amp;colon;</c>, mixed case, <c>data:</c> and <c>vbscript:</c>) is <c>about:blank</c>, a safe URL is
+    ///     written as sanitize-url writes it, and the tooltip is kept as Mermaid keeps it. A reference that Mermaid's entity
+    ///     encoding changes (<c>&amp;#x6A;</c> loses its <c>#</c>, <c>&amp;#9;</c> gains a second <c>&amp;</c>) reaches the
+    ///     check, as it would reach the picture, as text whose scheme is no longer <c>javascript</c>, and is kept as
+    ///     sanitize-url gives it.
+    /// </summary>
+    [Fact]
+    public void StateModel_SetRootDocument_EncodedUnsafeClicks_KeepOnlyTheCheckedUrls()
+    {
+        // Arrange
+        (string State, string Statement, string Url)[] cases =
+        [
+            ("A", "click A \"&#x6A;avascript:alert(1)\" \"tip\"", "&&x6A;avascript:alert(1)"),
+            ("B", "click B href \"&#106;avascript:alert(1)\"", "about:blank"),
+            ("C", "click C \"java&#9;script:alert(1)\" \"tip\"", "java&script:alert(1)"),
+            ("D", "click D href \"java\tscript:alert(1)\"", "about:blank"),
+            ("E", "click E href \"%6Aavascript:alert(1)\"", "about:blank"),
+            ("F", "click F \"javascript&colon;alert(1)\" \"tip\"", "about:blank"),
+            ("G", "click G href \"JaVa&Tab;ScRiPt&CoLoN;alert(1)\"", "about:blank"),
+            ("H", "click H href \"data:text/html;base64,PHNjcmlwdD4=\"", "about:blank"),
+            ("I", "click I href \"vbscript:msgbox(1)\"", "about:blank"),
+            ("J", "click J \"https://Example.com/a/../b c\" \"tip\"", "https://example.com/b%20c"),
+        ];
+        var text = "stateDiagram-v2\n" + string.Concat(cases.Select(c => c.State + "\n")) + string.Concat(cases.Select(c => c.Statement + "\n"));
+
+        // Act
+        var model = StateFacts.Parse(text);
+
+        // Assert: the links and the click statements keep the checked URL alone
+        var clicks = model.RootDocument.Where(s => s.Stmt == "click").ToList();
+        Assert.Equal(cases.Select(c => (c.State, c.Url)), model.Links.Select(l => (l.Target.Id, l.Url)));
+        Assert.Equal(cases.Select(c => c.Url), clicks.Select(s => s.Url));
+        Assert.Equal("\"tip\"", model.Links[0].Tooltip);
+    }
+
+    /// <summary>
     ///     Validates the metadata the model reports: the states (the start, end, fork and choice states included) are
     ///     counted as nodes, the transitions as edges and the composite states as subgraphs, while notes, note groups,
     ///     note links and concurrent regions are not; the direction is the last top-level statement's, the accessible

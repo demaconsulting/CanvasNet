@@ -523,10 +523,13 @@ of 2,000 fails with `mermaid-limit-exceeded` naming `MaxLayoutWork`.
 
 Opens and renders, through the public API, a class diagram (`link` with a tab inside the scheme, `click ... href` with a
 percent-encoded letter, `link` with `&Tab;` and `&colon;` in mixed case), a flowchart (`click ... href` with a tab and
-`click` with a percent-encoded letter), and a sequence diagram (`link` with a percent-encoded letter, `links` with an
-escaped white space and a mixed-case scheme), each with a tooltip or target where the statement allows one (a theory
-with one case for each). Asserts that each renders a picture, that no report, hint, title, or accessible title carries
-the link, and that the only links the parsed diagram keeps are `about:blank` (the flowchart keeps none).
+`click` with a percent-encoded letter), a sequence diagram (`link` with a percent-encoded letter, `links` with an
+escaped white space and a mixed-case scheme), and a state diagram (`click` with a tab inside the scheme,
+`click ... href` with a percent-encoded letter, `click ... href` with `&Tab;` and `&colon;` in mixed case, and `click`
+with the character reference `&#106;`), each with a tooltip or target where the statement allows one (a theory with
+one case for each). Asserts that each renders a picture, that no report, hint, title, or accessible title carries
+the link, and that the only links the parsed diagram keeps are `about:blank` (for the state diagram, in its links
+and in its click statements alike; the flowchart keeps none).
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 

@@ -138,7 +138,8 @@ the image limits of the shared rendering.
 
 **Known differences from Mermaid** are listed in each unit design and in _CanvasNetMermaid System Design_: errors and
 limits are located CanvasNet exceptions with hints; the region ids are `id-random-N`; the click statements are kept
-only as data, never drawn or bound; texts are always sanitized as Mermaid sanitizes them at its strict security level,
+only as data, never drawn or bound, their URLs only as the shared link check gives them (Mermaid keeps them as
+written); texts are always sanitized as Mermaid sanitizes them at its strict security level,
 the only level modeled; the accessibility texts are metadata only; the legacy renderer is drawn by the unified renderer
 and reported; parent cycles and a note on a state that appears nowhere before it fail, located, where Mermaid's render
 fails; and other looks and layouts are reported and drawn in the classic look with dagre.

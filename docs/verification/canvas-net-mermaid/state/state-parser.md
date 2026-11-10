@@ -13,7 +13,9 @@ The unit is verified in two ways. `StateVectorTests` parses the 157 cases of
 valid texts the facts of Mermaid's state diagram (the type, the direction of `getDirection`, the accessibility texts,
 the translated statement tree `rootDoc`, the states, the transitions, the style classes, the links, and the direction,
 nodes, and edges of its `getData()`) must equal the facts of the parsed model under the configuration resolved as
-Mermaid resolves it with the case's site configuration, and for each of the 12 invalid texts the error must be
+Mermaid resolves it with the case's site configuration (the URL of each link and click statement compared as the
+model's link check gives it for Mermaid's recorded URL, since Mermaid keeps the URL as written, quotes included, and
+the library keeps only the checked URL), and for each of the 12 invalid texts the error must be
 Mermaid's: the same unexpected token and the same expected tokens in jison's order for a grammar error (7 cases), an
 unrecognized-text error for a lexical error (1 case), and Mermaid's own message for an error Mermaid throws without a
 token (4 cases: three single-word errors of the lexer and the group error of the database), always located. jison's

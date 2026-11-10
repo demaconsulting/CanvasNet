@@ -116,7 +116,8 @@ out, as Mermaid's `$2 != 'nl'` check does.
 - **`ParseNote`** reads `note left of id : text`, `note right of id : text`, or a multi-line note into a `state`
   statement with a `StateNote`, or a floating note `note "text" as id`, which is checked and kept as text.
 - **`ParseClick`** reads `click id "url" "tooltip"` or `click id href "url"`, ended by a line break, and keeps the
-  target, the URL, and the tooltip (with their quotes) for the model, which never draws them.
+  target, the URL only as `StateModel.CheckLink` checks it (never as written), and the tooltip (with its quotes) for
+  the model, which never draws them.
 - **`CheckEnd`**, **`CheckLookahead`**, **`Is`**, **`IsEnd`**, **`Advance`**, **`Expect`**, **`ExpectAny`**, and
   **`Fail`**: `CheckLookahead` refuses a token outside the set a state reduces on (the end of the tokens is accepted
   where jison reduces on it but never listed), `Is` tests the lookahead, `Advance` consumes a token, `Expect` and
