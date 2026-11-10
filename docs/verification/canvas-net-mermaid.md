@@ -9,8 +9,8 @@ This document describes the system-level verification strategy for CanvasNetMerm
 `CanvasNet` package (no other format package, so the tests stay independent of the Viewer):
 
 - **System tests** (described here) use only the public API, as a consumer would: they open original-work diagrams
-  from in-memory text, streams, temporary files, the 42 flowchart fixtures in `Fixtures/flowchart/`, and the 24
-  sequence fixtures in `Fixtures/sequence/` with
+  from in-memory text, streams, temporary files, the 42 flowchart fixtures in `Fixtures/flowchart/`, the 24
+  sequence fixtures in `Fixtures/sequence/`, and the 16 class fixtures in `Fixtures/class/` with
   `MermaidDocument.Parse` and `MermaidDocument.Open`, supply `MermaidOpenOptions`, `MermaidRenderOptions`, and
   `MermaidLimits`, and assert on observable outputs: the metadata properties, the sizes, sampled pixels of the
   rendered `Surface`, the reports delivered to the handlers, and the exceptions with their codes, locations, and
@@ -18,8 +18,10 @@ This document describes the system-level verification strategy for CanvasNetMerm
   pictures, reports, image source, notices, cancellation, concurrency), `MermaidFlowchartIntegrationTests` (every
   fixture in strict mode, theme and style pixels, scale, background, exact size, determinism, cancellation),
   `MermaidSequenceIntegrationTests` (every sequence fixture in strict mode, theme pixels, look, math, and icon reports,
-  scale, work limit, determinism, cancellation), `MermaidReferenceLayoutTests` and
-  `MermaidSequenceReferenceLayoutTests` (the layout goldens), `MermaidHardeningTests` (limits and seeded mutation
+  scale, work limit, determinism, cancellation), `MermaidClassIntegrationTests` (every class fixture in strict mode,
+  metadata, theme, classifier, and style pixels, look, layout, and style reports, the legacy renderer, scale, work
+  limit, determinism, cancellation), `MermaidReferenceLayoutTests` (the flowchart and class layout goldens) and
+  `MermaidSequenceReferenceLayoutTests` (the sequence layout goldens), `MermaidHardeningTests` (limits and seeded mutation
   fuzzers), `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw), and `MermaidGalleryTests`
   (the diagrams of the documentation gallery). They are named `CanvasNetMermaid_<Area>_<Scenario>_<Result>`.
 - **Subsystem tests** (`{Subsystem}Tests.cs` in each folder) and **unit tests** (`{Unit}Tests.cs`) are described in
@@ -40,7 +42,11 @@ Two kinds of upstream evidence make the fidelity objective:
   (`Fixtures/reference/sequence/*.layout.json`) are extracted the same way from every sequence fixture; the system
   test compares the view box, the title, every participant drawing with its parts, paint, and labels, the lifelines,
   every message line or sampled self loop with its markers, texts, sequence number, and circles, the notes,
-  activations, block frames, `rect` backgrounds, boxes, menus, and the paint order.
+  activations, block frames, `rect` backgrounds, boxes, menus, and the paint order. The class goldens
+  (`Fixtures/reference/class/*.layout.json`) are extracted the same way from every class fixture; the system test
+  compares the view box, every node's position and box and each drawn part of each class box, the namespace
+  rectangles and titles, every edge (its length and 21 sampled points), the edge label centers, the terminal label
+  positions, and the title box.
 
 The goldens and vectors are committed; CI only compares. `benchmarks/visual-diff/compare-with-mermaid.ps1` produces
 side-by-side pictures for a manual visual review and never gates.
@@ -63,7 +69,8 @@ side-by-side pictures for a manual visual review and never gates.
 A system-level test run passes when every scenario below passes on every target framework and platform without an
 exception beyond those explicitly asserted. A layout that differs from a golden beyond its documented tolerance
 (0.01 pixel, 0.1 pixel for the two fixtures with rough.js circles; for the sequence goldens 0.01 pixel, 0.02 pixel for
-text boxes and cylinder arcs), a fixture that gives a report it should not give
+text boxes and cylinder arcs; for the class goldens 0.01 pixel, 0.23 pixel for `16-config-title-links`, whose class
+texts are SVG text), a fixture that gives a report it should not give
 in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the mutation
 fuzzer, or two renders of the same document that differ constitutes a failure.
 
@@ -81,20 +88,26 @@ by its path.
 ### CanvasNetMermaid-DiagramMetadata: A Diagram Describes Itself
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Metadata_Flowchart_DescribesTheDiagram`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint`
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Metadata_CountsClassesRelationsAndNamespaces`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Metadata_CountsTheDrawnNamespaces`
 
 Asserts the type, the supported flag, the frontmatter title, the accessible title, the direction, and the node, edge,
 and subgraph counts of a flowchart without rendering it, and the type and the unsupported flag of other known
-diagram types.
+diagram types. For a class diagram with a namespace, two classes, two relations (one to a lollipop interface), and a
+note, asserts the type `class`, the supported flag, the counts 2, 2, and 1 (notes, interfaces, and note links are not
+counted), the direction `LR`, and no title; and that `namespace Geo.Plane` counts 2 namespaces by default and 1 when
+the frontmatter sets `class.hierarchicalNamespaces: false`, each equal to the number of clusters drawn.
 
 ### CanvasNetMermaid-SyntaxErrors: Invalid Text Fails Closed With A Location And A Hint
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_SyntaxErrors_AreLocatedCodedAndHinted`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions`
 
 Asserts the `mermaid-syntax-error` code, the source name, the line, the expected tokens, and the message prefix of an
 unclosed label, and the `mermaid-unknown-diagram` code with a hint naming `flowchart` for a misspelled keyword; the
-fuzzer asserts that mutated fixtures only ever raise the documented exception types.
+fuzzers assert that mutated flowchart and class fixtures only ever raise the documented exception types.
 
 ### CanvasNetMermaid-Configuration: The Text Overrides The Caller
 
@@ -109,19 +122,23 @@ replaces the caller's theme and the directive replaces the frontmatter.
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Theme_ChangesTheNodeFill`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors`,
-`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Theme_ChangesTheParticipantFill`
+`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Theme_ChangesTheParticipantFill`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_DefaultTheme_PaintsMermaidsColors`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Theme_ChangesTheBoxFill`
 
 Asserts the default theme's node fill `#ECECFF`, node border `#9370DB`, arrowhead `#333333`, and subgraph fill
 `#ffffde` at sampled pixels, and the node fill of the `dark`, `forest`, and `neutral` themes; for a sequence diagram
 rendered at scale 4, the participant fill `#ECECFF` and border `#9370DB`, the note fill `#fff5ad`, the activation fill
 `#f4f4f4`, and the arrowhead `#333333`, and the participant fill of the `default`, `dark`, `forest`, and `neutral`
-themes (`#ECECFF`, `#1F2020`, `#CDE498`, and `#EEEEEE`).
+themes (`#ECECFF`, `#1F2020`, `#CDE498`, and `#EEEEEE`); for a class diagram rendered at scale 4, the class box fill
+`#ECECFF`, the divider in the node border `#9370DB`, the composition marker filled with the line color `#333333`, and
+the extension marker left hollow, and the class box fill of the same four themes at scale 2.
 
 ### CanvasNetMermaid-Flowcharts: Every Fixture Draws Strictly
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Fixture_RendersStrictly`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_ClassDefAndStyle_PaintTheNodes`,
-`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings` (a theory with one case
 for each file)
 
@@ -130,8 +147,9 @@ HTML labels, unicode, long labels, many nodes) in strict mode and asserts that i
 renders, and gives no report other than the documented missing-glyph warning of `38-unicode`; asserts the pixels of
 `classDef`, `class`, and `style` declarations. The diagrams of the documentation gallery
 (`docs/user_guide/examples/mermaid-*.mmd`, copied next to the test assembly as `Gallery`) are checked the same way: the
-first test asserts that there are at least six, that each opens as a supported flowchart or sequence diagram, and that
-both types are shown; the theory renders each
+first test asserts that there are at least twelve, that each opens as a supported diagram of a type this version
+draws (a flowchart, a sequence diagram, or a class diagram), and that every drawn type is shown; the theory renders
+each
 with `ThrowOnUnsupportedFeature = true`, a warning handler, and a resolver that gives a solid picture for every link,
 and asserts that no warning is raised, that the surface has the measured size, that more than one pixel in fifty
 differs from the corner pixel, and that the pictures diagram asks the resolver for its `.scad`, `.svg`, and `.vl.json`
@@ -141,7 +159,7 @@ links.
 
 **Tests**: `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Fixture_RendersStrictly` (a theory with one case
 for each file), `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors`,
-`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
 
 Opens each of the 24 sequence fixtures by its path (the arrows, participant types, aliases and metadata, activations,
@@ -151,30 +169,53 @@ asserts that the surface has the measured size, is not fully transparent, and th
 default theme's pixels of a sequence diagram are asserted as above; and the gallery holds sequence diagrams that render
 strictly without warnings.
 
+### CanvasNetMermaid-ClassDiagrams: Every Class Fixture Draws Strictly
+
+**Tests**: `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Fixture_RendersStrictly` (a theory with one
+case for each file), `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_ClassifiersAndStyles_StyleTheBox`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_LegacyRenderer_IsDrawnTheSame`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
+
+Opens each of the 16 class fixtures by its path (classes, members and methods, visibility and classifiers, generics,
+annotations, every relation form, two-way relations, cardinalities and labels, lollipop interfaces, namespaces,
+notes, directions, `classDef`, `cssClass`, and `style`, labels and backticked names, `hideEmptyMembersBox`, and a
+frontmatter title with `htmlLabels: false`, `click`, `link`, and `callback`) and renders it in strict mode, and
+asserts the type `class`, that the surface has the measured size, is not fully transparent, and that no report or
+warning is given; asserts that a static member is drawn underlined and not italic, an abstract member italic and not
+underlined, the class name bold, and that `style Dog fill:#ff0000` fills that class box red at its pixels; asserts
+that a text whose `class.defaultRenderer` selects the legacy `class` id has that type and the same pixels as the
+current renderer; and the gallery holds class diagrams that render strictly without warnings.
+
 ### CanvasNetMermaid-LayoutFidelity: The Layout Matches Mermaid
 
 **Tests**: `MermaidReferenceLayoutTests.CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid`,
 `MermaidReferenceLayoutTests.CanvasNetMermaid_Flowchart_ReferenceGoldens_CoverEveryFixture`,
 `MermaidSequenceReferenceLayoutTests.CanvasNetMermaid_SequenceReferenceLayout_MatchesMermaid`,
-`MermaidSequenceReferenceLayoutTests.CanvasNetMermaid_Sequence_ReferenceGoldens_CoverEveryFixture`
+`MermaidSequenceReferenceLayoutTests.CanvasNetMermaid_Sequence_ReferenceGoldens_CoverEveryFixture`,
+`MermaidReferenceLayoutTests.CanvasNetMermaid_ClassDiagram_ReferenceLayout_MatchesMermaid`,
+`MermaidReferenceLayoutTests.CanvasNetMermaid_ClassDiagram_ReferenceGoldens_CoverEveryFixture`
 
 Compares the scene of each fixture with its mermaid-cli golden within the documented tolerance, and asserts that
 every fixture has a golden except the documented `38-unicode` exclusion; compares the scene of each sequence fixture
 with its golden (the view box, the title, the participants and their parts, paint, and labels, the lifelines, the
 messages with their markers, texts, numbers, and circles, the notes, activations, frames, backgrounds, boxes, menus,
 and the paint order) within the documented tolerances and allowances, and asserts that every sequence fixture has a
-golden.
+golden; compares the scene of each class fixture with its golden (the view box, the nodes and the parts of each class
+box, the namespaces with their titles, the edges, the edge labels, the terminal labels, and the title box) at 0.01
+pixel, 0.23 pixel for `16-config-title-links`, and asserts that every class fixture has a golden.
 
 ### CanvasNetMermaid-MeasureRender: Natural Size, Scale, Exact Size, And Background
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Scale_KeepsTheDrawing`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Scale_MultipliesTheNaturalSize`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Scale_MultipliesTheNaturalSize`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Background_IsTransparentByDefault`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_FixedSize_FitsTheDiagram`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_InvalidSize_Throws`
 
-Asserts that a scale multiplies the natural size and keeps the drawing, that the natural size of a sequence diagram is
-its view box rounded up and doubles at scale 2, that the corners are transparent without a
+Asserts that a scale multiplies the natural size and keeps the drawing, that the natural size of a sequence diagram
+and of a class diagram is its view box rounded up and doubles at scale 2, that the corners are transparent without a
 background and take the background color when one is given, that an exact size gives a picture of exactly that size
 with the drawing in it, and that an invalid size is rejected.
 
@@ -189,25 +230,33 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 ### CanvasNetMermaid-UnsupportedFeatures: Reported Once, In Order, And Strict Mode
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Reports_AreCodedAndLocated`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_ClassDiagram_ReportsOnceAndDrawsTransparentPlaceholder`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_ClassDiagramStrict_Throws`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Measure_ClassDiagram_ReportsAndGivesScaledPlaceholderSize`,
-`MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_ClassDiagramWithBackground_FillsBackground`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_PieChart_ReportsOnceAndDrawsTransparentPlaceholder`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_PieChartStrict_Throws`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_Measure_PieChart_ReportsAndGivesScaledPlaceholderSize`,
+`MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_PieChartWithBackground_FillsBackground`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_FailingHandler_Propagates`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_NeoLook_IsReportedAndDrawnClassic`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Math_IsReportedAndDrawnAsText`,
-`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_PropertiesIcon_IsReportedOrFails`
+`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_PropertiesIcon_IsReportedOrFails`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_HandDrawnLook_IsReportedAndDrawnClassic`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_ElkLayout_IsReportedAndLaidOutWithDagre`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_UserStyleIgnored_IsReportedButDiagramStylesAreNot`
 
 Asserts the `mermaid-look-unsupported` report at its frontmatter line and the `mermaid-style-ignored` warning at the
-styled node while the diagram is drawn; that a class diagram gives one located report with the planned hint and a
+styled node while the diagram is drawn; that a pie chart gives one located report with the planned hint and a
 transparent 16 by 16 picture (scaled by the scale, filled by a background), throws in strict mode, and that every
 other known type does the same with its own hint; and that a failing handler's exception reaches the caller. For a
 sequence diagram, asserts that the `neo` look is reported once and drawn with the same pixels as the classic look and
 throws in strict mode; that `$$` math is reported once as `mermaid-math-unsupported` at its message (line 3) and
 throws in strict mode; and that a `properties` icon that names an image is reported as `mermaid-icon-unsupported`, a
 symbol reference (`@server`, which Mermaid cannot find either) is not reported, and an icon that is not text fails
-with `mermaid-render-failed` at the participant (line 2), as Mermaid fails.
+with `mermaid-render-failed` at the participant (line 2), as Mermaid fails. For a class diagram, asserts that the
+`handDrawn` look is reported once as `mermaid-look-unsupported`, drawn with the same pixels as the classic look, and
+refused in strict mode; that `layout: elk` is reported once as `mermaid-layout-unsupported` and drawn with the same
+pixels as dagre; and that `style A cursor:pointer` is one `mermaid-style-ignored` warning at line 2 (the class's first
+mention) while the styles the diagram writes itself (the note colors, the opacity of a lollipop interface) give no
+report.
 
 ### CanvasNetMermaid-Limits: Hostile Input Is Bounded
 
@@ -231,7 +280,19 @@ with `mermaid-render-failed` at the participant (line 2), as Mermaid fails.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedSequenceFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceTinyFitScale_Renders`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceHugeStrokeWidth_ShadowIsTheFillsShadow`,
-`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded`
+`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_WorkLimit_FailsWithLimitExceeded`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileClassDiagram_RendersOrFailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassWithManyMembers_RendersOrHitsTheWorkLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassTooManyNamespaces_IsALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNestedNamespaceIds_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassDottedNamespacesTooDeep_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassRepeatedClassesAndStyles_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNamespacesChainedByClassNames_AreALocatedLimit`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
 `InvalidDataException` for too long text, refusal of a YAML alias bomb, a label limit that can be raised, a complete
@@ -254,27 +315,58 @@ documented exception types; and that a sequence diagram whose stroke widths roun
 it is fitted to 400 by 300 pixels (a width of 1e300, or an actor margin of 1e60) renders; and that a box around
 participants and a forced menu panel, both with a drop shadow, given a stroke width of 1e300, 1e30, or 40,000 pixels by
 `themeCSS` (`g rect.rect` or `.actorPopupMenuPanel`), render without an exception and with the same pixels as with a
-stroke width of zero (the stroke is not drawn and the shadow is that of the fill).
+stroke width of zero (the stroke is not drawn and the shadow is that of the fill). For class diagrams, asserts that
+hostile settings (paddings, spacings, and font sizes of 1e300 or 1e-308, a dash of 1e300, cardinalities on a self-loop,
+markup in a note) render fitted to 400 by 300 pixels or fail with a located render error; that a class of 1,500
+members renders with the default work budget and fails with `mermaid-limit-exceeded` under a small one; that a seeded
+mutation fuzzer over the class fixtures only ever raises the documented exception types; that 1,000 namespaces of one
+class each fail at the next namespace (line 3,002) with `MaxNodes`; that two nested namespaces of 3,000-character names
+(a 6,001-character qualified id) and a 3,000-character label on a class with a 3,000-character generic type fail with
+`MaxLabelLength` at their line; that a namespace name of 33 dotted parts and one of 1,000 dotted parts (which once
+overflowed the stack) fail at their line (line 2) with `MaxNestingDepth`, as do 17 nested namespaces of two-part names
+at the 17th (line 18), while a name of 32 parts and 16 nested namespaces of two-part names render with 32 subgraphs;
+that note theme variables set to a number or a boolean by a directive or the frontmatter render without an exception;
+that CSS classes and styles repeated on one class (a class listed 1,000 times in three `cssClass` statements, a style
+class listed 2,000 times in one `classDef`, two style classes or two `style` statements of 2,099 characters each)
+fail at open with `MaxLabelLength` at the statement that makes them too long; that 32 namespaces chained by class
+names (namespace `Ni` holds a class named `N(i+1)`) render while 40 fail when measured with `mermaid-limit-exceeded`
+and the message `namespaces are nested deeper than 32 levels`, located at `class N33` (line 99); and that a class
+diagram under a small work limit fails with `mermaid-limit-exceeded`.
+
+### CanvasNetMermaid-UnsafeLinks: Encoded Unsafe Links Are Checked And Never Exposed
+
+**Tests**: `MermaidHardeningTests.CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput`
+
+Opens and renders, through the public API, a class diagram (`link` with a tab inside the scheme, `click ... href` with a
+percent-encoded letter, `link` with `&Tab;` and `&colon;` in mixed case), a flowchart (`click ... href` with a tab and
+`click` with a percent-encoded letter), and a sequence diagram (`link` with a percent-encoded letter, `links` with an
+escaped white space and a mixed-case scheme), each with a tooltip or target where the statement allows one (a theory
+with one case for each). Asserts that each renders a picture, that no report, hint, title, or accessible title carries
+the link, and that the only links the parsed diagram keeps are `about:blank` (the flowchart keeps none).
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_RepeatedAndConcurrentRenders_AreIdentical`,
 `MermaidSystemIntegrationTests.CanvasNetMermaid_Render_Concurrent_IsDeterministic`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_RepeatedAndConcurrentRenders_AreIdentical`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceFixtures_RenderDeterministically`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceFixtures_RenderDeterministically`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_RepeatedAndConcurrentRenders_AreIdentical`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassFixtures_RenderDeterministically`
 
 Renders the same documents repeatedly and from parallel threads and asserts identical pixels, sizes, and reports;
 renders a numbered sequence fixture twice and six times in parallel, and every sequence fixture twice, and asserts
-identical pixels.
+identical pixels; renders the class fixture `10-namespaces` twice and six times in parallel, and every class fixture
+twice, and asserts identical pixels.
 
 ### CanvasNetMermaid-Cancellation: A Canceled Token Stops The Work
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Render_CanceledToken_Throws`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_CanceledToken_Throws`,
-`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_CanceledToken_Throws`
+`MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_CanceledToken_Throws`,
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_CanceledToken_Throws`
 
 Asserts `OperationCanceledException` from `Measure`, `Render`, and `Render(width, height)` with a canceled token, and
-from the render of a sequence diagram.
+from the render of a sequence diagram and of a class diagram.
 
 ### CanvasNetMermaid-ImageSource: Diagram Bytes Through The Image-Source Contract
 
@@ -288,7 +380,8 @@ default theme's node fill, and no diagnostics.
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_ThirdPartyNotices_ShipWithPackage`
 
 Reads the license texts and the provenance record that the package ships and asserts the copyright notice of each
-ported project, the not-affiliated statement, and that the record names every license file.
+ported project (sanitize-url's `Copyright (c) 2017 Braintree` included), the not-affiliated statement, and that the
+record names every license file (`LICENSE-sanitize-url.txt` included).
 
 ### Platform Requirements
 

@@ -1,0 +1,23 @@
+classDiagram
+    class BankAccount {
+        +String owner
+        +Decimal balance
+        +deposit(amount)
+        +withdraw(Decimal amount) bool
+        +transfer(BankAccount target, Decimal amount) bool
+    }
+    class Ledger {
+        int count
+        entries() List
+        String title
+        reset()
+    }
+    class Statement {
+        +Date issued
+    }
+    class Clerk {
+        +approve()
+    }
+    BankAccount --> Ledger
+    Ledger --> Statement
+    Clerk ..> Ledger

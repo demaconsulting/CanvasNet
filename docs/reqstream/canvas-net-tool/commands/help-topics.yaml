@@ -159,11 +159,13 @@ sections:
       - id: CanvasNetTool-Commands-HelpTopics-Mermaid
         title: >-
           The HelpTopics class shall provide the mermaid topic (alias mmd) with what a diagram may use (flowcharts,
-          their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles, and sequence
-          diagrams, their statements, arrows, participant types, and settings), each diagram type and construct that
+          their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles, sequence
+          diagrams, their statements, arrows, participant types, and settings, and class diagrams, their syntax,
+          relations, and settings), each diagram type and construct that
           is not drawn with the identifier of its diagnostic, the options that apply (--theme, --scale, --background,
           and --strict), the diagnostics and errors with their codes, and the known differences from Mermaid, source
-          examples of a flowchart and of a sequence diagram that render with the strict option without a diagnostic, a
+          examples of a flowchart, a sequence diagram, and a class diagram that render with the strict option without
+          a diagnostic, a
           snippet whose nodes show a model and a chart (the examples of the scad and vega-lite topics) that renders the
           same way once those files exist and lists one embed operation for each, and command examples for render, the
           theme, and info; shall quote the limits of the Mermaid library (text size, nodes, edges, and pictures) from
@@ -182,3 +184,14 @@ sections:
           - HelpTopics_Text_HasNoUnresolvedTokens
           - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
           - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
+
+      - id: CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
+        title: >-
+          The HelpTopics class shall give in the mermaid topic, item by item and in order, the same class diagram
+          syntax, relation, and setting rows and the same unsupported-feature and warning codes as the Mermaid user
+          guide, worded the same apart from formatting.
+        justification: |
+          People read the guide and agents read the help; both must describe the same version, and a row added to
+          one and not the other would tell one of them something untrue.
+        tests:
+          - HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide

@@ -27,7 +27,12 @@ lays out the diagram.
   location), the parsed diagram (`IMermaidDiagram`, null for a type this version does not draw), and the source name.
   Properties: `SourceName`, `DiagramType` (Mermaid's id with `class`, `state`, and `flowchart` aliases folded),
   `IsSupported`, `Title` (the diagram's own title, else the frontmatter title), `AccTitle`, `Direction`, `NodeCount`,
-  `EdgeCount`, and `SubgraphCount` (zero and null for an unsupported type).
+  `EdgeCount`, and `SubgraphCount` (zero and null for an unsupported type). The counts are the parsed diagram's and
+  are fixed when the text is opened, under the configuration of the text itself (its frontmatter and directives): for
+  a class diagram `NodeCount` is the classes, `EdgeCount` the relations, and `SubgraphCount` the namespaces that are
+  drawn under that configuration (with `class.hierarchicalNamespaces` false, only the declared namespaces, so
+  `namespace Geo.Plane` counts once). A site-level setting in `MermaidRenderOptions.Config` is not known when the text
+  is opened, so it changes the drawing but not the counts, as for every other descriptive property.
 - **`MermaidOpenOptions`**: `SourceName` (not white space) and `Limits`.
 - **`MermaidRenderOptions`**: `Scale` (finite, above zero, 1 by default), `Background` (`Rgba32?`, null for
   transparent), `Config` (a JSON object text of at most a fixed length and depth, validated when set), `Theme` (one of
@@ -51,11 +56,16 @@ lays out the diagram.
 ### Key Methods
 
 - **`Parse(string text, MermaidOpenOptions? options)`**: runs `Preprocessor.Run` (which checks the raw length of four
-  times `MaxTextSize` and then `MaxTextSize`), detects the diagram with `DiagramDetector.Detect`, detects again when
-  the text's own configuration chooses another renderer (for example `flowchart.defaultRenderer: elk`), and asks
-  `DiagramRegistry.Parse` for the diagram (`FlowchartParser` and `FlowchartModel` for a flowchart, `SequenceParser`
-  and `SequenceModel` for a sequence diagram; null for a known type that is not drawn). Postcondition: an immutable
-  document, or an exception.
+  times `MaxTextSize` and then `MaxTextSize`), detects the diagram with `DiagramDetector.Detect`, resolves the text's
+  own configuration (`MermaidConfigResolver.Resolve` without options and without a sink: the defaults, the frontmatter,
+  and the directives), detects again when that configuration chooses another renderer (for example
+  `flowchart.defaultRenderer: elk`), and asks `DiagramRegistry.Parse(detected, source, limits, textConfig)` for the
+  diagram. The registry dispatches on the public type: `flowchart` to `FlowchartParser` and `FlowchartModel`,
+  `sequence` to `SequenceParser` and `SequenceModel`, and `class` (from the `classDiagram` and legacy `class`
+  detectors, so `classDiagram` and `classDiagram-v2` texts alike) to `ClassParser` and `ClassModel`, to which it
+  passes the text configuration's `class.hierarchicalNamespaces` so that the namespace count follows what is drawn. A
+  known type that is not drawn is not parsed (the document's diagram is null). Postcondition: an immutable document,
+  or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
   path unless the options name it. **`Open(Stream, ...)`**: reads in chunks, stopping as soon as the text is certainly
   over the limit, decodes with the strict UTF-8 decoder (no replacement characters), drops a byte-order mark, and
@@ -99,8 +109,8 @@ lays out the diagram.
   argument exceptions when the call or the option setter runs.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
-- Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart, and
-  Sequence subsystems; the unit adds nothing but the source name.
+- Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart,
+  Sequence, and Class subsystems; the unit adds nothing but the source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
   subsystems; a size outside the surface range throws `ArgumentOutOfRangeException` naming the scale and the size.
 - Strict mode throws `MermaidUnsupportedFeatureException` from the sink. Cancellation throws
@@ -114,9 +124,11 @@ lays out the diagram.
 ### Dependencies
 
 - **Syntax**: `Preprocessor`, `DiagramDetector`, and the `MappedText` location map.
-- **Configuration**: `MermaidConfigResolver` (the effective configuration and detector settings).
+- **Configuration**: `MermaidConfigResolver` (the effective configuration, the text's own configuration, and the
+  detector settings).
 - **Flowchart**: through `DiagramRegistry` (`FlowchartParser`, `FlowchartModel`, which implements `IMermaidDiagram`).
 - **Sequence**: through `DiagramRegistry` (`SequenceParser`, `SequenceModel`, which implements `IMermaidDiagram`).
+- **Class**: through `DiagramRegistry` (`ClassParser`, `ClassModel`, which implements `IMermaidDiagram`).
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

@@ -11,10 +11,11 @@ and the records `SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun`, `Scen
 #### Purpose
 
 `SceneModel` is the immutable description of what a laid-out diagram draws, in Mermaid's SVG user units (CSS pixels at
-scale 1): groups translated together, paths with fill, stroke, and drop shadow, lines of styled text runs, and pictures,
-with the view box of the diagram. Its single responsibility is to carry the resolved geometry, paint, and fonts of a
-diagram from the layout to the painter, and to be the surface on which the tests and the reference comparison assert the
-layout with numbers. It also gives the bounds of items (as SVG's `getBBox`) and converts path geometry to a core `Path`.
+scale 1): groups translated together, paths with fill, stroke, and drop shadow, lines of styled text runs that may be
+underlined, and pictures, with the view box of the diagram. Its single responsibility is to carry the resolved
+geometry, paint, and fonts of a diagram from the layout to the painter, and to be the surface on which the tests and
+the reference comparison assert the layout with numbers. It also gives the bounds of items (as SVG's `getBBox`) and
+converts path geometry to a core `Path`.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-SceneModel-*` requirements in
 `docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml`.
@@ -30,7 +31,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-SceneModel-
 - **`SceneStroke(Color, Width)`** - the stroke color (opacity folded in) and width, with `Dash` (the dash lengths, or
   null for solid), `DashOffset`, `Cap` (butt by default), and `Join` (miter by default), the SVG defaults.
 - **`SceneFont(Family, Size, Bold, Italic)`** - a CSS `font-family` list, a size in scene units, and a style;
-  **`SceneTextRun(Text, Font, Color)`** - a run of text with one font and color.
+  **`SceneTextRun(Text, Font, Color)`** - a run of text with one font and color, with `Underline` (false by default;
+  CSS's `text-decoration: underline`, which a class diagram gives the runs of a static member), which the painter draws
+  as a bar under the run and which does not change the box of its line.
 - **`SceneItem`** - the base of every item: `Role` (required; a stable name such as `node`, `edge`, `edge-label`,
   `cluster`, `marker`, or `label`), `Id` (Mermaid's element id, or null), and `Location` (the construct in the
   original text; unknown by default).
@@ -61,7 +64,7 @@ not change them after the scene is built. The scene is safe for concurrent readi
 - **`Scene.BoundsOf(items)`** - the union of the bounds of the items with the translations of their groups applied:
   the geometry of each path (the path is converted at scale 1 and its bounds taken with curves flattened to 0.01
   unit, so a curve counts, not its control points, and the stroke and the drop shadow do not count, as SVG's
-  `getBBox` ignores strokes and filters), the box of each text line, and the
+  `getBBox` ignores strokes and filters), the box of each text line (an underline does not change it), and the
   box of each picture; null when the items draw nothing (no items, or only empty paths).
 - **`Scene.ToPath(segments, scale, offsetX, offsetY)`** - a core `Path` built with `PathBuilder`, every point mapped to
   `point x scale + offset`: moves, lines, quadratic and cubic curves, elliptical arcs (radii scaled, rotation kept),
@@ -87,8 +90,10 @@ which skips them. `BoundsOf` and `ToPath` reject only null arguments. The unit p
 #### Callers
 
 The units of the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `ClusterLayout`) build the
-items, and `EdgeBuilder` takes the bounds of an edge with `Scene.BoundsOf`; the `FlowchartModel` unit of the
-`Flowchart` subsystem assembles the scene with its view box and picture loader, the `SequenceLayout` and
+items (the class box of `ShapeLibrary` marks the runs of a static member `Underline`), `EdgeBuilder` takes the bounds
+of an edge with `Scene.BoundsOf`, and `ClusterLayout.RenderDiagram` assembles the scene of a flowchart or a class
+diagram with its view box and picture loader, which the `FlowchartModel` unit of the `Flowchart` subsystem and the
+`ClassModel` unit of the `Class` subsystem return; the `SequenceLayout` and
 `SequenceRenderer` units of the `Sequence` subsystem build the items of a sequence diagram (with drop shadows on boxes
 and menus and stroked labels of the `old` text placement) and its scene, and the `MermaidDocument` unit builds
 the empty scene of a diagram type that is not drawn and returns the laid-out scene to the tests; the `ScenePainter`

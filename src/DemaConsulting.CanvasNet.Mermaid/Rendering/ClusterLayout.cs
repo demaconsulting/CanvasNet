@@ -89,6 +89,8 @@ internal sealed class ClusterLayoutEdge : DagreEdge
         // A link of unknown length keeps Mermaid's undefined minlen, which dagre reads as NaN
         MinLen = data.MinLen is { } length ? length : double.NaN;
         LabelPos = data.LabelPos;
+        StartLabelRight = data.StartLabelRight;
+        EndLabelLeft = data.EndLabelLeft;
     }
 
     /// <summary>Gets the edge of the layout data.</summary>
@@ -105,6 +107,12 @@ internal sealed class ClusterLayoutEdge : DagreEdge
 
     /// <summary>Gets or sets the arrow type at the end.</summary>
     public string ArrowTypeEnd { get; set; }
+
+    /// <summary>Gets or sets the terminal label at the start (a self-loop's segments keep only their own end's).</summary>
+    public string StartLabelRight { get; set; }
+
+    /// <summary>Gets or sets the terminal label at the end.</summary>
+    public string EndLabelLeft { get; set; }
 
     /// <summary>Gets or sets the subgraph the edge leaves (the route is cut at its border), or null.</summary>
     public string? FromCluster { get; set; }
@@ -146,7 +154,8 @@ internal sealed record RenderedGraph(IReadOnlyList<SceneItem> Items, SceneRect? 
 ///         <b>Graphs.</b> The root graph has dagre's <c>nodesep</c> and <c>ranksep</c> from the configuration and margins
 ///         of 8. A subgraph laid out on its own gets the direction it declares (else the other one of <c>TB</c> and
 ///         <c>LR</c>), the parent's <c>nodesep</c> and the parent's <c>ranksep</c> plus 25. A self-loop is laid out as
-///         three edges through two hidden nodes and drawn as one compact loop beside its node.
+///         three edges through two hidden nodes and, for the diagram types Mermaid merges, drawn as one compact loop
+///         beside its node (the legacy <c>class</c> diagram draws the three segments).
 ///     </para>
 ///     <para>
 ///         <b>Subgraph links.</b> A link to a subgraph that links to the outside is moved to a node inside it (its
@@ -165,6 +174,16 @@ internal sealed partial class ClusterLayout
     /// <summary>The vertical padding <c>positionNode</c> takes off a laid-out subgraph.</summary>
     private const double ClusterNodePadding = 8;
 
+    /// <summary>
+    ///     The diagram types whose self-loops are drawn as one compact loop (Mermaid's
+    ///     <c>shouldMergeSelfLoopSegments</c>), and <c>flowchart-elk</c>, whose layout falls back to dagre and is drawn as
+    ///     a flowchart; any other type (the legacy <c>class</c>) draws the three laid-out segments.
+    /// </summary>
+    private static readonly HashSet<string> SelfLoopMergingTypes = new(StringComparer.Ordinal)
+    {
+        "flowchart", "flowchart-v2", "flowchart-elk", "stateDiagram", "er", "classDiagram",
+    };
+
     /// <summary>The settings of the rendering.</summary>
     private readonly ShapeContext _context;
 
@@ -173,6 +192,9 @@ internal sealed partial class ClusterLayout
 
     /// <summary>The total subgraph title margin (<c>subGraphTitleTotalMargin</c>).</summary>
     private readonly double _titleMargin;
+
+    /// <summary>Whether the self-loops of the diagram being drawn are merged into one compact loop.</summary>
+    private bool _mergeSelfLoops = true;
 
     /// <summary>
     ///     Initializes the layout of one render.
@@ -198,6 +220,7 @@ internal sealed partial class ClusterLayout
     public RenderedGraph Render(LayoutData data)
     {
         ArgumentNullException.ThrowIfNull(data);
+        _mergeSelfLoops = SelfLoopMergingTypes.Contains(data.DiagramType);
         var graph = Prepare(data);
         AdjustClustersAndEdges(graph);
         return RenderGraph(graph, null);
@@ -304,6 +327,7 @@ internal sealed partial class ClusterLayout
             Id = nodeId + "-cyclic-special-1",
             Label = string.Empty,
             ArrowTypeEnd = "none",
+            EndLabelLeft = string.Empty,
             SelfLoopId = edge.Id,
             SelfLoopOrder = 0,
         };
@@ -312,6 +336,8 @@ internal sealed partial class ClusterLayout
             Id = nodeId + "-cyclic-special-mid",
             ArrowTypeStart = "none",
             ArrowTypeEnd = "none",
+            StartLabelRight = string.Empty,
+            EndLabelLeft = string.Empty,
             SelfLoopId = edge.Id,
             SelfLoopOrder = 1,
         };
@@ -320,6 +346,7 @@ internal sealed partial class ClusterLayout
             Id = nodeId + "-cyclic-special-2",
             Label = string.Empty,
             ArrowTypeStart = "none",
+            StartLabelRight = string.Empty,
             SelfLoopId = edge.Id,
             SelfLoopOrder = 2,
         };
@@ -471,12 +498,12 @@ internal sealed partial class ClusterLayout
             }
         }
 
-        // Every edge label is measured; of a self-loop only the middle segment's
+        // Every edge label is measured; of a merged self-loop only the middle segment's
         var labelOrder = new List<ClusterLayoutEdge>();
         foreach (var e in graph.Edges())
         {
             _meter.Charge(1);
-            if (graph.Edge(e) is not { } edge || (edge.SelfLoopId is not null && edge.SelfLoopOrder != 1))
+            if (graph.Edge(e) is not { } edge || (_mergeSelfLoops && edge.SelfLoopId is not null && edge.SelfLoopOrder != 1))
             {
                 continue;
             }
@@ -545,10 +572,11 @@ internal sealed partial class ClusterLayout
             }
         }
 
-        // The edges, and where their labels go
+        // The edges, where their labels go, and their terminal labels
         var edgePaths = new SceneLayer();
         var labelPositions = new Dictionary<ClusterLayoutEdge, (ShapePoint Position, string Id)>();
-        foreach (var (edge, start, end) in GetEdgesToRender(graph, _titleMargin / 2))
+        var terminals = new Dictionary<ClusterLayoutEdge, EdgeLabelDrawing>();
+        foreach (var (edge, start, end) in GetEdgesToRender(graph, _titleMargin / 2, _mergeSelfLoops))
         {
             _meter.Charge((edge.Points?.Count ?? 0) + 1);
             var points = (edge.Points ?? []).Select(p => new ShapePoint(p.X, p.Y + (_titleMargin / 2))).ToList();
@@ -565,9 +593,22 @@ internal sealed partial class ClusterLayout
             {
                 labelPositions[edge.LabelOwner ?? edge] = (position, edge.Id);
             }
+
+            if (edge.StartLabelRight.Length > 0 || edge.EndLabelLeft.Length > 0)
+            {
+                terminals[edge.LabelOwner ?? edge] = EdgeBuilder.DrawTerminals(
+                    edge.Data,
+                    edge.Id,
+                    edge.StartLabelRight,
+                    edge.EndLabelLeft,
+                    edge.ArrowTypeStart,
+                    edge.ArrowTypeEnd,
+                    drawing,
+                    _context);
+            }
         }
 
-        // The edge labels, in the order they were measured
+        // The edge labels, each followed by its terminal labels, in the order they were measured
         var edgeLabels = new SceneLayer();
         foreach (var owner in labelOrder)
         {
@@ -575,6 +616,11 @@ internal sealed partial class ClusterLayout
             {
                 var drawing = EdgeBuilder.DrawLabel(label, placed.Position, owner.Data, placed.Id, _context.Styles);
                 edgeLabels.Add(drawing.Items, drawing.Bounds);
+            }
+
+            if (terminals.TryGetValue(owner, out var terminal))
+            {
+                edgeLabels.Add(terminal.Items, terminal.Bounds);
             }
         }
 

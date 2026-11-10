@@ -39,8 +39,8 @@ expected, constitutes a failure.
 `DiagramDetectorTests.DiagramDetector_DetectorIds_FollowMermaidRegistrationOrder`
 
 Asserts the detector id, public type, and support of 39 keywords (from `flowchart` and `graph` to `cynefin-beta:`
-and `Error`), including the mapping of `classDiagram-v2` and `stateDiagram-v2` to `class` and `state`, and that the
-detector table has all 40 detectors.
+and `Error`), including `classDiagram` and `classDiagram-v2` as the supported `class` type and the mapping of
+`stateDiagram-v2` to `state`, and that the detector table has all 40 detectors.
 
 ##### CanvasNetMermaid-Syntax-DiagramDetector-MermaidOrder: Detection Follows Mermaid's Order And Quirks
 
@@ -84,5 +84,5 @@ column 1, and that a text that starts with `---` is `mermaid-syntax-error` with 
 
 **Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords`
 
-Asserts the exact hints for a planned type (`classDiagram`) and a type that is not planned (`gitGraph`), both naming the
-supported keywords `flowchart`, `graph`, and `sequenceDiagram`.
+Asserts the exact hints for a planned type (`pie`) and a type that is not planned (`gitGraph`), both naming the
+supported keywords `flowchart`, `graph`, `sequenceDiagram`, and `classDiagram`.

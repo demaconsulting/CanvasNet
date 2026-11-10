@@ -505,6 +505,7 @@ sections:
           - SourceLoader_Load_MermaidLargerThanMaximum_NeedsASizeOption
           - SourceLoader_Probe_EachKind_ReportsHeaderFacts
           - SourceLoader_Load_MermaidSequence_ProbesAndDraws
+          - SourceLoader_Load_MermaidClass_ProbesAndDraws
 
       - id: CanvasNetViewer-Imaging-SourceLoader-MermaidRender
         title: >-
@@ -529,6 +530,7 @@ sections:
         tests:
           - SourceLoader_Load_Mermaid_DrawsAtTheNaturalSizeOverWhite
           - SourceLoader_Load_MermaidSequence_ProbesAndDraws
+          - SourceLoader_Load_MermaidClass_ProbesAndDraws
           - SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions
           - SourceLoader_Load_MermaidTheme_IsAppliedAndValidated
           - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme

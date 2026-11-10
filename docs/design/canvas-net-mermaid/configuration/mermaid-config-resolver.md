@@ -9,8 +9,8 @@ computation with recovery), `MermaidConfigResolver.Defaults.cs` (the defaults, t
 secure keys), `MermaidConfigResolver.Merge.cs` (the JSON operations: `assignWithDepth`, lodash's `merge`, the
 sanitizers, and the directive JSON parser), and `MermaidConfigResolver.Validation.cs` (the validation and the reports of
 one layer) - and the grouped typed view of its result in `MermaidConfig.cs`: the sealed class `MermaidConfig`, the
-records `FlowchartConfig` and `SequenceConfig`, the font record `MermaidFontConfig`, and the value `ConfigScalar` (a
-number or a string, kept as JavaScript holds it).
+records `FlowchartConfig`, `SequenceConfig`, and `ClassConfig`, the font record `MermaidFontConfig`, and the value
+`ConfigScalar` (a number or a string, kept as JavaScript holds it).
 
 #### Purpose
 
@@ -32,9 +32,12 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   quirks (a `null` in a directive cancels the frontmatter's value under lodash's `merge`, but is skipped by
   `assignWithDepth`) are kept. A new object is built for every call because a JSON object is not safe for concurrent
   reads.
-- **Defaults** (`CreateDefaults`): the global keys, the `flowchart` section, and the `sequence` section (the defaults
-  of Mermaid's `SequenceDiagramConfig`) of Mermaid's `config.schema.yaml` and `defaultConfig.ts`, with the variables of
-  the `default` theme. `DefaultFontFamily` is Mermaid's font family list.
+- **Defaults** (`CreateDefaults`): the global keys, the `flowchart` section, the `sequence` section (the defaults
+  of Mermaid's `SequenceDiagramConfig`), and the `class` section of Mermaid's `config.schema.yaml` and
+  `defaultConfig.ts`, with the variables of the `default` theme. The class section is the one `defaultConfig.ts`
+  writes in place of the schema's: `defaultRenderer` (`dagre-wrapper`), `hideEmptyMembersBox` (false), and
+  `hierarchicalNamespaces` (true), with `padding` deliberately left undefined so that each use keeps its own fallback.
+  `DefaultFontFamily` is Mermaid's font family list.
 - **Configuration keys** (`ConfigKeys`, a frozen set of 705 names): every key that Mermaid's `sanitizeDirective`
   accepts (the keys of every diagram section and of the default theme variables); a key of the text outside the set is
   deleted by Mermaid and reported here as unknown.
@@ -42,15 +45,20 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   `suppressErrorRendering`, and `maxEdges`, replaced by the `secure` list of the site configuration when it has one.
 - **Typed keys** (`TypedKeys` of the validation): the kind of value (text, number, Boolean, object, or a number or a
   string for the font sizes and weights) of each key this version reads; a value of another kind is reported and
-  dropped. The sequence alignments (`sequence.messageAlign` and `sequence.noteAlign`) must also be one of the values
-  that Mermaid's `drawText` honors (`ChoiceKeys`: `left`, `center`, `right`, `start`, `middle`, and `end`).
+  dropped. The typed keys include the class keys (`class` as an object, `class.defaultRenderer` as text,
+  `class.hideEmptyMembersBox` and `class.hierarchicalNamespaces` as Booleans, and `class.padding` as a number) and the
+  state keys that the class renderer reads (`state` as an object, and `state.nodeSpacing`, `state.rankSpacing`, and
+  `state.titleTopMargin` as numbers). The sequence alignments (`sequence.messageAlign` and `sequence.noteAlign`) must
+  also be one of the values that Mermaid's `drawText` honors (`ChoiceKeys`: `left`, `center`, `right`, `start`,
+  `middle`, and `end`).
 - **Locations**: a dictionary from each top-level key to the location of the layer that set it last (the frontmatter
   key, or the `%%{` of the directive); keys of the defaults and of the site configuration have no location.
 - **`MermaidConfig`**: `Raw` (the whole effective configuration, including the keys of other diagram types),
   `ThemeVariables`, and typed properties with Mermaid's defaults - `Theme`, `FontFamily`, `AltFontFamily`,
   `FontSize`, `Look`, `Layout`, `ThemeCss`, `HtmlLabels` (the global key, else the deprecated `flowchart.htmlLabels`,
   else true), `MarkdownAutoWrap`, `Wrap`, `SecurityLevel`, `MaxTextSize`, `MaxEdges`, `DeterministicIds`,
-  `Flowchart`, `Sequence`, and `DetectorSettings` (the `defaultRenderer` of the flowchart, class, and state sections).
+  `Flowchart`, `Sequence`, `Class`, and `DetectorSettings` (the `defaultRenderer` of the flowchart, class, and state
+  sections, the class one read through `Class`).
   `FlowchartConfig` holds the flowchart keys the drawing reads: `UseMaxWidth`, `TitleTopMargin`,
   `SubGraphTitleMarginTop`, `SubGraphTitleMarginBottom`, `DiagramPadding`, `HtmlLabels`, `NodeSpacing`, `RankSpacing`,
   `Curve`, `Padding`, `DefaultRenderer`, `WrappingWidth`, `InheritDir`, and `ArrowMarkerAbsolute`. `SequenceConfig`
@@ -60,8 +68,14 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   (`MirrorActors`, `HideUnusedParticipants`, `ForceMenus`, `RightAngles`, `ShowSequenceNumbers`, `UseMaxWidth`, and
   `ArrowMarkerAbsolute`), the alignments (`MessageAlign` and `NoteAlign`), `TextPlacement`, the effective `Wrap`, and
   the fonts `ActorFont`, `NoteFont`, and `MessageFont` (`MermaidFontConfig`: family, size, and weight, the size and
-  weight as `ConfigScalar` values, because Mermaid's `parseFontSize` treats a number and a string differently). Because
-  every layer is validated before the merge, a typed property always has a value of its type.
+  weight as `ConfigScalar` values, because Mermaid's `parseFontSize` treats a number and a string differently).
+  `ClassConfig` holds the class keys as the class database and renderer read them: `DefaultRenderer`,
+  `HideEmptyMembersBox`, `HierarchicalNamespaces`, `Padding` (null when it is not set, so the class box, namespace,
+  and note paddings keep their fallbacks of 12, 16, and 6), and, from the state section as Mermaid's class renderer
+  reads them (it takes `const { state: conf } = getConfig()`), `NodeSpacing` and `RankSpacing`
+  (`state.nodeSpacing || 50` and `state.rankSpacing || 50`, so a zero falls back to 50) and `TitleTopMargin`
+  (`state.titleTopMargin ?? 25`, so a zero is kept). Because every layer is validated before the merge, a typed
+  property always has a value of its type.
 
 #### Key Methods
 
@@ -89,6 +103,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   section's `wrap` is true) and the sequence renderer's `setConf` (the top-level `fontFamily` and `fontSize` replace
   the families and sizes of the three sequence fonts, and a top-level `fontWeight` replaces their weights; otherwise
   the section's weights apply).
+- `MermaidConfig.Class` (built with the configuration) - reads the class section over the defaults of
+  `defaultConfig.ts`, and the node spacing, rank spacing, and title margin from the state section, as Mermaid's class
+  database and `classRenderer-v3-unified.ts` read them; a `padding` that is not a finite number is left unset.
 - `ComputeTheme` (private) - calls `ThemeResolver.GetThemeVariables`; when it fails with a `ColorFormatException`,
   the override variables holding the offending value are reported, removed, and the theme computed again, at most 16
   times; when no variable holds the value (a hostile `THEME_COLOR_LIMIT`, for example), the overrides are reported and
@@ -124,8 +141,10 @@ without a sink gives the same configuration.
 there is one, and the offending key or value has no effect. The codes are `mermaid-config-secure-key` (the text sets a
 secure key), `mermaid-config-unknown-key` (a key Mermaid does not define, with the nearest key as the hint), and
 `mermaid-config-invalid` (invalid directive JSON, arguments that are not an object, a frontmatter `config` that is not a
-mapping, a value of the wrong type, a sequence alignment that Mermaid does not draw, a refused string, a theme that is
-not supported, and a theme variable that is not a color). Frontmatter reports are located at the key, directive reports
+mapping, a value of the wrong type (a class or state value included, such as a `class.hierarchicalNamespaces` that is
+not a Boolean or a `state.nodeSpacing` that is not a number), a sequence alignment that Mermaid does not draw, a
+refused string, a theme that is not supported, and a theme variable that is not a color). Frontmatter reports are
+located at the key, directive reports
 at the directive, and site configuration reports have no location. A site configuration text that is not valid JSON was
 refused when the options were built, and is otherwise ignored here. A `ColorFormatException` of the theme computation is
 handled locally as described above; no other exception is expected.
@@ -162,10 +181,14 @@ handled locally as described above; no other exception is expected.
 #### Callers
 
 `MermaidDocument` resolves the configuration without a sink when a text is opened (its `DetectorSettings` choose the
-detector) and with the call's sink in every measure or render call, and hands the `MermaidConfig` to the diagram through
-the render context; `FlowchartStyles.Create` and `SequenceStyles.Create` (the `ThemeResolver` unit) read its theme
-variables and `themeCSS`; the `Flowchart` subsystem (`FlowchartModel`), the `Sequence` subsystem (`SequenceModel`,
-`SequenceLayout`, and `SequenceRenderer`, through `MermaidConfig.Sequence`), and the `Rendering` subsystem (through
-`LayoutData`, and `LabelBuilder`, which measures with `MermaidFontConfig`) read the typed settings.
+detector, and its class section gives the class parser `hierarchicalNamespaces`) and with the call's sink in every
+measure or render call, and hands the `MermaidConfig` to the diagram through
+the render context; `FlowchartStyles.Create`, `ClassStyles.Create`, and `SequenceStyles.Create` (the `ThemeResolver`
+unit) read its theme variables and `themeCSS`; the `Flowchart` subsystem (`FlowchartModel`), the `Sequence` subsystem
+(`SequenceModel`, `SequenceLayout`, and `SequenceRenderer`, through `MermaidConfig.Sequence`), the `Class` subsystem
+(`ClassModel`, through `MermaidConfig.Class`, and `ClassParser`, which `MermaidDocument` gives the text's own
+`hierarchicalNamespaces`), and the `Rendering` subsystem (through `LayoutData`, `ShapeLibrary`, which reads
+`MermaidConfig.Class` for a class box, and `LabelBuilder`, which measures with `MermaidFontConfig`) read the typed
+settings.
 The tests in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/MermaidConfigResolverTests.cs` and
 `MermaidConfigResolverVectorTests.cs` call the unit directly through `InternalsVisibleTo`.

@@ -361,7 +361,7 @@ starts with `Topic: Mermaid diagrams`; every process exits with 0.
 
 **CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract**: in-process through the entry point, a diagram whose
 first keyword is not a Mermaid keyword (`drawing LR`) returns exit code 1 with an `Error: mermaid-error:` line that
-names `mermaid-unknown-diagram` and a `Hint:` line; a class diagram renders with exit code 0 and an
+names `mermaid-unknown-diagram` and a `Hint:` line; a pie chart renders with exit code 0 and an
 `Unsupported: mermaid-diagram-unsupported:` line on standard error, and with `--strict` returns exit code 1 with an
 `Error: unsupported-feature:` line; and `--theme dark` on an SVG file returns exit code 1 with an
 `Error: usage-error:` line.

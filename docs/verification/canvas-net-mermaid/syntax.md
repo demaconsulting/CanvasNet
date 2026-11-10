@@ -63,8 +63,9 @@ text with a frontmatter and a comment line with a grammar of words and line feed
 column 5 of the original text, and that the `?` that no rule matches is a `mermaid-syntax-error` at line 7, column 5
 that names the character. Reads a second word where the grammar accepts only a line feed, after a frontmatter, and
 asserts a `mermaid-syntax-error` at line 4, column 14 whose expected tokens are the grammar's description `a new line`
-and whose message names the word found. The full lexing semantics are verified by the `SourceScanner` unit scenarios
-and, end to end, by the `Flowchart` subsystem.
+and whose message names the word found. The full lexing semantics, including the letters outside ASCII of the
+`UNICODE_TEXT` rule that the flowchart and class grammars share (the `SourceScanner-UnicodeLetters` child), are verified
+by the `SourceScanner` unit scenarios and, end to end, by the `Flowchart`, `Sequence`, and `Class` subsystems.
 
 #### CanvasNetMermaid-Syntax-Detection: The Type Of The Prepared Code Is Detected At Its Keyword
 
@@ -80,10 +81,11 @@ the original text, after the frontmatter, the directive, and the comment line.
 Asserts that the frontmatter configuration is a mapping whose `flowchart` key holds a mapping whose `curve` is the
 string `linear`, as js-yaml reads it.
 
-#### CanvasNetMermaid-Syntax-UntrustedInput: Refused YAML Stops The Text And Label HTML Is Cleaned
+#### CanvasNetMermaid-Syntax-UntrustedInput: Refused YAML Stops The Text, Label HTML Is Cleaned, Links Are Checked
 
 **Tests**: `SyntaxTests.Syntax_Preprocess_FrontmatterAlias_IsRefusedAtLocation`,
-`SyntaxTests.Syntax_PrepareAndSanitizeLabel_UnsafeHtml_IsCleaned`
+`SyntaxTests.Syntax_PrepareAndSanitizeLabel_UnsafeHtml_IsCleaned`,
+`SyntaxTests.Syntax_PrepareAndCheckLinks_EncodedUnsafeLinks_AreRefused`
 
 Prepares a text whose frontmatter defines an anchor and uses it as an alias, and asserts that preparation fails with
 `mermaid-yaml-unsupported` at line 2, column 7 of the original text (the anchor). Prepares a flowchart whose quoted
@@ -91,5 +93,9 @@ node label holds a link with a `javascript:` address and an `onclick` handler in
 the named reference `&eacute;`, and a bold element; asserts that the preparation turns the attribute quotes into
 single quotes so the label stays inside its quoted string, and that the label cleaned by the `HtmlSanitizer` is
 `<a>go</a> café <b>ok</b>` (the link without its address and handler, no script, and the reference decoded through
-the `HtmlEntities` table). The text size limits, the YAML depth limit, and the bound of the clean-up are verified by
-the `Preprocessor`, `YamlSubsetParser`, and `HtmlSanitizer` unit scenarios.
+the `HtmlEntities` table). Prepares a class diagram whose links hold a numeric reference, a tab, a percent escape, and
+`&Tab;` with `&colon;` inside a `javascript` scheme, and a safe `https` link, and asserts that the link check gives
+`about:blank` for each encoded scheme that reaches it, keeps the numeric reference in Mermaid's entity encoding (so it
+never decodes to a scheme), and writes the safe link as sanitize-url writes it. The text size limits, the YAML depth
+limit, the bound of the clean-up, and every form of the link check are verified by the `Preprocessor`,
+`YamlSubsetParser`, `HtmlSanitizer`, and `SourceScanner` unit scenarios.

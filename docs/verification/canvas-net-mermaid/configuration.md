@@ -3,8 +3,9 @@
 This document describes the subsystem-level verification strategy for the `Configuration` subsystem (internal
 namespace `DemaConsulting.CanvasNet.Mermaid.Configuration`), containing four units: `MermaidConfigResolver` (the
 effective configuration of a call and its located reports, with the typed view `MermaidConfig`), `ThemeResolver` (the
-five built-in themes and the flowchart and sequence style sheets `FlowchartStyles` and `SequenceStyles`), `ColorMath`
-(the port of the khroma color functions), and `StyleDeclarations` (the CSS subset of style statements and `themeCSS`).
+five built-in themes and the flowchart, sequence, and class style sheets `FlowchartStyles`, `SequenceStyles`, and
+`ClassStyles`), `ColorMath` (the port of the khroma color functions), and `StyleDeclarations` (the CSS subset of
+style statements and `themeCSS`).
 
 ### Verification Approach
 
@@ -15,6 +16,7 @@ texts: the `Preprocessor` of the `Syntax` subsystem reads the frontmatter and th
 `MermaidConfigResolver.Resolve` merges them over the site configuration and computes the theme with `ThemeResolver` and
 `ColorMath`, and `FlowchartStyles.Create` builds the flowchart's paint from the theme variables and the `themeCSS`
 parsed by `StyleDeclarations` (`SequenceStyles.Create` the sequence diagram's paint, with the sequence section of the
+configuration, and `ClassStyles.Create` the class diagram's paint, with the class section and the state spacing of the
 configuration). Two scenarios go through the public `MermaidDocument` to verify that the configuration
 of the text drives the diagram detection and that its warnings are delivered by a render call.
 
@@ -44,24 +46,30 @@ scenario in the four unit verification documents passes without error or unexpec
 
 **Tests**: `ConfigurationTests.Configuration_ResolveThemeAndStyles_FullText`,
 `ConfigurationTests.Configuration_ThemeOption_NodeFill`,
-`ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`
+`ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveClassSectionAndStyles_FullText`
 
 Asserts that a text whose frontmatter names the `forest` theme and whose directive names `dark`, rendered with the theme
 option `neutral`, resolves to the `dark` theme with the frontmatter's flowchart curve, and that the theme option alone
-selects each of the five themes; and that a sequence diagram whose frontmatter names the `forest` theme and sets
+selects each of the five themes; that a sequence diagram whose frontmatter names the `forest` theme and sets
 `sequence.mirrorActors: false` resolves to that theme and setting, while its `sequence.noteAlign: 5` (a number) is
-reported as `mermaid-config-invalid` at line 6 and the default `center` is kept.
+reported as `mermaid-config-invalid` at line 6 and the default `center` is kept; and that a class diagram whose
+frontmatter names the `forest` theme and sets `class.padding: 5` and `state.nodeSpacing: 80` resolves to that theme,
+a class padding of 5, and a node spacing of 80 taken from the state section, as Mermaid's class renderer reads it.
 
 #### CanvasNetMermaid-Configuration-Reports: Configuration Problems Are Reported And Ignored
 
 **Tests**: `ConfigurationTests.Configuration_ResolveThemeAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveClassSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_Document_RenderDeliversConfigurationWarnings`,
 `ConfigurationTests.Configuration_Document_UnsupportedType_ConfigurationSilent`
 
 Asserts that a frontmatter value of the wrong type (`rankSpacing: wide`) is reported as `mermaid-config-invalid` at
-its key and the default is kept, that a secure key in the frontmatter of a flowchart is delivered by a render call as
-`mermaid-config-secure-key` at its location, and that the secure and unknown keys of a class diagram (not drawn by
-this version) produce no warning, only the unsupported diagram report.
+its key and the default is kept, that a class value of the wrong type (`class.hideEmptyMembersBox: maybe`) is the one
+warning of a class diagram text, `mermaid-config-invalid` at its line 6, with the default `false` kept, that a secure
+key in the frontmatter of a flowchart is delivered by a render call as `mermaid-config-secure-key` at its location,
+and that the secure and unknown keys of a pie chart (not drawn by this version) produce no warning, only the
+unsupported diagram report.
 
 #### CanvasNetMermaid-Configuration-Themes: Five Themes With Mermaid's Variables
 
@@ -76,12 +84,15 @@ dark theme named by a directive gives its `mainBkg` (`#1f2020`) while the direct
 
 **Tests**: `ConfigurationTests.Configuration_ResolveThemeAndStyles_FullText`,
 `ConfigurationTests.Configuration_ThemeOption_NodeFill`,
-`ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`
+`ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveClassSectionAndStyles_FullText`
 
 Asserts that the flowchart's edge and marker colors follow the overridden `lineColor`, that the node fill of the
 style sheet is the theme's, and that a `themeCSS` rule for `.cluster rect` is applied to that selector's declarations;
-and that for the sequence diagram above a `themeCSS` rule for `.note` given in a directive overrides the theme's note
-fill, while the participant fill is the `forest` theme's `actorBkg`.
+that for the sequence diagram above a `themeCSS` rule for `.note` given in a directive overrides the theme's note
+fill, while the participant fill is the `forest` theme's `actorBkg`; and that for the class diagram above a
+`themeCSS` rule `.divider { stroke: #ff0000 }` given in a directive makes the class box dividers red, while the class
+box fill is the `forest` theme's `mainBkg`.
 
 #### CanvasNetMermaid-Configuration-Declarations: CSS Declarations Take Effect
 

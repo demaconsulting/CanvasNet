@@ -1,0 +1,11 @@
+classDiagram
+    class Order["Purchase order"]
+    class `Line-Item`
+    class Customer["Client (VIP)"] {
+        +String name
+    }
+    class Ca-r
+    order1 --> Order
+    `Line-Item` --> Order
+    Customer --> Order : places
+    Ca-r --> Customer

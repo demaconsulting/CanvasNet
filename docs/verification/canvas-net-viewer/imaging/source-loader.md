@@ -25,8 +25,8 @@ an unsupported encryption handler, and a broken part. Charts are JSON text writt
 sandbox, and the data errors are verified with real files); one original chart is a fixture file
 (`baskets.vl.json`). Diagrams are the fixture files `Fixtures/mermaid/flow.mmd` (a small flowchart),
 `shipping.mermaid` (a flowchart with frontmatter, an accessible title, a subgraph, and a class), `sequence.mmd` (a
-two-participant sequence diagram), and `class.mmd` (a
-class diagram, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
+two-participant sequence diagram), `class.mmd` (a class diagram of two classes and one relation), and `pie.mmd` (a
+pie chart, a type this version does not draw), plus Mermaid text written by the tests; the expected node fills
 are the colors of Mermaid's default and dark themes. The other fixture files are an original SVG
 drawing and a JPEG 2000
 image copied from the
@@ -292,6 +292,11 @@ with the fields `width`, `height`, and `background` `#FFFFFF`, in that order.
 no direction or titles, two nodes (the participants), one edge (the message), and no subgraph; loaded in strict mode it
 is drawn at the probed size with a white corner, more than 2,000 pixels of the default participant fill, and no note.
 
+**SourceLoader_Load_MermaidClass_ProbesAndDraws**: `class.mmd` is probed with the facts `class`, supported, the
+direction `TB`, no titles, two nodes (the classes), one edge (the relation), and no subgraph; loaded in strict mode it
+is drawn at the probed size with a white corner, more than 2,000 pixels of the default node fill (the class boxes), and
+no note.
+
 **SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
 the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the
 fitted diagram, and a background with zero alpha leaves the corner transparent while the nodes keep the default fill.
@@ -301,10 +306,10 @@ fill and none of the default fill and lists `theme` `dark` in the operation; `Da
 `usage-error` whose hint lists `default, base, dark, forest, neutral`, and `midnight` is a `usage-error` before a
 missing file is looked for.
 
-**SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError**: `class.mmd` is probed with the facts
-`class`, not supported, no direction or titles, and zero counts; it loads as a 16 by 16 picture (twice the diagram
+**SourceLoader_Load_MermaidUnsupportedType_IsOneNoteThenStrictError**: `pie.mmd` is probed with the facts
+`pie`, not supported, no direction or titles, and zero counts; it loads as a 16 by 16 picture (twice the diagram
 padding) that is white, with exactly one note (source `mermaid`, severity `unsupported`, code
-`mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that class
+`mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that pie
 diagrams are planned, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the code, with a
 hint that says the type is planned and mentions `--strict`, and the library's `MermaidUnsupportedFeatureException` as
 its cause.
@@ -458,8 +463,8 @@ included file and the position.
 `scad-error`, an evaluation exception worded with a limit to `budget-exceeded`, and its unsupported-feature exception
 to `unsupported-feature`; each keeps the position in one line and the exception as its cause.
 
-**SourceLoader_Load_TruncatedAndGarbageModels_GiveAPictureOrViewerException** and
-**SourceLoader_Load_StressModels_GiveAPictureOrViewerException**: a model with several kinds of statement (a variable,
+**SourceLoader_Load_TruncatedAndGarbageModels_GiveAPictureOrToolException** and
+**SourceLoader_Load_StressModels_GiveAPictureOrToolException**: a model with several kinds of statement (a variable,
 a function, a module, a boolean, a loop, an echo) cut after every seventh character, garbage of four sizes, and some
 forty stress models (huge numbers, a negative or zero size, wrong argument types, extrusions and hulls of nothing,
 unsupported modules such as `import` and `surface`, runaway recursion, a list of a million elements, a byte-order
@@ -559,8 +564,8 @@ applies to the upright image and the result equals orient-then-resize. (The read
 mapping of the pixels are verified by `JpegCodecExifTests.cs` and `SurfaceExifOrientationTests.cs` in the core test
 project.)
 
-**SourceLoader_Load_DamagedFile_ThrowsViewerExceptionOrLoads**,
-**SourceLoader_Load_DamagedDocument_ThrowsViewerExceptionOrLoads**,
+**SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads**,
+**SourceLoader_Load_DamagedDocument_ThrowsToolExceptionOrLoads**,
 **SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput**,
 **SourceLoader_Load_MalformedSvg_ThrowsCorruptInput**,
 **SourceLoader_Load_PdfWithBadContentOrEncryption_ThrowsExpectedErrors**,
@@ -575,7 +580,7 @@ is a
 `vega-lite-error`, and garbage in a file named `.mmd` a `mermaid-error`, the kinds whose damage is a syntax error (a
 diagram is left out of the shared truncation sweep, as a model is, because a cut diagram is usually still valid; it has
 its own sweep);
-**SourceLoader_OpenPages_UnhandledKind_IsNotAViewerException**:
+**SourceLoader_OpenPages_UnhandledKind_IsNotAToolException**:
 facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
 

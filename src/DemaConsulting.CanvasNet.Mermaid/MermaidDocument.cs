@@ -21,8 +21,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///     <para>
 ///         <b>Diagram types.</b> Every diagram type that Mermaid knows is recognized (<see cref="DiagramType"/>), but only the
 ///         supported ones are drawn (<see cref="IsSupported"/>): in this version flowcharts (<c>flowchart</c> and
-///         <c>graph</c>) and sequence diagrams (<c>sequenceDiagram</c>). Any other known type (<c>classDiagram</c>,
-///         <c>stateDiagram</c>, <c>pie</c>, ...) opens without
+///         <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>) and class diagrams (<c>classDiagram</c>). Any other
+///         known type (<c>stateDiagram</c>, <c>pie</c>, ...) opens without
 ///         error; measuring or rendering it reports the unsupported feature
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> and gives an empty, transparent picture of 16 by 16 pixels
 ///         (twice Mermaid's diagram padding), or throws <see cref="MermaidUnsupportedFeatureException"/> in strict mode.
@@ -214,13 +214,14 @@ public sealed partial class MermaidDocument
         // directives choose the flowchart, class and state renderers that the detectors read), then parse a supported type
         var source = Preprocessor.Run(text, sourceName, limits);
         var detected = DiagramDetector.Detect(source.Code, DetectorSettings.Default);
-        var settings = MermaidConfigResolver.Resolve(source, diagramId: null, options: null, sink: null).DetectorSettings;
+        var textConfig = MermaidConfigResolver.Resolve(source, diagramId: null, options: null, sink: null);
+        var settings = textConfig.DetectorSettings;
         if (settings != DetectorSettings.Default)
         {
             detected = DiagramDetector.Detect(source.Code, settings);
         }
 
-        var diagram = detected.IsSupported ? DiagramRegistry.Parse(detected, source, limits) : null;
+        var diagram = detected.IsSupported ? DiagramRegistry.Parse(detected, source, limits, textConfig) : null;
         return new MermaidDocument(source, detected, diagram, sourceName);
     }
 

@@ -7,17 +7,19 @@ partial class `ThemeResolver` in the `DemaConsulting.CanvasNet.Mermaid.Configura
 `ThemeResolver.cs` (the theme table, `GetThemeVariables`, the shared helpers and derivation blocks, and the grouped
 helper types `ThemeObject` and `Js`), one file per theme - `ThemeResolver.Default.cs`, `ThemeResolver.Base.cs`,
 `ThemeResolver.Dark.cs`, `ThemeResolver.Forest.cs`, and `ThemeResolver.Neutral.cs` - `ThemeResolver.Styles.cs`,
-which holds the shared base `DiagramStyles` of the style sheets, the flowchart style sheet `FlowchartStyles`, and its
-typed paints `ShapePaint` and `TextPaint`, and `ThemeResolver.SequenceStyles.cs`, which holds the sequence style sheet
-`SequenceStyles` and its typed paints `StrokePaint` and `ShadowPaint`.
+which holds the shared base `DiagramStyles` of the style sheets, the base `UnifiedStyles` of the sheets that the shared
+rendering units draw with, the flowchart style sheet `FlowchartStyles`, and its typed paints `ShapePaint` and
+`TextPaint`, `ThemeResolver.DiagramStyles.cs`, which holds the class diagram style sheet `ClassStyles`, and
+`ThemeResolver.SequenceStyles.cs`, which holds the sequence style sheet `SequenceStyles` and its typed paints
+`StrokePaint` and `ShadowPaint`.
 
 #### Purpose
 
 `ThemeResolver` reproduces Mermaid's five built-in themes - `default`, `base`, `dark`, `forest`, and `neutral` - and
-the style sheets that Mermaid writes for a flowchart and a sequence diagram from them. Given a theme name and the
-user's theme variable overrides, it computes every theme variable of every diagram type with the same text as
-Mermaid's `getThemeVariables`, and `FlowchartStyles` and `SequenceStyles` turn the theme variables and the `themeCSS`
-of a configuration into the paint and fonts the diagram is drawn with.
+the style sheets that Mermaid writes for a flowchart, a sequence diagram, and a class diagram from them. Given a theme
+name and the user's theme variable overrides, it computes every theme variable of every diagram type with the same
+text as Mermaid's `getThemeVariables`, and `FlowchartStyles`, `SequenceStyles`, and `ClassStyles` turn the theme
+variables and the `themeCSS` of a configuration into the paint and fonts the diagram is drawn with.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeResolver-*` requirements in
 `docs/reqstream/canvas-net-mermaid/configuration/theme-resolver.yaml`.
@@ -37,13 +39,39 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   themes that are not ported. `MaxColorLimit` (64) caps the color-scale loops.
 - **`DiagramStyles`** - the shared base of the style sheets: the rules in cascade order (`Rules`, each a `StyleRule`
   of a normalized selector and a `StyleDeclarationSet`), the cascaded declarations by selector, `Root` (the selector
-  of the root rule, Mermaid's `&`), and the builder of the global rules of Mermaid's `getStyles`, which both sheets
-  start with.
-- **`FlowchartStyles`** - the rules of the flowchart's style sheet. `KnownSelectors` is the
-  set of selectors of the sheet, which `themeCSS` may use.
-  The typed properties `Node` and `Cluster` (`ShapePaint`: fill, stroke, and stroke width), `EdgeColor`, `EdgeWidth`,
-  `ThickEdgeWidth`, `MarkerColor`, `NodeLabel`, `ClusterLabel`, and `Title` (`TextPaint`: font family, font size, and
-  color), and `EdgeLabelBackground` resolve the rules the flowchart draws with. An instance is immutable.
+  of the root rule, Mermaid's `&`), and the builder of the global rules of Mermaid's `getStyles`, which every sheet
+  starts with.
+- **`UnifiedStyles`** - the abstract base of the sheets of the diagrams that Mermaid draws with its unified renderer
+  (the flowchart and the class diagram), whose shapes, clusters, edges, labels, and title the shared rendering units
+  draw. It gives those units every selector they read, whichever diagram's sheet wrote it: `Node` and `Cluster`
+  (`ShapePaint`: fill, stroke, and stroke width, from `.node rect` and `.cluster rect`), `NodeLabel` (abstract: each
+  sheet names the rule its labels are colored by), `EdgeLabel` and `NoteLabel` (the node label's paint unless the
+  sheet overrides them), `ClusterLabel` (`.cluster-label span`), `Title` (the rule of the sheet's `TitleSelector` on
+  the root font; a selector without a rule gives the root font and fill), `EdgeLabelBackground` (`.edgeLabel`), the
+  selectors of the label backgrounds - `HtmlEdgeLabelBackgrounds` (painted in order over an HTML label's box; a
+  flowchart's `.labelBkg` and `.edgeLabel p`) and `SvgEdgeLabelBackground` (a flowchart's `.edgeLabel rect`) - and
+  `TerminalLabel(html)`, the paint of a relation's terminal label (the size of `.edgeTerminals` on the root font, and
+  the edge label's color for an HTML label or the root's fill for an SVG label).
+- **`FlowchartStyles`** - the rules of the flowchart's style sheet, a `UnifiedStyles`. `KnownSelectors` is the
+  set of selectors of the sheet, which `themeCSS` may use. Its labels are colored by `.label`, and its title selector
+  is `.flowchartTitleText`. Its own typed properties `EdgeColor`, `EdgeWidth`, `ThickEdgeWidth`, and `MarkerColor`,
+  with the inherited `Node`, `Cluster`, `NodeLabel`, `ClusterLabel`, `Title` (`TextPaint`: font family, font size, and
+  color), and `EdgeLabelBackground`, resolve the rules the flowchart draws with. An instance is immutable.
+- **`ClassStyles`** - the rules of the class diagram's style sheet (`class/styles.js`) after the global rules, a
+  `UnifiedStyles` with its own `KnownSelectors`. The rules are those of `styles.js` in their order with the
+  declarations that change pixels; the rules of the `neo` look and the icon rules are left out (that look is drawn
+  classic and a class diagram has no icons), and a marker rule such as `[id$="-compositionStart"], .composition` is
+  kept as its class selector (`.composition`), which matches the same marker element. The class rules give the class
+  boxes (`.node rect` and `g.classGroup rect`: `mainBkg` and `nodeBorder`), the dividers (`.divider`, the typed
+  `Divider`), the namespaces (`.cluster rect`), the relation lines (`.relation`, `.dashed-line`, and `.dotted-line`),
+  the markers (`.composition`, `.dependency`, `.extension`, `.aggregation`, and `.lollipop`: the `lineColor` with
+  `!important`, filled with it, `transparent`, or `mainBkg`), and the terminal labels (`.edgeTerminals`, 11 pixels).
+  `NodeLabel` and `EdgeLabel` are colored by `.nodeLabel` and `.edgeLabel` (`classText`), `NoteLabel` by
+  `.noteLabel .nodeLabel` (`noteTextColor`), and the label backgrounds are `.labelBkg` and `.edgeLabel .label span`
+  for an HTML label and `.edgeLabel .label rect` for an SVG label (`mainBkg`). The title selector is
+  `.classDiagramTitleText`, the class Mermaid gives the title text, which no rule of the sheet styles (its rule is for
+  `.classTitleText`), so the title takes the root font and fill as Mermaid's class title does. An instance is
+  immutable.
 - **`SequenceStyles`** - the rules of the sequence diagram's style sheet (`styles.js`) after the global rules, with
   its own `KnownSelectors`. The resolvers apply the cascade of the rules that match an element over the attributes
   Mermaid writes on it, as a browser does: `Shape` (`ShapePaint`), `Line` (`StrokePaint`: color, width, and dash
@@ -72,6 +100,12 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   parses `themeCSS` with `StyleDeclarations.ParseSheet` against `KnownSelectors` and appends its rules, so that a user
   rule overrides the theme's rule of the same selector unless the theme's declaration is `!important`.
 - `FlowchartStyles.Resolve(string selector)` - the cascaded declarations of a selector (empty when it has none).
+- `ClassStyles.Create(MermaidConfig config, MermaidReportSink? sink)` - builds the same global rules and then the
+  rules of the class diagram's `styles.js` from the theme variables, in their order (the legacy `g.classGroup text`
+  fill follows JavaScript's `||`: the `nodeBorder` when it is not empty, else `classText`), and appends the `themeCSS`
+  rules of the class selectors as `FlowchartStyles.Create` does. The cascade decides, for example, that a user rule of
+  `.divider` or `.edgeTerminals` changes the dividers or the terminal label size, while a user marker fill does not
+  beat the theme's `!important` marker fill.
 - `SequenceStyles.Create(MermaidConfig config, MermaidReportSink? sink)` - builds the same global rules and then the
   rules of the sequence diagram's `styles.js` from the theme variables, in their order, and appends the `themeCSS`
   rules of the sequence selectors as `FlowchartStyles.Create` does. The cascade decides, for example, that the `line`
@@ -90,9 +124,10 @@ of string, number, and Boolean values. The methods are pure functions of their a
 `IsTheme` first) and lets the `ColorFormatException` of `ColorMath` propagate when a value the theme derives colors from
 is not a color; the exception carries the offending value, so that `MermaidConfigResolver` can drop the variable and
 compute the theme again. A hostile `THEME_COLOR_LIMIT` cannot make the loops unbounded; khroma then fails on the
-missing scale colors, as in Mermaid. `FlowchartStyles.Create` and `SequenceStyles.Create` report each `themeCSS` rule
-of another selector, at-rule, or nested rule as `mermaid-theme-css-unsupported` at the location of `themeCSS` and do
-not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException` at the first one.
+missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Create`, and `SequenceStyles.Create`
+report each `themeCSS` rule of another selector, at-rule, or nested rule as `mermaid-theme-css-unsupported` at the
+location of `themeCSS` and do not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException` at the
+first one.
 
 #### Known Differences From Mermaid
 
@@ -112,8 +147,8 @@ not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException
   and `ColorFormatException`
 - **`StyleDeclarations`** (this subsystem) - `ParseSheet`, `ParseBlock`, `NormalizeSelector`, the value parsers, and
   `StyleDeclarationSet`
-- **`MermaidConfigResolver`** (this subsystem) - the `MermaidConfig` that `FlowchartStyles.Create` and
-  `SequenceStyles.Create` read
+- **`MermaidConfigResolver`** (this subsystem) - the `MermaidConfig` that `FlowchartStyles.Create`,
+  `ClassStyles.Create`, and `SequenceStyles.Create` read
 - **System root** - `MermaidReportSink` and `MermaidLocation`
 - **Core `CanvasNet`** - `Rgba32` and `CssColor` (the `Canvas` subsystem), through the public API
 - **.NET base class library** - `System.Text.Json` and `System.Collections.Frozen`
@@ -121,9 +156,10 @@ not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException
 #### Callers
 
 `MermaidConfigResolver` computes the theme variables of the site theme and of a theme named by the text; the
-`MermaidDocument` pipeline and the `Flowchart` subsystem (`FlowchartModel`) build the `FlowchartStyles` of a call; the
-`Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through them `ClusterLayout`) draws with the resolved paints,
-the rules, and `FlowchartStyles.Root`; and in the `Sequence` subsystem `SequenceLayout` builds the `SequenceStyles` of
+`Flowchart` subsystem (`FlowchartModel`) builds the `FlowchartStyles` of a call and the `Class` subsystem
+(`ClassModel`) the `ClassStyles` of a call; the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through them
+and for the diagram title `ClusterLayout`) draws with the resolved paints, the rules, and `DiagramStyles.Root` of
+either sheet through `UnifiedStyles`; and in the `Sequence` subsystem `SequenceLayout` builds the `SequenceStyles` of
 a render and `SequenceRenderer` draws with its resolvers. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/ThemeResolverTests.cs` call the unit directly through
 `InternalsVisibleTo`, against the vectors of `Fixtures/upstream-vectors/themes.json`.

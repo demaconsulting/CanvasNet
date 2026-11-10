@@ -1,0 +1,18 @@
+---
+config:
+  class:
+    hideEmptyMembersBox: true
+---
+classDiagram
+    class Empty
+    class OnlyAnnotation {
+        <<interface>>
+    }
+    class WithMember {
+        +int id
+    }
+    class WithMethod {
+        +run()
+    }
+    Empty --> WithMember
+    OnlyAnnotation <|.. WithMethod

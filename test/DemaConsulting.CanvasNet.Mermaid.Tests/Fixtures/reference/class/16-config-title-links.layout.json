@@ -1,0 +1,155 @@
+{
+  "source": "16-config-title-links.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, -47, 276.785, 310],
+  "title": { "class": "classDiagramTitleText", "text": "Configured class diagram", "box": [47.682, -39, 181.422, 17] },
+  "nodes": [
+    {
+      "id": "classId-Gateway-0",
+      "shape": "classBox",
+      "x": 138.393,
+      "y": 57.5,
+      "box": [8, 8, 260.785, 99],
+      "class": "node default clickable",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 260.785, 99] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 260.785, 99] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [104.936, 13.5, 66.914, 17],
+          "text": "Gateway",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [16, 46.5, 95.711, 17],
+          "text": "+String name"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [16, 79.5, 211.328, 17],
+          "text": "+route(Request r) : Response"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 41, 260.785, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 74, 260.785, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Backend-1",
+      "shape": "classBox",
+      "x": 63.855,
+      "y": 226.5,
+      "box": [22.395, 198, 82.922, 57],
+      "class": "node default clickable clickable",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [22.395, 198, 82.922, 57] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [22.395, 198, 82.922, 57] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [30.395, 203.5, 66.922, 17],
+          "text": "Backend",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [22.395, 231, 82.922, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [22.395, 243, 82.922, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Docs-2",
+      "shape": "classBox",
+      "x": 212.93,
+      "y": 226.5,
+      "box": [185.316, 198, 55.227, 57],
+      "class": "node default clickable  clickable",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [185.316, 198, 55.227, 57] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [185.316, 198, 55.227, 57] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [193.316, 203.5, 39.227, 17],
+          "text": "Docs",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [185.316, 231, 55.227, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [185.316, 243, 55.227, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Gateway_Backend_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 97.334,
+      "points": [
+        [99.555, 107],
+        [96.551, 110.829],
+        [93.547, 114.658],
+        [90.543, 118.486],
+        [87.538, 122.315],
+        [84.534, 126.144],
+        [81.53, 129.973],
+        [78.526, 133.802],
+        [75.522, 137.63],
+        [72.518, 141.459],
+        [69.514, 145.288],
+        [66.509, 149.117],
+        [63.855, 153.067],
+        [63.855, 157.933],
+        [63.855, 162.8],
+        [63.855, 167.667],
+        [63.855, 172.533],
+        [63.855, 177.4],
+        [63.855, 182.267],
+        [63.855, 187.133],
+        [63.855, 192]
+      ]
+    },
+    {
+      "id": "id_Gateway_Docs_2",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 97.334,
+      "points": [
+        [177.23, 107],
+        [180.234, 110.829],
+        [183.238, 114.658],
+        [186.242, 118.486],
+        [189.247, 122.315],
+        [192.251, 126.144],
+        [195.255, 129.973],
+        [198.259, 133.802],
+        [201.263, 137.63],
+        [204.267, 141.459],
+        [207.271, 145.288],
+        [210.276, 149.117],
+        [212.93, 153.067],
+        [212.93, 157.933],
+        [212.93, 162.8],
+        [212.93, 167.667],
+        [212.93, 172.533],
+        [212.93, 177.4],
+        [212.93, 182.267],
+        [212.93, 187.133],
+        [212.93, 192]
+      ]
+    }
+  ],
+  "edgeLabels": [{ "id": "id_Gateway_Backend_1", "box": [30.676, 142, 66.359, 21] }],
+  "terminals": []
+}

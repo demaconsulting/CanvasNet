@@ -95,3 +95,34 @@ sections:
                   make it run without bound.
                 tests:
                   - ClusterLayout_Render_TinyWorkBudget_ThrowsLimitExceeded
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-SelfLoopMergeByType
+                title: >-
+                  The ClusterLayout unit shall merge the segments of a self-loop into one loop only for the diagram
+                  types whose Mermaid renderer merges them (among them flowcharts and class diagrams, but not the
+                  legacy class id), and otherwise draw each segment on its own with the first keeping the start
+                  terminal label and the last the end terminal label.
+                justification: |
+                  Mermaid draws a self-loop differently by diagram type; the same type must give the same loop.
+                tests:
+                  - ClusterLayout_Render_SelfLoop_IsMergedOnlyForMergingTypes
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-TerminalLabels
+                title: >-
+                  The ClusterLayout unit shall draw the terminal labels of an edge after the edge's label, in Mermaid's
+                  layer of edge labels.
+                justification: |
+                  The drawing order decides what is painted over what.
+                tests:
+                  - ClusterLayout_Render_RelationWithCardinalities_DrawsTerminalLabelsAfterItsLabel
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-DiagramViewBox
+                title: >-
+                  The ClusterLayout unit shall frame a drawn diagram as Mermaid's unified diagrams frame it: the
+                  diagram title centered above the drawing at the diagram's title margin, and a view box of the drawn
+                  bounds and the title grown by the diagram's padding.
+                justification: |
+                  The view box is the natural size of the picture; it must be Mermaid's for every diagram type that
+                  draws through the unified renderer.
+                tests:
+                  - ClusterLayout_RenderDiagram_Title_IsAboveTheDrawingInsideThePaddedViewBox

@@ -1,4 +1,5 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
+using System.Globalization;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -24,7 +25,10 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 /// <param name="Config">The effective configuration of the render.</param>
 internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList<LayoutEdge> Edges, MermaidConfig Config)
 {
-    /// <summary>Gets the diagram type as Mermaid names it (<c>flowchart-v2</c>).</summary>
+    /// <summary>
+    ///     Gets the diagram type as Mermaid names it (<c>flowchart-v2</c>, <c>classDiagram</c>, the legacy
+    ///     <c>class</c>, ...); it decides whether self-loops are merged into one compact loop.
+    /// </summary>
     public required string DiagramType { get; init; }
 
     /// <summary>Gets the layout algorithm (always <c>dagre</c>; other layouts fall back to it).</summary>
@@ -44,6 +48,90 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
 
     /// <summary>Gets the clusters: the nodes that are groups, in node order.</summary>
     public IEnumerable<LayoutNode> Clusters => Nodes.Where(node => node.IsGroup);
+
+    /// <summary>
+    ///     Checks how deeply the clusters nest through the parents of the nodes: a node may be inside at most
+    ///     <paramref name="maxDepth"/> nested clusters (<see cref="MermaidLimits.MaxNestingDepth"/>).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The parsers count the levels they read, but a cluster can also be nested by naming it inside another
+    ///         cluster that is declared elsewhere (a subgraph listed in another subgraph, a composite state named in
+    ///         another composite state, a class named like a namespace), which chains clusters without any nesting in the
+    ///         text. This check follows the parents as the layout sets them (for an id that several nodes share, the last
+    ///         parent given), so every way of nesting counts.
+    ///     </para>
+    ///     <para>
+    ///         The depth of each id is computed once, so the check is linear in the nodes. A chain that runs into a cycle
+    ///         is left to the layout, which fails on it, located, as Mermaid's render does.
+    ///     </para>
+    /// </remarks>
+    /// <param name="maxDepth">The largest number of clusters a node may be inside.</param>
+    /// <param name="clusters">What the diagram's clusters are called, for the message (<c>namespaces</c>, <c>subgraphs</c>, ...).</param>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the clusters nest too deeply, located at the
+    ///     node that gave the parent of the first node (in node order) that is inside too many clusters.
+    /// </exception>
+    public void CheckNestingDepth(int maxDepth, string clusters)
+    {
+        // The parent of each id as the layout sets it (the last one given), and where it was given
+        var parents = new Dictionary<string, (string Id, MermaidLocation Location)>(StringComparer.Ordinal);
+        foreach (var node in Nodes.Where(node => !string.IsNullOrEmpty(node.ParentId)))
+        {
+            parents[node.Id] = (node.ParentId!, node.Location);
+        }
+
+        // The number of ancestors of each id, computed once along each chain
+        const int Cycle = -2;
+        var depths = new Dictionary<string, int>(StringComparer.Ordinal);
+        var chain = new List<string>();
+        var onChain = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in Nodes.Select(node => node.Id))
+        {
+            chain.Clear();
+            onChain.Clear();
+            var current = id;
+            int depth;
+            while (true)
+            {
+                if (depths.TryGetValue(current, out depth))
+                {
+                    break;
+                }
+
+                if (!onChain.Add(current))
+                {
+                    depth = Cycle;
+                    break;
+                }
+
+                chain.Add(current);
+                if (!parents.TryGetValue(current, out var parent))
+                {
+                    // The last id of the chain has no parent: its depth is 0
+                    depth = -1;
+                    break;
+                }
+
+                current = parent.Id;
+            }
+
+            for (var i = chain.Count - 1; i >= 0; i--)
+            {
+                depth = depth == Cycle ? Cycle : depth + 1;
+                depths[chain[i]] = depth;
+            }
+
+            if (depth > maxDepth)
+            {
+                throw new MermaidRenderException(
+                    MermaidDiagnosticCodes.LimitExceeded,
+                    string.Create(CultureInfo.InvariantCulture, $"{clusters} are nested deeper than {maxDepth} levels (MermaidLimits.MaxNestingDepth)"),
+                    parents[id].Location,
+                    $"nest fewer {clusters}, or raise MermaidLimits.MaxNestingDepth when the source is trusted");
+            }
+        }
+    }
 }
 
 /// <summary>
@@ -75,6 +163,12 @@ internal sealed record LayoutNode
 
     /// <summary>Gets the inline styles of the node (<c>style</c> statements), or null for a cluster.</summary>
     public IReadOnlyList<string>? CssStyles { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the node's styles are written by the diagram itself (a class note's colors, a
+    ///     lollipop interface's opacity) rather than by the user: they are applied without reports.
+    /// </summary>
+    public bool TrustedStyles { get; init; }
 
     /// <summary>Gets the styles of the node's classes (<c>classDef</c>), compiled in class order.</summary>
     public IReadOnlyList<string> CssCompiledStyles { get; init; } = [];
@@ -115,9 +209,43 @@ internal sealed record LayoutNode
     /// <summary>Gets the aspect constraint of an image (<c>on</c> or <c>off</c>), or null.</summary>
     public string? Constraint { get; init; }
 
+    /// <summary>Gets the texts of a class box (a node of shape <c>classBox</c>), or null for any other node.</summary>
+    public LayoutClassBox? ClassBox { get; init; }
+
     /// <summary>Gets the location of the node's first mention in the text, for reports.</summary>
     public MermaidLocation Location { get; init; }
 }
+
+/// <summary>
+///     The texts of a class box as Mermaid's <c>classBox</c> shape reads them from a class node: the drawn name, the
+///     annotations, the attributes and the methods.
+/// </summary>
+/// <remarks>
+///     The texts are as the class database holds them (Mermaid's <c>ClassNode.text</c> and <c>ClassMember.text</c>):
+///     generics already written as <c>&amp;lt;T&amp;gt;</c> and a visibility escaped with a backslash; the shape decodes
+///     and draws them. The record is immutable.
+/// </remarks>
+/// <param name="Text">The class name as drawn (<c>ClassNode.text</c>: the name with its generic type).</param>
+/// <param name="Annotations">The annotations in order, without the angle quotes Mermaid draws around them (only the first is drawn).</param>
+/// <param name="Members">The attributes in order.</param>
+/// <param name="Methods">The methods in order.</param>
+/// <param name="Styles">The class's own styles (<c>ClassNode.styles</c>: its <c>style</c> statements and class styles).</param>
+internal sealed record LayoutClassBox(
+    string Text,
+    IReadOnlyList<string> Annotations,
+    IReadOnlyList<LayoutClassMember> Members,
+    IReadOnlyList<LayoutClassMember> Methods,
+    IReadOnlyList<string> Styles);
+
+/// <summary>
+///     An attribute or a method of a class box: its text and the style of its classifier.
+/// </summary>
+/// <param name="Text">The member's text as the class database holds it (<c>ClassMember.text</c>).</param>
+/// <param name="CssStyle">
+///     The style of its classifier (<c>parseClassifier()</c>): <c>font-style:italic;</c> for an abstract member,
+///     <c>text-decoration:underline;</c> for a static one, else empty.
+/// </param>
+internal sealed record LayoutClassMember(string Text, string CssStyle);
 
 /// <summary>
 ///     An edge of <see cref="LayoutData"/> (Mermaid's <c>Edge</c>).
@@ -192,6 +320,18 @@ internal sealed record LayoutEdge
 
     /// <summary>Gets the curve: the edge's own, else the <c>linkStyle default</c> one, else the configured one.</summary>
     public string? Curve { get; init; }
+
+    /// <summary>
+    ///     Gets the terminal label beside the start of the edge (Mermaid's <c>startLabelRight</c>: a class relation's
+    ///     first cardinality), empty for none.
+    /// </summary>
+    public string StartLabelRight { get; init; } = string.Empty;
+
+    /// <summary>
+    ///     Gets the terminal label beside the end of the edge (Mermaid's <c>endLabelLeft</c>: a class relation's second
+    ///     cardinality), empty for none.
+    /// </summary>
+    public string EndLabelLeft { get; init; } = string.Empty;
 
     /// <summary>Gets the location of the link in the text, for reports.</summary>
     public MermaidLocation Location { get; init; }

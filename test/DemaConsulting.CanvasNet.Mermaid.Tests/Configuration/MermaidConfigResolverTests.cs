@@ -15,6 +15,9 @@ public class MermaidConfigResolverTests
     /// <summary>A sequence diagram body that follows the configuration of a test.</summary>
     private const string Sequence = "sequenceDiagram\n  Alice->>Bob: Hi\n";
 
+    /// <summary>A class diagram.</summary>
+    private const string Class = "classDiagram\n  class Animal\n";
+
     /// <summary>
     ///     Validates the precedence of the theme: the defaults, then the theme option, then the site configuration, then
     ///     the frontmatter, then the directives.
@@ -567,6 +570,64 @@ public class MermaidConfigResolverTests
         Assert.False(config.Sequence.MirrorActors);
         Assert.Equal(80, config.Sequence.ActorMargin);
         Assert.Equal("old", config.Sequence.TextPlacement);
+    }
+
+    /// <summary>
+    ///     Validates the class section without configuration: the three keys of <c>defaultConfig.ts</c> (no
+    ///     <c>padding</c>), and the spacing and title margin of the state section's fallbacks.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_ClassDefaults_MatchMermaid()
+    {
+        // Act
+        var (config, warnings) = Resolve(Class, diagramId: "classDiagram");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal(["defaultRenderer", "hideEmptyMembersBox", "hierarchicalNamespaces"], config.Raw["class"]!.AsObject().Select(pair => pair.Key));
+        Assert.Equal(new ClassConfig(), config.Class);
+        Assert.Equal(("dagre-wrapper", false, true, (double?)null), (config.Class.DefaultRenderer, config.Class.HideEmptyMembersBox, config.Class.HierarchicalNamespaces, config.Class.Padding));
+        Assert.Equal((50.0, 50.0, 25.0), (config.Class.NodeSpacing, config.Class.RankSpacing, config.Class.TitleTopMargin));
+    }
+
+    /// <summary>
+    ///     Validates the class renderer's reads: the class keys from the class section, and the spacing and title margin
+    ///     from the state section, where a zero spacing falls back to 50 (<c>||</c>) and a zero margin is kept (<c>??</c>).
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_ClassSpacingFromState_FollowsClassRenderer()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  class:\n    padding: 0\n    hideEmptyMembersBox: true\n    hierarchicalNamespaces: false\n" +
+                            "  state:\n    nodeSpacing: 0\n    rankSpacing: 80\n    titleTopMargin: 0\n---\n" + Class;
+
+        // Act
+        var (config, warnings) = Resolve(Text, diagramId: "classDiagram");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal((true, false, (double?)0), (config.Class.HideEmptyMembersBox, config.Class.HierarchicalNamespaces, config.Class.Padding));
+        Assert.Equal((50.0, 80.0, 0.0), (config.Class.NodeSpacing, config.Class.RankSpacing, config.Class.TitleTopMargin));
+    }
+
+    /// <summary>
+    ///     Validates that class and state values of the wrong type are reported at the key and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_ClassInvalidValues_ReportedAndIgnored()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"class\": {\"padding\": \"big\", \"hierarchicalNamespaces\": \"no\"}, \"state\": {\"nodeSpacing\": \"wide\"}}}%%\n" + Class;
+
+        // Act
+        var (config, warnings) = Resolve(Text, diagramId: "classDiagram");
+
+        // Assert
+        Assert.Equal(3, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, new MermaidLocation("t.mmd", 1, 1)), (warning.Code, warning.Location)));
+        Assert.Contains(warnings, warning => warning.Message.Contains("class.padding", StringComparison.Ordinal));
+        Assert.Contains(warnings, warning => warning.Message.Contains("state.nodeSpacing", StringComparison.Ordinal));
+        Assert.Equal(new ClassConfig(), config.Class);
     }
 
     /// <summary>

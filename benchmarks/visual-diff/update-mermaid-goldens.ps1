@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Developer tool: regenerates the Mermaid layout goldens (test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
-    reference/*.layout.json and reference/sequence/*.layout.json) from the reference implementation.
+    reference/*.layout.json and reference/{sequence,class}/*.layout.json) from the reference implementation.
 
 .DESCRIPTION
     Not part of the build, the tests, or CI. It runs render-mermaid.mjs (the repository's pinned mermaid-cli and
@@ -9,7 +9,8 @@
     that the reference layout tests compare CanvasNet's layout with:
 
     - flowchart: Fixtures/flowchart/*.mmd to Fixtures/reference/*.layout.json (MermaidReferenceLayoutTests);
-    - sequence: Fixtures/sequence/*.mmd to Fixtures/reference/sequence/*.layout.json.
+    - sequence: Fixtures/sequence/*.mmd to Fixtures/reference/sequence/*.layout.json;
+    - class: Fixtures/class/*.mmd to Fixtures/reference/class/*.layout.json.
 
     The fixtures in $Excluded get no golden; Fixtures/reference/README.md gives the reason of each. A golden change
     in a pull request is reviewed like code: the diff shows which coordinates moved.
@@ -18,15 +19,15 @@
     puppeteer with its headless Chrome).
 
 .PARAMETER Diagram
-    The diagram types to regenerate (flowchart, sequence; default: both).
+    The diagram types to regenerate (flowchart, sequence, class; default: all).
 
 .PARAMETER Fixture
     The names of the fixtures to regenerate (without .mmd; default: every fixture that is not excluded).
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('flowchart', 'sequence')]
-    [string[]]$Diagram = @('flowchart', 'sequence'),
+    [ValidateSet('flowchart', 'sequence', 'class')]
+    [string[]]$Diagram = @('flowchart', 'sequence', 'class'),
 
     [string[]]$Fixture
 )
@@ -38,12 +39,14 @@ $ErrorActionPreference = 'Stop'
 $Folders = @{
     flowchart = @{ Source = 'flowchart'; Golden = 'reference' }
     sequence  = @{ Source = 'sequence'; Golden = 'reference/sequence' }
+    class     = @{ Source = 'class'; Golden = 'reference/class' }
 }
 
 # Fixtures whose reference depends on the machine (see Fixtures/reference/README.md)
 $Excluded = @{
     flowchart = @('38-unicode')
     sequence  = @()
+    class     = @()
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path

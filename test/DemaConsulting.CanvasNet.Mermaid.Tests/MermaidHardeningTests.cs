@@ -594,6 +594,395 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every class fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "class"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile class diagrams through the public API, fitted to 400 by 300 pixels: huge and tiny paddings,
+    ///     spacings and font sizes, huge dashes, cardinalities on a self-loop and markup in a note each render, or end in a
+    ///     located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  class:\n    padding: 1e300\n---\nclassDiagram\nclass A {\n+int x\n}\nA --> B\n")]
+    [InlineData("---\nconfig:\n  class:\n    padding: -1e300\n---\nclassDiagram\nclass A\nA --> B\n")]
+    [InlineData("---\nconfig:\n  state:\n    nodeSpacing: 1e300\n    rankSpacing: 1e300\n---\nclassDiagram\nA --> B\nA --> C\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e300}}}%%\nclassDiagram\nclass A {\n+int x\n}\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nclassDiagram\nclass A {\n+int x\n}\n")]
+    [InlineData("classDiagram\nclass A\nstyle A stroke:#f00,stroke-dasharray:1e300\n")]
+    [InlineData("classDiagram\nA \"1\" --> \"*\" A : self\n")]
+    [InlineData("classDiagram\nnote \"<b>x</b><br><img src='x'>\"\nclass A {\n<<a>>\n}\n")]
+    public void CanvasNetMermaid_Hardening_HostileClassDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Gets diagrams of every type that has links (class <c>link</c> and <c>click ... href</c>, flowchart <c>click</c>
+    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>), each with encoded forms of unsafe links that a partial
+    ///     check lets through: a tab inside the scheme, a percent-encoded letter, an escaped white space, and mixed case.
+    /// </summary>
+    public static TheoryData<string> UnsafeLinkDiagrams =>
+    [
+        "classDiagram\nclass A\nclass B\nclass C\nlink A \"java\tscript:alert(1)\" \"tip\"\nclick B href \"%6Aavascript:alert(2)\" _self\n" +
+        "link C \"JaVa&Tab;ScRiPt&colon;alert(3)\"\n",
+        "flowchart TD\nA --> B\nclick A href \"java\tscript:alert(1)\" \"tip\" _blank\nclick B \"%6Aavascript:alert(2)\"\n",
+        "sequenceDiagram\nparticipant A\nlink A: Docs @ %6Aavascript:alert(1)\nlinks A: {\"Run\": \"javascrip\\\\%74t:alert(2)\", \"Go\": \"JaVaScRiPt:alert(3)\"}\nA->>A: hi\n",
+    ];
+
+    /// <summary>
+    ///     Validates through the public API that an encoded unsafe link appears in no output of a document: the diagram
+    ///     renders, no report, hint, title or accessible title carries the link, and the only links the parsed diagram
+    ///     keeps are the checked ones (<c>about:blank</c>; a flowchart keeps none).
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [MemberData(nameof(UnsafeLinkDiagrams))]
+    public void CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput(string text)
+    {
+        // Arrange
+        var outputs = new List<string>();
+        var options = new MermaidRenderOptions
+        {
+            WarningHandler = report => outputs.AddRange([report.ToString(), report.Hint ?? string.Empty]),
+            UnsupportedFeatureHandler = report => outputs.AddRange([report.ToString(), report.Hint ?? string.Empty]),
+        };
+
+        // Act
+        var document = MermaidDocument.Parse(text);
+        using var surface = document.Render(options, TestContext.Current.CancellationToken);
+        outputs.AddRange([document.Title ?? string.Empty, document.AccTitle ?? string.Empty]);
+
+        // Assert
+        Assert.False(MermaidTestHelpers.IsFullyTransparent(surface));
+        Assert.DoesNotContain(outputs, output => output.Contains("alert(", StringComparison.Ordinal));
+        Assert.All(KeptLinks(document), link => Assert.Equal("about:blank", link));
+    }
+
+    /// <summary>
+    ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram and the link texts of the
+    ///     participants of a sequence diagram (a flowchart keeps none).
+    /// </summary>
+    /// <param name="document">The document.</param>
+    /// <returns>The kept links.</returns>
+    private static List<string?> KeptLinks(MermaidDocument document) => document.Diagram switch
+    {
+        global::DemaConsulting.CanvasNet.Mermaid.Class.ClassModel model => [.. model.Classes.Where(c => c.Link is not null).Select(c => c.Link)],
+        global::DemaConsulting.CanvasNet.Mermaid.Sequence.SequenceModel model => [.. model.Actors.SelectMany(a => a.Links.Keys.Select(key => a.Links.TryGetValue(key, out var value) ? (string?)value : null))],
+        _ => [],
+    };
+
+    /// <summary>
+    ///     Validates that class namespaces count against <see cref="MermaidLimits.MaxNodes"/> with the classes: once 1,000
+    ///     namespaces of one class each reach the limit, the next namespace fails at open, located at the namespace.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassTooManyNamespaces_IsALocatedLimit()
+    {
+        // Arrange: 1,000 namespaces and their 1,000 classes reach the limit; the next namespace is one too many
+        var text = "classDiagram\n" + string.Concat(Enumerable.Range(0, 1_001).Select(i => $"namespace n{i} {{\nclass c{i}\n}}\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert: namespace 1,000 (counted from zero) is on line 2 + 3 * 1,000
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that nested class namespaces whose names each fit <see cref="MermaidLimits.MaxLabelLength"/> but
+    ///     whose qualified id (the drawn label when <c>class.hierarchicalNamespaces</c> is false) does not fail at open,
+    ///     located at the inner namespace.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassNestedNamespaceIds_AreALocatedLimit()
+    {
+        // Arrange: two 3,000-character names give a 6,001-character qualified id
+        var text = $"classDiagram\nnamespace {new string('a', 3_000)} {{\nnamespace {new string('b', 3_000)} {{\nclass C\n}}\n}}\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Gets class diagrams whose namespaces nest deeper than <see cref="MermaidLimits.MaxNestingDepth"/> (32) through
+    ///     the dots in their names, alone or with nested <c>namespace</c> keywords, each with the line of the namespace
+    ///     that is too deep.
+    /// </summary>
+    public static TheoryData<string, int> ClassDottedNamespacesTooDeep => new()
+    {
+        // 33 dotted parts, one level too many
+        { "classDiagram\nnamespace " + string.Join('.', Enumerable.Range(0, 33).Select(i => $"n{i}")) + " {\nclass X\n}\n", 2 },
+
+        // 1,000 dotted parts, which once overflowed the stack laying out the nested clusters
+        { "classDiagram\nnamespace " + string.Join('.', Enumerable.Repeat("a", 1_000)) + " {\nclass X\n}\n", 2 },
+
+        // 17 nested keywords of two parts each: the 17th reaches 34 levels, on line 18
+        { "classDiagram\n" + string.Concat(Enumerable.Range(0, 17).Select(i => $"namespace a{i}.b{i} {{\n")) + "class X\n" + string.Concat(Enumerable.Repeat("}\n", 17)), 18 },
+    };
+
+    /// <summary>
+    ///     Validates that class namespaces nested deeper than <see cref="MermaidLimits.MaxNestingDepth"/> through dotted
+    ///     names fail at parse with a located limit, instead of nesting one cluster per part.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the namespace that is too deep.</param>
+    [Theory]
+    [MemberData(nameof(ClassDottedNamespacesTooDeep))]
+    public void CanvasNetMermaid_Hardening_ClassDottedNamespacesTooDeep_AreALocatedLimit(string text, int line)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that class namespaces nested exactly <see cref="MermaidLimits.MaxNestingDepth"/> (32) levels deep,
+    ///     through a dotted name alone or with nested <c>namespace</c> keywords, still render.
+    /// </summary>
+    /// <param name="keywords">The number of nested <c>namespace</c> keywords.</param>
+    /// <param name="parts">The number of dotted parts in each name.</param>
+    [Theory]
+    [InlineData(1, 32)]
+    [InlineData(16, 2)]
+    public void CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render(int keywords, int parts)
+    {
+        // Arrange
+        var text = "classDiagram\n" +
+            string.Concat(Enumerable.Range(0, keywords).Select(k => "namespace " + string.Join('.', Enumerable.Range(0, parts).Select(p => $"n{k}x{p}")) + " {\n")) +
+            "class X\n" + string.Concat(Enumerable.Repeat("}\n", keywords));
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(32, document.SubgraphCount);
+    }
+
+    /// <summary>
+    ///     Validates that note theme variables a directive or the frontmatter sets to a number or a boolean, which Mermaid
+    ///     stringifies into the note's style, render instead of failing.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("%%{init: {'themeVariables': {'noteBkgColor': 5, 'noteBorderColor': true}}}%%\nclassDiagram\nnote \"x\"\n")]
+    [InlineData("---\nconfig:\n  themeVariables:\n    noteBkgColor: false\n    noteBorderColor: 1.5\n---\nclassDiagram\nnote for A \"x\"\nclass A\n")]
+    public void CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    /// <summary>
+    ///     Validates that a labeled generic class whose name and label each fit <see cref="MermaidLimits.MaxLabelLength"/>
+    ///     but whose drawn name (the label with the type) does not fails at open, located at the class.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit()
+    {
+        // Arrange: a 3,000-character type and a 3,000-character label give a 6,002-character drawn name
+        var text = $"classDiagram\nclass A~{new string('T', 3_000)}~[\"{new string('L', 3_000)}\"]\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Gets class diagrams that repeat a CSS class or styles on one class, as Mermaid does for a name listed again,
+    ///     until the joined text passes <see cref="MermaidLimits.MaxLabelLength"/>, each with the line of the statement
+    ///     that makes it too long.
+    /// </summary>
+    public static TheoryData<string, int> ClassRepeatedClassesAndStyles => new()
+    {
+        // cssClass with the class listed 1,000 times, three times: the CSS classes pass 4,096 characters on line 5
+        { "classDiagram\nclass A\n" + string.Concat(Enumerable.Repeat($"cssClass \"{string.Join(',', Enumerable.Repeat("A", 1_000))}\" c\n", 3)), 5 },
+
+        // classDef with the style class listed 2,000 times: its styles are added once per name
+        { "classDiagram\nclass A:::c\nclassDef " + string.Join(',', Enumerable.Repeat("c", 2_000)) + " " + string.Join(',', Enumerable.Repeat("a:b", 1_000)) + "\n", 3 },
+
+        // Two style classes of 2,099 characters on one class: its styles pass 4,096 characters at the second
+        { "classDiagram\nclass A:::c\ncssClass \"A\" d\n" + string.Concat(new[] { "c", "d" }.Select(name => $"classDef {name} {string.Join(',', Enumerable.Repeat("a:b", 525))}\n")), 5 },
+
+        // Two style statements of 2,099 characters on one class
+        { "classDiagram\nclass A\n" + string.Concat(Enumerable.Repeat($"style A {string.Join(',', Enumerable.Repeat("a:b", 525))}\n", 2)), 4 },
+    };
+
+    /// <summary>
+    ///     Validates that CSS classes and styles a class gets again and again (a class listed many times in a
+    ///     <c>cssClass</c> statement, a style class listed many times in a <c>classDef</c> statement, several style classes
+    ///     or style statements) fail at open, located at the statement that makes them too long, instead of multiplying
+    ///     the styles without bound.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the statement that makes the text too long.</param>
+    [Theory]
+    [MemberData(nameof(ClassRepeatedClassesAndStyles))]
+    public void CanvasNetMermaid_Hardening_ClassRepeatedClassesAndStyles_AreALocatedLimit(string text, int line)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that namespaces chained by class names (a namespace holds a class named like the next namespace,
+    ///     which nests that namespace in it, though no namespace is nested in the text) count against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>: a chain of 32 renders, and one of 40 fails when it is laid out,
+    ///     located at the class that nests the 33rd namespace.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassNamespacesChainedByClassNames_AreALocatedLimit()
+    {
+        // Arrange: namespace Ni holds class N(i+1), on line 3 + 3i
+        static string Chain(int count) =>
+            "classDiagram\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"namespace N{i} {{\nclass N{i + 1}\n}}\n"));
+        var accepted = MermaidDocument.Parse(Chain(32));
+        var refused = MermaidDocument.Parse(Chain(40));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: class N33 in namespace N32 nests namespace N33 33 levels deep
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(99, exception.Location.Line);
+        Assert.Contains("namespaces are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a class with very many members renders or hits the work limit, and that the work is bounded.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassWithManyMembers_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange
+        var text = "classDiagram\nclass Big {\n" + string.Concat(Enumerable.Range(0, 1_500).Select(i => $"+int field{i}\n")) + "}\n";
+        var document = MermaidDocument.Parse(text);
+        var small = new MermaidRenderOptions { Scale = 0.1, Limits = new MermaidLimits { MaxLayoutWork = 5_000 } };
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > size.Width);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the class fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "<|--", "*--", "o--", "-->", "--", "..>", "..|>", "..", "()--", "--()", "<|--|>", "\"1\"", "\"*\"", ":", " : label",
+            "class X", "class Y {", "}", "{", "<<interface>>", "<<", ">>", "~T~", "~", "+", "-", "#", "$", "*", "()", "(a, b)",
+            "namespace N {", "note \"n\"", "note for X \"n\"", "classDef c fill:#f00", "cssClass \"X\" c", ":::c", "style X fill:#0f0",
+            "direction LR", "direction RL", "link X \"https://example.com\"", "click X call f()", "callback X \"f\"", "`B`", "[\"L\"]",
+            "accTitle: t", "accDescr: d", "%%", "\n", "  ", "<br>", "\\", "#59;",
+        ];
+        var random = new Random(20261109);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "class"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
     ///     Mutates a text: deletes a range, inserts a token, duplicates a line or swaps two characters, one to three times.
     /// </summary>
     /// <param name="text">The text.</param>

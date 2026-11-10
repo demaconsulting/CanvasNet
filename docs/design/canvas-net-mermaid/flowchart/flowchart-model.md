@@ -91,10 +91,12 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
   `fal`, `far`, or `fas`, then `:fa-` and a name of word characters and dashes), each located and with a hint.
 - **`Layout(DiagramRenderContext)`** draws the diagram (Mermaid's `draw`): it reports first, gets the layout input,
   creates the picture loader (`NodeImages`, bounded by `MaxImages`), the label builder, the shape context with the
-  flowchart style sheet, and the layout work meter of the render, renders the input with the `ClusterLayout`, places
-  the frontmatter title (`insertTitle`: sanitized, centered over the bounds of the drawing, its baseline
-  `flowchart.titleTopMargin` above the origin, in the title style), and returns a `Scene` whose view box is the bounds
-  grown by `flowchart.diagramPadding` (`setupViewPortForSVG`) and whose pictures are those of the loader.
+  flowchart style sheet, and the layout work meter of the render, and hands the input, the frontmatter title,
+  `flowchart.titleTopMargin`, and `flowchart.diagramPadding` to `ClusterLayout.RenderDiagram`, the end of the draw
+  function that the flowchart shares with the class diagram. `RenderDiagram` renders the input as the root group,
+  places the title (`insertTitle`: sanitized, centered over the bounds of the drawing, its baseline the title margin
+  above the origin, in the title style of the flowchart's sheet, `.flowchartTitleText`), and returns a `Scene` whose
+  view box is the bounds grown by the padding (`setupViewPortForSVG`) and whose pictures are those of the loader.
 
 #### Error Handling
 
@@ -123,9 +125,10 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
 - **Configuration subsystem** - `MermaidConfig` (look, layout, flowchart settings, locations of keys) and
   `FlowchartStyles` (the style sheet of the render).
 - **Rendering subsystem** - `LayoutData`, `LayoutNode`, and `LayoutEdge` (the layout input), `ShapeNames` (the known
-  shapes and the nearest name), and `ClusterLayout`, `ShapeContext`, `LabelBuilder`, and `NodeImages` (the drawing).
+  shapes and the nearest name), and `ClusterLayout` (its `RenderDiagram`: the drawing, the title, and the view box),
+  `ShapeContext`, `LabelBuilder`, and `NodeImages` (the drawing).
 - **Dagre subsystem** - `LayoutWorkMeter` (the shared layout work budget of a render).
-- **Scenegraph subsystem** - `Scene`, `SceneGroup`, `SceneText`, `SceneTextRun`, `SceneFont`, and `SceneRect`.
+- **Scenegraph subsystem** - `Scene` (the result of `Layout`, which `ClusterLayout.RenderDiagram` builds).
 - **Graphlib subsystem** - `ObjectKeyMap.IsArrayIndex` (the JavaScript rule for a `linkStyle` index).
 - **System** - `IMermaidDiagram`, `DiagramRenderContext`, `MermaidLimits`, `MermaidLocation`, `MermaidReportSink`,
   `MermaidSyntaxException`, and `MermaidDiagnosticCodes`.

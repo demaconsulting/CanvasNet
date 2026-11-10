@@ -6,28 +6,34 @@
 
 The `Rendering` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Rendering`, folder
 `src/DemaConsulting.CanvasNet.Mermaid/Rendering/`) is the diagram-independent geometry of Mermaid's unified renderer
-(`rendering-util`): what Mermaid draws for any layout data. A diagram model (the flowchart's `FlowchartModel`) hands it
-the layout data of one render - the nodes (subgraphs included), the edges, and the effective configuration - and gets
-back the drawn diagram as scene items with the box of everything drawn. The subsystem is **internal**: its types are
+(`rendering-util`): what Mermaid draws for any layout data. A diagram model (the flowchart's `FlowchartModel` or the
+class diagram's `ClassModel`) hands it the layout data of one render - the nodes (subgraphs included), the edges, and
+the effective configuration - and gets back the drawn diagram as scene items with the box of everything drawn, or the
+whole framed scene with the diagram title and the padded view box. The subsystem is **internal**: its types are
 visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It contains
 five units:
 
 - **ClusterLayout** - the internal `ClusterLayout` (a partial class in `ClusterLayout.cs`, `ClusterLayout.Extractor.cs`,
-  and `ClusterLayout.SelfLoops.cs`) with the graph labels `ClusterLayoutNode` and `ClusterLayoutEdge`, the result
-  `RenderedGraph`, and the input records `LayoutData`, `LayoutNode`, and `LayoutEdge` (`LayoutData.cs`): Mermaid's
-  dagre renderer, which turns the layout data into compound graphs, lays out the subgraphs without links to the
-  outside on their own, sizes every node and edge label, runs the dagre layout, and draws the result; see _ClusterLayout
-  Unit Design_ (`rendering/cluster-layout.md`)
+  `ClusterLayout.SelfLoops.cs`, and `ClusterLayout.Diagram.cs`) with the graph labels `ClusterLayoutNode` and
+  `ClusterLayoutEdge`, the result `RenderedGraph`, and the input records `LayoutData`, `LayoutNode`, `LayoutEdge`,
+  `LayoutClassBox`, and `LayoutClassMember` (`LayoutData.cs`): Mermaid's dagre renderer, which turns the layout data
+  into compound graphs, lays out the subgraphs without links to the outside on their own, sizes every node and edge
+  label, runs the dagre layout, and draws the result, and the shared end of the unified diagrams' renderers, which
+  frames the drawing with the diagram title and the padded view box; see _ClusterLayout Unit Design_
+  (`rendering/cluster-layout.md`)
 - **ShapeLibrary** - the internal static `ShapeLibrary` (a partial class in `ShapeLibrary.cs`, `ShapeLibrary.Basic.cs`,
-  `ShapeLibrary.Extended.cs`, `ShapeLibrary.Images.cs`, `ShapeLibrary.Intersect.cs`, `ShapeLibrary.Parts.cs`, and
-  `ShapeLibrary.Clusters.cs`) with its value types (`ShapePoint`, `NodeBox`, `ShapeIntersect`, `NodePaint`,
-  `ShapeTheme`, `ShapeContext`, `ShapeResult`, `ClusterShape`) and the shape registry `ShapeNames` (`ShapeNames.cs`):
-  every node shape a flowchart can name, sized from its label, drawn in the classic look, with its intersect function,
-  and the subgraph rectangle; see _ShapeLibrary Unit Design_ (`rendering/shape-library.md`)
+  `ShapeLibrary.Extended.cs`, `ShapeLibrary.Images.cs`, `ShapeLibrary.Intersect.cs`, `ShapeLibrary.Parts.cs`,
+  `ShapeLibrary.Clusters.cs`, and `ShapeLibrary.ClassBox.cs`) with its value types (`ShapePoint`, `NodeBox`,
+  `ShapeIntersect`, `NodePaint`, `ShapeTheme`, `ShapeContext`, `ShapeResult`, `ClusterShape`) and the shape registry
+  `ShapeNames` (`ShapeNames.cs`): every node shape a flowchart can name and the class box of a class diagram, sized
+  from its label, drawn in the classic look, with its intersect function, and the subgraph rectangle; see
+  _ShapeLibrary Unit Design_ (`rendering/shape-library.md`)
 - **EdgeBuilder** - the internal static `EdgeBuilder` (a partial class in `EdgeBuilder.cs`, `EdgeBuilder.Curves.cs`,
-  and `EdgeBuilder.Markers.cs`) with `EdgeEnd`, `EdgeRoute`, `EdgeDrawing`, `EdgeLabelDrawing`, `MarkerPaint`,
-  `ICurveContext`, and `CurvePath`: the edge route cut at the node outlines and subgraph borders, drawn with a d3-shape
-  curve, stroked and marked, and the edge labels measured, placed, and drawn; see _EdgeBuilder Unit Design_
+  `EdgeBuilder.Markers.cs`, and `EdgeBuilder.Terminals.cs`) with `EdgeEnd`, `EdgeRoute`, `EdgeDrawing`,
+  `EdgeLabelDrawing`, `MarkerPaint`, `UserSpaceMarker`, `MarkerPart`, `ICurveContext`, and `CurvePath`: the edge route
+  cut at the node outlines and subgraph borders, drawn with a d3-shape curve, stroked and marked with the flowchart's
+  or the class diagram's markers, the edge labels measured, placed, and drawn, and the terminal labels (a class
+  relation's cardinalities) placed beside the ends of the route; see _EdgeBuilder Unit Design_
   (`rendering/edge-builder.md`)
 - **LabelBuilder** - the internal `LabelBuilder` (a partial class in `LabelBuilder.cs`, `LabelBuilder.Html.cs`,
   `LabelBuilder.Markdown.cs`, `LabelBuilder.MarkdownLexer.cs`, `LabelBuilder.Svg.cs`, and
@@ -49,13 +55,17 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 
 - `ClusterLayout(ShapeContext, LayoutWorkMeter)` and `ClusterLayout.Render(LayoutData)`, which returns a
   `RenderedGraph` (the layers `clusters`, `edgePaths`, `edgeLabels`, and `nodes` as scene groups, the box of everything
-  drawn, and the title correction of the last subgraph)
-- the records `LayoutData`, `LayoutNode`, and `LayoutEdge`, the contract between a diagram model and the renderer
-- `ShapeContext` (configuration, style sheet, label measurement, pictures, and report sink of one render),
-  `ShapeLibrary.Draw(LayoutNode, ShapeContext)`, `ShapeLibrary.DrawCluster`, `ShapeLibrary.SplitStyles`, and
-  `ShapeLibrary.LabelFontOf`
+  drawn, and the title correction of the last subgraph); and `ClusterLayout.RenderDiagram(LayoutData, string?, double,
+  double, LabelBuilder)`, which returns the whole `Scene` (the drawing as the root group, the diagram title, and the
+  view box grown by the padding)
+- the records `LayoutData`, `LayoutNode`, `LayoutEdge`, `LayoutClassBox`, and `LayoutClassMember`, the contract between
+  a diagram model and the renderer
+- `ShapeContext` (configuration, style sheet, label measurement, text width, pictures, and report sink of one render),
+  `ShapeLibrary.Draw(LayoutNode, ShapeContext)`, `ShapeLibrary.DrawCluster`, `ShapeLibrary.SplitStyles`,
+  `ShapeLibrary.LabelFontOf`, and `ShapeLibrary.ClassHtmlLabels`
 - `ShapeNames.IsKnown`, `HandlerOf`, `Nearest`, `ShortNames`, and `DocumentedCount`
-- `EdgeBuilder.MeasureLabel`, `Draw`, `LabelPosition`, and `DrawLabel`
+- `EdgeBuilder.MeasureLabel`, `Draw`, `LabelPosition`, `DrawLabel`, `MeasureTerminal`, `DrawTerminals`, and
+  `CalcTerminalLabelPosition`
 - `LabelBuilder(FontResolver, MermaidReportSink?, NodeImages?)`, `LabelBuilder.Build(LabelRequest)`, which returns a
   `LabelLayout`, and `LabelLayout.ToScene`; and the text utilities `LabelBuilder.Meter`, `CalculateTextDimensions`,
   `CalculateTextWidth`, `WrapLabel`, `BreakString`, `ParseFontSize`, `FontPixels`, `SplitBreaks`, `SvgLineExtent`,
@@ -68,13 +78,14 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 - the `Dagre` subsystem: `DagreLayout.Run`, the graph labels `DagreGraph`, `DagreNode`, and `DagreEdge`, and the
   `LayoutWorkMeter` that bounds the work and observes cancellation
 - the `Graphlib` subsystem: the compound multigraph `Graph`
-- the `Configuration` subsystem: `MermaidConfig`, `FlowchartStyles` (the style sheet of the theme),
-  `StyleDeclarations` (the CSS subset of the node and edge styles), and `MermaidFontConfig` and `ConfigScalar` (the
-  fonts of the text utilities)
-- the `Syntax` subsystem: `HtmlSanitizer` (Mermaid's DOMPurify subset and the character references) and
-  `DiagramDetector.EditDistance`
-- the `Scenegraph` subsystem: the scene items (`SceneGroup`, `ScenePath`, `SceneText`, `SceneImage`), `SceneRect`,
-  `SceneFont`, and `ISceneImageLoader`
+- the `Configuration` subsystem: `MermaidConfig` (with its `class` section), `UnifiedStyles` (the style sheet of the
+  theme as the shared units read it, which is the diagram's `FlowchartStyles` or `ClassStyles`), `StyleDeclarations`
+  (the CSS subset of the node and edge styles), and `MermaidFontConfig` and `ConfigScalar` (the fonts of the text
+  utilities)
+- the `Syntax` subsystem: `HtmlSanitizer` (Mermaid's DOMPurify subset and the character references, also applied to
+  the diagram title) and `DiagramDetector.EditDistance`
+- the `Scenegraph` subsystem: `Scene`, the scene items (`SceneGroup`, `ScenePath`, `SceneText`, `SceneImage`),
+  `SceneRect`, `SceneFont`, `SceneTextRun` (with its `Underline`), and `ISceneImageLoader`
 - the package root: `MermaidLocation`, `MermaidReportSink`, `MermaidDiagnosticCodes`, `MermaidRenderException`, and
   `MermaidLimits`
 - the core `CanvasNet` public API: `Rgba32` and `Surface` (`Canvas`), `FontResolver` and `TrueTypeFont` (`Fonts`),
@@ -82,9 +93,13 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 
 **Consumers**: the `Flowchart` subsystem builds the layout data (`FlowchartModel.GetData`), validates the shape names
 of `@{ shape: ... }` with `ShapeNames`, creates the `NodeImages`, `LabelBuilder`, and `ShapeContext` of a render, and
-calls `ClusterLayout.Render`; the `Scenegraph` painter loads the pictures through the same `NodeImages`, so that the
-image limit is shared by the layout and the painting; the `Sequence` subsystem creates a `LabelBuilder` for each render
-and measures, wraps, and boxes its texts with the text utilities.
+calls `ClusterLayout.RenderDiagram`; the `Class` subsystem builds the layout data of a class diagram
+(`ClassModel.GetData`: the class boxes, the notes, the namespaces, the hidden lollipop interfaces, and the relations
+with their markers and cardinalities), creates the same objects with the class diagram's style sheet and a
+`ShapeContext.TextWidth` of `LabelBuilder.CalculateTextWidth`, and calls `ClusterLayout.RenderDiagram`; the
+`Scenegraph` painter loads the pictures through the same `NodeImages`, so that the image limit is shared by the layout
+and the painting; the `Sequence` subsystem creates a `LabelBuilder` for each render and measures, wraps, and boxes its
+texts with the text utilities.
 
 ### Design
 
@@ -92,15 +107,28 @@ and measures, wraps, and boxes its texts with the text utilities.
 data, moves the links to subgraphs onto anchors, extracts the subgraphs without links to the outside into graphs of
 their own, and then for each graph (inner graphs first) asks `ShapeLibrary` for every node's shape and size and
 `EdgeBuilder` for every edge label's size, runs the dagre layout, and draws the subgraph rectangles (through
-`ShapeLibrary.DrawCluster`), the edges and their labels (through `EdgeBuilder`), and the nodes. The shapes measure their
-labels through the `ShapeContext.MeasureLabel` delegate, which is `LabelBuilder.Build` in a render (tests replace it
-with a fixed box to check the geometry alone), and the image shapes and label pictures ask `NodeImages` for natural
-sizes.
+`ShapeLibrary.DrawCluster`), the edges, their labels, and their terminal labels (through `EdgeBuilder`), and the nodes.
+`ClusterLayout.RenderDiagram` then frames the drawing as the unified diagrams' renderers do: the drawing as the root
+group, the diagram title above it, and the view box grown by the diagram's padding, so a flowchart and a class diagram
+end in the same code. The shapes measure their labels through the `ShapeContext.MeasureLabel` delegate, which is
+`LabelBuilder.Build` in a render (tests replace it with a fixed box to check the geometry alone), the class box wraps
+its texts at the widths of the `ShapeContext.TextWidth` delegate, and the image shapes and label pictures ask
+`NodeImages` for natural sizes.
+
+**One renderer for every unified diagram.** The shared units read a diagram only through its layout data and its style
+sheet: `LayoutData.DiagramType` decides whether a self-loop is merged into one compact loop (as Mermaid decides by
+diagram type), a node's `Shape` selects the flowchart shapes or the class box, an edge's arrow types select the
+flowchart's or the class diagram's markers, and the selectors that `UnifiedStyles` names (the node label, edge label,
+note label, terminal label, and title rules, and the backgrounds of an edge label) come from the diagram's own sheet.
+The styles a diagram writes for its own nodes (a class diagram's note colors and its hidden lollipop interfaces) are
+marked `LayoutNode.TrustedStyles` and applied without reports.
 
 **The scene is the result.** Nothing is painted here: every unit returns scene items with Mermaid's roles and DOM ids
-(`node-group` with the id `flowchart-A-0`, `cluster`, `edge` with the id `L_A_B_0`, `edge-label`, `marker`, `label`,
-`subgraph`, `dummy-group`), so the tests and the reference-layout harness compare the geometry with Mermaid's SVG
-without pixels, and the `Scenegraph` painter draws it later.
+(`node-group` with the id `flowchart-A-0`, `cluster`, `edge` with the id `L_A_B_0`, `edge-label`, `edge-terminal`,
+`marker`, `label`, `subgraph`, `dummy-group`, the class box rows `class-annotation`, `class-label`, `class-member`, and
+`class-method` with their `class-divider` lines, and the framed scene's `root` and `title`), so the tests and the
+reference-layout harness compare the geometry with Mermaid's SVG without pixels, and the `Scenegraph` painter draws it
+later.
 
 **A literal port.** The units follow the pinned Mermaid's code, including its quirks, because layout fidelity is
 measured to hundredths of a pixel: the shape formulas and their intersect functions, the path data rounded to three
@@ -109,14 +137,17 @@ emulated with the bundled fonts. The ported files are (see `third-party/README.m
 
 - `ClusterLayout`: `rendering-util/layout-algorithms/dagre/index.js` and `mermaid-graphlib.js`,
   `layout-algorithms/common/index.ts`, `rendering-elements/nodes.ts` (`positionNode`), and
-  `utils/subGraphTitleMargins.ts`; `LayoutData` follows `rendering-util/types.ts`
-- `ShapeLibrary`: `rendering-elements/shapes/*.ts`, `shapes/util.ts`, `shapes/handDrawnShapeStyles.ts`,
+  `utils/subGraphTitleMargins.ts`; the shared end of `flowRenderer-v3-unified.ts` and `classRenderer-v3-unified.ts`
+  (`insertTitle` and `setupViewPortForSVG`); `LayoutData` follows `rendering-util/types.ts`
+- `ShapeLibrary`: `rendering-elements/shapes/*.ts` (including `classBox.ts`), `shapes/util.ts`,
+  `shapes/handDrawnShapeStyles.ts`, the text placement of the class diagram's `shapeUtil.ts` (`textHelper`),
   `rendering-elements/nodes.ts` (`insertNode`), `rendering-util/createGraph.ts`, `rendering-elements/clusters.js`
   (`rect`), and the intersect functions of `rendering-elements/intersect/` (which Mermaid borrowed from dagre-d3);
   `ShapeNames` follows `rendering-elements/shapes.ts`
-- `EdgeBuilder`: `rendering-elements/edges.js`, `edgeMarker.ts`, `markers.js`, `utils/lineWithOffset.ts`,
-  `labelTransform.ts`, and the edge helpers of `utils.ts`, and the line generator and edge curves of d3-shape with
-  d3-path's number rounding
+- `EdgeBuilder`: `rendering-elements/edges.js` (with the terminal labels of `insertEdgeLabel` and
+  `positionEdgeLabel`), `edgeMarker.ts`, the flowchart and class markers of `markers.js`, `utils/lineWithOffset.ts`,
+  `labelTransform.ts`, and the edge helpers of `utils.ts` (with `calcTerminalLabelPosition`), and the line generator
+  and edge curves of d3-shape with d3-path's number rounding
 - `LabelBuilder`: `rendering-util/createText.ts`, `handle-markdown-text.ts`, `splitText.ts`, the label measurement of
   `shapes/util.ts` and `shapes/labelImageUtils.ts`, the part of the `marked` lexer that Mermaid's markdown labels
   use, and the text utilities of `utils.ts` (`calculateTextDimensions`, `wrapLabel`, `breakString`, `parseFontSize`)
@@ -137,10 +168,13 @@ a `ClusterLayout`, `LabelBuilder`, and `NodeImages` belong to one render on one 
 The documented differences are listed with the unit that owns them: the rough.js circles, the icons, the legacy
 `ellipse`, the unloadable picture, and the cluster title styles (_ShapeLibrary Unit Design_); the SVG label box, the
 HTML subset, the character references, the label pictures, and the markdown subset (_LabelBuilder Unit Design_); the
-natural size of a picture (_NodeImages Unit Design_); the markers, the circle marker clipping, the animated edges, and
-the last bit of the trigonometric functions (_EdgeBuilder Unit Design_); and the failures for a subgraph cycle and for a
-link to a subgraph without an anchor (_ClusterLayout Unit Design_). Only what a flowchart reaches is ported: subgraphs
-are drawn as `clusters.js`'s `rect` only, the markers are `point`, `circle`, and `cross` only, and terminal labels of
-edges are not drawn because the flowchart never sets them. A very large diagram can need a picture larger than
-`Surface.MaxDimension` at scale 1, in which case `Measure` and `Render` throw the documented
+natural size of a picture (_NodeImages Unit Design_); the markers, the circle marker clipping, the half-pixel miter tip
+of the `extensionStart` marker, the clipping of HTML terminal labels, the animated edges, and the last bit of the
+trigonometric functions (_EdgeBuilder Unit Design_); and the failures for a subgraph cycle and for a link to a subgraph
+without an anchor (_ClusterLayout Unit Design_). The position of the underline of a static class member is a
+difference of the painter (_ScenePainter Unit Design_). Only what a flowchart and a class diagram reach is ported:
+subgraphs and namespaces are drawn as `clusters.js`'s `rect` only, the markers are the flowchart's `point`, `circle`,
+and `cross` and the class diagram's `aggregation`, `extension`, `composition`, `dependency`, and `lollipop`, and the
+terminal labels are the two a class relation sets (`startLabelRight` and `endLabelLeft`). A very large diagram can need
+a picture larger than `Surface.MaxDimension` at scale 1, in which case `Measure` and `Render` throw the documented
 `ArgumentOutOfRangeException`.

@@ -2,7 +2,8 @@
 
 This document describes the unit-level verification strategy for the `ScenePainter` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the internal `ScenePainter` class (its paths, dashes, drop
-shadows, text, and pictures), the `ScenePlacement` record struct, and the `ISceneImageLoader` contract.
+shadows, text with its underline bars, and pictures), the `ScenePlacement` record struct, and the `ISceneImageLoader`
+contract.
 
 #### Verification Approach
 
@@ -10,7 +11,10 @@ The unit is verified by painting small scenes built from `SceneModel` records on
 pixels that their geometry covers, worked out by hand: a filled rectangle has its exact fill color inside, its stroke
 color on its edge, and full transparency outside; a dash pattern of 9 on and 5 off leaves x = 4 inked and x = 11
 empty; an even-odd ring leaves its hole empty; a scaled rectangle covers twice its size; text anchored in the middle
-has its ink centered on the anchor and text anchored at the end ends at the anchor. The placement is verified by
+has its ink centered on the anchor and text anchored at the end ends at the anchor; an underlined run has a bar under
+its baseline where the plain run has no ink. The underline bar of each bundled face is verified at a font size of
+2048 pixels, at which one font unit of the faces is one pixel, against the position and thickness of the face's `post`
+table. The placement is verified by
 comparing `ScenePlacement.Fit` with the scale and offsets computed by hand. The painted-pixel limit is verified with
 limits just under and just over the device area of two 10 by 10 fills.
 
@@ -34,8 +38,8 @@ Unit tests reside in `ScenePainterTests.cs` within the `DemaConsulting.CanvasNet
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. A pixel that differs from the hand-derived color, a picture requested at another size, or a limit failure
-that is missing, unlocated, or late constitutes a failure.
+asserted. A pixel that differs from the hand-derived color, an underline bar off the face's metrics, a picture
+requested at another size, or a limit failure that is missing, unlocated, or late constitutes a failure.
 
 #### Unit-Level Test Scenarios
 
@@ -143,3 +147,17 @@ beyond the surface included, and nothing in proportion to the surface.
 
 Asserts that a line of text with a transparent fill draws nothing without a stroke and leaves more than 20 inked
 pixels with a stroke of width 1, so the outline is stroked over the fill even when the fill is transparent.
+
+##### CanvasNetMermaid-Scenegraph-ScenePainter-Underline: Underlined Runs Get A Bar Under Their Baseline
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_UnderlinedRun_DrawsABarUnderTheBaseline`,
+`ScenePainterTests.ScenePainter_UnderlineBar_BundledFaces_FollowThePostTable`
+
+Paints the capitals `HHH` (no descenders) in Mermaid's default family stack at 32 pixels on the baseline y = 20, plain
+and underlined, and asserts that the plain run leaves no ink on the row y = 22 while the underlined run covers 65 to
+70 pixels of that row fully (the bar of Liberation Sans spans y = 21.05 to 23.39 under the run's advance). Builds the
+underline bar of each bundled face (Liberation Sans, Serif, and Mono, regular and bold; a theory) at 2048 pixels for
+a run from x = 10 with an advance of 500 on the baseline y = 100, and asserts that the bar starts at x = 10, is 500
+wide, has its top at 100 minus the face's underline position (for example 167 for regular Liberation Sans, whose
+position is -67), and is as high as its thickness (150 for regular Liberation Sans, 215 for bold, 100 and 195 for
+Serif, 84 and 205 for Mono), to three decimals.

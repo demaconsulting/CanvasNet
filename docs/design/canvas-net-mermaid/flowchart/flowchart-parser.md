@@ -46,7 +46,9 @@ condition, or both); the 21 start conditions (`dir`, `vertex`, `text`, `edgeText
 `trapText`, `ellipseText`, `string`, `md_string`, `shapeData`, `shapeDataStr`, `shapeDataEndBracket`, `click`,
 `href`, `callbackname`, `callbackargs`, `acc_title`, `acc_descr`, `acc_descr_multiline`, and the initial one) list the
 indexes of their rules in the order jison tries them, the first matching rule winning. The letters outside ASCII that
-the `UNICODE_TEXT` rule matches are a sorted table of code-unit ranges generated from the rule's character classes.
+the `UNICODE_TEXT` rule matches are not held by the parser: its rule tests a character with
+`ScanPatterns.IsUnicodeLetter` of the `Syntax` subsystem, the sorted table of code-unit ranges generated from the
+rule's character classes that the class diagram's lexer shares, so both grammars accept the same letters.
 
 The grammar values are the records of `FlowchartModel.Elements.cs` that the model owns: `FlowText` (a label and its
 type `text`, `string`, or `markdown`), `FlowLink` (what the link token means, its text, and its id), `ShapeDataText`
@@ -107,8 +109,9 @@ a statement list, for the members and the direction of a subgraph).
 - **FlowchartModel** - the database the parser fills, the link reader `DestructLink`, the element records, and the
   first-header flag that the header rule consults.
 - **Syntax subsystem** - `SourceScanner`, `ScanRule`, `ScanMatcher`, `ScanToken`, `TokenCursor`, and `ScanPatterns`
-  (the scanner, the cursor, and the JavaScript character classes), `MappedText` and `PreprocessedSource` (the text
-  mapped to the original), `DetectedDiagram`, and `Preprocessor.TrimJs` (JavaScript's `trim`).
+  (the scanner, the cursor, the JavaScript character classes, and the `UNICODE_TEXT` letters of `IsUnicodeLetter`),
+  `MappedText` and `PreprocessedSource` (the text mapped to the original), `DetectedDiagram`, and
+  `Preprocessor.TrimJs` (JavaScript's `trim`).
 - **System** - `MermaidLimits`, `MermaidLocation`, `MermaidSyntaxException`, and `MermaidDiagnosticCodes`.
 
 #### Callers

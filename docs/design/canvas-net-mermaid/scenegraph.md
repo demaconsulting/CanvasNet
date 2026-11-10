@@ -14,12 +14,13 @@ the test assembly. It contains two units:
 - **SceneModel** - the scene records in `SceneModel.cs`: `Scene` (the view box, the items, the picture loader, and the
   helpers `Walk`, `BoundsOf`, and `ToPath`), the items `SceneItem`, `SceneGroup`, `ScenePath`, `SceneText`, and
   `SceneImage`, and their parts `SceneRect`, `SceneSegment` and `SceneSegmentKind`, `SceneStroke`, `SceneShadow`,
-  `SceneFont`, `SceneTextRun`, and `SceneTextAnchor`; see _SceneModel Unit Design_ (`scenegraph/scene-model.md`)
+  `SceneFont`, `SceneTextRun` (which may be underlined), and `SceneTextAnchor`; see _SceneModel Unit Design_
+  (`scenegraph/scene-model.md`)
 - **ScenePainter** - the painter `ScenePainter` (a partial class in `ScenePainter.cs`, `ScenePainter.Shadow.cs`,
   `ScenePainter.Text.cs`, and `ScenePainter.Images.cs`), the placement `ScenePlacement`, and the picture-loader
   contract `ISceneImageLoader`: fills, strokes and dashes, drop shadows, text in the bundled fonts (filled and, when
-  it has a stroke, stroked), pictures, the painted-pixel limit, and cancellation; see _ScenePainter Unit Design_
-  (`scenegraph/scene-painter.md`)
+  it has a stroke, stroked, and an underlined run with a bar under its baseline), pictures, the painted-pixel limit,
+  and cancellation; see _ScenePainter Unit Design_ (`scenegraph/scene-painter.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Scenegraph-*` requirements in `docs/reqstream/canvas-net-mermaid/scenegraph.yaml`. The SysML2 model
@@ -29,12 +30,14 @@ System Design_).
 
 The subsystem is original work of this repository; it ports no upstream code. It reproduces the drawing rules of the
 SVG that Mermaid produces (the path commands, the fill rules, the dash rules of browsers, the bounding box of
-`getBBox`, the `preserveAspectRatio="none"` of Mermaid's node pictures, and the `drop-shadow` filter of the boxes and
-menus of sequence diagrams, blurred as the SVG specification approximates the Gaussian blur).
+`getBBox`, the `preserveAspectRatio="none"` of Mermaid's node pictures, the `drop-shadow` filter of the boxes and
+menus of sequence diagrams, blurred as the SVG specification approximates the Gaussian blur, and the
+`text-decoration: underline` of the static members of a class box).
 
 ### Interfaces
 
-**Exposed** (internal only): the immutable scene types; `Scene.Walk`, `Scene.BoundsOf`, and `Scene.ToPath`;
+**Exposed** (internal only): the immutable scene types (among them `SceneTextRun` with its `Underline`);
+`Scene.Walk`, `Scene.BoundsOf`, and `Scene.ToPath`;
 `SceneRect.Union` and `Offset`; the `SceneSegment` factories `Move`, `Line`, `Quadratic`, `Cubic`, `Arc`, and
 `Close`; `ScenePainter(FontResolver, ISceneImageLoader?, long)`, `ScenePainter.CreateFontResolver`, and
 `ScenePainter.Paint(Scene, int, int, ScenePlacement, Rgba32?, CancellationToken)`; `ScenePlacement.Uniform` and
@@ -46,7 +49,9 @@ of the system's public API; and the core `CanvasNet` public API: `Surface` and `
 (`Geometry`), `FontResolver`, `FontResolverOptions`, and `TrueTypeFont` (`Fonts`), and `TextRenderer` (`Rendering`).
 
 **Consumers**: the units of the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
-`ClusterLayout`), the `FlowchartModel` unit of the `Flowchart` subsystem, and the `SequenceLayout` and
+`ClusterLayout`) build the items of a scene, and `ClusterLayout.RenderDiagram` builds the whole scene of a flowchart or
+a class diagram, which the `FlowchartModel` unit of the `Flowchart` subsystem and the `ClassModel` unit of the `Class`
+subsystem return (the class box marks the runs of a static member `Underline`); the `SequenceLayout` and
 `SequenceRenderer` units of the `Sequence` subsystem build the items of a scene;
 `NodeImages` of the `Rendering` subsystem implements `ISceneImageLoader` and is carried by the scene; and the
 `MermaidDocument` unit creates the font resolver of a call with `ScenePainter.CreateFontResolver`, lays the diagram
@@ -73,7 +78,9 @@ it first, the silhouette moved by the scaled offset and blurred with three box b
 the font resolver of the call resolves - the same resolver the layout measured the labels with, so measuring and
 painting agree - and the resolver maps the common family names (Mermaid's `"trebuchet ms", verdana, arial`) to the
 bundled Liberation families and never uses the fonts installed on the machine; a line with a stroke has its glyph
-outlines stroked over the fill. Pictures are asked from the loader that the
+outlines stroked over the fill, and an underlined run gets a bar under its baseline across its advance, in its color,
+at the underline position and thickness of the face's metrics (the `post` table of the bundled face). Pictures are
+asked from the loader that the
 scene carries (the same `NodeImages` that measured them, so the `MaxImages` budget is shared) at the device size of
 their box and stretched to it.
 

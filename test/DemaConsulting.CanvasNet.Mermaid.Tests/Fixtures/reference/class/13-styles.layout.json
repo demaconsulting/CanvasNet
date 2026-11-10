@@ -1,0 +1,170 @@
+{
+  "source": "13-styles.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 228.695, 270],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Plain-0",
+      "shape": "classBox",
+      "x": 166.898,
+      "y": 220,
+      "box": [135.781, 178, 62.234, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [135.781, 178, 62.234, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [135.781, 178, 62.234, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [147.781, 190, 38.234, 24],
+          "text": "Plain",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [135.781, 226, 62.234, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [135.781, 244, 62.234, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Hot-1",
+      "shape": "classBox",
+      "x": 37.773,
+      "y": 68,
+      "box": [12.445, 26, 50.656, 84],
+      "class": "node default warm",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [12.445, 26, 50.656, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [12.445, 26, 50.656, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [24.445, 38, 26.656, 24],
+          "text": "Hot",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [12.445, 74, 50.656, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [12.445, 92, 50.656, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Cold-2",
+      "shape": "classBox",
+      "x": 37.773,
+      "y": 220,
+      "box": [8, 178, 59.547, 84],
+      "class": "node default cool",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 178, 59.547, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 178, 59.547, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 190, 35.547, 24],
+          "text": "Cold",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 226, 59.547, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 244, 59.547, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Boxed-3",
+      "shape": "classBox",
+      "x": 166.898,
+      "y": 68,
+      "box": [113.102, 8, 107.594, 120],
+      "class": "node default cool",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [113.102, 8, 107.594, 120] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [113.102, 8, 107.594, 120] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [142.445, 20, 48.906, 24],
+          "text": "Boxed",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [125.102, 68, 59.141, 24],
+          "text": "+int size"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [113.102, 56, 107.594, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [113.102, 104, 107.594, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Hot_Cold_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 62,
+      "points": [
+        [37.773, 110],
+        [37.773, 113.1],
+        [37.773, 116.2],
+        [37.773, 119.3],
+        [37.773, 122.4],
+        [37.773, 125.5],
+        [37.773, 128.6],
+        [37.773, 131.7],
+        [37.773, 134.8],
+        [37.773, 137.9],
+        [37.773, 141],
+        [37.773, 144.1],
+        [37.773, 147.2],
+        [37.773, 150.3],
+        [37.773, 153.4],
+        [37.773, 156.5],
+        [37.773, 159.6],
+        [37.773, 162.7],
+        [37.773, 165.8],
+        [37.773, 168.9],
+        [37.773, 172]
+      ]
+    },
+    {
+      "id": "id_Boxed_Plain_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 44,
+      "points": [
+        [166.898, 128],
+        [166.898, 130.2],
+        [166.898, 132.4],
+        [166.898, 134.6],
+        [166.898, 136.8],
+        [166.898, 139],
+        [166.898, 141.2],
+        [166.898, 143.4],
+        [166.898, 145.6],
+        [166.898, 147.8],
+        [166.898, 150],
+        [166.898, 152.2],
+        [166.898, 154.4],
+        [166.898, 156.6],
+        [166.898, 158.8],
+        [166.898, 161],
+        [166.898, 163.2],
+        [166.898, 165.4],
+        [166.898, 167.6],
+        [166.898, 169.8],
+        [166.898, 172]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

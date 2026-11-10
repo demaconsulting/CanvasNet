@@ -81,13 +81,15 @@ sections:
                 title: >-
                   The SequenceModel unit shall read the links, link, and properties statements as Mermaid does - link
                   split at the at sign, links and properties read as JSON with the keys in JavaScript order, the
-                  indexes of an array or string added as keys, and text that is not JSON ignored.
+                  indexes of an array or string added as keys, and text that is not JSON ignored - and shall keep each
+                  link text only as Mermaid's menu checks it with sanitize-url, never as written.
                 justification: |
                   The links of a participant make its menu, whose size changes the diagram, and a properties class or
-                  icon changes how the participant is drawn or reported.
+                  icon changes how the participant is drawn or reported; an unsafe link must never be kept as written.
                 tests:
                   - SequenceModel_Apply_LinksAndProperties_ReadLikeMermaid
                   - SequenceModel_Apply_LinksArrayAndString_AddIndexes
+                  - SequenceModel_Apply_UnsafeLinks_KeepOnlyTheCheckedUrls
                   - SequencePropertyMap_Keys_JavaScriptOrder
 
               - id: CanvasNetMermaid-Sequence-SequenceModel-Wrap

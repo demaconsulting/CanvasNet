@@ -109,4 +109,24 @@ public class SceneModelTests
         Assert.Equal(new SceneShadow(1, 2, 2, new Rgba32(185, 185, 185, 255)), shadowed.Shadow);
         Assert.Equal(Scene.BoundsOf([plain]), Scene.BoundsOf([shadowed]));
     }
+
+    /// <summary>
+    ///     Validates that a text run is not underlined unless asked, and that the underline does not change the box of its
+    ///     line.
+    /// </summary>
+    [Fact]
+    public void SceneTextRun_Underline_DefaultsToFalse()
+    {
+        // Arrange
+        var run = new SceneTextRun("x", new SceneFont("sans-serif", 16, false, false), new Rgba32(0, 0, 0, 255));
+        var box = new SceneRect(0, 0, 8, 18);
+
+        // Act
+        var underlined = run with { Underline = true };
+
+        // Assert
+        Assert.False(run.Underline);
+        Assert.True(underlined.Underline);
+        Assert.Equal(box, Scene.BoundsOf([new SceneText(0, 14, SceneTextAnchor.Start, [underlined], box) { Role = "label" }]));
+    }
 }

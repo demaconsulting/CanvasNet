@@ -1,0 +1,309 @@
+{
+  "source": "10-namespaces.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 749.484, 470],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Triangle-0",
+      "shape": "classBox",
+      "x": 95,
+      "y": 118,
+      "box": [52.32, 76, 85.359, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [52.32, 76, 85.359, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [52.32, 76, 85.359, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [64.32, 88, 61.359, 24],
+          "text": "Triangle",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [52.32, 124, 85.359, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [52.32, 142, 85.359, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Circle-1",
+      "shape": "classBox",
+      "x": 263.508,
+      "y": 118,
+      "box": [187.68, 58, 151.656, 120],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [187.68, 58, 151.656, 120] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [187.68, 58, 151.656, 120] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [241.273, 70, 44.469, 24],
+          "text": "Circle",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [199.68, 118, 105.422, 24],
+          "text": "+double radius"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [187.68, 106, 151.656, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [187.68, 154, 151.656, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Point-2",
+      "shape": "classBox",
+      "x": 95,
+      "y": 370,
+      "box": [63, 328, 64, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [63, 328, 64, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [63, 328, 64, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [75, 340, 40, 24],
+          "text": "Point",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [63, 376, 64, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [63, 394, 64, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Vector-3",
+      "shape": "classBox",
+      "x": 471.563,
+      "y": 370,
+      "box": [435.102, 328, 72.922, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [435.102, 328, 72.922, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [435.102, 328, 72.922, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [447.102, 340, 48.922, 24],
+          "text": "Vector",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [435.102, 376, 72.922, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [435.102, 394, 72.922, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Deep-4",
+      "shape": "classBox",
+      "x": 654.922,
+      "y": 118,
+      "box": [623.359, 76, 63.125, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [623.359, 76, 63.125, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [623.359, 76, 63.125, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [635.359, 88, 39.125, 24],
+          "text": "Deep",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [623.359, 124, 63.125, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [623.359, 142, 63.125, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Shallow-5",
+      "shape": "classBox",
+      "x": 471.563,
+      "y": 118,
+      "box": [429.336, 76, 84.453, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [429.336, 76, 84.453, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [429.336, 76, 84.453, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [441.336, 88, 60.453, 24],
+          "text": "Shallow",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [429.336, 124, 84.453, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [429.336, 142, 84.453, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Helper-6",
+      "shape": "classBox",
+      "x": 654.922,
+      "y": 370,
+      "box": [618.023, 328, 73.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [618.023, 328, 73.797, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [618.023, 328, 73.797, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [630.023, 340, 49.797, 24],
+          "text": "Helper",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [618.023, 376, 73.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [618.023, 394, 73.797, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [
+    {
+      "id": "Shapes",
+      "box": [17.32, 8, 357.016, 220],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Shapes", "box": [168.695, 8, 54.266, 24] }
+    },
+    {
+      "id": "Geo",
+      "box": [8, 278, 555.023, 184],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Geo", "box": [270.387, 278, 30.25, 24] }
+    },
+    {
+      "id": "Outer",
+      "box": [394.336, 8, 347.148, 220],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Outer", "box": [547.902, 8, 40.016, 24] }
+    },
+    {
+      "id": "Utils",
+      "box": [583.023, 278, 143.797, 184],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Utility types", "box": [614.023, 278, 81.797, 24] }
+    },
+    {
+      "id": "Geo.Plane",
+      "box": [28, 303, 515.023, 134],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Plane", "box": [265.051, 303, 40.922, 24] }
+    },
+    {
+      "id": "Outer.Inner",
+      "box": [588.359, 33, 133.125, 170],
+      "class": "cluster undefined",
+      "inner": null,
+      "label": { "text": "Inner", "box": [636.688, 33, 36.469, 24] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "id_Triangle_Point_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 162,
+      "points": [
+        [95, 160],
+        [95, 168.1],
+        [95, 176.2],
+        [95, 184.3],
+        [95, 192.4],
+        [95, 200.5],
+        [95, 208.6],
+        [95, 216.7],
+        [95, 224.8],
+        [95, 232.9],
+        [95, 241],
+        [95, 249.1],
+        [95, 257.2],
+        [95, 265.3],
+        [95, 273.4],
+        [95, 281.5],
+        [95, 289.6],
+        [95, 297.7],
+        [95, 305.8],
+        [95, 313.9],
+        [95, 322]
+      ]
+    },
+    {
+      "id": "id_Deep_Helper_2",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 162,
+      "points": [
+        [654.922, 160],
+        [654.922, 168.1],
+        [654.922, 176.2],
+        [654.922, 184.3],
+        [654.922, 192.4],
+        [654.922, 200.5],
+        [654.922, 208.6],
+        [654.922, 216.7],
+        [654.922, 224.8],
+        [654.922, 232.9],
+        [654.922, 241],
+        [654.922, 249.1],
+        [654.922, 257.2],
+        [654.922, 265.3],
+        [654.922, 273.4],
+        [654.922, 281.5],
+        [654.922, 289.6],
+        [654.922, 297.7],
+        [654.922, 305.8],
+        [654.922, 313.9],
+        [654.922, 322]
+      ]
+    },
+    {
+      "id": "id_Shallow_Vector_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 162,
+      "points": [
+        [471.563, 160],
+        [471.563, 168.1],
+        [471.563, 176.2],
+        [471.563, 184.3],
+        [471.563, 192.4],
+        [471.563, 200.5],
+        [471.563, 208.6],
+        [471.563, 216.7],
+        [471.563, 224.8],
+        [471.563, 232.9],
+        [471.563, 241],
+        [471.563, 249.1],
+        [471.563, 257.2],
+        [471.563, 265.3],
+        [471.563, 273.4],
+        [471.563, 281.5],
+        [471.563, 289.6],
+        [471.563, 297.7],
+        [471.563, 305.8],
+        [471.563, 313.9],
+        [471.563, 322]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

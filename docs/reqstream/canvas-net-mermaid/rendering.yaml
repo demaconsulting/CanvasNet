@@ -1,7 +1,7 @@
 ---
 # Software Subsystem Requirements for Rendering
 #
-# These requirements decompose the CanvasNetMermaid system's flowchart, layout-fidelity, picture, and
+# These requirements decompose the CanvasNetMermaid system's flowchart, class diagram, layout-fidelity, picture, and
 # unsupported-feature responsibilities into the Rendering subsystem (internal namespace
 # DemaConsulting.CanvasNet.Mermaid.Rendering): the diagram-independent geometry of Mermaid's unified renderer that
 # lays out and draws the layout data of a diagram (ClusterLayout), the node shapes and their registry
@@ -21,7 +21,9 @@ sections:
               does - a subgraph without links to the outside laid out on its own in its own direction, a link to a
               subgraph attached to a node inside it and cut at the subgraph's rectangle, a self-loop drawn as one
               compact loop beside its node, and each subgraph drawn as a rectangle with its title - so that the
-              nodes, subgraphs, and edges are where Mermaid puts them, within the layout work limit of the call.
+              nodes, subgraphs, and edges are where Mermaid puts them, within the layout work limit of the call; and
+              shall frame each diagram drawn through it with its title and its padded view box, merging the segments of
+              a self-loop only for the diagram types whose Mermaid renderer merges them.
             justification: |
               The layout of a flowchart is only faithful when the subgraph handling of Mermaid's dagre renderer is
               reproduced on top of the dagre layout, and the work of a pathological diagram must stay bounded.
@@ -33,15 +35,20 @@ sections:
               - CanvasNetMermaid-Rendering-ClusterLayout-SubgraphRectangles
               - CanvasNetMermaid-Rendering-ClusterLayout-DrawingOrder
               - CanvasNetMermaid-Rendering-ClusterLayout-WorkLimit
+              - CanvasNetMermaid-Rendering-ClusterLayout-SelfLoopMergeByType
+              - CanvasNetMermaid-Rendering-ClusterLayout-TerminalLabels
+              - CanvasNetMermaid-Rendering-ClusterLayout-DiagramViewBox
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_SubgraphWithDirection_MatchesMermaid
               - Rendering_Flowchart_SelfLoop_MatchesMermaid
+              - Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid
 
           - id: CanvasNetMermaid-Rendering-NodeShapes
             title: >-
               The Rendering subsystem shall draw every node shape that a flowchart can name - the documented shapes
-              with their aliases, the bracket shapes, and the undocumented shapes a flowchart accepts - sized from
+              with their aliases, the bracket shapes, and the undocumented shapes a flowchart accepts - and the class
+              box of a class diagram with its annotation, name, members, methods, and dividers, sized from
               its label and padding, painted by the style sheet and the node's own styles, with the outline that
               edges end on, and with the picture of an image node loaded only through the caller's image resolver,
               so that every node has the size and the look Mermaid gives it.
@@ -57,6 +64,8 @@ sections:
               - CanvasNetMermaid-Rendering-ShapeLibrary-Paint
               - CanvasNetMermaid-Rendering-ShapeLibrary-LegacyEllipse
               - CanvasNetMermaid-Rendering-ShapeLibrary-Images
+              - CanvasNetMermaid-Rendering-ShapeLibrary-ClassBox
+              - CanvasNetMermaid-Rendering-ShapeLibrary-TrustedStyles
               - CanvasNetMermaid-Rendering-NodeImages-Resolver
               - CanvasNetMermaid-Rendering-NodeImages-NaturalSize
               - CanvasNetMermaid-Rendering-NodeImages-DeviceSize
@@ -66,13 +75,15 @@ sections:
               - Rendering_Flowchart_SubgraphWithDirection_MatchesMermaid
               - Rendering_Flowchart_ImageNode_SizedByThePictureOfTheResolver
               - Rendering_Flowchart_PicturesBeyondMaxImages_FailAtTheNode
+              - Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid
 
           - id: CanvasNetMermaid-Rendering-Edges
             title: >-
               The Rendering subsystem shall draw every edge as Mermaid does - the route of the layout ending on the
               outlines of its nodes and the borders of its subgraphs, drawn with the edge's curve, stroked by the
-              link stroke and the edge's styles, with the point, circle, and cross markers at its ends - and place
-              each edge label with its background where Mermaid places it.
+              link stroke and the edge's styles, with the point, circle, and cross markers of a flowchart or the
+              class markers of a class diagram at its ends - and place each edge label with the background of the
+              diagram's style sheet, and the cardinalities of a relation at its ends, where Mermaid places them.
             justification: |
               Edges carry the meaning of a flowchart; their routes, arrowheads, and label positions must match
               Mermaid's for the drawing to read the same.
@@ -83,18 +94,23 @@ sections:
               - CanvasNetMermaid-Rendering-EdgeBuilder-Stroke
               - CanvasNetMermaid-Rendering-EdgeBuilder-LabelPlacement
               - CanvasNetMermaid-Rendering-EdgeBuilder-LabelDrawing
+              - CanvasNetMermaid-Rendering-EdgeBuilder-LabelBackgrounds
+              - CanvasNetMermaid-Rendering-EdgeBuilder-ClassMarkers
+              - CanvasNetMermaid-Rendering-EdgeBuilder-TerminalLabels
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_SubgraphWithDirection_MatchesMermaid
               - Rendering_Flowchart_SelfLoop_MatchesMermaid
               - Rendering_Flowchart_EdgeLabels_MatchMermaid
+              - Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid
 
           - id: CanvasNetMermaid-Rendering-Labels
             title: >-
               The Rendering subsystem shall lay out and measure the text of node, subgraph, and edge labels as
               Mermaid does with the bundled fonts - plain and markdown strings, HTML labels with Mermaid's supported
               elements, and SVG labels, wrapped at the wrapping width - and shall report each HTML element it does
-              not support and each character that no bundled font can draw; and shall wrap and measure the texts of
+              not support and each character that no bundled font can draw; shall draw an SVG label in the font
+              weight it inherits, as the bold name of a class box; and shall wrap and measure the texts of
               sequence diagrams as Mermaid's text utilities do.
             justification: |
               The measured label decides the size of every node and the spacing that edge labels add between ranks;
@@ -110,8 +126,10 @@ sections:
               - CanvasNetMermaid-Rendering-LabelBuilder-LabelImages
               - CanvasNetMermaid-Rendering-LabelBuilder-TextDimensions
               - CanvasNetMermaid-Rendering-LabelBuilder-WrapLabel
+              - CanvasNetMermaid-Rendering-LabelBuilder-InheritedWeight
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_EdgeLabels_MatchMermaid
               - Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes
               - Rendering_TextUtilities_WrapAtWordsAndMeasurePerLine
+              - Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid

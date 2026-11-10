@@ -1,0 +1,15 @@
+classDiagram
+    Base <|-- Derived : inherits
+    Whole *-- Part : composes
+    Group o-- Member : aggregates
+    Client <-- Server : uses
+    Left -- Right : links
+    Caller <.. Helper : depends
+    Contract <|.. Impl : realizes
+    Up .. Down : dashed
+    Derived2 --|> Base
+    Part2 --* Whole
+    Member2 --o Group
+    Server --> Client2
+    Helper ..> Library
+    Impl2 ..|> Contract

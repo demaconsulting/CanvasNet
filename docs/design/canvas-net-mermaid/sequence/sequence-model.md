@@ -76,7 +76,12 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
     label and a link, `links` and `properties` read JSON as `JSON.parse` does and copy
     the enumerable properties of the value as a JavaScript `for...in` loop does (the keys of an object, the indexes of
     an array or a string), text that is not JSON is ignored as Mermaid only logs it, and `details` reads a page element
-    that does not exist outside a browser, so it changes nothing;
+    that does not exist outside a browser, so it changes nothing. Every link text of `link` and `links` is kept as
+    `UrlSanitizer.Sanitize` of the `Syntax` subsystem gives it (an exact port of sanitize-url's `sanitizeUrl`, so a
+    `javascript`, `data`, or `vbscript` link in any encoding is `about:blank`): Mermaid keeps the text as written and
+    passes it through `sanitizeUrl` when its menu (`drawPopup`) uses it, so keeping the checked link gives the same
+    menu and never keeps an unchecked link; a value that is not text (a number, an object) is not a link and is kept
+    as it is;
   - **boxes**, **block markers**, and **`autonumber`** are added as Mermaid's `boxStart`, `boxEnd`, `addSignal`, and
     `sequenceIndex` do.
 - **`ParseBoxData(string)`** reads the color and title of a `box` statement as Mermaid's `parseBoxData` does: a
@@ -131,7 +136,8 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
 - **SequenceLayout** - draws the scene of a render.
 - **SequenceRenderer** - `IsTruthy`, the JavaScript truthiness of a property value for the icon report.
 - **Syntax subsystem** - `YamlSubsetParser` and its value types (the participant metadata), `HtmlSanitizer`
-  (Mermaid's `sanitizeText`), `Preprocessor.TrimJs`, and `DiagramDetector.EditDistance` (the nearest type).
+  (Mermaid's `sanitizeText`), `UrlSanitizer` (the link check), `Preprocessor.TrimJs`, and
+  `DiagramDetector.EditDistance` (the nearest type).
 - **Configuration subsystem** - `MermaidConfig` (the look, the location of keys) and `SequenceConfig` (the text
   placement and the wrap setting).
 - **Scenegraph subsystem** - `Scene`, the result of a layout.
@@ -160,7 +166,9 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
 - **The browser's color check.** `CSS.supports('color', ...)` is emulated with the colors that the core color parser
   reads, the color keywords and system colors, and Mermaid's color functions.
 - **Interaction.** Links, link, properties, and details are kept as data; `details` reads nothing, since there is no
-  page to read from.
+  page to read from. The link texts are kept checked (Mermaid keeps them as written and checks them when its menu uses
+  them). Mermaid's menu fails on a link value that is a number other than zero, `true`, an object, or an array,
+  because `sanitizeUrl` calls `trim` on it; the model keeps such a value and the menu is drawn.
 - **Accessibility.** `accTitle` and `accDescr` are metadata only; a rendered picture has no SVG title or description.
 - **Reports.** A look other than `classic`, a `properties` icon that names an image, and `$$` math are reported as
   unsupported, and a participant of an unknown type and the `fo` text placement as warnings (see _CanvasNetMermaid

@@ -1,0 +1,130 @@
+---
+# Software Subsystem Requirements for Class
+#
+# These requirements decompose the CanvasNetMermaid system's class diagram responsibility into the Class subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Class): reading the class diagram language exactly as the
+# pinned Mermaid release reads it (ClassParser), and keeping what it declares as Mermaid's class database keeps it,
+# mapping it to the layout data of the shared unified renderer, and framing the drawing as Mermaid's class renderer
+# does (ClassModel). The class boxes, relations, markers, and cardinalities are drawn by the shared Rendering
+# subsystem. Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/class.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Class Requirements
+        requirements:
+          - id: CanvasNetMermaid-Class-Language
+            title: >-
+              The Class subsystem shall open every class diagram text (the classDiagram and classDiagram-v2 keywords,
+              and the legacy class id) that the class grammar of the pinned Mermaid release accepts - classes with
+              labels, generics, members, methods, and annotations, the relation forms with cardinalities and labels,
+              lollipop interfaces, namespaces, notes, classDef, cssClass, and style statements, the direction, and
+              the accessibility statements - into the same classes, relations, namespaces, notes, and styles that
+              Mermaid's class database records for it.
+            justification: |
+              A class diagram can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's grammar and database, not by a description of them.
+            children:
+              - CanvasNetMermaid-Class-ClassParser-Tokens
+              - CanvasNetMermaid-Class-ClassParser-Grammar
+              - CanvasNetMermaid-Class-ClassParser-LinearTime
+              - CanvasNetMermaid-Class-ClassModel-Classes
+              - CanvasNetMermaid-Class-ClassModel-Members
+              - CanvasNetMermaid-Class-ClassModel-Relations
+              - CanvasNetMermaid-Class-ClassModel-Namespaces
+              - CanvasNetMermaid-Class-ClassModel-Notes
+              - CanvasNetMermaid-Class-ClassModel-Styles
+            tests:
+              - Class_Parse_Fixture_GivesClassesAndLayoutData
+              - Class_Parse_WholeText_GivesModelAndLayoutData
+              - Class_Parse_LegacyClassId_KeepsItsDiagramType
+
+          - id: CanvasNetMermaid-Class-Metadata
+            title: >-
+              The Class subsystem shall give the accessible title, the direction, and the numbers of classes (as
+              nodes), relations (as edges), and namespaces drawn (as subgraphs) of an opened class diagram, without
+              rendering it.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of a class diagram must keep the meaning of the document's node, edge, and subgraph counts.
+            children:
+              - CanvasNetMermaid-Class-ClassModel-Metadata
+            tests:
+              - Class_Parse_WholeText_GivesModelAndLayoutData
+              - Class_Document_IsSupportedWithMetadata
+
+          - id: CanvasNetMermaid-Class-FailClosed
+            title: >-
+              The Class subsystem shall refuse, when the document is opened, a class diagram text that its grammar
+              does not accept, that Mermaid's class database rejects, or that exceeds the node, edge, label length, or
+              nesting limits of the open call, with a coded MermaidSyntaxException located in the original text, with
+              a hint, and for a grammar error with the tokens that Mermaid lists as expected.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it.
+            children:
+              - CanvasNetMermaid-Class-ClassParser-Errors
+              - CanvasNetMermaid-Class-ClassParser-Limits
+              - CanvasNetMermaid-Class-ClassModel-Errors
+              - CanvasNetMermaid-Class-ClassModel-Limits
+            tests:
+              - Class_Parse_DatabaseError_FailsClosedWithLocation
+              - Class_Parse_GrammarErrorAfterFrontmatter_IsLocatedInTheOriginalText
+
+          - id: CanvasNetMermaid-Class-Layout
+            title: >-
+              The Class subsystem shall give the shared renderer, for each render, the layout data that Mermaid's class
+              database gives its renderer under the effective configuration of that render - the namespaces as
+              clusters in either namespace mode, the class boxes, the notes and their links, the hidden lollipop
+              interfaces, the relations with their markers and cardinalities, and the spacing Mermaid's class renderer
+              reads - so that the classes, namespaces, and relations land where Mermaid puts them.
+            justification: |
+              The layout of a class diagram is Mermaid's only when the renderer starts from the same graph, and the
+              configuration of a render is known only when the render starts.
+            children:
+              - CanvasNetMermaid-Class-ClassModel-LayoutData
+              - CanvasNetMermaid-Class-ClassModel-Namespaces
+              - CanvasNetMermaid-Class-ClassModel-Relations
+            tests:
+              - Class_Parse_WholeText_GivesModelAndLayoutData
+              - Class_Layout_Fixture_DrawsClassBoxesAndRelations
+
+          - id: CanvasNetMermaid-Class-Drawing
+            title: >-
+              The Class subsystem shall draw a class diagram through the shared renderer with the class style sheet of
+              the theme, the frontmatter title above the drawing, and the view box of Mermaid's class renderer.
+            justification: |
+              The pixels and the size of a class diagram must be Mermaid's for the same text, configuration, and
+              theme.
+            children:
+              - CanvasNetMermaid-Class-ClassModel-Drawing
+            tests:
+              - Class_Layout_Fixture_DrawsClassBoxesAndRelations
+
+          - id: CanvasNetMermaid-Class-UnsupportedFeatures
+            title: >-
+              The Class subsystem shall report, at their locations and in order before drawing, a look other than
+              classic and a layout other than dagre as unsupported features with their stable mermaid-* codes, draw
+              the diagram in the classic look with the dagre layout, and stop at the first unsupported feature in
+              strict mode.
+            justification: |
+              The host must know when the picture differs from what Mermaid would draw, and a strict host must be able
+              to refuse it.
+            children:
+              - CanvasNetMermaid-Class-ClassModel-Unsupported
+            tests:
+              - Class_Render_UnsupportedFeatures_AreReported
+
+          - id: CanvasNetMermaid-Class-InteractionIgnored
+            title: >-
+              The Class subsystem shall open the click, link, and callback statements of a class diagram, keep their
+              data only as checked data, and draw and report nothing for them, also in strict mode.
+            justification: |
+              A static picture has no interaction; texts written for Mermaid's browser output must still draw the same
+              diagram without warnings, and an unsafe link must never be kept as written.
+            children:
+              - CanvasNetMermaid-Class-ClassParser-Grammar
+              - CanvasNetMermaid-Class-ClassModel-Links
+            tests:
+              - Class_Render_InteractionStatements_AreIgnoredSilently

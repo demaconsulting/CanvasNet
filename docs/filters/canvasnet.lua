@@ -58,14 +58,14 @@ picture in a node (A@{ img: "part.png" }, <img src="part.png">) is found from th
 not from the document's folder, so a diagram that draws pictures must be a .mmd file of its own, used as
 ![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
 
-Diagram types the tool does not draw yet. The tool draws flowchart (and graph) and sequenceDiagram diagrams.
-For any other type (classDiagram, pie, and so on) the tool reports mermaid-diagram-unsupported, and the filter leaves
+Diagram types the tool does not draw yet. The tool draws flowchart (and graph), sequenceDiagram, and classDiagram
+diagrams. For any other type (pie, gantt, and so on) the tool reports mermaid-diagram-unsupported, and the filter leaves
 the code block (or the .mmd picture) exactly as written, with the tool's message as a warning, so another
 filter can draw it: the CanvasNet build runs mermaid-filter after this filter for that reason. Pandoc runs the
 filters in the order of its command line, a defaults file's filters taking the place of its --defaults option,
 so "--defaults ... --filter mermaid-filter" runs this filter first. A marker in the cache folder
 (<hash>.unsupported, holding the message) saves later builds from starting the tool again for that diagram.
-A flowchart that only embeds a picture of such a type (A@{ img: "classes.mmd" }) is drawn as usual; the tool's report
+A flowchart that only embeds a picture of such a type (A@{ img: "pets.mmd" }) is drawn as usual; the tool's report
 about the embedded picture, which names it in its origin, is shown as a warning.
 
 How it works. The filter has two jobs only:

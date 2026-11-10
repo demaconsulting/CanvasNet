@@ -12,10 +12,10 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 public class MermaidGalleryTests
 {
     /// <summary>The fewest diagrams the gallery must hold.</summary>
-    private const int MinimumDiagrams = 6;
+    private const int MinimumDiagrams = 12;
 
     /// <summary>The diagram types this version draws, which the gallery shows.</summary>
-    private static readonly string[] DrawnTypes = ["flowchart", "sequence"];
+    private static readonly string[] DrawnTypes = ["flowchart", "sequence", "class"];
 
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -60,11 +60,11 @@ public class MermaidGalleryTests
     }
 
     /// <summary>
-    ///     Validates that the gallery holds at least six diagrams, that every one is a supported flowchart or sequence
-    ///     diagram, and that both types are shown.
+    ///     Validates that the gallery holds at least twelve diagrams, that every one is a supported diagram of a type this
+    ///     version draws (a flowchart, a sequence diagram, or a class diagram), and that every drawn type is shown.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_SystemIntegration_Gallery_HoldsSupportedFlowchartsAndSequenceDiagrams()
+    public void CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType()
     {
         // Arrange
         var files = Directory.GetFiles(GalleryFolder(), "mermaid-*.mmd");
@@ -72,12 +72,11 @@ public class MermaidGalleryTests
         // Act
         var documents = files.Select(path => MermaidDocument.Open(path)).ToList();
 
-        // Assert: enough diagrams, each of a type this version draws, and both drawn types present
+        // Assert: enough diagrams, each of a type this version draws, and every drawn type present
         Assert.True(files.Length >= MinimumDiagrams, $"the gallery holds {files.Length} diagrams");
         Assert.All(documents, d => Assert.Contains(d.DiagramType, DrawnTypes));
         Assert.All(documents, d => Assert.True(d.IsSupported));
-        Assert.Contains(documents, d => d.DiagramType == "flowchart");
-        Assert.Contains(documents, d => d.DiagramType == "sequence");
+        Assert.All(DrawnTypes, type => Assert.Contains(documents, d => d.DiagramType == type));
     }
 
     /// <summary>

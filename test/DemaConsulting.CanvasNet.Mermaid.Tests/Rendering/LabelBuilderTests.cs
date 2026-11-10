@@ -349,6 +349,28 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Checks that an SVG label takes the weight of its font only when asked (a class box's name), and is otherwise
+    ///     drawn in the weight of its markdown.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_Build_SvgInheritsWeight_DrawsTheLabelBold()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var bold = Font with { Bold = true };
+
+        // Act
+        var inherited = builder.Build(new LabelRequest("Name", bold) { HtmlLabels = false, SvgInheritsWeight = true, CenterSvgText = false });
+        var plain = builder.Build(new LabelRequest("Name", bold) { HtmlLabels = false, CenterSvgText = false });
+
+        // Assert
+        Assert.True(inherited.Lines[0].Runs[0].Font.Bold);
+        Assert.False(plain.Lines[0].Runs[0].Font.Bold);
+        Assert.True(inherited.Lines[0].Width > plain.Lines[0].Width);
+        Assert.Equal(0, inherited.Lines[0].X);
+    }
+
+    /// <summary>
     ///     Checks the SVG label rules: lines 1.1 em apart from one em below the origin, centered on x 0, the box from the
     ///     rounded ascent to the rounded descent, and tags drawn as text.
     /// </summary>

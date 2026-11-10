@@ -260,6 +260,30 @@ public class SequenceModelTests
     }
 
     /// <summary>
+    ///     Validates that the links of <c>link</c> and <c>links</c> are kept only as Mermaid's menu checks them with
+    ///     sanitize-url: every encoded form of an unsafe scheme is <c>about:blank</c>, safe links are written as
+    ///     sanitize-url writes them, and values that are not text are kept as they are.
+    /// </summary>
+    [Fact]
+    public void SequenceModel_Apply_UnsafeLinks_KeepOnlyTheCheckedUrls()
+    {
+        // Act
+        var model = SequenceFacts.Parse(
+            "sequenceDiagram\n    participant A\n    link A: Percent @ %6Aavascript:alert(1)\n    link A: Escape @ javascrip\\%74t:alert(1)\n" +
+            "    link A: Safe @ https://Example.com/a/../b\n" +
+            "    links A: {\"Tab\": \"java\\tscript:alert(1)\", \"Data\": \"  DATA:text/html,x\", \"Mixed\": \"JaVaScRiPt:alert(1)\", \"Count\": 5}\n");
+
+        // Assert
+        var links = Assert.Single(model.Actors).Links;
+        string? Link(string key) => links.TryGetValue(key, out var value) ? (string?)value : null;
+        Assert.Equal(["Percent", "Escape", "Safe", "Tab", "Data", "Mixed", "Count"], links.Keys);
+        Assert.All(new[] { "Percent", "Escape", "Tab", "Data", "Mixed" }, key => Assert.Equal("about:blank", Link(key)));
+        Assert.Equal("https://example.com/b", Link("Safe"));
+        Assert.True(links.TryGetValue("Count", out var count));
+        Assert.Equal(5.0, (double)count!);
+    }
+
+    /// <summary>
     ///     Validates the wrap settings: an explicit prefix wins, and an unset one follows the configuration.
     /// </summary>
     [Fact]

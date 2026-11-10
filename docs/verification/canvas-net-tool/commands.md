@@ -19,7 +19,11 @@ unknown-command report, and help; and, with the default registry, that the shipp
 transform verb, `compare`, `montage`, and `inspect` commands are registered, run, and are listed in the help, and that
 the help topics are shown by name, by alias, and as JSON, their examples are printed, and an unknown help subject is
 reported. The shipped
-commands are verified by their own unit tests.
+commands are verified by their own unit tests. The content of the help topics, which the help requirement of the
+subsystem takes from its `HelpTopics` children (among them the `mermaid` topic, and its parity with the Mermaid user
+guide: the same class diagram syntax, relation, and setting rows and the same unsupported-feature and warning codes,
+item by item and in order), is verified by the `HelpTopics` unit tests, the parity by
+`HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide`.
 
 ### Test Environment
 
@@ -34,6 +38,7 @@ console.
 - Help lists the commands and the help topics, shows each command's usage and options without running it, and prints a
   topic, an example, or a JSON help document on request; an unknown help subject is a usage error that lists the valid
   subjects.
+- The `mermaid` help topic and the Mermaid user guide give the same class diagram rows and diagnostic codes.
 
 ### Test Scenarios
 

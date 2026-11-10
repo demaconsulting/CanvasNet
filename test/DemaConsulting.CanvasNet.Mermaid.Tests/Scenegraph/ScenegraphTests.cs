@@ -63,6 +63,35 @@ public class ScenegraphTests
     }
 
     /// <summary>
+    ///     Validates that an underlined run of a text line is painted with a bar under its baseline across its own advance
+    ///     only, at the scale of the placement, while the plain run beside it gets none.
+    /// </summary>
+    [Fact]
+    public void Scenegraph_PaintUnderlinedRun_BarsOnlyThatRun()
+    {
+        // Arrange: two runs of capitals without descenders on a baseline at y = 20, 32 pixels high, the first underlined
+        var font = new SceneFont("\"trebuchet ms\", verdana, arial, sans-serif", 32, false, false);
+        var black = new Rgba32(0, 0, 0, 255);
+        var line = new SceneText(
+            10,
+            20,
+            SceneTextAnchor.Start,
+            [new SceneTextRun("HHH", font, black) { Underline = true }, new SceneTextRun("HHH", font, black)],
+            new SceneRect(10, 0, 140, 30))
+        { Role = "label" };
+        var scene = new Scene(new SceneRect(0, 0, 160, 30), [line]);
+
+        // Act
+        using var surface = new ScenePainter(ScenePainter.CreateFontResolver()).Paint(scene, 320, 60, ScenePlacement.Uniform(scene.ViewBox, 2), null, TestContext.Current.CancellationToken);
+        var underFirst = Enumerable.Range(20, 140).Count(x => surface[x, 44].A == 255);
+        var underSecond = Enumerable.Range(164, 130).Count(x => surface[x, 44].A > 0);
+
+        // Assert: the bar spans the first run's advance of about 69 units, twice that in device pixels
+        Assert.InRange(underFirst, 130, 140);
+        Assert.Equal(0, underSecond);
+    }
+
+    /// <summary>
     ///     Validates that the drop shadow of a path is painted under it, moved by its offset at the scale of the
     ///     placement, and that it does not change the bounds of the scene.
     /// </summary>

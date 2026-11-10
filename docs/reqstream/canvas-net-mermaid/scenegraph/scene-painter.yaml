@@ -142,3 +142,14 @@ sections:
                   the outline must show as in a browser.
                 tests:
                   - ScenePainter_Paint_StrokedText_DrawsTheOutline
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-Underline
+                title: >-
+                  The ScenePainter unit shall paint an underlined text run with a bar under its baseline across its
+                  advance, at the underline position and thickness of the bundled face's metrics, in the run's color.
+                justification: |
+                  The static members of a class box are underlined in Mermaid's picture; the bar must sit where the
+                  face puts it.
+                tests:
+                  - ScenePainter_Paint_UnderlinedRun_DrawsABarUnderTheBaseline
+                  - ScenePainter_UnderlineBar_BundledFaces_FollowThePostTable

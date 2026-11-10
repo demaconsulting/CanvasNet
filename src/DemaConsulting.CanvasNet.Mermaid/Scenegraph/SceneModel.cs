@@ -202,7 +202,14 @@ internal sealed record SceneFont(string Family, double Size, bool Bold, bool Ita
 /// <param name="Text">The text.</param>
 /// <param name="Font">The font.</param>
 /// <param name="Color">The color, with the opacity folded in.</param>
-internal sealed record SceneTextRun(string Text, SceneFont Font, Rgba32 Color);
+internal sealed record SceneTextRun(string Text, SceneFont Font, Rgba32 Color)
+{
+    /// <summary>
+    ///     Gets a value indicating whether the run is underlined (CSS's <c>text-decoration: underline</c>, which a class
+    ///     diagram gives a static member); false by default.
+    /// </summary>
+    public bool Underline { get; init; }
+}
 
 /// <summary>
 ///     Where the anchor of a text line is: SVG's <c>text-anchor</c>.

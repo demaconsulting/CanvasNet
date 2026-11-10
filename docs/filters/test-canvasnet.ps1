@@ -10,9 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), a sequence diagram is drawn by the filter itself, a diagram type the tool does not draw yet is left as
-    written for another filter, and the defaults-file filters run before a command-line filter (as the CI's
-    mermaid-filter is run).
+    hashed), sequence and class diagrams are drawn by the filter itself, a diagram type the tool does not draw yet
+    is left as written for another filter, and the defaults-file filters run before a command-line filter (as the
+    CI's mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -357,22 +357,42 @@ sequenceDiagram
         $sequence.Log -notmatch 'left as written') `
         'a sequence block and a sequence .mmd picture are drawn by the filter itself' "$($sequence.Log)`n$($sequence.Html)"
 
-    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
-    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
-    Set-Content (Join-Path $guide 'zoo.mmd') -Value "classDiagram`n    Animal <|-- Duck"
+    # A class diagram is drawn by the filter itself too: the block becomes a picture, and no marker is left.
     $classes = @'
 ```mermaid
 classDiagram
-    Animal <|-- Cat
+    class Animal {
+        +String name
+        +speak() String
+    }
+    Animal <|-- Dog
+```
+'@
+    $classesBefore = @(Get-Pictures).Count
+    $classMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $class = Invoke-Filter 'mermaid-class' $classes
+    Write-Result ($class.ExitCode -eq 0 -and $class.Html -notmatch '<code' -and
+        $class.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $classesBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $classMarkersBefore -and
+        $class.Log -notmatch 'left as written') `
+        'a class block is drawn' "$($class.Log)`n$($class.Html)"
+
+    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
+    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
+    Set-Content (Join-Path $guide 'zoo.mmd') -Value "pie`n    `"Ducks`" : 3"
+    $pies = @'
+```mermaid
+pie title Pets
+    "Cats" : 2
 ```
 
 ![s](zoo.mmd)
 '@
-    $classesBefore = @(Get-Pictures).Count
-    $unsupported = Invoke-Filter 'mermaid-unsupported' $classes
+    $piesBefore = @(Get-Pictures).Count
+    $unsupported = Invoke-Filter 'mermaid-unsupported' $pies
     Write-Result ($unsupported.ExitCode -eq 0 -and $unsupported.Html -match '<code class="[^"]*mermaid"' -and
-        $unsupported.Html -match 'classDiagram' -and
-        $unsupported.Html -match 'src="zoo\.mmd"' -and @(Get-Pictures).Count -eq $classesBefore) `
+        $unsupported.Html -match 'Pets' -and
+        $unsupported.Html -match 'src="zoo\.mmd"' -and @(Get-Pictures).Count -eq $piesBefore) `
         'an unsupported diagram type is left as written, as a code block and as a picture' "$($unsupported.Log)`n$($unsupported.Html)"
     Write-Result ($unsupported.Log -match 'are not drawn by this version' -and $unsupported.Log -match 'left as written') `
         'an unsupported diagram type is a warning with the tool message' $unsupported.Log
@@ -381,17 +401,17 @@ classDiagram
     foreach ($marker in $markers) {
         Set-Content -LiteralPath $marker.FullName -Value 'remembered-unsupported' -NoNewline
     }
-    $remembered = Invoke-Filter 'mermaid-unsupported' $classes
+    $remembered = Invoke-Filter 'mermaid-unsupported' $pies
     Write-Result ($remembered.ExitCode -eq 0 -and ([regex]::Matches($remembered.Log, 'remembered-unsupported')).Count -eq 2) `
         'a later run takes an unsupported diagram from its marker without drawing it' $remembered.Log
 
     # A flowchart that embeds a diagram of a type the tool does not draw is still drawn: the report about the
     # embedded picture (which names it in its origin) is an ordinary warning, not the whole picture unsupported.
-    Set-Content (Join-Path $guide 'embeds-class.mmd') -Value "flowchart LR`n    A --> B@{ img: `"zoo.mmd`", h: 60, constraint: `"on`" }"
+    Set-Content (Join-Path $guide 'embeds-pie.mmd') -Value "flowchart LR`n    A --> B@{ img: `"zoo.mmd`", h: 60, constraint: `"on`" }"
     $embedBefore = @(Get-Pictures).Count
     $markersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
-    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-class.mmd)'
-    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-class-' -and
+    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-pie.mmd)'
+    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-pie-' -and
         @(Get-Pictures).Count -eq $embedBefore + 1 -and
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $markersBefore -and
         $embedded.Log -match 'are not drawn by this version' -and $embedded.Log -notmatch 'left as written') `
@@ -404,7 +424,7 @@ classDiagram
     Set-Content (Join-Path $root 'observe.lua') -Value (
         'function CodeBlock(b) return pandoc.Para{ pandoc.Str("OBSERVED-" .. (b.text:match("^(%S+)") or "")) } end')
     Set-Content (Join-Path $guide 'order.md') -Value $blocks.Replace('X --> Y', 'X --> Y --> Z') -NoNewline
-    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $classes.Replace('![s](zoo.mmd)', ''))
+    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $pies.Replace('![s](zoo.mmd)', ''))
     Push-Location $tree
     try {
         $orderLog = & dotnet pandoc --defaults (Join-Path $root 'defaults.yaml') --lua-filter (Join-Path $root 'observe.lua') `
@@ -416,7 +436,7 @@ classDiagram
         Pop-Location
     }
     $orderHtml = Get-Content -LiteralPath (Join-Path $guide 'generated/order.html') -Raw -ErrorAction SilentlyContinue
-    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-classDiagram' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
+    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-pie' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
         ([regex]::Matches($orderHtml, 'generated/canvasnet/mermaid-')).Count -eq 2) `
         'defaults-file filters run before a command-line filter, which sees only the unsupported blocks' "$orderLog`n$orderHtml"
 

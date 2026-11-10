@@ -69,6 +69,13 @@ internal sealed record LabelRequest(string Text, LabelFont Font)
     /// </summary>
     public bool CenterSvgText { get; init; } = true;
 
+    /// <summary>
+    ///     Gets a value indicating whether the lines of an SVG label take the weight of <see cref="Font"/> (a class box
+    ///     removes the <c>font-weight</c> of its tspans, so the label's <c>bolder</c> applies); otherwise only strong
+    ///     markdown is bold.
+    /// </summary>
+    public bool SvgInheritsWeight { get; init; }
+
     /// <summary>Gets the location of the element the label belongs to, for reports.</summary>
     public MermaidLocation Location { get; init; }
 }
@@ -195,9 +202,9 @@ internal sealed record LabelLayout(bool IsHtml, SceneRect Box, IReadOnlyList<Lab
 ///     <para>
 ///         <b>SVG labels.</b> The lines are those of Mermaid's <c>createFormattedText</c>: words joined by single spaces,
 ///         a line wider than the wrapping width split at words (and a word wider than it split at characters), the lines
-///         1.1 em apart. The box is that of the browser's <c>getBBox</c>: the advance of the widest line with the glyph
-///         outlines rounded out to whole pixels, from the rounded ascent above the first baseline to the rounded descent
-///         below the last.
+///         1.1 em apart. The box is that of the browser's <c>getBBox</c>: the advance of the widest line grown to the
+///         boxes of the glyphs at the ends of each run (<see cref="SvgLineExtent"/>), from the rounded ascent above the
+///         first baseline to the rounded descent below the last.
 ///     </para>
 ///     <para>
 ///         <b>Fonts.</b> Text is measured with the faces of the call's <see cref="FontResolver"/> (the bundled fonts),

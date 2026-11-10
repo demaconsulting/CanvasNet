@@ -1,0 +1,20 @@
+classDiagram
+    class Shape {
+        +String name
+        -int sides
+        #double area
+        ~String tag
+        +int count$
+        String label*
+        +draw()*
+        +create()$ Shape
+        -resize(double factor) void
+        #rotate(int degrees)*
+        ~describe() String$
+        someAbstract()* int
+    }
+    class Circle {
+        -double radius$
+        +area() double
+    }
+    Shape <|-- Circle

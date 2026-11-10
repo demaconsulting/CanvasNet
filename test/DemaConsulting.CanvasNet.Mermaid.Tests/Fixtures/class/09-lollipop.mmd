@@ -1,0 +1,10 @@
+classDiagram
+    direction LR
+    class Engine {
+        +start()
+    }
+    class Cache
+    Ignition ()-- Engine
+    Engine --() Runnable
+    Cache --() Clearable
+    Engine --> Cache

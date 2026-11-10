@@ -2,8 +2,8 @@
 
 This document describes the unit-level verification strategy for the `ThemeResolver` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Configuration` namespace: the internal static `ThemeResolver` (`GetThemeVariables`
-and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles` and `SequenceStyles`
-with their shared base `DiagramStyles`.
+and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles`, `ClassStyles`, and
+`SequenceStyles` with their shared bases `DiagramStyles` and (for the flowchart and class sheets) `UnifiedStyles`.
 
 #### Verification Approach
 
@@ -16,6 +16,9 @@ sheet is verified by building `FlowchartStyles` from configurations resolved as 
 paints of the default theme (as Mermaid's flowchart CSS gives them), the effect of `themeCSS`, and the dropping of an
 invalid declaration. The sequence style sheet is verified the same way with `SequenceStyles`: the shared global rules,
 the cascade over the attributes Mermaid writes, every theme's variables, `themeCSS`, and the drop-shadow filters. The
+class style sheet is verified with `ClassStyles`: the shared global rules, the paints of the default theme as Mermaid's
+class CSS gives them (through the members of `UnifiedStyles` that the shared rendering units read), the note labels and
+label backgrounds that differ from a flowchart's, and `themeCSS` against the important marker fills. The
 unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
 `StyleDeclarations`, and `MermaidConfigResolver` are real, so no mocking or stubbing is required.
 
@@ -124,3 +127,21 @@ while the flowchart selector `.node rect` is reported once as `mermaid-theme-css
 `drop-shadow()` (with a color first or last, two or three lengths, a negative offset) are read, while four lengths,
 one length, non-zero numbers without units, a negative blur, a color between the lengths, a second filter function, a `url()`,
 and `blur()` are not (a theory of 14 cases).
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet: Mermaid's Class Diagram Paint
+
+**Tests**: `ThemeResolverTests.ClassStyles_Create_DefaultTheme_ResolvesClassRules`,
+`ThemeResolverTests.ClassStyles_Create_DefaultTheme_ResolvesNoteLabelsAndLabelBackgrounds`,
+`ThemeResolverTests.ClassStyles_Create_ThemeCss_OverridesKnownSelectors`
+
+Asserts that the class style sheet starts with the same global rules as the flowchart's, selector for selector; that
+in the default theme the class box takes the `#ECECFF` fill and `#9370DB` stroke, a namespace `#ffffde` and `#aaaa33`,
+the node and edge labels the root font at 16 pixels in `classText` (`#131300`), the title the root font in `#333` (its
+class has no rule), the dividers a `#9370DB` stroke without fill, and a terminal label 11 pixels in `#131300` for an
+HTML label and `#333` for an SVG label, while the composition fill and the dependency stroke are `#333333`, the
+extension fill `transparent`, and the lollipop fill `#ECECFF`; that a note label takes the theme's `noteTextColor`,
+that the HTML label backgrounds are `.labelBkg` and `.edgeLabel .label span` and the SVG one `.edgeLabel .label rect`
+(filled `#ECECFF`), while a flowchart keeps its note label equal to its node label and its own backgrounds
+`.labelBkg`, `.edgeLabel p`, and `.edgeLabel rect`; and that a directive's `themeCSS` rules for `.divider`,
+`.composition`, and `.edgeTerminals` are applied without a report, the divider stroke becoming `#ff0000` and the
+terminal label 14 pixels, while the composition fill stays `#333333` against the theme's `!important`.

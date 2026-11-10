@@ -149,3 +149,20 @@ of `messageAlign` or `noteAlign` is one `mermaid-config-invalid` warning whose m
 center, right, start, middle or end and whose hint names the same six values, leaving `center`; that each of those
 six values is accepted for both keys without a warning; and that a single directive's `config` key is moved to the
 sequence section (`mirrorActors`, `actorMargin`, and `textPlacement`).
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection: The Class Section As The Class Renderer Reads It
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_ClassDefaults_MatchMermaid`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_ClassSpacingFromState_FollowsClassRenderer`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_ClassInvalidValues_ReportedAndIgnored`
+
+Asserts, for a class diagram without configuration, that the effective class section holds exactly the three keys of
+Mermaid's `defaultConfig.ts` (`defaultRenderer`, `hideEmptyMembersBox`, and `hierarchicalNamespaces`, without
+`padding`) and that the typed class section is `dagre-wrapper`, false, true, and no padding, with the node and rank
+spacing 50 and the title margin 25, without a warning; that a frontmatter with `class.padding: 0`,
+`hideEmptyMembersBox: true`, and `hierarchicalNamespaces: false` and with `state.nodeSpacing: 0`,
+`state.rankSpacing: 80`, and `state.titleTopMargin: 0` gives a padding of 0, the two switches, a node spacing of 50 (a
+zero falls back, as `||` does), a rank spacing of 80, and a title margin of 0 (a zero is kept, as `??` does), without
+a warning; and that a directive with a text `class.padding`, a text `class.hierarchicalNamespaces`, and a text
+`state.nodeSpacing` gives three `mermaid-config-invalid` warnings at the directive (line 1, column 1), whose messages
+name `class.padding` and `state.nodeSpacing`, and leaves the typed class section at its defaults.

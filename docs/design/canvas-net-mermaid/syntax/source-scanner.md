@@ -2,12 +2,14 @@
 
 ![Syntax Structure](MermaidSyntaxView.svg)
 
-The `SourceScanner` unit is the fourth software unit in the `Syntax` subsystem. It is three source files in the
+The `SourceScanner` unit is the fourth software unit in the `Syntax` subsystem. It is four source files in the
 `DemaConsulting.CanvasNet.Mermaid.Syntax` namespace: `SourceScanner.cs` defines the internal sealed class
 `SourceScanner`, the delegate `ScanMatcher`, the record `ScanRule`, and the record struct `ScanToken`;
-`SourceScanner.Patterns.cs` defines the grouped static class `ScanPatterns` (the matcher building blocks and the
-JavaScript character classes); and `SourceScanner.Tokens.cs` defines the grouped sealed class `TokenCursor` (the
-one-token lookahead of a parser).
+`SourceScanner.Patterns.cs` defines the grouped static class `ScanPatterns` (the matcher building blocks, the
+JavaScript character classes, and the letters of Mermaid's `UNICODE_TEXT` rule); `SourceScanner.Tokens.cs` defines
+the grouped sealed class `TokenCursor` (the one-token lookahead of a parser); and `SourceScanner.Urls.cs` defines the
+grouped static class `UrlSanitizer` (the link check every diagram applies to the links it keeps, a port of
+sanitize-url's `sanitizeUrl` and Mermaid's `formatUrl`, which starts with the provenance header comment).
 
 #### Purpose
 
@@ -17,6 +19,15 @@ start condition that matches (not the longest), keep a stack of start conditions
 input, and run an end-of-input rule once. The unit reproduces these semantics so that a parser port can copy the
 rule and condition tables of a generated Mermaid parser and lex the same tokens, and it reports lexical and parse
 errors as located `MermaidSyntaxException`s that list the expected tokens as jison's "Expecting ..., got ..." does.
+
+The unit also holds the link check of the parsers' models (`UrlSanitizer`), grouped here because it is built from
+the same JavaScript semantics (JavaScript's white space, line terminators, `\w`, `trim`, and `toLowerCase`) as the
+matchers. A diagram can keep links (the `link` and `click ... href` of a class diagram, the `link` and `links` of a
+sequence participant), and a link whose scheme is `javascript`, `data`, or `vbscript` runs code where it is used.
+Mermaid refuses those schemes with sanitize-url, which first undoes every encoding that can hide a scheme; a check
+that undoes only the common encodings lets an encoded scheme through. `UrlSanitizer` is therefore an exact port of the
+whole of sanitize-url's `sanitizeUrl` (the version the pinned Mermaid bundles), shared by every diagram type, and a
+model keeps only what it returns.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Syntax-SourceScanner-*` requirements in
 `docs/reqstream/canvas-net-mermaid/syntax/source-scanner.yaml`.
@@ -35,8 +46,15 @@ The unit's behavior is specified by the `CanvasNetMermaid-Syntax-SourceScanner-*
   `INITIAL`), the stack of start conditions, the position, the current match, and jison's `done` flag.
 - `TokenCursor` state - the scanner, the description of token kinds for messages, and the one lookahead token
   `Current`.
+- `ScanPatterns.UnicodeLetters` (private) - the letters outside ASCII that the `UNICODE_TEXT` rule of Mermaid's jison
+  grammars matches, as sorted, inclusive, disjoint ranges of UTF-16 code units (from U+00AA to U+FFDC), generated from
+  the character classes of the rule. The flowchart and class grammars share the rule, so the table is defined once
+  here rather than in each lexer; it holds no ASCII character, because the grammars match ASCII letters with their
+  own rules.
+- `UrlSanitizer.BlankUrl` - `about:blank`, sanitize-url's `BLANK_URL`: the link of a refused URL, of no URL, and of an
+  `http` or `https` URL that does not parse.
 
-A scanner and a cursor lex one input on one thread; `ScanPatterns` is stateless.
+A scanner and a cursor lex one input on one thread; `ScanPatterns` and `UrlSanitizer` are stateless.
 
 #### Key Methods
 
@@ -59,6 +77,35 @@ A scanner and a cursor lex one input on one thread; `ScanPatterns` is stateless.
   that replace the parts of the regular expressions of Mermaid's grammars, each linear in what it inspects;
   `IsJsWhitespace`, `IsJsLineTerminator`, and `IsJsWordChar` - JavaScript's `\s`, the characters that `.` does not
   match, and `\w`.
+- `ScanPatterns.IsUnicodeLetter(char c)` - whether a character is one of the `UNICODE_TEXT` letters: a binary search
+  of the range table, so the time is logarithmic in the number of ranges and independent of the input. It is true only
+  for letters outside ASCII (an ASCII letter is false); the flowchart and class lexers use it for the rule that lexes
+  one such letter as a text token, so both accept names in the same scripts as Mermaid.
+- `UrlSanitizer.Sanitize(string? url)` - sanitize-url's `sanitizeUrl`, step for step: no text gives `about:blank`;
+  the text is trimmed and passed through JavaScript's `decodeURIComponent` (a malformed escape, an escape that cannot
+  start a UTF-8 sequence, a sequence cut short, or bytes that are not the valid UTF-8 of one code point keep the text
+  as it is, as sanitize-url catches the error); then a loop removes the control characters
+  (`[\u0000-\u001F\u007F-\u009F\u2000-\u200D\uFEFF]`), replaces each numeric character reference (`&#` and word
+  characters, an optional semicolon) by the character JavaScript's `String.fromCharCode` gives for its word (a decimal
+  number with an optional exponent, or a `0x`, `0o`, or `0b` integer, rounded as a JavaScript number and taken modulo
+  65536; anything else U+0000, which is then removed), removes `&newline;` and `&tab;` in any ASCII case and escaped
+  white space (a backslash or `%5C` before `n`, `r`, `t`, or their percent escapes), trims, and decodes percent escapes
+  again, until no control character, reference, `&newline;`/`&tab;`, or escaped white space is left. Each pass that
+  runs again shortens the text, so the loop ends. An empty result is `about:blank`; a result that starts with `.` or
+  `/` is kept. The scheme is found as `/^.+(:|&colon;)/gim` finds it (the first line with a colon or `&colon;` after its
+  first character, up to its last one), lower-cased as JavaScript lower-cases it, and refused (`about:blank`) when,
+  after its leading characters that are not ASCII word characters, it starts with `javascript`, `data`, or
+  `vbscript`. Otherwise backslashes become slashes; `mailto:` and a scheme followed by `://` are kept; an `http:` or
+  `https:` link is parsed and written back by the WHATWG URL parser (`new URL(...).toString()`): the scheme and host
+  lower-cased, user information and the path, query, and fragment percent-encoded with their sets as Node's URL
+  encodes them, the host percent-decoded and converted to ASCII, refused with a forbidden code point, an IPv4 address
+  in every number form written in dotted decimal, an IPv6 address written compressed, the default port dropped, and
+  dot segments resolved; a link the parser refuses is `about:blank`. The result can differ from the input even for a
+  safe link; a caller keeps the result.
+- `UrlSanitizer.FormatUrl(string link)` - Mermaid's `formatUrl` at the `strict` security level: the trimmed link, null
+  (no link) when it is empty, and `Sanitize` of it otherwise. `ClassModel.SetLink` keeps its result as the link of a
+  class; `SequenceModel` keeps `Sanitize` of every link text of a participant, as Mermaid's menu (`drawPopup`) checks
+  each one before it uses it.
 
 **Preconditions and postconditions**: the condition table must contain the initial condition and name only rules
 that exist; a rule that matches nothing and produces no token must change the state. Every token's positions are
@@ -75,21 +122,31 @@ positions of the scanner input, which map to the original text.
   found ..."), located at the token, whose `Expected` lists each expected token once in the grammar's own words.
 - More than 1,024 consecutive skipped matches that consume nothing are an `InvalidOperationException`: a defect of a
   grammar port, never of the input, reported instead of looping forever.
+- `UrlSanitizer` throws nothing for any text (only `FormatUrl` with a null link is an `ArgumentNullException`): an
+  unsafe or unparsable link is `about:blank`, which a diagram keeps silently, as Mermaid does. Its work is linear in the
+  text for each pass of the decoding loop, and a link is at most `MermaidLimits.MaxLabelLength` characters long.
 
 #### Dependencies
 
-- **Preprocessor** (same subsystem) - `MappedText`, for positions and locations
+- **Preprocessor** (same subsystem) - `MappedText`, for positions and locations, and `TrimJs` (JavaScript's `trim`)
 - **Root namespace** - `MermaidLocation`, `MermaidSyntaxException`, and `MermaidDiagnosticCodes`
-- **.NET base class library** - collections, LINQ, and `System.Globalization`
+- **.NET base class library** - collections, LINQ, `System.Globalization` (and its `IdnMapping`, for host names with
+  characters outside ASCII), `System.Numerics.BigInteger` (the exact values of long numbers), and `System.Text.Rune`
+  (UTF-8 and code points)
 
 #### Callers
 
-`FlowchartParser` of the `Flowchart` subsystem builds its 122 rules and 21 start conditions on `SourceScanner` and
-`ScanPatterns` and parses with a `TokenCursor`; `ScanPatterns`' JavaScript character classes are also used by
-`Preprocessor`, `DiagramDetector`, `FlowchartModel`, `LabelBuilder` of the `Rendering` subsystem, and the color
-parsers of the `Configuration` subsystem. The tests in
+`FlowchartParser` of the `Flowchart` subsystem builds its 122 rules and 21 start conditions, and `ClassParser` of the
+`Class` subsystem its 99 rules and 15 start conditions, on `SourceScanner` and `ScanPatterns` and parses with a
+`TokenCursor`; both lexers take the letters of their `UNICODE_TEXT` rule from `ScanPatterns.IsUnicodeLetter`;
+`ScanPatterns`' JavaScript character classes are also used by
+`Preprocessor`, `DiagramDetector`, `FlowchartModel`, `ClassModel`, `LabelBuilder` of the `Rendering` subsystem, and
+the color parsers of the `Configuration` subsystem. `UrlSanitizer` is called by `ClassModel` of the `Class` subsystem
+(`link` and `click ... href`) and `SequenceModel` of the `Sequence` subsystem (`link` and `links`); `FlowchartModel`
+keeps no link, so a flowchart needs no check. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs` drive a small grammar through the unit via
-`InternalsVisibleTo`.
+`InternalsVisibleTo`, and check `UrlSanitizer` with the inputs of sanitize-url's own tests and further encoded forms,
+whose expected values are the bundled sanitize-url's results in Node.
 
 #### Known Differences From Mermaid
 
@@ -98,3 +155,15 @@ parsers of the `Configuration` subsystem. The tests in
 - **Messages.** Lexical and parse errors carry CanvasNet messages, codes, locations in the original text, and hints
   instead of jison's "Lexical error on line ..." and "Parse error on line ..." texts; the expected tokens are listed
   as jison lists them.
+- **Security level.** Mermaid's `formatUrl` keeps a link as written at the `loose` security level. Only the `strict`
+  level is modeled, so every link is checked whatever `securityLevel` the configuration sets.
+- **Host names outside ASCII.** For a host with characters outside ASCII, or a label that starts with `xn--`, the
+  browser's UTS #46 processing is replaced by .NET's `IdnMapping`, which is stricter about hyphens at the start, the
+  end, or the third and fourth places of a label, empty labels, label lengths, and some `xn--` labels: such an `http` or
+  `https` link becomes `about:blank` where Mermaid keeps it. The refusal of the unsafe schemes does not depend on it.
+- **The URL parser of the host.** sanitize-url uses the `URL` class of the page that runs Mermaid. The port follows
+  the WHATWG URL Standard, as Node's URL does, with the path percent-encode set Node applies (without `^`); Node's
+  parser keeps the dot segments of a path whose first `/.` starts a longer segment (`http://a/y/.x/.` stays as written),
+  where the Standard and Chromium resolve them (`http://a/y/.x/`), and the port resolves them too. Chromium also
+  departs from the Standard in some hosts and percent-encode sets (it accepts a space in a host, encodes `^` and `|`
+  in a path and `'` in user information); the port does not follow those departures.

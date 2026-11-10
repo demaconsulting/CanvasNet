@@ -1,0 +1,232 @@
+{
+  "source": "09-lollipop.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 459.906, 174],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Engine-0",
+      "shape": "classBox",
+      "x": 160.492,
+      "y": 102,
+      "box": [109.594, 39, 101.797, 126],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [109.594, 39, 101.797, 126]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [109.594, 39, 101.797, 126]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [133.82, 51, 53.344, 24],
+          "text": "Engine",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [121.594, 129, 51.125, 24],
+          "text": "+start()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [109.594, 87, 101.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [109.594, 111, 101.797, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Cache-1",
+      "shape": "classBox",
+      "x": 297.406,
+      "y": 50,
+      "box": [261.391, 8, 72.031, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [261.391, 8, 72.031, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [261.391, 8, 72.031, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [273.391, 20, 48.031, 24],
+          "text": "Cache",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [261.391, 56, 72.031, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [261.391, 74, 72.031, 0.001] }
+      ]
+    },
+    {
+      "id": "interface0",
+      "shape": "rect",
+      "x": 33.797,
+      "y": 102,
+      "box": [8, 90, 51.594, 24],
+      "class": "node undefined",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [8, 90, 51.594, 24] },
+        { "tag": "g", "class": "label", "group": null, "box": [8, 90, 51.594, 24], "text": "Ignition" }
+      ]
+    },
+    {
+      "id": "interface1",
+      "shape": "rect",
+      "x": 297.406,
+      "y": 154,
+      "box": [263.156, 142, 68.5, 24],
+      "class": "node undefined",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [263.156, 142, 68.5, 24] },
+        { "tag": "g", "class": "label", "group": null, "box": [263.156, 142, 68.5, 24], "text": "Runnable" }
+      ]
+    },
+    {
+      "id": "interface2",
+      "shape": "rect",
+      "x": 417.664,
+      "y": 50,
+      "box": [383.422, 38, 68.484, 24],
+      "class": "node undefined",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [383.422, 38, 68.484, 24] },
+        { "tag": "g", "class": "label", "group": null, "box": [383.422, 38, 68.484, 24], "text": "Clearable" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_interface0_Engine_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-lollipopStart",
+      "markerEnd": null,
+      "length": 36.5,
+      "points": [
+        [73.094, 102],
+        [74.919, 102],
+        [76.744, 102],
+        [78.569, 102],
+        [80.394, 102],
+        [82.219, 102],
+        [84.044, 102],
+        [85.869, 102],
+        [87.694, 102],
+        [89.519, 102],
+        [91.344, 102],
+        [93.169, 102],
+        [94.994, 102],
+        [96.819, 102],
+        [98.644, 102],
+        [100.469, 102],
+        [102.294, 102],
+        [104.119, 102],
+        [105.944, 102],
+        [107.769, 102],
+        [109.594, 102]
+      ]
+    },
+    {
+      "id": "id_Engine_interface1_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-lollipopEnd",
+      "length": 42.781,
+      "points": [
+        [211.391, 136.872],
+        [213.155, 138.081],
+        [214.92, 139.29],
+        [216.685, 140.499],
+        [218.455, 141.7],
+        [220.233, 142.89],
+        [222.021, 144.063],
+        [223.822, 145.218],
+        [225.637, 146.35],
+        [227.469, 147.454],
+        [229.321, 148.524],
+        [231.197, 149.551],
+        [233.103, 150.522],
+        [235.047, 151.413],
+        [237.037, 152.198],
+        [239.07, 152.861],
+        [241.143, 153.385],
+        [243.25, 153.755],
+        [245.379, 153.956],
+        [247.517, 154],
+        [249.656, 154]
+      ]
+    },
+    {
+      "id": "id_Cache_interface2_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-lollipopEnd",
+      "length": 36.5,
+      "points": [
+        [333.422, 50],
+        [335.247, 50],
+        [337.072, 50],
+        [338.897, 50],
+        [340.722, 50],
+        [342.547, 50],
+        [344.372, 50],
+        [346.197, 50],
+        [348.022, 50],
+        [349.847, 50],
+        [351.672, 50],
+        [353.497, 50],
+        [355.322, 50],
+        [357.147, 50],
+        [358.972, 50],
+        [360.797, 50],
+        [362.622, 50],
+        [364.447, 50],
+        [366.272, 50],
+        [368.097, 50],
+        [369.922, 50]
+      ]
+    },
+    {
+      "id": "id_Engine_Cache_4",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 48.333,
+      "points": [
+        [211.391, 67.128],
+        [213.384, 65.762],
+        [215.378, 64.396],
+        [217.374, 63.033],
+        [219.381, 61.687],
+        [221.405, 60.367],
+        [223.449, 59.078],
+        [225.516, 57.826],
+        [227.61, 56.62],
+        [229.734, 55.468],
+        [231.894, 54.383],
+        [234.094, 53.384],
+        [236.342, 52.498],
+        [238.638, 51.747],
+        [240.975, 51.132],
+        [243.344, 50.655],
+        [245.736, 50.313],
+        [248.143, 50.102],
+        [250.558, 50.01],
+        [252.974, 50],
+        [255.391, 50]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

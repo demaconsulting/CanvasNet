@@ -39,6 +39,47 @@ internal sealed record FlowchartConfig(
     bool ArrowMarkerAbsolute);
 
 /// <summary>
+///     The class section of the effective configuration, with the keys of the state section that Mermaid's class
+///     renderer reads in their place.
+/// </summary>
+/// <remarks>
+///     <para>
+///         The defaults are those of <c>defaultConfig.ts</c>, which replaces the schema's class section with three keys
+///         (<c>defaultRenderer</c>, <c>hideEmptyMembersBox</c> and <c>hierarchicalNamespaces</c>) and deliberately
+///         leaves <c>padding</c> undefined, so the class box, namespace and note paddings keep their own fallbacks
+///         (12, 16 and 6).
+///     </para>
+///     <para>
+///         Mermaid's <c>classRenderer-v3-unified.ts</c> takes <c>const { state: conf } = getConfig()</c>, so the spacing
+///         of a class diagram is <c>state.nodeSpacing || 50</c> and <c>state.rankSpacing || 50</c> (zero falls back),
+///         and its title margin is <c>state.titleTopMargin ?? 25</c> (zero is kept).
+///     </para>
+/// </remarks>
+internal sealed record ClassConfig
+{
+    /// <summary>Gets the default renderer, which the class detectors read (<c>dagre-wrapper</c> selects <c>classDiagram</c>).</summary>
+    public string DefaultRenderer { get; init; } = "dagre-wrapper";
+
+    /// <summary>Gets a value indicating whether a class without members and methods is drawn without its empty member box.</summary>
+    public bool HideEmptyMembersBox { get; init; }
+
+    /// <summary>Gets a value indicating whether dotted namespace names make nested namespaces.</summary>
+    public bool HierarchicalNamespaces { get; init; } = true;
+
+    /// <summary>Gets the configured <c>class.padding</c>, or null when it is not set (each use then has its own fallback).</summary>
+    public double? Padding { get; init; }
+
+    /// <summary>Gets the spacing between the nodes of a rank (<c>state.nodeSpacing || 50</c>).</summary>
+    public double NodeSpacing { get; init; } = 50;
+
+    /// <summary>Gets the spacing between ranks (<c>state.rankSpacing || 50</c>).</summary>
+    public double RankSpacing { get; init; } = 50;
+
+    /// <summary>Gets the margin above the diagram title (<c>state.titleTopMargin ?? 25</c>).</summary>
+    public double TitleTopMargin { get; init; } = 25;
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -262,6 +303,7 @@ internal sealed class MermaidConfig
             Boolean(flowchart, "inheritDir", false),
             Boolean(flowchart, "arrowMarkerAbsolute", false));
         Sequence = ReadSequence(raw);
+        Class = ReadClass(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -318,13 +360,16 @@ internal sealed class MermaidConfig
     /// <summary>Gets the sequence section, as the sequence renderer reads it.</summary>
     public SequenceConfig Sequence { get; }
 
+    /// <summary>Gets the class section, as the class database and renderer read it.</summary>
+    public ClassConfig Class { get; }
+
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
     ///     state sections, which Mermaid's detectors read.
     /// </summary>
     public DetectorSettings DetectorSettings => new(
         Flowchart.DefaultRenderer,
-        Text(Raw["class"] as JsonObject, "defaultRenderer") ?? DetectorSettings.Default.ClassRenderer,
+        Class.DefaultRenderer,
         Text(Raw["state"] as JsonObject, "defaultRenderer") ?? DetectorSettings.Default.StateRenderer);
 
     /// <summary>
@@ -411,6 +456,32 @@ internal sealed class MermaidConfig
 
             // setConf assigns every top-level key over the section, arrowMarkerAbsolute (which has a default) included
             ArrowMarkerAbsolute = Boolean(raw, "arrowMarkerAbsolute", Boolean(sequence, "arrowMarkerAbsolute", false)),
+        };
+    }
+
+    /// <summary>
+    ///     Reads the class section as the class database and renderer see it: the section's values over the defaults of
+    ///     <c>defaultConfig.ts</c>, and the spacing and title margin from the state section.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The class section.</returns>
+    private static ClassConfig ReadClass(JsonObject raw)
+    {
+        var section = raw["class"] as JsonObject ?? [];
+        var state = raw["state"] as JsonObject ?? [];
+        var defaults = new ClassConfig();
+
+        // conf.nodeSpacing || 50: a missing or zero spacing falls back
+        double OrDefault(double value, double fallback) => value != 0 ? value : fallback;
+        return new ClassConfig
+        {
+            DefaultRenderer = Text(section, "defaultRenderer") ?? defaults.DefaultRenderer,
+            HideEmptyMembersBox = Boolean(section, "hideEmptyMembersBox", defaults.HideEmptyMembersBox),
+            HierarchicalNamespaces = Boolean(section, "hierarchicalNamespaces", defaults.HierarchicalNamespaces),
+            Padding = section["padding"] is JsonValue padding && padding.TryGetValue<double>(out var value) && double.IsFinite(value) ? value : null,
+            NodeSpacing = OrDefault(Number(state, "nodeSpacing", defaults.NodeSpacing), defaults.NodeSpacing),
+            RankSpacing = OrDefault(Number(state, "rankSpacing", defaults.RankSpacing), defaults.RankSpacing),
+            TitleTopMargin = Number(state, "titleTopMargin", defaults.TitleTopMargin),
         };
     }
 

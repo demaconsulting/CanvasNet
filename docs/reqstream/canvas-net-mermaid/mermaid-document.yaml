@@ -36,15 +36,17 @@ sections:
             title: >-
               The MermaidDocument unit shall expose the source name, the diagram type, whether this version draws
               the type, the title (the frontmatter title when the diagram has none of its own), the accessible
-              title, the direction, and the node, edge, and subgraph counts of an opened document, and shall open a
-              known diagram type that this version does not draw without error.
+              title, the direction, and the node, edge, and subgraph counts of an opened document, counted under the
+              configuration of the text itself (its frontmatter and directives), and shall open a known diagram type
+              that this version does not draw without error.
             justification: |
               Hosts decide what to do with a diagram (draw it, pass it on, describe it) from these facts, before
               and without rendering.
             tests:
               - MermaidDocument_Parse_Flowchart_IsSupportedFlowchart
-              - MermaidDocument_Parse_ClassDiagram_IsKnownButNotSupported
+              - MermaidDocument_Parse_PieChart_IsKnownButNotSupported
               - MermaidDocument_Parse_FrontmatterTitle_IsTitle
+              - MermaidDocument_Parse_ClassDiagram_CountsFollowTheTextConfiguration
 
           - id: CanvasNetMermaid-MermaidDocument-ErrorContract
             title: >-

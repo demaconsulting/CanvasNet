@@ -6,8 +6,9 @@ using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Rendering;
 
 /// <summary>
-///     Tests of <see cref="EdgeBuilder"/>: the d3 curves against d3-shape's own output, the marker geometry, the route
-///     operations of <c>edges.js</c>, the stroke and marker paint, and the edge labels.
+///     Tests of <see cref="EdgeBuilder"/>: the d3 curves against d3-shape's own output, the marker geometry of the
+///     flowchart and class markers, the route operations of <c>edges.js</c>, the stroke and marker paint, the edge labels
+///     and the terminal labels.
 /// </summary>
 public sealed class EdgeBuilderTests
 {
@@ -441,6 +442,229 @@ public sealed class EdgeBuilderTests
     }
 
     /// <summary>
+    ///     Checks the class diagram's edge label backgrounds: an HTML label's are the node background of the class
+    ///     sheet (<c>.labelBkg</c> and <c>.edgeLabel .label span</c>), and an SVG label's rectangle is too
+    ///     (<c>.edgeLabel .label rect</c>).
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawLabel_ClassDiagram_UsesTheClassBackgrounds()
+    {
+        // Arrange
+        var html = RenderingTestContext.CreateClass();
+        var svg = RenderingTestContext.CreateClass("---\nconfig:\n  htmlLabels: false\n---\nclassDiagram\n  class A\n");
+        var mainBkg = new Rgba32(0xEC, 0xEC, 0xFF, 255);
+
+        // Act
+        var htmlDrawing = EdgeBuilder.DrawLabel(EdgeBuilder.MeasureLabel(Edge(), "uses", html), new ShapePoint(0, 0), Edge(), "e", html.Styles);
+        var svgDrawing = EdgeBuilder.DrawLabel(EdgeBuilder.MeasureLabel(Edge(), "uses", svg), new ShapePoint(0, 0), Edge(), "e", svg.Styles);
+
+        // Assert
+        var htmlBackgrounds = Assert.IsType<SceneGroup>(Assert.Single(htmlDrawing.Items)).Children.Where(c => c.Role == "edge-label-background").ToList();
+        Assert.Equal(2, htmlBackgrounds.Count);
+        Assert.All(htmlBackgrounds, background => Assert.Equal(mainBkg, Assert.IsType<ScenePath>(background).Fill));
+        var svgBackground = Assert.Single(Assert.IsType<SceneGroup>(Assert.Single(svgDrawing.Items)).Children, c => c.Role == "edge-label-background");
+        Assert.Equal(mainBkg, Assert.IsType<ScenePath>(svgBackground).Fill);
+    }
+
+    /// <summary>
+    ///     Checks the class diagram's markers: their types and reference points, and none for the flowchart's types.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_UserSpaceMarkerOf_ClassArrowTypes_GiveMermaidsMarkers()
+    {
+        // Act
+        var ends = new[] { "aggregation", "extension", "composition", "dependency", "lollipop" }
+            .Select(type => (EdgeBuilder.UserSpaceMarkerOf(type, true)!, EdgeBuilder.UserSpaceMarkerOf(type, false)!))
+            .ToList();
+
+        // Assert: refX and refY of markers.js, start then end
+        Assert.Equal(
+            [(18.0, 7.0, 1.0, 7.0), (18, 7, 1, 7), (18, 7, 1, 7), (6, 7, 13, 7), (13, 7, 1, 7)],
+            ends.Select(e => (e.Item1.RefX, e.Item1.RefY, e.Item2.RefX, e.Item2.RefY)));
+        Assert.Equal(["aggregation", "extension", "composition", "dependency", "lollipop"], ends.Select(e => e.Item2.Type));
+        Assert.Equal("transparent", Assert.Single(ends[4].Item1.Parts).Fill);
+        Assert.Null(EdgeBuilder.UserSpaceMarkerOf("none", false));
+        Assert.Null(EdgeBuilder.UserSpaceMarkerOf("arrow_point", true));
+    }
+
+    /// <summary>
+    ///     Checks that the extension marker is drawn in user units: the end variant's tip 17 pixels ahead of the vertex,
+    ///     the start variant's tip 17 pixels behind it.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawUserSpaceMarker_Extension_TipIsSeventeenPixelsFromTheVertex()
+    {
+        // Act
+        var end = Assert.IsType<ScenePath>(Assert.Single(EdgeBuilder.DrawUserSpaceMarker(EdgeBuilder.UserSpaceMarkerOf("extension", false)!, 100, 50, 0, Gray, "e")));
+        var start = Assert.IsType<ScenePath>(Assert.Single(EdgeBuilder.DrawUserSpaceMarker(EdgeBuilder.UserSpaceMarkerOf("extension", true)!, 100, 50, 0, Gray, "e")));
+
+        // Assert: M 1,1 V 13 L18,7 Z with refX 1, and M 1,7 L18,13 V 1 Z with refX 18
+        Assert.Equal([(100.0, 44.0), (100, 56), (117, 50)], end.Segments.Take(3).Select(s => (Math.Round(s.X, 9), Math.Round(s.Y, 9))));
+        Assert.Equal([(83.0, 50.0), (100, 56), (100, 44)], start.Segments.Take(3).Select(s => (Math.Round(s.X, 9), Math.Round(s.Y, 9))));
+        Assert.Equal(("marker", "e"), (end.Role, end.Id));
+        Assert.Equal(new SceneStroke(Gray.Stroke!.Value, 1), end.Stroke);
+    }
+
+    /// <summary>
+    ///     Checks that the lollipop is an unfilled circle of radius 6 behind the start vertex, its own transparent fill
+    ///     winning over the marker's.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawUserSpaceMarker_LollipopStart_IsAnUnfilledCircleBehindTheVertex()
+    {
+        // Act
+        var circle = Assert.IsType<ScenePath>(Assert.Single(EdgeBuilder.DrawUserSpaceMarker(EdgeBuilder.UserSpaceMarkerOf("lollipop", true)!, 100, 50, 0, Gray, "e")));
+
+        // Assert: the center (7, 7) with refX 13 is 6 pixels behind the vertex
+        Assert.Null(circle.Fill);
+        AssertBox(new SceneRect(88, 44, 12, 12), Scene.BoundsOf([circle]));
+    }
+
+    /// <summary>
+    ///     Checks a class relation: its line shortened by 17.25 pixels at each end, a composition at its start filled and
+    ///     stroked in the line color with its tip a quarter pixel from the node, and an extension at its end stroked only.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_Draw_ClassRelation_MarkersFollowTheClassRules()
+    {
+        // Arrange
+        var gray = new Rgba32(0x33, 0x33, 0x33, 255);
+        var route = new EdgeRoute(Relation("composition", "extension"), "r", [new(0, 0), new(0, 50), new(0, 100)]);
+
+        // Act
+        var drawing = EdgeBuilder.Draw(route, null, null, RenderingTestContext.CreateClass());
+
+        // Assert
+        Assert.Equal("M0,17.25L0,50L0,82.75", drawing.PathData);
+        var composition = Assert.IsType<ScenePath>(drawing.Items[1]);
+        var extension = Assert.IsType<ScenePath>(drawing.Items[2]);
+        Assert.Equal((gray, gray, 1.0), (composition.Fill, composition.Stroke!.Color, composition.Stroke.Width));
+        Assert.Equal(0.25, Scene.BoundsOf([composition])!.Value.Y, 9);
+        Assert.Null(extension.Fill);
+        Assert.Equal(gray, extension.Stroke!.Color);
+        Assert.Equal(99.75, Scene.BoundsOf([extension])!.Value.Bottom, 9);
+    }
+
+    /// <summary>
+    ///     Checks that a relation's own stroke colors its markers (Mermaid's colored marker copy): the stroke of every
+    ///     marker, and the fill of the filled types only.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_Draw_ClassRelationStroke_ColorsTheMarkers()
+    {
+        // Arrange
+        var red = new Rgba32(255, 0, 0, 255);
+        var edge = Relation("dependency", "aggregation") with { Style = ["stroke:#f00"] };
+
+        // Act
+        var drawing = EdgeBuilder.Draw(new EdgeRoute(edge, "r", [new(0, 0), new(0, 50), new(0, 100)]), null, null, RenderingTestContext.CreateClass());
+
+        // Assert
+        var dependency = Assert.IsType<ScenePath>(drawing.Items[1]);
+        var aggregation = Assert.IsType<ScenePath>(drawing.Items[2]);
+        Assert.Equal((red, red), (dependency.Fill, dependency.Stroke!.Color));
+        Assert.Equal(((Rgba32?)null, red), (aggregation.Fill, aggregation.Stroke!.Color));
+    }
+
+    /// <summary>
+    ///     Checks where terminal labels go on a straight route: beside the middle of the first 35 pixels (25 plus the
+    ///     marker size), 15 pixels to the right of the walking direction, the end label moved 5 pixels up and left.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_CalcTerminalLabelPosition_StraightRoute_IsBesideTheWalkedPart()
+    {
+        // Arrange: a route straight down
+        IReadOnlyList<ShapePoint> route = [new(0, 0), new(0, 100)];
+
+        // Act
+        var start = EdgeBuilder.CalcTerminalLabelPosition(10, false, route)!.Value;
+        var end = EdgeBuilder.CalcTerminalLabelPosition(10, true, route)!.Value;
+        var bare = EdgeBuilder.CalcTerminalLabelPosition(0, false, route)!.Value;
+
+        // Assert
+        Assert.Equal((-15, 17.5), (Math.Round(start.X, 9), Math.Round(start.Y, 9)));
+        Assert.Equal((10, 77.5), (Math.Round(end.X, 9), Math.Round(end.Y, 9)));
+        Assert.Equal((-10, 12.5), (Math.Round(bare.X, 9), Math.Round(bare.Y, 9)));
+    }
+
+    /// <summary>
+    ///     Checks that a route shorter than the walk has no terminal label position, and that drawing a terminal label
+    ///     there fails located at the link, as Mermaid's render fails.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawTerminals_ShortRoute_FailsLocatedAtTheLink()
+    {
+        // Arrange
+        IReadOnlyList<ShapePoint> route = [new(0, 0), new(0, 20)];
+        var drawing = new EdgeDrawing([], null, null, route, "M0,0L0,20");
+        var edge = Relation("none", "none") with { StartLabelRight = "1", Location = new MermaidLocation("t.mmd", 3, 2) };
+
+        // Act
+        var position = EdgeBuilder.CalcTerminalLabelPosition(10, false, route);
+        var exception = Assert.Throws<MermaidRenderException>(() =>
+            EdgeBuilder.DrawTerminals(edge, "r", "1", string.Empty, "none", "none", drawing, RenderingTestContext.CreateClass()));
+
+        // Assert
+        Assert.Null(position);
+        Assert.Equal((MermaidDiagnosticCodes.RenderFailed, new MermaidLocation("t.mmd", 3, 2)), (exception.Code, exception.Location));
+        Assert.NotNull(exception.Hint);
+    }
+
+    /// <summary>
+    ///     Checks HTML terminal labels: drawn in the 11 pixel <c>.edgeTerminals</c> font, the start label centered on its
+    ///     position, the end label starting at its position, each with the box of a foreignObject 9 pixels per character
+    ///     wide and 12 pixels high.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawTerminals_HtmlLabels_StartCenteredEndNot()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateClass();
+        var edge = Relation("none", "extension");
+        var drawing = new EdgeDrawing([], null, null, [new(0, 0), new(0, 100)], "M0,0L0,100");
+        var one = EdgeBuilder.MeasureTerminal(edge, "1", context);
+
+        // Act
+        var terminals = EdgeBuilder.DrawTerminals(edge, "r", "1", "many", edge.ArrowTypeStart, edge.ArrowTypeEnd, drawing, context);
+
+        // Assert
+        Assert.True(one.IsHtml);
+        Assert.Equal(16.5, one.Height, 9);
+        var groups = terminals.Items.Cast<SceneGroup>().ToList();
+        Assert.Equal([("edge-terminal", "r", -15.0, 17.5), ("edge-terminal", "r", 10, 77.5)], groups.Select(g => (g.Role, g.Id!, Math.Round(g.OffsetX, 9), Math.Round(g.OffsetY, 9))));
+        Assert.All(groups, g => Assert.Equal(11, Assert.IsType<SceneText>(Assert.Single(g.Children)).Runs[0].Font.Size));
+        var startBox = new SceneRect(-15 - (one.Width / 2), 17.5 - 8.25, 9, 12);
+        AssertBox(startBox.Union(new SceneRect(10, 77.5, 36, 12)), terminals.Bounds);
+    }
+
+    /// <summary>
+    ///     Checks SVG terminal labels: the start label centered on its text box, the end label's box starting at its
+    ///     position, and no labels for empty texts.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawTerminals_SvgLabels_StartCenteredOnItsTextBox()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateClass("---\nconfig:\n  htmlLabels: false\n---\nclassDiagram\n  class A\n");
+        var edge = Relation("none", "none");
+        var drawing = new EdgeDrawing([], null, null, [new(0, 0), new(0, 100)], "M0,0L0,100");
+        var label = EdgeBuilder.MeasureTerminal(edge, "0..1", context);
+
+        // Act
+        var start = EdgeBuilder.DrawTerminals(edge, "r", "0..1", string.Empty, "none", "none", drawing, context);
+        var end = EdgeBuilder.DrawTerminals(edge, "r", string.Empty, "0..1", "none", "none", drawing, context);
+        var none = EdgeBuilder.DrawTerminals(edge, "r", string.Empty, string.Empty, "none", "none", drawing, context);
+
+        // Assert
+        Assert.False(label.IsHtml);
+        Assert.Equal(-15, start.Bounds!.Value.X + (start.Bounds.Value.Width / 2), 6);
+        Assert.Equal(17.5, start.Bounds.Value.Y + (start.Bounds.Value.Height / 2), 6);
+        AssertBox(label.Box.Offset(10, 77.5), end.Bounds);
+        Assert.Empty(none.Items);
+        Assert.Null(none.Bounds);
+    }
+
+    /// <summary>
     ///     Makes a visible edge with an arrowhead at its end and a linear curve.
     /// </summary>
     /// <returns>The edge.</returns>
@@ -454,6 +678,26 @@ public sealed class EdgeBuilderTests
         Pattern = "normal",
         Classes = "edge-thickness-normal edge-pattern-solid flowchart-link",
         ArrowTypeEnd = "arrow_point",
+        Curve = "linear",
+    };
+
+    /// <summary>
+    ///     Makes a class relation with a linear curve.
+    /// </summary>
+    /// <param name="start">The arrow type at the start.</param>
+    /// <param name="end">The arrow type at the end.</param>
+    /// <returns>The edge.</returns>
+    private static LayoutEdge Relation(string start, string end) => new()
+    {
+        Id = "r",
+        Start = "A",
+        End = "B",
+        Type = "normal",
+        Thickness = "normal",
+        Pattern = "solid",
+        Classes = "relation",
+        ArrowTypeStart = start,
+        ArrowTypeEnd = end,
         Curve = "linear",
     };
 

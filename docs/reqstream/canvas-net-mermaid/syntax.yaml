@@ -5,9 +5,9 @@
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the preparation of a diagram text as Mermaid
 # prepares it before parsing, with every position mapped back to the original text (Preprocessor), the detection of
 # the diagram type (DiagramDetector), the reader of the YAML of frontmatter and shape data (YamlSubsetParser), the
-# lexer infrastructure of the diagram parsers (SourceScanner), and the clean-up of the HTML of labels with its named
-# character references (HtmlSanitizer). Each requirement here links down to the unit requirements that implement
-# it. See docs/verification/canvas-net-mermaid/syntax.md for the test-evidence mapping.
+# lexer infrastructure of the diagram parsers with the link check (SourceScanner), and the clean-up of the HTML of
+# labels with its named character references (HtmlSanitizer). Each requirement here links down to the unit
+# requirements that implement it. See docs/verification/canvas-net-mermaid/syntax.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetMermaid Requirements
@@ -51,6 +51,7 @@ sections:
               - CanvasNetMermaid-Syntax-SourceScanner-ExpectedTokens
               - CanvasNetMermaid-Syntax-SourceScanner-GrammarDefects
               - CanvasNetMermaid-Syntax-SourceScanner-JavaScriptClasses
+              - CanvasNetMermaid-Syntax-SourceScanner-UnicodeLetters
             tests:
               - Syntax_PreprocessAndDetect_FullText_KeepsOriginalLocations
               - Syntax_ScanParserText_AfterFrontmatter_LocatesTokensAndLexicalError
@@ -96,10 +97,13 @@ sections:
               The Syntax subsystem shall treat a diagram text as untrusted: it shall refuse a text beyond the text
               size limit, refuse YAML anchors, aliases, tags, explicit keys, and directives with a located error,
               bound the nesting of YAML, prepare the text and read its YAML in time that grows linearly with the
-              text, and clean the HTML of a label of everything Mermaid's sanitizer removes without recursion.
+              text, clean the HTML of a label of everything Mermaid's sanitizer removes without recursion, and check
+              every link a diagram keeps as Mermaid's link check (sanitize-url) checks it, refusing a javascript, data,
+              or vbscript link in any encoding.
             justification: |
               Diagram text may come from anyone; a small text must not expand into a huge value, exhaust the stack,
-              or take quadratic time, and label HTML must not carry scripts, event handlers, or unsafe links.
+              or take quadratic time, and label HTML must not carry scripts, event handlers, or unsafe links; nor may
+              a link a diagram keeps, however its scheme is encoded.
             children:
               - CanvasNetMermaid-Syntax-Preprocessor-SizeLimits
               - CanvasNetMermaid-Syntax-YamlSubsetParser-RefusedConstructs
@@ -110,6 +114,8 @@ sections:
               - CanvasNetMermaid-Syntax-HtmlSanitizer-Serialization
               - CanvasNetMermaid-Syntax-HtmlSanitizer-References
               - CanvasNetMermaid-Syntax-HtmlSanitizer-Bounded
+              - CanvasNetMermaid-Syntax-SourceScanner-LinkCheck
             tests:
               - Syntax_Preprocess_FrontmatterAlias_IsRefusedAtLocation
               - Syntax_PrepareAndSanitizeLabel_UnsafeHtml_IsCleaned
+              - Syntax_PrepareAndCheckLinks_EncodedUnsafeLinks_AreRefused

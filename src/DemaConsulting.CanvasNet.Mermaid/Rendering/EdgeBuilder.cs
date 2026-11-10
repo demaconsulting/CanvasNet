@@ -79,14 +79,16 @@ internal sealed record EdgeLabelDrawing(IReadOnlyList<SceneItem> Items, SceneRec
 ///         first frame) and the edge's own styles (<c>linkStyle</c>, <c>classDef</c>).
 ///     </para>
 ///     <para>
-///         <b>Markers.</b> The <c>point</c>, <c>circle</c> and <c>cross</c> markers are drawn in the style sheet's
-///         <c>.marker</c> color, or in the edge's stroke color when its styles give one, as Mermaid's colored marker
-///         copies are.
+///         <b>Markers.</b> The flowchart's <c>point</c>, <c>circle</c> and <c>cross</c> markers are drawn in the style
+///         sheet's <c>.marker</c> color, and the class diagram's <c>aggregation</c>, <c>extension</c>,
+///         <c>composition</c>, <c>dependency</c> and <c>lollipop</c> markers in their own rules' paint; an edge whose
+///         styles give a stroke color draws them in it, as Mermaid's colored marker copies are.
 ///     </para>
 ///     <para>
 ///         <b>Labels.</b> The label is measured as <c>insertEdgeLabel</c> creates it (a 200 pixel wrapping width, with
 ///         a background) and placed at the layout's label position, or on the middle of the cut route when the route
-///         changed (<c>positionEdgeLabel</c>).
+///         changed (<c>positionEdgeLabel</c>). An edge's terminal labels (a class relation's cardinalities) are placed
+///         beside the start and the end of the drawn route (<c>calcTerminalLabelPosition</c>).
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -131,9 +133,8 @@ internal static partial class EdgeBuilder
             return LabelLayout.Of(html, new SceneRect(0, 0, 0, 0));
         }
 
-        var (labelItems, _) = ShapeLibrary.SplitStyles(edge.CssCompiledStyles.Concat(edge.LabelStyle));
-        var labelStyles = StyleDeclarations.ParseItems(labelItems, edge.Location, context.Sink);
-        var css = context.Styles.NodeLabel;
+        var labelStyles = LabelStylesOf(edge, context.Sink);
+        var css = context.Styles.EdgeLabel;
         return context.MeasureLabel(new LabelRequest(label, ShapeLibrary.LabelFontOf(labelStyles, css))
         {
             Markdown = edge.LabelType == "markdown",
@@ -148,6 +149,19 @@ internal static partial class EdgeBuilder
             CenterSvgText = true,
             Location = edge.Location,
         });
+    }
+
+    /// <summary>
+    ///     Gets the label styles of an edge (the label declarations of its class styles and its label styles), which its
+    ///     label and its terminal labels are created with.
+    /// </summary>
+    /// <param name="edge">The edge.</param>
+    /// <param name="sink">The sink for unsupported declarations, or null to parse them silently (they were reported once).</param>
+    /// <returns>The declarations.</returns>
+    private static StyleDeclarationSet LabelStylesOf(LayoutEdge edge, MermaidReportSink? sink)
+    {
+        var (labelItems, _) = ShapeLibrary.SplitStyles(edge.CssCompiledStyles.Concat(edge.LabelStyle));
+        return StyleDeclarations.ParseItems(labelItems, edge.Location, sink);
     }
 
     /// <summary>
@@ -261,7 +275,7 @@ internal static partial class EdgeBuilder
     /// <param name="id">The id of the drawn edge.</param>
     /// <param name="styles">The style sheet.</param>
     /// <returns>The items and the box.</returns>
-    public static EdgeLabelDrawing DrawLabel(LabelLayout label, ShapePoint position, LayoutEdge edge, string id, FlowchartStyles styles)
+    public static EdgeLabelDrawing DrawLabel(LabelLayout label, ShapePoint position, LayoutEdge edge, string id, UnifiedStyles styles)
     {
         ArgumentNullException.ThrowIfNull(label);
         ArgumentNullException.ThrowIfNull(edge);
@@ -294,14 +308,16 @@ internal static partial class EdgeBuilder
 
         if (label.IsHtml)
         {
-            // The div's labelBkg background, then the paragraph's .edgeLabel p background, both over the whole box
-            Background(styles.Resolve(".labelBkg").Paint("background-color"), 1, "edge-label-background");
-            Background(styles.Resolve(".edgeLabel p").Paint("background-color"), 1, "edge-label-background");
+            // The div's labelBkg background, then the background of the text's element, both over the whole box
+            foreach (var selector in styles.HtmlEdgeLabelBackgrounds)
+            {
+                Background(styles.Resolve(selector).Paint("background-color"), 1, "edge-label-background");
+            }
         }
         else
         {
-            // The background rectangle of the SVG text (.edgeLabel rect)
-            var rect = styles.Resolve(".edgeLabel rect");
+            // The background rectangle of the SVG text
+            var rect = styles.Resolve(styles.SvgEdgeLabelBackground);
             var opacity = rect["opacity"] is { } text && StyleDeclarations.TryParseOpacity(text, out var factor) ? factor : 1;
             Background(rect.Paint("fill"), opacity, "edge-label-background");
         }
@@ -335,7 +351,19 @@ internal static partial class EdgeBuilder
         }
 
         // calculatePoint: walk half the length
-        var remaining = total / 2;
+        return CalculatePoint(points, total / 2);
+    }
+
+    /// <summary>
+    ///     Gets the point a distance along a route (Mermaid's <c>calculatePoint</c>), its coordinates rounded to 5
+    ///     decimals, or null where Mermaid throws (the route is shorter than the distance).
+    /// </summary>
+    /// <param name="points">The route.</param>
+    /// <param name="distance">The distance to walk.</param>
+    /// <returns>The point, or null.</returns>
+    internal static ShapePoint? CalculatePoint(IReadOnlyList<ShapePoint> points, double distance)
+    {
+        var remaining = distance;
         for (var i = 1; i < points.Count; i++)
         {
             var (previous, point) = (points[i - 1], points[i]);
@@ -919,7 +947,7 @@ internal static partial class EdgeBuilder
 
         // The sheet's rules for the path's classes, over the fill it inherits from the root
         var style = new StyleDeclarationSet(
-            context.Styles.Resolve(FlowchartStyles.Root)["fill"] is { } inherited ? [new StyleDeclaration("fill", inherited, false)] : []);
+            context.Styles.Resolve(DiagramStyles.Root)["fill"] is { } inherited ? [new StyleDeclaration("fill", inherited, false)] : []);
         foreach (var rule in context.Styles.Rules)
         {
             if (rule.Selector.Length > 1 && rule.Selector[0] == '.' && classes.Contains(rule.Selector[1..]))
@@ -964,34 +992,39 @@ internal static partial class EdgeBuilder
     }
 
     /// <summary>
-    ///     Gets the paint of a marker shape: the style sheet's <c>.marker</c> rule (and <c>.marker.cross</c> for the
-    ///     cross), or the edge's stroke color for the stroke and, for the filled point, the fill.
+    ///     Gets the paint of a marker type: the style sheet's <c>.marker</c> rule, then <c>.marker.cross</c> for the cross
+    ///     or the type's own rule for a user-space marker (<c>.composition</c>, ...), and the edge's stroke color for the
+    ///     stroke and, for the types whose colored copy is filled, the fill.
     /// </summary>
-    /// <param name="shape">The marker shape.</param>
+    /// <param name="type">The marker type.</param>
     /// <param name="strokeText">The edge's stroke color as written, or null.</param>
     /// <param name="styles">The style sheet.</param>
     /// <returns>The paint.</returns>
-    private static MarkerPaint MarkerPaintOf(string shape, string? strokeText, FlowchartStyles styles)
+    private static MarkerPaint MarkerPaintOf(string type, string? strokeText, UnifiedStyles styles)
     {
         var rule = styles.Resolve(".marker");
-        if (shape == "cross")
+        if (type == "cross")
         {
             rule = rule.Cascade(styles.Resolve(".marker.cross"));
         }
+        else if (UserSpaceMarkerOf(type, false) is not null)
+        {
+            rule = rule.Cascade(styles.Resolve("." + type));
+        }
 
         // A marker inherits the root's fill when its rule sets none
-        var rootFill = styles.Resolve(FlowchartStyles.Root).Paint("fill");
+        var rootFill = styles.Resolve(DiagramStyles.Root).Paint("fill");
         var fill = rule["fill"] is not null ? rule.Paint("fill") : rootFill;
         var stroke = rule.Paint("stroke");
         if (strokeText is { } text && text.Trim().Length > 0 && StyleDeclarations.TryParsePaint(text.Trim(), out var color))
         {
             stroke = color;
-            if (shape == "point")
+            if (FillsWithStrokeColor(type))
             {
                 fill = color;
             }
         }
 
-        return new MarkerPaint(fill, stroke);
+        return new MarkerPaint(fill, stroke) { StrokeWidth = rule.Length("stroke-width", 1) };
     }
 }

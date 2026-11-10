@@ -1,0 +1,22 @@
+classDiagram
+    class Shape {
+        <<interface>>
+        +draw()
+    }
+    class Color {
+        <<enumeration>>
+        RED
+        GREEN
+        BLUE
+    }
+    class Service
+    <<service>> Service
+    class Repository {
+        <<abstract>>
+        <<entity>>
+        +save()
+    }
+    class Marker <<interface>>
+    Service ..> Repository
+    Shape <|.. Marker
+    Service --> Color

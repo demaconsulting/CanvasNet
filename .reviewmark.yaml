@@ -3747,6 +3747,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReferenceLayoutTests.cs"  # reference layout goldens
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceIntegrationTests.cs"  # sequence system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceReferenceLayoutTests.cs"  # sequence goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidClassIntegrationTests.cs"  # class system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
@@ -3901,6 +3902,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Patterns.cs"  # unit source (ScanPatterns)
       - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Tokens.cs"  # unit source (TokenCursor)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Urls.cs"  # unit source (UrlSanitizer)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs"  # unit tests
 
   # CanvasNetMermaid-Syntax-HtmlSanitizer Review (one per unit)
@@ -4253,6 +4255,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.Extractor.cs"  # unit source (subgraph extraction)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.SelfLoops.cs"  # unit source (self-loops)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.Diagram.cs"  # unit source (title and view box)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LayoutData.cs"  # unit source (layout data records)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ClusterLayoutTests.cs"  # unit tests
 
@@ -4276,6 +4279,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Intersect.cs"  # unit source (intersect functions)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Parts.cs"  # unit source (path parts and drafts)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Clusters.cs"  # unit source (subgraph rectangle)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.ClassBox.cs"  # unit source (class box)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeNames.cs"  # unit source (shape registry)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeLibraryTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeLibraryVectorTests.cs"  # unit tests (vectors)
@@ -4299,6 +4303,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.Curves.cs"  # unit source (d3-shape curves)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.Markers.cs"  # unit source (markers)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.Terminals.cs"  # unit source (terminal labels)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/EdgeBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/curves.json"  # upstream vectors
 
@@ -4537,6 +4542,58 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Blocks.cs"  # unit source (frames, boxes)
       - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Text.cs"  # unit source (text placement)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Class Review (subsystem)
+  - id: CanvasNetMermaid-Class
+    title: Review that CanvasNetMermaid Class Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/class.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-mermaid/class.md"                  # subsystem design
+      - "docs/verification/canvas-net-mermaid/class.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/class.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/class/*.mmd"  # original class fixtures
+
+  # CanvasNetMermaid-Class-ClassParser Review (one per unit)
+  - id: CanvasNetMermaid-Class-ClassParser
+    title: Review that CanvasNetMermaid Class ClassParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/class.md"
+      - "docs/reqstream/canvas-net-mermaid/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/class/class-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/class/class-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/class/class-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/class/class-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/class-parser.json"  # vectors
+
+  # CanvasNetMermaid-Class-ClassModel Review (one per unit)
+  - id: CanvasNetMermaid-Class-ClassModel
+    title: Review that CanvasNetMermaid Class ClassModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/class.md"
+      - "docs/reqstream/canvas-net-mermaid/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/class/class-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/class/class-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/class/class-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/class/class-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassModel.LayoutData.cs"  # unit source (layout data, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassModelTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

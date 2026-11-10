@@ -342,17 +342,17 @@ public sealed record ChartFacts(
 /// <summary>
 ///     What a Mermaid diagram declares, read by parsing it (the diagram is laid out for its size but not drawn).
 /// </summary>
-/// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too) or <c>sequence</c>.</param>
+/// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c> or <c>class</c>.</param>
 /// <param name="Supported">
 ///     <see langword="true"/> when this version draws the type; a diagram of a type that is recognized but not drawn yet
-///     (for example <c>class</c>) is an empty picture with the unsupported note <c>mermaid-diagram-unsupported</c>.
+///     (for example <c>pie</c>) is an empty picture with the unsupported note <c>mermaid-diagram-unsupported</c>.
 /// </param>
-/// <param name="Direction">The direction of a flowchart (<c>TB</c>, <c>TD</c>, <c>BT</c>, <c>LR</c>, or <c>RL</c>), or <see langword="null"/>.</param>
+/// <param name="Direction">The direction of a flowchart or a class diagram (<c>TB</c>, <c>TD</c>, <c>BT</c>, <c>LR</c>, or <c>RL</c>), or <see langword="null"/>.</param>
 /// <param name="Title">The title from the frontmatter or the diagram itself, or <see langword="null"/> when there is none.</param>
 /// <param name="AccTitle">The accessible title (<c>accTitle</c>), or <see langword="null"/> when there is none.</param>
-/// <param name="NodeCount">The number of nodes (the participants of a sequence diagram); 0 for a type that is not drawn.</param>
-/// <param name="EdgeCount">The number of edges (links; the messages of a sequence diagram); 0 for a type that is not drawn.</param>
-/// <param name="SubgraphCount">The number of subgraphs (the boxes of a sequence diagram); 0 for a type that is not drawn.</param>
+/// <param name="NodeCount">The number of nodes (the participants of a sequence diagram, the classes of a class diagram); 0 for a type that is not drawn.</param>
+/// <param name="EdgeCount">The number of edges (links; the messages of a sequence diagram, the relations of a class diagram); 0 for a type that is not drawn.</param>
+/// <param name="SubgraphCount">The number of subgraphs (the boxes of a sequence diagram, the namespaces of a class diagram); 0 for a type that is not drawn.</param>
 public sealed record DiagramFacts(
     string Type,
     bool Supported,

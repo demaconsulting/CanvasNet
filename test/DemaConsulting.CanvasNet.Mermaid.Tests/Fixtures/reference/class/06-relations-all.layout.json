@@ -1,0 +1,928 @@
+{
+  "source": "06-relations-all.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 976.313, 416],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Base-0",
+      "shape": "classBox",
+      "x": 304.945,
+      "y": 208,
+      "box": [273.82, 166, 62.25, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [273.82, 166, 62.25, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [273.82, 166, 62.25, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [285.82, 178, 38.25, 24],
+          "text": "Base",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [273.82, 214, 62.25, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [273.82, 232, 62.25, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Derived-1",
+      "shape": "classBox",
+      "x": 304.945,
+      "y": 366,
+      "box": [263.594, 324, 82.703, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [263.594, 324, 82.703, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [263.594, 324, 82.703, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [275.594, 336, 58.703, 24],
+          "text": "Derived",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [263.594, 372, 82.703, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [263.594, 390, 82.703, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Whole-2",
+      "shape": "classBox",
+      "x": 432.758,
+      "y": 208,
+      "box": [396.758, 166, 72, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [396.758, 166, 72, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [396.758, 166, 72, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [408.758, 178, 48, 24],
+          "text": "Whole",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [396.758, 214, 72, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [396.758, 232, 72, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Part-3",
+      "shape": "classBox",
+      "x": 432.758,
+      "y": 366,
+      "box": [405.195, 324, 55.125, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [405.195, 324, 55.125, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [405.195, 324, 55.125, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [417.195, 336, 31.125, 24],
+          "text": "Part",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [405.195, 372, 55.125, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [405.195, 390, 55.125, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Group-4",
+      "shape": "classBox",
+      "x": 674.984,
+      "y": 208,
+      "box": [638.984, 166, 72, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [638.984, 166, 72, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [638.984, 166, 72, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [650.984, 178, 48, 24],
+          "text": "Group",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [638.984, 214, 72, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [638.984, 232, 72, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Member-5",
+      "shape": "classBox",
+      "x": 674.984,
+      "y": 366,
+      "box": [632.305, 324, 85.359, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [632.305, 324, 85.359, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [632.305, 324, 85.359, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [644.305, 336, 61.359, 24],
+          "text": "Member",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [632.305, 372, 85.359, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [632.305, 390, 85.359, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Client-6",
+      "shape": "classBox",
+      "x": 46.672,
+      "y": 50,
+      "box": [12.445, 8, 68.453, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [12.445, 8, 68.453, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [12.445, 8, 68.453, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [24.445, 20, 44.453, 24],
+          "text": "Client",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [12.445, 56, 68.453, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [12.445, 74, 68.453, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Server-7",
+      "shape": "classBox",
+      "x": 46.672,
+      "y": 208,
+      "box": [9.758, 166, 73.828, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [9.758, 166, 73.828, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [9.758, 166, 73.828, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [21.758, 178, 49.828, 24],
+          "text": "Server",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [9.758, 214, 73.828, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [9.758, 232, 73.828, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Left-8",
+      "shape": "classBox",
+      "x": 551.195,
+      "y": 50,
+      "box": [524.531, 8, 53.328, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [524.531, 8, 53.328, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [524.531, 8, 53.328, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [536.531, 20, 29.328, 24],
+          "text": "Left",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [524.531, 56, 53.328, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [524.531, 74, 53.328, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Right-9",
+      "shape": "classBox",
+      "x": 551.195,
+      "y": 208,
+      "box": [518.758, 166, 64.875, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [518.758, 166, 64.875, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [518.758, 166, 64.875, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [530.758, 178, 40.875, 24],
+          "text": "Right",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [518.758, 214, 64.875, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [518.758, 232, 64.875, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Caller-10",
+      "shape": "classBox",
+      "x": 174.469,
+      "y": 50,
+      "box": [140.234, 8, 68.469, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [140.234, 8, 68.469, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [140.234, 8, 68.469, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [152.234, 20, 44.469, 24],
+          "text": "Caller",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [140.234, 56, 68.469, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [140.234, 74, 68.469, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Helper-11",
+      "shape": "classBox",
+      "x": 174.469,
+      "y": 208,
+      "box": [137.57, 166, 73.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [137.57, 166, 73.797, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [137.57, 166, 73.797, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [149.57, 178, 49.797, 24],
+          "text": "Helper",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [137.57, 214, 73.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [137.57, 232, 73.797, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Contract-12",
+      "shape": "classBox",
+      "x": 805.875,
+      "y": 208,
+      "box": [760.984, 166, 89.781, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [760.984, 166, 89.781, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [760.984, 166, 89.781, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [772.984, 178, 65.781, 24],
+          "text": "Contract",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [760.984, 214, 89.781, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [760.984, 232, 89.781, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Impl-13",
+      "shape": "classBox",
+      "x": 805.875,
+      "y": 366,
+      "box": [777.43, 324, 56.891, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [777.43, 324, 56.891, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [777.43, 324, 56.891, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [789.43, 336, 32.891, 24],
+          "text": "Impl",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [777.43, 372, 56.891, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [777.43, 390, 56.891, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Up-14",
+      "shape": "classBox",
+      "x": 934.539,
+      "y": 50,
+      "box": [911.875, 8, 45.328, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [911.875, 8, 45.328, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [911.875, 8, 45.328, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [923.875, 20, 21.328, 24],
+          "text": "Up",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [911.875, 56, 45.328, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [911.875, 74, 45.328, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Down-15",
+      "shape": "classBox",
+      "x": 934.539,
+      "y": 208,
+      "box": [900.766, 166, 67.547, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [900.766, 166, 67.547, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [900.766, 166, 67.547, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [912.766, 178, 43.547, 24],
+          "text": "Down",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [900.766, 214, 67.547, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [900.766, 232, 67.547, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Derived2-16",
+      "shape": "classBox",
+      "x": 304.945,
+      "y": 50,
+      "box": [259.148, 8, 91.594, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [259.148, 8, 91.594, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [259.148, 8, 91.594, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [271.148, 20, 67.594, 24],
+          "text": "Derived2",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [259.148, 56, 91.594, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [259.148, 74, 91.594, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Part2-17",
+      "shape": "classBox",
+      "x": 432.758,
+      "y": 50,
+      "box": [400.742, 8, 64.031, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [400.742, 8, 64.031, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [400.742, 8, 64.031, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [412.742, 20, 40.031, 24],
+          "text": "Part2",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [400.742, 56, 64.031, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [400.742, 74, 64.031, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Member2-18",
+      "shape": "classBox",
+      "x": 674.984,
+      "y": 50,
+      "box": [627.859, 8, 94.25, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [627.859, 8, 94.25, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [627.859, 8, 94.25, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [639.859, 20, 70.25, 24],
+          "text": "Member2",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [627.859, 56, 94.25, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [627.859, 74, 94.25, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Client2-19",
+      "shape": "classBox",
+      "x": 46.672,
+      "y": 366,
+      "box": [8, 324, 77.344, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 324, 77.344, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 324, 77.344, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 336, 53.344, 24],
+          "text": "Client2",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 372, 77.344, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 390, 77.344, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Library-20",
+      "shape": "classBox",
+      "x": 174.469,
+      "y": 366,
+      "box": [135.344, 324, 78.25, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [135.344, 324, 78.25, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [135.344, 324, 78.25, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [147.344, 336, 54.25, 24],
+          "text": "Library",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [135.344, 372, 78.25, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [135.344, 390, 78.25, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Impl2-21",
+      "shape": "classBox",
+      "x": 805.875,
+      "y": 50,
+      "box": [772.977, 8, 65.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [772.977, 8, 65.797, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [772.977, 8, 65.797, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [784.977, 20, 41.797, 24],
+          "text": "Impl2",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [772.977, 56, 65.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [772.977, 74, 65.797, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Base_Derived_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": null,
+      "length": 56.75,
+      "points": [
+        [304.945, 267.25],
+        [304.945, 270.087],
+        [304.945, 272.925],
+        [304.945, 275.763],
+        [304.945, 278.6],
+        [304.945, 281.438],
+        [304.945, 284.275],
+        [304.945, 287.112],
+        [304.945, 289.95],
+        [304.945, 292.788],
+        [304.945, 295.625],
+        [304.945, 298.462],
+        [304.945, 301.3],
+        [304.945, 304.138],
+        [304.945, 306.975],
+        [304.945, 309.813],
+        [304.945, 312.65],
+        [304.945, 315.487],
+        [304.945, 318.325],
+        [304.945, 321.163],
+        [304.945, 324]
+      ]
+    },
+    {
+      "id": "id_Whole_Part_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-compositionStart",
+      "markerEnd": null,
+      "length": 56.75,
+      "points": [
+        [432.758, 267.25],
+        [432.758, 270.087],
+        [432.758, 272.925],
+        [432.758, 275.763],
+        [432.758, 278.6],
+        [432.758, 281.438],
+        [432.758, 284.275],
+        [432.758, 287.112],
+        [432.758, 289.95],
+        [432.758, 292.788],
+        [432.758, 295.625],
+        [432.758, 298.462],
+        [432.758, 301.3],
+        [432.758, 304.138],
+        [432.758, 306.975],
+        [432.758, 309.813],
+        [432.758, 312.65],
+        [432.758, 315.487],
+        [432.758, 318.325],
+        [432.758, 321.163],
+        [432.758, 324]
+      ]
+    },
+    {
+      "id": "id_Group_Member_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-aggregationStart",
+      "markerEnd": null,
+      "length": 56.75,
+      "points": [
+        [674.984, 267.25],
+        [674.984, 270.087],
+        [674.984, 272.925],
+        [674.984, 275.763],
+        [674.984, 278.6],
+        [674.984, 281.438],
+        [674.984, 284.275],
+        [674.984, 287.112],
+        [674.984, 289.95],
+        [674.984, 292.788],
+        [674.984, 295.625],
+        [674.984, 298.462],
+        [674.984, 301.3],
+        [674.984, 304.138],
+        [674.984, 306.975],
+        [674.984, 309.813],
+        [674.984, 312.65],
+        [674.984, 315.487],
+        [674.984, 318.325],
+        [674.984, 321.163],
+        [674.984, 324]
+      ]
+    },
+    {
+      "id": "id_Client_Server_4",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-dependencyStart",
+      "markerEnd": null,
+      "length": 68,
+      "points": [
+        [46.672, 98],
+        [46.672, 101.4],
+        [46.672, 104.8],
+        [46.672, 108.2],
+        [46.672, 111.6],
+        [46.672, 115],
+        [46.672, 118.4],
+        [46.672, 121.8],
+        [46.672, 125.2],
+        [46.672, 128.6],
+        [46.672, 132],
+        [46.672, 135.4],
+        [46.672, 138.8],
+        [46.672, 142.2],
+        [46.672, 145.6],
+        [46.672, 149],
+        [46.672, 152.4],
+        [46.672, 155.8],
+        [46.672, 159.2],
+        [46.672, 162.6],
+        [46.672, 166]
+      ]
+    },
+    {
+      "id": "id_Left_Right_5",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 74,
+      "points": [
+        [551.195, 92],
+        [551.195, 95.7],
+        [551.195, 99.4],
+        [551.195, 103.1],
+        [551.195, 106.8],
+        [551.195, 110.5],
+        [551.195, 114.2],
+        [551.195, 117.9],
+        [551.195, 121.6],
+        [551.195, 125.3],
+        [551.195, 129],
+        [551.195, 132.7],
+        [551.195, 136.4],
+        [551.195, 140.1],
+        [551.195, 143.8],
+        [551.195, 147.5],
+        [551.195, 151.2],
+        [551.195, 154.9],
+        [551.195, 158.6],
+        [551.195, 162.3],
+        [551.195, 166]
+      ]
+    },
+    {
+      "id": "id_Caller_Helper_6",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": "classDiagram-dependencyStart",
+      "markerEnd": null,
+      "length": 68,
+      "points": [
+        [174.469, 98],
+        [174.469, 101.4],
+        [174.469, 104.8],
+        [174.469, 108.2],
+        [174.469, 111.6],
+        [174.469, 115],
+        [174.469, 118.4],
+        [174.469, 121.8],
+        [174.469, 125.2],
+        [174.469, 128.6],
+        [174.469, 132],
+        [174.469, 135.4],
+        [174.469, 138.8],
+        [174.469, 142.2],
+        [174.469, 145.6],
+        [174.469, 149],
+        [174.469, 152.4],
+        [174.469, 155.8],
+        [174.469, 159.2],
+        [174.469, 162.6],
+        [174.469, 166]
+      ]
+    },
+    {
+      "id": "id_Contract_Impl_7",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": null,
+      "length": 56.75,
+      "points": [
+        [805.875, 267.25],
+        [805.875, 270.087],
+        [805.875, 272.925],
+        [805.875, 275.763],
+        [805.875, 278.6],
+        [805.875, 281.438],
+        [805.875, 284.275],
+        [805.875, 287.112],
+        [805.875, 289.95],
+        [805.875, 292.788],
+        [805.875, 295.625],
+        [805.875, 298.462],
+        [805.875, 301.3],
+        [805.875, 304.138],
+        [805.875, 306.975],
+        [805.875, 309.813],
+        [805.875, 312.65],
+        [805.875, 315.487],
+        [805.875, 318.325],
+        [805.875, 321.163],
+        [805.875, 324]
+      ]
+    },
+    {
+      "id": "id_Up_Down_8",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 74,
+      "points": [
+        [934.539, 92],
+        [934.539, 95.7],
+        [934.539, 99.4],
+        [934.539, 103.1],
+        [934.539, 106.8],
+        [934.539, 110.5],
+        [934.539, 114.2],
+        [934.539, 117.9],
+        [934.539, 121.6],
+        [934.539, 125.3],
+        [934.539, 129],
+        [934.539, 132.7],
+        [934.539, 136.4],
+        [934.539, 140.1],
+        [934.539, 143.8],
+        [934.539, 147.5],
+        [934.539, 151.2],
+        [934.539, 154.9],
+        [934.539, 158.6],
+        [934.539, 162.3],
+        [934.539, 166]
+      ]
+    },
+    {
+      "id": "id_Derived2_Base_9",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-extensionEnd",
+      "length": 56.75,
+      "points": [
+        [304.945, 92],
+        [304.945, 94.838],
+        [304.945, 97.675],
+        [304.945, 100.512],
+        [304.945, 103.35],
+        [304.945, 106.188],
+        [304.945, 109.025],
+        [304.945, 111.863],
+        [304.945, 114.7],
+        [304.945, 117.537],
+        [304.945, 120.375],
+        [304.945, 123.213],
+        [304.945, 126.05],
+        [304.945, 128.887],
+        [304.945, 131.725],
+        [304.945, 134.563],
+        [304.945, 137.4],
+        [304.945, 140.238],
+        [304.945, 143.075],
+        [304.945, 145.913],
+        [304.945, 148.75]
+      ]
+    },
+    {
+      "id": "id_Part2_Whole_10",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-compositionEnd",
+      "length": 56.75,
+      "points": [
+        [432.758, 92],
+        [432.758, 94.838],
+        [432.758, 97.675],
+        [432.758, 100.512],
+        [432.758, 103.35],
+        [432.758, 106.188],
+        [432.758, 109.025],
+        [432.758, 111.863],
+        [432.758, 114.7],
+        [432.758, 117.537],
+        [432.758, 120.375],
+        [432.758, 123.213],
+        [432.758, 126.05],
+        [432.758, 128.887],
+        [432.758, 131.725],
+        [432.758, 134.563],
+        [432.758, 137.4],
+        [432.758, 140.238],
+        [432.758, 143.075],
+        [432.758, 145.913],
+        [432.758, 148.75]
+      ]
+    },
+    {
+      "id": "id_Member2_Group_11",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-aggregationEnd",
+      "length": 56.75,
+      "points": [
+        [674.984, 92],
+        [674.984, 94.838],
+        [674.984, 97.675],
+        [674.984, 100.512],
+        [674.984, 103.35],
+        [674.984, 106.188],
+        [674.984, 109.025],
+        [674.984, 111.863],
+        [674.984, 114.7],
+        [674.984, 117.537],
+        [674.984, 120.375],
+        [674.984, 123.213],
+        [674.984, 126.05],
+        [674.984, 128.887],
+        [674.984, 131.725],
+        [674.984, 134.563],
+        [674.984, 137.4],
+        [674.984, 140.238],
+        [674.984, 143.075],
+        [674.984, 145.913],
+        [674.984, 148.75]
+      ]
+    },
+    {
+      "id": "id_Server_Client2_12",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 68,
+      "points": [
+        [46.672, 250],
+        [46.672, 253.4],
+        [46.672, 256.8],
+        [46.672, 260.2],
+        [46.672, 263.6],
+        [46.672, 267],
+        [46.672, 270.4],
+        [46.672, 273.8],
+        [46.672, 277.2],
+        [46.672, 280.6],
+        [46.672, 284],
+        [46.672, 287.4],
+        [46.672, 290.8],
+        [46.672, 294.2],
+        [46.672, 297.6],
+        [46.672, 301],
+        [46.672, 304.4],
+        [46.672, 307.8],
+        [46.672, 311.2],
+        [46.672, 314.6],
+        [46.672, 318]
+      ]
+    },
+    {
+      "id": "id_Helper_Library_13",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 68,
+      "points": [
+        [174.469, 250],
+        [174.469, 253.4],
+        [174.469, 256.8],
+        [174.469, 260.2],
+        [174.469, 263.6],
+        [174.469, 267],
+        [174.469, 270.4],
+        [174.469, 273.8],
+        [174.469, 277.2],
+        [174.469, 280.6],
+        [174.469, 284],
+        [174.469, 287.4],
+        [174.469, 290.8],
+        [174.469, 294.2],
+        [174.469, 297.6],
+        [174.469, 301],
+        [174.469, 304.4],
+        [174.469, 307.8],
+        [174.469, 311.2],
+        [174.469, 314.6],
+        [174.469, 318]
+      ]
+    },
+    {
+      "id": "id_Impl2_Contract_14",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-extensionEnd",
+      "length": 56.75,
+      "points": [
+        [805.875, 92],
+        [805.875, 94.838],
+        [805.875, 97.675],
+        [805.875, 100.512],
+        [805.875, 103.35],
+        [805.875, 106.188],
+        [805.875, 109.025],
+        [805.875, 111.863],
+        [805.875, 114.7],
+        [805.875, 117.537],
+        [805.875, 120.375],
+        [805.875, 123.213],
+        [805.875, 126.05],
+        [805.875, 128.887],
+        [805.875, 131.725],
+        [805.875, 134.563],
+        [805.875, 137.4],
+        [805.875, 140.238],
+        [805.875, 143.075],
+        [805.875, 145.913],
+        [805.875, 148.75]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_Base_Derived_1", "box": [279.156, 275, 51.578, 24] },
+    { "id": "id_Whole_Part_2", "box": [396.297, 275, 72.922, 24] },
+    { "id": "id_Group_Member_3", "box": [634.953, 275, 80.063, 24] },
+    { "id": "id_Client_Server_4", "box": [29.773, 117, 33.797, 24] },
+    { "id": "id_Left_Right_5", "box": [535.188, 117, 32.016, 24] },
+    { "id": "id_Caller_Helper_6", "box": [143.773, 117, 61.391, 24] },
+    { "id": "id_Contract_Impl_7", "box": [778.305, 275, 55.141, 24] },
+    { "id": "id_Up_Down_8", "box": [908.289, 117, 52.5, 24] }
+  ],
+  "terminals": []
+}

@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 
 /// <content>
 ///     The edges that are drawn (Mermaid's <c>getEdgesToRender</c>): every edge of the graph, except that the three laid
-///     out segments of a self-loop become one compact loop beside its node, on the side the layout put the loop.
+///     out segments of a self-loop become one compact loop beside its node, on the side the layout put the loop, for the
+///     diagram types that merge self-loops.
 /// </content>
 internal sealed partial class ClusterLayout
 {
@@ -14,14 +15,17 @@ internal sealed partial class ClusterLayout
     private const double SelfLoopLabelGap = 4;
 
     /// <summary>
-    ///     Gets the edges to draw: the edges of the graph in order, then one merged edge per self-loop.
+    ///     Gets the edges to draw: the edges of the graph in order, then one merged edge per self-loop when self-loops are
+    ///     merged (else a self-loop's three segments are drawn as they are, in graph order).
     /// </summary>
     /// <param name="graph">The laid-out graph.</param>
     /// <param name="yOffset">Half the subgraph title margin, by which the nodes were already moved down.</param>
+    /// <param name="mergeSelfLoops">Whether self-loops are merged (the diagram type's <c>shouldMergeSelfLoopSegments</c>).</param>
     /// <returns>The edges with their start and end node ids.</returns>
     private static List<(ClusterLayoutEdge Edge, string Start, string End)> GetEdgesToRender(
         Graph<DagreGraph, ClusterLayoutNode, ClusterLayoutEdge> graph,
-        double yOffset)
+        double yOffset,
+        bool mergeSelfLoops)
     {
         var loops = new Dictionary<string, List<(ClusterLayoutEdge Edge, string Start, string End)>>(StringComparer.Ordinal);
         var loopOrder = new List<string>();
@@ -33,7 +37,7 @@ internal sealed partial class ClusterLayout
                 continue;
             }
 
-            if (edge.SelfLoopId is { } key)
+            if (mergeSelfLoops && edge.SelfLoopId is { } key)
             {
                 if (!loops.TryGetValue(key, out var segments))
                 {

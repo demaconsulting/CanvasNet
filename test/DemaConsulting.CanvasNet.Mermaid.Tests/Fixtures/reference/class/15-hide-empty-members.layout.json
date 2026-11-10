@@ -1,0 +1,184 @@
+{
+  "source": "15-hide-empty-members.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 315.547, 264],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Empty-0",
+      "shape": "classBox",
+      "x": 67.93,
+      "y": 44,
+      "box": [31.477, 20, 72.906, 48],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [31.477, 20, 72.906, 48] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [31.477, 20, 72.906, 48] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [43.477, 32, 48.906, 24],
+          "text": "Empty",
+          "style": "font-weight: bolder"
+        }
+      ]
+    },
+    {
+      "id": "classId-OnlyAnnotation-1",
+      "shape": "classBox",
+      "x": 235.555,
+      "y": 44,
+      "box": [163.563, 8, 143.984, 72],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [163.563, 8, 143.984, 72] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [163.563, 8, 143.984, 72] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "annotation-group text",
+          "box": [195.969, 20, 79.172, 24],
+          "text": "«interface»"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [175.563, 44, 119.984, 24],
+          "text": "OnlyAnnotation",
+          "style": "font-weight: bolder"
+        }
+      ]
+    },
+    {
+      "id": "classId-WithMember-2",
+      "shape": "classBox",
+      "x": 67.93,
+      "y": 193,
+      "box": [8, 133, 119.859, 120],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 133, 119.859, 120] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 133, 119.859, 120] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 145, 95.859, 24],
+          "text": "WithMember",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "g", "class": "label", "group": "members-group text", "box": [20, 193, 43.141, 24], "text": "+int id" },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 181, 119.859, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 229, 119.859, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-WithMethod-3",
+      "shape": "classBox",
+      "x": 235.555,
+      "y": 193,
+      "box": [177.859, 130, 115.391, 126],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [177.859, 130, 115.391, 126]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [177.859, 130, 115.391, 126]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [189.859, 142, 91.391, 24],
+          "text": "WithMethod",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [189.859, 220, 43.125, 24],
+          "text": "+run()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [177.859, 178, 115.391, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [177.859, 202, 115.391, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Empty_WithMember_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 59,
+      "points": [
+        [67.93, 68],
+        [67.93, 70.95],
+        [67.93, 73.9],
+        [67.93, 76.85],
+        [67.93, 79.8],
+        [67.93, 82.75],
+        [67.93, 85.7],
+        [67.93, 88.65],
+        [67.93, 91.6],
+        [67.93, 94.55],
+        [67.93, 97.5],
+        [67.93, 100.45],
+        [67.93, 103.4],
+        [67.93, 106.35],
+        [67.93, 109.3],
+        [67.93, 112.25],
+        [67.93, 115.2],
+        [67.93, 118.15],
+        [67.93, 121.1],
+        [67.93, 124.05],
+        [67.93, 127]
+      ]
+    },
+    {
+      "id": "id_OnlyAnnotation_WithMethod_2",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": null,
+      "length": 32.75,
+      "points": [
+        [235.555, 97.25],
+        [235.555, 98.887],
+        [235.555, 100.525],
+        [235.555, 102.162],
+        [235.555, 103.8],
+        [235.555, 105.438],
+        [235.555, 107.075],
+        [235.555, 108.713],
+        [235.555, 110.35],
+        [235.555, 111.988],
+        [235.555, 113.625],
+        [235.555, 115.262],
+        [235.555, 116.9],
+        [235.555, 118.537],
+        [235.555, 120.175],
+        [235.555, 121.813],
+        [235.555, 123.45],
+        [235.555, 125.088],
+        [235.555, 126.725],
+        [235.555, 128.363],
+        [235.555, 130]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

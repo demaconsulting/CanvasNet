@@ -213,6 +213,9 @@ includes:
   - docs/reqstream/canvas-net-mermaid/sequence/sequence-model.yaml
   - docs/reqstream/canvas-net-mermaid/sequence/sequence-layout.yaml
   - docs/reqstream/canvas-net-mermaid/sequence/sequence-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/class.yaml
+  - docs/reqstream/canvas-net-mermaid/class/class-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/class/class-model.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

@@ -62,7 +62,9 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 ///     </para>
 ///     <para>
 ///         <b>Support.</b> Each type has a <see cref="DiagramSupport"/>: <c>flowchart</c> (written <c>flowchart</c> or
-///         <c>graph</c>) is drawn; the types of the following phases are planned; the rest is not planned. A type that is
+///         <c>graph</c>), <c>sequenceDiagram</c> and <c>classDiagram</c> (written <c>classDiagram</c> or
+///         <c>classDiagram-v2</c>, under Mermaid's <c>classDiagram</c> id or its legacy <c>class</c> id) are drawn; the
+///         types of the following phases are planned; the rest is not planned. A type that is
 ///         not drawn is reported by the document as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         <see cref="UnsupportedHint(DetectedDiagram)"/>.
 ///     </para>
@@ -78,7 +80,7 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 internal static class DiagramDetector
 {
     /// <summary>The keywords of the supported diagram types, for hints.</summary>
-    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram"];
+    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram"];
 
     /// <summary>
     ///     The known diagram types in Mermaid's detection order: the detector id, the public type name, the support and
@@ -100,9 +102,9 @@ internal static class DiagramDetector
             text.Contains("C4Dynamic", StringComparison.Ordinal) ||
             text.Contains("C4Deployment", StringComparison.Ordinal)),
         new("kanban", "kanban", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "kanban")),
-        new("classDiagram", "class", DiagramSupport.Planned, (text, settings) =>
+        new("classDiagram", "class", DiagramSupport.Supported, (text, settings) =>
             (StartsWithKeyword(text, "classDiagram") && settings.ClassRenderer == "dagre-wrapper") || StartsWithKeyword(text, "classDiagram-v2")),
-        new("class", "class", DiagramSupport.Planned, (text, settings) =>
+        new("class", "class", DiagramSupport.Supported, (text, settings) =>
             settings.ClassRenderer != "dagre-wrapper" && StartsWithKeyword(text, "classDiagram")),
         new("er", "er", DiagramSupport.Planned, (text, _) => StartsWithKeyword(text, "erDiagram")),
         new("gantt", "gantt", DiagramSupport.Planned, (text, _) => StartsWithKeyword(text, "gantt")),
@@ -153,7 +155,7 @@ internal static class DiagramDetector
     ];
 
     /// <summary>
-    ///     Gets the keywords of the supported diagram types (<c>flowchart</c> and <c>graph</c>).
+    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c> and <c>classDiagram</c>).
     /// </summary>
     public static IReadOnlyList<string> SupportedDiagramKeywords => SupportedKeywords;
 

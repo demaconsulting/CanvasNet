@@ -98,6 +98,141 @@ internal static class SceneQuery
     }
 
     /// <summary>
+    ///     Gets the drawn parts of each node by DOM id, in drawing order and in absolute coordinates, as the extended
+    ///     goldens list them: <c>path</c> for an outline, <c>class-annotation</c>, <c>class-label</c>,
+    ///     <c>class-member</c> and <c>class-method</c> for the rows of a class box, <c>divider</c> for its dividers and
+    ///     <c>label</c> for the label of any other node (its lines united). Consecutive outlines with the same box are
+    ///     one part (Mermaid draws a rectangle as a fill path and a stroke path).
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <returns>The parts.</returns>
+    public static Dictionary<string, List<(string Kind, SceneRect Box)>> Parts(Scene scene)
+    {
+        var parts = new Dictionary<string, List<(string Kind, SceneRect Box)>>(StringComparer.Ordinal);
+        foreach (var (item, dx, dy) in scene.Walk())
+        {
+            if (item is not SceneGroup { Role: "node-group" } group || group.Id is not { } id)
+            {
+                continue;
+            }
+
+            var x = dx + group.OffsetX;
+            var y = dy + group.OffsetY;
+            var list = new List<(string Kind, SceneRect Box)>();
+            SceneRect? label = null;
+            var labelIndex = -1;
+            foreach (var child in group.Children)
+            {
+                if (Scene.BoundsOf([child]) is not { } box)
+                {
+                    continue;
+                }
+
+                box = box.Offset(x, y);
+                switch (child)
+                {
+                    case ScenePath { Role: "node" }:
+                        AddPart(list, "path", box);
+                        break;
+                    case ScenePath { Role: "class-divider" }:
+                        list.Add(("divider", box));
+                        break;
+                    case SceneGroup { Role: "class-annotation" or "class-label" or "class-member" or "class-method" } row:
+                        list.Add((row.Role, box));
+                        break;
+                    case SceneText { Role: "label" }:
+                        if (labelIndex < 0)
+                        {
+                            labelIndex = list.Count;
+                            list.Add(("label", box));
+                        }
+
+                        label = label is { } current ? current.Union(box) : box;
+                        list[labelIndex] = ("label", label.Value);
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            parts[id] = list;
+        }
+
+        return parts;
+    }
+
+    /// <summary>
+    ///     Adds a part, unless it is an outline with the same box as the outline before it.
+    /// </summary>
+    /// <param name="list">The parts.</param>
+    /// <param name="kind">The kind.</param>
+    /// <param name="box">The box.</param>
+    public static void AddPart(List<(string Kind, SceneRect Box)> list, string kind, SceneRect box)
+    {
+        if (kind == "path" && list.Count > 0 && list[^1].Kind == "path" && list[^1].Box.Equals(box))
+        {
+            return;
+        }
+
+        list.Add((kind, box));
+    }
+
+    /// <summary>
+    ///     Gets the positions of the terminal labels (cardinalities) by edge id, in drawing order (the start label, then
+    ///     the end label).
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <returns>The positions of the labels' groups.</returns>
+    public static Dictionary<string, List<(double X, double Y)>> Terminals(Scene scene)
+    {
+        var terminals = new Dictionary<string, List<(double X, double Y)>>(StringComparer.Ordinal);
+        foreach (var (item, dx, dy) in scene.Walk())
+        {
+            if (item is SceneGroup { Role: "edge-terminal" } group && group.Id is { } id)
+            {
+                if (!terminals.TryGetValue(id, out var list))
+                {
+                    terminals[id] = list = [];
+                }
+
+                list.Add((dx + group.OffsetX, dy + group.OffsetY));
+            }
+        }
+
+        return terminals;
+    }
+
+    /// <summary>
+    ///     Gets the label boxes of the subgraphs by subgraph id: the united boxes of the label lines drawn with the
+    ///     subgraph's id outside any node.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="ids">The subgraph ids.</param>
+    /// <returns>The boxes.</returns>
+    public static Dictionary<string, SceneRect> ClusterLabels(Scene scene, IReadOnlySet<string> ids)
+    {
+        var labels = new Dictionary<string, SceneRect>(StringComparer.Ordinal);
+        foreach (var (item, dx, dy) in scene.Walk())
+        {
+            if (item is SceneText { Role: "label" } text && text.Id is { } id && ids.Contains(id))
+            {
+                var box = text.Box.Offset(dx, dy);
+                labels[id] = labels.TryGetValue(id, out var current) ? current.Union(box) : box;
+            }
+        }
+
+        return labels;
+    }
+
+    /// <summary>
+    ///     Gets the box of the diagram title, or null when there is none.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <returns>The box.</returns>
+    public static SceneRect? Title(Scene scene) =>
+        scene.Walk().Select(entry => entry.Item).OfType<SceneText>().FirstOrDefault(text => text.Role == "title")?.Box;
+
+    /// <summary>
     ///     Gets whether a box encloses another (within a thousandth of a pixel).
     /// </summary>
     /// <param name="outer">The outer box.</param>

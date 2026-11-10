@@ -132,15 +132,19 @@ public class DiscoveryCommandsDiagramTests
     }
 
     /// <summary>
-    ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
-    ///     titles, so an agent learns before rendering that it would get an empty picture.
+    ///     Test that a class diagram is described as supported, with its direction and its classes, relations and
+    ///     namespaces counted as nodes, edges and subgraphs (its notes and lollipop interfaces are not counted).
     /// </summary>
     [Fact]
-    public void DiscoveryCommands_Info_ClassDiagram_IsNotSupported()
+    public void DiscoveryCommands_Info_ClassDiagram_ReportsClassesAndRelations()
     {
         // Arrange
         using var directory = new TempDirectory();
-        var path = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "classDiagram\n    Animal <|-- Duck\n");
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "zoo.mmd",
+            "classDiagram\n    direction LR\n    namespace Zoo {\n        class Duck\n    }\n    Animal <|-- Duck\n    Duck --() Swimmer\n    note for Duck \"quacks\"\n");
+        var info = SourceLoader.Probe(path);
 
         // Act
         var json = RunInfo(true, path);
@@ -150,11 +154,38 @@ public class DiscoveryCommandsDiagramTests
         using var document = JsonDocument.Parse(json);
         var diagram = document.RootElement.GetProperty("diagram");
         Assert.Equal("class", diagram.GetProperty("type").GetString());
+        Assert.True(diagram.GetProperty("supported").GetBoolean());
+        Assert.Equal("LR", diagram.GetProperty("direction").GetString());
+        Assert.Equal((2, 2, 1), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Equal(
+            $"{path}: mermaid, {info.Width}x{info.Height} px (laid out), class LR, 2 nodes, 2 edges, 1 subgraph, {info.Bytes} bytes",
+            text);
+    }
+
+    /// <summary>
+    ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
+    ///     titles, so an agent learns before rendering that it would get an empty picture.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_PieChart_IsNotSupported()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "pie\n    \"Ducks\" : 3\n");
+
+        // Act
+        var json = RunInfo(true, path);
+        var text = RunInfo(false, path).TrimEnd();
+
+        // Assert
+        using var document = JsonDocument.Parse(json);
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal("pie", diagram.GetProperty("type").GetString());
         Assert.False(diagram.GetProperty("supported").GetBoolean());
         Assert.False(diagram.TryGetProperty("direction", out _));
         Assert.False(diagram.TryGetProperty("title", out _));
         Assert.Equal(0, diagram.GetProperty("nodes").GetInt32());
-        Assert.Contains("class (not drawn by this version), 0 nodes", text, StringComparison.Ordinal);
+        Assert.Contains("pie (not drawn by this version), 0 nodes", text, StringComparison.Ordinal);
     }
 
     /// <summary>
