@@ -1,8 +1,9 @@
 namespace DemaConsulting.CanvasNet.Mermaid.Er;
 
 /// <summary>
-///     The <c>Er</c> namespace reads ER diagrams (<c>erDiagram</c>): a port of Mermaid's <c>erDiagram.jison</c> grammar and
-///     of its ER database (<c>erDb.ts</c>, with <c>erTypes.ts</c>).
+///     The <c>Er</c> namespace reads and lays out ER diagrams (<c>erDiagram</c>): a port of Mermaid's <c>erDiagram.jison</c>
+///     grammar, of its ER database (<c>erDb.ts</c>, with <c>erTypes.ts</c>) and of its unified renderer
+///     (<c>erRenderer-unified.ts</c>).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -15,6 +16,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Er;
 ///         <c>ErModel.GetData</c> maps the database to the shared layout data of the unified renderer, as Mermaid's
 ///         <c>getData</c> does: subgraphs as clusters (the last one first), entities as <c>erBox</c> nodes with their
 ///         alias and attributes, and relationships as edges with the ER markers of their cardinalities.
+///         <c>ErModel.Layout</c> draws that data through the cluster layout with the ER style sheet, the ER spacing and the
+///         entity boxes of the shape library, then the frontmatter title and the view box with its padding of 8.
 ///     </para>
 ///     <para>
 ///         The namespace is internal to the package. A parsed model is never changed after parsing and is safe for

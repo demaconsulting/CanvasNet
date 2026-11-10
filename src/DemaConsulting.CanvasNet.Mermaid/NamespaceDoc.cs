@@ -21,7 +21,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         configuration, layout, rendering and scene-graph stages are internal; only the document surface is public so that
 ///         the internals can evolve. Every diagram type Mermaid knows is recognized; this version draws flowcharts
 ///         (<c>flowchart</c> and <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>), class diagrams
-///         (<c>classDiagram</c>) and state diagrams (<c>stateDiagram</c>), and reports any other type as
+///         (<c>classDiagram</c>), state diagrams (<c>stateDiagram</c>) and entity relationship diagrams (<c>erDiagram</c>),
+///         and reports any other type as
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         an empty picture.
 ///     </para>

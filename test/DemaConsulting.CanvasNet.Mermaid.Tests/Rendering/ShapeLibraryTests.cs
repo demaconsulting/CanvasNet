@@ -741,6 +741,144 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks the table of an entity with attributes (the default <c>htmlLabels</c>, so the paddings of 20 and 15
+    ///     grow to 25 and 18.75): the columns as wide as their widest text and the padding, the empty comment column
+    ///     dropped, the rows as high as their texts and the text padding, the texts placed in their columns, the rows
+    ///     filled in turn, and the dividers under the name (twice) and at the column boundaries, each a fill and a stroke
+    ///     path.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ErBoxWithAttributes_LaysOutTheTable()
+    {
+        // Arrange
+        var node = new LayoutNode
+        {
+            Id = "entity-A-0",
+            Label = "A",
+            Shape = "erBox",
+            ErBox = new LayoutErBox(string.Empty, [new LayoutErAttribute("int", "x", ["PK"], string.Empty), new LayoutErAttribute("int", "y", [], string.Empty)]),
+        };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ErContext("erDiagram\n  A\n"));
+
+        // Assert: three columns of 65, a name row and two rows of 42.75
+        Assert.Equal("erBox", result.Handler);
+        Assert.Equal(new SceneRect(-97.5, -64.125, 195, 128.25), result.Bounds);
+        var groups = result.Items.OfType<SceneGroup>().ToList();
+        var name = Assert.Single(groups, g => g.Role == "er-name");
+        Assert.Equal((-20, -54.75), (name.OffsetX, name.OffsetY));
+        var types = groups.Where(g => g.Role == "er-attribute-type").ToList();
+        Assert.Equal([(-85.0, -12.0), (-85.0, 30.75)], types.Select(g => (g.OffsetX, g.OffsetY)));
+        Assert.Equal([-20.0, -20.0], groups.Where(g => g.Role == "er-attribute-name").Select(g => g.OffsetX));
+        Assert.Equal(8, result.Items.Count(item => item.Role == "er-divider"));
+        var fills = result.Items.OfType<ScenePath>().Where(path => path.Role == "node" && path.Fill is not null).Select(path => path.Fill).ToList();
+        Assert.Equal([Color("#ECECFF"), Color("#FFFFFF"), Color("#F1F1FF")], fills);
+        Assert.Equal(new ShapePoint(97.5, 0), result.Intersect(new NodeBox(0, 0, 195, 128.25), new ShapePoint(300, 0)));
+    }
+
+    /// <summary>
+    ///     Checks an entity without attributes: a rectangle with the diagram padding left and right and one and a half
+    ///     times it above and below, widened to <c>er.minEntityWidth</c> when Mermaid's text width and the padding are
+    ///     narrower.
+    /// </summary>
+    /// <param name="textWidth">The width Mermaid's <c>calculateTextWidth</c> gives the name.</param>
+    /// <param name="width">The expected width.</param>
+    [Theory]
+    [InlineData(10, 100)]
+    [InlineData(70, 80)]
+    public void ShapeLibrary_Draw_ErBoxWithoutAttributes_IsAtLeastTheMinimumWidth(double textWidth, double width)
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "entity-A-0", Label = "A", Shape = "erBox", ErBox = new LayoutErBox(string.Empty, []) };
+        var context = ErContext("erDiagram\n  A\n");
+        context = new ShapeContext
+        {
+            Config = context.Config,
+            Styles = context.Styles,
+            MeasureLabel = context.MeasureLabel,
+            Sink = context.Sink,
+            TextWidth = _ => textWidth,
+        };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, context);
+
+        // Assert: the label of 40 by 24, centered
+        Assert.Equal(new SceneRect(-width / 2, -42, width, 84), result.Bounds);
+        Assert.Equal(new SceneRect(-20, -12, 40, 24), result.LabelBox);
+    }
+
+    /// <summary>
+    ///     Checks that with SVG text an empty cell counts in the node's box where it is placed (Chrome's <c>getBBox</c>
+    ///     includes an empty text element), so an empty comment cell after the keys column widens the node past its
+    ///     table; the paddings grow by a quarter.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ErBoxSvgEmptyCell_WidensTheBox()
+    {
+        // Arrange
+        var node = new LayoutNode
+        {
+            Id = "entity-A-0",
+            Label = "A",
+            Shape = "erBox",
+            ErBox = new LayoutErBox(string.Empty, [new LayoutErAttribute("int", "x", ["PK"], string.Empty)]),
+        };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ErContext("---\nconfig:\n  htmlLabels: false\n---\nerDiagram\n  A\n"));
+
+        // Assert: the table is 195 wide from -97.5; the comment cell is at -97.5 + 12.5 + 195
+        var table = Assert.IsType<ScenePath>(result.Items[0]);
+        Assert.Equal(new SceneRect(-97.5, -42.75, 195, 85.5), Scene.BoundsOf([table]));
+        Assert.Equal(-97.5, result.Bounds.X, 9);
+        Assert.Equal(110, result.Bounds.Right, 9);
+    }
+
+    /// <summary>
+    ///     Checks how the entity box reads the top-level <c>htmlLabels</c>: unset, the table's texts are HTML and the
+    ///     paddings grow; true, they are HTML and the paddings do not grow; false, they are SVG text and the paddings grow.
+    /// </summary>
+    /// <param name="setting">The frontmatter line, or empty for none.</param>
+    /// <param name="cells">Whether the table's texts are HTML.</param>
+    /// <param name="scaled">Whether the paddings grow.</param>
+    /// <param name="plain">Whether the name of an entity without attributes is HTML.</param>
+    [Theory]
+    [InlineData("", true, true, true)]
+    [InlineData("  htmlLabels: true\n", true, false, true)]
+    [InlineData("  htmlLabels: false\n", false, true, false)]
+    public void ShapeLibrary_ErHtmlLabels_FollowsTheTopLevelSetting(string setting, bool cells, bool scaled, bool plain)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "---\nconfig:\n" + setting + "  theme: default\n---\nerDiagram\n  A\n");
+
+        // Act
+        var result = ShapeLibrary.ErHtmlLabels(config);
+
+        // Assert
+        Assert.Equal((cells, scaled, plain), result);
+    }
+
+    /// <summary>
+    ///     Creates the context of an ER diagram whose labels measure 40 by 24, or nothing for an empty text.
+    /// </summary>
+    /// <param name="text">The diagram text.</param>
+    /// <returns>The context.</returns>
+    private static ShapeContext ErContext(string text)
+    {
+        var reports = new MermaidReportSink(100, false);
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), text);
+        return new ShapeContext
+        {
+            Config = config,
+            Styles = ErStyles.Create(config, reports),
+            MeasureLabel = request => LabelLayout.Of(request.HtmlLabels, request.Text.Length == 0 ? new SceneRect(0, 0, 0, 0) : new SceneRect(0, 0, 40, 24)),
+            Sink = reports,
+        };
+    }
+
+    /// <summary>
     ///     Creates the context of a default flowchart.
     /// </summary>
     /// <param name="fixedLabel">A fixed label box instead of a measured one, or null.</param>

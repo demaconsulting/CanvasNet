@@ -30,7 +30,7 @@ public class MermaidUnsupportedDiagramTests
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
         Assert.Equal(new MermaidLocation("pie.mmd", 2, 1), report.Location);
-        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram", report.Hint);
+        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", report.Hint);
     }
 
     /// <summary>
@@ -97,7 +97,6 @@ public class MermaidUnsupportedDiagramTests
     /// <param name="type">The expected type.</param>
     /// <param name="planned">Whether the type is planned.</param>
     [Theory]
-    [InlineData("erDiagram\n A ||--o{ B : has", "er", true)]
     [InlineData("pie\n \"a\" : 1", "pie", true)]
     [InlineData("gantt\n title x", "gantt", true)]
     [InlineData("mindmap\n root", "mindmap", true)]

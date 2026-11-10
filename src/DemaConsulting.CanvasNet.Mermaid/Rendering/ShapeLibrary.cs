@@ -211,6 +211,7 @@ internal static partial class ShapeLibrary
             "rect_left_inv_arrow" => RectLeftInvArrow(input),
             "ellipse" => Ellipse(input),
             "classBox" => ClassBox(input),
+            "erBox" => ErBox(input),
             "choice" => Choice(input),
             "note" => Note(input),
             "anchor" => Anchor(input),

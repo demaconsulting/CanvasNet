@@ -43,7 +43,36 @@ internal sealed partial class LabelBuilder
         }
 
         // The tspans: 1.1 em apart, the first baseline one em below the origin, words joined by a space
-        var size = request.Font.Size;
+        var (placed, box) = PlaceSvgLines(lines, request, request.Font.Size);
+        ReportMissingGlyphs(placed, request.Location);
+        var bounds = box ?? new SceneRect(0, 0, 0, 0);
+        if (request.AddBackground && text.Length > 0)
+        {
+            // createFormattedText's background rectangle: the text box grown by its padding. Mermaid measures the text
+            // before the label is moved under the rules that set its own font size, so the rectangle is the box of the
+            // text in the inherited size, and the label's box holds the rectangle and the text drawn in its own size
+            var inherited = Math.Abs(request.RootFontSize - request.Font.Size) < 1e-9;
+            var measured = inherited ? bounds : PlaceSvgLines(lines, request, request.RootFontSize).Box ?? new SceneRect(0, 0, 0, 0);
+            var background = new SceneRect(
+                measured.X - SvgBackgroundPadding,
+                measured.Y - SvgBackgroundPadding,
+                measured.Width + (2 * SvgBackgroundPadding),
+                measured.Height + (2 * SvgBackgroundPadding));
+            bounds = inherited || box is null ? background : background.Union(bounds);
+        }
+        return new LabelLayout(false, bounds, placed, []);
+    }
+
+    /// <summary>
+    ///     Places the lines of an SVG label as tspans in a font size: 1.1 em apart, the first baseline one em below the
+    ///     origin, words joined by a space.
+    /// </summary>
+    /// <param name="lines">The words of each line.</param>
+    /// <param name="request">The request.</param>
+    /// <param name="size">The font size.</param>
+    /// <returns>The placed lines and the box of the drawn ones, or null when none is drawn.</returns>
+    private (List<LabelLine> Placed, SceneRect? Box) PlaceSvgLines(List<List<(string Content, WordType Type)>> lines, LabelRequest request, double size)
+    {
         var (ascent, descent) = VerticalMetrics(new SceneFont(request.Font.Family, size, false, false));
         var placed = new List<LabelLine>();
         SceneRect? box = null;
@@ -74,19 +103,7 @@ internal sealed partial class LabelBuilder
             box = box is { } current ? current.Union(lineBox) : lineBox;
         }
 
-        ReportMissingGlyphs(placed, request.Location);
-        var bounds = box ?? new SceneRect(0, 0, 0, 0);
-        if (request.AddBackground && text.Length > 0)
-        {
-            // createFormattedText's background rectangle: the text box grown by its padding
-            bounds = new SceneRect(
-                bounds.X - SvgBackgroundPadding,
-                bounds.Y - SvgBackgroundPadding,
-                bounds.Width + (2 * SvgBackgroundPadding),
-                bounds.Height + (2 * SvgBackgroundPadding));
-        }
-
-        return new LabelLayout(false, bounds, placed, []);
+        return (placed, box);
     }
 
     /// <summary>

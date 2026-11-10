@@ -36,7 +36,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Er;
 ///         concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed partial class ErModel
+internal sealed partial class ErModel : IMermaidDiagram
 {
     /// <summary>The relationship type of an identifying (solid) relationship.</summary>
     public const string Identifying = "IDENTIFYING";
@@ -97,6 +97,24 @@ internal sealed partial class ErModel
 
     /// <summary>Gets the accessible description (empty when there is none).</summary>
     public string AccessibleDescription { get; private set; } = string.Empty;
+
+    /// <summary>
+    ///     Gets the title the diagram declares: none, because no statement of the grammar can set one (its <c>title</c>
+    ///     production has no token), so the frontmatter title applies.
+    /// </summary>
+    public string? Title => null;
+
+    /// <summary>Gets the accessible title, or null.</summary>
+    public string? AccTitle => AccessibleTitle.Length > 0 ? AccessibleTitle : null;
+
+    /// <summary>Gets the number of entities drawn (an entity named after a subgraph is not drawn).</summary>
+    public int NodeCount => _entities.Count(entity => entity.ColorIndex is not null);
+
+    /// <summary>Gets the number of relationships.</summary>
+    public int EdgeCount => _relationships.Count;
+
+    /// <summary>Gets the number of subgraphs.</summary>
+    public int SubgraphCount => _subgraphs.Count;
 
     /// <summary>Gets the entities in the order they were first named (Mermaid's <c>getEntities</c>).</summary>
     public IReadOnlyList<ErEntity> Entities => _entities;

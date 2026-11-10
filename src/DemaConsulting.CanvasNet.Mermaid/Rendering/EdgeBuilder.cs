@@ -144,7 +144,7 @@ internal static partial class EdgeBuilder
             AddBackground = true,
             Prepare = false,
             MarkdownAutoWrap = context.Config.MarkdownAutoWrap,
-            RootFontSize = css.FontSize,
+            RootFontSize = context.Styles.RootText.FontSize,
             ConfigFontSize = context.Config.FontSize,
             CenterSvgText = true,
             Location = edge.Location,
@@ -291,14 +291,12 @@ internal static partial class EdgeBuilder
             return new EdgeLabelDrawing([], null);
         }
 
-        // HTML labels are centered by their box; SVG labels by the box of their text (the background not included)
-        var textBox = label.IsHtml
+        // HTML labels are centered by their box; SVG labels by the box of their text as drawn (insertEdgeLabel measures
+        // the text element once it takes the label's own font size; the background, measured before, is not included)
+        var lineBoxes = label.Lines.Where(line => line.Width > 0).Select(line => line.Box).ToList();
+        var textBox = label.IsHtml || lineBoxes.Count == 0
             ? label.Box
-            : new SceneRect(
-                label.Box.X + LabelBuilder.SvgBackgroundPadding,
-                label.Box.Y + LabelBuilder.SvgBackgroundPadding,
-                label.Box.Width - (2 * LabelBuilder.SvgBackgroundPadding),
-                label.Box.Height - (2 * LabelBuilder.SvgBackgroundPadding));
+            : lineBoxes.Aggregate((all, next) => all.Union(next));
         var dx = label.IsHtml ? -label.Width / 2 : -(textBox.X + (textBox.Width / 2));
         var dy = label.IsHtml ? -label.Height / 2 : -(textBox.Y + (textBox.Height / 2));
         var box = label.Box.Offset(dx, dy);

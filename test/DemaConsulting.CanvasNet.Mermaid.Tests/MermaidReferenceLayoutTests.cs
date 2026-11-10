@@ -5,13 +5,14 @@ using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 
 /// <summary>
-///     System tests of the flowchart, class diagram and state diagram layouts against the reference implementation:
-///     each golden of <c>Fixtures/reference/</c>, <c>Fixtures/reference/class/</c> and <c>Fixtures/reference/state/</c>
-///     (the layout that the pinned mermaid-cli and mermaid draw in headless Chrome with Liberation Sans, see
-///     <c>Fixtures/reference/README.md</c>) is compared with CanvasNet's scene: the view box, the node positions and
-///     boxes, the subgraph rectangles, the edge paths sampled along their length and the edge label positions; for a
-///     class or state diagram also the drawn parts of each node, the subgraph titles, the terminal labels and the title,
-///     and for a state diagram the inner rectangles of the composite states.
+///     System tests of the flowchart, class, state and entity relationship diagram layouts against the reference
+///     implementation: each golden of <c>Fixtures/reference/</c>, <c>Fixtures/reference/class/</c>,
+///     <c>Fixtures/reference/state/</c> and <c>Fixtures/reference/er/</c> (the layout that the pinned mermaid-cli and
+///     mermaid draw in headless Chrome with Liberation Sans, see <c>Fixtures/reference/README.md</c>) is compared with
+///     CanvasNet's scene: the view box, the node positions and boxes, the subgraph rectangles, the edge paths sampled
+///     along their length and the edge label positions; for a class, state or ER diagram also the drawn parts of each
+///     node, the subgraph titles, the terminal labels and the title, and for a state diagram the inner rectangles of the
+///     composite states.
 /// </summary>
 public class MermaidReferenceLayoutTests
 {
@@ -235,6 +236,68 @@ public class MermaidReferenceLayoutTests
             string.Join('\n', comparison.Issues.Take(20)));
     }
 
+    /// <summary>
+    ///     Gets the names of the entity relationship diagram goldens.
+    /// </summary>
+    /// <returns>The names (the fixture names).</returns>
+    public static TheoryData<string> ErGoldens()
+    {
+        var data = new TheoryData<string>();
+        foreach (var name in GoldenNames(ErReferenceFolder))
+        {
+            data.Add(name);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Validates that every entity relationship diagram fixture has a golden.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_ErDiagram_ReferenceGoldens_CoverEveryFixture()
+    {
+        // Arrange
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er"), "*.mmd")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Order(StringComparer.Ordinal);
+
+        // Act
+        var goldens = GoldenNames(ErReferenceFolder);
+
+        // Assert
+        Assert.Equal(fixtures, goldens);
+    }
+
+    /// <summary>
+    ///     Validates that CanvasNet lays an entity relationship diagram fixture out as the reference does: the view box,
+    ///     the entities and their drawn parts (the outline, the rows, each text of the table and the dividers), the
+    ///     subgraphs and their titles, the relationships, their labels and the title.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(ErGoldens))]
+    public void CanvasNetMermaid_ErDiagram_ReferenceLayout_MatchesMermaid(string name)
+    {
+        // Arrange
+        var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(ErReferenceFolder, name + ".layout.json")))!.AsObject();
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er", (string)golden["source"]!));
+        var tolerance = DefaultTolerance;
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+        var comparison = new Comparison(tolerance);
+        comparison.Compare(golden, scene);
+        comparison.CompareExtended(golden, scene);
+        comparison.CompareClusterInners(golden, scene);
+
+        // Assert
+        Assert.True(
+            comparison.Issues.Count == 0,
+            $"{name}: {comparison.Issues.Count} difference(s) beyond {tolerance} px (largest {comparison.Largest:0.###} px):\n" +
+            string.Join('\n', comparison.Issues.Take(20)));
+    }
+
     /// <summary>Gets the folder of the goldens.</summary>
     private static string ReferenceFolder => Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference");
 
@@ -243,6 +306,9 @@ public class MermaidReferenceLayoutTests
 
     /// <summary>Gets the folder of the state diagram goldens.</summary>
     private static string StateReferenceFolder => Path.Combine(ReferenceFolder, "state");
+
+    /// <summary>Gets the folder of the entity relationship diagram goldens.</summary>
+    private static string ErReferenceFolder => Path.Combine(ReferenceFolder, "er");
 
     /// <summary>
     ///     Gets the names of the goldens in order.
@@ -467,6 +533,8 @@ public class MermaidReferenceLayoutTests
                 ("g", "label-group text") => "class-label",
                 ("g", "members-group text") => "class-member",
                 ("g", "methods-group text") => "class-method",
+                ("g", null) when (string?)part["class"] is "label name" or "label attribute-type" or "label attribute-name" or "label attribute-keys" or "label attribute-comment" =>
+                    "er-" + ((string)part["class"]!)["label ".Length..],
                 ("g" or "text", _) => "label",
                 (_, "divider") => "divider",
                 ("line", _) when (string?)part["class"] == "divider" => "divider",

@@ -342,6 +342,23 @@ Each file holds the [class layout content](#class-layout-content), with these di
   `Start` or `End`.
 - `terminals`: always empty.
 
+### ER Tolerances
+
+`MermaidReferenceLayoutTests` compares every ER golden at **0.01 px**, with no exception: the view box, each node's
+position, box, and parts (each text of a table by its own box, an empty text by the point where it is placed), each
+subgraph's rectangle and title, each edge as a flowchart edge is compared, each edge label's center, and the title's
+box. The largest difference is 0.002 px. Three browser rules make this possible:
+
+- **An empty SVG text counts in a node's box.** With `htmlLabels: false`, the empty keys or comment cell of a table
+  is an empty `text` element whose point Chrome's `getBBox` includes, so in `12-config-title` the node `MEMBER` is
+  7.5 px wider than its table, and the layout uses that width. An empty HTML cell (a `foreignObject` of no size) does
+  not count.
+- **An SVG edge label's background is measured in the inherited font size.** Mermaid measures the text before the
+  label moves under `.edgeLabel .label` (14 px), so the background rectangle, and with it the label's size, is that of
+  the 16 px text, while the text is drawn at 14 px.
+- **An SVG edge label is centered by its text as drawn** (the 14 px text), so the label's box, which the rectangle
+  makes, sits 1.5 px lower than the layout's label position in `12-config-title`.
+
 ### ER Fixtures
 
 The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and

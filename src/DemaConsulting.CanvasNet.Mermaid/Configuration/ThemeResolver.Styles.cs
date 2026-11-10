@@ -311,6 +311,9 @@ internal abstract class UnifiedStyles : DiagramStyles
     /// <returns>The text paint.</returns>
     public virtual TextPaint ClusterTitle(bool html) => ClusterLabel;
 
+    /// <summary>Gets the root font and fill of the diagram, which a text inherits where no rule of its own applies.</summary>
+    public TextPaint RootText => Text(Root, "fill");
+
     /// <summary>Gets the font and color of the diagram title (the rule of <see cref="TitleSelector"/> on the root font).</summary>
     public TextPaint Title => Text(TitleSelector, "fill");
 

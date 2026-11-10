@@ -257,6 +257,7 @@ internal sealed partial class ClusterLayout
         foreach (var edge in data.Edges)
         {
             _meter.Charge(1);
+            CheckEnds(graph, edge);
             if (edge.Start == edge.End)
             {
                 AddSelfLoop(graph, edge);
@@ -268,6 +269,30 @@ internal sealed partial class ClusterLayout
         }
 
         return graph;
+    }
+
+    /// <summary>
+    ///     Fails, located at the edge, when an end of an edge is not a node of the diagram (in an ER diagram, an entity
+    ///     named like a subgraph declared after the relationship, which is not drawn). graphlib adds such an end as a node
+    ///     without data, on which Mermaid's render fails; the subgraphs are set first, so a cycle among them fails first,
+    ///     as in Mermaid.
+    /// </summary>
+    /// <param name="graph">The graph with its nodes.</param>
+    /// <param name="edge">The edge.</param>
+    /// <exception cref="MermaidRenderException">Thrown, located, when an end is not a node.</exception>
+    private static void CheckEnds(Graph<DagreGraph, ClusterLayoutNode, ClusterLayoutEdge> graph, LayoutEdge edge)
+    {
+        var missing = !graph.HasNode(edge.Start) ? edge.Start : edge.End;
+        if (graph.HasNode(missing))
+        {
+            return;
+        }
+
+        throw new MermaidRenderException(
+            MermaidDiagnosticCodes.RenderFailed,
+            $"the edge '{edge.Id}' cannot be drawn: its end '{missing}' is not drawn (Mermaid fails on this diagram too)",
+            edge.Location,
+            "make sure both ends are drawn: in an entity relationship diagram, rename the entity or the later subgraph that has its name");
     }
 
     /// <summary>

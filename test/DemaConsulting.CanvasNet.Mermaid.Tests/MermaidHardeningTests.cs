@@ -1052,6 +1052,196 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every ER fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile ER diagrams through the public API, fitted to 400 by 300 pixels: huge spacings, paddings and
+    ///     font sizes, huge dashes, self-relationships, the <c>md_parent</c> cardinality, a generic type that takes most
+    ///     of its line, comments over several lines, markup in texts, duplicate subgraph ids, relationships to subgraphs,
+    ///     an entity named like a later subgraph and a subgraph that holds a relationship to itself each render, or end in
+    ///     a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  er:\n    nodeSpacing: 1e300\n    rankSpacing: 1e300\n---\nerDiagram\nA ||--o{ B : r\nA ||--o{ C : r\n")]
+    [InlineData("---\nconfig:\n  er:\n    diagramPadding: 1e300\n    entityPadding: 1e300\n    minEntityWidth: 1e300\n---\nerDiagram\nA ||--o{ B : r\nB {\n  int x\n}\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e300}}}%%\nerDiagram\nA ||--o{ B : go\nB {\n  int x PK \"c\"\n}\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nerDiagram\nA ||--o{ B : go\nB {\n  int x PK \"c\"\n}\n")]
+    [InlineData("erDiagram\nA {\n  int x\n  int y\n}\nstyle A stroke:#f00,stroke-width:1e300,stroke-dasharray:1e300\n")]
+    [InlineData("erDiagram\nA ||--o{ A : self\nA u--|| B : parent\nB }|..|{ B : again\n")]
+    [InlineData("erDiagram\nR {\n  List~int~ a, Map~x~ b\n  string c \"first line\n  second line\"\n  string d \"<b>x</b><script>y</script>\"\n}\n")]
+    [InlineData("erDiagram\nsubgraph S\n  A\nend\nsubgraph S\n  B\nend\nC ||--o{ S : r\nS ||--|| A : s\n")]
+    [InlineData("erDiagram\nA ||--|| B : r\nsubgraph A\n  C\nend\n")]
+    [InlineData("erDiagram\nsubgraph S\n  A ||--o{ S : r\nend\n")]
+    public void CanvasNetMermaid_Hardening_HostileErDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("er", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that more entities than the default <see cref="MermaidLimits.MaxNodes"/> fail at open, located at the
+    ///     line of the first entity over the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErManyEntities_IsALocatedNodeLimit()
+    {
+        // Arrange
+        var text = "erDiagram\n" + string.Join("\n", Enumerable.Range(0, 2_001).Select(i => $"E{i}")) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that subgraphs nested to the default <see cref="MermaidLimits.MaxNestingDepth"/> render, and that one
+    ///     level more fails at open, located at the subgraph that is one too deep.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErNestedSubgraphs_IsALocatedNestingLimit()
+    {
+        // Arrange
+        static string Nested(int depth) =>
+            "erDiagram\n" + string.Concat(Enumerable.Range(0, depth).Select(i => $"subgraph S{i}\n")) + "A\n" +
+            string.Concat(Enumerable.Repeat("end\n", depth));
+        var accepted = MermaidDocument.Parse(Nested(32));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Nested(33)));
+
+        // Assert
+        Assert.Equal(32, accepted.SubgraphCount);
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(34, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an attribute comment longer than the default <see cref="MermaidLimits.MaxLabelLength"/> fails at
+    ///     open, located at its line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErLongComment_IsALocatedLabelLimit()
+    {
+        // Arrange
+        var comment = new string('x', 4_097);
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse($"erDiagram\nT {{\n  int a\n  int b \"{comment}\"\n}}\n"));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(4, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an entity with very many attributes renders, measured and drawn in bounded work.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErManyAttributes_Render()
+    {
+        // Arrange
+        var text = "erDiagram\nT {\n" + string.Concat(Enumerable.Range(0, 1_000).Select(i => $"  int a{i} PK \"c{i}\"\n")) + "}\nT ||--o{ U : r\n";
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(size.Height > size.Width);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the ER fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "||--o{", "}|..|{", "|o--o|", "u--||", "one or more", "to", "optionally to", ":", " : role", " : \"two words\"",
+            "X {", "}", "{", "int a PK", "string b FK, UK \"c\"", "List~int~", "`b.c`", "\"Quoted Name\"", "[\"Alias\"]",
+            "subgraph S", "subgraph S2[\"T\"]", "end", "direction LR", "direction BT", "classDef c fill:#f00", "class X c",
+            ":::c", "style X fill:#0f0", "accTitle: t", "accDescr: d", "%%", "\n", "  ", "<br>", "\\", "#59;",
+        ];
+        var random = new Random(20261111);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
     ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
     ///     state, so each adds two nesting levels.
     /// </summary>

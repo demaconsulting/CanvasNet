@@ -366,8 +366,8 @@ internal static partial class ShapeLibrary
         ///     Adds an item that is drawn as is (text, picture), counting its box.
         /// </summary>
         /// <param name="item">The item.</param>
-        /// <param name="box">Its box.</param>
-        public void Item(SceneItem item, SceneRect box)
+        /// <param name="box">Its box, or null when it adds nothing to the node's box.</param>
+        public void Item(SceneItem item, SceneRect? box)
         {
             _items.Add(item with { Id = _input.Node.DomId ?? _input.Node.Id, Location = _input.Node.Location });
             Include(box);

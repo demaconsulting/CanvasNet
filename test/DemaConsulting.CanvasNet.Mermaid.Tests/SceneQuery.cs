@@ -99,7 +99,8 @@ internal static class SceneQuery
     }
 
     /// <summary>
-    ///     Gets the edge label centers by edge id.
+    ///     Gets the edge label centers by edge id: the center of the label's background (its whole box) when it has one,
+    ///     else the label's position.
     /// </summary>
     /// <param name="scene">The scene.</param>
     /// <returns>The centers.</returns>
@@ -110,7 +111,12 @@ internal static class SceneQuery
         {
             if (item is SceneGroup { Role: "edge-label" } group && group.Id is { } id)
             {
-                labels[id] = (dx + group.OffsetX, dy + group.OffsetY);
+                var x = dx + group.OffsetX;
+                var y = dy + group.OffsetY;
+                var background = group.Children.FirstOrDefault(child => child.Role == "edge-label-background");
+                labels[id] = background is not null && Scene.BoundsOf([background]) is { } box
+                    ? (x + box.X + (box.Width / 2), y + box.Y + (box.Height / 2))
+                    : (x, y);
             }
         }
 
@@ -120,9 +126,11 @@ internal static class SceneQuery
     /// <summary>
     ///     Gets the drawn parts of each node by DOM id, in drawing order and in absolute coordinates, as the extended
     ///     goldens list them: <c>path</c> for an outline, <c>class-annotation</c>, <c>class-label</c>,
-    ///     <c>class-member</c> and <c>class-method</c> for the rows of a class box, <c>divider</c> for its dividers and
-    ///     <c>label</c> for the label of any other node (its lines united). Consecutive outlines with the same box are
-    ///     one part (Mermaid draws a rectangle as a fill path and a stroke path).
+    ///     <c>class-member</c> and <c>class-method</c> for the rows of a class box, <c>er-name</c> and
+    ///     <c>er-attribute-type</c>, <c>-name</c>, <c>-keys</c> and <c>-comment</c> for the texts of an entity table (an
+    ///     empty one as a point where it is placed), <c>divider</c> for the dividers and <c>label</c> for the label of any
+    ///     other node (its lines united). Consecutive outlines with the same box are one part (Mermaid draws a rectangle as
+    ///     a fill path and a stroke path).
     /// </summary>
     /// <param name="scene">The scene.</param>
     /// <returns>The parts.</returns>
@@ -143,7 +151,14 @@ internal static class SceneQuery
             var labelIndex = -1;
             foreach (var child in group.Children)
             {
-                if (Scene.BoundsOf([child]) is not { } box)
+                // An empty text of an entity table draws nothing but is compared where it is placed
+                var bounds = Scene.BoundsOf([child]);
+                if (bounds is null && child is SceneGroup { Role: var cellRole } empty && cellRole.StartsWith("er-", StringComparison.Ordinal))
+                {
+                    bounds = new SceneRect(empty.OffsetX, empty.OffsetY, 0, 0);
+                }
+
+                if (bounds is not { } box)
                 {
                     continue;
                 }
@@ -154,11 +169,14 @@ internal static class SceneQuery
                     case ScenePath { Role: "node" }:
                         AddPart(list, "path", box);
                         break;
-                    case ScenePath { Role: "class-divider" or "state-divider" }:
+                    case ScenePath { Role: "class-divider" or "state-divider" or "er-divider" }:
                         list.Add(("divider", box));
                         break;
                     case SceneGroup { Role: "class-annotation" or "class-label" or "class-member" or "class-method" } row:
                         list.Add((row.Role, box));
+                        break;
+                    case SceneGroup { Role: "er-name" or "er-attribute-type" or "er-attribute-name" or "er-attribute-keys" or "er-attribute-comment" } cell:
+                        list.Add((cell.Role, box));
                         break;
                     case SceneText { Role: "label" }:
                         if (labelIndex < 0)

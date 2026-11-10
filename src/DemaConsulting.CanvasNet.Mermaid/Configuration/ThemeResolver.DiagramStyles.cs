@@ -385,6 +385,13 @@ internal sealed class ErStyles : UnifiedStyles
     /// <summary>Gets the selector of the background rectangle of an SVG edge label (<c>.edgeLabel .label rect</c>).</summary>
     public override string SvgEdgeLabelBackground => ".edgeLabel .label rect";
 
+    /// <summary>
+    ///     Gets a value indicating whether the SVG text of a node's label is centered on its anchor: no, because the
+    ///     entity relationship sheet has no <c>text-anchor</c> rule for node labels, so the text starts at its anchor (the
+    ///     entity box centers a name itself).
+    /// </summary>
+    public override bool CentersNodeSvgText => false;
+
     /// <summary>Gets the selector of the diagram title (<c>.erDiagramTitleText</c>, which has no rule).</summary>
     protected override string TitleSelector => ".erDiagramTitleText";
 

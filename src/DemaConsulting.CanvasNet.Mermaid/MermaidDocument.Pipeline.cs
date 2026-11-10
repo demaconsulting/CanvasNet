@@ -1,6 +1,7 @@
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Mermaid.Class;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
+using DemaConsulting.CanvasNet.Mermaid.Er;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Sequence;
@@ -101,8 +102,9 @@ internal sealed record DiagramRenderContext(
 ///         <c>graph</c>) is parsed by <see cref="FlowchartParser"/> into a <see cref="FlowchartModel"/>, the sequence
 ///         diagram (<c>sequenceDiagram</c>) by <see cref="SequenceParser"/> into a <see cref="SequenceModel"/>, the class
 ///         diagram (<c>classDiagram</c>, <c>classDiagram-v2</c> and the legacy id) by <see cref="ClassParser"/> into a
-///         <see cref="ClassModel"/>, and the state diagram (<c>stateDiagram</c>, <c>stateDiagram-v2</c> and the legacy id)
-///         by <see cref="StateParser"/> into a <see cref="StateModel"/>.
+///         <see cref="ClassModel"/>, the state diagram (<c>stateDiagram</c>, <c>stateDiagram-v2</c> and the legacy id) by
+///         <see cref="StateParser"/> into a <see cref="StateModel"/>, and the entity relationship diagram
+///         (<c>erDiagram</c>) by <see cref="ErParser"/> into an <see cref="ErModel"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -135,6 +137,7 @@ internal static class DiagramRegistry
             (true, "sequence") => SequenceParser.Parse(source, detected, limits),
             (true, "class") => ClassParser.Parse(source, detected, limits, textConfig.Class.HierarchicalNamespaces),
             (true, "state") => StateParser.Parse(source, detected, limits),
+            (true, "er") => ErParser.Parse(source, detected, limits),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }
