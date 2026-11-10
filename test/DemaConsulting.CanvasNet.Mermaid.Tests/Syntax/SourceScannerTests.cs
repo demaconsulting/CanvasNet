@@ -503,6 +503,12 @@ public class SourceScannerTests
         { "http://0300.0250.0.1/", "http://192.168.0.1/" },
         { "http://4294967295/", "http://255.255.255.255/" },
         { "http://example.com/./a/../b", "http://example.com/b" },
+
+        // sanitize-url's greedy scheme pattern /^.+(:|&colon;)/ stops at the LAST colon on the line, so a port makes the
+        // "scheme" contain "://" and the text is returned as written, not parsed (sanitize-url 7.1.2, checked with node)
+        { "http://EXAMPLE.COM:80/a b", "http://EXAMPLE.COM:80/a b" },
+        { "https://Example.com:8443/x", "https://Example.com:8443/x" },
+        { "http://x.com:99999/", "http://x.com:99999/" },
         { "http://example.com/%2e%2E/c", "http://example.com/c" },
         { "http:example.com/x", "http://example.com/x" },
         { "http:/example.com", "http://example.com/" },
