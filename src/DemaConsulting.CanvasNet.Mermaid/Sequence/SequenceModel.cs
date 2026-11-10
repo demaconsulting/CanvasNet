@@ -22,7 +22,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Sequence;
 ///         <c>@{ ... }</c> metadata (read as YAML), and their box; boxes with the color and title of
 ///         <c>parseBoxData</c>; messages with Mermaid's line types and ids; notes; block markers; activations, with the
 ///         error for deactivating an inactive participant; <c>create</c> and <c>destroy</c> with their errors; the
-///         <c>links</c>, <c>link</c> and <c>properties</c> data (JSON, sanitized, a failure ignored as in Mermaid);
+///         <c>links</c>, <c>link</c> and <c>properties</c> data (JSON, sanitized, a failure ignored as in Mermaid), every
+///         link text kept only as <see cref="UrlSanitizer"/> checks it, as Mermaid's menu checks it before it uses it;
 ///         <c>autonumber</c> statements; and the title and accessibility texts, sanitized as Mermaid's
 ///         <c>sanitizeText</c> does (<see cref="HtmlSanitizer"/>).
 ///     </para>
@@ -576,7 +577,9 @@ internal sealed partial class SequenceModel
     /// <summary>
     ///     Applies a <c>links</c>, <c>link</c>, <c>properties</c> or <c>details</c> statement (Mermaid's <c>addLinks</c>,
     ///     <c>addALink</c>, <c>addProperties</c> and <c>addDetails</c>): text that does not parse is ignored, as Mermaid
-    ///     only logs it, and <c>details</c> reads a page element that does not exist outside a browser page.
+    ///     only logs it, and <c>details</c> reads a page element that does not exist outside a browser page. The link texts
+    ///     of <c>links</c> and <c>link</c> are kept only as <see cref="UrlSanitizer"/> checks them (Mermaid keeps them as
+    ///     written and checks them when its menu uses them, so nothing unchecked is ever kept here).
     /// </summary>
     /// <param name="data">The statement.</param>
     private void ApplyActorData(SequenceActorDataStatement data)
@@ -593,7 +596,7 @@ internal sealed partial class SequenceModel
             case SequenceActorDataKind.Links:
                 if (TryParseJson(sanitized.Replace("&equals;", "=", StringComparison.Ordinal).Replace("&amp;", "&", StringComparison.Ordinal), out var links))
                 {
-                    AssignProperties(actor.Links, links);
+                    AssignProperties(actor.Links, links, checkLinks: true);
                 }
 
                 break;
@@ -603,12 +606,12 @@ internal sealed partial class SequenceModel
                 var decoded = sanitized.Replace("&equals;", "=", StringComparison.Ordinal).Replace("&amp;", "&", StringComparison.Ordinal);
                 var label = Preprocessor.TrimJs(JsSlice(decoded, 0, separator - 1));
                 var url = Preprocessor.TrimJs(JsSlice(decoded, separator + 1, decoded.Length));
-                actor.Links.Set(label, JsonValue.Create(url));
+                actor.Links.Set(label, JsonValue.Create(UrlSanitizer.Sanitize(url)));
                 break;
             case SequenceActorDataKind.Properties:
                 if (TryParseJson(sanitized, out var properties))
                 {
-                    AssignProperties(actor.Properties, properties);
+                    AssignProperties(actor.Properties, properties, checkLinks: false);
                 }
 
                 break;
@@ -645,14 +648,19 @@ internal sealed partial class SequenceModel
     /// </summary>
     /// <param name="target">The map.</param>
     /// <param name="value">The value.</param>
-    private static void AssignProperties(SequencePropertyMap target, JsonElement value)
+    /// <param name="checkLinks">
+    ///     Whether the values are links: every text value is then kept only as <see cref="UrlSanitizer.Sanitize(string?)"/>
+    ///     checks it, since Mermaid's menu passes each link through <c>sanitizeUrl</c> before it uses it.
+    /// </param>
+    private static void AssignProperties(SequencePropertyMap target, JsonElement value, bool checkLinks)
     {
+        JsonNode? Checked(JsonNode? node) => checkLinks ? CheckLink(node) : node;
         switch (value.ValueKind)
         {
             case JsonValueKind.Object:
                 foreach (var property in value.EnumerateObject())
                 {
-                    target.Set(property.Name, ToNode(property.Value));
+                    target.Set(property.Name, Checked(ToNode(property.Value)));
                 }
 
                 break;
@@ -660,7 +668,7 @@ internal sealed partial class SequenceModel
                 var i = 0;
                 foreach (var item in value.EnumerateArray())
                 {
-                    target.Set(i++.ToString(CultureInfo.InvariantCulture), ToNode(item));
+                    target.Set(i++.ToString(CultureInfo.InvariantCulture), Checked(ToNode(item)));
                 }
 
                 break;
@@ -668,7 +676,7 @@ internal sealed partial class SequenceModel
                 var text = value.GetString()!;
                 for (var c = 0; c < text.Length; c++)
                 {
-                    target.Set(c.ToString(CultureInfo.InvariantCulture), JsonValue.Create(text[c].ToString()));
+                    target.Set(c.ToString(CultureInfo.InvariantCulture), Checked(JsonValue.Create(text[c].ToString())));
                 }
 
                 break;
@@ -676,6 +684,15 @@ internal sealed partial class SequenceModel
                 break;
         }
     }
+
+    /// <summary>
+    ///     Checks a link value as Mermaid's menu does with <c>sanitizeUrl</c>: a text becomes the checked URL; any other
+    ///     value (a number, an object, null) is not a link text and is kept as it is.
+    /// </summary>
+    /// <param name="node">The value.</param>
+    /// <returns>The value to keep.</returns>
+    private static JsonNode? CheckLink(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<string>(out var text) ? JsonValue.Create(UrlSanitizer.Sanitize(text)) : node;
 
     /// <summary>
     ///     Converts a JSON element to a node without a parent; numbers become doubles, as in JavaScript.

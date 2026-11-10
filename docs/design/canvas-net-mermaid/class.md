@@ -33,9 +33,10 @@ subsystem `MermaidClass` (see _CanvasNetMermaid System Design_).
 `third-party/README.md`): the parser ports the generated lexer and the grammar of
 `diagrams/class/parser/classDiagram.jison`; the model ports the database of `diagrams/class/classDb.ts` (with the
 accessibility texts of `diagrams/common/commonDb.ts`), the class member of `diagrams/class/classTypes.ts`
-(`ClassMember`), and the settings and the `draw` of `diagrams/class/classRenderer-v3-unified.ts`. The link check of the
-model is a port of `sanitizeUrl` of `@braintree/sanitize-url` (MIT, a dependency of Mermaid; see
-`third-party/README.md`), which Mermaid's `formatUrl` calls at its strict security level. Every ported file carries the
+(`ClassMember`), and the settings and the `draw` of `diagrams/class/classRenderer-v3-unified.ts`. The model keeps
+only the links that the shared link check of the `Syntax` subsystem (`UrlSanitizer`, a port of `sanitizeUrl` of
+`@braintree/sanitize-url`, MIT, a dependency of Mermaid; see `third-party/README.md`) gives, as Mermaid's `formatUrl`
+calls it at its strict security level. Every ported file carries the
 provenance header comment.
 
 ### Interfaces
@@ -48,16 +49,16 @@ document: the metadata (`Title`, which is always null because the class grammar 
 under the text's own configuration) and `Layout(DiagramRenderContext)`, which returns the laid-out `Scene`. For tests
 and for the vectors the model also exposes its elements (`Classes`, `Relations`, `Notes`, `Interfaces`, `Namespaces`,
 `StyleClasses`, `GetClass`, `MermaidId`, `AccessibleTitle`, and `AccessibleDescription`), `GetData(MermaidConfig)` (the
-layout input), `ReportUnsupported(MermaidConfig, MermaidReportSink)`, and the static helpers `ParseGenericTypes` and
-`FormatUrl`.
+layout input), `ReportUnsupported(MermaidConfig, MermaidReportSink)`, and the static helper `ParseGenericTypes`.
 
 **Consumed**: from the `Syntax` subsystem the preprocessed text and its map to the original text (`PreprocessedSource`,
 `MappedText`), the detected diagram (`DetectedDiagram`), the scanner and token cursor (`SourceScanner`, `ScanRule`,
 `ScanToken`, `TokenCursor`), the character classes of `ScanPatterns` (including the `UNICODE_TEXT` letters that the
-class and flowchart lexers share), JavaScript's `trim` (`Preprocessor.TrimJs`), and the text sanitizer
-(`HtmlSanitizer`); from `Configuration` the effective `MermaidConfig` with its `ClassConfig` section (which carries the
-spacing and title margin that Mermaid's class renderer reads from the state section), the font settings, and the style
-sheet `ClassStyles`; from `Rendering` the layout input types (`LayoutData`, `LayoutNode`, `LayoutEdge`,
+class and flowchart lexers share), JavaScript's `trim` (`Preprocessor.TrimJs`), the text sanitizer
+(`HtmlSanitizer`), and the link check (`UrlSanitizer`); from `Configuration` the effective `MermaidConfig` with its
+`ClassConfig` section (which carries the spacing and title margin that Mermaid's class renderer reads from the state
+section), the font settings, and the style sheet `ClassStyles`; from `Rendering` the layout input types (`LayoutData`,
+`LayoutNode`, `LayoutEdge`,
 `LayoutClassBox`, `LayoutClassMember`) and the drawing (`ClusterLayout.RenderDiagram`, `ShapeContext`, `LabelBuilder`,
 `NodeImages`); from `Dagre` the `LayoutWorkMeter`; from `Scenegraph` the `Scene`; and from the system the
 `IMermaidDiagram` contract, `DiagramRenderContext`, and the public `MermaidLimits`, `MermaidLocation`,

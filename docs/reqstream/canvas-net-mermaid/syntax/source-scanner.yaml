@@ -4,7 +4,8 @@
 # These requirements describe the design-level behavior of the SourceScanner unit of the Syntax subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the lexer infrastructure of the diagram parsers with
 # the semantics of the lexers that jison generates for Mermaid's grammars, the one-token lookahead with its
-# expected-token errors, and the matcher building blocks with the JavaScript character classes. See
+# expected-token errors, the matcher building blocks with the JavaScript character classes, and the link check that
+# every diagram applies to the links it keeps (UrlSanitizer, ported from sanitize-url and Mermaid's formatUrl). See
 # docs/verification/canvas-net-mermaid/syntax/source-scanner.md for the test-evidence mapping.
 
 sections:
@@ -98,3 +99,22 @@ sections:
                   definition keeps them accepting the same letters as Mermaid.
                 tests:
                   - ScanPatterns_IsUnicodeLetter_FollowsTheGrammarLetters
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-LinkCheck
+                title: >-
+                  The SourceScanner unit shall check a link exactly as the sanitize-url version that the pinned Mermaid
+                  bundles checks it - undoing percent escapes, numeric and named character references, control
+                  characters, and escaped white space until nothing is left to decode, and giving about:blank for a
+                  javascript, data, or vbscript scheme in any case, for no link, and for an http or https link that the
+                  WHATWG URL parser refuses - and shall return the link that sanitize-url returns, which is the only
+                  link a diagram may keep; Mermaid's formatUrl gives no link for an empty one.
+                justification: |
+                  A link whose scheme is javascript, data, or vbscript runs code where the link is used; encodings
+                  (references without semicolons, tabs inside the scheme, nested percent escapes) hide the scheme from
+                  a partial check, so the check must decode exactly as Mermaid's does, and one shared check keeps every
+                  diagram type the same.
+                tests:
+                  - UrlSanitizer_Sanitize_UnsafeScheme_IsBlank
+                  - UrlSanitizer_Sanitize_Url_GivesSanitizeUrlResult
+                  - UrlSanitizer_FormatUrl_EmptyAndUnsafeLinks_FollowMermaid
+                  - UrlSanitizer_Sanitize_DeeplyNestedReference_IsDecodedAndRefused

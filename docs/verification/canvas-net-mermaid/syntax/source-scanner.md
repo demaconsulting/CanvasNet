@@ -105,3 +105,32 @@ lexers share, is true for letters of several scripts - the feminine ordinal indi
 and U+00E9, the Cyrillic U+0416, and the CJK ideograph U+4E2D - and false for the ASCII letter `a`, the digit `1`, the
 underscore, the space, the no-break space U+00A0, and the multiplication and division signs U+00D7 and U+00F7 that sit
 inside the Latin-1 letters; ASCII is matched by the grammars' own rules, not by this table.
+
+##### CanvasNetMermaid-Syntax-SourceScanner-LinkCheck: Links Are Checked Exactly As sanitize-url Checks Them
+
+**Tests**: `SourceScannerTests.UrlSanitizer_Sanitize_UnsafeScheme_IsBlank`,
+`SourceScannerTests.UrlSanitizer_Sanitize_Url_GivesSanitizeUrlResult`,
+`SourceScannerTests.UrlSanitizer_FormatUrl_EmptyAndUnsafeLinks_FollowMermaid`,
+`SourceScannerTests.UrlSanitizer_Sanitize_DeeplyNestedReference_IsDecodedAndRefused`
+
+Asserts that every attack vector of sanitize-url's own test file is `about:blank` - numeric character references
+with and without semicolons, decimal with leading zeros and hexadecimal, a tab, a line feed, a carriage return, a
+form feed, a vertical tab, U+0000, and U+0001 before or inside the scheme, `&Tab;` and nested `&NewLine;`, escaped
+white space and nested percent-encoding of it (`%5C`, `%255C`, `%25%35%43`), invisible characters inside the scheme,
+leading spaces and `%20`, `&colon;` and `&COLON;`, mixed case, and leading non-word characters, for `javascript`,
+`data`, and `vbscript` - and so are further encoded forms: `0x`, `0X`, `0o`, and `0b` references, references beyond
+65535 that wrap to `j`, a reference hidden in `&#38;` and in percent escapes, percent-encoded letters, tabs, line
+feeds, U+0000, and invisible characters, escaped white space, the line separator before the scheme or a line, white
+space outside ASCII, and a letter outside ASCII before the scheme (not a word character in JavaScript). Asserts, with
+sanitize-url's results in Node as the expected values, that safe links keep sanitize-url's result (the safe cases of
+its test file, relative and protocol-less links, `mailto:`, deep links, backslashes as slashes, control characters
+removed), that encoded links decode as JavaScript decodes them (a reference word that is not a number gives U+0000,
+an exponent, `Infinity`, numbers beyond 2^53, malformed percent escapes, overlong and surrogate UTF-8, `toLowerCase`
+of U+0130 and the Kelvin sign), and that `http` and `https` links are written back as the WHATWG URL parser writes
+them: scheme and host case, IDNA, IPv4 in decimal, octal, and hexadecimal forms, IPv6 compression and embedded IPv4,
+user information with `%40`, default ports, dot segments with `%2e`, the percent-encode sets of the path, query, and
+fragment, the forbidden host code points, a lone surrogate, and `about:blank` for a link that does not parse (an
+empty host, a port beyond 65535, an invalid IPv4 or IPv6 address, an invalid `xn--` label); the dot segments of
+`http://a/y/.x/.` are resolved as the Standard and Chromium resolve them. Asserts that no link (null or empty) is
+`about:blank`, that `FormatUrl` gives no link for a blank one and trims and checks any other, and that a reference
+nested 1,000 levels deep is decoded level by level and refused.

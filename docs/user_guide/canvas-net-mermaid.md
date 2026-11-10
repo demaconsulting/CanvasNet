@@ -448,8 +448,12 @@ drawn with HTML labels. The known differences from Mermaid are:
   no CSS animations. A `font-size` that text cannot be drawn at (zero, or more than 32768 pixels) is ignored with a
   `mermaid-style-ignored` warning and the inherited size is kept, and a `stroke-dasharray` with a dash longer than
   32768 pixels is drawn solid.
-- **Security.** `securityLevel` changes nothing (no script ever runs). YAML anchors, aliases, and tags are refused,
-  although Mermaid's YAML reader accepts them.
+- **Security.** `securityLevel` changes nothing (no script ever runs). The links a diagram keeps as data (the `link`
+  and `click ... href` of a class diagram, the `link` and `links` of a sequence participant) are always checked as
+  Mermaid's `strict` level checks them, with Mermaid's own link check (sanitize-url), even when the configuration asks
+  for `loose`: a `javascript:`, `data:`, or `vbscript:` link, however it is encoded (character references, tabs or
+  control characters inside the scheme, percent escapes), is kept only as `about:blank`. YAML anchors, aliases, and
+  tags are refused, although Mermaid's YAML reader accepts them.
 - **Errors.** For invalid text Mermaid draws an error picture; this package throws a located `MermaidSyntaxException`.
   A few graphs on which Mermaid itself fails (a subgraph that contains itself, a link to a subgraph that has no node, a
   subgraph also used as a node of another subgraph, a self-loop on a subgraph next to links into the subgraphs around
@@ -497,8 +501,8 @@ shapes, edges, labels, and layouts are ports of these projects (all MIT unless s
 - **lodash** (Copyright OpenJS Foundation and other contributors): the sort and extremum rules the layout depends on;
 - **marked** (Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey): the Markdown of labels;
 - **d3-shape** and **d3-path** (ISC, Copyright Mike Bostock): the edge curves;
-- **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links of a class
-  diagram, which are kept and never drawn.
+- **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links that class and
+  sequence diagrams keep, which are never drawn.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
 assembly), and `src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md` records what was ported, from which

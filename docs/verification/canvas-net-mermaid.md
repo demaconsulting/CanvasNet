@@ -333,6 +333,17 @@ names (namespace `Ni` holds a class named `N(i+1)`) render while 40 fail when me
 and the message `namespaces are nested deeper than 32 levels`, located at `class N33` (line 99); and that a class
 diagram under a small work limit fails with `mermaid-limit-exceeded`.
 
+### CanvasNetMermaid-UnsafeLinks: Encoded Unsafe Links Are Checked And Never Exposed
+
+**Tests**: `MermaidHardeningTests.CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput`
+
+Opens and renders, through the public API, a class diagram (`link` with a tab inside the scheme, `click ... href` with a
+percent-encoded letter, `link` with `&Tab;` and `&colon;` in mixed case), a flowchart (`click ... href` with a tab and
+`click` with a percent-encoded letter), and a sequence diagram (`link` with a percent-encoded letter, `links` with an
+escaped white space and a mixed-case scheme), each with a tooltip or target where the statement allows one (a theory
+with one case for each). Asserts that each renders a picture, that no report, hint, title, or accessible title carries
+the link, and that the only links the parsed diagram keeps are `about:blank` (the flowchart keeps none).
+
 ### CanvasNetMermaid-Determinism: Identical Renders
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_RepeatedAndConcurrentRenders_AreIdentical`,

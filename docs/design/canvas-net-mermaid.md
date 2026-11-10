@@ -19,7 +19,7 @@ library and the public API of the core `CanvasNet` package.
 The goal is **fidelity to Mermaid**: a diagram must look like the picture the pinned Mermaid release draws in a
 browser. The package is therefore a port, derived with attribution, of the parts of Mermaid that decide the picture:
 its preprocessing and diagram detection, the jison grammars and databases of the flowchart, the sequence diagram, and
-the class diagram (with the URL check of sanitize-url that the class database applies to links),
+the class diagram (with the URL check of sanitize-url that Mermaid applies to the links a diagram keeps),
 its configuration defaults and precedence, its five themes and the khroma color functions they use, its unified
 renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and graphlib graph that Mermaid bundles,
 and its sequence renderer with the drawing functions of the sequence diagram. Every
@@ -75,8 +75,8 @@ The system consists of one direct unit and nine internal subsystems:
   renderer: the bounds model, the placement of every element, and the view box), and `SequenceRenderer` (Mermaid's
   sequence drawing functions as scene items).
 - **Class** (subsystem; see _Class Design_) - `ClassParser` (the `classDiagram.jison` lexer and grammar) and
-  `ClassModel` (the `classDb` semantics with Mermaid's `ClassMember`, the URL check of sanitize-url, the metadata,
-  the reports, and the mapping to layout data for the shared renderer).
+  `ClassModel` (the `classDb` semantics with Mermaid's `ClassMember`, the links checked by the shared check, the
+  metadata, the reports, and the mapping to layout data for the shared renderer).
 
 The dependency direction is one way:
 
@@ -273,7 +273,7 @@ third-party/README.md`:
 | js-yaml | MIT | `YamlSubsetParser` |
 | lodash | MIT | `Lodash` helpers of `DagreLayout` (sorting, extremes, unique ids) |
 | marked | MIT | the markdown subset of `LabelBuilder` |
-| sanitize-url (a dependency of mermaid) | MIT | the URL check of `ClassModel` (links are kept, never drawn) |
+| sanitize-url (a dependency of mermaid) | MIT | the link check `UrlSanitizer` (class and sequence links, never drawn) |
 
 The license texts ship in the package's `licenses/` folder (and in the tool package, where the d3 notice is renamed
 `Mermaid-LICENSE-d3.txt` because the Vega-Lite package ships a different `LICENSE-d3.txt`). The public API, the scene
@@ -469,7 +469,7 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
   and style sheet, the text utilities of Mermaid, and drop shadows in the scene.
 - **Phase 2a (delivered by this version)**: class diagrams (parser and model) on the shared renderer, with the class
   box, the class markers, the terminal labels, the class configuration and style sheet, underlined text in the scene,
-  and the URL check of sanitize-url.
+  and the URL check of sanitize-url, shared by every diagram type that keeps links.
 - **Phase 2 (planned)**: state and entity-relationship diagrams on the same renderer.
 - **Phase 3 (planned)**: pie, Gantt, and mindmap diagrams (mindmap with a port of Mermaid's force-directed layout).
 Each phase adds only its own subsystems and units and extends the supported list of `DiagramDetector`; the public API,

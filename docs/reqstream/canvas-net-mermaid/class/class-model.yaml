@@ -106,12 +106,13 @@ sections:
               - id: CanvasNetMermaid-Class-ClassModel-Links
                 title: >-
                   The ClassModel unit shall keep the link, target, tooltip, and callback of a class only as data, and
-                  shall check a link as Mermaid's strict security level checks it.
+                  shall keep only the link that Mermaid's strict security level check gives (the shared link check of
+                  the Syntax subsystem), never the link as written.
                 justification: |
                   A static picture has no interaction, but texts written for Mermaid's browser output must still open,
                   and an unsafe link must never be kept as written.
                 tests:
-                  - ClassModel_FormatUrl_Link_IsCheckedLikeMermaid
+                  - ClassModel_SetLink_Link_KeepsOnlyTheCheckedLink
 
               - id: CanvasNetMermaid-Class-ClassModel-Metadata
                 title: >-

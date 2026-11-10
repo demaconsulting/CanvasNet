@@ -1024,6 +1024,9 @@ words:
   - CSSCLASS
   - GENERICTYPE
   - braintree
+  # The link check (the vbscript scheme sanitize-url refuses, IDNA host names of the WHATWG URL parser)
+  - vbscript
+  - IDNA
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

@@ -3902,6 +3902,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Patterns.cs"  # unit source (ScanPatterns)
       - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Tokens.cs"  # unit source (TokenCursor)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Urls.cs"  # unit source (UrlSanitizer)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs"  # unit tests
 
   # CanvasNetMermaid-Syntax-HtmlSanitizer Review (one per unit)

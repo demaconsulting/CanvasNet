@@ -1,4 +1,4 @@
-// Portions derived from mermaid (MIT) and sanitize-url (MIT); see third-party/README.md
+// Portions derived from mermaid (MIT); see third-party/README.md
 using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
@@ -21,7 +21,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///         id that starts with a digit; the link, tooltip and callback data of <c>link</c>, <c>click</c> and
 ///         <c>callback</c> (kept, never drawn); the direction and the accessibility texts. Texts are sanitized where Mermaid
 ///         sanitizes them (<see cref="HtmlSanitizer"/>), and links are checked as Mermaid's <c>strict</c> security level
-///         does.
+///         does (<see cref="UrlSanitizer"/>), so only the checked link is ever kept.
 ///     </para>
 ///     <para>
 ///         <b>Errors and limits.</b> Where Mermaid's database fails with a JavaScript error (an annotation statement for a
@@ -70,9 +70,6 @@ internal sealed partial class ClassModel : IMermaidDiagram
 
     /// <summary>The prefix of the DOM ids of classes and namespaces (Mermaid's <c>MERMAID_DOM_ID_PREFIX</c>).</summary>
     private const string DomIdPrefix = "classId-";
-
-    /// <summary>The link of a URL Mermaid's URL check refuses.</summary>
-    private const string BlankUrl = "about:blank";
 
     /// <summary>The limits of the open call.</summary>
     private readonly MermaidLimits _limits;
@@ -582,8 +579,8 @@ internal sealed partial class ClassModel : IMermaidDiagram
 
     /// <summary>
     ///     Records a link on classes that exist (<c>link</c> and <c>click ... href</c>, Mermaid's <c>setLink</c>) and gives
-    ///     them the <c>clickable</c> CSS class. The link is checked as Mermaid's <c>strict</c> security level does; it is
-    ///     never drawn.
+    ///     them the <c>clickable</c> CSS class. The link is checked as Mermaid's <c>strict</c> security level does
+    ///     (<see cref="UrlSanitizer.FormatUrl(string)"/>) and only the checked link is kept; it is never drawn.
     /// </summary>
     /// <param name="ids">The class names, separated by commas.</param>
     /// <param name="link">The link as written.</param>
@@ -600,7 +597,7 @@ internal sealed partial class ClassModel : IMermaidDiagram
         {
             if (FindClass(PrefixDigitId(id)) is { } node)
             {
-                node.Link = FormatUrl(link);
+                node.Link = UrlSanitizer.FormatUrl(link);
                 node.LinkTarget = target is null ? "_blank" : Sanitize(target);
             }
         }
@@ -848,326 +845,6 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <param name="text">The text.</param>
     /// <returns>The sanitized text.</returns>
     internal static string Sanitize(string text) => text.Length == 0 ? text : HtmlSanitizer.Sanitize(text);
-
-    /// <summary>
-    ///     Checks a link as Mermaid's <c>formatUrl</c> does at the <c>strict</c> security level: trimmed, empty as no link,
-    ///     and otherwise checked by sanitize-url's <c>sanitizeUrl</c>.
-    /// </summary>
-    /// <param name="link">The link as written.</param>
-    /// <returns>The checked link, or null for none.</returns>
-    internal static string? FormatUrl(string link)
-    {
-        var url = Preprocessor.TrimJs(link);
-        return url.Length == 0 ? null : SanitizeUrl(url);
-    }
-
-    /// <summary>
-    ///     Checks a URL as sanitize-url's <c>sanitizeUrl</c> does: decoded (percent escapes, numeric character references,
-    ///     control characters and escaped white space) until stable, kept when relative or without a scheme, refused
-    ///     (<c>about:blank</c>) for the <c>javascript</c>, <c>data</c> and <c>vbscript</c> schemes, with backslashes as
-    ///     slashes otherwise, and normalized for <c>http</c> and <c>https</c>.
-    /// </summary>
-    /// <param name="url">The trimmed URL; not empty.</param>
-    /// <returns>The checked URL.</returns>
-    private static string SanitizeUrl(string url)
-    {
-        // Decode until nothing that hides characters is left
-        var decoded = DecodeUriComponent(Preprocessor.TrimJs(url));
-        string previous;
-        do
-        {
-            previous = decoded;
-            decoded = DecodeNumericReferences(RemoveControlCharacters(decoded));
-            decoded = RemoveControlEntities(decoded);
-            decoded = RemoveControlCharacters(decoded);
-            decoded = RemoveWhitespaceEscapes(decoded);
-            decoded = DecodeUriComponent(Preprocessor.TrimJs(decoded));
-        }
-        while (decoded != previous && NeedsDecoding(decoded));
-
-        if (decoded.Length == 0)
-        {
-            return BlankUrl;
-        }
-
-        if (decoded[0] is '.' or '/')
-        {
-            return decoded;
-        }
-
-        // The scheme: the first line up to its last colon
-        var trimmed = decoded.TrimStart();
-        var lineEnd = trimmed.IndexOfAny(['\n', '\r', '\u2028', '\u2029']);
-        var firstLine = lineEnd < 0 ? trimmed : trimmed[..lineEnd];
-        var colon = Math.Max(firstLine.LastIndexOf(':'), LastColonEntityEnd(firstLine));
-        if (colon <= 0)
-        {
-            return decoded;
-        }
-
-        var scheme = Preprocessor.TrimJs(firstLine[..(colon + 1)].ToLowerInvariant());
-        if (IsInvalidProtocol(scheme))
-        {
-            return BlankUrl;
-        }
-
-        var slashed = trimmed.Replace('\\', '/');
-        if (scheme == "mailto:" || scheme.Contains("://", StringComparison.Ordinal))
-        {
-            return slashed;
-        }
-
-        if (scheme is "http:" or "https:")
-        {
-            return Uri.TryCreate(slashed, UriKind.Absolute, out var uri) ? uri.AbsoluteUri : BlankUrl;
-        }
-
-        return slashed;
-    }
-
-    /// <summary>
-    ///     Gets a value indicating whether a URL still has something sanitize-url decodes again: a control character, a
-    ///     numeric character reference, <c>&amp;newline;</c> or <c>&amp;tab;</c>, or escaped white space.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>Whether it has.</returns>
-    private static bool NeedsDecoding(string text) =>
-        text.Any(IsUrlControl) || text.Contains("&#", StringComparison.Ordinal) ||
-        text.Contains("&newline;", StringComparison.OrdinalIgnoreCase) || text.Contains("&tab;", StringComparison.OrdinalIgnoreCase) ||
-        RemoveWhitespaceEscapes(text) != text;
-
-    /// <summary>
-    ///     Gets the position of the colon of the last <c>&amp;colon;</c> of a text (its last character), or -1.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The position.</returns>
-    private static int LastColonEntityEnd(string text)
-    {
-        var index = text.LastIndexOf("&colon;", StringComparison.OrdinalIgnoreCase);
-        return index < 0 ? -1 : index + "&colon;".Length - 1;
-    }
-
-    /// <summary>
-    ///     Gets a value indicating whether a scheme is refused (<c>/^([^\w]*)(javascript|data|vbscript)/im</c>).
-    /// </summary>
-    /// <param name="scheme">The lower-case scheme.</param>
-    /// <returns>Whether it is.</returns>
-    private static bool IsInvalidProtocol(string scheme)
-    {
-        foreach (var line in scheme.Split('\n'))
-        {
-            var start = 0;
-            while (start < line.Length && !ScanPatterns.IsJsWordChar(line[start]))
-            {
-                start++;
-            }
-
-            var rest = line[start..];
-            if (rest.StartsWith("javascript", StringComparison.Ordinal) || rest.StartsWith("data", StringComparison.Ordinal) ||
-                rest.StartsWith("vbscript", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Gets a value indicating whether a character is a control character for sanitize-url
-    ///     (<c>[\u0000-\u001F\u007F-\u009F\u2000-\u200D\uFEFF]</c>).
-    /// </summary>
-    /// <param name="c">The character.</param>
-    /// <returns>Whether it is.</returns>
-    private static bool IsUrlControl(char c) => c <= '\u001f' || (c >= '\u007f' && c <= '\u009f') || (c >= '\u2000' && c <= '\u200d') || c == '\ufeff';
-
-    /// <summary>
-    ///     Removes sanitize-url's control characters.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The text without them.</returns>
-    private static string RemoveControlCharacters(string text) =>
-        text.Any(IsUrlControl) ? string.Concat(text.Where(c => !IsUrlControl(c))) : text;
-
-    /// <summary>
-    ///     Removes <c>&amp;newline;</c> and <c>&amp;tab;</c>, in any case.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The text without them.</returns>
-    private static string RemoveControlEntities(string text) =>
-        text.Replace("&newline;", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("&tab;", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    ///     Removes escaped white space: a backslash or <c>%5C</c> before <c>n</c>, <c>r</c>, <c>t</c> or their percent
-    ///     escapes (<c>(\\|%5[cC])((%(6[eE]|72|74))|[nrt])</c>).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The text without it.</returns>
-    private static string RemoveWhitespaceEscapes(string text)
-    {
-        var builder = new StringBuilder(text.Length);
-        var i = 0;
-        while (i < text.Length)
-        {
-            var escape = 0;
-            if (text[i] == '\\')
-            {
-                escape = 1;
-            }
-            else if (i + 2 < text.Length && text[i] == '%' && text[i + 1] == '5' && text[i + 2] is 'c' or 'C')
-            {
-                escape = 3;
-            }
-
-            if (escape > 0)
-            {
-                var after = i + escape;
-                var code = after + 2 < text.Length && text[after] == '%' ? text.Substring(after + 1, 2) : null;
-                if (code is "6e" or "6E" or "72" or "74")
-                {
-                    i = after + 3;
-                    continue;
-                }
-
-                if (after < text.Length && text[after] is 'n' or 'r' or 't')
-                {
-                    i = after + 1;
-                    continue;
-                }
-            }
-
-            builder.Append(text[i]);
-            i++;
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>
-    ///     Replaces numeric character references (<c>&amp;#(\w+);?</c>) by the character of their number, as JavaScript's
-    ///     <c>String.fromCharCode</c> reads it (a number that is not one gives U+0000).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The decoded text.</returns>
-    private static string DecodeNumericReferences(string text)
-    {
-        if (!text.Contains("&#", StringComparison.Ordinal))
-        {
-            return text;
-        }
-
-        var builder = new StringBuilder(text.Length);
-        var i = 0;
-        while (i < text.Length)
-        {
-            var end = i + 2;
-            while (text[i] == '&' && end < text.Length && text[i + 1] == '#' && ScanPatterns.IsJsWordChar(text[end]))
-            {
-                end++;
-            }
-
-            if (end > i + 2)
-            {
-                builder.Append((char)ToUint16(text[(i + 2)..end]));
-                i = end < text.Length && text[end] == ';' ? end + 1 : end;
-                continue;
-            }
-
-            builder.Append(text[i]);
-            i++;
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>
-    ///     Converts a word to a UTF-16 code unit as JavaScript's <c>String.fromCharCode</c> does: a decimal, hexadecimal,
-    ///     binary or octal number modulo 65536, and anything else zero.
-    /// </summary>
-    /// <param name="word">The word.</param>
-    /// <returns>The code unit.</returns>
-    private static int ToUint16(string word)
-    {
-        double value;
-        if (word.Length > 2 && word[0] == '0' && word[1] is 'x' or 'X' or 'b' or 'B' or 'o' or 'O')
-        {
-            var radix = (word[1] | 0x20) switch
-            {
-                'x' => 16,
-                'b' => 2,
-                _ => 8,
-            };
-            value = 0;
-            foreach (var c in word[2..])
-            {
-                var digit = char.IsAsciiHexDigit(c) ? Convert.ToInt32(c.ToString(), 16) : radix;
-                if (digit >= radix)
-                {
-                    return 0;
-                }
-
-                value = (value * radix) + digit;
-            }
-        }
-        else if (!double.TryParse(word, NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out value))
-        {
-            return 0;
-        }
-
-        return double.IsFinite(value) ? (int)(Math.Truncate(value) % 65536) : 0;
-    }
-
-    /// <summary>
-    ///     Decodes percent escapes as JavaScript's <c>decodeURIComponent</c> does, keeping the text as it is when an escape
-    ///     is malformed (where sanitize-url catches the error).
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The decoded text.</returns>
-    private static string DecodeUriComponent(string text)
-    {
-        if (!text.Contains('%', StringComparison.Ordinal))
-        {
-            return text;
-        }
-
-        var strict = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-        var builder = new StringBuilder(text.Length);
-        var bytes = new List<byte>();
-        var i = 0;
-        while (i < text.Length)
-        {
-            if (text[i] != '%')
-            {
-                builder.Append(text[i]);
-                i++;
-                continue;
-            }
-
-            // A run of escapes is one UTF-8 sequence or more
-            bytes.Clear();
-            while (i < text.Length && text[i] == '%')
-            {
-                if (i + 2 >= text.Length || !byte.TryParse(text.AsSpan(i + 1, 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var value))
-                {
-                    return text;
-                }
-
-                bytes.Add(value);
-                i += 3;
-            }
-
-            try
-            {
-                builder.Append(strict.GetString([.. bytes]));
-            }
-            catch (DecoderFallbackException)
-            {
-                return text;
-            }
-        }
-
-        return builder.ToString();
-    }
 
     /// <summary>
     ///     Replaces the first occurrence of a text (JavaScript's <c>replace</c> with a string pattern).

@@ -3,13 +3,13 @@
 ![Class Structure](MermaidClassView.svg)
 
 The `ClassModel` unit is the second software unit in the `Class` subsystem. It comprises two source files in the
-`DemaConsulting.CanvasNet.Mermaid.Class` namespace: `ClassModel.cs` (the database operations, the URL check, the
+`DemaConsulting.CanvasNet.Mermaid.Class` namespace: `ClassModel.cs` (the database operations, the
 metadata, the limits, and the element types) and `ClassModel.LayoutData.cs` (the mapping to the layout input of a
 render, the reports of what is not drawn, and the layout of a render). `ClassModel` is an `internal sealed partial`
 class, so the two files are one type, and it implements the system's `IMermaidDiagram`. `ClassModel.cs` also defines
 the sealed classes `ClassNode`, `ClassMember`, `ClassNote`, `ClassNamespace`, and `ClassStyleClass`, and the sealed
 records `ClassRelation`, `ClassRelationInput`, `ClassRelationType`, and `ClassInterface`. Both files carry the
-provenance header comment for the parts of Mermaid and of sanitize-url they port.
+provenance header comment for the parts of Mermaid they port.
 
 #### Purpose
 
@@ -91,11 +91,10 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
   class, and checks each against `MaxLabelLength` as it grows.
 - **Links.** `SetLink` records the checked link and the target (`_blank` when none is given) and `SetClickEvent` the
   callback flag on the classes that exist, and both add the `clickable` CSS class; `SetTooltip` records a sanitized
-  tooltip. `FormatUrl` is Mermaid's `formatUrl` at the strict security level: the trimmed link, no link when it is
-  empty, and otherwise `sanitizeUrl` of sanitize-url, which decodes percent escapes, numeric character references,
-  control characters, and escaped white space until the text is stable, keeps relative URLs and texts without a
-  scheme, refuses the JavaScript, data, and VBScript schemes as `about:blank`, keeps `mailto:` and other `://`
-  schemes with backslashes as slashes, and normalizes `http` and `https` URLs.
+  tooltip. The link kept is the result of `UrlSanitizer.FormatUrl` of the `Syntax` subsystem (Mermaid's `formatUrl`
+  at the strict security level, an exact port of sanitize-url's `sanitizeUrl`): no link when the trimmed link is
+  empty, `about:blank` for a `javascript`, `data`, or `vbscript` link in any encoding, and otherwise the link as
+  sanitize-url writes it. The link as written is never kept.
 - **Texts.** `CleanupLabel` removes the leading colon and the white space of a label and sanitizes it;
   `SetAccessibleTitle` and `SetAccessibleDescription` sanitize the texts as Mermaid's `commonDb.ts` does (the title
   without leading white space, the description without the white space after each line feed). Texts are sanitized
@@ -172,8 +171,8 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
 
 #### Dependencies
 
-- **Syntax subsystem** - `HtmlSanitizer` (Mermaid's `sanitizeText`), `Preprocessor.TrimJs`, and the JavaScript
-  character classes of `ScanPatterns`.
+- **Syntax subsystem** - `HtmlSanitizer` (Mermaid's `sanitizeText`), `UrlSanitizer` (the link check),
+  `Preprocessor.TrimJs`, and the JavaScript character classes of `ScanPatterns`.
 - **Configuration subsystem** - `MermaidConfig` (the look, the layout, the theme variables, the font, and the location
   of keys), `ClassConfig` (the namespace mode, the padding, the spacing, and the title margin), `ClassStyles` (the
   class style sheet), `MermaidFontConfig`, and `ConfigScalar`.
@@ -183,14 +182,12 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
 - **Scenegraph subsystem** - `Scene`, the result of a layout.
 - **System** - `IMermaidDiagram`, `DiagramRenderContext`, `MermaidLimits`, `MermaidLocation`, `MermaidReportSink`,
   `MermaidSyntaxException`, and `MermaidDiagnosticCodes`.
-- **.NET base class library** - `System.Uri` (the normalization of `http` and `https` links) and `UTF8Encoding` (the
-  strict decoding of percent escapes).
 
 #### Callers
 
 - **ClassParser** - creates the model and calls its database operations as the grammar's actions run.
 - The document pipeline of the system - reads the metadata and calls `Layout` for every measure and render.
-- The unit and subsystem tests call the database operations, `ParseGenericTypes`, `FormatUrl`, `GetData`, and
+- The unit and subsystem tests call the database operations, `ParseGenericTypes`, `GetData`, and
   `ReportUnsupported` directly, and the vector tests compare the facts and the layout data with Mermaid's.
 
 #### Known Differences From Mermaid
@@ -206,9 +203,8 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
 - **Interaction.** The link, target, tooltip, and callback of a class are kept only as data; they are never drawn, no
   function is ever bound, and the `clickable` CSS class changes no paint.
 - **Security level.** Links are always checked as Mermaid's strict security level checks them, the only level
-  modeled; the `loose` level (links kept as written) and the `sandbox` level are not. The port of `sanitizeUrl`
-  normalizes `http` and `https` URLs with `System.Uri` in place of the WHATWG `URL`, and looks for the scheme on the
-  first line only.
+  modeled; the `loose` level (links kept as written) and the `sandbox` level (the `_top` target) are not. The
+  differences of the shared link check itself are listed in the SourceScanner unit design.
 - **Accessibility.** `accTitle` and `accDescr` are metadata only; a rendered picture has no SVG title or description.
 - **Report locations.** The style warnings of a class are located at the class's first mention, not at the `style` or
   `classDef` statement, because the layout data carries no style locations.

@@ -1,3 +1,4 @@
+// cspell:ignore avascript Aavascript dfavascript javascrip msgbox
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Syntax;
@@ -128,6 +129,32 @@ public class SyntaxTests
         // Assert
         Assert.Equal("<a href='javascript:alert(1)' onclick='steal()'>go</a><script>bad()</script> caf&eacute; <b>ok</b>", label);
         Assert.Equal("<a>go</a> caf\u00e9 <b>ok</b>", cleaned);
+    }
+
+    /// <summary>
+    ///     Validates that the links of a text, prepared as Mermaid prepares it, are checked as Mermaid checks them: a
+    ///     numeric reference stays in Mermaid's entity encoding (so it never decodes to a scheme), every other encoded
+    ///     form of an unsafe scheme is refused, and a safe link is written as sanitize-url writes it.
+    /// </summary>
+    [Fact]
+    public void Syntax_PrepareAndCheckLinks_EncodedUnsafeLinks_AreRefused()
+    {
+        // Arrange: class links with a numeric reference, a tab, a percent escape, named references, and a safe link
+        const string Text = "classDiagram\nlink A \"&#106;avascript:alert(1)\"\nlink A \"java\tscript:alert(1)\"\n" +
+            "link A \"%6Aavascript:alert(1)\"\nlink A \"java&Tab;script&colon;alert(1)\"\nlink A \"HTTPS://Example.COM/a/./b\"\n";
+        var source = Preprocessor.Run(Text, null, MermaidLimits.Default);
+        var links = source.ParserText.Text.Split('\n')
+            .Where(line => line.StartsWith("link A \"", StringComparison.Ordinal))
+            .Select(line => line["link A \"".Length..^1])
+            .ToList();
+
+        // Act
+        var checkedLinks = links.Select(UrlSanitizer.FormatUrl).ToList();
+
+        // Assert
+        Assert.Equal(
+            ["&\ufb02\u00b0\u00b0106\u00b6\u00dfavascript:alert(1)", "about:blank", "about:blank", "about:blank", "https://example.com/a/b"],
+            checkedLinks);
     }
 
     /// <summary>
