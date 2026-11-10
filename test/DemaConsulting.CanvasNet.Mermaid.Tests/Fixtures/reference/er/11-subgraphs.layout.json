@@ -1,0 +1,331 @@
+{
+  "source": "11-subgraphs.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 947.176, 1055],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-LOG-6",
+      "shape": "erBox",
+      "x": 110.5,
+      "y": 170,
+      "box": [60.5, 128, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [60.5, 128, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [93.602, 158, 33.797, 24], "text": "LOG" }
+      ]
+    },
+    {
+      "id": "entity-ENTRY-7",
+      "shape": "erBox",
+      "x": 352.859,
+      "y": 170,
+      "box": [302.859, 128, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [302.859, 128, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [325.891, 158, 53.938, 24], "text": "ENTRY" }
+      ]
+    },
+    {
+      "id": "entity-CUSTOMER-0",
+      "shape": "erBox",
+      "x": 702.949,
+      "y": 170,
+      "box": [637.316, 128, 131.266, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [637.316, 128, 131.266, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [657.316, 158, 91.266, 24], "text": "CUSTOMER" }
+      ]
+    },
+    {
+      "id": "entity-ORDER-1",
+      "shape": "erBox",
+      "x": 702.949,
+      "y": 475,
+      "box": [652.949, 433, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [652.949, 433, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [674.059, 463, 57.781, 24], "text": "ORDER" }
+      ]
+    },
+    {
+      "id": "entity-INVOICE-2",
+      "shape": "erBox",
+      "x": 781.691,
+      "y": 700,
+      "box": [728.793, 658, 105.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [728.793, 658, 105.797, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [748.793, 688, 65.797, 24], "text": "INVOICE" }
+      ]
+    },
+    {
+      "id": "entity-PAYMENT-3",
+      "shape": "erBox",
+      "x": 781.691,
+      "y": 925,
+      "box": [724.207, 883, 114.969, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [724.207, 883, 114.969, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [744.207, 913, 74.969, 24], "text": "PAYMENT" }
+      ]
+    },
+    {
+      "id": "entity-PRODUCT-4",
+      "shape": "erBox",
+      "x": 363.203,
+      "y": 700,
+      "box": [303.648, 658, 119.109, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [303.648, 658, 119.109, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [323.648, 688, 79.109, 24], "text": "PRODUCT" }
+      ]
+    },
+    {
+      "id": "entity-WAREHOUSE-5",
+      "shape": "erBox",
+      "x": 363.203,
+      "y": 475,
+      "box": [291.047, 433, 144.313, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [291.047, 433, 144.313, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [311.047, 463, 104.313, 24], "text": "WAREHOUSE" }
+      ]
+    }
+  ],
+  "clusters": [
+    {
+      "id": "Stock",
+      "shape": "rect",
+      "box": [211.047, 393, 304.313, 389],
+      "class": "cluster",
+      "inner": null,
+      "label": { "text": "Stock", "box": [343.195, 393, 40.016, 24] }
+    },
+    {
+      "id": "Sales",
+      "shape": "rect",
+      "box": [535.359, 8, 403.816, 1039],
+      "class": "cluster",
+      "inner": null,
+      "label": { "text": "Sales area", "box": [699.018, 8, 76.5, 24] }
+    },
+    {
+      "id": "Billing",
+      "shape": "rect",
+      "box": [644.207, 618, 274.969, 389],
+      "class": "cluster",
+      "inner": null,
+      "label": { "text": "Billing", "box": [760.348, 618, 42.688, 24] }
+    },
+    {
+      "id": "Audit",
+      "shape": "rect",
+      "box": [8, 48, 447.359, 244],
+      "class": "cluster",
+      "inner": null,
+      "label": { "text": "Audit", "box": [213.445, 48, 36.469, 24] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 221,
+      "points": [
+        [702.949, 212],
+        [702.949, 223.05],
+        [702.949, 234.1],
+        [702.949, 245.15],
+        [702.949, 256.2],
+        [702.949, 267.25],
+        [702.949, 278.3],
+        [702.949, 289.35],
+        [702.949, 300.4],
+        [702.949, 311.45],
+        [702.949, 322.5],
+        [702.949, 333.55],
+        [702.949, 344.6],
+        [702.949, 355.65],
+        [702.949, 366.7],
+        [702.949, 377.75],
+        [702.949, 388.8],
+        [702.949, 399.85],
+        [702.949, 410.9],
+        [702.949, 421.95],
+        [702.949, 433]
+      ]
+    },
+    {
+      "id": "id_entity-INVOICE-2_entity-PAYMENT-3_1",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 141,
+      "points": [
+        [781.691, 742],
+        [781.691, 749.05],
+        [781.691, 756.1],
+        [781.691, 763.15],
+        [781.691, 770.2],
+        [781.691, 777.25],
+        [781.691, 784.3],
+        [781.691, 791.35],
+        [781.691, 798.4],
+        [781.691, 805.45],
+        [781.691, 812.5],
+        [781.691, 819.55],
+        [781.691, 826.6],
+        [781.691, 833.65],
+        [781.691, 840.7],
+        [781.691, 847.75],
+        [781.691, 854.8],
+        [781.691, 861.85],
+        [781.691, 868.9],
+        [781.691, 875.95],
+        [781.691, 883]
+      ]
+    },
+    {
+      "id": "id_entity-WAREHOUSE-5_entity-PRODUCT-4_2",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 141,
+      "points": [
+        [363.203, 517],
+        [363.203, 524.05],
+        [363.203, 531.1],
+        [363.203, 538.15],
+        [363.203, 545.2],
+        [363.203, 552.25],
+        [363.203, 559.3],
+        [363.203, 566.35],
+        [363.203, 573.4],
+        [363.203, 580.45],
+        [363.203, 587.5],
+        [363.203, 594.55],
+        [363.203, 601.6],
+        [363.203, 608.65],
+        [363.203, 615.7],
+        [363.203, 622.75],
+        [363.203, 629.8],
+        [363.203, 636.85],
+        [363.203, 643.9],
+        [363.203, 650.95],
+        [363.203, 658]
+      ]
+    },
+    {
+      "id": "id_entity-ORDER-1_entity-INVOICE-2_4",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-onlyOneEnd",
+      "length": 153.557,
+      "points": [
+        [738.702, 517],
+        [743.679, 522.846],
+        [748.649, 528.699],
+        [753.531, 534.624],
+        [758.251, 540.679],
+        [762.756, 546.896],
+        [766.986, 553.302],
+        [770.856, 559.932],
+        [774.235, 566.824],
+        [776.954, 574.001],
+        [778.973, 581.406],
+        [780.347, 588.957],
+        [781.171, 596.589],
+        [781.568, 604.256],
+        [781.685, 611.933],
+        [781.691, 619.611],
+        [781.691, 627.289],
+        [781.691, 634.966],
+        [781.691, 642.644],
+        [781.691, 650.322],
+        [781.691, 658]
+      ]
+    },
+    {
+      "id": "id_entity-ORDER-1_entity-PRODUCT-4_5",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrMoreStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 309.821,
+      "points": [
+        [667.196, 517],
+        [657.162, 528.802],
+        [647.485, 540.896],
+        [638.698, 553.648],
+        [631.449, 567.321],
+        [626.083, 581.851],
+        [619.226, 595.701],
+        [609.026, 607.304],
+        [596.62, 616.552],
+        [583.12, 624.137],
+        [569.107, 630.738],
+        [554.835, 636.759],
+        [540.405, 642.392],
+        [525.867, 647.741],
+        [511.249, 652.87],
+        [496.572, 657.824],
+        [481.849, 662.642],
+        [467.092, 667.351],
+        [452.316, 672.003],
+        [437.537, 676.647],
+        [422.758, 681.29]
+      ]
+    },
+    {
+      "id": "id_entity-LOG-6_entity-ENTRY-7_3",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 142.359,
+      "points": [
+        [160.5, 170],
+        [167.618, 170],
+        [174.736, 170],
+        [181.854, 170],
+        [188.972, 170],
+        [196.09, 170],
+        [203.208, 170],
+        [210.326, 170],
+        [217.444, 170],
+        [224.562, 170],
+        [231.68, 170],
+        [238.797, 170],
+        [245.915, 170],
+        [253.033, 170],
+        [260.151, 170],
+        [267.269, 170],
+        [274.387, 170],
+        [281.505, 170],
+        [288.623, 170],
+        [295.741, 170],
+        [302.859, 170]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0", "box": [682.715, 332, 40.469, 21] },
+    { "id": "id_entity-INVOICE-2_entity-PAYMENT-3_1", "box": [761.457, 822, 40.469, 21] },
+    { "id": "id_entity-WAREHOUSE-5_entity-PRODUCT-4_2", "box": [346.469, 557, 33.469, 21] },
+    { "id": "id_entity-ORDER-1_entity-INVOICE-2_4", "box": [765.34, 557, 32.703, 21] },
+    { "id": "id_entity-ORDER-1_entity-PRODUCT-4_5", "box": [612.145, 557, 24.125, 21] },
+    { "id": "id_entity-LOG-6_entity-ENTRY-7_3", "box": [213, 159.5, 37.359, 21] }
+  ],
+  "terminals": []
+}

@@ -139,3 +139,48 @@ sections:
                   - ClassStyles_Create_DefaultTheme_ResolvesClassRules
                   - ClassStyles_Create_DefaultTheme_ResolvesNoteLabelsAndLabelBackgrounds
                   - ClassStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-StateStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a state diagram - the same
+                  global rules as for a flowchart and the state rules - from the theme variables of a configuration,
+                  apply the themeCSS rules of the state diagram's own selectors after them and report every other
+                  themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the states,
+                  the corner radii, the composite state and region fills at each depth, the labels of states,
+                  transitions, notes, and composite state titles (an HTML title and an SVG title in their own colors),
+                  the barb marker in the transition color, the dashed links of notes, and the title.
+                justification: |
+                  Mermaid paints a state diagram through these rules, several of them by selectors that only state
+                  elements carry; resolving them the same way gives the same paint.
+                tests:
+                  - StateStyles_Create_DefaultTheme_ResolvesStateRules
+                  - StateStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ErStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for an entity relationship
+                  diagram - the same global rules as for a flowchart and the ER rules - from the theme variables of a
+                  configuration, apply the themeCSS rules of the diagram's own selectors after them and report every
+                  other themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the
+                  entities, the node and edge labels and the visible background of an HTML edge label, the subgraph
+                  titles (an HTML title in the page's color and an SVG title in the title color), the marker paint
+                  whose important fill a themeCSS rule cannot replace, the dashed lines, and the title in the root
+                  font.
+                justification: |
+                  Mermaid paints an entity relationship diagram through these rules; resolving them the same way,
+                  important declarations included, gives the same paint.
+                tests:
+                  - ErStyles_Create_DefaultTheme_ResolvesErRules
+                  - ErStyles_Create_ThemeCss_KeepsTheImportantMarkerFill
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
+                title: >-
+                  The ThemeResolver unit shall give the rendering, for every diagram drawn by the unified renderer,
+                  whether its style sheet centers the SVG text of a node's label on its anchor (the flowchart and class
+                  sheets do; the state and entity relationship sheets do not) and the root font and text color that a
+                  text inherits where no rule of its own applies.
+                justification: |
+                  The shared shapes and edges place SVG text and measure labels from these facts, which differ between
+                  Mermaid's style sheets.
+                tests:
+                  - UnifiedStyles_Create_EachSheet_CentersSvgNodeTextAndGivesTheRootText

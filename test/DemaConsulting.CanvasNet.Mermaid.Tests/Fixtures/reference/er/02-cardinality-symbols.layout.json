@@ -1,0 +1,360 @@
+{
+  "source": "02-cardinality-symbols.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 673.777, 655],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-Alpha-0",
+      "shape": "erBox",
+      "x": 495.777,
+      "y": 50,
+      "box": [445.777, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [445.777, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [475.316, 38, 40.922, 24], "text": "Alpha" }
+      ]
+    },
+    {
+      "id": "entity-Beta-1",
+      "shape": "erBox",
+      "x": 375.777,
+      "y": 235,
+      "box": [325.777, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [325.777, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [359.316, 223, 32.922, 24], "text": "Beta" }
+      ]
+    },
+    {
+      "id": "entity-Gamma-2",
+      "shape": "erBox",
+      "x": 615.777,
+      "y": 235,
+      "box": [565.777, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [565.777, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [587.324, 223, 56.906, 24], "text": "Gamma" }
+      ]
+    },
+    {
+      "id": "entity-Delta-3",
+      "shape": "erBox",
+      "x": 615.777,
+      "y": 420,
+      "box": [565.777, 378, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [565.777, 378, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [597.098, 408, 37.359, 24], "text": "Delta" }
+      ]
+    },
+    {
+      "id": "entity-Epsilon-4",
+      "shape": "erBox",
+      "x": 99.129,
+      "y": 235,
+      "box": [49.129, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [49.129, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [72.887, 223, 52.484, 24], "text": "Epsilon" }
+      ]
+    },
+    {
+      "id": "entity-Zeta-5",
+      "shape": "erBox",
+      "x": 339.129,
+      "y": 420,
+      "box": [289.129, 378, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [289.129, 378, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [323.121, 408, 32.016, 24], "text": "Zeta" }
+      ]
+    },
+    {
+      "id": "entity-Eta-6",
+      "shape": "erBox",
+      "x": 58,
+      "y": 420,
+      "box": [8, 378, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [8, 378, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [45.992, 408, 24.016, 24], "text": "Eta" }
+      ]
+    },
+    {
+      "id": "entity-Theta-7",
+      "shape": "erBox",
+      "x": 339.129,
+      "y": 605,
+      "box": [289.129, 563, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [289.129, 563, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [318.668, 593, 40.922, 24], "text": "Theta" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_entity-Alpha-0_entity-Beta-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrOneStart",
+      "markerEnd": "er-zeroOrOneEnd",
+      "length": 132.765,
+      "points": [
+        [445.777, 88.542],
+        [440.52, 92.595],
+        [435.262, 96.648],
+        [430.01, 100.707],
+        [424.793, 104.812],
+        [419.636, 108.992],
+        [414.558, 113.267],
+        [409.575, 117.652],
+        [404.71, 122.168],
+        [399.994, 126.84],
+        [395.47, 131.697],
+        [391.202, 136.78],
+        [387.296, 142.145],
+        [383.893, 147.842],
+        [381.065, 153.844],
+        [378.847, 160.098],
+        [377.253, 166.54],
+        [376.265, 173.102],
+        [375.831, 179.724],
+        [375.777, 186.362],
+        [375.777, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Gamma-2_entity-Delta-3_1",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-onlyOneEnd",
+      "length": 101,
+      "points": [
+        [615.777, 277],
+        [615.777, 282.05],
+        [615.777, 287.1],
+        [615.777, 292.15],
+        [615.777, 297.2],
+        [615.777, 302.25],
+        [615.777, 307.3],
+        [615.777, 312.35],
+        [615.777, 317.4],
+        [615.777, 322.45],
+        [615.777, 327.5],
+        [615.777, 332.55],
+        [615.777, 337.6],
+        [615.777, 342.65],
+        [615.777, 347.7],
+        [615.777, 352.75],
+        [615.777, 357.8],
+        [615.777, 362.85],
+        [615.777, 367.9],
+        [615.777, 372.95],
+        [615.777, 378]
+      ]
+    },
+    {
+      "id": "id_entity-Epsilon-4_entity-Zeta-5_2",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrMoreStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 176.765,
+      "points": [
+        [149.129, 273.542],
+        [156.129, 278.938],
+        [163.129, 284.333],
+        [170.129, 289.729],
+        [177.129, 295.125],
+        [184.129, 300.521],
+        [191.129, 305.917],
+        [198.129, 311.313],
+        [205.129, 316.708],
+        [212.129, 322.104],
+        [219.129, 327.5],
+        [226.129, 332.896],
+        [233.129, 338.292],
+        [240.129, 343.687],
+        [247.129, 349.083],
+        [254.129, 354.479],
+        [261.129, 359.875],
+        [268.129, 365.271],
+        [275.129, 370.667],
+        [282.129, 376.062],
+        [289.129, 381.458]
+      ]
+    },
+    {
+      "id": "id_entity-Eta-6_entity-Theta-7_3",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-oneOrMoreStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 277.741,
+      "points": [
+        [58, 462],
+        [58.239, 475.878],
+        [62.833, 488.864],
+        [71.698, 499.5],
+        [82.524, 508.177],
+        [94.303, 515.524],
+        [106.606, 521.961],
+        [119.191, 527.828],
+        [131.944, 533.324],
+        [144.809, 538.553],
+        [157.755, 543.579],
+        [170.762, 548.444],
+        [183.817, 553.177],
+        [196.912, 557.799],
+        [210.04, 562.33],
+        [223.193, 566.783],
+        [236.367, 571.175],
+        [249.555, 575.528],
+        [262.746, 579.868],
+        [275.938, 584.208],
+        [289.129, 588.548]
+      ]
+    },
+    {
+      "id": "id_entity-Alpha-0_entity-Gamma-2_4",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 132.765,
+      "points": [
+        [545.777, 88.542],
+        [551.035, 92.595],
+        [556.292, 96.647],
+        [561.545, 100.707],
+        [566.761, 104.812],
+        [571.918, 108.992],
+        [576.997, 113.266],
+        [581.98, 117.652],
+        [586.844, 122.168],
+        [591.561, 126.839],
+        [596.085, 131.696],
+        [600.352, 136.78],
+        [604.258, 142.145],
+        [607.662, 147.842],
+        [610.49, 153.844],
+        [612.707, 160.098],
+        [614.302, 166.539],
+        [615.289, 173.102],
+        [615.723, 179.724],
+        [615.777, 186.362],
+        [615.777, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Epsilon-4_entity-Eta-6_5",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-oneOrMoreStart",
+      "markerEnd": "er-zeroOrOneEnd",
+      "length": 104.708,
+      "points": [
+        [80.454, 277],
+        [78.327, 281.784],
+        [76.201, 286.568],
+        [74.098, 291.362],
+        [72.058, 296.184],
+        [70.102, 301.04],
+        [68.242, 305.934],
+        [66.493, 310.868],
+        [64.871, 315.846],
+        [63.398, 320.87],
+        [62.099, 325.941],
+        [61.004, 331.06],
+        [60.113, 336.219],
+        [59.403, 341.406],
+        [58.857, 346.612],
+        [58.459, 351.832],
+        [58.195, 357.061],
+        [58.05, 362.294],
+        [58.002, 367.529],
+        [58, 372.765],
+        [58, 378]
+      ]
+    },
+    {
+      "id": "id_entity-Beta-1_entity-Zeta-5_6",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrOneStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 103.964,
+      "points": [
+        [375.777, 277],
+        [375.777, 282.198],
+        [375.775, 287.396],
+        [375.734, 292.594],
+        [375.608, 297.791],
+        [375.378, 302.984],
+        [375.031, 308.171],
+        [374.553, 313.347],
+        [373.932, 318.507],
+        [373.15, 323.646],
+        [372.188, 328.754],
+        [371.042, 333.824],
+        [369.737, 338.856],
+        [368.295, 343.85],
+        [366.736, 348.809],
+        [365.073, 353.734],
+        [363.32, 358.627],
+        [361.489, 363.492],
+        [359.598, 368.334],
+        [357.684, 373.167],
+        [355.769, 378]
+      ]
+    },
+    {
+      "id": "id_entity-Delta-3_entity-Theta-7_7",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrMoreStart",
+      "markerEnd": "er-onlyOneEnd",
+      "length": 273.604,
+      "points": [
+        [615.777, 462],
+        [615.565, 475.673],
+        [611.229, 488.535],
+        [602.678, 499.162],
+        [592.136, 507.859],
+        [580.617, 515.23],
+        [568.557, 521.684],
+        [556.205, 527.561],
+        [543.681, 533.064],
+        [531.041, 538.296],
+        [518.319, 543.325],
+        [505.533, 548.19],
+        [492.698, 552.923],
+        [479.822, 557.546],
+        [466.914, 562.075],
+        [453.978, 566.527],
+        [441.022, 570.918],
+        [428.052, 575.268],
+        [415.077, 579.606],
+        [402.103, 583.944],
+        [389.129, 588.282]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_entity-Alpha-0_entity-Beta-1_0", "box": [340.363, 132, 70.828, 21] },
+    { "id": "id_entity-Gamma-2_entity-Delta-3_1", "box": [589.309, 317, 52.938, 21] },
+    { "id": "id_entity-Epsilon-4_entity-Zeta-5_2", "box": [179.449, 317, 79.359, 21] },
+    { "id": "id_entity-Eta-6_entity-Theta-7_3", "box": [20.258, 502, 75.484, 21] },
+    { "id": "id_entity-Alpha-0_entity-Gamma-2_4", "box": [604.496, 132, 22.563, 21] },
+    { "id": "id_entity-Epsilon-4_entity-Eta-6_5", "box": [35.422, 317, 45.156, 21] },
+    { "id": "id_entity-Beta-1_entity-Zeta-5_6", "box": [362.16, 317, 27.234, 21] },
+    { "id": "id_entity-Delta-3_entity-Theta-7_7", "box": [597.871, 502, 35.813, 21] }
+  ],
+  "terminals": []
+}

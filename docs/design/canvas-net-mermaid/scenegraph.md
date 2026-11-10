@@ -49,9 +49,11 @@ of the system's public API; and the core `CanvasNet` public API: `Surface` and `
 (`Geometry`), `FontResolver`, `FontResolverOptions`, and `TrueTypeFont` (`Fonts`), and `TextRenderer` (`Rendering`).
 
 **Consumers**: the units of the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
-`ClusterLayout`) build the items of a scene, and `ClusterLayout.RenderDiagram` builds the whole scene of a flowchart or
-a class diagram, which the `FlowchartModel` unit of the `Flowchart` subsystem and the `ClassModel` unit of the `Class`
-subsystem return (the class box marks the runs of a static member `Underline`); the `SequenceLayout` and
+`ClusterLayout`) build the items of a scene, and `ClusterLayout.RenderDiagram` builds the whole scene of a flowchart, a
+class diagram, a state diagram, or an entity relationship diagram, which the `FlowchartModel` unit of the `Flowchart`
+subsystem, the `ClassModel` unit of the `Class` subsystem, the `StateModel` unit of the `State` subsystem, and the
+`ErModel` unit of the `Er` subsystem return (the class box marks the runs of a static member `Underline`, and a note
+group of a state diagram is an unpainted path that only gives the cluster its box); the `SequenceLayout` and
 `SequenceRenderer` units of the `Sequence` subsystem build the items of a scene;
 `NodeImages` of the `Rendering` subsystem implements `ISceneImageLoader` and is carried by the scene; and the
 `MermaidDocument` unit creates the font resolver of a call with `ScenePainter.CreateFontResolver`, lays the diagram

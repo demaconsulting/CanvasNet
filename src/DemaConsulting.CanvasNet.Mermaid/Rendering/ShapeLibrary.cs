@@ -183,7 +183,10 @@ internal static partial class ShapeLibrary
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(context);
-        var handler = node.Shape is "ellipse" or "classBox" ? node.Shape : ShapeNames.HandlerOf(node.Shape);
+
+        // insertNode draws a rect with both radii set (a state's) as a roundedRect
+        var name = node.Shape == "rect" && IsTruthy(node.Rx) && IsTruthy(node.Ry) ? "roundedRect" : node.Shape;
+        var handler = name is "ellipse" or "classBox" ? name : ShapeNames.HandlerOf(name);
         var input = new ShapeInput(node, context, handler ?? node.Shape);
         return handler switch
         {
@@ -191,6 +194,7 @@ internal static partial class ShapeLibrary
             "roundedRect" => RoundedRect(input),
             "state" => State(input),
             "composite" => Composite(input),
+            "rectWithTitle" => RectWithTitle(input),
             "text" => Text(input),
             "datastore" => Datastore(input),
             "stadium" => Stadium(input),
@@ -207,6 +211,7 @@ internal static partial class ShapeLibrary
             "rect_left_inv_arrow" => RectLeftInvArrow(input),
             "ellipse" => Ellipse(input),
             "classBox" => ClassBox(input),
+            "erBox" => ErBox(input),
             "choice" => Choice(input),
             "note" => Note(input),
             "anchor" => Anchor(input),
@@ -343,6 +348,13 @@ internal static partial class ShapeLibrary
         or "text-shadow" or "text-overflow" or "white-space" or "word-wrap" or "word-break" or "overflow-wrap" or "hyphens";
 
     /// <summary>
+    ///     Gets whether an optional number is truthy in JavaScript (set, not zero and not NaN).
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns>Whether it is truthy.</returns>
+    private static bool IsTruthy(double? value) => value is { } number && number != 0 && !double.IsNaN(number);
+
+    /// <summary>
     ///     A node being drawn: the node, the settings, its styles and its label measurement.
     /// </summary>
     private sealed class ShapeInput
@@ -423,6 +435,7 @@ internal static partial class ShapeLibrary
                 MarkdownAutoWrap = Context.Config.MarkdownAutoWrap,
                 RootFontSize = css.FontSize,
                 ConfigFontSize = Context.Config.FontSize,
+                CenterSvgText = Context.Styles.CentersNodeSvgText,
                 Location = Node.Location,
             };
             return Context.MeasureLabel(request);

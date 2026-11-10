@@ -653,8 +653,9 @@ public class MermaidHardeningTests
 
     /// <summary>
     ///     Gets diagrams of every type that has links (class <c>link</c> and <c>click ... href</c>, flowchart <c>click</c>
-    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>), each with encoded forms of unsafe links that a partial
-    ///     check lets through: a tab inside the scheme, a percent-encoded letter, an escaped white space, and mixed case.
+    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>, state <c>click</c> and <c>click ... href</c>), each with
+    ///     encoded forms of unsafe links that a partial check lets through: a tab inside the scheme, a percent-encoded
+    ///     letter, an escaped white space, a character reference, and mixed case.
     /// </summary>
     public static TheoryData<string> UnsafeLinkDiagrams =>
     [
@@ -662,6 +663,8 @@ public class MermaidHardeningTests
         "link C \"JaVa&Tab;ScRiPt&colon;alert(3)\"\n",
         "flowchart TD\nA --> B\nclick A href \"java\tscript:alert(1)\" \"tip\" _blank\nclick B \"%6Aavascript:alert(2)\"\n",
         "sequenceDiagram\nparticipant A\nlink A: Docs @ %6Aavascript:alert(1)\nlinks A: {\"Run\": \"javascrip\\\\%74t:alert(2)\", \"Go\": \"JaVaScRiPt:alert(3)\"}\nA->>A: hi\n",
+        "stateDiagram-v2\nA --> B\nB --> C\nC --> D\nclick A \"java\tscript:alert(1)\" \"tip\"\nclick B href \"%6Aavascript:alert(2)\"\n" +
+        "click C href \"JaVa&Tab;ScRiPt&colon;alert(3)\"\nclick D \"&#106;avascript:alert(4)\" \"tip\"\n",
     ];
 
     /// <summary>
@@ -694,8 +697,9 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
-    ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram and the link texts of the
-    ///     participants of a sequence diagram (a flowchart keeps none).
+    ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram, the link texts of the
+    ///     participants of a sequence diagram, and the URLs of the links and click statements of a state diagram (a
+    ///     flowchart keeps none).
     /// </summary>
     /// <param name="document">The document.</param>
     /// <returns>The kept links.</returns>
@@ -703,6 +707,8 @@ public class MermaidHardeningTests
     {
         global::DemaConsulting.CanvasNet.Mermaid.Class.ClassModel model => [.. model.Classes.Where(c => c.Link is not null).Select(c => c.Link)],
         global::DemaConsulting.CanvasNet.Mermaid.Sequence.SequenceModel model => [.. model.Actors.SelectMany(a => a.Links.Keys.Select(key => a.Links.TryGetValue(key, out var value) ? (string?)value : null))],
+        global::DemaConsulting.CanvasNet.Mermaid.State.StateModel model =>
+            [.. model.Links.Select(l => l.Url), .. model.RootDocument.Where(s => s.Stmt == "click").Select(s => s.Url)],
         _ => [],
     };
 
@@ -981,6 +987,514 @@ public class MermaidHardeningTests
         // Assert
         Assert.Empty(unexpected);
     }
+
+    /// <summary>
+    ///     Validates that every state fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile state diagrams through the public API, fitted to 400 by 300 pixels: huge spacings and font
+    ///     sizes, huge dashes, self-loops on states and composite states, notes on composite states, markup in nested
+    ///     notes, composite states inside each other, and a note on a state that appears nowhere else each render, or end
+    ///     in a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  state:\n    nodeSpacing: 1e300\n    rankSpacing: 1e300\n---\nstateDiagram-v2\nA --> B\nA --> C\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e300}}}%%\nstateDiagram-v2\nA --> B : go\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nstateDiagram-v2\nA --> B : go\nB : one\nB : two\n")]
+    [InlineData("stateDiagram-v2\nA\nstyle A stroke:#f00,stroke-dasharray:1e300\n")]
+    [InlineData("stateDiagram-v2\nA --> A : self\nstate C {\n  x\n}\nC --> C\n")]
+    [InlineData("stateDiagram-v2\nstate C {\n  a --> b\n  note right of a : <b>x</b><script>y</script><img src='x'>\n}\nnote left of C : outer\n")]
+    [InlineData("stateDiagram-v2\nstate A {\n  B\n}\nstate B {\n  A\n}\n")]
+    [InlineData("stateDiagram-v2\nnote left of Ghost : boo\n")]
+    [InlineData("stateDiagram-v2\nstate F <<fork>>\nstate J <<join>>\nstate C <<choice>>\nF --> J\nJ --> C\nC --> F\n")]
+    public void CanvasNetMermaid_Hardening_HostileStateDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("state", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that notes and their groups count against <see cref="MermaidLimits.MaxNodes"/>: 700 states with a
+    ///     note each are 2,100 nodes, which fail at open at the note that makes the 2,001st, located at its line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateManyNotes_IsALocatedNodeLimit()
+    {
+        // Arrange
+        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, 700).Select(i => $"s{i}\nnote left of s{i} : n\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(1_335, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that concurrent regions count as nesting levels: 16 composite states that each hold the next in a
+    ///     region are 32 levels and render, and 17 fail at open at the composite state of the 33rd level, though the
+    ///     grammar allows 17 nested composite states.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateNestedRegions_IsALocatedNestingLimit()
+    {
+        // Arrange
+        var accepted = MermaidDocument.Parse(NestedRegions(16));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(NestedRegions(17)));
+
+        // Assert
+        Assert.Equal(16, accepted.SubgraphCount);
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(18, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that composite states nested through names (composite state <c>Si</c> names <c>S(i+1)</c>, declared
+    ///     again at the top with its own state, keeping the parent it was first given) count against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>, though the text nests them one level deep: a chain of 32 renders,
+    ///     and chains of 40 and 1,700 fail when laid out, located at the state of the 33rd level.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateNestedThroughNames_IsALocatedNestingLimit()
+    {
+        // Arrange: state Si { S(i+1) } on lines 2 + 3i to 4 + 3i
+        static string Chain(int count) =>
+            "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"state S{i} {{\nS{i + 1}\n}}\n"));
+        var accepted = MermaidDocument.Parse(Chain(32));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exceptions = new[] { 40, 1_700 }
+            .Select(count => Assert.Throws<MermaidRenderException>(() => MermaidDocument.Parse(Chain(count)).Measure(Tenth, TestContext.Current.CancellationToken)))
+            .ToList();
+
+        // Assert: S33, declared on line 101, is the first state inside 33 composite states
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.All(exceptions, exception =>
+        {
+            Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+            Assert.Equal(101, exception.Location.Line);
+            Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Gets state and ER diagrams that repeat CSS classes or styles on one state, entity or style class, as Mermaid
+    ///     does for an id listed or a class defined again, until a joined text passes
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>, each with the line of the statement that makes it too long and the
+    ///     length it reaches there.
+    /// </summary>
+    public static TheoryData<string, int, int> StateAndErRepeatedClassesAndStyles => new()
+    {
+        // The review's state shape: four definitions of 1,000 styles of one class, two class statements listing the
+        // state 2,000 times, and 300 mentions; the styles of the class pass 4,096 characters at the second definition
+        {
+            "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat($"classDef c {string.Join(',', Enumerable.Repeat("a:b", 1_000))}\n", 4)) +
+                string.Concat(Enumerable.Repeat($"class {string.Join(',', Enumerable.Repeat("A", 2_000))} c\n", 2)) + string.Concat(Enumerable.Repeat("A\n", 300)),
+            3,
+            4_099
+        },
+
+        // Two class statements listing a state 2,000 times: its CSS classes (with statediagram-state) pass 4,096
+        // characters at the second
+        { "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat($"class {string.Join(',', Enumerable.Repeat("A", 2_000))} c\n", 2)) + "A\n", 3, 4_098 },
+
+        // Two style classes of 2,099 characters on one state: its compiled styles pass 4,096 characters, located at the
+        // statement that gave it the second class
+        {
+            "stateDiagram-v2\n" + string.Concat(new[] { "c", "d" }.Select(name => $"classDef {name} {string.Join(',', Enumerable.Repeat("a:b", 525))}\n")) +
+                "class A c\nclass A d\n" + string.Concat(Enumerable.Repeat("A\n", 300)),
+            5,
+            4_099
+        },
+
+        // The review's ER shape: a style statement listing the entity 2,000 times with 450 styles
+        { "erDiagram\nA\nstyle " + string.Join(',', Enumerable.Repeat("A", 2_000)) + " " + string.Join(',', Enumerable.Repeat("fill:red", 450)) + "\n", 3, 4_103 },
+
+        // An ER classDef statement listing the class 2,000 times with 1,000 styles
+        { "erDiagram\nA:::c\nclassDef " + string.Join(',', Enumerable.Repeat("c", 2_000)) + " " + string.Join(',', Enumerable.Repeat("a:b", 1_000)) + "\n", 3, 4_099 },
+    };
+
+    /// <summary>
+    ///     Validates that CSS classes and styles a state, an entity or a style class gets again and again (an id listed
+    ///     many times in a <c>class</c>, <c>style</c> or <c>classDef</c> statement, a style class defined many times,
+    ///     several style classes on one state) fail at open, located at the statement that makes them too long, instead of
+    ///     multiplying the styles without bound (for a state, with every mention of it).
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the statement that makes the text too long.</param>
+    /// <param name="length">The length the joined text reaches there.</param>
+    [Theory]
+    [MemberData(nameof(StateAndErRepeatedClassesAndStyles))]
+    public void CanvasNetMermaid_Hardening_StateAndErRepeatedClassesAndStyles_AreALocatedLimit(string text, int line, int length)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains($"a label is {length} characters long", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the descriptions drawn under a state's title are checked joined: 457 short descriptions of one
+    ///     state make a block of 4,099 characters, which fails at open at the line that makes it too long.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateManyDescriptions_IsALocatedLabelLimit()
+    {
+        // Arrange
+        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat("S : abcd\n", 500));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(458, exception.Location.Line);
+        Assert.Contains("4099 characters", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a state diagram with very many transitions renders or hits the work limit, and that the work is
+    ///     bounded.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateLongChain_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange
+        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, 300).Select(i => $"s{i} --> s{i + 1} : t{i}\n"));
+        var document = MermaidDocument.Parse(text);
+        var small = new MermaidRenderOptions { Scale = 0.1, Limits = new MermaidLimits { MaxLayoutWork = 5_000 } };
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > size.Width);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the state fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "-->", "--", "[*]", ":", " : label", "state X", "state Y {", "}", "{", "<<fork>>", "<<join>>", "<<choice>>",
+            "[[fork]]", "state \"T\" as Z", "note left of X : n", "note right of Y\n  n\nend note", "end note", "note \"f\" as N",
+            "direction LR", "direction BT", "classDef c fill:#f00", "class X c", ":::c", "style X fill:#0f0",
+            "click X \"https://example.com\" \"t\"", "hide empty description", "scale 100 width", "accTitle: t", "accDescr: d",
+            "%%", "\n", "  ", "<br>", "\\", "#59;",
+        ];
+        var random = new Random(20261110);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
+    ///     Validates that every ER fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile ER diagrams through the public API, fitted to 400 by 300 pixels: huge spacings, paddings and
+    ///     font sizes, huge dashes, self-relationships, the <c>md_parent</c> cardinality, a generic type that takes most
+    ///     of its line, comments over several lines, markup in texts, duplicate subgraph ids, relationships to subgraphs,
+    ///     an entity named like a later subgraph and a subgraph that holds a relationship to itself each render, or end in
+    ///     a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  er:\n    nodeSpacing: 1e300\n    rankSpacing: 1e300\n---\nerDiagram\nA ||--o{ B : r\nA ||--o{ C : r\n")]
+    [InlineData("---\nconfig:\n  er:\n    diagramPadding: 1e300\n    entityPadding: 1e300\n    minEntityWidth: 1e300\n---\nerDiagram\nA ||--o{ B : r\nB {\n  int x\n}\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e300}}}%%\nerDiagram\nA ||--o{ B : go\nB {\n  int x PK \"c\"\n}\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nerDiagram\nA ||--o{ B : go\nB {\n  int x PK \"c\"\n}\n")]
+    [InlineData("erDiagram\nA {\n  int x\n  int y\n}\nstyle A stroke:#f00,stroke-width:1e300,stroke-dasharray:1e300\n")]
+    [InlineData("erDiagram\nA ||--o{ A : self\nA u--|| B : parent\nB }|..|{ B : again\n")]
+    [InlineData("erDiagram\nR {\n  List~int~ a, Map~x~ b\n  string c \"first line\n  second line\"\n  string d \"<b>x</b><script>y</script>\"\n}\n")]
+    [InlineData("erDiagram\nsubgraph S\n  A\nend\nsubgraph S\n  B\nend\nC ||--o{ S : r\nS ||--|| A : s\n")]
+    [InlineData("erDiagram\nA ||--|| B : r\nsubgraph A\n  C\nend\n")]
+    [InlineData("erDiagram\nsubgraph S\n  A ||--o{ S : r\nend\n")]
+    public void CanvasNetMermaid_Hardening_HostileErDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("er", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that more entities than the default <see cref="MermaidLimits.MaxNodes"/> fail at open, located at the
+    ///     line of the first entity over the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErManyEntities_IsALocatedNodeLimit()
+    {
+        // Arrange
+        var text = "erDiagram\n" + string.Join("\n", Enumerable.Range(0, 2_001).Select(i => $"E{i}")) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that subgraphs nested to the default <see cref="MermaidLimits.MaxNestingDepth"/> render, and that one
+    ///     level more fails at open, located at the subgraph that is one too deep.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErNestedSubgraphs_IsALocatedNestingLimit()
+    {
+        // Arrange
+        static string Nested(int depth) =>
+            "erDiagram\n" + string.Concat(Enumerable.Range(0, depth).Select(i => $"subgraph S{i}\n")) + "A\n" +
+            string.Concat(Enumerable.Repeat("end\n", depth));
+        var accepted = MermaidDocument.Parse(Nested(32));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Nested(33)));
+
+        // Assert
+        Assert.Equal(32, accepted.SubgraphCount);
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(34, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that subgraphs nested through names (subgraph <c>Si</c> names <c>S(i+1)</c>, declared after it)
+    ///     count against <see cref="MermaidLimits.MaxNestingDepth"/>, though the text nests none: a chain of 32 renders,
+    ///     and a chain of 40 fails when laid out, located at the subgraph of the 33rd level.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErNestedThroughNames_IsALocatedNestingLimit()
+    {
+        // Arrange: subgraph Si with S(i+1) on lines 2 + 3i to 4 + 3i
+        static string Chain(int count) =>
+            "erDiagram\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"subgraph S{i}\nS{i + 1}\nend\n"));
+        var accepted = MermaidDocument.Parse(Chain(32));
+        var refused = MermaidDocument.Parse(Chain(40));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: subgraph S33, on line 101, is the first inside 33 subgraphs
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(101, exception.Location.Line);
+        Assert.Contains("subgraphs are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an attribute comment longer than the default <see cref="MermaidLimits.MaxLabelLength"/> fails at
+    ///     open, located at its line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErLongComment_IsALocatedLabelLimit()
+    {
+        // Arrange
+        var comment = new string('x', 4_097);
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse($"erDiagram\nT {{\n  int a\n  int b \"{comment}\"\n}}\n"));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(4, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that an entity with very many attributes renders, measured and drawn in bounded work.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErManyAttributes_Render()
+    {
+        // Arrange
+        var text = "erDiagram\nT {\n" + string.Concat(Enumerable.Range(0, 1_000).Select(i => $"  int a{i} PK \"c{i}\"\n")) + "}\nT ||--o{ U : r\n";
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.True(size.Height > size.Width);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the ER fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "||--o{", "}|..|{", "|o--o|", "u--||", "one or more", "to", "optionally to", ":", " : role", " : \"two words\"",
+            "X {", "}", "{", "int a PK", "string b FK, UK \"c\"", "List~int~", "`b.c`", "\"Quoted Name\"", "[\"Alias\"]",
+            "subgraph S", "subgraph S2[\"T\"]", "end", "direction LR", "direction BT", "classDef c fill:#f00", "class X c",
+            ":::c", "style X fill:#0f0", "accTitle: t", "accDescr: d", "%%", "\n", "  ", "<br>", "\\", "#59;",
+        ];
+        var random = new Random(20261111);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
+    ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
+    ///     state, so each adds two nesting levels.
+    /// </summary>
+    /// <param name="count">The number of composite states.</param>
+    /// <returns>The text, with composite state <c>i</c> on line <c>i + 2</c>.</returns>
+    private static string NestedRegions(int count) =>
+        "stateDiagram-v2\n" +
+        string.Concat(Enumerable.Range(0, count).Select(i => $"state C{i} {{\n")) +
+        "x\n" +
+        string.Concat(Enumerable.Range(0, count).Reverse().Select(i => $"--\nz{i}\n}}\n"));
 
     /// <summary>
     ///     Mutates a text: deletes a range, inserts a token, duplicates a line or swaps two characters, one to three times.

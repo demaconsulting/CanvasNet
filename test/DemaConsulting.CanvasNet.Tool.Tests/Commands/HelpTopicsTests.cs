@@ -438,10 +438,11 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the <c>mermaid</c> topic says, word for word, what the tables of the Mermaid user guide say: the
-    ///     <c>class</c> section holds exactly the rows of the guide's class syntax, relation, and settings tables, in
-    ///     order, and every row of the guide's table of unsupported features and warnings is an item of the
-    ///     <c>unsupported</c> or <c>diagnostics</c> section. Backticks are dropped, <c>\|</c> is read as <c>|</c>, and the
-    ///     first letter of a text (after an <c>Area: </c> prefix) is compared ignoring case.
+    ///     <c>class</c>, <c>state</c>, and <c>er</c> sections hold exactly the rows of the guide's class, state, and entity
+    ///     relationship syntax, relation, and settings tables, in order, and every row of the guide's table of unsupported
+    ///     features and warnings is an item of the <c>unsupported</c> or <c>diagnostics</c> section. Backticks are dropped,
+    ///     <c>\|</c> is read as <c>|</c>, and the first letter of a text (after an <c>Area: </c> prefix) is compared
+    ///     ignoring case.
     /// </summary>
     [Fact]
     public void HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide()
@@ -450,19 +451,30 @@ public partial class HelpTopicsTests
         var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-mermaid.md"));
         var topic = HelpTopics.Find("mermaid")!;
         var help = topic.Sections.ToDictionary(s => s.Id, s => s.Items.Select(i => Canonical(i.Term, i.Text)).ToList());
+        (string Section, string Heading, int MinimumRows)[] diagrams =
+        [
+            ("class", "### Supported Class Syntax", 30),
+            ("state", "### Supported State Syntax", 18),
+            ("er", "### Supported Entity Relationship Syntax", 24),
+        ];
 
         // Act: the items that the rows of the guide's tables promise
-        var classRows = GuideTableRows(guide, "### Supported Class Syntax").Select(ExpectedClassItem).ToList();
         var codeRows = GuideTableRows(guide, "### Mermaid Unsupported Features and Strict Mode").ToList();
         var differences = new List<string>();
-        var classItems = help["class"];
-        for (var i = 0; i < Math.Max(classRows.Count, classItems.Count); i++)
+        var counts = new Dictionary<string, int>();
+        foreach (var (section, heading, _) in diagrams)
         {
-            var expected = i < classRows.Count ? classRows[i] : "(nothing)";
-            var actual = i < classItems.Count ? classItems[i] : "(nothing)";
-            if (expected != actual)
+            var rows = GuideTableRows(guide, heading).Select(ExpectedDiagramItem).ToList();
+            var items = help[section];
+            counts[section] = rows.Count;
+            for (var i = 0; i < Math.Max(rows.Count, items.Count); i++)
             {
-                differences.Add($"class item {i + 1}:{Environment.NewLine}  guide: {expected}{Environment.NewLine}  help:  {actual}");
+                var expected = i < rows.Count ? rows[i] : "(nothing)";
+                var actual = i < items.Count ? items[i] : "(nothing)";
+                if (expected != actual)
+                {
+                    differences.Add($"{section} item {i + 1}:{Environment.NewLine}  guide: {expected}{Environment.NewLine}  help:  {actual}");
+                }
             }
         }
 
@@ -478,7 +490,11 @@ public partial class HelpTopicsTests
         }
 
         // Assert: the guide has the tables, and nothing differs
-        Assert.True(classRows.Count >= 30, $"Only {classRows.Count} rows were found in the class tables of the guide.");
+        foreach (var (section, _, minimumRows) in diagrams)
+        {
+            Assert.True(counts[section] >= minimumRows, $"Only {counts[section]} rows were found in the {section} tables of the guide.");
+        }
+
         Assert.True(codeRows.Count >= 15, $"Only {codeRows.Count} rows were found in the code table of the guide.");
         Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
     }
@@ -870,13 +886,13 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Gets the help item, in canonical form, that a row of a class table of the guide promises: an <c>Area: text.</c>
-    ///     item for a syntax row, a term and its text for a relation row, and a key with its meaning and default for a
-    ///     settings row.
+    ///     Gets the help item, in canonical form, that a row of a class, state, or entity relationship table of the guide
+    ///     promises: an <c>Area: text.</c> item for a syntax row, a term and its text for a relation or cardinality row,
+    ///     and a key with its meaning and default for a settings row.
     /// </summary>
     /// <param name="row">The header and the cells of the row.</param>
     /// <returns>The canonical item.</returns>
-    private static string ExpectedClassItem((string[] Header, string[] Cells) row)
+    private static string ExpectedDiagramItem((string[] Header, string[] Cells) row)
     {
         var (header, cells) = row;
         return string.Join("|", header) switch
@@ -884,7 +900,7 @@ public partial class HelpTopicsTests
             "Area|Supported" => Canonical(null, $"{cells[0]}: {cells[1]}."),
             "Relation|Drawn as" => Canonical(cells[0], $"{cells[1]}."),
             "Key|Default|Meaning" => Canonical(cells[0], $"{cells[2]} (default {cells[1]})."),
-            _ => throw new InvalidOperationException($"The guide has a class table with the unknown header '{string.Join(" | ", header)}'."),
+            _ => throw new InvalidOperationException($"The guide has a diagram table with the unknown header '{string.Join(" | ", header)}'."),
         };
     }
 

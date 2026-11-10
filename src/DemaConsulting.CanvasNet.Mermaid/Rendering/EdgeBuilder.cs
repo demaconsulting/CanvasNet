@@ -144,7 +144,7 @@ internal static partial class EdgeBuilder
             AddBackground = true,
             Prepare = false,
             MarkdownAutoWrap = context.Config.MarkdownAutoWrap,
-            RootFontSize = css.FontSize,
+            RootFontSize = context.Styles.RootText.FontSize,
             ConfigFontSize = context.Config.FontSize,
             CenterSvgText = true,
             Location = edge.Location,
@@ -223,7 +223,13 @@ internal static partial class EdgeBuilder
             var path = PathOf(segments, style, edge.Id, data.Location);
             items.Add(path);
             bounds = Scene.BoundsOf([path]);
-            items.AddRange(DrawMarkers(segments, edge.ArrowTypeStart, edge.ArrowTypeEnd, shape => MarkerPaintOf(shape, strokeText, context.Styles), edge.Id)
+            items.AddRange(DrawMarkers(
+                    segments,
+                    edge.ArrowTypeStart,
+                    edge.ArrowTypeEnd,
+                    shape => MarkerPaintOf(shape, strokeText, context.Styles),
+                    edge.Id,
+                    style.Length("stroke-width", 1))
                 .Select(item => item with { Location = data.Location }));
         }
 
@@ -285,14 +291,12 @@ internal static partial class EdgeBuilder
             return new EdgeLabelDrawing([], null);
         }
 
-        // HTML labels are centered by their box; SVG labels by the box of their text (the background not included)
-        var textBox = label.IsHtml
+        // HTML labels are centered by their box; SVG labels by the box of their text as drawn (insertEdgeLabel measures
+        // the text element once it takes the label's own font size; the background, measured before, is not included)
+        var lineBoxes = label.Lines.Where(line => line.Width > 0).Select(line => line.Box).ToList();
+        var textBox = label.IsHtml || lineBoxes.Count == 0
             ? label.Box
-            : new SceneRect(
-                label.Box.X + LabelBuilder.SvgBackgroundPadding,
-                label.Box.Y + LabelBuilder.SvgBackgroundPadding,
-                label.Box.Width - (2 * LabelBuilder.SvgBackgroundPadding),
-                label.Box.Height - (2 * LabelBuilder.SvgBackgroundPadding));
+            : lineBoxes.Aggregate((all, next) => all.Union(next));
         var dx = label.IsHtml ? -label.Width / 2 : -(textBox.X + (textBox.Width / 2));
         var dy = label.IsHtml ? -label.Height / 2 : -(textBox.Y + (textBox.Height / 2));
         var box = label.Box.Offset(dx, dy);
@@ -993,8 +997,9 @@ internal static partial class EdgeBuilder
 
     /// <summary>
     ///     Gets the paint of a marker type: the style sheet's <c>.marker</c> rule, then <c>.marker.cross</c> for the cross
-    ///     or the type's own rule for a user-space marker (<c>.composition</c>, ...), and the edge's stroke color for the
-    ///     stroke and, for the types whose colored copy is filled, the fill.
+    ///     or the type's own rule for a user-space marker (<c>.composition</c>, ...); for the <c>barb</c>, which has no
+    ///     class, a state diagram's <c>[id$="-barbEnd"]</c> rule under its more specific <c>defs [id$="-barbEnd"]</c>
+    ///     rule. The edge's stroke color then sets the stroke and, for the types whose colored copy is filled, the fill.
     /// </summary>
     /// <param name="type">The marker type.</param>
     /// <param name="strokeText">The edge's stroke color as written, or null.</param>
@@ -1002,12 +1007,14 @@ internal static partial class EdgeBuilder
     /// <returns>The paint.</returns>
     private static MarkerPaint MarkerPaintOf(string type, string? strokeText, UnifiedStyles styles)
     {
-        var rule = styles.Resolve(".marker");
+        var rule = type == "barb"
+            ? styles.Resolve("[id$=\"-barbEnd\"]").Cascade(styles.Resolve("defs [id$=\"-barbEnd\"]"))
+            : styles.Resolve(".marker");
         if (type == "cross")
         {
             rule = rule.Cascade(styles.Resolve(".marker.cross"));
         }
-        else if (UserSpaceMarkerOf(type, false) is not null)
+        else if (type != "barb" && UserSpaceMarkerOf(type, false) is not null)
         {
             rule = rule.Cascade(styles.Resolve("." + type));
         }

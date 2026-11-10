@@ -1,0 +1,117 @@
+---
+# Software Subsystem Requirements for Er
+#
+# These requirements decompose the CanvasNetMermaid system's entity relationship diagram responsibility into the Er
+# subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Er): reading the entity relationship diagram language
+# exactly as the pinned Mermaid release reads it (ErParser), and keeping what it declares as Mermaid's ER database
+# keeps it, mapping it to the layout data of the shared unified renderer, and framing the drawing as Mermaid's ER
+# renderer does (ErModel). The entity tables, relationships, cardinality markers, and subgraphs are drawn by the
+# shared Rendering subsystem. Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/er.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Er Requirements
+        requirements:
+          - id: CanvasNetMermaid-Er-Language
+            title: >-
+              The Er subsystem shall open every entity relationship diagram text (the erDiagram keyword) that the ER
+              grammar of the pinned Mermaid release accepts - entities with aliases and attribute blocks (types, names,
+              keys, and comments), relationships with their cardinalities in symbols and words, identifying and
+              non-identifying lines, and roles, subgraphs with titles and their own directions, the classDef, class,
+              :::, and style statements, the direction, and the accessibility statements - into the same entities,
+              relationships, subgraphs, and styles that Mermaid's ER database records for it.
+            justification: |
+              An entity relationship diagram can only be drawn the way Mermaid draws it when its text means exactly
+              what it means to Mermaid; the language is defined by Mermaid's grammar and database, not by a
+              description of them.
+            children:
+              - CanvasNetMermaid-Er-ErParser-Tokens
+              - CanvasNetMermaid-Er-ErParser-Grammar
+              - CanvasNetMermaid-Er-ErParser-LinearTime
+              - CanvasNetMermaid-Er-ErModel-Entities
+              - CanvasNetMermaid-Er-ErModel-Relationships
+              - CanvasNetMermaid-Er-ErModel-Subgraphs
+              - CanvasNetMermaid-Er-ErModel-Styles
+            tests:
+              - Er_Parse_Fixture_GivesConsistentLayoutData
+              - Er_Parse_WholeText_GivesModelAndLayoutData
+
+          - id: CanvasNetMermaid-Er-Metadata
+            title: >-
+              The Er subsystem shall give the accessible title, the direction that lays the diagram out, and the
+              numbers of drawn entities (as nodes), relationships (as edges), and subgraphs (as subgraphs) of an opened
+              entity relationship diagram, without rendering it, counting no entity that is only named after a
+              subgraph.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of an entity relationship diagram must keep the meaning of the document's node, edge, and
+              subgraph counts.
+            children:
+              - CanvasNetMermaid-Er-ErModel-Metadata
+            tests:
+              - Er_Parse_WholeText_GivesModelAndLayoutData
+              - Er_Document_IsSupportedWithMetadata
+
+          - id: CanvasNetMermaid-Er-FailClosed
+            title: >-
+              The Er subsystem shall refuse, when the document is opened, an entity relationship diagram text that its
+              grammar does not accept or that exceeds the node, edge, label length, or nesting limits of the open
+              call, with a coded MermaidSyntaxException located in the original text, with a hint, and for a grammar
+              error with the tokens that Mermaid lists as expected; the entities (those only named after a subgraph
+              included) and the subgraphs count together as nodes, the relationships as edges, and the subgraphs that
+              nest as nesting levels.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it.
+            children:
+              - CanvasNetMermaid-Er-ErParser-Errors
+              - CanvasNetMermaid-Er-ErParser-Limits
+              - CanvasNetMermaid-Er-ErModel-Limits
+            tests:
+              - Er_Parse_GrammarError_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-Er-Layout
+            title: >-
+              The Er subsystem shall give the shared renderer, for each render, the layout data that Mermaid's ER
+              database gives its renderer under the effective configuration of that render - the subgraphs as clusters
+              in Mermaid's order with their directions, the entities as entity boxes with their aliases and
+              attributes, the relationships with the markers of their cardinalities, their line types, and their roles,
+              and the spacing Mermaid's ER renderer reads - so that the entities, subgraphs, and relationships land
+              where Mermaid puts them.
+            justification: |
+              The layout of an entity relationship diagram is Mermaid's only when the renderer starts from the same
+              graph, and the configuration of a render is known only when the render starts.
+            children:
+              - CanvasNetMermaid-Er-ErModel-LayoutData
+              - CanvasNetMermaid-Er-ErModel-Subgraphs
+              - CanvasNetMermaid-Er-ErModel-Relationships
+            tests:
+              - Er_Parse_WholeText_GivesModelAndLayoutData
+              - Er_Layout_Fixture_DrawsEntitiesAndRelationships
+
+          - id: CanvasNetMermaid-Er-Drawing
+            title: >-
+              The Er subsystem shall draw an entity relationship diagram through the shared renderer with the ER style
+              sheet of the theme, the frontmatter title above the drawing, and the view box of Mermaid's ER renderer.
+            justification: |
+              The pixels and the size of an entity relationship diagram must be Mermaid's for the same text,
+              configuration, and theme.
+            children:
+              - CanvasNetMermaid-Er-ErModel-Drawing
+            tests:
+              - Er_Layout_Fixture_DrawsEntitiesAndRelationships
+
+          - id: CanvasNetMermaid-Er-UnsupportedFeatures
+            title: >-
+              The Er subsystem shall report, at their locations and in order before drawing, a look other than classic
+              and a layout other than dagre as unsupported features with their stable mermaid-* codes, draw the diagram
+              in the classic look with the dagre layout, and stop at the first unsupported feature in strict mode.
+            justification: |
+              The host must know when the picture differs from what Mermaid would draw, and a strict host must be able
+              to refuse it.
+            children:
+              - CanvasNetMermaid-Er-ErModel-Unsupported
+            tests:
+              - Er_Render_UnsupportedFeatures_AreReported

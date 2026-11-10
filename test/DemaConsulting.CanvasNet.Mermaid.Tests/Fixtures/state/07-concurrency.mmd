@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> Active
+    state Active {
+        [*] --> NumOff
+        NumOff --> NumOn : press
+        NumOn --> NumOff : press
+        --
+        [*] --> CapsOff
+        CapsOff --> CapsOn : press
+        CapsOn --> CapsOff : press
+        --
+        [*] --> ScrollOff
+        ScrollOff --> ScrollOn : press
+    }
+    Active --> [*]

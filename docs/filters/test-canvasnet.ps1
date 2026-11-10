@@ -10,9 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence and class diagrams are drawn by the filter itself, a diagram type the tool does not draw yet
-    is left as written for another filter, and the defaults-file filters run before a command-line filter (as the
-    CI's mermaid-filter is run).
+    hashed), sequence, class, state, and ER diagrams are drawn by the filter itself, a diagram type the tool does not
+    draw yet is left as written for another filter, and the defaults-file filters run before a command-line filter (as
+    the CI's mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -376,6 +376,45 @@ classDiagram
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $classMarkersBefore -and
         $class.Log -notmatch 'left as written') `
         'a class block is drawn' "$($class.Log)`n$($class.Html)"
+
+    # A state diagram is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $states = @'
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Busy : job
+    Busy --> Idle : done
+    Busy --> [*]
+```
+'@
+    $statesBefore = @(Get-Pictures).Count
+    $stateMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $state = Invoke-Filter 'mermaid-state' $states
+    Write-Result ($state.ExitCode -eq 0 -and $state.Html -notmatch '<code' -and
+        $state.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $statesBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $stateMarkersBefore -and
+        $state.Log -notmatch 'left as written') `
+        'a state block is drawn' "$($state.Log)`n$($state.Html)"
+
+    # An ER diagram is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $entities = @'
+```mermaid
+erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER {
+        int id PK
+        date placed
+    }
+```
+'@
+    $entitiesBefore = @(Get-Pictures).Count
+    $erMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $er = Invoke-Filter 'mermaid-er' $entities
+    Write-Result ($er.ExitCode -eq 0 -and $er.Html -notmatch '<code' -and
+        $er.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $entitiesBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $erMarkersBefore -and
+        $er.Log -notmatch 'left as written') `
+        'an ER block is drawn' "$($er.Log)`n$($er.Html)"
 
     # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
     # marker in the cache remembers it: the next run warns from the marker and does not draw it.

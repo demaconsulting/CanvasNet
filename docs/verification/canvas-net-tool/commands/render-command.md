@@ -50,7 +50,8 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
-- A diagram (a flowchart, a sequence diagram, or a class diagram) is rendered at the size Mermaid lays it out at over
+- A diagram (a flowchart, a sequence diagram, a class diagram, a state diagram, or an entity relationship diagram) is
+  rendered at the size Mermaid lays it out at over
   white, in the theme `--theme` names (the theme
   fragment of the input wins over the option, and a theme the text sets wins over both), with the operation, the natural
   size, and the diagnostics in the result; a type that is not drawn yet is the diagnostic `mermaid-diagram-unsupported`
@@ -294,6 +295,13 @@ the detail, the location, and the origin `["part.scad"]`, the nested note the or
 the
 SVG file's own link no extra member; a note without extras has exactly `source`, `severity`, `code`, and `message`.
 
+**InspectCommand_Run_ScadWarning_WritesDetailAndLocation**, **CompareCommand_Run_ScadWarning_WritesDetailAndLocation**,
+and **MontageCommand_Run_ScadWarning_WritesDetailAndLocation** (`RenderCommandDiagnosticDetailTests.cs`): the
+`inspect colors` command on a model with a malformed anchor, the `compare` command of that model against a plain
+`cube(5);`, and the `montage` command with that model as its one cell each succeed with exactly one diagnostic in the
+JSON result, with the `detail` `scad-anchor-invalid` and the `location` line 2, so every command writes the same extra
+members for the notes of the files it reads.
+
 **RenderCommand_Run_VegaLite_WritesPngAndReportsFormat**: the two-bar chart renders to a PNG whose size is the natural
 size in the JSON result, which names the `vega-lite` format and has one `render` operation with the `UTC` time zone
 and no
@@ -495,6 +503,16 @@ pixels of the default participant fill, and there is no diagnostic.
 `+String name` and the method `+eat()` and the inheritance `Animal <|-- Duck`, rendered with `--strict` and `--json`,
 writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000 pixels of
 the default node fill (the class boxes), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidState_DrawsTheStates**: a state diagram of a lamp (`[*] --> Off`, `Off --> On : switch`,
+`On --> Off : switch`, and `On --> [*]`), rendered with `--strict` and `--json`, writes a PNG whose size is the
+`natural` size of the `input` object, with a white corner and more than 1,000 pixels of the default node fill (the
+states), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidEr_DrawsTheEntities**: an entity relationship diagram of the relationship
+`CUSTOMER ||--o{ ORDER : places` and the entity `ORDER` with the attributes `int id PK` and `string note`, rendered with
+`--strict` and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner and
+more than 1,000 pixels of the default node fill (the entities), and there is no diagnostic.
 
 **RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
 supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`

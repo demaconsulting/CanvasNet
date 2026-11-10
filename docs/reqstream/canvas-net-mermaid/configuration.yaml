@@ -4,7 +4,7 @@
 # These requirements decompose the CanvasNetMermaid system's configuration and theme responsibilities into the
 # Configuration subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the effective
 # configuration of a call from the site configuration, the frontmatter, and the directives (MermaidConfigResolver),
-# the five built-in themes and the flowchart style sheet built from them (ThemeResolver), the khroma color functions
+# the five built-in themes and the diagram style sheets built from them (ThemeResolver), the khroma color functions
 # the themes derive their colors with (ColorMath), and the CSS subset of style statements and themeCSS
 # (StyleDeclarations). Each requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-mermaid/configuration.md for the test-evidence mapping.
@@ -30,11 +30,14 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-TypedView
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ThemeOption_NodeFill
               - Configuration_ResolveSequenceSectionAndStyles_FullText
               - Configuration_ResolveClassSectionAndStyles_FullText
+              - Configuration_ResolveStateAndErSectionsAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Reports
             title: >-
@@ -52,9 +55,12 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-ThemeRecovery
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-SilentResolution
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ResolveClassSectionAndStyles_FullText
+              - Configuration_ResolveStateAndErSectionsAndStyles_FullText
               - Configuration_Document_RenderDeliversConfigurationWarnings
               - Configuration_Document_UnsupportedType_ConfigurationSilent
 
@@ -84,9 +90,11 @@ sections:
           - id: CanvasNetMermaid-Configuration-StyleSheet
             title: >-
               The Configuration subsystem shall resolve the paint and fonts of the element classes of flowcharts,
-              sequence diagrams, and class diagrams from the style sheets Mermaid writes for them with the theme
-              variables of the configuration, apply the themeCSS rules of the diagram's own selectors after them, and
-              report every other themeCSS rule as the unsupported feature mermaid-theme-css-unsupported.
+              sequence diagrams, class diagrams, state diagrams, and entity relationship diagrams from the style sheets
+              Mermaid writes for them with the theme variables of the configuration, apply the themeCSS rules of the
+              diagram's own selectors after them, report every other themeCSS rule as the unsupported feature
+              mermaid-theme-css-unsupported, and give the rendering the text facts of each sheet (whether it centers
+              the SVG text of a node and the root font).
             justification: |
               Mermaid paints a diagram through CSS rules built from the theme; reproducing those rules and the
               user's overrides of them gives the same paint without a browser, and a rule that cannot be applied
@@ -95,6 +103,9 @@ sections:
               - CanvasNetMermaid-Configuration-ThemeResolver-FlowchartStyles
               - CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet
               - CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-StateStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-ErStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
               - CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
               - CanvasNetMermaid-Configuration-ThemeResolver-InvalidDeclarations
               - CanvasNetMermaid-Configuration-StyleDeclarations-StyleSheets
@@ -103,6 +114,7 @@ sections:
               - Configuration_ThemeOption_NodeFill
               - Configuration_ResolveSequenceSectionAndStyles_FullText
               - Configuration_ResolveClassSectionAndStyles_FullText
+              - Configuration_ResolveStateAndErSectionsAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Declarations
             title: >-

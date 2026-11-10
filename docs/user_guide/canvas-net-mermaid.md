@@ -7,12 +7,14 @@
 `MermaidDocument` (namespace `DemaConsulting.CanvasNet.Mermaid`) is distributed via the separate
 `DemaConsulting.CanvasNet.Mermaid` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet`
 package - see the Installation section of the project README. It reads diagrams written in the Mermaid v11 text
-language and draws them as **static pictures** with Mermaid's own layout: a flowchart and a class diagram are laid out
-by a port of the dagre layout that Mermaid uses, and a sequence diagram by a port of Mermaid's sequence renderer, so the
-nodes, edges, classes, participants, messages, and labels land where Mermaid 11 puts them. This version draws
-**flowcharts** (the `flowchart` and `graph` keywords), **sequence diagrams** (the `sequenceDiagram` keyword), and
-**class diagrams** (the `classDiagram` keyword). Every other diagram type that Mermaid knows is recognized and
-reported, never drawn wrongly: state, entity relationship, pie, gantt, and mindmap diagrams are planned later. The
+language and draws them as **static pictures** with Mermaid's own layout: a flowchart, a class diagram, a state
+diagram, and an entity relationship diagram are laid out by a port of the dagre layout that Mermaid uses, and a
+sequence diagram by a port of Mermaid's sequence renderer, so the nodes, edges, classes, states, entities,
+participants, messages, and labels land where Mermaid 11 puts them. This version draws **flowcharts** (the `flowchart`
+and `graph` keywords), **sequence diagrams** (the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram`
+keyword), **state diagrams** (the `stateDiagram-v2` and `stateDiagram` keywords), and **entity relationship
+diagrams** (the `erDiagram` keyword). Every other diagram type that Mermaid knows is recognized and reported, never
+drawn wrongly: pie, gantt, and mindmap diagrams are planned later. The
 package is derived with attribution from the Mermaid project and the libraries it uses,
 and it is **not affiliated with or endorsed by** the Mermaid project (see *Mermaid Third-Party Attribution*). A document
 is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
@@ -26,14 +28,14 @@ public sealed partial class MermaidDocument
     public static MermaidDocument Open(Stream stream, MermaidOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "flowchart" (also for "graph"), "sequence", "class", or "pie", ...
+    public string DiagramType { get; }      // "flowchart" (also "graph"), "sequence", "class", "state", "er", "pie", ...
     public bool IsSupported { get; }        // true when this version draws the type
     public string? Title { get; }           // the title statement, else the frontmatter title
     public string? AccTitle { get; }        // accTitle, metadata only
     public string? Direction { get; }       // TB, TD, BT, LR, or RL; null for a sequence diagram
-    public int NodeCount { get; }           // the participants of a sequence diagram, the classes of a class diagram
-    public int EdgeCount { get; }           // the messages of a sequence diagram, the relations of a class diagram
-    public int SubgraphCount { get; }       // the boxes of a sequence diagram, the namespaces of a class diagram
+    public int NodeCount { get; }           // the participants, classes, states, or entities
+    public int EdgeCount { get; }           // the messages, relations, transitions, or relationships
+    public int SubgraphCount { get; }       // the boxes, namespaces, composite states, or subgraphs
 
     public MermaidSize Measure(
         MermaidRenderOptions? options = null,
@@ -61,8 +63,13 @@ public sealed partial class MermaidDocument
   `NodeCount` is the number of classes (notes and lollipop interfaces are not counted), `EdgeCount` the number of
   relations (the links of notes are not counted), `SubgraphCount` the number of namespaces drawn (with
   `class.hierarchicalNamespaces: false` in the text, only the declared ones), and `Direction` the
-  `direction` statement, else `TB`. For a type that is not drawn, `IsSupported` is `false`, the counts are zero, and
-  `Direction` and `AccTitle` are `null`.
+  `direction` statement, else `TB`. For a state diagram, `NodeCount` is the number of states (the start, end, fork,
+  join, and choice states included; notes are not counted), `EdgeCount` the number of transitions (the links of notes
+  are not counted), and `SubgraphCount` the number of composite states (their concurrent regions are not counted). For
+  an entity relationship diagram, `NodeCount` is the number of entities drawn, `EdgeCount` the number of
+  relationships, and `SubgraphCount` the number of subgraphs. For both, `Direction` is the direction the diagram is
+  laid out in: the last top-level `direction` statement, else `TB`. For a type that is not drawn, `IsSupported` is
+  `false`, the counts are zero, and `Direction` and `AccTitle` are `null`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
 - `Render()` draws the diagram onto a new `Surface` at its **natural size** (the view box of Mermaid's SVG, rounded up
@@ -80,9 +87,9 @@ public sealed partial class MermaidDocument
   (8192) on a side. A diagram larger than that needs a smaller `Scale` or the sized overload.
 - `MermaidRenderException`: a limit of `MermaidLimits` was met while the diagram was laid out or painted
   (`mermaid-limit-exceeded`), or the diagram cannot be laid out (`mermaid-render-failed`, for example a subgraph that
-  contains itself or an empty sequence block). An unexpected internal error of the layout is reported the same way
-  (`mermaid-render-failed` at the diagram keyword, with the original exception as the inner exception); an exception
-  of your image resolver reaches you unchanged.
+  contains itself, an empty sequence block, or two composite states that contain each other). An unexpected internal
+  error of the layout is reported the same way (`mermaid-render-failed` at the diagram keyword, with the original
+  exception as the inner exception); an exception of your image resolver reaches you unchanged.
 - `MermaidUnsupportedFeatureException`: the first unsupported feature when `ThrowOnUnsupportedFeature` is set.
 - `OperationCanceledException`: the token was canceled before or during the work.
 
@@ -138,10 +145,10 @@ wall-clock bound.
 | Property | Default | What it bounds | When it is exceeded |
 | -------- | ------- | -------------- | ------------------- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
-| `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), or the relations of a class diagram | `MermaidSyntaxException` |
-| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, or the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram | `MermaidSyntaxException` |
-| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, and the CSS classes and styles a class or a style class collects, joined, included) | `MermaidSyntaxException` |
-| `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` (`MermaidRenderException` for namespaces nested through class names, found when laid out) |
+| `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), the relations of a class diagram, the transitions of a state diagram, or the relationships of an entity relationship diagram | `MermaidSyntaxException` |
+| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, or the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram | `MermaidSyntaxException` |
+| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, and the descriptions of a state joined with line breaks included) | `MermaidSyntaxException` |
+| `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), composite states inside composite states (a concurrent region counts as a level too), subgraphs of an entity relationship diagram, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` (`MermaidRenderException` for namespaces, composite states, or entity relationship subgraphs nested through their names, found when laid out) |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
 | `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram) | `MermaidRenderException` |
 | `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |
@@ -192,7 +199,8 @@ The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`b
 `natural`, `step`, `stepBefore`, `stepAfter`, `monotoneX`, `monotoneY`, `cardinal`, `catmullRom`, `bumpX`, `bumpY`, and
 `rounded`), `padding`, `diagramPadding`, `wrappingWidth`, `htmlLabels`, `titleTopMargin`, `subGraphTitleMargin`, and
 `inheritDir`, with the global `fontFamily`, `fontSize`, and `markdownAutoWrap`. The sequence settings are listed under
-*Supported Sequence Syntax*, and the class settings under *Supported Class Syntax*.
+*Supported Sequence Syntax*, the class settings under *Supported Class Syntax*, the state settings under *Supported
+State Syntax*, and the entity relationship settings under *Supported Entity Relationship Syntax*.
 
 ### Supported Flowchart Syntax
 
@@ -368,6 +376,115 @@ Other behaviors that follow Mermaid:
 - A class named `o` cannot stand next to a relation (`o --> Order`), because Mermaid's grammar reads it as an
   aggregation end; write the name in backticks.
 
+### Supported State Syntax
+
+A state diagram starts with `stateDiagram-v2` or `stateDiagram`. It is laid out with the same port of Mermaid's dagre
+layout as a flowchart, so the states, transitions, composite states, and notes land where Mermaid 11 puts them.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `stateDiagram-v2` and `stateDiagram`, and `direction` with `TB`, `BT`, `LR`, or `RL`; the last top-level `direction` lays the diagram out |
+| States | An id (`Idle`), a description after a colon (`Idle : waiting for input`), several descriptions, `state "Waiting for input" as Waiting`, and states named only by a transition |
+| Transitions | `A --> B`, a label after a colon (`A --> B : start`), self transitions, and `[*]` as the start or the end state |
+| Composite states | `state Name { ... }`, nested, with their own `direction` and their own `[*]`, and transitions to and from a composite state or a state inside it |
+| Concurrency | `--` inside a composite state divides it into concurrent regions, drawn with dashed borders |
+| Pseudo-states | `<<fork>>`, `<<join>>`, and `<<choice>>`, and the forms `[[fork]]`, `[[join]]`, and `[[choice]]` (`state split <<fork>>`) |
+| Notes | `note left of` and `note right of` a state, with the text after a colon or on the lines up to `end note`, and `<br>` line breaks; a floating note (`note "text" as N`) is read and not drawn, as in Mermaid |
+| Styles | `classDef` (but not `classDef default`, which Mermaid's grammar refuses), `class A,B name`, `:::`, and `style`, with the declarations of a flowchart style |
+| Interaction | `click` and `click ... href` are read and ignored, because a picture is static |
+| Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata; `hide empty description` and `scale` are read and ignored, as in Mermaid's renderer |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the state settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+The state settings follow Mermaid (`config.state` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `state.nodeSpacing` | 50 | The space between the states of a rank |
+| `state.rankSpacing` | 50 | The space between the ranks |
+| `state.titleTopMargin` | 25 | The margin above the title |
+| `state.defaultRenderer` | `dagre-wrapper` | Another value selects Mermaid's legacy renderer for a `stateDiagram`; it is reported as `mermaid-layout-unsupported` and drawn the same way |
+| `htmlLabels` | unset | `false` draws the texts of the states as SVG text instead of HTML labels |
+| `flowchart.curve` | `basis` | The curve of the transition lines |
+| `flowchart.padding` | 15 | The padding of a note |
+| `state.padding`, `state.radius`, and the other legacy keys | as in Mermaid | Accepted, and without effect as in Mermaid's renderer |
+| `state.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- A state with one description is a rounded box with that text. A state with more descriptions, or with a description
+  given by `state "text" as Id` and another after a colon, is drawn with the first as its title above a line and the
+  others below it.
+- A composite state is drawn with its name in a title band. The levels of nested composite states and concurrent
+  regions are filled in turn with the theme's background and its alternate background. A composite state's own
+  `direction` applies when no transition links a state inside it to a state outside it.
+- A note is drawn in the theme's note colors next to its state, and linked to it by a dashed line.
+- A state id cannot hold a dash (`first-state` is a syntax error); write `state "first-state" as first`.
+
+### Supported Entity Relationship Syntax
+
+An entity relationship diagram starts with `erDiagram`. It is laid out with the same port of Mermaid's dagre layout as
+a flowchart, so the entities, relationships, and subgraphs land where Mermaid 11 puts them.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `erDiagram`, and `direction` with `TB`, `BT`, `LR`, or `RL`; the last top-level `direction` lays the diagram out |
+| Entities | Names, quoted names with spaces (`"Entry Log"`), an alias in brackets (`p["Person"]` or `p[Person]`; the first alias is kept), and entities named only by a relationship |
+| Relationships | `A \|\|--o{ B : places`: an entity, a cardinality, a line, a cardinality, an entity, and after the colon a role of one word or a quoted text; the cardinalities and lines are listed below |
+| Attributes | A block in braces after the entity (`CUSTOMER { ... }`), one attribute per line: a type, a name, keys (`PK`, `FK`, `UK`, several with commas, such as `PK, FK`), and a quoted comment; types such as `varchar(255)`, `string[]`, and `decimal?`; names and types in backticks; repeated blocks add to the attributes |
+| Generics | `~T~` in an attribute type, drawn as `<T>` (`List~int~` is `List<int>`) |
+| Subgraphs | `subgraph Id["Title"] ... end`, nested, with their own `direction`; the subgraphs are laid out in Mermaid's order, the last one first |
+| Styles | `classDef` (including `classDef default`), `class A,B name`, `:::` on an entity or a relationship end, and `style`, with the declarations of a flowchart style |
+| Titles | The frontmatter `title` is drawn above the diagram; `accTitle` and `accDescr` are read as metadata |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the entity relationship settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+A relationship names the cardinality of each end with a marker. A symbol pair is written against the line, the first
+of the pair before it and the second after it (`A |o--o{ B`); the words are written with spaces around them and can
+stand on either side (`A one or more to zero or many B`):
+
+<!-- markdownlint-disable MD013 -->
+| Relation | Drawn as |
+| -------- | -------- |
+| `\|o` and `o\|`, or the words `zero or one` and `one or zero` | Zero or one: a circle and a bar |
+| `\|\|`, or the words `only one`, `one`, and `1` | Exactly one: two bars |
+| `}o` and `o{`, or the words `zero or more`, `zero or many`, `many(0)`, `0+`, and `many` | Zero or more: a circle and a crow's foot |
+| `}\|` and `\|{`, or the words `one or more`, `one or many`, `many(1)`, and `1+` | One or more: a bar and a crow's foot |
+| `u`, before the line only (`A u--o{ B`) | Parent: no marker at that end, as in Mermaid |
+| `--` and `to` | Identifying: a solid line |
+| `..`, `.-`, `-.`, and `optionally to` | Non-identifying: a dashed line |
+| `A \|\|--o{ B : places` | Role: the word or the quoted text after the colon is drawn at the middle of the line |
+<!-- markdownlint-enable MD013 -->
+
+The entity relationship settings follow Mermaid (`config.er` in the frontmatter, a directive, or
+`MermaidRenderOptions.Config`). As in Mermaid, a top-level `nodeSpacing` or `rankSpacing` wins over the `er` key:
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `er.nodeSpacing` | 140 | The space between the entities of a rank |
+| `er.rankSpacing` | 80 | The space between the ranks |
+| `er.titleTopMargin` | 25 | The margin above the title |
+| `er.diagramPadding` | 20 | The padding added to the width of each column of a table, and around the name of an entity without attributes |
+| `er.entityPadding` | 15 | The padding added to the height of each row of a table |
+| `er.minEntityWidth` | 100 | The least width of an entity without attributes |
+| `htmlLabels` | unset | `false` draws the texts of the entities as SVG text instead of HTML labels; `true` leaves out the quarter that Mermaid adds to the paddings of a table otherwise |
+| `er.minEntityHeight`, `er.layoutDirection`, `er.fill`, `er.stroke`, `er.fontSize` | as in Mermaid | Accepted, and without effect as in Mermaid's renderer |
+| `er.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- An entity without attributes is a rectangle around its name (or its alias). An entity with attributes is a table: the
+  name in the top row, then one row per attribute with its type, name, keys, and comment in columns, the rows filled in
+  turn with the theme's two row colors. A keys or comment column that no attribute uses is left out.
+- The words `one`, `many`, and `to` are keywords, so a role that holds one of them must be quoted
+  (`A ||--o{ B : "one each"`).
+
 ### Mermaid Unsupported Features and Strict Mode
 
 A construct that Mermaid defines but this package does not draw is reported as a `MermaidUnsupportedFeature` with a
@@ -379,11 +496,11 @@ fail on a warning.
 <!-- markdownlint-disable MD013 -->
 | Code | Kind | Reported when |
 | ---- | ---- | ------------- |
-| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, and `classDiagram`); the picture is empty |
+| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, and `erDiagram`); the picture is empty |
 | `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant); the node or participant keeps its shape and label without the icon |
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
-| `mermaid-layout-unsupported` | Unsupported | A `layout` other than `dagre` (`elk`, also the `flowchart-elk` keyword); the diagram is laid out with dagre |
+| `mermaid-layout-unsupported` | Unsupported | A `layout` other than `dagre` (`elk`, also the `flowchart-elk` keyword), or a `state.defaultRenderer` that selects Mermaid's legacy state renderer; the diagram is laid out with dagre, and a legacy state diagram is drawn as a `stateDiagram-v2` |
 | `mermaid-theme-css-unsupported` | Unsupported | A `themeCSS` rule whose selector is not one of the diagram's own (such as `.node rect` in a flowchart), an at-rule, or a nested rule; the rule is not applied |
 | `mermaid-config-unknown-key` | Warning | A configuration key Mermaid does not define; it is ignored |
 | `mermaid-config-invalid` | Warning | A configuration value of the wrong type or range, or a theme that is not available; it is ignored (`sequence.textPlacement: fo` is drawn with the default placement) |
@@ -431,8 +548,10 @@ same pixels.
 The layout is checked against Mermaid itself: a set of reference diagrams is drawn by Mermaid 11.17.2 (with the same
 Liberation Sans font) and every node, edge, and subgraph of the CanvasNet layout matches within a hundredth of a pixel,
 as does every participant, message, note, activation, block, and box of a sequence diagram (text boxes within two
-hundredths), and every class box with its compartments, relation, cardinality, namespace, and note of a class diagram
-drawn with HTML labels. The known differences from Mermaid are:
+hundredths), every class box with its compartments, relation, cardinality, namespace, and note of a class diagram
+drawn with HTML labels, every state, transition, composite state, concurrent region, and note of a state diagram, and
+every entity with its rows and cells, relationship, and subgraph of an entity relationship diagram, with HTML or SVG
+labels. The known differences from Mermaid are:
 
 - **Fonts.** Mermaid uses the fonts of the browser, so its pictures differ from these where Trebuchet MS is installed.
   Against Mermaid drawn with Liberation Sans the text widths agree to a fraction of a pixel.
@@ -442,23 +561,28 @@ drawn with HTML labels. The known differences from Mermaid are:
   strikethrough are plain text.
 - **Icons, looks, and layouts.** Icons are not drawn, the `handDrawn` and `neo` looks are drawn classic, and `elk` is
   laid out with dagre (each is reported, see the table above).
-- **Interaction and animation.** `click`, `href`, `call`, tooltips, and the `link` and `callback` of a class diagram
-  are ignored; an animated edge is drawn as its first frame.
+- **Interaction and animation.** `click`, `href`, `call`, tooltips, the `link` and `callback` of a class diagram, and
+  the `click` of a state diagram are ignored; an animated edge is drawn as its first frame.
 - **CSS.** `classDef`, `style`, `linkStyle`, and `themeCSS` honor only the declarations listed under *Styles*; there are
   no CSS animations. A `font-size` that text cannot be drawn at (zero, or more than 32768 pixels) is ignored with a
   `mermaid-style-ignored` warning and the inherited size is kept, and a `stroke-dasharray` with a dash longer than
-  32768 pixels is drawn solid.
-- **Security.** `securityLevel` changes nothing (no script ever runs). The links a diagram keeps as data (the `link`
-  and `click ... href` of a class diagram, the `link` and `links` of a sequence participant) are always checked as
-  Mermaid's `strict` level checks them, with Mermaid's own link check (sanitize-url), even when the configuration asks
-  for `loose`: a `javascript:`, `data:`, or `vbscript:` link, however it is encoded (character references, tabs or
-  control characters inside the scheme, percent escapes), is kept only as `about:blank`. YAML anchors, aliases, and
-  tags are refused, although Mermaid's YAML reader accepts them.
+  32768 pixels is drawn solid. A corner radius (`rx` or `ry`) in a `style`, a `classDef`, or `themeCSS` is ignored with
+  a `mermaid-style-ignored` warning; the radii of Mermaid's own style sheet are drawn.
+- **Security.** `securityLevel` changes nothing (no script ever runs), and the texts of class and state diagrams are
+  always cleaned as at Mermaid's `strict` level. The links a diagram keeps as data (the `link` and `click ... href` of
+  a class diagram, the `link` and `links` of a sequence participant, the `click` and `click ... href` of a state
+  diagram) are always checked as Mermaid's `strict` level checks them, with Mermaid's own link check (sanitize-url),
+  even when the configuration asks for `loose`: a
+  `javascript:`, `data:`, or `vbscript:` link, however it is encoded (character references, tabs or control characters
+  inside the scheme, percent escapes), is kept only as `about:blank`. YAML anchors, aliases, and tags are refused,
+  although Mermaid's YAML reader accepts them.
 - **Errors.** For invalid text Mermaid draws an error picture; this package throws a located `MermaidSyntaxException`.
   A few graphs on which Mermaid itself fails (a subgraph that contains itself, a link to a subgraph that has no node, a
   subgraph also used as a node of another subgraph, a self-loop on a subgraph next to links into the subgraphs around
-  it) are a located `mermaid-render-failed`. The legacy `A(-text-)` shape, which Mermaid 11 cannot draw, is drawn as an
-  ellipse.
+  it, two composite states that contain each other, a note on a state that appears nowhere before it, where Mermaid
+  fails with "No such shape: undefined", a relationship to an entity named like a subgraph declared after it, and a
+  relationship from a subgraph to an entity inside it) are a located `mermaid-render-failed`. The legacy `A(-text-)`
+  shape, which Mermaid 11 cannot draw, is drawn as an ellipse.
 - **Shapes.** The circles of the newer shapes are true circles where Mermaid draws rough.js curves (a few hundredths
   of a pixel).
 - **Sequence diagrams.** Mermaid draws a broken sequence diagram or fails for an empty block (a block with no message
@@ -476,6 +600,18 @@ drawn with HTML labels. The known differences from Mermaid are:
   gives the same characters for a text of one line. `$$` math in a class text is drawn and measured as written, without
   a report. A `style` declaration outside the supported subset is reported at the first mention of the class, not at
   the `style` statement.
+- **State diagrams.** Mermaid's legacy state renderer (`state.defaultRenderer` other than `dagre-wrapper` for a
+  `stateDiagram`) is not ported: the diagram is drawn with the current renderer and reported as
+  `mermaid-layout-unsupported` at the `state` key of the configuration. `Direction` is the last top-level `direction`
+  statement, the one the diagram is laid out in, where Mermaid's `getDirection` gives the first. The last concurrent
+  region of a composite state has the id `id-random-N` where Mermaid's id holds a random number; the id is never
+  drawn. A `style` declaration outside the supported subset is reported at the first mention of the state.
+- **Entity relationship diagrams.** Mermaid's markers clip the line at the edge of their view port, which hides half of
+  the stroke at the tip; the clip is not modeled, so a tip can be half a stroke longer. With `htmlLabels: false` the
+  texts of a table take the style sheet's label color (`nodeTextColor`, else `textColor`), where Chrome uses
+  `textColor`; the two are the same in the built-in themes. The marker shapes of the `neo` look and the entity colors
+  of the `redux` themes are not drawn (the look is reported, and the themes are not available). A `style` declaration
+  outside the supported subset is reported at the first mention of the entity.
 - **Pictures.** A picture that cannot be loaded leaves the node's frame (Mermaid fails the whole render).
 - **Background and size.** The background is transparent by default (as the SVG is), and `useMaxWidth` has no meaning
   for a picture of a fixed size.
@@ -487,13 +623,14 @@ drawn with HTML labels. The known differences from Mermaid are:
 ### Mermaid Third-Party Attribution
 
 `DemaConsulting.CanvasNet.Mermaid` is **derived with attribution**: to draw diagrams the way Mermaid draws them, its
-preprocessing, diagram detection, flowchart, sequence, and class parsers and models, configuration defaults, themes,
-shapes, edges, labels, and layouts are ports of these projects (all MIT unless stated):
+preprocessing, diagram detection, flowchart, sequence, class, state, and entity relationship parsers and models,
+configuration defaults, themes, shapes, edges, labels, and layouts are ports of these projects (all MIT unless stated):
 
 - **mermaid** (Copyright (c) 2014 - 2022 Knut Sveidqvist): the preprocessing, detectors, flowchart grammar and
   database, configuration and the five themes, the shapes, clusters, edges, markers, and label rules of its renderer,
   the sequence grammar, database, renderer, drawing functions, and style sheet, the class grammar, database, class box,
-  markers, and style sheet, and the text utilities they use;
+  markers, and style sheet, the state grammar, database, data fetcher, state shapes, and style sheet, the entity
+  relationship grammar, database, entity box, markers, and style sheet, and the text utilities they use;
 - **dagre-d3-es**, derived from **dagre** and **graphlib** (Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
   contributors): the graph and the layered layout;
 - **js-yaml** (Copyright (C) 2011-2015 by Vitaly Puzrin): the YAML reader of the frontmatter and shape data;
@@ -501,8 +638,8 @@ shapes, edges, labels, and layouts are ports of these projects (all MIT unless s
 - **lodash** (Copyright OpenJS Foundation and other contributors): the sort and extremum rules the layout depends on;
 - **marked** (Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey): the Markdown of labels;
 - **d3-shape** and **d3-path** (ISC, Copyright Mike Bostock): the edge curves;
-- **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links that class and
-  sequence diagrams keep, which are never drawn.
+- **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links that class,
+  sequence, and state diagrams keep, which are never drawn.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
 assembly), and `src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md` records what was ported, from which
@@ -694,8 +831,8 @@ left as written, with the tool's message as a warning, so that another filter, s
 
 ### Example 57: The Mermaid Gallery
 
-The gallery is a set of small flowcharts, sequence diagrams, and class diagrams that together use the major features
-of the package.
+The gallery is a set of small flowcharts, sequence diagrams, class diagrams, state diagrams, and entity relationship
+diagrams that together use the major features of the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `mermaid-*.mmd`, and is drawn
 below by the Pandoc filter, so the pictures are always those of the version of the library that built this guide. A
 test (`MermaidGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any warning, so a
@@ -757,6 +894,26 @@ annotation, the visibilities, a generic, a static and an abstract method, a note
 `hideEmptyMembersBox`:
 
 ![Namespaces and styles](examples/mermaid-class-namespaces.mmd){scale=2 width=70%}
+
+*Composite states.* A choice, a composite state with its own direction and a fork and a join inside, and a composite
+state with two concurrent regions:
+
+![Composite states](examples/mermaid-state-composite.mmd){scale=2 width=70%}
+
+*Notes, descriptions, and styles.* A state with a title and a description, a self transition, a note on one line and a
+note of two lines, `classDef` with `:::` and `class`, and `style`, in the `forest` theme:
+
+![Notes and styles](examples/mermaid-state-notes.mmd){scale=2 width=80%}
+
+*Keys and attributes.* Tables with types, keys (`PK`, `FK`, `UK`, and `PK, FK`), and comments, an alias, a generic
+type, `classDef` with `:::`, and `style`:
+
+![Keys and attributes](examples/mermaid-er-keys.mmd){scale=2 width=70%}
+
+*Cardinalities.* Every cardinality as symbols on identifying and non-identifying lines, and as words with `to` and
+`optionally to`, in two subgraphs, from left to right (Mermaid lays the last subgraph out first):
+
+![Cardinalities](examples/mermaid-er-cardinality.mmd){scale=2 width=90%}
 
 ### Example 58: Rendering a Mermaid Sequence Diagram
 
@@ -913,4 +1070,142 @@ classDiagram
     Member "1" --> "*" Loan : holds
     Loan "*" --> "1" Item : lends
     note for Loan "Due in three weeks"
+```
+
+### Example 60: Rendering a Mermaid State Diagram
+
+A state diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the states (the start and end
+states included), the transitions, and the composite states; a note is not counted:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    ---
+    title: Order
+    ---
+    stateDiagram-v2
+        [*] --> Placed
+        Placed --> Paid : pay
+        Placed --> Cancelled : cancel
+        state Shipping {
+            [*] --> Packed
+            Packed --> Sent
+            Sent --> [*]
+        }
+        Paid --> Shipping : ship
+        Shipping --> Delivered
+        Delivered --> [*]
+        Cancelled --> [*]
+        note right of Paid : confirmed by the bank
+    """);
+
+Console.WriteLine($"{diagram.DiagramType} {diagram.Direction}");          // Output: state TB
+Console.WriteLine(diagram.Title);                                         // Output: Order
+Console.WriteLine($"{diagram.NodeCount} states, {diagram.EdgeCount} transitions, {diagram.SubgraphCount} composite");
+                                                                          // Output: 10 states, 10 transitions, 1 composite
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 558x969
+var white = new Rgba32(255, 255, 255, 255);
+using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Background = white });
+PngCodec.Save(picture, "order-states.png");                               // 1116x1938 pixels
+```
+
+The same text is the `state` example of the tool's help (`canvasnet help mermaid --example state`), and the Pandoc
+filter draws it from a code block:
+
+```{.mermaid caption="The states of an order, drawn from a code block" scale=2 width=50%}
+---
+title: Order
+---
+stateDiagram-v2
+    [*] --> Placed
+    Placed --> Paid : pay
+    Placed --> Cancelled : cancel
+    state Shipping {
+        [*] --> Packed
+        Packed --> Sent
+        Sent --> [*]
+    }
+    Paid --> Shipping : ship
+    Shipping --> Delivered
+    Delivered --> [*]
+    Cancelled --> [*]
+    note right of Paid : confirmed by the bank
+```
+
+### Example 61: Rendering a Mermaid Entity Relationship Diagram
+
+An entity relationship diagram is opened, measured, and drawn exactly like a flowchart. Its counts are the entities,
+the relationships, and the subgraphs:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    ---
+    title: Lending
+    ---
+    erDiagram
+        MEMBER ||--o{ LOAN : borrows
+        BOOK ||--o{ LOAN : "lent in"
+        AUTHOR }|--|{ BOOK : writes
+        MEMBER {
+            int id PK
+            string name
+            string email UK "for reminders"
+        }
+        LOAN {
+            int member FK
+            string isbn FK
+            date due
+        }
+        BOOK {
+            string isbn PK "the book number"
+            string title
+        }
+    """);
+
+Console.WriteLine($"{diagram.DiagramType} {diagram.Direction}");          // Output: er TB
+Console.WriteLine(diagram.Title);                                         // Output: Lending
+Console.WriteLine($"{diagram.NodeCount} entities, {diagram.EdgeCount} relationships, {diagram.SubgraphCount} subgraphs");
+                                                                          // Output: 4 entities, 3 relationships, 0 subgraphs
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 762x691
+var white = new Rgba32(255, 255, 255, 255);
+using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Background = white });
+PngCodec.Save(picture, "lending.png");                                    // 1524x1382 pixels
+```
+
+The same text is the `er` example of the tool's help (`canvasnet help mermaid --example er`), and the Pandoc filter
+draws it from a code block:
+
+```{.mermaid caption="A lending model, drawn from a code block" scale=2 width=70%}
+---
+title: Lending
+---
+erDiagram
+    MEMBER ||--o{ LOAN : borrows
+    BOOK ||--o{ LOAN : "lent in"
+    AUTHOR }|--|{ BOOK : writes
+    MEMBER {
+        int id PK
+        string name
+        string email UK "for reminders"
+    }
+    LOAN {
+        int member FK
+        string isbn FK
+        date due
+    }
+    BOOK {
+        string isbn PK "the book number"
+        string title
+    }
 ```

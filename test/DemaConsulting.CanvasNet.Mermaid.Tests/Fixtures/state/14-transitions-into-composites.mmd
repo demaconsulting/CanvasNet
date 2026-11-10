@@ -1,0 +1,12 @@
+stateDiagram-v2
+    state Box {
+        [*] --> Inner
+        Inner --> Other
+        Other --> Inner : loop
+    }
+    [*] --> Outside
+    Outside --> Box : enter
+    Outside --> Other : jump in
+    Box --> Exit : leave
+    Other --> Exit : escape
+    Exit --> [*]

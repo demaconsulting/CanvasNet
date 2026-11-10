@@ -1,0 +1,286 @@
+{
+  "source": "10-v1-header.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "stateDiagram",
+  "viewBox": [0, 0, 144.703, 641],
+  "title": null,
+  "nodes": [
+    {
+      "id": "state-root_start-0",
+      "shape": "stateStart",
+      "x": 72.352,
+      "y": 15,
+      "box": [65.352, 8, 14, 14],
+      "class": "node default",
+      "parts": [{ "tag": "circle", "class": "state-start", "group": null, "box": [65.352, 8, 14, 14] }]
+    },
+    {
+      "id": "state-First-1",
+      "shape": "rect",
+      "x": 72.352,
+      "y": 92,
+      "box": [48.797, 72, 47.109, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [48.797, 72, 47.109, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [56.797, 80, 31.109, 24], "text": "First" }
+      ]
+    },
+    {
+      "id": "state-Second_start-2",
+      "shape": "stateStart",
+      "x": 72.352,
+      "y": 230.5,
+      "box": [65.352, 223.5, 14, 14],
+      "class": "node default",
+      "parts": [{ "tag": "circle", "class": "state-start", "group": null, "box": [65.352, 223.5, 14, 14] }]
+    },
+    {
+      "id": "state-Inside-3",
+      "shape": "rect",
+      "x": 72.352,
+      "y": 332.5,
+      "box": [43, 312.5, 58.703, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [43, 312.5, 58.703, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [51, 320.5, 42.703, 24], "text": "Inside" }
+      ]
+    },
+    {
+      "id": "state-Second_end-3",
+      "shape": "stateEnd",
+      "x": 72.352,
+      "y": 434.5,
+      "box": [65.352, 427.5, 14.013, 14],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [65.352, 427.5, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [65.352, 427.5, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [69.852, 432, 5.005, 5] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [69.852, 432, 5.005, 5] }
+      ]
+    },
+    {
+      "id": "state-Third-5",
+      "shape": "rect",
+      "x": 72.352,
+      "y": 549,
+      "box": [29.664, 529, 85.375, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [29.664, 529, 85.375, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [37.664, 537, 69.375, 24], "text": "described" }
+      ]
+    },
+    {
+      "id": "state-root_end-5",
+      "shape": "stateEnd",
+      "x": 72.352,
+      "y": 626,
+      "box": [65.352, 619, 14.013, 14],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [65.352, 619, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [65.352, 619, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [69.852, 623.5, 5.005, 5] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [69.852, 623.5, 5.005, 5] }
+      ]
+    }
+  ],
+  "clusters": [
+    {
+      "id": "state-Second-4",
+      "shape": "roundedWithTitle",
+      "box": [8, 186, 128.703, 293],
+      "class": "statediagram-state statediagram-cluster",
+      "inner": [8, 212, 128.703, 263],
+      "label": { "text": "Second", "box": [45.219, 187, 54.266, 24] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge0",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [72.352, 22],
+        [72.352, 24.5],
+        [72.352, 27],
+        [72.352, 29.5],
+        [72.352, 32],
+        [72.352, 34.5],
+        [72.352, 37],
+        [72.352, 39.5],
+        [72.352, 42],
+        [72.352, 44.5],
+        [72.352, 47],
+        [72.352, 49.5],
+        [72.352, 52],
+        [72.352, 54.5],
+        [72.352, 57],
+        [72.352, 59.5],
+        [72.352, 62],
+        [72.352, 64.5],
+        [72.352, 67],
+        [72.352, 69.5],
+        [72.352, 72]
+      ]
+    },
+    {
+      "id": "edge5",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 49.993,
+      "points": [
+        [72.352, 569],
+        [72.352, 571.5],
+        [72.352, 573.999],
+        [72.352, 576.499],
+        [72.352, 578.999],
+        [72.352, 581.498],
+        [72.352, 583.998],
+        [72.352, 586.498],
+        [72.352, 588.997],
+        [72.352, 591.497],
+        [72.352, 593.996],
+        [72.352, 596.496],
+        [72.352, 598.996],
+        [72.352, 601.495],
+        [72.352, 603.995],
+        [72.352, 606.495],
+        [72.352, 608.994],
+        [72.352, 611.494],
+        [72.352, 613.994],
+        [72.352, 616.493],
+        [72.352, 618.993]
+      ]
+    },
+    {
+      "id": "edge1",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 74,
+      "points": [
+        [72.352, 112],
+        [72.352, 115.7],
+        [72.352, 119.4],
+        [72.352, 123.1],
+        [72.352, 126.8],
+        [72.352, 130.5],
+        [72.352, 134.2],
+        [72.352, 137.9],
+        [72.352, 141.6],
+        [72.352, 145.3],
+        [72.352, 149],
+        [72.352, 152.7],
+        [72.352, 156.4],
+        [72.352, 160.1],
+        [72.352, 163.8],
+        [72.352, 167.5],
+        [72.352, 171.2],
+        [72.352, 174.9],
+        [72.352, 178.6],
+        [72.352, 182.3],
+        [72.352, 186]
+      ]
+    },
+    {
+      "id": "edge4",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [72.352, 479],
+        [72.352, 481.5],
+        [72.352, 484],
+        [72.352, 486.5],
+        [72.352, 489],
+        [72.352, 491.5],
+        [72.352, 494],
+        [72.352, 496.5],
+        [72.352, 499],
+        [72.352, 501.5],
+        [72.352, 504],
+        [72.352, 506.5],
+        [72.352, 509],
+        [72.352, 511.5],
+        [72.352, 514],
+        [72.352, 516.5],
+        [72.352, 519],
+        [72.352, 521.5],
+        [72.352, 524],
+        [72.352, 526.5],
+        [72.352, 529]
+      ]
+    },
+    {
+      "id": "edge2",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 75,
+      "points": [
+        [72.352, 237.5],
+        [72.352, 241.25],
+        [72.352, 245],
+        [72.352, 248.75],
+        [72.352, 252.5],
+        [72.352, 256.25],
+        [72.352, 260],
+        [72.352, 263.75],
+        [72.352, 267.5],
+        [72.352, 271.25],
+        [72.352, 275],
+        [72.352, 278.75],
+        [72.352, 282.5],
+        [72.352, 286.25],
+        [72.352, 290],
+        [72.352, 293.75],
+        [72.352, 297.5],
+        [72.352, 301.25],
+        [72.352, 305],
+        [72.352, 308.75],
+        [72.352, 312.5]
+      ]
+    },
+    {
+      "id": "edge3",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 74.993,
+      "points": [
+        [72.352, 352.5],
+        [72.352, 356.25],
+        [72.352, 359.999],
+        [72.352, 363.749],
+        [72.352, 367.499],
+        [72.352, 371.248],
+        [72.352, 374.998],
+        [72.352, 378.748],
+        [72.352, 382.497],
+        [72.352, 386.247],
+        [72.352, 389.996],
+        [72.352, 393.746],
+        [72.352, 397.496],
+        [72.352, 401.245],
+        [72.352, 404.995],
+        [72.352, 408.745],
+        [72.352, 412.494],
+        [72.352, 416.244],
+        [72.352, 419.994],
+        [72.352, 423.743],
+        [72.352, 427.493]
+      ]
+    }
+  ],
+  "edgeLabels": [{ "id": "edge1", "box": [57.227, 137, 30.25, 24] }],
+  "terminals": []
+}

@@ -1,0 +1,19 @@
+stateDiagram-v2
+    direction LR
+    [*] --> Pipeline
+    state Pipeline {
+        direction TB
+        Fetch --> Parse
+        Parse --> Render
+    }
+    state Review {
+        direction LR
+        Draft --> Approved
+    }
+    state Archive {
+        direction BT
+        Old --> Older
+    }
+    Pipeline --> Review
+    Review --> Archive
+    Archive --> [*]

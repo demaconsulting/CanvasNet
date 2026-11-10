@@ -12,11 +12,11 @@ namespace DemaConsulting.CanvasNet.Mermaid.Syntax;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Why.</b> A diagram can carry links (the <c>link</c>, <c>click ... href</c> and sequence <c>links</c>/<c>link</c>
-///         statements), and a link whose scheme is <c>javascript</c>, <c>data</c> or <c>vbscript</c> runs code in a page that
-///         uses it. Mermaid refuses those schemes with sanitize-url, which first undoes every encoding that can hide a
-///         scheme; a partial port lets an encoded scheme through. Every diagram type therefore checks its links here, one
-///         shared port, and keeps only what this class returns.
+///         <b>Why.</b> A diagram can carry links (the <c>link</c>, <c>click ... href</c>, sequence <c>links</c>/<c>link</c>
+///         and state <c>click</c> statements), and a link whose scheme is <c>javascript</c>, <c>data</c> or
+///         <c>vbscript</c> runs code in a page that uses it. Mermaid refuses those schemes with sanitize-url, which first
+///         undoes every encoding that can hide a scheme; a partial port lets an encoded scheme through. Every diagram type
+///         therefore checks its links here, one shared port, and keeps only what this class returns.
 ///     </para>
 ///     <para>
 ///         <b>What is reproduced.</b> The whole of <c>sanitizeUrl</c>: <c>about:blank</c> for no text; JavaScript's
@@ -85,8 +85,8 @@ internal static class UrlSanitizer
     ///     empty one is no link, and any other is checked by <see cref="Sanitize(string?)"/>.
     /// </summary>
     /// <remarks>
-    ///     The class, flowchart and state databases of Mermaid call <c>formatUrl</c> for the links they keep, so a model
-    ///     that keeps a link calls this and stores only its result.
+    ///     The class and flowchart databases of Mermaid call <c>formatUrl</c> for the links they keep, so a model
+    ///     that keeps such a link calls this and stores only its result.
     /// </remarks>
     /// <param name="link">The link as written; not null.</param>
     /// <returns>The checked link, or null when the trimmed link is empty.</returns>

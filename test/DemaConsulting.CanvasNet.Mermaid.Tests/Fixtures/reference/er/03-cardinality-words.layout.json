@@ -1,0 +1,420 @@
+{
+  "source": "03-cardinality-words.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 1714.695, 285],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-Person-0",
+      "shape": "erBox",
+      "x": 300.492,
+      "y": 50,
+      "box": [250.492, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [250.492, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [275.141, 38, 50.703, 24], "text": "Person" }
+      ]
+    },
+    {
+      "id": "entity-Passport-1",
+      "shape": "erBox",
+      "x": 59.57,
+      "y": 235,
+      "box": [8, 193, 103.141, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [8, 193, 103.141, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [28, 223, 63.141, 24], "text": "Passport" }
+      ]
+    },
+    {
+      "id": "entity-Address-2",
+      "shape": "erBox",
+      "x": 300.492,
+      "y": 235,
+      "box": [251.141, 193, 98.703, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [251.141, 193, 98.703, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [271.141, 223, 58.703, 24], "text": "Address" }
+      ]
+    },
+    {
+      "id": "entity-Writer-3",
+      "shape": "erBox",
+      "x": 689.102,
+      "y": 50,
+      "box": [639.102, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [639.102, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [667.914, 38, 42.375, 24], "text": "Writer" }
+      ]
+    },
+    {
+      "id": "entity-Book-4",
+      "shape": "erBox",
+      "x": 809.102,
+      "y": 235,
+      "box": [759.102, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [759.102, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [790.867, 223, 36.469, 24], "text": "Book" }
+      ]
+    },
+    {
+      "id": "entity-Library-5",
+      "shape": "erBox",
+      "x": 929.102,
+      "y": 50,
+      "box": [879.102, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [879.102, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [904.648, 38, 48.906, 24], "text": "Library" }
+      ]
+    },
+    {
+      "id": "entity-Shelf-6",
+      "shape": "erBox",
+      "x": 1169.102,
+      "y": 50,
+      "box": [1119.102, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [1119.102, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [1150.867, 38, 36.469, 24], "text": "Shelf" }
+      ]
+    },
+    {
+      "id": "entity-Volume-7",
+      "shape": "erBox",
+      "x": 1169.102,
+      "y": 235,
+      "box": [1119.102, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [1119.102, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [1142.414, 223, 53.375, 24], "text": "Volume" }
+      ]
+    },
+    {
+      "id": "entity-Store-8",
+      "shape": "erBox",
+      "x": 1412.898,
+      "y": 50,
+      "box": [1362.898, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [1362.898, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [1393.773, 38, 38.25, 24], "text": "Store" }
+      ]
+    },
+    {
+      "id": "entity-Purchase-9",
+      "shape": "erBox",
+      "x": 1412.898,
+      "y": 235,
+      "box": [1359.102, 193, 107.594, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [1359.102, 193, 107.594, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [1379.102, 223, 67.594, 24], "text": "Purchase" }
+      ]
+    },
+    {
+      "id": "entity-Hobby-10",
+      "shape": "erBox",
+      "x": 539.844,
+      "y": 235,
+      "box": [489.844, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [489.844, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [516.719, 223, 46.25, 24], "text": "Hobby" }
+      ]
+    },
+    {
+      "id": "entity-Club-11",
+      "shape": "erBox",
+      "x": 1656.695,
+      "y": 50,
+      "box": [1606.695, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [1606.695, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [1640.242, 38, 32.906, 24], "text": "Club" }
+      ]
+    },
+    {
+      "id": "entity-Member-12",
+      "shape": "erBox",
+      "x": 1656.695,
+      "y": 235,
+      "box": [1606.695, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [1606.695, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [1627.352, 223, 58.688, 24], "text": "Member" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_entity-Person-0_entity-Passport-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrOneStart",
+      "markerEnd": "er-zeroOrOneEnd",
+      "length": 240.855,
+      "points": [
+        [250.492, 69.197],
+        [239.249, 73.513],
+        [228.007, 77.83],
+        [216.764, 82.147],
+        [205.527, 86.477],
+        [194.308, 90.853],
+        [183.114, 95.295],
+        [171.953, 99.818],
+        [160.832, 104.439],
+        [149.76, 109.175],
+        [138.749, 114.052],
+        [127.816, 119.102],
+        [116.988, 124.372],
+        [106.307, 129.933],
+        [95.851, 135.907],
+        [85.792, 142.522],
+        [76.42, 150.074],
+        [68.226, 158.878],
+        [62.172, 169.245],
+        [59.636, 180.958],
+        [59.57, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Person-0_entity-Address-2_1",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 101,
+      "points": [
+        [300.492, 92],
+        [300.492, 97.05],
+        [300.492, 102.1],
+        [300.492, 107.15],
+        [300.492, 112.2],
+        [300.492, 117.25],
+        [300.492, 122.3],
+        [300.492, 127.35],
+        [300.492, 132.4],
+        [300.492, 137.45],
+        [300.492, 142.5],
+        [300.492, 147.55],
+        [300.492, 152.6],
+        [300.492, 157.65],
+        [300.492, 162.7],
+        [300.492, 167.75],
+        [300.492, 172.8],
+        [300.492, 177.85],
+        [300.492, 182.9],
+        [300.492, 187.95],
+        [300.492, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Writer-3_entity-Book-4_2",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrMoreStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 132.765,
+      "points": [
+        [689.102, 92],
+        [689.102, 98.638],
+        [689.156, 105.276],
+        [689.591, 111.898],
+        [690.577, 118.461],
+        [692.172, 124.902],
+        [694.389, 131.156],
+        [697.217, 137.158],
+        [700.621, 142.855],
+        [704.527, 148.22],
+        [708.794, 153.304],
+        [713.318, 158.161],
+        [718.035, 162.832],
+        [722.899, 167.348],
+        [727.882, 171.734],
+        [732.961, 176.008],
+        [738.118, 180.188],
+        [743.334, 184.293],
+        [748.587, 188.353],
+        [753.844, 192.405],
+        [759.102, 196.458]
+      ]
+    },
+    {
+      "id": "id_entity-Library-5_entity-Book-4_3",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-zeroOrMoreStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 132.765,
+      "points": [
+        [929.102, 92],
+        [929.102, 98.638],
+        [929.048, 105.276],
+        [928.613, 111.898],
+        [927.626, 118.46],
+        [926.032, 124.902],
+        [923.814, 131.156],
+        [920.986, 137.158],
+        [917.582, 142.854],
+        [913.677, 148.22],
+        [909.409, 153.303],
+        [904.885, 158.16],
+        [900.169, 162.831],
+        [895.304, 167.348],
+        [890.321, 171.733],
+        [885.243, 176.008],
+        [880.086, 180.188],
+        [874.869, 184.293],
+        [869.617, 188.352],
+        [864.359, 192.405],
+        [859.102, 196.458]
+      ]
+    },
+    {
+      "id": "id_entity-Shelf-6_entity-Volume-7_4",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-oneOrMoreStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 101,
+      "points": [
+        [1169.102, 92],
+        [1169.102, 97.05],
+        [1169.102, 102.1],
+        [1169.102, 107.15],
+        [1169.102, 112.2],
+        [1169.102, 117.25],
+        [1169.102, 122.3],
+        [1169.102, 127.35],
+        [1169.102, 132.4],
+        [1169.102, 137.45],
+        [1169.102, 142.5],
+        [1169.102, 147.55],
+        [1169.102, 152.6],
+        [1169.102, 157.65],
+        [1169.102, 162.7],
+        [1169.102, 167.75],
+        [1169.102, 172.8],
+        [1169.102, 177.85],
+        [1169.102, 182.9],
+        [1169.102, 187.95],
+        [1169.102, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Store-8_entity-Purchase-9_5",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 101,
+      "points": [
+        [1412.898, 92],
+        [1412.898, 97.05],
+        [1412.898, 102.1],
+        [1412.898, 107.15],
+        [1412.898, 112.2],
+        [1412.898, 117.25],
+        [1412.898, 122.3],
+        [1412.898, 127.35],
+        [1412.898, 132.4],
+        [1412.898, 137.45],
+        [1412.898, 142.5],
+        [1412.898, 147.55],
+        [1412.898, 152.6],
+        [1412.898, 157.65],
+        [1412.898, 162.7],
+        [1412.898, 167.75],
+        [1412.898, 172.8],
+        [1412.898, 177.85],
+        [1412.898, 182.9],
+        [1412.898, 187.95],
+        [1412.898, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Person-0_entity-Hobby-10_6",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 239.426,
+      "points": [
+        [350.492, 69.323],
+        [361.659, 73.638],
+        [372.825, 77.954],
+        [383.991, 82.269],
+        [395.152, 86.598],
+        [406.295, 90.974],
+        [417.413, 95.415],
+        [428.497, 99.938],
+        [439.54, 104.558],
+        [450.534, 109.296],
+        [461.467, 114.173],
+        [472.32, 119.224],
+        [483.068, 124.496],
+        [493.667, 130.06],
+        [504.037, 136.039],
+        [514.006, 142.661],
+        [523.28, 150.22],
+        [531.367, 159.026],
+        [537.314, 169.373],
+        [539.782, 181.03],
+        [539.844, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Club-11_entity-Member-12_7",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-oneOrMoreStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 101,
+      "points": [
+        [1656.695, 92],
+        [1656.695, 97.05],
+        [1656.695, 102.1],
+        [1656.695, 107.15],
+        [1656.695, 112.2],
+        [1656.695, 117.25],
+        [1656.695, 122.3],
+        [1656.695, 127.35],
+        [1656.695, 132.4],
+        [1656.695, 137.45],
+        [1656.695, 142.5],
+        [1656.695, 147.55],
+        [1656.695, 152.6],
+        [1656.695, 157.65],
+        [1656.695, 162.7],
+        [1656.695, 167.75],
+        [1656.695, 172.8],
+        [1656.695, 177.85],
+        [1656.695, 182.9],
+        [1656.695, 187.95],
+        [1656.695, 193]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_entity-Person-0_entity-Passport-1_0", "box": [42.836, 132, 33.469, 21] },
+    { "id": "id_entity-Person-0_entity-Address-2_1", "box": [278.703, 132, 43.578, 21] },
+    { "id": "id_entity-Writer-3_entity-Book-4_2", "box": [670.82, 132, 36.563, 21] },
+    { "id": "id_entity-Library-5_entity-Book-4_3", "box": [912.367, 132, 33.469, 21] },
+    { "id": "id_entity-Shelf-6_entity-Volume-7_4", "box": [1152.367, 132, 33.469, 21] },
+    { "id": "id_entity-Store-8_entity-Purchase-9_5", "box": [1396.164, 132, 33.469, 21] },
+    { "id": "id_entity-Person-0_entity-Hobby-10_6", "box": [519.609, 132, 40.469, 21] },
+    { "id": "id_entity-Club-11_entity-Member-12_7", "box": [1645.406, 132, 22.578, 21] }
+  ],
+  "terminals": []
+}

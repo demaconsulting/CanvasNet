@@ -33,8 +33,9 @@ internal sealed record TextPaint(string FontFamily, double FontSize, Rgba32 Colo
 ///         drops it.
 ///     </para>
 ///     <para>
-///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="ClassStyles"/>, <see cref="SequenceStyles"/>) share the rule
-///         building, the global rules and the cascade here. An instance is immutable.
+///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="ClassStyles"/>, <see cref="StateStyles"/>,
+///         <see cref="ErStyles"/>, <see cref="SequenceStyles"/>) share the rule building, the global rules and the
+///         cascade here. An instance is immutable.
 ///     </para>
 /// </remarks>
 internal abstract class DiagramStyles
@@ -111,6 +112,30 @@ internal abstract class DiagramStyles
     {
         var set = Resolve(selector);
         return new ShapePaint(set.Paint("fill"), set.Paint("stroke"), set.Length("stroke-width", defaultWidth));
+    }
+
+    /// <summary>
+    ///     Mermaid's <c>fade</c> (in the flowchart's and the entity relationship diagram's styles): a color with the given
+    ///     opacity, through khroma (null when khroma cannot read it).
+    /// </summary>
+    /// <param name="color">The color.</param>
+    /// <param name="opacity">The opacity.</param>
+    /// <returns>The faded color, or null.</returns>
+    protected static string? Fade(string? color, double opacity)
+    {
+        if (color is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ColorMath.Rgba(ColorMath.Channel(color, 'r'), ColorMath.Channel(color, 'g'), ColorMath.Channel(color, 'b'), opacity);
+        }
+        catch (ColorFormatException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -231,7 +256,7 @@ internal abstract class DiagramStyles
 ///     <para>
 ///         The rendering units (the shape library, the edge builder, the cluster layout) are shared by every unified
 ///         diagram, so they read a diagram's sheet only through these members. Each diagram's sheet (the flowchart's,
-///         the class diagram's) supplies its own rules, its title selector and the rule its label colors come from.
+///         the class, state and entity relationship diagrams') supplies its own rules, its title selector and the rule its label colors come from.
 ///     </para>
 ///     <para>
 ///         An instance is immutable.
@@ -269,8 +294,25 @@ internal abstract class UnifiedStyles : DiagramStyles
     /// </summary>
     public virtual TextPaint NoteLabel => NodeLabel;
 
+    /// <summary>
+    ///     Gets a value indicating whether the sheet centers the SVG text of a node's label on its anchor (a flowchart's
+    ///     <c>.node .label text { text-anchor: middle }</c>); without the rule the text starts at its anchor.
+    /// </summary>
+    public virtual bool CentersNodeSvgText => true;
+
     /// <summary>Gets the font and color of subgraph titles (<c>.cluster-label span</c>).</summary>
     public TextPaint ClusterLabel => Text(".cluster-label span", "color");
+
+    /// <summary>
+    ///     Gets the font and color of a subgraph title as an HTML label or as SVG text; <see cref="ClusterLabel"/> for
+    ///     both, unless the diagram's sheet colors the two differently.
+    /// </summary>
+    /// <param name="html">Whether the title is an HTML label.</param>
+    /// <returns>The text paint.</returns>
+    public virtual TextPaint ClusterTitle(bool html) => ClusterLabel;
+
+    /// <summary>Gets the root font and fill of the diagram, which a text inherits where no rule of its own applies.</summary>
+    public TextPaint RootText => Text(Root, "fill");
 
     /// <summary>Gets the font and color of the diagram title (the rule of <see cref="TitleSelector"/> on the root font).</summary>
     public TextPaint Title => Text(TitleSelector, "fill");
@@ -416,28 +458,5 @@ internal sealed class FlowchartStyles : UnifiedStyles
         // The user styles come last
         builder.Rules.AddRange(user);
         return builder.Rules;
-    }
-
-    /// <summary>
-    ///     The flowchart's <c>fade</c>: a color with the given opacity, through khroma (null when khroma cannot read it).
-    /// </summary>
-    /// <param name="color">The color.</param>
-    /// <param name="opacity">The opacity.</param>
-    /// <returns>The faded color, or null.</returns>
-    private static string? Fade(string? color, double opacity)
-    {
-        if (color is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return ColorMath.Rgba(ColorMath.Channel(color, 'r'), ColorMath.Channel(color, 'g'), ColorMath.Channel(color, 'b'), opacity);
-        }
-        catch (ColorFormatException)
-        {
-            return null;
-        }
     }
 }

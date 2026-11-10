@@ -219,6 +219,8 @@ public sealed class ClusterLayoutTests
     /// <param name="terminals">The ids of the drawn edges that carry the two terminal labels.</param>
     [Theory]
     [InlineData("classDiagram", new[] { "e1" }, new[] { "e1", "e1" })]
+    [InlineData("stateDiagram", new[] { "e1" }, new[] { "e1", "e1" })]
+    [InlineData("er", new[] { "e1" }, new[] { "e1", "e1" })]
     [InlineData("class", new[] { "A-cyclic-special-1", "A-cyclic-special-mid", "A-cyclic-special-2" }, new[] { "A-cyclic-special-1", "A-cyclic-special-2" })]
     public void ClusterLayout_Render_SelfLoop_IsMergedOnlyForMergingTypes(string diagramType, string[] edges, string[] terminals)
     {
@@ -281,6 +283,56 @@ public sealed class ClusterLayoutTests
         var all = drawing.Union(title.Box);
         Assert.Equal(new SceneRect(all.X - 8, all.Y - 8, all.Width + 16, all.Height + 16), scene.ViewBox);
         Assert.Equal(new SceneRect(drawing.X - 8, drawing.Y - 8, drawing.Width + 16, drawing.Height + 16), untitled.ViewBox);
+    }
+
+    /// <summary>
+    ///     Checks that the box of a diagram title is the box of its glyphs as SVG's <c>getBBox</c> gives it - the
+    ///     advance of the centered text grown to the glyph boxes at its ends - so that a title wider than the drawing
+    ///     grows the view box as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void ClusterLayout_RenderDiagram_TitleBox_IsTheGlyphBoxOfItsText()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateState();
+        var data = new LayoutData([Box("A")], [], context.Config) { DiagramType = "stateDiagram", Direction = "TB" };
+        var labels = new LabelBuilder(ScenePainter.CreateFontResolver(), null, null);
+        var meter = new LayoutWorkMeter(50_000_000, new MermaidLocation(null, 1, 1), TestContext.Current.CancellationToken);
+        const string Title = "A title much wider than the drawing";
+
+        // Act
+        var scene = new ClusterLayout(context, meter).RenderDiagram(data, Title, 25, 8, labels);
+
+        // Assert
+        var title = Assert.IsType<SceneText>(scene.Items[1]);
+        var (advance, left, right) = labels.SvgLineExtent(Title, title.Runs[0].Font);
+        Assert.Equal(title.X - (advance / 2) + left, title.Box.X, 9);
+        Assert.Equal(right - left, title.Box.Width, 9);
+        Assert.Equal(title.Box.X - 8, scene.ViewBox.X, 9);
+        Assert.Equal(title.Box.Width + 16, scene.ViewBox.Width, 9);
+    }
+
+    /// <summary>
+    ///     Checks that an edge whose end is not a node of the diagram (in an entity relationship diagram, an entity named
+    ///     like a subgraph declared after the relationship) fails located at the edge, as Mermaid's render fails, instead
+    ///     of drawing a guess.
+    /// </summary>
+    [Fact]
+    public void ClusterLayout_Render_EdgeEndNotDrawn_FailsLocatedAtTheEdge()
+    {
+        // Arrange
+        var context = RenderingTestContext.CreateEr();
+        var edge = Relation("r1", "A", "missing") with { Location = new MermaidLocation("e.mmd", 3, 5) };
+        var data = new LayoutData([Box("A")], [edge], context.Config) { DiagramType = "er", Direction = "TB" };
+
+        // Act
+        var exception = Assert.Throws<MermaidRenderException>(() => RenderingTestContext.RenderData(data, context));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, exception.Code);
+        Assert.Equal(new MermaidLocation("e.mmd", 3, 5), exception.Location);
+        Assert.Contains("'missing'", exception.Message, StringComparison.Ordinal);
+        Assert.NotNull(exception.Hint);
     }
 
     /// <summary>

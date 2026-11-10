@@ -106,6 +106,49 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a state diagram text and an entity relationship diagram text that each configure their section and
+    ///     their style at once: the section's settings take effect, a <c>themeCSS</c> rule of the diagram's own selector
+    ///     overrides the theme without a report, the node paint comes from the theme, neither sheet centers the SVG text
+    ///     of a node, and a section value of the wrong type is reported at its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolveStateAndErSectionsAndStyles_FullText()
+    {
+        // Arrange
+        const string StateText = "---\nconfig:\n  theme: forest\n  state:\n    rankSpacing: 70\n    titleTopMargin: yes\n---\n" +
+                                 "%%{init: {'themeCSS': '.transition { stroke: #ff0000 }'}}%%\n" +
+                                 "stateDiagram-v2\n  A --> B\n";
+        const string ErText = "---\nconfig:\n  theme: dark\n  er:\n    minEntityWidth: 30\n    entityPadding: wide\n---\n" +
+                              "%%{init: {'themeCSS': '.relationshipLine { stroke: #0000ff }'}}%%\n" +
+                              "erDiagram\n  A ||--o{ B : has\n";
+        var stateSink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var erSink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var stateConfig = MermaidConfigResolver.Resolve(Preprocessor.Run(StateText, "state.mmd", MermaidLimits.Default), "stateDiagram", null, stateSink);
+        var stateStyles = StateStyles.Create(stateConfig, stateSink);
+        var erConfig = MermaidConfigResolver.Resolve(Preprocessor.Run(ErText, "er.mmd", MermaidLimits.Default), "er", null, erSink);
+        var erStyles = ErStyles.Create(erConfig, erSink);
+        var stateWarnings = new List<MermaidDiagnostic>();
+        var erWarnings = new List<MermaidDiagnostic>();
+        var unsupported = new List<MermaidUnsupportedFeature>();
+        stateSink.Deliver(stateWarnings.Add, unsupported.Add);
+        erSink.Deliver(erWarnings.Add, unsupported.Add);
+
+        // Assert
+        Assert.Equal((70.0, 25.0), (stateConfig.State.RankSpacing, stateConfig.State.TitleTopMargin));
+        Assert.Equal(CssColor.Parse("#ff0000"), stateStyles.Resolve(".transition").Paint("stroke"));
+        Assert.Equal(CssColor.Parse(stateConfig.ThemeVariable("mainBkg")!), stateStyles.Node.Fill);
+        Assert.Equal((30.0, 15.0), (erConfig.Er.MinEntityWidth, erConfig.Er.EntityPadding));
+        Assert.Equal(CssColor.Parse("#0000ff"), erStyles.Resolve(".relationshipLine").Paint("stroke"));
+        Assert.Equal(CssColor.Parse(erConfig.ThemeVariable("mainBkg")!), erStyles.Node.Fill);
+        Assert.Equal((false, false, 16.0), (stateStyles.CentersNodeSvgText, erStyles.CentersNodeSvgText, erStyles.RootText.FontSize));
+        Assert.Empty(unsupported);
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (Assert.Single(stateWarnings).Code, stateWarnings[0].Location.Line));
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (Assert.Single(erWarnings).Code, erWarnings[0].Location.Line));
+    }
+
+    /// <summary>
     ///     Validates that each of the five themes gives the flowchart its node fill (the theme's <c>mainBkg</c>) through
     ///     the site theme option.
     /// </summary>

@@ -14,8 +14,9 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 internal sealed record ClusterShape(ShapeResult Shape, double Width, double Height, double Diff);
 
 /// <content>
-///     The subgraph drawing of <c>rendering-elements/clusters.js</c> that a flowchart uses (<c>rect</c>), and the hidden
-///     <c>labelRect</c> node of Mermaid's self-loop workaround.
+///     The subgraph drawing of <c>rendering-elements/clusters.js</c>: the <c>rect</c> of a flowchart, a class diagram's
+///     namespace and an entity relationship diagram's subgraph, the state diagram's clusters (in
+///     <c>ShapeLibrary.States.cs</c>), and the hidden <c>labelRect</c> node of Mermaid's self-loop workaround.
 /// </content>
 internal static partial class ShapeLibrary
 {
@@ -23,8 +24,9 @@ internal static partial class ShapeLibrary
     private const double LabelRectSide = 0.1;
 
     /// <summary>
-    ///     Draws a subgraph (<c>clusters.js</c>'s <c>rect</c>): a rectangle of the layout's size, widened to its title
-    ///     plus the padding when the title is wider, with the title centered on its top edge.
+    ///     Draws a subgraph by its shape (<c>clusters.js</c>'s <c>insertCluster</c>): a state diagram's
+    ///     <c>roundedWithTitle</c>, <c>divider</c> or <c>noteGroup</c>, else <c>rect</c>, a rectangle of the layout's size,
+    ///     widened to its title plus the padding when the title is wider, with the title centered on its top edge.
     /// </summary>
     /// <param name="node">The subgraph's node.</param>
     /// <param name="x">The x of the center the layout gave it.</param>
@@ -37,12 +39,17 @@ internal static partial class ShapeLibrary
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(context);
+        if (DrawStateCluster(node, x, y, width, height, context) is { } stateCluster)
+        {
+            return stateCluster;
+        }
+
         var input = new ShapeInput(node, context, "rect");
         var draft = new Draft(input);
 
         // The title: a label without wrapping (createLabel), or a markdown string wrapped at the layout's width
-        var css = context.Styles.ClusterLabel;
         var html = context.Config.HtmlLabels;
+        var css = context.Styles.ClusterTitle(html);
         var markdown = node.LabelType == "markdown";
         var color = html ? input.LabelStyles.Paint("color") ?? css.Color : css.Color;
         var label = context.MeasureLabel(new LabelRequest(node.Label ?? string.Empty, new LabelFont(css.FontFamily, css.FontSize, false, false, color))

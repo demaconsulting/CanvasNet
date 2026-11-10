@@ -169,3 +169,33 @@ sections:
                   - MermaidConfigResolver_Resolve_ClassDefaults_MatchMermaid
                   - MermaidConfigResolver_Resolve_ClassSpacingFromState_FollowsClassRenderer
                   - MermaidConfigResolver_Resolve_ClassInvalidValues_ReportedAndIgnored
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the state section with Mermaid's effective defaults (the
+                  whole section of the schema), give typed access to the default renderer, the node spacing, the rank
+                  spacing, and the title margin that the detection and the state renderer read - a zero spacing falling
+                  back to its default and a zero title margin kept, as the renderer reads them - and report as
+                  mermaid-config-invalid, and leave without effect, a state value of the wrong type.
+                justification: |
+                  The detection and the layout of a state diagram read these settings, and the renderer's way of
+                  reading them decides the spacing that authors see in Mermaid's picture.
+                tests:
+                  - MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers
+                  - MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the er section with Mermaid's effective defaults (the whole
+                  section of the schema), give typed access to the diagram padding, the entity padding, the minimum
+                  entity width, the node spacing, the rank spacing, and the title margin that the ER renderer and the
+                  entity box read - a zero spacing falling back to its default and a zero title margin kept - and report
+                  as mermaid-config-invalid, and leave without effect, an er value of the wrong type.
+                justification: |
+                  The layout and the entity boxes of an entity relationship diagram read these settings, and the
+                  renderer's way of reading them decides the spacing that authors see in Mermaid's picture.
+                tests:
+                  - MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers
+                  - MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored

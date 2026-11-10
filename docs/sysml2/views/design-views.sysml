@@ -136,6 +136,14 @@ package CanvasNet {
         expose MermaidClass;
     }
 
+    view MermaidStateView {
+        expose MermaidState;
+    }
+
+    view MermaidErView {
+        expose MermaidEr;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

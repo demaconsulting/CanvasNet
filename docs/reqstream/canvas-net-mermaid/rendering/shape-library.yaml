@@ -3,8 +3,8 @@
 #
 # These requirements describe the design-level behavior of the ShapeLibrary unit of the Rendering subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the node shapes of Mermaid's
-# rendering-elements/shapes in the classic look, their intersect functions, the subgraph rectangle, and the shape
-# registry ShapeNames.
+# rendering-elements/shapes in the classic look, their intersect functions, the subgraph rectangle, the class box,
+# the state shapes and clusters, the entity box, and the shape registry ShapeNames.
 # See docs/verification/canvas-net-mermaid/rendering/shape-library.md for the test-evidence mapping.
 
 sections:
@@ -143,3 +143,66 @@ sections:
                   A diagram-generated style is not the author's choice; reporting it would warn about every note.
                 tests:
                   - ShapeLibrary_Draw_TrustedNodeStyles_ApplyWithoutReports
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-StateShapes
+                title: >-
+                  The ShapeLibrary unit shall draw the shapes of a state diagram as Mermaid's state shapes do - a state
+                  as a rounded rectangle with the padding around its label and the corner radius of the style sheet, a
+                  state with descriptions as its title above a line and the descriptions below it, the start state as
+                  a circle, the end state as the rough.js outline Mermaid draws with its exact size, the fork and join
+                  bars without the padding Mermaid's measuring overwrites, the choice diamond, and the note - each
+                  painted through the selectors of the state style sheet, and in a sheet without those selectors (a
+                  flowchart's) by the node rule as before, the node's own styles winning.
+                justification: |
+                  The state shapes decide the size of every state, and so the whole layout of a state diagram; their
+                  parts and paint must be where and as Mermaid draws them.
+                tests:
+                  - ShapeLibrary_Draw_StateRect_IsARoundedRectWithTheCssRadius
+                  - ShapeLibrary_Draw_RectWithTitle_PlacesTitleDescriptionAndDivider
+                  - ShapeLibrary_Draw_StateEnd_IsTheRoughJsOutline
+                  - ShapeLibrary_Draw_StateFork_IsTheBarWithoutThePadding
+                  - ShapeLibrary_Draw_StateShapes_PaintThroughTheStateSheet
+                  - ShapeLibrary_Draw_StateShapesInAFlowchart_TakeTheNodeRule
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-StateClusters
+                title: >-
+                  The ShapeLibrary unit shall draw the clusters of a state diagram as Mermaid does - a composite state
+                  as an outer rounded rectangle with its title band and an inner area filled with the background or,
+                  at alternate depths, the alternate background, widened to its title when the title is wider; a
+                  concurrent region as a dashed rectangle; and a note group as an outline that is not painted.
+                justification: |
+                  Composite states, regions, and notes are the structure of a state diagram; their rectangles must be
+                  where and as Mermaid draws them.
+                tests:
+                  - ShapeLibrary_DrawCluster_RoundedWithTitle_DrawsOuterTitleAndInner
+                  - ShapeLibrary_DrawCluster_RoundedWithTitleNarrow_IsWidenedToTheTitle
+                  - ShapeLibrary_DrawCluster_DividerAndNoteGroup_AreDashedAndInvisible
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-ErBox
+                title: >-
+                  The ShapeLibrary unit shall draw an entity as Mermaid's entity box shape does - without attributes,
+                  a rectangle around its name at least the minimum entity width; with attributes, a table of the name
+                  row and one row per attribute in type, name, keys, and comment columns as wide as their widest text
+                  and the padding, a keys or comment column that no attribute uses left out, the rows filled in turn,
+                  and the dividers - growing the paddings by a quarter unless the top-level htmlLabels setting is set,
+                  drawing SVG text when it is false, and counting an empty SVG cell in the size of the box as Mermaid's
+                  measuring does.
+                justification: |
+                  The entity box decides the size of every entity, and so the whole layout of an entity relationship
+                  diagram; its rows and cells must be where Mermaid puts them.
+                tests:
+                  - ShapeLibrary_Draw_ErBoxWithAttributes_LaysOutTheTable
+                  - ShapeLibrary_Draw_ErBoxWithoutAttributes_IsAtLeastTheMinimumWidth
+                  - ShapeLibrary_Draw_ErBoxSvgEmptyCell_WidensTheBox
+                  - ShapeLibrary_ErHtmlLabels_FollowsTheTopLevelSetting
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-SvgTextAnchor
+                title: >-
+                  The ShapeLibrary unit shall center the SVG text of a node's label on its anchor only when the
+                  diagram's style sheet centers it, and otherwise start the text at its anchor, as the state and entity
+                  relationship style sheets of Mermaid do.
+                justification: |
+                  Without the centering rule the browser starts the text at its anchor; the labels of state and entity
+                  relationship diagrams drawn as SVG text must stand where Mermaid's do.
+                tests:
+                  - ShapeLibrary_Draw_SvgNodeText_IsCenteredOnlyWhenTheSheetCentersIt

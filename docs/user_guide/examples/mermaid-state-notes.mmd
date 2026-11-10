@@ -1,0 +1,23 @@
+---
+config:
+  theme: forest
+---
+stateDiagram-v2
+    classDef alert fill:#f96,stroke:#a33,stroke-width:2px
+    classDef calm fill:#cfe,color:#063
+    state "Waiting for a card" as Waiting
+    Waiting : the screen shows the welcome text
+    [*] --> Waiting
+    Waiting --> Reading : card inserted
+    Reading --> Reading : retry
+    Reading --> Menu : PIN accepted
+    Reading --> Blocked:::alert : three wrong PINs
+    Menu --> Waiting : card taken
+    class Menu calm
+    style Waiting stroke-dasharray:4 2
+    note right of Reading : the PIN is checked<br>by the bank
+    note left of Blocked
+        the card is kept
+        and the bank is told
+    end note
+    Blocked --> [*]

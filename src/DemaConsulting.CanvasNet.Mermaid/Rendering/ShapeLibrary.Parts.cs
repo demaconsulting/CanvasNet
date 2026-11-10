@@ -213,6 +213,67 @@ internal static partial class ShapeLibrary
             return close && points.Count > 0 ? Z() : this;
         }
 
+        /// <summary>Draws a cubic Bézier curve to a point (<c>C</c>).</summary>
+        /// <param name="x1">The first control point x.</param>
+        /// <param name="y1">The first control point y.</param>
+        /// <param name="x2">The second control point x.</param>
+        /// <param name="y2">The second control point y.</param>
+        /// <param name="x">The x.</param>
+        /// <param name="y">The y.</param>
+        public void C(double x1, double y1, double x2, double y2, double x, double y)
+        {
+            _segments.Add(SceneSegment.Cubic(x1, y1, x2, y2, x, y));
+            (_x, _y) = (x, y);
+        }
+
+        /// <summary>
+        ///     Writes an ellipse as rough.js draws it without roughness (its <c>ellipse</c> with <c>roughness: 0</c> and the
+        ///     default <c>curveStepCount</c> of 9 and <c>curveTightness</c> of 0): points every quarter step around the
+        ///     ellipse from angle 0, with one point before and two after, joined by a Catmull-Rom curve. The last curve
+        ///     doubles back from the end point to the first, which makes the outline bulge a little beyond the ellipse at
+        ///     angle 0, as SVG's <c>getBBox</c> of Mermaid's path shows.
+        /// </summary>
+        /// <param name="cx">The center x.</param>
+        /// <param name="cy">The center y.</param>
+        /// <param name="width">The width.</param>
+        /// <param name="height">The height.</param>
+        /// <returns>This path.</returns>
+        public PathData RoughEllipse(double cx, double cy, double width, double height)
+        {
+            const double curveStepCount = 9;
+            var rx = Math.Abs(width / 2);
+            var ry = Math.Abs(height / 2);
+            var psq = Math.Sqrt(Math.PI * 2 * Math.Sqrt((Math.Pow(width / 2, 2) + Math.Pow(height / 2, 2)) / 2));
+            var stepCount = Math.Ceiling(Math.Max(curveStepCount, curveStepCount / Math.Sqrt(200) * psq));
+            var increment = Math.PI * 2 / stepCount / 4;
+
+            // _computeEllipsePoints without roughness
+            var points = new List<(double X, double Y)> { (cx + (rx * Math.Cos(-increment)), cy + (ry * Math.Sin(-increment))) };
+            for (var angle = 0.0; angle <= Math.PI * 2; angle += increment)
+            {
+                points.Add((cx + (rx * Math.Cos(angle)), cy + (ry * Math.Sin(angle))));
+            }
+
+            points.Add((cx + (rx * Math.Cos(0)), cy + (ry * Math.Sin(0))));
+            points.Add((cx + (rx * Math.Cos(increment)), cy + (ry * Math.Sin(increment))));
+
+            // _curve with a tightness of 0
+            M(points[1].X, points[1].Y);
+            for (var i = 1; i + 2 < points.Count; i++)
+            {
+                var (p0, p1, p2, p3) = (points[i - 1], points[i], points[i + 1], points[i + 2]);
+                C(
+                    p1.X + ((p2.X - p0.X) / 6),
+                    p1.Y + ((p2.Y - p0.Y) / 6),
+                    p2.X + ((p1.X - p3.X) / 6),
+                    p2.Y + ((p1.Y - p3.Y) / 6),
+                    p2.X,
+                    p2.Y);
+            }
+
+            return this;
+        }
+
         /// <summary>
         ///     Writes a full ellipse as two arcs.
         /// </summary>
@@ -305,8 +366,8 @@ internal static partial class ShapeLibrary
         ///     Adds an item that is drawn as is (text, picture), counting its box.
         /// </summary>
         /// <param name="item">The item.</param>
-        /// <param name="box">Its box.</param>
-        public void Item(SceneItem item, SceneRect box)
+        /// <param name="box">Its box, or null when it adds nothing to the node's box.</param>
+        public void Item(SceneItem item, SceneRect? box)
         {
             _items.Add(item with { Id = _input.Node.DomId ?? _input.Node.Id, Location = _input.Node.Location });
             Include(box);

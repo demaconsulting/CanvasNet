@@ -338,6 +338,147 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the state diagram's style rules of the default theme: the global rules first, the node paint, the
+    ///     label colors of nodes, transitions, notes and composite titles, the 18 pixel title, and the CSS corner radii and
+    ///     cluster fills the state shapes read by selector.
+    /// </summary>
+    [Fact]
+    public void StateStyles_Create_DefaultTheme_ResolvesStateRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "stateDiagram-v2\n  A --> B\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+        var stateLabel = Color(config.ThemeVariable("stateLabelColor")!);
+        var transitionLabel = Color((config.ThemeVariable("transitionLabelColor") ?? config.ThemeVariable("tertiaryTextColor"))!);
+
+        // Act
+        var styles = StateStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new ShapePaint(Color("#ECECFF"), Color("#9370DB"), 1), styles.Node);
+        Assert.Equal(new TextPaint(Family, 16, stateLabel), styles.NodeLabel);
+        Assert.Equal(new TextPaint(Family, 16, transitionLabel), styles.EdgeLabel);
+        Assert.Equal(Color(config.ThemeVariable("noteTextColor")!), styles.NoteLabel.Color);
+        Assert.Equal(new TextPaint(Family, 18, Color("#333")), styles.Title);
+        Assert.Equal(stateLabel, styles.ClusterTitle(true).Color);
+        Assert.Equal(Color("#333"), styles.ClusterTitle(false).Color);
+        Assert.Equal(("5px", "0"), (styles.Resolve(".statediagram-state rect.basic")["rx"], styles.Resolve(".statediagram-cluster .inner")["rx"]));
+        Assert.Equal(
+            (Color("#ffffff"), Color("#f0f0f0")),
+            (styles.Resolve(".statediagram-cluster.statediagram-cluster .inner").Paint("fill"), styles.Resolve(".statediagram-cluster.statediagram-cluster-alt .inner").Paint("fill")));
+        Assert.Equal(config.ThemeVariable("transitionColor"), styles.Resolve("defs [id$=\"-barbEnd\"]")["fill"]);
+        Assert.Equal("5", styles.Resolve(".note-edge")["stroke-dasharray"]);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule of a state selector overrides the theme without reports.
+    /// </summary>
+    [Fact]
+    public void StateStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".statediagram-cluster rect { fill: #00ff00 } .transition { stroke: #ff0000 }\"}}%%\nstateDiagram-v2\n  A --> B\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "stateDiagram", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = StateStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Empty(reports);
+        Assert.Equal(Color("#00ff00"), styles.Resolve(".statediagram-cluster rect").Paint("fill"));
+        Assert.Equal(Color("#ff0000"), styles.Resolve(".transition").Paint("stroke"));
+    }
+
+    /// <summary>
+    ///     Validates the entity relationship diagram's style rules of the default theme: the global rules first, the node
+    ///     paint, the 14 pixel edge labels and their one visible background, the title in the root font (its class has no rule),
+    ///     the subgraph titles, and the important marker paint.
+    /// </summary>
+    [Fact]
+    public void ErStyles_Create_DefaultTheme_ResolvesErRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "erDiagram\n  A ||--o{ B : has\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+
+        // Act
+        var styles = ErStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new ShapePaint(Color("#ECECFF"), Color("#9370DB"), 1), styles.Node);
+        Assert.Equal(16, styles.NodeLabel.FontSize);
+        Assert.Equal(new TextPaint(Family, 14, styles.NodeLabel.Color), styles.EdgeLabel);
+        Assert.Equal([".labelBkg"], styles.HtmlEdgeLabelBackgrounds);
+        Assert.Equal(new TextPaint(Family, 16, Color("#333")), styles.Title);
+        Assert.Equal(new Rgba32(0, 0, 0, 255), styles.ClusterTitle(true).Color);
+        Assert.Equal(Color(config.ThemeVariable("titleColor")!), styles.ClusterTitle(false).Color);
+        var marker = styles.Resolve(".marker");
+        Assert.Equal(("none", true, "#333333", true), (marker["fill"], marker.IsImportant("fill"), marker["stroke"], marker.IsImportant("stroke")));
+        Assert.Equal("8,8", styles.Resolve(".edge-pattern-dashed")["stroke-dasharray"]);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule cannot replace the important marker fill of an entity relationship
+    ///     diagram, while it overrides an ordinary rule.
+    /// </summary>
+    [Fact]
+    public void ErStyles_Create_ThemeCss_KeepsTheImportantMarkerFill()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".marker { fill: #ff0000 } .relationshipLine { stroke: #0000ff }\"}}%%\nerDiagram\n  A ||--o{ B : has\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "er", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = ErStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Empty(reports);
+        Assert.Equal("none", styles.Resolve(".marker")["fill"]);
+        Assert.Equal(Color("#0000ff"), styles.Resolve(".relationshipLine").Paint("stroke"));
+    }
+
+    /// <summary>
+    ///     Validates the facts every unified sheet gives the rendering: only the flowchart and class sheets center the
+    ///     SVG text of a node's label on its anchor (the state and entity relationship sheets have no such rule), and the
+    ///     root text is the diagram's root font and its text color.
+    /// </summary>
+    [Fact]
+    public void UnifiedStyles_Create_EachSheet_CentersSvgNodeTextAndGivesTheRootText()
+    {
+        // Arrange
+        var flowchart = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "flowchart TD\n  A\n");
+        var classes = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "classDiagram\n  class A\n");
+        var state = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "stateDiagram-v2\n  A --> B\n");
+        var er = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "erDiagram\n  A ||--o{ B : has\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+
+        // Act
+        var sheets = new UnifiedStyles[]
+        {
+            FlowchartStyles.Create(flowchart, null), ClassStyles.Create(classes, null), StateStyles.Create(state, null), ErStyles.Create(er, null),
+        };
+
+        // Assert
+        Assert.Equal([true, true, false, false], sheets.Select(sheet => sheet.CentersNodeSvgText));
+        Assert.Equal(new TextPaint(Family, 16, Color(er.ThemeVariable("textColor")!)), sheets[3].RootText);
+        Assert.All(sheets, sheet => Assert.Equal(16, sheet.RootText.FontSize));
+    }
+
+    /// <summary>
     ///     Validates that the flowchart and sequence style sheets start with the same global rules of Mermaid's
     ///     <c>getStyles</c>.
     /// </summary>

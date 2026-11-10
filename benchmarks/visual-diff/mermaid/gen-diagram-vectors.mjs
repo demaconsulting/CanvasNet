@@ -4,21 +4,25 @@
 //
 // Developer tooling of benchmarks/visual-diff; see the README there. Usage:
 //
-//     node gen-diagram-vectors.mjs --type class [--modules <folder>] [--out <file>]
-//     node gen-diagram-vectors.mjs --type class [--modules <folder>] --probe <file>
+//     node gen-diagram-vectors.mjs --type class|state|er [--modules <folder>] [--out <file>]
+//     node gen-diagram-vectors.mjs --type class|state|er [--modules <folder>] --probe <file>
 //
-// <type> selects the cases (<type>-vector-cases.mjs next to this script) and the facts recorded; class is the only type
-// so far. <modules> is a folder that holds node_modules/mermaid and node_modules/puppeteer (default: the repository
-// root). <out> is the vector file (default: test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/
-// <type>-parser.json). --probe runs the texts of a JSON file (an array of strings) and prints the results instead (a
-// development aid).
+// <type> selects the cases (<type>-vector-cases.mjs next to this script) and the facts recorded: for class, the ClassDB
+// classes, relations, notes and namespaces; for state, the StateDB statement tree (after the translation of start, end and
+// concurrent regions), states, relations and style classes; for er, the ErDB entities, relationships, style classes and
+// subgraphs; and for each, the reduced getData() nodes and edges. <modules> is a folder that holds node_modules/mermaid
+// and node_modules/puppeteer (default: the repository root). <out> is the vector file (default:
+// test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/<type>-parser.json). --probe runs the texts of a
+// JSON file (an array of strings) and prints the results instead (a development aid).
 //
 // The cases run the real mermaid bundle in headless Chrome, so the expectations are mermaid's own results, not
 // hand-written values. Each case runs in a fresh page: mermaid.initialize with the case's site configuration, then
 // mermaidAPI.getDiagramFromText once. A fresh page matters because mermaid keeps some counters at module level (the
 // class diagram's classCounter, which numbers the DOM ids); a page that draws one diagram, as mermaid-cli's does, starts
 // them at 0. mermaid.parse is not called first, because it would parse the text a second time and move those counters;
-// the cases therefore give configuration as a site configuration, not as frontmatter. Nothing is downloaded.
+// the cases therefore give configuration as a site configuration, not as frontmatter. The random part of an id that
+// mermaid's generateId makes (the last region of a concurrent state) is written as "random" (id-random-<counter>).
+// Nothing is downloaded.
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -29,8 +33,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..', '..');
 
 // Read the arguments
-const usage = 'usage: node gen-diagram-vectors.mjs --type class [--modules <folder>] [--out <file> | --probe <file>]';
-const types = ['class'];
+const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er [--modules <folder>] [--out <file> | --probe <file>]';
+const types = ['class', 'state', 'er'];
 const args = process.argv.slice(2);
 let type = null;
 let modules = root;
@@ -111,7 +115,84 @@ function classFacts(diagram, pick) {
   };
 }
 
-const factsOf = { class: classFacts };
+// Runs in the page: the facts of a state diagram (the StateDB state, its translated statement tree and getData())
+function stateFacts(diagram, pick) {
+  const db = diagram.db;
+  const data = db.getData();
+  // The statement tree after the translation (start and end ids, concurrent regions), without the parser's internals
+  const statement = (s) => {
+    const result = pick(s, ['stmt', 'id', 'type', 'description', 'descriptions', 'note', 'classes', 'styles',
+      'textStyles', 'start', 'value', 'styleClass', 'url', 'tooltip']);
+    if (s.stmt === 'relation') {
+      result.state1 = statement(s.state1);
+      result.state2 = statement(s.state2);
+    }
+    if (Array.isArray(s.doc)) {
+      result.doc = s.doc.map(statement);
+    }
+    return result;
+  };
+  return {
+    type: diagram.type,
+    direction: db.getDirection(),
+    title: db.getDiagramTitle(),
+    accTitle: db.getAccTitle(),
+    accDescr: db.getAccDescription(),
+    rootDoc: (db.rootDoc ?? []).map(statement),
+    states: [...db.getStates().values()].map((s) => pick(s, ['id', 'type', 'descriptions', 'note', 'classes', 'styles',
+      'textStyles'])),
+    relations: db.getRelations().map((r) => pick(r, ['id1', 'id2', 'relationTitle'])),
+    styleClasses: [...db.getClasses().values()].map((c) => pick(c, ['id', 'styles', 'textStyles'])),
+    links: [...(db.getLinks?.() ?? new Map()).entries()].map(([id, link]) => ({ id, ...pick(link, ['url', 'tooltip']) })),
+    data: {
+      direction: data.direction,
+      nodes: data.nodes.map((n) => pick(n, ['id', 'label', 'description', 'shape', 'type', 'isGroup', 'parentId',
+        'dir', 'domId', 'padding', 'rx', 'ry', 'centerLabel', 'cssClasses', 'cssStyles', 'cssCompiledStyles',
+        'labelStyle', 'labelType', 'position', 'look'])),
+      edges: data.edges.map((e) => pick(e, ['id', 'start', 'end', 'label', 'arrowhead', 'arrowTypeEnd', 'style',
+        'labelStyle', 'arrowheadStyle', 'labelpos', 'labelType', 'thickness', 'classes', 'look']))
+    }
+  };
+}
+
+// Runs in the page: the facts of an ER diagram (the ErDB state and getData())
+function erFacts(diagram, pick) {
+  const db = diagram.db;
+  const attribute = (a) => pick(a, ['type', 'name', 'keys', 'comment']);
+  const entities = [...db.getEntities().entries()].map(([name, e]) => ({
+    name,
+    ...pick(e, ['id', 'label', 'alias', 'shape', 'cssClasses', 'cssStyles', 'labelType']),
+    attributes: e.attributes.map(attribute)
+  }));
+  const data = db.getData();
+  return {
+    type: diagram.type,
+    direction: db.getDirection(),
+    title: db.getDiagramTitle(),
+    accTitle: db.getAccTitle(),
+    accDescr: db.getAccDescription(),
+    entities,
+    relationships: db.getRelationships().map((r) => pick(r, ['entityA', 'roleA', 'entityB', 'relSpec'])),
+    styleClasses: [...db.getClasses().values()].map((c) => pick(c, ['id', 'styles', 'textStyles'])),
+    subgraphs: db.getSubGraphs().map((s) => pick(s, ['id', 'title', 'nodes', 'classes', 'cssStyles', 'dir',
+      'labelType'])),
+    data: {
+      direction: data.direction,
+      nodes: data.nodes.map((n) => ({
+        ...pick(n, ['id', 'label', 'alias', 'shape', 'isGroup', 'parentId', 'dir', 'padding', 'cssClasses',
+          'cssStyles', 'cssCompiledStyles', 'colorIndex', 'labelStyle', 'labelType', 'look']),
+        ...(n.attributes ? { attributes: n.attributes.map(attribute) } : {})
+      })),
+      edges: data.edges.map((e) => pick(e, ['id', 'start', 'end', 'type', 'curve', 'label', 'labelpos', 'labelType',
+        'thickness', 'classes', 'arrowTypeStart', 'arrowTypeEnd', 'pattern', 'look']))
+    }
+  };
+}
+
+const factsOf = { class: classFacts, state: stateFacts, er: erFacts };
+// The diagram ids (diagram.type) whose facts each type records: the legacy ids draw (class) or parse (state) the same
+// way
+const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'] };
 
 // Runs one text in a fresh page: the facts, or the error
 const runCase = async (browser, text, site) => {
@@ -130,6 +211,24 @@ const runCase = async (browser, text, site) => {
             }
           }
           return JSON.parse(JSON.stringify(result));
+        };
+
+        // mermaid's generateId makes ids from Math.random ("id-" + random.toString(36).substr(2, 12) + "-" + counter;
+        // a state diagram names the last region of a concurrent state so): each random token is recorded, and written
+        // as "random" in the facts, so that the vectors do not change from run to run
+        const tokens = new Set();
+        const random = Math.random;
+        Math.random = () => {
+          const value = random();
+          tokens.add(value.toString(36).substr(2, 12));
+          return value;
+        };
+        const stable = (result) => {
+          let json = JSON.stringify(result);
+          for (const token of tokens) {
+            json = json.split(`id-${token}-`).join('id-random-');
+          }
+          return JSON.parse(json);
         };
 
         window.mermaid.initialize({ startOnLoad: false, ...site });
@@ -154,9 +253,9 @@ const runCase = async (browser, text, site) => {
         }
 
         // The facts function is passed as text, because page.evaluate cannot pass a function argument
-        return new Function('diagram', 'pick', `return (${facts})(diagram, pick);`)(diagram, pick);
+        return stable(new Function('diagram', 'pick', `return (${facts})(diagram, pick);`)(diagram, pick));
       },
-      { text, site: site ?? {}, facts: factsOf[type].toString(), wanted: type === 'class' ? ['classDiagram', 'class'] : [type] }
+      { text, site: site ?? {}, facts: factsOf[type].toString(), wanted: wantedOf[type] }
     );
   } finally {
     await page.close();

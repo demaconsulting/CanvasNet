@@ -3748,6 +3748,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceIntegrationTests.cs"  # sequence system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceReferenceLayoutTests.cs"  # sequence goldens
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidClassIntegrationTests.cs"  # class system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidStateIntegrationTests.cs"  # state system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidErIntegrationTests.cs"  # ER system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
@@ -4280,6 +4282,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Parts.cs"  # unit source (path parts and drafts)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Clusters.cs"  # unit source (subgraph rectangle)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.ClassBox.cs"  # unit source (class box)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.States.cs"  # unit source (state shapes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.ErBox.cs"  # unit source (entity box)
       - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeNames.cs"  # unit source (shape registry)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeLibraryTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeLibraryVectorTests.cs"  # unit tests (vectors)
@@ -4594,6 +4598,110 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassModel.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassModel.LayoutData.cs"  # unit source (layout data, drawing)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-State Review (subsystem)
+  - id: CanvasNetMermaid-State
+    title: Review that CanvasNetMermaid State Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/state.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-mermaid/state.md"                  # subsystem design
+      - "docs/verification/canvas-net-mermaid/state.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/state.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/state/*.mmd"  # original state fixtures
+
+  # CanvasNetMermaid-State-StateParser Review (one per unit)
+  - id: CanvasNetMermaid-State-StateParser
+    title: Review that CanvasNetMermaid State StateParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/state.md"
+      - "docs/reqstream/canvas-net-mermaid/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/state/state-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/state/state-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/state/state-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/state/state-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/state-parser.json"  # vectors
+
+  # CanvasNetMermaid-State-StateModel Review (one per unit)
+  - id: CanvasNetMermaid-State-StateModel
+    title: Review that CanvasNetMermaid State StateModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/state.md"
+      - "docs/reqstream/canvas-net-mermaid/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/state/state-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/state/state-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/state/state-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/state/state-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateModel.LayoutData.cs"  # unit source (data fetcher, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Er Review (subsystem)
+  - id: CanvasNetMermaid-Er
+    title: Review that CanvasNetMermaid Er Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/er.yaml"                # subsystem requirements
+      - "docs/design/canvas-net-mermaid/er.md"                     # subsystem design
+      - "docs/verification/canvas-net-mermaid/er.md"               # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/er.sysml"            # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/er/*.mmd"  # original ER fixtures
+
+  # CanvasNetMermaid-Er-ErParser Review (one per unit)
+  - id: CanvasNetMermaid-Er-ErParser
+    title: Review that CanvasNetMermaid Er ErParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/er.md"
+      - "docs/reqstream/canvas-net-mermaid/er.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/er/er-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/er/er-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/er/er-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/er/er-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/er-parser.json"  # vectors
+
+  # CanvasNetMermaid-Er-ErModel Review (one per unit)
+  - id: CanvasNetMermaid-Er-ErModel
+    title: Review that CanvasNetMermaid Er ErModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/er.md"
+      - "docs/reqstream/canvas-net-mermaid/er.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/er/er-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/er/er-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/er/er-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/er/er-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErModel.LayoutData.cs"  # unit source (layout data, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErModelTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

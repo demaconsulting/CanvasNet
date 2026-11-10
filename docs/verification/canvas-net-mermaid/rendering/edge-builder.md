@@ -2,8 +2,8 @@
 
 This document describes the unit-level verification strategy for the `EdgeBuilder` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace: the internal static `EdgeBuilder` class (the route, stroke, and
-labels in `EdgeBuilder.cs`, the d3-shape curves in `EdgeBuilder.Curves.cs`, the flowchart and class markers in
-`EdgeBuilder.Markers.cs`, and the terminal labels in `EdgeBuilder.Terminals.cs`).
+labels in `EdgeBuilder.cs`, the d3-shape curves in `EdgeBuilder.Curves.cs`, the flowchart, class, state, and entity
+relationship markers in `EdgeBuilder.Markers.cs`, and the terminal labels in `EdgeBuilder.Terminals.cs`).
 
 #### Verification Approach
 
@@ -13,11 +13,15 @@ recorded from d3-shape in Node by `benchmarks/visual-diff/mermaid/gen-curve-vect
 character for character. The other tests are analytic: routes, boxes, markers, and terminal label positions with
 numbers worked out by hand from Mermaid's formulas (a right angle rounded off 5 pixels each side of the corner, an
 arrowhead tip 4 pixels beyond the pulled-back end, the middle of a route by length, the quirks of `intersection` and
-`isLabelCoordinateInPath`, the reference points of the class markers in `markers.js`, and the walk and offsets of
+`isLabelCoordinateInPath`, the reference points of the class, state, and entity relationship markers in `markers.js`,
+and the walk and offsets of
 `calcTerminalLabelPosition`). The drawing tests use the `ShapeContext` of a flowchart text from `RenderingTestContext`
 (the real configuration, style sheet, and label measurement with the bundled fonts), or of a class diagram text
 (`RenderingTestContext.CreateClass`, with the class diagram's style sheet, and SVG labels when its frontmatter sets
-`htmlLabels: false`), and the real intersect functions of `ShapeLibrary`; no mocking is required, and the internal
+`htmlLabels: false`), of a state diagram text (`RenderingTestContext.CreateState`, with the state diagram's style
+sheet and the theme variables of its frontmatter), or of an entity relationship diagram text
+(`RenderingTestContext.CreateEr`, with the entity relationship diagram's style sheet), and the real intersect
+functions of `ShapeLibrary`; no mocking is required, and the internal
 types are reached through the test assembly's `InternalsVisibleTo` access.
 
 Unit tests reside in `EdgeBuilderTests.cs` within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the
@@ -162,3 +166,42 @@ by half the measured label to center the label on its position, with the end lab
 its position. Draws the SVG terminal label
 `0..1` and asserts that, at the start, the center of its box is the position (-15, 17.5), that, at the end, its box is
 the text box moved to (10, 77.5), and that empty labels draw nothing and have no box.
+
+##### CanvasNetMermaid-Rendering-EdgeBuilder-StateMarkers: Transitions End With Mermaid's Barb
+
+**Tests**: `EdgeBuilderTests.EdgeBuilder_UserSpaceMarkerOf_StateAndErArrowTypes_GiveMermaidsMarkers`,
+`EdgeBuilderTests.EdgeBuilder_Draw_StateTransition_BarbTakesTheTransitionColor`
+
+Asserts that the arrow type `arrow_barb` at the end of an edge gives the user-space marker `barb` with the reference
+point (19, 7) of `markers.js`, drawn in user units (not scaled with the stroke width), and that there is no `barb` at
+the start of an edge. Draws a state transition (class `transition`, `arrow_barb` at its end) straight down from (0, 0)
+to (0, 100) with the theme variables `transitionColor` `#00aa00` and `lineColor` `#aa0000`, and asserts that the line is
+not shortened (`M0,0L0,50L0,100`), that it is stroked in the transition color, and that the barb is filled and stroked
+in the transition color `#00aa00`, 1 pixel wide, by the more specific `defs [id$="-barbEnd"]` rule rather than in the
+line color, with its tip on the end of the route at y = 100.
+
+##### CanvasNetMermaid-Rendering-EdgeBuilder-ErMarkers: Relationships End With Mermaid's Cardinality Markers
+
+**Tests**: `EdgeBuilderTests.EdgeBuilder_UserSpaceMarkerOf_StateAndErArrowTypes_GiveMermaidsMarkers`,
+`EdgeBuilderTests.EdgeBuilder_DrawUserSpaceMarker_ErMarker_ScalesWithTheStrokeWidth`,
+`EdgeBuilderTests.EdgeBuilder_Draw_ErRelationship_MarkersAreUnfilledWithWhiteRings`
+
+Asserts that `only_one`, `zero_or_one`, `one_or_more`, and `zero_or_more` give, at the start and at the end, the
+markers `onlyOne`, `zeroOrOne`, `oneOrMore`, and `zeroOrMore` with the reference points of `markers.js` - (0, 9) and
+(18, 9), (0, 9) and (30, 9), (18, 18) and (27, 18), (18, 18) and (39, 18) - all scaled with the stroke width, that the
+end `zeroOrMore` is a ring with its own `white` fill and a crow's foot without one, and that `md_parent` gives no
+marker. Places the end `zeroOrMore` at the vertex (100, 50) on a path 2 pixels wide pointing right and asserts that it
+is twice its size: the ring's box is (28, 38, 24, 24) (radius 12, 60 pixels behind the vertex), filled white and
+stroked 2 pixels wide, and the crow's foot's box is (64, 32, 72, 36). Draws a relationship (class `relationshipLine`,
+`only_one` at its start and `zero_or_more` at its end) straight down from (0, 0) to (0, 100) and asserts that the line
+is not shortened (`M0,0L0,50L0,100`), that its three marker paths are stroked in the line color `#333333`, 1 pixel
+wide, and that the bars and the crow's foot are unfilled while the ring is white.
+
+##### CanvasNetMermaid-Rendering-EdgeBuilder-SvgLabelCenter: An SVG Label In Its Own Size Is Centered On Its Text
+
+**Tests**: `EdgeBuilderTests.EdgeBuilder_DrawLabel_SvgInASmallerSize_IsCenteredOnItsDrawnText`
+
+Measures the role `has` of an entity relationship diagram with `htmlLabels: false` and places it at (100, 50), and
+asserts that it is an SVG label drawn in its own font size of 14 pixels, that the center of its drawn text is the
+position (100, 50) to a millionth of a pixel, and that its background, measured in the diagram's root font size of 16
+pixels, is taller than the text with its padding of 2 pixels on each side.

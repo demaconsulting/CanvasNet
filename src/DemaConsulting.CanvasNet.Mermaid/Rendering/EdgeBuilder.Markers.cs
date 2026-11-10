@@ -26,7 +26,9 @@ internal sealed record MarkerPaint(Rgba32? Fill, Rgba32? Stroke)
 ///     end vertex, turned along the path's direction there (<c>orient="auto"</c>). The flowchart's markers
 ///     (<c>point</c>, <c>circle</c> and <c>cross</c>) are scaled from their view box to their <c>markerWidth</c>; the
 ///     class diagram's markers (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c> and
-///     <c>lollipop</c>) have no view box and are drawn in user units (<c>markerUnits="userSpaceOnUse"</c>).
+///     <c>lollipop</c>) and the state diagram's <c>barb</c> have no view box and are drawn in user units
+///     (<c>markerUnits="userSpaceOnUse"</c>); the entity relationship markers (<c>onlyOne</c>, <c>zeroOrOne</c>,
+///     <c>oneOrMore</c> and <c>zeroOrMore</c>) have no view box either and are drawn in units of the path's stroke width.
 /// </content>
 internal static partial class EdgeBuilder
 {
@@ -37,19 +39,25 @@ internal static partial class EdgeBuilder
     private static readonly HashSet<string> ColorFilledMarkers = new(StringComparer.Ordinal) { "point", "barb", "composition", "dependency" };
 
     /// <summary>
-    ///     A marker of <c>markers.js</c> without a view box, drawn in user units: its marker type (the CSS class of the
-    ///     marker element, which its paint comes from), its reference point and its shapes.
+    ///     A marker of <c>markers.js</c> without a view box: its marker type (the CSS class of the marker element, which
+    ///     its paint comes from), its reference point and its shapes, drawn in user units
+    ///     (<c>markerUnits="userSpaceOnUse"</c>) or, for the entity relationship markers, which set no
+    ///     <c>markerUnits</c>, in units of the path's stroke width.
     /// </summary>
     /// <remarks>
-    ///     The marker's viewport (<c>markerWidth</c> by <c>markerHeight</c>) clips it, but every shape of the class
-    ///     markers lies inside it except the half-pixel miter tip of the stroke of <c>extensionStart</c>, so the clip is
-    ///     not modeled.
+    ///     The marker's viewport (<c>markerWidth</c> by <c>markerHeight</c>) clips it, but every shape lies inside it
+    ///     except the half-pixel miter tip of the stroke of <c>extensionStart</c> and the half-stroke ends of the entity
+    ///     relationship curves that touch the viewport's edge, so the clip is not modeled.
     /// </remarks>
-    /// <param name="Type">The marker type (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c>, <c>lollipop</c>).</param>
-    /// <param name="RefX">The x of the reference point, in user units.</param>
-    /// <param name="RefY">The y of the reference point, in user units.</param>
+    /// <param name="Type">The marker type (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c>, <c>lollipop</c>, <c>barb</c>, <c>onlyOne</c>, <c>zeroOrOne</c>, <c>oneOrMore</c>, <c>zeroOrMore</c>).</param>
+    /// <param name="RefX">The x of the reference point, in marker units.</param>
+    /// <param name="RefY">The y of the reference point, in marker units.</param>
     /// <param name="Parts">The shapes in drawing order.</param>
-    internal sealed record UserSpaceMarker(string Type, double RefX, double RefY, IReadOnlyList<MarkerPart> Parts);
+    internal sealed record UserSpaceMarker(string Type, double RefX, double RefY, IReadOnlyList<MarkerPart> Parts)
+    {
+        /// <summary>Gets a value indicating whether a marker unit is the path's stroke width (<c>markerUnits="strokeWidth"</c>).</summary>
+        public bool ScalesWithStroke { get; init; }
+    }
 
     /// <summary>
     ///     One shape of a <see cref="UserSpaceMarker"/>: its path in marker units and the fill attribute the shape element
@@ -95,9 +103,11 @@ internal static partial class EdgeBuilder
 
     /// <summary>
     ///     Gets the user-space marker of an arrow type at one end of an edge (<c>edgeMarker.ts</c>'s
-    ///     <c>arrowTypesMap</c> with the class markers of <c>markers.js</c>), or null when there is none.
+    ///     <c>arrowTypesMap</c> with the class, state and entity relationship markers of <c>markers.js</c>), or null when
+    ///     there is none (a <c>barb</c> start, which <c>markers.js</c> does not define, or an arrow type the map does not
+    ///     know, such as <c>md_parent</c>).
     /// </summary>
-    /// <param name="arrowType">The arrow type (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c>, <c>lollipop</c>).</param>
+    /// <param name="arrowType">The arrow type (<c>aggregation</c>, <c>extension</c>, <c>composition</c>, <c>dependency</c>, <c>lollipop</c>, <c>arrow_barb</c>, <c>only_one</c>, <c>zero_or_one</c>, <c>one_or_more</c>, <c>zero_or_more</c>).</param>
     /// <param name="start">Whether the marker is at the start of the path.</param>
     /// <returns>The marker, or null.</returns>
     internal static UserSpaceMarker? UserSpaceMarkerOf(string? arrowType, bool start)
@@ -114,6 +124,42 @@ internal static partial class EdgeBuilder
             ("dependency", false) => new UserSpaceMarker("dependency", 13, 7, [new MarkerPart(Polygon([new(18, 7), new(9, 13), new(14, 7), new(9, 1)]))]),
             ("lollipop", true) => new UserSpaceMarker("lollipop", 13, 7, [new MarkerPart(Circle(7, 7, 6), "transparent")]),
             ("lollipop", false) => new UserSpaceMarker("lollipop", 1, 7, [new MarkerPart(Circle(7, 7, 6), "transparent")]),
+            ("arrow_barb", false) => new UserSpaceMarker("barb", 19, 7, [new MarkerPart(Polygon([new(19, 7), new(9, 13), new(14, 7), new(9, 1)]))]),
+            _ => ErMarkerOf(arrowType, start),
+        };
+    }
+
+    /// <summary>
+    ///     Gets the entity relationship marker of an arrow type at one end of an edge (<c>markers.js</c>'s
+    ///     <c>only_one</c>, <c>zero_or_one</c>, <c>one_or_more</c> and <c>zero_or_more</c>), or null: bars, crow's feet
+    ///     of two quadratic curves, and circles with their own white fill, in units of the path's stroke width.
+    /// </summary>
+    /// <param name="arrowType">The arrow type.</param>
+    /// <param name="start">Whether the marker is at the start of the path.</param>
+    /// <returns>The marker, or null.</returns>
+    private static UserSpaceMarker? ErMarkerOf(string? arrowType, bool start)
+    {
+        static MarkerPart Path(params SceneSegment[] segments) => new(segments);
+        static MarkerPart Bar(double x, double y1, double y2) => Path(SceneSegment.Move(x, y1), SceneSegment.Line(x, y2));
+        static MarkerPart Foot(double x0, double xc, double x1) => Path(
+            SceneSegment.Move(x0, 18),
+            SceneSegment.Quadratic(xc, 0, x1, 18),
+            SceneSegment.Quadratic(xc, 36, x0, 18));
+        static MarkerPart Ring(double cx, double cy) => new(Circle(cx, cy, 6), "white");
+        static MarkerPart Join(MarkerPart first, MarkerPart second) => new([.. first.Segments, .. second.Segments]);
+        UserSpaceMarker Marker(string type, double refX, double refY, params MarkerPart[] parts) =>
+            new(type, refX, refY, parts) { ScalesWithStroke = true };
+
+        return (arrowType, start) switch
+        {
+            ("only_one", true) => Marker("onlyOne", 0, 9, Join(Bar(9, 0, 18), Bar(15, 0, 18))),
+            ("only_one", false) => Marker("onlyOne", 18, 9, Join(Bar(3, 0, 18), Bar(9, 0, 18))),
+            ("zero_or_one", true) => Marker("zeroOrOne", 0, 9, Ring(21, 9), Bar(9, 0, 18)),
+            ("zero_or_one", false) => Marker("zeroOrOne", 30, 9, Ring(9, 9), Bar(21, 0, 18)),
+            ("one_or_more", true) => Marker("oneOrMore", 18, 18, Join(Foot(0, 18, 36), Bar(42, 9, 27))),
+            ("one_or_more", false) => Marker("oneOrMore", 27, 18, Join(Bar(3, 9, 27), Foot(9, 27, 45))),
+            ("zero_or_more", true) => Marker("zeroOrMore", 18, 18, Ring(48, 18), Foot(0, 18, 36)),
+            ("zero_or_more", false) => Marker("zeroOrMore", 39, 18, Ring(9, 18), Foot(21, 39, 57)),
             _ => null,
         };
     }
@@ -127,13 +173,15 @@ internal static partial class EdgeBuilder
     /// <param name="arrowTypeEnd">The arrow type at the end.</param>
     /// <param name="paintOf">The paint of a marker type.</param>
     /// <param name="id">The edge id.</param>
+    /// <param name="strokeWidth">The stroke width of the path, the unit of a marker that scales with it.</param>
     /// <returns>The marker items (start first).</returns>
     internal static List<SceneItem> DrawMarkers(
         IReadOnlyList<SceneSegment> segments,
         string? arrowTypeStart,
         string? arrowTypeEnd,
         Func<string, MarkerPaint> paintOf,
-        string id)
+        string id,
+        double strokeWidth = 1)
     {
         var items = new List<SceneItem>();
         if (segments.Count == 0)
@@ -154,7 +202,7 @@ internal static partial class EdgeBuilder
             }
             else if (UserSpaceMarkerOf(arrowType, start) is { } userMarker)
             {
-                items.AddRange(DrawUserSpaceMarker(userMarker, vertex.X, vertex.Y, vertex.Angle, paintOf(userMarker.Type), id));
+                items.AddRange(DrawUserSpaceMarker(userMarker, vertex.X, vertex.Y, vertex.Angle, paintOf(userMarker.Type), id, strokeWidth));
             }
         }
 
@@ -162,8 +210,9 @@ internal static partial class EdgeBuilder
     }
 
     /// <summary>
-    ///     Draws one user-space marker at a vertex: each shape moved so the reference point is on the vertex, turned by
-    ///     the path's direction, filled with its own fill or the marker's, and stroked with the marker's stroke.
+    ///     Draws one user-space marker at a vertex: each shape moved so the reference point is on the vertex, scaled by
+    ///     the path's stroke width when the marker's units are stroke widths, turned by the path's direction, filled with
+    ///     its own fill or the marker's, and stroked with the marker's stroke.
     /// </summary>
     /// <param name="marker">The marker.</param>
     /// <param name="x">The vertex x.</param>
@@ -171,14 +220,16 @@ internal static partial class EdgeBuilder
     /// <param name="angle">The direction of the path at the vertex, in radians.</param>
     /// <param name="paint">The paint of the marker element.</param>
     /// <param name="id">The edge id.</param>
+    /// <param name="strokeWidth">The stroke width of the path.</param>
     /// <returns>The items, one per shape.</returns>
-    internal static List<SceneItem> DrawUserSpaceMarker(UserSpaceMarker marker, double x, double y, double angle, MarkerPaint paint, string id)
+    internal static List<SceneItem> DrawUserSpaceMarker(UserSpaceMarker marker, double x, double y, double angle, MarkerPaint paint, string id, double strokeWidth = 1)
     {
         var (cos, sin) = (Math.Cos(angle), Math.Sin(angle));
         var degrees = angle * 180 / Math.PI;
+        var scale = marker.ScalesWithStroke ? strokeWidth : 1;
         ShapePoint Map(double mx, double my)
         {
-            var (ux, uy) = (mx - marker.RefX, my - marker.RefY);
+            var (ux, uy) = ((mx - marker.RefX) * scale, (my - marker.RefY) * scale);
             return new ShapePoint(x + (ux * cos) - (uy * sin), y + (ux * sin) + (uy * cos));
         }
 
@@ -200,7 +251,7 @@ internal static partial class EdgeBuilder
                     }
 
                 case SceneSegmentKind.ArcTo:
-                    return SceneSegment.Arc(s.X1, s.Y1, s.X2 + degrees, s.LargeArc, s.Sweep, end.X, end.Y);
+                    return SceneSegment.Arc(s.X1 * scale, s.Y1 * scale, s.X2 + degrees, s.LargeArc, s.Sweep, end.X, end.Y);
                 case SceneSegmentKind.Close:
                     return s;
                 default:
@@ -209,7 +260,8 @@ internal static partial class EdgeBuilder
         }
 
         // A transparent fill (the lollipop's own attribute, or the extension's transparent rule) paints nothing
-        var stroke = paint.Stroke is { } color && paint.StrokeWidth > 0 ? new SceneStroke(color, paint.StrokeWidth) : null;
+        var width = paint.StrokeWidth * scale;
+        var stroke = paint.Stroke is { } color && width > 0 ? new SceneStroke(color, width) : null;
         var items = new List<SceneItem>();
         foreach (var part in marker.Parts)
         {

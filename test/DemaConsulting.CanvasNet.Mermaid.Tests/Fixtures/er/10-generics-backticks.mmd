@@ -1,0 +1,12 @@
+erDiagram
+    REGISTRY {
+        List~int~ ids
+        Map~string,int~ counts
+        string `display.name` PK "shown to users"
+        `geo.point` location
+        public.geometry(point,4326) area
+    }
+    "Entry Log" {
+        int id PK
+    }
+    REGISTRY ||--o{ "Entry Log" : records

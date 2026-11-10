@@ -646,6 +646,61 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Validates that a run of SVG text advances on Chrome's grid of a 64th of a pixel: the exact advance is rounded
+    ///     up to the grid, so an SVG label whose words are runs of their own is wider than one run of the same text (the
+    ///     reference's <c>waiting for the bank</c> at 16 pixels: 140.766 as word runs, 140.75 as one run), and an advance on
+    ///     the grid stays.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_SvgRunAdvance_RoundsUpToTheLayoutUnit()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var font = new SceneFont(MermaidConfigResolver.DefaultFontFamily, 16, false, false);
+        var request = new LabelRequest("waiting for the bank", Font) { HtmlLabels = false, Markdown = true, Width = double.PositiveInfinity, CenterSvgText = false };
+
+        // Act
+        var words = builder.Build(request);
+        var (_, left, right) = builder.SvgLineExtent("waiting for the bank", font);
+
+        // Assert
+        Assert.Equal(3188.0 / 64, LabelBuilder.SvgRunAdvance(3187.5 / 64), 9);
+        Assert.Equal(1.5, LabelBuilder.SvgRunAdvance(1.5), 9);
+        Assert.Equal(140.765625, words.Width, 3);
+        Assert.Equal(140.75, right - left, 3);
+    }
+
+    /// <summary>
+    ///     Validates the background rectangle of an SVG label whose own font size differs from the size it inherits (an
+    ///     entity relationship label of 14 pixels in a 16 pixel diagram): Mermaid measures the text before the label takes
+    ///     its own size, so the rectangle is the box of the text in the inherited size grown by the padding, while the
+    ///     text is drawn in its own size; with the same size the rectangle is the drawn text's box grown by the padding.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_Build_SvgBackgroundInAnInheritedSize_IsMeasuredInThatSize()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var small = Font with { Size = 14 };
+        var request = new LabelRequest("has", small) { HtmlLabels = false, AddBackground = true, Prepare = false, CenterSvgText = true, Width = double.PositiveInfinity };
+
+        // Act
+        var inherited = builder.Build(request with { RootFontSize = 16 });
+        var own = builder.Build(request with { RootFontSize = 14 });
+        var large = builder.Build(request with { Font = Font, RootFontSize = 16 });
+
+        // Assert
+        Assert.Equal(own.Lines[0].Box, inherited.Lines[0].Box);
+        Assert.Equal(14, inherited.Lines[0].Runs[0].Font.Size);
+        var pad = LabelBuilder.SvgBackgroundPadding;
+        var text = own.Lines[0].Box;
+        Assert.Equal(new SceneRect(text.X - pad, text.Y - pad, text.Width + (2 * pad), text.Height + (2 * pad)), own.Box);
+        Assert.Equal(large.Box.Width, inherited.Box.Width, 9);
+        Assert.Equal(large.Box.Height, inherited.Box.Height, 9);
+        Assert.True(inherited.Box.Height > own.Box.Height);
+    }
+
+    /// <summary>
     ///     Validates the x-height: the top of Liberation Sans's <c>x</c>, 1082 units of 2048, and zero for a size that
     ///     draws nothing.
     /// </summary>

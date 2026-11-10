@@ -1,0 +1,92 @@
+---
+# Software Unit Requirements for ErParser
+#
+# These requirements describe the design-level behavior of the ErParser unit of the Er subsystem (internal namespace
+# DemaConsulting.CanvasNet.Mermaid.Er): the lexer and the grammar of the entity relationship diagram language of the
+# pinned Mermaid release, the operations it hands to the ER database in Mermaid's order, the located errors with
+# Mermaid's expected tokens, and the limits checked while the text is read. See
+# docs/verification/canvas-net-mermaid/er/er-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Er Requirements
+        sections:
+          - title: ErParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Er-ErParser-Tokens
+                title: >-
+                  The ErParser unit shall split an entity relationship diagram text into the tokens that Mermaid's ER
+                  lexer produces, in its rule order - every cardinality in symbols and in words, the left one read as
+                  the second cardinality, names that start like keywords as names and the keywords in any case, a
+                  direction statement wherever it stands on its line, and a generic attribute type that runs to the
+                  last tilde of its line - while keeping every token located in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in many corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - ErParser_Parse_UpstreamVector_MatchesMermaid
+                  - ErParser_Parse_LeftCardinality_FollowsMermaidsLexerOrder
+                  - ErParser_Parse_KeywordLikeNamesAndKeywordsInAnyCase_FollowTheLexer
+                  - ErParser_Parse_DirectionLines_FollowTheLexer
+                  - ErParser_Parse_GenericType_TakesTheLineUpToItsLastTilde
+
+              - id: CanvasNetMermaid-Er-ErParser-Grammar
+                title: >-
+                  The ErParser unit shall accept exactly the texts that the ER grammar of the pinned Mermaid release
+                  accepts - entities with aliases (the first kept), classes, and attribute blocks with generic, array,
+                  optional, and backtick types, keys in any case and in lists, and comments; relationships with their
+                  identifying or non-identifying line and a quoted or one-word role; subgraphs whose statement values
+                  are their nodes; the classDef, class, and style statements; the direction; and the accessibility
+                  statements - and shall hand the ER database the same operations, in the same order, as Mermaid's
+                  parser hands them.
+                justification: |
+                  The ids, the attributes, and the subgraph membership of an entity relationship diagram depend on the
+                  statements and their order, and the layout depends on all of them.
+                tests:
+                  - ErParser_Parse_UpstreamVector_MatchesMermaid
+                  - ErParser_Vectors_FileHasEnoughCases_AtLeast110
+                  - ErParser_Parse_RelationshipType_GivesTheIdentification
+                  - ErParser_Parse_Roles_AreQuotedOrOneWord
+                  - ErParser_Parse_Attributes_KeepTypesKeysAndComments
+                  - ErParser_Parse_Aliases_KeepTheFirst
+                  - ErParser_Parse_StatementValues_BecomeSubgraphNodes
+
+              - id: CanvasNetMermaid-Er-ErParser-Errors
+                title: >-
+                  The ErParser unit shall refuse a token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's parser lists, with a hint;
+                  shall refuse text that no lexer rule matches, such as a dot in a style, with a located error; and
+                  shall fail an unclosed subgraph at the end of the text.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to
+                  write and where.
+                tests:
+                  - ErParser_Parse_GrammarError_ThrowsLocatedErrorWithExpectedTokens
+                  - ErParser_Parse_UnclosedSubgraph_FailsAtTheEnd
+                  - ErParser_Parse_DotInAStyle_IsALexicalError
+                  - ErParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Er-ErParser-LinearTime
+                title: >-
+                  The ErParser unit shall read long lines of many tokens and a text of many statements without
+                  recursion that grows with the text and without matching work that grows faster than the length of
+                  the text.
+                justification: |
+                  The text is untrusted; a long line or a long text must not exhaust the stack or cost quadratic time.
+                tests:
+                  - ErParser_Parse_LongLinesAndManyStatements_AreReadIteratively
+
+              - id: CanvasNetMermaid-Er-ErParser-Limits
+                title: >-
+                  The ErParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded located
+                  at the element that breaches it, subgraphs nested deeper than MaxNestingDepth and every name, alias,
+                  role, id, attribute text, style, subgraph title, or accessibility text it keeps or joins that is
+                  longer than MaxLabelLength.
+                justification: |
+                  The size of the model, and so the cost of every later stage, must be bounded while untrusted text is
+                  read, and the nesting bounds the recursion of the parser.
+                tests:
+                  - ErParser_Parse_SubgraphsTooDeep_ThrowsLimitExceeded
+                  - ErParser_Parse_LongTextAnywhere_ThrowsLimitExceeded

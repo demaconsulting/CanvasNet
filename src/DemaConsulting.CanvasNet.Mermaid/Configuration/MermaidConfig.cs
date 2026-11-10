@@ -80,6 +80,64 @@ internal sealed record ClassConfig
 }
 
 /// <summary>
+///     The state section of the effective configuration, with the keys Mermaid's unified state renderer and its shapes
+///     read.
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>StateDiagramConfig</c>. Mermaid's <c>stateRenderer-v3-unified.ts</c>
+///     spaces the nodes by <c>conf.nodeSpacing || 50</c> and <c>conf.rankSpacing || 50</c> (a missing or zero spacing
+///     falls back; the schema has no default for either) and places the title <c>conf.titleTopMargin ?? 25</c> above the
+///     drawing. The <c>forkJoin</c> shape grows the node it measured by half of <c>state.padding</c>, but the dagre
+///     layout's <c>insertMeasuredNode</c> replaces that size with the drawn box, so the padding has no effect there.
+/// </remarks>
+internal sealed record StateConfig
+{
+    /// <summary>Gets the default renderer, which the state detectors read (<c>dagre-wrapper</c> selects <c>stateDiagram</c>).</summary>
+    public string DefaultRenderer { get; init; } = "dagre-wrapper";
+
+    /// <summary>Gets the spacing between the nodes of a rank (<c>state.nodeSpacing || 50</c>).</summary>
+    public double NodeSpacing { get; init; } = 50;
+
+    /// <summary>Gets the spacing between ranks (<c>state.rankSpacing || 50</c>).</summary>
+    public double RankSpacing { get; init; } = 50;
+
+    /// <summary>Gets the margin above the diagram title (<c>state.titleTopMargin ?? 25</c>).</summary>
+    public double TitleTopMargin { get; init; } = 25;
+}
+
+/// <summary>
+///     The entity relationship section of the effective configuration, with the keys Mermaid's unified ER renderer and
+///     its <c>erBox</c> shape read.
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>ErDiagramConfig</c>. Mermaid's <c>erRenderer-unified.ts</c> writes
+///     <c>er.nodeSpacing || 140</c> and <c>er.rankSpacing || 80</c> into the flowchart spacing of the render, and places the
+///     title <c>er.titleTopMargin ?? 25</c> above the drawing. The <c>erBox</c> shape pads with <c>er.diagramPadding</c>
+///     and <c>er.entityPadding</c> and widens an entity without attributes to <c>er.minEntityWidth</c>; the schema's
+///     <c>minEntityHeight</c>, <c>layoutDirection</c>, <c>stroke</c>, <c>fill</c> and <c>fontSize</c> are not read.
+/// </remarks>
+internal sealed record ErConfig
+{
+    /// <summary>Gets the padding of an entity box (<c>er.diagramPadding</c>).</summary>
+    public double DiagramPadding { get; init; } = 20;
+
+    /// <summary>Gets the padding of an entity's texts (<c>er.entityPadding</c>).</summary>
+    public double EntityPadding { get; init; } = 15;
+
+    /// <summary>Gets the smallest width of an entity without attributes (<c>er.minEntityWidth</c>).</summary>
+    public double MinEntityWidth { get; init; } = 100;
+
+    /// <summary>Gets the spacing between the nodes of a rank (<c>er.nodeSpacing || 140</c>).</summary>
+    public double NodeSpacing { get; init; } = 140;
+
+    /// <summary>Gets the spacing between ranks (<c>er.rankSpacing || 80</c>).</summary>
+    public double RankSpacing { get; init; } = 80;
+
+    /// <summary>Gets the margin above the diagram title (<c>er.titleTopMargin ?? 25</c>).</summary>
+    public double TitleTopMargin { get; init; } = 25;
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -304,6 +362,8 @@ internal sealed class MermaidConfig
             Boolean(flowchart, "arrowMarkerAbsolute", false));
         Sequence = ReadSequence(raw);
         Class = ReadClass(raw);
+        State = ReadState(raw);
+        Er = ReadEr(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -363,6 +423,12 @@ internal sealed class MermaidConfig
     /// <summary>Gets the class section, as the class database and renderer read it.</summary>
     public ClassConfig Class { get; }
 
+    /// <summary>Gets the state section, as the state renderer and its shapes read it.</summary>
+    public StateConfig State { get; }
+
+    /// <summary>Gets the entity relationship section, as the ER renderer and its shapes read it.</summary>
+    public ErConfig Er { get; }
+
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
     ///     state sections, which Mermaid's detectors read.
@@ -370,7 +436,7 @@ internal sealed class MermaidConfig
     public DetectorSettings DetectorSettings => new(
         Flowchart.DefaultRenderer,
         Class.DefaultRenderer,
-        Text(Raw["state"] as JsonObject, "defaultRenderer") ?? DetectorSettings.Default.StateRenderer);
+        State.DefaultRenderer);
 
     /// <summary>
     ///     Gets a theme variable as text (a number is formatted as JavaScript would), or null when it is not set.
@@ -470,9 +536,6 @@ internal sealed class MermaidConfig
         var section = raw["class"] as JsonObject ?? [];
         var state = raw["state"] as JsonObject ?? [];
         var defaults = new ClassConfig();
-
-        // conf.nodeSpacing || 50: a missing or zero spacing falls back
-        double OrDefault(double value, double fallback) => value != 0 ? value : fallback;
         return new ClassConfig
         {
             DefaultRenderer = Text(section, "defaultRenderer") ?? defaults.DefaultRenderer,
@@ -484,6 +547,53 @@ internal sealed class MermaidConfig
             TitleTopMargin = Number(state, "titleTopMargin", defaults.TitleTopMargin),
         };
     }
+
+    /// <summary>
+    ///     Reads the state section as the state renderer sees it: the section's values over the schema's defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The state section.</returns>
+    private static StateConfig ReadState(JsonObject raw)
+    {
+        var section = raw["state"] as JsonObject ?? [];
+        var defaults = new StateConfig();
+        return new StateConfig
+        {
+            DefaultRenderer = Text(section, "defaultRenderer") ?? defaults.DefaultRenderer,
+            NodeSpacing = OrDefault(Number(section, "nodeSpacing", defaults.NodeSpacing), defaults.NodeSpacing),
+            RankSpacing = OrDefault(Number(section, "rankSpacing", defaults.RankSpacing), defaults.RankSpacing),
+            TitleTopMargin = Number(section, "titleTopMargin", defaults.TitleTopMargin),
+        };
+    }
+
+    /// <summary>
+    ///     Reads the entity relationship section as the ER renderer sees it: the section's values over the schema's
+    ///     defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The entity relationship section.</returns>
+    private static ErConfig ReadEr(JsonObject raw)
+    {
+        var section = raw["er"] as JsonObject ?? [];
+        var defaults = new ErConfig();
+        return new ErConfig
+        {
+            DiagramPadding = Number(section, "diagramPadding", defaults.DiagramPadding),
+            EntityPadding = Number(section, "entityPadding", defaults.EntityPadding),
+            MinEntityWidth = Number(section, "minEntityWidth", defaults.MinEntityWidth),
+            NodeSpacing = OrDefault(Number(section, "nodeSpacing", defaults.NodeSpacing), defaults.NodeSpacing),
+            RankSpacing = OrDefault(Number(section, "rankSpacing", defaults.RankSpacing), defaults.RankSpacing),
+            TitleTopMargin = Number(section, "titleTopMargin", defaults.TitleTopMargin),
+        };
+    }
+
+    /// <summary>
+    ///     Applies JavaScript's <c>value || fallback</c> to a number: a zero falls back.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="fallback">The fallback.</param>
+    /// <returns>The value, or the fallback for zero.</returns>
+    private static double OrDefault(double value, double fallback) => value != 0 ? value : fallback;
 
     /// <summary>
     ///     Reads a text value.

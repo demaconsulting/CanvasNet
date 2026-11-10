@@ -158,6 +158,58 @@ public sealed class RenderingTests
     }
 
     /// <summary>
+    ///     Checks a state diagram end to end through the unified renderer: a composite state with three concurrent
+    ///     regions is drawn as Mermaid's titled cluster with its inner area and the dashed region clusters, the states,
+    ///     the start and the rough end state are where Mermaid puts them, the view box is Mermaid's and every transition
+    ///     ends with the barb marker.
+    /// </summary>
+    [Fact]
+    public void Rendering_StateDiagram_CompositeWithRegions_MatchesMermaid()
+    {
+        // Act
+        var scene = SceneQuery.Layout(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state", "07-concurrency.mmd")));
+
+        // Assert
+        AssertBox(new SceneRect(0, 0, 673.648, 637), scene.ViewBox);
+        var nodes = SceneQuery.Nodes(scene);
+        AssertBox(new SceneRect(329.824, 8, 14, 14), nodes["state-root_start-0"].Box);
+        AssertBox(new SceneRect(92.211, 273.5, 70.828, 40), nodes["state-NumOff-3"].Box);
+        AssertBox(new SceneRect(329.824, 615, 14.013, 14), nodes["state-root_end-9"].Box);
+        var clusters = SceneQuery.Clusters(scene);
+        AssertBox(new SceneRect(8, 72, 657.648, 493), clusters["state-Active-9"]);
+        AssertBox(new SceneRect(8, 98, 657.648, 463), SceneQuery.ClusterInners(scene)["state-Active-9"]);
+        AssertBox(new SceneRect(43, 109.5, 169.25, 418), clusters["state-divider-id-1-1"]);
+        Assert.Equal(10, SceneQuery.Edges(scene).Count);
+        Assert.Equal(10, SceneQuery.OfRole(scene, "marker").Count);
+    }
+
+    /// <summary>
+    ///     Checks an entity relationship diagram end to end through the unified renderer: the entity tables with their
+    ///     keys and comments are Mermaid's size, the relationships end with the cardinality markers, their role labels
+    ///     are centered where Mermaid centers them, and the view box is Mermaid's.
+    /// </summary>
+    [Fact]
+    public void Rendering_ErDiagram_EntityTablesAndMarkers_MatchMermaid()
+    {
+        // Act
+        var scene = SceneQuery.Layout(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "er", "06-keys-comments.mmd")));
+
+        // Assert
+        AssertBox(new SceneRect(0, 0, 879.313, 587.25), scene.ViewBox);
+        var nodes = SceneQuery.Nodes(scene);
+        AssertBox(new SceneRect(189.5, 8, 373.938, 342), nodes["entity-ACCOUNT-0"].Box);
+        AssertBox(new SceneRect(8, 451, 140.719, 128.25), nodes["entity-PLAIN-1"].Box);
+        AssertBox(new SceneRect(604.219, 451, 267.094, 128.25), nodes["entity-COMMENTED-3"].Box);
+        var label = SceneQuery.EdgeLabels(scene)["id_entity-ACCOUNT-0_entity-KEYED-2_1"];
+        Assert.Equal(376.469, label.X, 0.002);
+        Assert.Equal(400.5, label.Y, 0.002);
+        Assert.Equal(3, SceneQuery.Edges(scene).Count);
+        // Each relationship: the bars of exactly one at its start, the circle and the crow's foot of zero or more at its end
+        var markers = SceneQuery.OfRole(scene, "marker");
+        Assert.All(SceneQuery.Edges(scene).Keys, id => Assert.Equal(3, markers.Count(marker => marker.Id == id)));
+    }
+
+    /// <summary>
     ///     Checks an image node: its picture is asked for once, through the caller's resolver, to learn its natural size,
     ///     and the natural aspect ratio sizes the picture of a constrained node of a given height.
     /// </summary>

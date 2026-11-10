@@ -1,0 +1,136 @@
+---
+# Software Unit Requirements for ErModel
+#
+# These requirements describe the design-level behavior of the ErModel unit of the Er subsystem (internal namespace
+# DemaConsulting.CanvasNet.Mermaid.Er): the ER database of the pinned Mermaid release (entities, attributes,
+# relationships, subgraphs, style classes, and styles), its limits, the metadata of the diagram, the mapping to the
+# layout data of the unified renderer, and the ER renderer's reports and frame of the drawing. See
+# docs/verification/canvas-net-mermaid/er/er-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Er Requirements
+        sections:
+          - title: ErModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-Er-ErModel-Entities
+                title: >-
+                  The ErModel unit shall keep each entity once, in the order of its first mention, with an id numbered
+                  by the entities before it as Mermaid's database numbers it, its alias, and its attributes, a repeated
+                  attribute block adding to them.
+                justification: |
+                  The ids and the attributes of the entities decide their tables, their place in the layout, and the
+                  elements that the reference comparison addresses.
+                tests:
+                  - ErModel_AddEntity_IdsCountEntitiesAndBlocksAppend
+
+              - id: CanvasNetMermaid-Er-ErModel-Relationships
+                title: >-
+                  The ErModel unit shall keep each relationship with its cardinalities, its line type, and its role,
+                  and, for an end named after a subgraph, use the subgraph's id and add an entity of that name that
+                  takes an entity number but is not drawn, as Mermaid's database does.
+                justification: |
+                  Relationships carry the meaning of an entity relationship diagram; their ends and markers must read
+                  as in Mermaid.
+                tests:
+                  - ErModel_AddRelationship_ToASubgraph_UsesItsIdAndAddsAHiddenEntity
+                  - ErModel_GetData_EntitiesAndRelationships_HaveMermaidsFields
+
+              - id: CanvasNetMermaid-Er-ErModel-Subgraphs
+                title: >-
+                  The ErModel unit shall keep each subgraph with its trimmed id, its sanitized and trimmed title, its
+                  direction, and its nodes - the values of its statements as written, without empty values or
+                  duplicates (both compared trimmed) and without the nodes of the subgraphs that end before it - and
+                  give the subgraphs to the layout first, the last one first, each node in the first subgraph that
+                  holds it.
+                justification: |
+                  The subgraphs group entities into the clusters of the drawing, and Mermaid's order decides which
+                  subgraph is laid out first.
+                tests:
+                  - ErModel_AddSubgraph_NodesAreUniqueAndNotInEarlierSubgraphs
+                  - ErModel_GetData_SubgraphsComeFirstInReverseOrder
+
+              - id: CanvasNetMermaid-Er-ErModel-Styles
+                title: >-
+                  The ErModel unit shall apply the classDef styles of the classes an entity or a subgraph carries, the
+                  default class first, and the style statements as Mermaid's database does, a color making a text style
+                  with fill written as bgFill.
+                justification: |
+                  The paint of an entity depends on the style statements and their order, which authors see in
+                  Mermaid's picture.
+                tests:
+                  - ErModel_GetData_StylesAndClasses_CompileLikeMermaid
+
+              - id: CanvasNetMermaid-Er-ErModel-Metadata
+                title: >-
+                  The ErModel unit shall give the accessible title, the direction (the last top-level direction
+                  statement, else TB), and the numbers of drawn entities, relationships, and subgraphs, not counting an
+                  entity that is only named after a subgraph, and no title of its own.
+                justification: |
+                  The counts must keep the meaning of the document's node, edge, and subgraph counts and describe the
+                  diagram that is drawn.
+                tests:
+                  - ErModel_Metadata_CountsEntitiesRelationshipsAndSubgraphs
+
+              - id: CanvasNetMermaid-Er-ErModel-Limits
+                title: >-
+                  The ErModel unit shall refuse, with a located MermaidSyntaxException of code mermaid-limit-exceeded,
+                  more relationships than MaxEdges, more entities (those only named after a subgraph included) and
+                  subgraphs together than MaxNodes, and a text it joins or derives from texts checked apart - a text
+                  style, the classes of an entity or a subgraph joined with spaces, or the compiled styles, the inline
+                  styles of an entity or a subgraph, or the styles or text styles of a style class joined with
+                  semicolons - longer than MaxLabelLength; and shall refuse in its layout data, with a located
+                  MermaidRenderException of code mermaid-limit-exceeded, subgraphs nested deeper than MaxNestingDepth
+                  through their parents, however the statements nest them.
+                justification: |
+                  The size of the model, and so the cost of the layout, must be bounded for untrusted text; repeated
+                  class, style, and classDef statements, or an id listed again in one, can make the joined texts grow
+                  faster than the text, so they are checked where they are made. A subgraph named in another subgraph
+                  is nested in it wherever it is declared, so chained subgraphs nest the clusters without bound though
+                  the parser sees no nesting.
+                tests:
+                  - ErModel_Limits_EntitiesAndSubgraphs_CountAgainstMaxNodes
+                  - ErModel_Limits_TooManyRelationships_ThrowsLimitExceeded
+                  - ErModel_Limits_JoinedTexts_ThrowLimitExceeded
+                  - ErModel_Limits_JoinedTextsAtTheLimit_AreAccepted
+                  - ErModel_AddCssStyles_RepeatedIds_ThrowsLimitExceeded
+                  - ErModel_AddClass_RepeatedNames_ThrowsLimitExceeded
+                  - ErModel_GetData_SubgraphsNestedThroughNames_ThrowsLimitExceeded
+
+              - id: CanvasNetMermaid-Er-ErModel-LayoutData
+                title: >-
+                  The ErModel unit shall map the diagram, under the configuration of a render, to the layout data that
+                  Mermaid's ER database gives its renderer - the subgraphs as clusters, the entities as entity boxes
+                  with their aliases and attributes, the relationships with the marker of the left cardinality at the
+                  start and of the right one at the end and their line patterns and roles, the direction, and the node
+                  and rank spacing of the er section.
+                justification: |
+                  Comparing the layout data with Mermaid's own is the strongest proof that the drawing starts from the
+                  same graph.
+                tests:
+                  - ErModel_GetData_EntitiesAndRelationships_HaveMermaidsFields
+                  - ErModel_GetData_SubgraphsComeFirstInReverseOrder
+                  - ErModel_GetData_SpacingAndDirection_FollowTheConfiguration
+
+              - id: CanvasNetMermaid-Er-ErModel-Unsupported
+                title: >-
+                  The ErModel unit shall report, in order and located at their keys with hints, a look other than
+                  classic (mermaid-look-unsupported) and a layout other than dagre (mermaid-layout-unsupported).
+                justification: |
+                  The host must learn of each setting whose picture differs from Mermaid's, at the place where it is
+                  written.
+                tests:
+                  - ErModel_ReportUnsupported_LookAndLayout_AreReportedInOrder
+
+              - id: CanvasNetMermaid-Er-ErModel-Drawing
+                title: >-
+                  The ErModel unit shall, when it is laid out for a render, deliver its reports first and then draw the
+                  entity relationship diagram through the shared rendering with the ER style sheet, the frontmatter
+                  title centered above the drawing at the title margin of the er section, and a view box of the drawn
+                  bounds grown by a padding of 8.
+                justification: |
+                  Reports must reach the host before any work is spent on drawing, and the size of the picture must be
+                  Mermaid's.
+                tests:
+                  - ErModel_Layout_Title_IsAboveTheDrawingInsideThePaddedViewBox

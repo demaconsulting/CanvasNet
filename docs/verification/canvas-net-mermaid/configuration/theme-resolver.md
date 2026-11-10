@@ -2,8 +2,9 @@
 
 This document describes the unit-level verification strategy for the `ThemeResolver` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Configuration` namespace: the internal static `ThemeResolver` (`GetThemeVariables`
-and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles`, `ClassStyles`, and
-`SequenceStyles` with their shared bases `DiagramStyles` and (for the flowchart and class sheets) `UnifiedStyles`.
+and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles`, `ClassStyles`,
+`StateStyles`, `ErStyles`, and `SequenceStyles` with their shared bases `DiagramStyles` and (for the flowchart, class,
+state, and entity relationship sheets) `UnifiedStyles`.
 
 #### Verification Approach
 
@@ -18,7 +19,12 @@ invalid declaration. The sequence style sheet is verified the same way with `Seq
 the cascade over the attributes Mermaid writes, every theme's variables, `themeCSS`, and the drop-shadow filters. The
 class style sheet is verified with `ClassStyles`: the shared global rules, the paints of the default theme as Mermaid's
 class CSS gives them (through the members of `UnifiedStyles` that the shared rendering units read), the note labels and
-label backgrounds that differ from a flowchart's, and `themeCSS` against the important marker fills. The
+label backgrounds that differ from a flowchart's, and `themeCSS` against the important marker fills. The state and
+entity relationship style sheets are verified the same way with `StateStyles` and `ErStyles`: the shared global
+rules, the paints of the default theme as Mermaid's state and ER CSS give them (the label and title colors, the CSS
+corner radii and cluster fills that the state shapes read by selector, the `barb` marker paint, the important marker
+paint of the ER sheet, and the subgraph titles), and `themeCSS`; and the facts every unified sheet gives the rendering
+(whether it centers the SVG text of a node, and its root text) are compared across the four sheets. The
 unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
 `StyleDeclarations`, and `MermaidConfigResolver` are real, so no mocking or stubbing is required.
 
@@ -145,3 +151,42 @@ that the HTML label backgrounds are `.labelBkg` and `.edgeLabel .label span` and
 `.labelBkg`, `.edgeLabel p`, and `.edgeLabel rect`; and that a directive's `themeCSS` rules for `.divider`,
 `.composition`, and `.edgeTerminals` are applied without a report, the divider stroke becoming `#ff0000` and the
 terminal label 14 pixels, while the composition fill stays `#333333` against the theme's `!important`.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-StateStyleSheet: Mermaid's State Diagram Paint
+
+**Tests**: `ThemeResolverTests.StateStyles_Create_DefaultTheme_ResolvesStateRules`,
+`ThemeResolverTests.StateStyles_Create_ThemeCss_OverridesKnownSelectors`
+
+Asserts that the state style sheet starts with the same global rules as the flowchart's, selector for selector; that
+in the default theme a state takes the `#ECECFF` fill and `#9370DB` stroke at width 1, the node labels the root font at
+16 pixels in `stateLabelColor`, the transition labels 16 pixels in `transitionLabelColor` (else
+`tertiaryTextColor`), the note labels `noteTextColor`, and the title 18 pixels in `#333`; that a composite state's
+title is `stateLabelColor` as an HTML label and `#333` (the root fill) as SVG text; that the CSS radius of
+`.statediagram-state rect.basic` is `5px` and that of `.statediagram-cluster .inner` `0`; that the inner rectangle of a
+composite state is filled `#ffffff` and that of a concurrency region `#f0f0f0`; that the fill of
+`defs [id$="-barbEnd"]` is the theme's `transitionColor`, and that `.note-edge` is dashed `5`; and that a directive's
+`themeCSS` rules `.statediagram-cluster rect { fill: #00ff00 }` and `.transition { stroke: #ff0000 }` are applied
+without a report, the composite state fill becoming `#00ff00` and the transition stroke `#ff0000`.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-ErStyleSheet: Mermaid's Entity Relationship Diagram Paint
+
+**Tests**: `ThemeResolverTests.ErStyles_Create_DefaultTheme_ResolvesErRules`,
+`ThemeResolverTests.ErStyles_Create_ThemeCss_KeepsTheImportantMarkerFill`
+
+Asserts that the entity relationship style sheet starts with the same global rules as the flowchart's, selector for
+selector; that in the default theme an entity takes the `#ECECFF` fill and `#9370DB` stroke at width 1, the node labels
+16 pixels, the edge labels the root font at 14 pixels in the node label's color with the single HTML background
+`.labelBkg`, and the title the root font at 16 pixels in `#333` (its class has no rule); that an HTML subgraph
+title is black (`rgb(0, 0, 0)`) and an SVG one the theme's `titleColor`; that `.marker` has the important fill `none`
+and the important stroke `#333333`, and that `.edge-pattern-dashed` is dashed `8,8`; and that a directive's `themeCSS`
+rules `.marker { fill: #ff0000 }` and `.relationshipLine { stroke: #0000ff }` give no report, the marker fill staying
+`none` against the theme's `!important` while the relationship line stroke becomes `#0000ff`.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts: The Text Facts Of Each Unified Sheet
+
+**Tests**: `ThemeResolverTests.UnifiedStyles_Create_EachSheet_CentersSvgNodeTextAndGivesTheRootText`
+
+Asserts, for the default theme's flowchart, class, state, and entity relationship sheets in that order, that only the
+first two center the SVG text of a node's label on its anchor (true, true, false, false); that the entity relationship
+sheet's root text is the root font family at 16 pixels in the theme's `textColor`; and that the root text of every
+sheet is 16 pixels.

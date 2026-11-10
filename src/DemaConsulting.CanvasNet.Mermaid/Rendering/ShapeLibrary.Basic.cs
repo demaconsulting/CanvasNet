@@ -43,7 +43,8 @@ internal static partial class ShapeLibrary
     private static ShapeResult State(ShapeInput input) => DrawRect(input, 5, double.NaN, double.NaN);
 
     /// <summary>
-    ///     Mermaid's <c>drawRect</c>: a rectangle around the label and its paddings, rounded when a radius is given.
+    ///     Mermaid's <c>drawRect</c>: a rectangle around the label and its paddings, rounded when a radius is given (or when
+    ///     a state's style sheet rounds it), with the label centered when the node asks for it.
     /// </summary>
     /// <param name="input">The node.</param>
     /// <param name="radius">The corner radius (zero for none).</param>
@@ -58,10 +59,11 @@ internal static partial class ShapeLibrary
         var totalHeight = label.Height + (labelPaddingY * 2);
         if (double.IsFinite(totalWidth) && double.IsFinite(totalHeight))
         {
-            draft.Part(new PathData().Rect(-totalWidth / 2, -totalHeight / 2, totalWidth, totalHeight, radius), Body(input.Paint));
+            var r = BasicRectRadius(input, radius);
+            draft.Part(new PathData().Rect(-totalWidth / 2, -totalHeight / 2, totalWidth, totalHeight, r), Body(input.Paint));
         }
 
-        draft.PlaceLabel(label, ShapeInput.DefaultLabelOffset(label));
+        draft.PlaceLabel(label, ShapeInput.DefaultLabelOffset(label, input.Node.CenterLabel));
         return draft.Finish(IntersectRect);
     }
 
@@ -420,7 +422,7 @@ internal static partial class ShapeLibrary
     }
 
     /// <summary>
-    ///     <c>choice</c>: a small diamond of 28 without a label.
+    ///     <c>choice</c>: a small diamond of 28 without a label, drawn by rough.js in the node colors.
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
@@ -429,12 +431,14 @@ internal static partial class ShapeLibrary
         const double s = 28;
         var draft = new Draft(input);
         var points = new List<ShapePoint> { new(0, s / 2), new(s / 2, 0), new(0, -s / 2), new(-s / 2, 0) };
-        draft.Part(new PathData().Polygon(points), Body(input.Paint));
+        var theme = input.Context.Theme;
+        draft.Part(new PathData().Polygon(points), RoughPaint(input, theme.MainBkg, theme.NodeBorder, RoughStrokeWidth));
         return draft.Finish((node, point) => IntersectPolygon(node, points, point));
     }
 
     /// <summary>
-    ///     <c>note</c>: a rectangle with twice the padding (the style sheet's node rule wins over the note colors).
+    ///     <c>note</c>: a rectangle with twice the padding, drawn by rough.js in the note colors (a sheet's node rule for
+    ///     paths, a flowchart's, wins over them).
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
@@ -444,7 +448,8 @@ internal static partial class ShapeLibrary
         var label = input.MeasureLabel(css: input.Context.Styles.NoteLabel);
         var totalWidth = label.Width + (input.Padding * 2);
         var totalHeight = label.Height + (input.Padding * 2);
-        draft.Part(new PathData().Rect(-totalWidth / 2, -totalHeight / 2, totalWidth, totalHeight), Body(input.Paint));
+        var paint = RoughPaint(input, ThemeColor(input.Context, "noteBkgColor"), ThemeColor(input.Context, "noteBorderColor"), RoughStrokeWidth);
+        draft.Part(new PathData().Rect(-totalWidth / 2, -totalHeight / 2, totalWidth, totalHeight), paint);
         draft.PlaceLabel(label, new ShapePoint((-label.Width / 2) - label.OffsetX, (-label.Height / 2) - label.OffsetY));
         return draft.Finish(IntersectRect);
     }

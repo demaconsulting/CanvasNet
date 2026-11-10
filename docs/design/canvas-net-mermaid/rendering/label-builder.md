@@ -19,8 +19,8 @@ fonts: plain and markdown strings, HTML labels (a `foreignObject` whose box the 
 (`tspan` lines). The measured box decides the size of every node, subgraph title, and edge label, and the lines are
 drawn as scene text. It also measures and wraps text as Mermaid's text utilities do (`calculateTextDimensions`,
 `wrapLabel`, `breakString`, `parseFontSize`, and `splitBreaks` of `utils.ts` and `common.ts`), which decide the sizes
-of the participants, messages, notes, and frames of a sequence diagram and the width at which the texts of a class box
-wrap. The unit's behavior is specified by the
+of the participants, messages, notes, and frames of a sequence diagram, the width at which the texts of a class box
+wrap, and the width of an entity box text and of a narrow entity name. The unit's behavior is specified by the
 `CanvasNetMermaid-Rendering-LabelBuilder-*` requirements in
 `docs/reqstream/canvas-net-mermaid/rendering/label-builder.yaml`.
 
@@ -31,7 +31,8 @@ wrap. The unit's behavior is specified by the
 - `LabelRequest(Text, Font)` - the label text and the options of `createText` and `labelHelper`: `Markdown`,
   `HtmlLabels`, the wrapping `Width` (200 by default; infinity never wraps), `IsNode`, `AddBackground`,
   `ParagraphPadding`, `MarkdownAutoWrap`, `Prepare` (decode the entity placeholders and sanitize first, as for node
-  labels), `ConfigFontSize` (which sizes a picture alone in a label), `RootFontSize` (with which SVG lines are wrapped),
+  labels), `ConfigFontSize` (which sizes a picture alone in a label), `RootFontSize` (the font size the label inherits,
+  in which SVG lines are wrapped and, when the label's own size differs, the background of an SVG label is measured),
   `CenterSvgText`, `SvgInheritsWeight` (the lines of an SVG label take the weight of `Font`, as the name of a class box
   inherits the bold weight of its group because Mermaid removes the `font-weight` of its `tspan` elements; otherwise
   only strong markdown is bold), and the `Location` of the element for reports.
@@ -43,7 +44,9 @@ wrap. The unit's behavior is specified by the
   x. `OffsetX` and `OffsetY` are Mermaid's `bbox.x - (bbox.left ?? 0)` and `bbox.y - (bbox.top ?? 0)`, which the shapes
   use to place the label; `Of(isHtml, box)` is a label with nothing to draw.
 - The constants `HtmlLineHeight` (1.5), `SvgLineHeight` (1.1), `SvgBackgroundPadding` (2), and `LoneImageFactor` (5),
-  and a cache of the resolved faces by family, weight, and style.
+  the run grid of SVG text (`SvgLayoutUnits`, 64 layout units to the pixel, with the tolerance `SvgLayoutTolerance` of
+  a thousandth of a layout unit for the single-precision advances), and a cache of the resolved faces by family,
+  weight, and style.
 - `TextDimensions(Width, Height, LineHeight)` - the size `calculateTextDimensions` gives a text, in whole pixels.
 - For the text utilities, an optional `Meter` (the `LayoutWorkMeter` that measuring and hyphenating charge), the
   memoized results of `wrapLabel` and `breakString` of one render, the `lastIndex` of Mermaid's global
@@ -68,10 +71,17 @@ wrap. The unit's behavior is specified by the
   hyphens with the core `WordWrap`, as the browser does after Mermaid's `break-spaces` retry.
 - SVG labels (`LabelBuilder.Svg.cs`) - Mermaid's lines (`MarkdownToLines` or `NonMarkdownToLines`, with tags kept as
   words and `fa:` names kept as text), split to the wrapping width measured in the inherited root font size
-  (`splitLineToFitWidth`, a word wider than it split at characters), baselines at `(1 + 1.1 i)` font sizes, centered on
-  x 0 for node and edge labels, and a box from the rounded ascent above the first baseline to the rounded descent below
+  (`splitLineToFitWidth`, a word wider than it split at characters), and placed by `PlaceSvgLines` in a font size:
+  each word a run of its own (as `createFormattedText` writes each word as its own `tspan`), advanced by its width on
+  the browser's run grid (`SvgRunAdvance`), baselines at `(1 + 1.1 i)` font sizes, centered on x 0 for node and edge
+  labels, and a box from the rounded ascent above the first baseline to the rounded descent below
   the last, widened to the boxes of the glyphs at the ends of each run (`SvgLineExtent`, the rule of the sequence
-  texts), plus 2 pixels on every side with a background.
+  texts). With a background, the box grows by 2 pixels on every side (`createFormattedText`'s background rectangle).
+  Mermaid measures that rectangle before the label is moved under the rules that give it its own font size, so when
+  the label's `Font.Size` differs from its `RootFontSize` the lines are placed a second time in the root size and the
+  rectangle is their box grown by the padding, while the drawn lines keep the label's own size; the label's box is
+  then the union of the rectangle and the drawn text. An entity relationship role of 14 pixels in a 16 pixel diagram
+  thus has the background and the layout size of the 16 pixel text, as in Mermaid.
   A word is bold when it is strong markdown or, with `SvgInheritsWeight`, when the label's font is bold, and is
   measured in that weight, so an inherited bold weight widens the line.
 - `MarkdownToHtml`, `MarkdownToLines`, `NonMarkdownToHtml`, `NonMarkdownToLines`, and `Dedent` - the functions of
@@ -102,9 +112,16 @@ wrap. The unit's behavior is specified by the
     stays narrower than the width, a word wider than the width is hyphenated by `BreakString` (characters, whole code
     points, added until the line reaches the width, each line but the last ending with a hyphen), and the lines are
     joined with `<br/>`; results are memoized as Mermaid memoizes them.
-  - `SvgLineExtent`, `XHeight`, and `CollapseSvgWhiteSpace` - the horizontal box of an SVG text line, the top of the
-    font's `x` (for the `middle` baseline), and SVG's white-space collapsing, which the sequence renderer uses to place
-    and box its texts.
+  - `SvgLineExtent`, `XHeight`, and `CollapseSvgWhiteSpace` - the horizontal box of an SVG text line (its advance on
+    the run grid, and the boxes of its first and last glyphs, the last placed at its exact origin inside the run), the
+    top of the font's `x` (for the `middle` baseline), and SVG's white-space collapsing, which the sequence renderer
+    uses to place and box its texts; `SvgLineExtent` also gives the box of the diagram title and of the lines that
+    `CalculateTextDimensions` measures.
+  - `SvgRunAdvance(advance)` - the advance the browser gives a run of SVG text (a `text` or a `tspan` of its own): the
+    exact advance rounded up to a 64th of a pixel (an advance within a thousandth of a grid unit above a grid line
+    stays on it), so each run of a line starts on that grid while the glyphs inside a run keep their exact positions.
+    `waiting for the bank` at 16 pixels is 140.766 pixels wide as four word runs and 140.75 pixels as one run;
+    3187.5 / 64 pixels becomes 3188 / 64, and 1.5 pixels stays.
 
 **Preconditions and postconditions**: a builder belongs to one call on one thread; the result is a deterministic
 function of the request and the bundled fonts.
@@ -136,12 +153,15 @@ function of the request and the bundled fonts.
 
 #### Callers
 
-`ShapeLibrary` measures node labels, subgraph titles, and the texts of a class box through `ShapeContext.MeasureLabel`,
-which `FlowchartModel` (the `Flowchart` subsystem) and `ClassModel` (the `Class` subsystem) set to `Build`; `ClassModel`
-also sets `ShapeContext.TextWidth` to `CalculateTextWidth` in the configured font, at whose width plus 50 pixels the
-class box texts wrap, and charges the builder's measuring to the render's work meter. `ClusterLayout.RenderDiagram`
-uses `Advance` and `VerticalMetrics` for the box of the diagram title. `EdgeBuilder` measures edge and terminal labels
-through the same delegate and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem, `SequenceLayout`
+`ShapeLibrary` measures node labels, subgraph titles, the texts of a class box, the titles and descriptions of a state,
+and the texts of an entity box through `ShapeContext.MeasureLabel`, which `FlowchartModel` (the `Flowchart`
+subsystem), `ClassModel` (the `Class` subsystem), `StateModel` (the `State` subsystem), and `ErModel` (the `Er`
+subsystem) set to `Build`; `ClassModel` and `ErModel` also set `ShapeContext.TextWidth` to `CalculateTextWidth` in the
+configured font, at whose width plus 50 pixels the class box texts wrap (plus 100 pixels for the entity box texts) and
+with which an entity without attributes is tested against its minimum width, and charge the builder's measuring to the
+render's work meter. `ClusterLayout.RenderDiagram` uses `SvgLineExtent` and `VerticalMetrics` for the box of the
+diagram title. `EdgeBuilder` measures edge and terminal labels through the same delegate (an edge label with the
+sheet's root font size as its `RootFontSize`) and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem, `SequenceLayout`
 creates a builder for each render (charged to the render's work meter) and measures and wraps with the text utilities,
 and `SequenceRenderer` boxes and places its text lines with them. The tests in `LabelBuilderTests.cs` call the unit
 directly through `InternalsVisibleTo`.

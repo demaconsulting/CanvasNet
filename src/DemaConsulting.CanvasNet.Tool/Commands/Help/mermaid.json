@@ -2,7 +2,7 @@
   "topic": "mermaid",
   "aliases": ["mmd"],
   "title": "Mermaid diagrams (.mmd, .mermaid)",
-  "summary": "A Mermaid flowchart, sequence diagram, or class diagram is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
+  "summary": "A Mermaid flowchart, sequence diagram, class diagram, state diagram, or entity relationship diagram is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
   "sections": [
     {
       "id": "supported",
@@ -34,7 +34,9 @@
         { "text": "Pictures: an @{ img: \"part.png\", label, pos, w, h, constraint } node shows a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or another diagram that lies beside the diagram (see the pictures example). At most {{mmdMaxImages}} pictures." },
         { "text": "Titles: the title statement, else the frontmatter title, is drawn above the diagram; accTitle and accDescr are read as metadata." },
         { "text": "Class diagrams: a class diagram starts with classDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the class boxes, relations, namespaces, and notes land where Mermaid 11 puts them; its syntax, relations, and settings are listed under Class diagrams." },
-        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram) without drawing the diagram." }
+        { "text": "State diagrams: a state diagram starts with stateDiagram-v2 or stateDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the states, transitions, composite states, and notes land where Mermaid 11 puts them; its syntax and settings are listed under State diagrams." },
+        { "text": "Entity relationship diagrams: an entity relationship diagram starts with erDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the entities, relationships, and subgraphs land where Mermaid 11 puts them; its syntax, cardinalities, and settings are listed under Entity relationship diagrams." },
+        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity relationship diagram) without drawing the diagram." }
       ]
     },
     {
@@ -79,15 +81,73 @@
       ]
     },
     {
+      "id": "state",
+      "title": "State diagrams",
+      "items": [
+        { "text": "Header: stateDiagram-v2 and stateDiagram, and direction with TB, BT, LR, or RL; the last top-level direction lays the diagram out." },
+        { "text": "States: an id (Idle), a description after a colon (Idle : waiting for input), several descriptions, state \"Waiting for input\" as Waiting, and states named only by a transition." },
+        { "text": "Transitions: A --> B, a label after a colon (A --> B : start), self transitions, and [*] as the start or the end state." },
+        { "text": "Composite states: state Name { ... }, nested, with their own direction and their own [*], and transitions to and from a composite state or a state inside it." },
+        { "text": "Concurrency: -- inside a composite state divides it into concurrent regions, drawn with dashed borders." },
+        { "text": "Pseudo-states: <<fork>>, <<join>>, and <<choice>>, and the forms [[fork]], [[join]], and [[choice]] (state split <<fork>>)." },
+        { "text": "Notes: note left of and note right of a state, with the text after a colon or on the lines up to end note, and <br> line breaks; a floating note (note \"text\" as N) is read and not drawn, as in Mermaid." },
+        { "text": "Styles: classDef (but not classDef default, which Mermaid's grammar refuses), class A,B name, :::, and style, with the declarations of a flowchart style." },
+        { "text": "Interaction: click and click ... href are read and ignored, because a picture is static." },
+        { "text": "Titles: the frontmatter title is drawn above the diagram; accTitle and accDescr are read as metadata; hide empty description and scale are read and ignored, as in Mermaid's renderer." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the state settings below, with Mermaid's precedence." },
+        { "term": "state.nodeSpacing", "text": "The space between the states of a rank (default 50)." },
+        { "term": "state.rankSpacing", "text": "The space between the ranks (default 50)." },
+        { "term": "state.titleTopMargin", "text": "The margin above the title (default 25)." },
+        { "term": "state.defaultRenderer", "text": "Another value selects Mermaid's legacy renderer for a stateDiagram; it is reported as mermaid-layout-unsupported and drawn the same way (default dagre-wrapper)." },
+        { "term": "htmlLabels", "text": "false draws the texts of the states as SVG text instead of HTML labels (default unset)." },
+        { "term": "flowchart.curve", "text": "The curve of the transition lines (default basis)." },
+        { "term": "flowchart.padding", "text": "The padding of a note (default 15)." },
+        { "term": "state.padding, state.radius, and the other legacy keys", "text": "Accepted, and without effect as in Mermaid's renderer (default as in Mermaid)." },
+        { "term": "state.useMaxWidth", "text": "No meaning for a picture (default true)." }
+      ]
+    },
+    {
+      "id": "er",
+      "title": "Entity relationship diagrams",
+      "items": [
+        { "text": "Header: erDiagram, and direction with TB, BT, LR, or RL; the last top-level direction lays the diagram out." },
+        { "text": "Entities: names, quoted names with spaces (\"Entry Log\"), an alias in brackets (p[\"Person\"] or p[Person]; the first alias is kept), and entities named only by a relationship." },
+        { "text": "Relationships: A ||--o{ B : places: an entity, a cardinality, a line, a cardinality, an entity, and after the colon a role of one word or a quoted text; the cardinalities and lines are listed below." },
+        { "text": "Attributes: a block in braces after the entity (CUSTOMER { ... }), one attribute per line: a type, a name, keys (PK, FK, UK, several with commas, such as PK, FK), and a quoted comment; types such as varchar(255), string[], and decimal?; names and types in backticks; repeated blocks add to the attributes." },
+        { "text": "Generics: ~T~ in an attribute type, drawn as <T> (List~int~ is List<int>)." },
+        { "text": "Subgraphs: subgraph Id[\"Title\"] ... end, nested, with their own direction; the subgraphs are laid out in Mermaid's order, the last one first." },
+        { "text": "Styles: classDef (including classDef default), class A,B name, ::: on an entity or a relationship end, and style, with the declarations of a flowchart style." },
+        { "text": "Titles: the frontmatter title is drawn above the diagram; accTitle and accDescr are read as metadata." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the entity relationship settings below, with Mermaid's precedence." },
+        { "term": "|o and o|, or the words zero or one and one or zero", "text": "Zero or one: a circle and a bar." },
+        { "term": "||, or the words only one, one, and 1", "text": "Exactly one: two bars." },
+        { "term": "}o and o{, or the words zero or more, zero or many, many(0), 0+, and many", "text": "Zero or more: a circle and a crow's foot." },
+        { "term": "}| and |{, or the words one or more, one or many, many(1), and 1+", "text": "One or more: a bar and a crow's foot." },
+        { "term": "u, before the line only (A u--o{ B)", "text": "Parent: no marker at that end, as in Mermaid." },
+        { "term": "-- and to", "text": "Identifying: a solid line." },
+        { "term": ".., .-, -., and optionally to", "text": "Non-identifying: a dashed line." },
+        { "term": "A ||--o{ B : places", "text": "Role: the word or the quoted text after the colon is drawn at the middle of the line." },
+        { "term": "er.nodeSpacing", "text": "The space between the entities of a rank (default 140)." },
+        { "term": "er.rankSpacing", "text": "The space between the ranks (default 80)." },
+        { "term": "er.titleTopMargin", "text": "The margin above the title (default 25)." },
+        { "term": "er.diagramPadding", "text": "The padding added to the width of each column of a table, and around the name of an entity without attributes (default 20)." },
+        { "term": "er.entityPadding", "text": "The padding added to the height of each row of a table (default 15)." },
+        { "term": "er.minEntityWidth", "text": "The least width of an entity without attributes (default 100)." },
+        { "term": "htmlLabels", "text": "false draws the texts of the entities as SVG text instead of HTML labels; true leaves out the quarter that Mermaid adds to the paddings of a table otherwise (default unset)." },
+        { "term": "er.minEntityHeight, er.layoutDirection, er.fill, er.stroke, er.fontSize", "text": "Accepted, and without effect as in Mermaid's renderer (default as in Mermaid)." },
+        { "term": "er.useMaxWidth", "text": "No meaning for a picture (default true)." }
+      ]
+    },
+    {
       "id": "unsupported",
       "title": "Not supported (reported, never silently dropped)",
       "items": [
-        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, and classDiagram); the picture is empty." },
-        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). State, entity relationship, pie, gantt, and mindmap diagrams are planned later." },
+        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, and erDiagram); the picture is empty." },
+        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). Pie, gantt, and mindmap diagrams are planned later." },
         { "term": "mermaid-icon-unsupported", "text": "An icon (fa:fa-car in a label, an @{ icon: ... } node, an icon in the properties of a sequence participant); the node or participant keeps its shape and label without the icon." },
         { "term": "mermaid-math-unsupported", "text": "Math ($$...$$, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written." },
         { "term": "mermaid-look-unsupported", "text": "A look other than classic (handDrawn, neo); the diagram is drawn classic." },
-        { "term": "mermaid-layout-unsupported", "text": "A layout other than dagre (elk, also the flowchart-elk keyword); the diagram is laid out with dagre." },
+        { "term": "mermaid-layout-unsupported", "text": "A layout other than dagre (elk, also the flowchart-elk keyword), or a state.defaultRenderer that selects Mermaid's legacy state renderer; the diagram is laid out with dagre, and a legacy state diagram is drawn as a stateDiagram-v2." },
         { "term": "mermaid-theme-css-unsupported", "text": "A themeCSS rule whose selector is not one of the diagram's own (such as .node rect in a flowchart), an at-rule, or a nested rule; the rule is not applied." }
       ]
     },
@@ -111,7 +171,7 @@
         { "term": "mermaid-unknown-diagram", "text": "Error (mermaid-error): the first statement is not a Mermaid diagram keyword; the hint names the nearest one." },
         { "term": "mermaid-yaml-invalid", "text": "Error (mermaid-error): the frontmatter or the shape data is not valid YAML; anchors, aliases, and tags are refused (mermaid-yaml-unsupported)." },
         { "term": "mermaid-limit-exceeded", "text": "Error (budget-exceeded): a limit of the library (nodes, edges, nesting, label length, layout work, pictures, painted pixels); see 'canvasnet help limits'." },
-        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself or an empty sequence block." },
+        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself, an empty sequence block, or two composite states that contain each other." },
         { "term": "mermaid-participant-type-unknown", "text": "Warning: a sequence participant has a type Mermaid does not define; it is not drawn, as in Mermaid, and the hint names the nearest type." },
         { "term": "mermaid-config-unknown-key", "text": "Warning: a configuration key Mermaid does not define; it is ignored." },
         { "term": "mermaid-config-invalid", "text": "Warning: a configuration value of the wrong type or range, or a theme that is not available; it is ignored (sequence.textPlacement: fo is drawn with the default placement)." },
@@ -134,8 +194,8 @@
         { "text": "The picture is static: no interaction, and an animated edge is drawn as its first frame." },
         { "text": "info lays the diagram out without the pictures of its nodes (it reads no other file), so a picture node without w and h can make the drawn diagram a little larger or smaller than the size info reports (with --width or --height it is fitted into the box); give an @{ img } node its w and h (constraint on) so that the layout does not depend on the picture. A render without --width and --height reports the natural size of the diagram it drew (the natural size of render --json); a library render of the diagram file without a size (CanvasNetViewer.Render) also charges its pixel budget for that drawn size, while a document that embeds the diagram always gives it a size." },
         { "text": "A diagram is drawn over white unless --background says otherwise (Mermaid's SVG is transparent); as a picture in an SVG file it stays transparent." },
-        { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor); these are a located mermaid-error instead." },
-        { "text": "Interaction (click, href, call, tooltips, and the link and callback of a class diagram) is read and ignored without a report, because a picture is static." },
+        { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor, two composite states that contain each other, a note on a state that appears nowhere before it, a relationship to an entity named like a subgraph declared after it, a relationship from a subgraph to an entity inside it); these are a located mermaid-error instead." },
+        { "text": "Interaction (click, href, call, tooltips, the link and callback of a class diagram, and the click of a state diagram) is read and ignored without a report, because a picture is static." },
         { "text": "Mermaid draws a broken sequence diagram or fails for an empty block (a block with no message or note inside), for link or links on an actor, boundary, control, or entity participant, and for a properties icon that is not text; these are a located mermaid-render-failed instead." },
         { "text": "$$ math is drawn and measured as written (mermaid-math-unsupported), and textPlacement: fo (HTML labels) is drawn with the default placement." },
         { "text": "The color keywords and system colors of a box or a rect background take the values of headless Chrome in the light scheme (system colors depend on the platform in a browser)." },
@@ -143,7 +203,15 @@
         { "text": "With htmlLabels: false the texts of a class box are SVG text, measured as Chrome measures them; Chrome's box of a few glyphs at the end of a text is a pixel wider, so such a class box can differ from Mermaid's by up to a pixel." },
         { "text": "Mermaid's fix-up of an SVG class text that holds &gt (a generic) is not ported; the entities are decoded instead, which gives the same characters for a text of one line." },
         { "text": "$$ math in a class text is drawn and measured as written, without a report." },
-        { "text": "A style declaration of a class diagram outside the supported subset is reported at the first mention of the class, not at the style statement." }
+        { "text": "A style declaration of a class, state, or entity relationship diagram outside the supported subset is reported at the first mention of the class, state, or entity, not at the style statement." },
+        { "text": "A corner radius (rx or ry) in a style, a classDef, or themeCSS is ignored with a mermaid-style-ignored warning; the radii of Mermaid's own style sheet are drawn." },
+        { "text": "The texts of class and state diagrams are always cleaned as at Mermaid's strict level; securityLevel changes nothing." },
+        { "text": "Mermaid's legacy state renderer is not ported: a stateDiagram with another state.defaultRenderer is drawn with the current renderer and reported as mermaid-layout-unsupported at the state key of the configuration." },
+        { "text": "The direction info reports for a state or entity relationship diagram is the last top-level direction statement, the one the diagram is laid out in, where Mermaid's getDirection gives the first." },
+        { "text": "The last concurrent region of a composite state has the id id-random-N where Mermaid's id holds a random number; the id is never drawn." },
+        { "text": "Mermaid's entity relationship markers clip the line at the edge of their view port, which hides half of the stroke at the tip; the clip is not modeled, so a tip can be half a stroke longer." },
+        { "text": "With htmlLabels: false the texts of an entity table take the style sheet's label color (nodeTextColor, else textColor), where Chrome uses textColor; the two are the same in the built-in themes." },
+        { "text": "The marker shapes of the neo look and the entity colors of the redux themes are not drawn (the look is reported, and the themes are not available)." }
       ]
     }
   ],
@@ -151,6 +219,8 @@
     { "name": "flowchart", "kind": "source", "language": "mermaid", "fileName": "flowchart.mmd", "description": "A small flowchart with a decision, a subgraph, link labels, and a class." },
     { "name": "sequence", "kind": "source", "language": "mermaid", "fileName": "sequence.mmd", "description": "A small sequence diagram with an actor, an activation, numbered messages, an alt block, and a note." },
     { "name": "class", "kind": "source", "language": "mermaid", "fileName": "class.mmd", "description": "A small class diagram with an abstract class, members and methods, a generic, a static method, inheritance, cardinalities, and a note." },
+    { "name": "state", "kind": "source", "language": "mermaid", "fileName": "state.mmd", "description": "A small state diagram with start and end states, labeled transitions, a composite state, and a note." },
+    { "name": "er", "kind": "source", "language": "mermaid", "fileName": "er.mmd", "description": "A small entity relationship diagram with tables of attributes, keys, comments, and three relationships with their cardinalities." },
     { "name": "pictures", "kind": "snippet", "language": "mermaid", "fileName": "pictures.mmd", "description": "Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram." },
     { "name": "render", "kind": "command", "language": "shell", "description": "Draw flowchart.mmd and print the JSON result.", "content": "canvasnet render flowchart.mmd -o flowchart.png --json" },
     { "name": "theme", "kind": "command", "language": "shell", "description": "Draw at twice the size in the dark theme over a transparent background.", "content": "canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png" },

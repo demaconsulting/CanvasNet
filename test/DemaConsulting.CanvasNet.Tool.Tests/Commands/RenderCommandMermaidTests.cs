@@ -137,6 +137,56 @@ public class RenderCommandMermaidTests
     }
 
     /// <summary>
+    ///     Test that a state diagram is drawn strictly at its natural size, with the states in the state fill of the
+    ///     default theme and no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidState_DrawsTheStates()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "lamp.mmd", "stateDiagram-v2\n    [*] --> Off\n    Off --> On : switch\n    On --> Off : switch\n    On --> [*]\n");
+        var output = directory.Combine("lamp.png");
+
+        // Act
+        using var document = RunJson(input, "-o", output, "--strict");
+
+        // Assert: the natural size, a white corner, the state fill, and no diagnostic
+        var root = document.RootElement;
+        var natural = root.GetProperty("input").GetProperty("natural");
+        using var image = PngCodec.Load(output);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[0, 0]);
+        Assert.True(Count(image, DefaultNodeFill) > 1000);
+        Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
+    ///     Test that an entity relationship diagram is drawn strictly at its natural size, with the entities in the node fill
+    ///     of the default theme and no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidEr_DrawsTheEntities()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "shop.mmd", "erDiagram\n    CUSTOMER ||--o{ ORDER : places\n    ORDER {\n        int id PK\n        string note\n    }\n");
+        var output = directory.Combine("shop.png");
+
+        // Act
+        using var document = RunJson(input, "-o", output, "--strict");
+
+        // Assert: the natural size, a white corner, the entity fill, and no diagnostic
+        var root = document.RootElement;
+        var natural = root.GetProperty("input").GetProperty("natural");
+        using var image = PngCodec.Load(output);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[0, 0]);
+        Assert.True(Count(image, DefaultNodeFill) > 1000);
+        Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
     ///     Test that <c>--theme</c> draws the diagram in that theme (without regard to the case of the name) and records it, that
     ///     the theme of a fragment of the input wins over the option, and that a theme the text sets wins over both.
     /// </summary>

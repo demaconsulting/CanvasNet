@@ -46,7 +46,8 @@ internal static partial class ShapeLibrary
     }
 
     /// <summary>
-    ///     <c>stateStart</c>: a circle of 14 (the style sheet's node rule paints it).
+    ///     <c>stateStart</c>: a circle of 14, painted by the style sheet's rules for its <c>circle.state-start</c>
+    ///     (<c>.node circle</c>, then a state diagram's <c>.node circle.state-start</c>).
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
@@ -54,28 +55,35 @@ internal static partial class ShapeLibrary
     {
         const double width = 14;
         var draft = new Draft(input);
-        var css = input.Paint.Css;
-        draft.Part(new PathData().Oval(0, 0, width / 2, width / 2), new PartPaint(css.Fill, css.Stroke, css.StrokeWidth, null));
+        var rule = Rules(input.Context.Styles, (".node circle", true), (".node circle.state-start", true));
+        draft.Part(new PathData().Oval(0, 0, width / 2, width / 2), new PartPaint(rule.Paint("fill"), rule.Paint("stroke"), rule.Length("stroke-width", 1), null));
         return draft.Finish((node, point) => IntersectCircle(node, width / 2, point));
     }
 
     /// <summary>
-    ///     <c>stateEnd</c>: a circle of 14 with a circle of 5 inside.
+    ///     <c>stateEnd</c>: a circle of 14 stroked 2 wide in the line color, with a circle of 5 inside in the state border
+    ///     color, both drawn by rough.js (as Catmull-Rom outlines, see <see cref="PathData.RoughEllipse"/>).
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
     private static ShapeResult StateEnd(ShapeInput input)
     {
         const double width = 14;
+        const double strokeWidth = 2;
         var draft = new Draft(input);
-        draft.Part(new PathData().Oval(0, 0, width / 2, width / 2), Body(input.Paint));
-        var inner = width * 5 / 14 / 2;
-        draft.Part(new PathData().Oval(0, 0, inner, inner), Body(input.Paint));
-        return draft.Finish((node, point) => IntersectCircle(node, width / 2, point));
+        var theme = input.Context.Theme;
+        draft.Part(new PathData().RoughEllipse(0, 0, width, width), RoughPaint(input, theme.MainBkg, theme.LineColor, strokeWidth));
+        var innerFill = StateBorder(input.Context);
+        draft.Part(new PathData().RoughEllipse(0, 0, width * 5 / 14, width * 5 / 14), RoughPaint(input, innerFill, innerFill, strokeWidth));
+
+        // The node is the box of the drawn outline (updateNodeBounds), and the edges end on a circle of half its width
+        return draft.Finish((node, point) => IntersectCircle(node, node.Width / 2, point));
     }
 
     /// <summary>
-    ///     <c>forkJoin</c>: a bar of 70 by 10 (10 by 70 for a node whose direction is <c>LR</c>).
+    ///     <c>forkJoin</c>: a bar of 70 by 10 (10 by 70 in a graph of direction <c>LR</c>) drawn by rough.js in the line
+    ///     color. The half of <c>state.padding</c> that Mermaid adds to the measured node is lost when the layout measures
+    ///     the drawn box, so the node is the bar.
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
@@ -83,7 +91,8 @@ internal static partial class ShapeLibrary
     {
         var draft = new Draft(input);
         var (width, height) = input.Node.Dir == "LR" ? (10.0, 70.0) : (70.0, 10.0);
-        draft.Part(new PathData().Rect(-width / 2, -height / 2, width, height), Body(input.Paint));
+        var lineColor = input.Context.Theme.LineColor;
+        draft.Part(new PathData().Rect(-width / 2, -height / 2, width, height), RoughPaint(input, lineColor, lineColor, RoughStrokeWidth));
         return draft.Finish(IntersectRect);
     }
 

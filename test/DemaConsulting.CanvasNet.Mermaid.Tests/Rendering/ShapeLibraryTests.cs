@@ -256,13 +256,17 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
-    ///     Checks that a shape this version does not draw fails, located, with a suggestion.
+    ///     Checks that a shape this version does not draw on a node - a name that is no shape, or the entity box on a
+    ///     node without the data of an entity - fails, located, with a hint that suggests a documented shape.
     /// </summary>
-    [Fact]
-    public void ShapeLibrary_Draw_UndrawnShape_ThrowsRenderFailed()
+    /// <param name="shape">The shape name.</param>
+    [Theory]
+    [InlineData("notAShape")]
+    [InlineData("erBox")]
+    public void ShapeLibrary_Draw_UndrawnShape_ThrowsRenderFailed(string shape)
     {
         // Arrange
-        var node = new LayoutNode { Id = "A", Shape = "erBox", Location = new MermaidLocation(null, 3, 1) };
+        var node = new LayoutNode { Id = "A", Shape = shape, Location = new MermaidLocation(null, 3, 1) };
 
         // Act
         var exception = Assert.Throws<MermaidRenderException>(() => ShapeLibrary.Draw(node, Context()));
@@ -270,6 +274,10 @@ public sealed class ShapeLibraryTests
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.RenderFailed, exception.Code);
         Assert.Equal(3, exception.Location.Line);
+        Assert.Contains($"'{shape}'", exception.Message, StringComparison.Ordinal);
+        Assert.NotNull(exception.Hint);
+        var suggestion = exception.Hint.Split('\'')[1];
+        Assert.True(ShapeNames.IsKnown(suggestion), $"the hint suggests '{suggestion}', which is not a shape");
     }
 
     /// <summary>
@@ -425,6 +433,269 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks that a state (<c>rect</c> with Mermaid's radii of 10) is drawn as <c>insertNode</c> draws it: a
+    ///     <c>roundedRect</c> with the padding of 8 around the label, its corners rounded by the sheet's CSS radius of 5.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_StateRect_IsARoundedRectWithTheCssRadius()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "A", Shape = "rect", Rx = 10, Ry = 10, Padding = 8, CenterLabel = true, CssClasses = " statediagram-state" };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, StateContext(_ => new SceneRect(0, 0, 40, 24)));
+
+        // Assert
+        Assert.Equal("roundedRect", result.Handler);
+        Assert.Equal(new SceneRect(-28, -20, 56, 40), result.Bounds);
+        var arc = Assert.IsType<ScenePath>(result.Items[0]).Segments.First(s => s.Kind == SceneSegmentKind.ArcTo);
+        Assert.Equal((5.0, 5.0), (arc.X1, arc.Y1));
+        Assert.Equal(new ShapePoint(-20, -12), result.LabelOffset);
+    }
+
+    /// <summary>
+    ///     Checks that a node's label is measured with its SVG text centered on its anchor only when the diagram's sheet
+    ///     centers it (a flowchart's <c>.node .label text</c> rule), and starting at its anchor for a state diagram, whose
+    ///     sheet has no such rule.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_SvgNodeText_IsCenteredOnlyWhenTheSheetCentersIt()
+    {
+        // Arrange
+        var requests = new List<LabelRequest>();
+        var state = StateContext(request =>
+        {
+            requests.Add(request);
+            return new SceneRect(0, 0, 40, 24);
+        });
+        var flowchartRequests = new List<LabelRequest>();
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "flowchart TD\n  A\n");
+        var flowchart = new ShapeContext
+        {
+            Config = config,
+            Styles = FlowchartStyles.Create(config, null),
+            MeasureLabel = request =>
+            {
+                flowchartRequests.Add(request);
+                return LabelLayout.Of(request.HtmlLabels, new SceneRect(0, 0, 40, 24));
+            },
+        };
+
+        // Act
+        ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "rect", Rx = 10, Ry = 10, Padding = 8, Label = "A", CenterLabel = true }, state);
+        ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "rect", Padding = 8, Label = "A" }, flowchart);
+
+        // Assert
+        Assert.False(Assert.Single(requests).CenterSvgText);
+        Assert.True(Assert.Single(flowchartRequests).CenterSvgText);
+    }
+
+    /// <summary>
+    ///     Checks that the state shapes are painted as a state diagram's sheet and Mermaid's attributes give them: the
+    ///     start circle by <c>.node circle.state-start</c>; the end circles, the fork bar, the choice diamond and the note
+    ///     by the rough.js attributes, which the sheet has no <c>.node path</c> rule to override.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_StateShapes_PaintThroughTheStateSheet()
+    {
+        // Arrange
+        var context = StateContext(_ => new SceneRect(0, 0, 20, 10));
+        var config = context.Config;
+        Rgba32 Var(string name) => Color(config.ThemeVariable(name)!);
+        ScenePath Part(string shape, int index = 0) =>
+            Assert.IsType<ScenePath>(ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = shape, Label = "n", Padding = 15 }, context).Items[index]);
+
+        // Act
+        var start = Part("stateStart");
+        var outer = Part("stateEnd");
+        var inner = Part("stateEnd", 1);
+        var fork = Part("fork");
+        var choice = Part("choice");
+        var note = Part("note");
+
+        // Assert
+        Assert.Equal((Var("specialStateColor"), Var("specialStateColor"), 1.0), (start.Fill, start.Stroke!.Color, start.Stroke.Width));
+        Assert.Equal((Var("mainBkg"), Var("lineColor"), 2.0), (outer.Fill, outer.Stroke!.Color, outer.Stroke.Width));
+        Assert.Equal((Var("nodeBorder"), Var("nodeBorder"), 2.0), (inner.Fill, inner.Stroke!.Color, inner.Stroke.Width));
+        Assert.Equal((Var("lineColor"), Var("lineColor"), 1.3), (fork.Fill, fork.Stroke!.Color, fork.Stroke.Width));
+        Assert.Equal((Var("mainBkg"), Var("nodeBorder"), 1.3), (choice.Fill, choice.Stroke!.Color, choice.Stroke.Width));
+        Assert.Equal((Var("noteBkgColor"), Var("noteBorderColor"), 1.3), (note.Fill, note.Stroke!.Color, note.Stroke.Width));
+    }
+
+    /// <summary>
+    ///     Checks that an end state's circles are drawn as rough.js draws them without roughness: the outline's last
+    ///     curve doubles back past its start at angle 0, so the outer ring is 14.013 pixels wide from x -7 (as Chrome's
+    ///     box of Mermaid's path), the inner circle 5.005, and the node is the box of the outline.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_StateEnd_IsTheRoughJsOutline()
+    {
+        // Arrange
+        var context = StateContext(_ => new SceneRect(0, 0, 20, 10));
+
+        // Act
+        var end = ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "stateEnd", Label = string.Empty, Padding = 8 }, context);
+        var outer = Scene.BoundsOf([end.Items[0]])!.Value;
+        var inner = Scene.BoundsOf([end.Items[1]])!.Value;
+
+        // Assert
+        Assert.Equal((-7.0, 14.013, 14.0), (Math.Round(outer.X, 3), Math.Round(outer.Width, 3), Math.Round(outer.Height, 3)));
+        Assert.Equal((5.005, 5.0), (Math.Round(inner.Width, 3), Math.Round(inner.Height, 3)));
+        Assert.Equal(outer.Width, end.Width, 3);
+    }
+
+    /// <summary>
+    ///     Checks that a flowchart's sheet, whose node rule covers circles and paths, still paints the same shapes in the
+    ///     node colors, and that a node's own styles win over both.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_StateShapesInAFlowchart_TakeTheNodeRule()
+    {
+        // Arrange
+        var context = Context(new SceneRect(0, 0, 20, 10));
+        var node = context.Styles.Node;
+
+        // Act
+        var shapes = new[] { "stateStart", "stateEnd", "fork", "choice", "note" }
+            .Select(shape => Assert.IsType<ScenePath>(ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = shape, Label = "n", Padding = 15 }, context).Items[0]))
+            .ToList();
+        var styled = Assert.IsType<ScenePath>(ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "fork", CssStyles = ["fill:#ff0000"] }, context).Items[0]);
+
+        // Assert
+        Assert.All(shapes, path => Assert.Equal((node.Fill, node.Stroke, node.StrokeWidth), (path.Fill, path.Stroke!.Color, path.Stroke.Width)));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), styled.Fill);
+    }
+
+    /// <summary>
+    ///     Checks that a fork in a state diagram is the bar alone: the half of <c>state.padding</c> that Mermaid's
+    ///     <c>forkJoin</c> adds to the node is replaced by the drawn box when the layout measures it.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_StateFork_IsTheBarWithoutThePadding()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "F", Shape = "fork", Padding = 8, CssClasses = " statediagram-state" };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, StateContext(_ => new SceneRect(0, 0, 20, 10)));
+
+        // Assert
+        Assert.Equal(new SceneRect(-35, -5, 70, 10), result.Bounds);
+        Assert.Equal(new ShapePoint(0, -5), result.Intersect(new NodeBox(0, 0, 70, 10), new ShapePoint(0, -100)));
+    }
+
+    /// <summary>
+    ///     Checks a state with descriptions (<c>rectWithTitle</c>) against Mermaid's drawing of a 61.09 pixel title over
+    ///     an 80.94 pixel description: the narrower title centered, the description 33 pixels down, the rectangle with the
+    ///     padding around and the CSS radius of 5, and the divider under the title.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_RectWithTitle_PlacesTitleDescriptionAndDivider()
+    {
+        // Arrange
+        var node = new LayoutNode
+        {
+            Id = "D",
+            Shape = "rectWithTitle",
+            Label = "first line",
+            Descriptions = ["second line"],
+            Padding = 8,
+            CssClasses = " statediagram-state",
+        };
+        var context = StateContext(request => new SceneRect(0, 0, request.Text == "first line" ? 61.09375 : 80.9375, 24));
+
+        // Act
+        var result = ShapeLibrary.Draw(node, context);
+
+        // Assert: the boxes Mermaid's SVG has (rect x -44.47, y -32.5, 88.94 by 65; line y -4.5; label at -40.47, -29.5)
+        Assert.Equal("rectWithTitle", result.Handler);
+        Assert.Equal(new SceneRect(-44.46875, -32.5, 88.9375, 65), result.Bounds);
+        var rect = Assert.IsType<ScenePath>(result.Items[0]);
+        Assert.Equal(5, rect.Segments.First(s => s.Kind == SceneSegmentKind.ArcTo).X1);
+        var divider = Assert.IsType<ScenePath>(Assert.Single(result.Items, item => item.Role == "state-divider"));
+        Assert.Equal(new SceneRect(-44.46875, -4.5, 88.9375, 0), Scene.BoundsOf([divider]));
+        Assert.Equal(Color(context.Config.ThemeVariable("nodeBorder")!), divider.Stroke!.Color);
+        Assert.Equal(new ShapePoint(-40.46875 + 9.921875, -29.5), result.LabelOffset);
+    }
+
+    /// <summary>
+    ///     Checks a composite state (<c>roundedWithTitle</c>): the outer rectangle with the CSS radius of 5 in the
+    ///     composite title background, the title a pixel under its top, and the inner rectangle under the title in the
+    ///     composite background, or the alternate background at an alternate depth.
+    /// </summary>
+    /// <param name="classes">The cluster's classes.</param>
+    /// <param name="innerFill">The expected inner fill.</param>
+    [Theory]
+    [InlineData(" statediagram-state statediagram-cluster ", "#ffffff")]
+    [InlineData(" statediagram-state statediagram-cluster statediagram-cluster-alt", "#f0f0f0")]
+    public void ShapeLibrary_DrawCluster_RoundedWithTitle_DrawsOuterTitleAndInner(string classes, string innerFill)
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "C", Shape = "roundedWithTitle", Label = "C", Padding = 8, IsGroup = true, CssClasses = classes };
+        var context = StateContext(_ => new SceneRect(0, 0, 30, 24));
+
+        // Act
+        var cluster = ShapeLibrary.DrawCluster(node, 100, 100, 200, 150, context);
+
+        // Assert
+        Assert.Equal((200.0, 150.0, -8.0), (cluster.Width, cluster.Height, cluster.Diff));
+        var outer = Assert.IsType<ScenePath>(cluster.Shape.Items[0]);
+        var inner = Assert.IsType<ScenePath>(cluster.Shape.Items[^1]);
+        Assert.Equal(new SceneRect(0, 25, 200, 150), Scene.BoundsOf([outer]));
+        Assert.Equal(5, outer.Segments.First(s => s.Kind == SceneSegmentKind.ArcTo).X1);
+        Assert.Equal(Color(context.Config.ThemeVariable("compositeTitleBackground")!), outer.Fill);
+        Assert.Equal(new SceneRect(0, 51, 200, 120), Scene.BoundsOf([inner]));
+        Assert.DoesNotContain(inner.Segments, s => s.Kind == SceneSegmentKind.ArcTo);
+        Assert.Equal(Color(innerFill), inner.Fill);
+        Assert.Equal(new ShapePoint(85, 26), cluster.Shape.LabelOffset);
+    }
+
+    /// <summary>
+    ///     Checks that a composite state narrower than its title is widened to the title and the padding, with Mermaid's
+    ///     <c>diff</c>.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_DrawCluster_RoundedWithTitleNarrow_IsWidenedToTheTitle()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "C", Shape = "roundedWithTitle", Label = "C", Padding = 8, IsGroup = true, CssClasses = " statediagram-state statediagram-cluster " };
+
+        // Act
+        var cluster = ShapeLibrary.DrawCluster(node, 0, 0, 20, 100, StateContext(_ => new SceneRect(0, 0, 30, 24)));
+
+        // Assert
+        Assert.Equal((38.0, 1.0), (cluster.Width, cluster.Diff));
+        Assert.Equal(new SceneRect(-19, -50, 38, 100), cluster.Shape.Bounds);
+    }
+
+    /// <summary>
+    ///     Checks the clusters without a title: a concurrency region (<c>divider</c>), a dashed rectangle in the alternate
+    ///     background; and a note's group (<c>noteGroup</c>), an unpainted rectangle (kept as the cluster's outline,
+    ///     which draws nothing).
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_DrawCluster_DividerAndNoteGroup_AreDashedAndInvisible()
+    {
+        // Arrange
+        var context = StateContext(_ => new SceneRect(0, 0, 30, 24));
+        var divider = new LayoutNode { Id = "divider-id-1", Shape = "divider", Padding = 8, IsGroup = true, CssClasses = " statediagram-state statediagram-cluster statediagram-cluster-alt" };
+        var group = new LayoutNode { Id = "A----parent", Shape = "noteGroup", Padding = 16, IsGroup = true, CssClasses = " statediagram-state" };
+
+        // Act
+        var region = ShapeLibrary.DrawCluster(divider, 50, 40, 100, 80, context);
+        var notes = ShapeLibrary.DrawCluster(group, 50, 40, 100, 80, context);
+
+        // Assert
+        var rect = Assert.IsType<ScenePath>(Assert.Single(region.Shape.Items));
+        Assert.Equal((Color("#f0f0f0"), Color(context.Config.ThemeVariable("nodeBorder")!)), (rect.Fill, rect.Stroke!.Color));
+        Assert.Equal([10.0, 10.0], rect.Stroke.Dash);
+        Assert.Equal((100.0, 80.0, -8.0), (region.Width, region.Height, region.Diff));
+        var outline = Assert.IsType<ScenePath>(Assert.Single(notes.Shape.Items));
+        Assert.Equal(("cluster", null, null), (outline.Role, outline.Fill, outline.Stroke));
+        Assert.Equal((new SceneRect(0, 0, 100, 80), 0.0), (notes.Shape.Bounds, notes.Diff));
+    }
+
+    /// <summary>
     ///     Checks that the dividers of a class box take the class's styles as its outline does (Mermaid writes the
     ///     class's styles on each divider path): the stroke, its width and its dashes, and the theme's paint without
     ///     styles.
@@ -469,6 +740,33 @@ public sealed class ShapeLibraryTests
         [.. result.Items.Where(item => item.Role == "class-divider").Select(item => Scene.BoundsOf([item])!.Value)];
 
     /// <summary>
+    ///     Parses a CSS color.
+    /// </summary>
+    /// <param name="text">The color text.</param>
+    /// <returns>The color.</returns>
+    private static Rgba32 Color(string text) => StyleDeclarations.TryParsePaint(text, out var color) && color is { } value
+        ? value
+        : throw new ArgumentException($"not a color: {text}", nameof(text));
+
+    /// <summary>
+    ///     Creates the context of a default state diagram whose labels measure a box chosen by their text.
+    /// </summary>
+    /// <param name="box">The box of a label request.</param>
+    /// <returns>The context.</returns>
+    private static ShapeContext StateContext(Func<LabelRequest, SceneRect> box)
+    {
+        var reports = new MermaidReportSink(100, false);
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "stateDiagram-v2\n  A --> B\n");
+        return new ShapeContext
+        {
+            Config = config,
+            Styles = StateStyles.Create(config, reports),
+            MeasureLabel = request => LabelLayout.Of(request.HtmlLabels, box(request)),
+            Sink = reports,
+        };
+    }
+
+    /// <summary>
     ///     Creates the context of a class diagram whose labels all measure a fixed box.
     /// </summary>
     /// <param name="text">The class diagram text (its frontmatter configures the rendering).</param>
@@ -483,6 +781,144 @@ public sealed class ShapeLibraryTests
             Config = config,
             Styles = ClassStyles.Create(config, reports),
             MeasureLabel = request => LabelLayout.Of(request.HtmlLabels, fixedLabel),
+            Sink = reports,
+        };
+    }
+
+    /// <summary>
+    ///     Checks the table of an entity with attributes (the default <c>htmlLabels</c>, so the paddings of 20 and 15
+    ///     grow to 25 and 18.75): the columns as wide as their widest text and the padding, the empty comment column
+    ///     dropped, the rows as high as their texts and the text padding, the texts placed in their columns, the rows
+    ///     filled in turn, and the dividers under the name (twice) and at the column boundaries, each a fill and a stroke
+    ///     path.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ErBoxWithAttributes_LaysOutTheTable()
+    {
+        // Arrange
+        var node = new LayoutNode
+        {
+            Id = "entity-A-0",
+            Label = "A",
+            Shape = "erBox",
+            ErBox = new LayoutErBox(string.Empty, [new LayoutErAttribute("int", "x", ["PK"], string.Empty), new LayoutErAttribute("int", "y", [], string.Empty)]),
+        };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ErContext("erDiagram\n  A\n"));
+
+        // Assert: three columns of 65, a name row and two rows of 42.75
+        Assert.Equal("erBox", result.Handler);
+        Assert.Equal(new SceneRect(-97.5, -64.125, 195, 128.25), result.Bounds);
+        var groups = result.Items.OfType<SceneGroup>().ToList();
+        var name = Assert.Single(groups, g => g.Role == "er-name");
+        Assert.Equal((-20, -54.75), (name.OffsetX, name.OffsetY));
+        var types = groups.Where(g => g.Role == "er-attribute-type").ToList();
+        Assert.Equal([(-85.0, -12.0), (-85.0, 30.75)], types.Select(g => (g.OffsetX, g.OffsetY)));
+        Assert.Equal([-20.0, -20.0], groups.Where(g => g.Role == "er-attribute-name").Select(g => g.OffsetX));
+        Assert.Equal(8, result.Items.Count(item => item.Role == "er-divider"));
+        var fills = result.Items.OfType<ScenePath>().Where(path => path.Role == "node" && path.Fill is not null).Select(path => path.Fill).ToList();
+        Assert.Equal([Color("#ECECFF"), Color("#FFFFFF"), Color("#F1F1FF")], fills);
+        Assert.Equal(new ShapePoint(97.5, 0), result.Intersect(new NodeBox(0, 0, 195, 128.25), new ShapePoint(300, 0)));
+    }
+
+    /// <summary>
+    ///     Checks an entity without attributes: a rectangle with the diagram padding left and right and one and a half
+    ///     times it above and below, widened to <c>er.minEntityWidth</c> when Mermaid's text width and the padding are
+    ///     narrower.
+    /// </summary>
+    /// <param name="textWidth">The width Mermaid's <c>calculateTextWidth</c> gives the name.</param>
+    /// <param name="width">The expected width.</param>
+    [Theory]
+    [InlineData(10, 100)]
+    [InlineData(70, 80)]
+    public void ShapeLibrary_Draw_ErBoxWithoutAttributes_IsAtLeastTheMinimumWidth(double textWidth, double width)
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "entity-A-0", Label = "A", Shape = "erBox", ErBox = new LayoutErBox(string.Empty, []) };
+        var context = ErContext("erDiagram\n  A\n");
+        context = new ShapeContext
+        {
+            Config = context.Config,
+            Styles = context.Styles,
+            MeasureLabel = context.MeasureLabel,
+            Sink = context.Sink,
+            TextWidth = _ => textWidth,
+        };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, context);
+
+        // Assert: the label of 40 by 24, centered
+        Assert.Equal(new SceneRect(-width / 2, -42, width, 84), result.Bounds);
+        Assert.Equal(new SceneRect(-20, -12, 40, 24), result.LabelBox);
+    }
+
+    /// <summary>
+    ///     Checks that with SVG text an empty cell counts in the node's box where it is placed (Chrome's <c>getBBox</c>
+    ///     includes an empty text element), so an empty comment cell after the keys column widens the node past its
+    ///     table; the paddings grow by a quarter.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ErBoxSvgEmptyCell_WidensTheBox()
+    {
+        // Arrange
+        var node = new LayoutNode
+        {
+            Id = "entity-A-0",
+            Label = "A",
+            Shape = "erBox",
+            ErBox = new LayoutErBox(string.Empty, [new LayoutErAttribute("int", "x", ["PK"], string.Empty)]),
+        };
+
+        // Act
+        var result = ShapeLibrary.Draw(node, ErContext("---\nconfig:\n  htmlLabels: false\n---\nerDiagram\n  A\n"));
+
+        // Assert: the table is 195 wide from -97.5; the comment cell is at -97.5 + 12.5 + 195
+        var table = Assert.IsType<ScenePath>(result.Items[0]);
+        Assert.Equal(new SceneRect(-97.5, -42.75, 195, 85.5), Scene.BoundsOf([table]));
+        Assert.Equal(-97.5, result.Bounds.X, 9);
+        Assert.Equal(110, result.Bounds.Right, 9);
+    }
+
+    /// <summary>
+    ///     Checks how the entity box reads the top-level <c>htmlLabels</c>: unset, the table's texts are HTML and the
+    ///     paddings grow; true, they are HTML and the paddings do not grow; false, they are SVG text and the paddings grow.
+    /// </summary>
+    /// <param name="setting">The frontmatter line, or empty for none.</param>
+    /// <param name="cells">Whether the table's texts are HTML.</param>
+    /// <param name="scaled">Whether the paddings grow.</param>
+    /// <param name="plain">Whether the name of an entity without attributes is HTML.</param>
+    [Theory]
+    [InlineData("", true, true, true)]
+    [InlineData("  htmlLabels: true\n", true, false, true)]
+    [InlineData("  htmlLabels: false\n", false, true, false)]
+    public void ShapeLibrary_ErHtmlLabels_FollowsTheTopLevelSetting(string setting, bool cells, bool scaled, bool plain)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "---\nconfig:\n" + setting + "  theme: default\n---\nerDiagram\n  A\n");
+
+        // Act
+        var result = ShapeLibrary.ErHtmlLabels(config);
+
+        // Assert
+        Assert.Equal((cells, scaled, plain), result);
+    }
+
+    /// <summary>
+    ///     Creates the context of an ER diagram whose labels measure 40 by 24, or nothing for an empty text.
+    /// </summary>
+    /// <param name="text">The diagram text.</param>
+    /// <returns>The context.</returns>
+    private static ShapeContext ErContext(string text)
+    {
+        var reports = new MermaidReportSink(100, false);
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), text);
+        return new ShapeContext
+        {
+            Config = config,
+            Styles = ErStyles.Create(config, reports),
+            MeasureLabel = request => LabelLayout.Of(request.HtmlLabels, request.Text.Length == 0 ? new SceneRect(0, 0, 0, 0) : new SceneRect(0, 0, 40, 24)),
             Sink = reports,
         };
     }
