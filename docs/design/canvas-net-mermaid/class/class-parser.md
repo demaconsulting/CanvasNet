@@ -93,7 +93,8 @@ is refused in the state where jison refuses it, with jison's list of expected to
 - **`ParseNamespaceStatement`** reads `namespace`, the name, an optional label, and `{`, enters the namespace
   (`AddNamespace`) when it is reduced, reads its items (classes, notes, and nested namespaces, separated by line
   breaks) up to `}`, and then puts the classes and notes declared in it into it (`AddClassesToNamespace`) and leaves it
-  (`PopNamespace`). Only this method recurses, bounded by `MaxNestingDepth`.
+  (`PopNamespace`). Only this method recurses, bounded by `MaxNestingDepth`; the model also counts the dotted parts
+  of the names against that limit (see _ClassModel Unit Design_).
 - **`ParseAnnotationStatement`**, **`ParseNoteStatement`**, **`ParseClassDefStatement`**, **`ParseStyleStatement`**,
   and **`ParseCssClassStatement`** read `<<annotation>> Name`, `note for Name "text"` and `note "text"`,
   `classDef a,b styles`, `style Name styles`, and `cssClass "A,B" name`; **`ParseStyles`** reads styles separated by
@@ -120,7 +121,8 @@ is refused in the state where jison refuses it, with jison's list of expected to
 - Text that no lexer rule matches (such as a statement semicolon) is a located lexical error raised by the scanner of
   the `Syntax` subsystem; the parser rewrites its message as `unrecognized text ...` with a hint for class diagrams
   (statements end at the end of their line, and braces only surround a class body or a namespace).
-- A namespace nested deeper than `MaxNestingDepth` is refused at its keyword, and a text longer than
+- A namespace nested deeper than `MaxNestingDepth` is refused at its keyword (and, counting the dotted parts of the
+  names, by the model at its name), and a text longer than
   `MaxLabelLength` at the token it starts with, both with code `mermaid-limit-exceeded`. The parser checks every token
   text it keeps (a name token, a backticked name, a generic type, a label, a member line, a cardinality, a note, a
   `:::` class, an annotation, a style class name, a link, a target, a tooltip, a callback name and its arguments, and

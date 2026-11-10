@@ -239,6 +239,29 @@ public class ClassParserTests
     }
 
     /// <summary>
+    ///     Validates that nested <c>namespace</c> keywords and the dots in their names count together against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>: two keyword levels whose names nest four namespaces are refused,
+    ///     located at the inner name, while two keyword levels that nest three are accepted.
+    /// </summary>
+    [Fact]
+    public void ClassParser_Parse_NestedDottedNamespacesTooDeep_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNestingDepth = 3 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(
+            "classDiagram\nnamespace A.B {\nnamespace C.D {\nclass X\n}\n}\n", "c.mmd", limits));
+        var accepted = ClassFacts.Parse("classDiagram\nnamespace A.B {\nnamespace C {\nclass X\n}\n}\n", "c.mmd", limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation("c.mmd", 3, 11), ex.Location);
+        Assert.Contains("MaxNestingDepth", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("A.B.C", accepted.Namespaces[^1].Id);
+    }
+
+    /// <summary>
     ///     Validates that a text longer than <see cref="MermaidLimits.MaxLabelLength"/> is refused.
     /// </summary>
     [Fact]

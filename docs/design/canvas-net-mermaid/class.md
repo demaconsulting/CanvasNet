@@ -104,8 +104,9 @@ and the system-level reference layout tests compare their drawings with Mermaid'
 located `MermaidSyntaxException`: a grammar or lexical error (with Mermaid's expected tokens), what Mermaid's database
 fails on (an annotation of a class that does not exist, a method text that Mermaid's member expression cannot read),
 and the limits of the open call (`MaxNestingDepth` and `MaxLabelLength` for every text the parser reads; `MaxEdges`
-for the relations, `MaxNodes` for the classes, notes, interfaces, and namespaces together, and `MaxLabelLength` for
-the texts the model joins). A render of an opened class diagram only reports what it does not draw (a look other than
+for the relations, `MaxNodes` for the classes, notes, interfaces, and namespaces together, `MaxLabelLength` for
+the texts the model joins, and `MaxNestingDepth` for the parts of a qualified namespace id, nested keywords and dots
+in a name together). A render of an opened class diagram only reports what it does not draw (a look other than
 classic, a layout other than dagre) and then draws.
 
 **Deterministic and bounded.** The parser and the model hold no shared state; a parsed model is never changed again,

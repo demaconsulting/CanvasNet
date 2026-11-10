@@ -76,9 +76,10 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
 - **Relations.** `AddRelation` checks `MaxEdges`, then adds both classes, except that a lollipop end with no end at the
   other side adds an interface node (`AddInterface`) in place of its class; the cardinalities are trimmed and sanitized.
 - **Notes.** `AddNote` adds a note for a class (which need not exist) or a free note and returns its id.
-- **Namespaces.** `AddNamespace` qualifies the name by the enclosing namespace, creates the implicit ancestors of a
-  dotted id outermost first (each labeled with its last part and linked to its parent), makes a namespace declared
-  again explicit and may relabel it, enters it, and returns the qualified id; `PopNamespace` leaves it, and
+- **Namespaces.** `AddNamespace` qualifies the name by the enclosing namespace, checks its depth (`CheckDepth`: the
+  parts of the qualified id against `MaxNestingDepth`), creates the implicit ancestors of a dotted id outermost first
+  (each labeled with its last part and linked to its parent), makes a namespace declared again explicit and may
+  relabel it, enters it, and returns the qualified id; `PopNamespace` leaves it, and
   `AddClassesToNamespace` puts the classes and notes declared in it into it and sets their parent.
 - **Styles.** `DefineClass` keeps each style class and gives its styles, split at commas, to the classes whose CSS
   classes already contain its name (a substring match, as in Mermaid); `SetCssClass` adds a CSS class to the classes
@@ -107,7 +108,8 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
   `ResolveExplicitAncestor`), and a `LayoutClassBox` of the drawn name, the annotations, the attributes and methods with
   their texts and classifier styles, and the styles; the notes as `note` nodes with the padding `class.padding` or 6,
   the markdown label, and the four styles Mermaid's class diagram writes (`text-align: left`, `white-space: nowrap`, and
-  the fill and stroke of the theme's `noteBkgColor` and `noteBorderColor`, marked as trusted), each with a dotted edge
+  the fill and stroke of the theme's `noteBkgColor` and `noteBorderColor` as text, a number or a boolean stringified
+  as Mermaid's template strings do and a missing one as `undefined`, marked as trusted), each with a dotted edge
   `edgeNoteN` to its class only when the class exists; the lollipop interfaces as invisible `rect` nodes
   (`opacity: 0;`, trusted); and the relations as edges `id_A_B_N` numbered from 1, with the markdown label, the
   markers of their ends (`aggregation`, `extension`, `composition`, `dependency`, `lollipop`, or `none`), the
@@ -142,7 +144,13 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
     located at the class name, and the qualified id that `AddNamespace` joins from the names of the enclosing
     namespaces, located at the namespace name. The qualified id is the drawn label when `class.hierarchicalNamespaces`
     is false, which the site configuration may set after the text is parsed, so it is checked in both modes. Every
-    other text the model keeps was checked by the parser (see _ClassParser Unit Design_).
+    other text the model keeps was checked by the parser (see _ClassParser Unit Design_);
+  - a namespace whose qualified id has more parts than `MaxNestingDepth` (`mermaid-limit-exceeded`, located at the
+    namespace name, with the parser's message `namespaces are nested deeper than N levels`, checked by `CheckDepth`):
+    the parts of nested `namespace` keywords and of the dots in a name count together, because with
+    `class.hierarchicalNamespaces` (the default) each part is a nested cluster that the shared rendering lays out
+    recursively. The parser counts only the keywords, so without this check one dotted name could nest the clusters
+    without bound and exhaust the stack. It is checked in both modes, as the setting may change after parsing.
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first unsupported feature in
   strict mode.
 - `Layout` propagates the render errors of the shared rendering (`MermaidRenderException` for the layout work limit
@@ -178,7 +186,8 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
 - **Database errors are located.** Where Mermaid's database throws a JavaScript error, the model raises a located
   `MermaidSyntaxException` with Mermaid's message after the location and code, and a hint.
 - **Limits at open.** `MaxEdges` refuses more relations, `MaxNodes` more classes, notes, interfaces, and namespaces
-  together, and `MaxLabelLength` a longer joined label or qualified namespace id, when the document is opened, as a
+  together, `MaxLabelLength` a longer joined label or qualified namespace id, and `MaxNestingDepth` a qualified
+  namespace id of more parts (keywords and dots together), when the document is opened, as a
   `MermaidSyntaxException` with code `mermaid-limit-exceeded`; Mermaid has no such limits.
 - **Interaction.** The link, target, tooltip, and callback of a class are kept only as data; they are never drawn, no
   function is ever bound, and the `clickable` CSS class changes no paint.

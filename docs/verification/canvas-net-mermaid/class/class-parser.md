@@ -109,11 +109,15 @@ test runs in linear time (no wall-clock assertion).
 ##### CanvasNetMermaid-Class-ClassParser-Limits: Nesting And Label Limits
 
 **Tests**: `ClassParserTests.ClassParser_Parse_NamespacesTooDeep_ThrowsLimitExceeded`,
+`ClassParserTests.ClassParser_Parse_NestedDottedNamespacesTooDeep_ThrowsLimitExceeded`,
 `ClassParserTests.ClassParser_Parse_LongMember_ThrowsLimitExceeded`,
 `ClassParserTests.ClassParser_Parse_LongTextAnywhere_ThrowsLimitExceeded`
 
 Asserts that with `MaxNestingDepth` of 2 a third nested namespace is `mermaid-limit-exceeded` at line 4, column 1, the
-namespace that is too deep, with a message that names `MaxNestingDepth`; that with `MaxLabelLength` of 10 a longer
+namespace that is too deep, with a message that names `MaxNestingDepth`; that with `MaxNestingDepth` of 3 the nested
+keywords and the dots in their names count together, so `namespace C.D` inside `namespace A.B` (four levels in two
+keywords) is `mermaid-limit-exceeded` at its name (line 3, column 11), while `namespace C` inside `namespace A.B` is
+accepted as `A.B.C`; that with `MaxLabelLength` of 10 a longer
 member line of a class body is `mermaid-limit-exceeded` with a message that names `MaxLabelLength`; and that with the
 same limit a text of 11 characters is `mermaid-limit-exceeded`, located at its line, with a message that names
 `MermaidLimits.MaxLabelLength`, wherever it stands (a theory with 28 cases): a class name, a class label, a generic

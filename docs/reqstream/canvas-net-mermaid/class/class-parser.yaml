@@ -80,7 +80,8 @@ sections:
               - id: CanvasNetMermaid-Class-ClassParser-Limits
                 title: >-
                   The ClassParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
-                  located at the element that breaches it, namespaces nested deeper than MaxNestingDepth and a name,
+                  located at the element that breaches it, namespaces nested deeper than MaxNestingDepth (the model
+                  counting the dotted parts of their names as levels too) and a name,
                   member, label, note, cardinality, style, link, tooltip, callback, or accessibility text longer than
                   MaxLabelLength.
                 justification: |
@@ -88,5 +89,6 @@ sections:
                   read.
                 tests:
                   - ClassParser_Parse_NamespacesTooDeep_ThrowsLimitExceeded
+                  - ClassParser_Parse_NestedDottedNamespacesTooDeep_ThrowsLimitExceeded
                   - ClassParser_Parse_LongMember_ThrowsLimitExceeded
                   - ClassParser_Parse_LongTextAnywhere_ThrowsLimitExceeded

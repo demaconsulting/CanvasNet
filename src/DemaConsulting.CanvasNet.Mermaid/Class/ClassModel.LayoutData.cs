@@ -162,8 +162,9 @@ internal sealed partial class ClassModel
         }
 
         // The notes, each with an edge to its class when the class exists
-        var noteFill = (string?)config.ThemeVariables["noteBkgColor"] ?? "undefined";
-        var noteStroke = (string?)config.ThemeVariables["noteBorderColor"] ?? "undefined";
+        // A number or a boolean theme variable is stringified as JavaScript would, a missing one is "undefined"
+        var noteFill = config.ThemeVariable("noteBkgColor") ?? "undefined";
+        var noteStroke = config.ThemeVariable("noteBorderColor") ?? "undefined";
         foreach (var note in _notes)
         {
             nodes.Add(new LayoutNode

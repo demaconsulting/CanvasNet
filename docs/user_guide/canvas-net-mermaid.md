@@ -141,7 +141,7 @@ wall-clock bound.
 | `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), or the relations of a class diagram | `MermaidSyntaxException` |
 | `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, or the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram | `MermaidSyntaxException` |
 | `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, and the dotted name of a nested class namespace included) | `MermaidSyntaxException` |
-| `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` |
+| `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
 | `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram) | `MermaidRenderException` |
 | `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |

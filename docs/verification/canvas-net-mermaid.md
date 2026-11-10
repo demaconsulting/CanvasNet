@@ -286,6 +286,9 @@ report.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassTooManyNamespaces_IsALocatedLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNestedNamespaceIds_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassDottedNamespacesTooDeep_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded`
 
@@ -317,7 +320,11 @@ members renders with the default work budget and fails with `mermaid-limit-excee
 mutation fuzzer over the class fixtures only ever raises the documented exception types; that 1,000 namespaces of one
 class each fail at the next namespace (line 3,002) with `MaxNodes`; that two nested namespaces of 3,000-character names
 (a 6,001-character qualified id) and a 3,000-character label on a class with a 3,000-character generic type fail with
-`MaxLabelLength` at their line; and that a class diagram under a small work limit fails with `mermaid-limit-exceeded`.
+`MaxLabelLength` at their line; that a namespace name of 33 dotted parts and one of 1,000 dotted parts (which once
+overflowed the stack) fail at their line (line 2) with `MaxNestingDepth`, as do 17 nested namespaces of two-part names
+at the 17th (line 18), while a name of 32 parts and 16 nested namespaces of two-part names render with 32 subgraphs;
+that note theme variables set to a number or a boolean by a directive or the frontmatter render without an exception;
+and that a class diagram under a small work limit fails with `mermaid-limit-exceeded`.
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 

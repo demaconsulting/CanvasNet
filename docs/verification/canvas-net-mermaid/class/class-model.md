@@ -144,6 +144,7 @@ marked as trusted; and that the namespaces `A.B.C` and `D` count four subgraphs 
 `ClassModelTests.ClassModel_AddNamespace_ImplicitAncestors_CountAgainstMaxNodes`,
 `ClassModelTests.ClassModel_Limits_NodesAndNamespacesAtTheLimit_AreAccepted`,
 `ClassModelTests.ClassModel_AddNamespace_LongQualifiedId_ThrowsLimitExceeded`,
+`ClassModelTests.ClassModel_AddNamespace_DottedIdTooDeep_ThrowsLimitExceeded`,
 `ClassModelTests.ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded`
 
 Asserts that with `MaxEdges` of 1 and `MaxNodes` of 3 a second relation is `mermaid-limit-exceeded` at the given
@@ -156,7 +157,10 @@ count; and that with `MaxNodes` of 3 the namespace `Geo.Plane` with one class, t
 accepted with one node and two subgraphs. Asserts that with `MaxLabelLength` of 10 the nested namespace `Bravo` in
 `Alpha`, whose qualified id `Alpha.Bravo` is 11 characters long although each name fits, is refused at its name
 (line 3, column 15) with the message `a label is 11 characters long` that names `MermaidLimits.MaxLabelLength`, while
-the nested namespace `Beta`, giving the 10-character qualified id `Alpha.Beta`, is accepted; and that
+the nested namespace `Beta`, giving the 10-character qualified id `Alpha.Beta`, is accepted; that with
+`MaxNestingDepth` of 3 the namespace `A.B.C.D`, four levels in one name, is refused at its name (line 2, column 15)
+with the message `namespaces are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)`, while `A.B.C` is
+accepted with the namespaces `A`, `A.B`, and `A.B.C`; and that
 `class A~Type~["Labels"]`, whose drawn name `Labels<Type>` is 12 characters long although the name and the label each
 fit, is refused at the class name (line 2, column 7) with the message `a label is 12 characters long`, while
 `class A~Type~["Name"]` is accepted with the drawn name `Name<Type>`.
@@ -165,6 +169,7 @@ fit, is refused at the class name (line 2, column 7) with the message `a label i
 
 **Tests**: `ClassModelTests.ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels`,
 `ClassModelTests.ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes`,
+`ClassModelTests.ClassModel_GetData_NonStringNoteThemeVariables_AreStringified`,
 `ClassModelTests.ClassModel_GetData_CompactNamespaces_KeepDeclaredOnly`,
 `ClassModelTests.ClassModel_GetData_Spacing_FollowsTheStateSection`
 
@@ -173,7 +178,10 @@ markers of the layout data (see the Relations scenario); that a namespace `Shop`
 attribute and a static method, and two notes, give the nodes `Shop`, `Order`, `note0`, and `note1` in that order, the
 namespace as a `rect` cluster with a padding of 16 and untrusted styles, the class with the parent `Shop`, the DOM id
 `classId-Order-0`, the attribute text `\+int id`, and the method text `\+total() : double` with the underline style,
-and the note link (see the Notes scenario); that without hierarchical namespaces only the declared namespaces are
+and the note link (see the Notes scenario); that note theme variables a directive sets to a number or a boolean
+(`noteBkgColor` 5 and `noteBorderColor` true, or false and 1.5) give a free note the styles `fill: 5` and
+`stroke: true` (or `fill: false` and `stroke: 1.5`), stringified as Mermaid's template strings do (a theory); that
+without hierarchical namespaces only the declared namespaces are
 clusters (see the Namespaces scenario); and that `state.nodeSpacing` 80 and `state.rankSpacing` 70 give the class
 diagram a node spacing of 80 and a rank spacing of 70, as Mermaid's class renderer reads them.
 

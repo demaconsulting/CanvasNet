@@ -295,7 +295,8 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   implicit dotted parents included, of a class diagram); `MaxLabelLength`, 4,096 (also the accessible title and
   description, the type and alias of sequence participant metadata, and the texts a class diagram joins: the label of
   a generic class with its type, and the qualified id of a nested namespace); `MaxNestingDepth`, 32 (subgraphs,
-  namespaces, and the blocks and boxes of a sequence diagram; at most 256); `MaxYamlDepth`, 32 (at
+  namespaces, the dotted parts of a namespace name counted as levels, and the blocks and boxes of a sequence diagram;
+  at most 256); `MaxYamlDepth`, 32 (at
   most 256; YAML aliases, anchors, and tags are refused): checked at open. Failure: `MermaidSyntaxException` with
   `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused YAML construct).
 - `MaxLayoutWork`, 50,000,000 metered layout steps (the dagre stages, the text measurement of a class box, and the

@@ -372,6 +372,29 @@ public class ClassModelTests
     }
 
     /// <summary>
+    ///     Validates that the dotted parts of a namespace name count against <see cref="MermaidLimits.MaxNestingDepth"/>,
+    ///     because each part nests one more namespace: a name with one part too many is refused, located at its name,
+    ///     while one at the limit is accepted.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddNamespace_DottedIdTooDeep_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxNestingDepth = 3 };
+
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse(
+            "classDiagram\n    namespace A.B.C.D {\n        class X\n    }\n", null, limits));
+        var accepted = ClassFacts.Parse("classDiagram\n    namespace A.B.C {\n        class X\n    }\n", null, limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 15), ex.Location);
+        Assert.Contains("namespaces are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(["A", "A.B", "A.B.C"], accepted.Namespaces.Select(n => n.Id));
+    }
+
+    /// <summary>
     ///     Validates that the drawn name of a labeled generic class, the label with the type of the name
     ///     (<c>Labels&lt;Type&gt;</c>), is refused when longer than <see cref="MermaidLimits.MaxLabelLength"/>, although
     ///     the name and the label each fit, while one at the limit is accepted.
@@ -441,6 +464,31 @@ public class ClassModelTests
         Assert.Equal(("edgeNote0", "note0", "Order", "dotted", 1), (link.Id, link.Start, link.End, link.Pattern, link.MinLen));
         Assert.Equal(["text-align: left", "white-space: nowrap", "fill: #fff5ad", "stroke: #aaaa33"], data.Nodes[2].CssStyles);
         Assert.Equal((false, false, true), (data.Nodes[0].TrustedStyles, data.Nodes[1].TrustedStyles, data.Nodes[2].TrustedStyles));
+    }
+
+    /// <summary>
+    ///     Validates that note theme variables a directive sets to a number or a boolean are stringified as Mermaid's
+    ///     template strings do, instead of failing.
+    /// </summary>
+    /// <param name="fill">The <c>noteBkgColor</c> value as JSON.</param>
+    /// <param name="stroke">The <c>noteBorderColor</c> value as JSON.</param>
+    /// <param name="expectedFill">The expected fill text.</param>
+    /// <param name="expectedStroke">The expected stroke text.</param>
+    [Theory]
+    [InlineData("5", "true", "5", "true")]
+    [InlineData("false", "1.5", "false", "1.5")]
+    public void ClassModel_GetData_NonStringNoteThemeVariables_AreStringified(string fill, string stroke, string expectedFill, string expectedStroke)
+    {
+        // Arrange
+        var text = $"%%{{init: {{'themeVariables': {{'noteBkgColor': {fill}, 'noteBorderColor': {stroke}}}}}}}%%\nclassDiagram\n    note \"x\"\n";
+        var model = ClassFacts.Parse(text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(text));
+
+        // Assert
+        var note = Assert.Single(data.Nodes);
+        Assert.Equal(["text-align: left", "white-space: nowrap", $"fill: {expectedFill}", $"stroke: {expectedStroke}"], note.CssStyles);
     }
 
     /// <summary>

@@ -691,6 +691,89 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Gets class diagrams whose namespaces nest deeper than <see cref="MermaidLimits.MaxNestingDepth"/> (32) through
+    ///     the dots in their names, alone or with nested <c>namespace</c> keywords, each with the line of the namespace
+    ///     that is too deep.
+    /// </summary>
+    public static TheoryData<string, int> ClassDottedNamespacesTooDeep => new()
+    {
+        // 33 dotted parts, one level too many
+        { "classDiagram\nnamespace " + string.Join('.', Enumerable.Range(0, 33).Select(i => $"n{i}")) + " {\nclass X\n}\n", 2 },
+
+        // 1,000 dotted parts, which once overflowed the stack laying out the nested clusters
+        { "classDiagram\nnamespace " + string.Join('.', Enumerable.Repeat("a", 1_000)) + " {\nclass X\n}\n", 2 },
+
+        // 17 nested keywords of two parts each: the 17th reaches 34 levels, on line 18
+        { "classDiagram\n" + string.Concat(Enumerable.Range(0, 17).Select(i => $"namespace a{i}.b{i} {{\n")) + "class X\n" + string.Concat(Enumerable.Repeat("}\n", 17)), 18 },
+    };
+
+    /// <summary>
+    ///     Validates that class namespaces nested deeper than <see cref="MermaidLimits.MaxNestingDepth"/> through dotted
+    ///     names fail at parse with a located limit, instead of nesting one cluster per part.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the namespace that is too deep.</param>
+    [Theory]
+    [MemberData(nameof(ClassDottedNamespacesTooDeep))]
+    public void CanvasNetMermaid_Hardening_ClassDottedNamespacesTooDeep_AreALocatedLimit(string text, int line)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that class namespaces nested exactly <see cref="MermaidLimits.MaxNestingDepth"/> (32) levels deep,
+    ///     through a dotted name alone or with nested <c>namespace</c> keywords, still render.
+    /// </summary>
+    /// <param name="keywords">The number of nested <c>namespace</c> keywords.</param>
+    /// <param name="parts">The number of dotted parts in each name.</param>
+    [Theory]
+    [InlineData(1, 32)]
+    [InlineData(16, 2)]
+    public void CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render(int keywords, int parts)
+    {
+        // Arrange
+        var text = "classDiagram\n" +
+            string.Concat(Enumerable.Range(0, keywords).Select(k => "namespace " + string.Join('.', Enumerable.Range(0, parts).Select(p => $"n{k}x{p}")) + " {\n")) +
+            "class X\n" + string.Concat(Enumerable.Repeat("}\n", keywords));
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(32, document.SubgraphCount);
+    }
+
+    /// <summary>
+    ///     Validates that note theme variables a directive or the frontmatter sets to a number or a boolean, which Mermaid
+    ///     stringifies into the note's style, render instead of failing.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("%%{init: {'themeVariables': {'noteBkgColor': 5, 'noteBorderColor': true}}}%%\nclassDiagram\nnote \"x\"\n")]
+    [InlineData("---\nconfig:\n  themeVariables:\n    noteBkgColor: false\n    noteBorderColor: 1.5\n---\nclassDiagram\nnote for A \"x\"\nclass A\n")]
+    public void CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    /// <summary>
     ///     Validates that a labeled generic class whose name and label each fit <see cref="MermaidLimits.MaxLabelLength"/>
     ///     but whose drawn name (the label with the type) does not fails at open, located at the class.
     /// </summary>

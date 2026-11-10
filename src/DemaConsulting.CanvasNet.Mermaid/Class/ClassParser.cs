@@ -35,7 +35,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///         the jison names of the tokens of the LALR state where jison reports the error, in jison's order: where several
 ///         states share a reduction on a merged lookahead set (after a name token, a class name, a relation end or a style
 ///         part), the lookahead is checked against the merged set first. Text no rule matches is a located lexical error.
-///         Namespaces nested deeper than <see cref="MermaidLimits.MaxNestingDepth"/> and texts longer than
+///         Namespaces nested deeper than <see cref="MermaidLimits.MaxNestingDepth"/> (the model counts the dotted parts of a
+///         namespace name as levels too) and texts longer than
 ///         <see cref="MermaidLimits.MaxLabelLength"/> are refused with <see cref="MermaidDiagnosticCodes.LimitExceeded"/>.
 ///     </para>
 ///     <para>

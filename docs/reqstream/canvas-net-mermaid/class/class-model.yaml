@@ -127,24 +127,29 @@ sections:
                   mermaid-limit-exceeded, more relations than MaxEdges, more classes, notes, interfaces, and
                   namespaces (implicit ancestors included) together than MaxNodes, and a drawn text it joins from
                   texts checked apart - the label of a generic class with its type, or the qualified id of a nested
-                  namespace - longer than MaxLabelLength.
+                  namespace - longer than MaxLabelLength, and a namespace whose qualified id has more parts than
+                  MaxNestingDepth, the parts from nested namespace keywords and from dots in a name counted together.
                 justification: |
                   The size of the model, and so the cost of the layout, must be bounded for untrusted text, with
                   namespaces counted as the flowchart counts subgraphs, and a joined text can be longer than any of its
-                  parts, so it is checked where it is drawn.
+                  parts, so it is checked where it is drawn. Each part of a dotted namespace name is a nested cluster,
+                  so the dots must count against the nesting limit or a single name could nest the clusters without
+                  bound.
                 tests:
                   - ClassModel_Limits_TooManyRelationsOrNodes_ThrowLimitExceeded
                   - ClassModel_AddNamespace_TooManyNamespaces_ThrowsLimitExceeded
                   - ClassModel_AddNamespace_ImplicitAncestors_CountAgainstMaxNodes
                   - ClassModel_Limits_NodesAndNamespacesAtTheLimit_AreAccepted
                   - ClassModel_AddNamespace_LongQualifiedId_ThrowsLimitExceeded
+                  - ClassModel_AddNamespace_DottedIdTooDeep_ThrowsLimitExceeded
                   - ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded
 
               - id: CanvasNetMermaid-Class-ClassModel-LayoutData
                 title: >-
                   The ClassModel unit shall map the diagram, under the configuration of a render, to the layout data
                   that Mermaid's class database gives its renderer - the namespaces as clusters, the classes as class
-                  boxes with their annotations, members, methods, and styles, the notes, the interface nodes, the note
+                  boxes with their annotations, members, methods, and styles, the notes (their fill and stroke the
+                  note theme variables as Mermaid stringifies them), the interface nodes, the note
                   links and the relations with a minimum length of 1, the class markers, the direction, and the
                   node and rank spacing that Mermaid's class renderer reads from the state section.
                 justification: |
@@ -153,6 +158,7 @@ sections:
                 tests:
                   - ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels
                   - ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes
+                  - ClassModel_GetData_NonStringNoteThemeVariables_AreStringified
                   - ClassModel_GetData_CompactNamespaces_KeepDeclaredOnly
                   - ClassModel_GetData_Spacing_FollowsTheStateSection
 

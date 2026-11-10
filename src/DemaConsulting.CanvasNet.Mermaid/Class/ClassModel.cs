@@ -32,7 +32,9 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///         <see cref="MermaidLimits.MaxEdges"/>. The texts the model joins are checked against
 ///         <see cref="MermaidLimits.MaxLabelLength"/> where they are drawn: the class name text of a labeled generic class
 ///         (<c>label&lt;T&gt;</c>) and the qualified id of a namespace, which is its label when
-///         <c>class.hierarchicalNamespaces</c> is false (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>).
+///         <c>class.hierarchicalNamespaces</c> is false (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>). The parts of
+///         a qualified namespace id, from nested <c>namespace</c> keywords and from dots in a name alike, count against
+///         <see cref="MermaidLimits.MaxNestingDepth"/>, because each part nests one more namespace cluster.
 ///     </para>
 ///     <para>
 ///         The model is filled by one parser on one thread; once parsing is over it is never changed, so it is safe for
@@ -603,8 +605,8 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <param name="location">The location of the name, for reports.</param>
     /// <returns>The qualified id.</returns>
     /// <exception cref="MermaidSyntaxException">
-    ///     Thrown, located, when <see cref="MermaidLimits.MaxNodes"/> is exceeded or the qualified id is longer than
-    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    ///     Thrown, located, when <see cref="MermaidLimits.MaxNodes"/> is exceeded, the qualified id is longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>, or it has more parts than <see cref="MermaidLimits.MaxNestingDepth"/>.
     /// </exception>
     public string AddNamespace(string id, string? label, MermaidLocation location)
     {
@@ -614,6 +616,7 @@ internal sealed partial class ClassModel : IMermaidDiagram
         // class.hierarchicalNamespaces is false, which the site configuration may set after parsing
         var qualifiedId = _namespaceStack.Count > 0 ? _namespaceStack[^1] + "." + id : id;
         CheckLabel(qualifiedId, location);
+        CheckDepth(qualifiedId, location);
         _namespaceStack.Add(qualifiedId);
         if (_namespaceIndex.TryGetValue(qualifiedId, out var existing))
         {
@@ -1221,6 +1224,26 @@ internal sealed partial class ClassModel : IMermaidDiagram
                 string.Create(CultureInfo.InvariantCulture, $"a label is {text.Length} characters long, more than the limit of {_limits.MaxLabelLength} (MermaidLimits.MaxLabelLength)"),
                 location,
                 "shorten the label, or raise MermaidLimits.MaxLabelLength when the source is trusted");
+        }
+    }
+
+    /// <summary>
+    ///     Checks the depth of a namespace against <see cref="MermaidLimits.MaxNestingDepth"/>: each part of its qualified
+    ///     id is a level, whether it comes from a nested <c>namespace</c> keyword or a dot in a name, because each part is
+    ///     a namespace (an implicit ancestor or the namespace itself) and each level a nested cluster to lay out.
+    /// </summary>
+    /// <param name="qualifiedId">The qualified id.</param>
+    /// <param name="location">The location of the name.</param>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the namespace is too deep.</exception>
+    private void CheckDepth(string qualifiedId, MermaidLocation location)
+    {
+        if (qualifiedId.AsSpan().Count('.') + 1 > _limits.MaxNestingDepth)
+        {
+            throw new MermaidSyntaxException(
+                MermaidDiagnosticCodes.LimitExceeded,
+                string.Create(CultureInfo.InvariantCulture, $"namespaces are nested deeper than {_limits.MaxNestingDepth} levels (MermaidLimits.MaxNestingDepth)"),
+                location,
+                "nest fewer namespaces or use fewer dots in namespace names, or raise MermaidLimits.MaxNestingDepth when the source is trusted");
         }
     }
 
