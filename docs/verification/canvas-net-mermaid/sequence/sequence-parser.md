@@ -8,7 +8,7 @@ and the statements, in three partial files) and the token names of `SequenceToke
 
 The unit is verified in two ways. `SequenceVectorTests` parses the 242 cases of
 `Fixtures/upstream-vectors/sequence-parser.json`, recorded from the pinned Mermaid release in headless Chrome by
-`benchmarks/visual-diff/mermaid/gen-sequence-vectors.mjs` from the original texts of `sequence-vector-cases.mjs`: for
+`tools/visual-diff/mermaid/gen-sequence-vectors.mjs` from the original texts of `sequence-vector-cases.mjs`: for
 each of the 207 valid texts the facts of Mermaid's sequence database (participants in order with their types,
 descriptions, wrap settings, boxes, links, and properties; messages with their line types, texts, wrap settings,
 activation and central-connection flags, placements, and numbering; boxes with their fills; created and destroyed
@@ -34,7 +34,7 @@ within the `DemaConsulting.CanvasNet.Mermaid.Tests` project, in the `Sequence` f
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/sequence-parser.json`, generated from the pinned Mermaid by
-  `benchmarks/visual-diff/mermaid/gen-sequence-vectors.mjs`
+  `tools/visual-diff/mermaid/gen-sequence-vectors.mjs`
 - **Isolation**: Each test parses its own text; the fixture is read only
 
 #### Acceptance Criteria

@@ -131,7 +131,7 @@ that no rule of the sheet styles, so they take the root font and fill, as in Mer
 the 18 pixels of `.statediagramTitleText`.
 
 **Checked against upstream vectors.** The fixture `Fixtures/upstream-vectors/themes.json`, generated from the pinned
-Mermaid and khroma by `benchmarks/visual-diff/mermaid/gen-theme-vectors.mjs`, records 622 khroma calls, 53
+Mermaid and khroma by `tools/visual-diff/mermaid/gen-theme-vectors.mjs`, records 622 khroma calls, 53
 configuration cases (each theme without overrides, with theme variables and in dark mode, the theme switches of
 directives, and precedence, sanitizing, secure-key, wrap, ELK, and HTML-label cases), Mermaid's configuration keys,
 and the global and flowchart defaults; the unit tests compare the ports with them value for value. The sequence

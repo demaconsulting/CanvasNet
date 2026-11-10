@@ -15,7 +15,7 @@ subsystem-level scenarios in `DagreTests` verify the stages working together thr
 that the `Rendering` subsystem calls.
 
 The central evidence is a set of **stage goldens**: 224 layouts recorded from dagre-d3-es itself by
-`benchmarks/visual-diff/mermaid/gen-dagre-goldens.mjs` and stored in
+`tools/visual-diff/mermaid/gen-dagre-goldens.mjs` and stored in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/dagre-layouts.json`. Each case holds an input
 graph (from a seeded generator, so the inputs are original) and dagre's output: the rank and order of every real node,
 every node center and size, every edge route and label center, and the drawing size. The helper `DagreGoldens` builds

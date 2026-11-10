@@ -1691,6 +1691,19 @@ src/DemaConsulting.CanvasNet.Tool/
     └── FlattenCommand.cs          — FlattenCommand: the flatten command, options, run, and result
 ```
 
+The top-level `tools/` folder is a separate tree of support tools that are not software items: unlike
+`docs/reqstream/`, `docs/design/`, `docs/verification/`, `src/`, and `test/`, it does not follow the software-item
+naming convention, has no requirements, design, or verification artifacts, is not shipped, and is run by hand, never
+by CI (see `tools/README.md`):
+
+```text
+tools/
+├── README.md                    — What each tool is for, when to run it, its prerequisites, and adding a tool
+├── DemaConsulting.CanvasNet.VegaLite.Benchmarks/ — Profiling: Stopwatch Vega-Lite benchmarks (built by the solution)
+└── visual-diff/                 — Fidelity: visual diff against Vega, Vega-Lite, and mermaid-cli
+    └── mermaid/                 — Generators of the Mermaid test goldens and upstream vectors
+```
+
 ## Document Conventions
 
 Throughout this document:
@@ -1798,8 +1811,8 @@ have no companion artifacts of their own: the original gallery specifications an
 `docs/user_guide/examples/gallery/` (drawn by the Pandoc filter, rendered strictly by
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs`, and shown in the montage
 `docs/images/vegalite-gallery.png`, which `docs/images/render-images.ps1` draws and checks), the Stopwatch benchmark
-harness is the project `benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run
-by hand), and the visual-diff scripts against Vega and Vega-Lite are in `benchmarks/visual-diff/` (run by hand, never in
+harness is the project `tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run
+by hand), and the visual-diff scripts against Vega and Vega-Lite are in `tools/visual-diff/` (run by hand, never in
 CI).
 
 For the `CanvasNetMermaid` system the parallel paths are, for example for the `DagreRanker` unit in the `Dagre`
@@ -1826,7 +1839,7 @@ goldens with their provenance README in `Fixtures/reference/` (the sequence, cla
 goldens in `Fixtures/reference/sequence/`, `Fixtures/reference/class/`, `Fixtures/reference/state/`, and
 `Fixtures/reference/er/`). The attribution record and license texts are in
 `src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the vectors and goldens, and
-the visual-diff harness against mermaid-cli, are in `benchmarks/visual-diff/` and `benchmarks/visual-diff/mermaid/`
+the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and `tools/visual-diff/mermaid/`
 (run by hand, never in CI); they are not software items.
 
 ## References

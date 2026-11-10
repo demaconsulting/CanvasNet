@@ -10,7 +10,7 @@ also produce the layout goldens and the upstream vectors that the Mermaid tests 
 `compare-with-vega.ps1` draws a Vega-Lite specification with CanvasNet and with Vega and Vega-Lite running in Node.
 
 ```powershell
-pwsh benchmarks/visual-diff/compare-with-vega.ps1 `
+pwsh tools/visual-diff/compare-with-vega.ps1 `
     -Spec docs/user_guide/examples/gallery/09-layer-rule-text.vl.json -Scale 2
 ```
 
@@ -57,13 +57,14 @@ the legend of a size channel next to a color field, where CanvasNet draws rings)
 ## Mermaid
 
 The Mermaid scripts use the packages that the repository pins in `package.json`. These are `@mermaid-js/mermaid-cli`
-11.16.0, which brings mermaid 11.17.2 and puppeteer with its headless Chrome. Run `npm ci` in the repository root
-once. They need Node.js 20 or later (tried with Node 22.18). Nothing is downloaded at run time.
+11.16.0, which brings mermaid 11.17.2 and puppeteer with its headless Chrome. Run `npm install` in the repository
+root once (the repository commits no lockfile, so `npm ci` does not apply). They need Node.js 20 or later (tried with
+Node 22.18). Nothing is downloaded at run time.
 
 ### Comparing a Diagram
 
 ```powershell
-pwsh benchmarks/visual-diff/compare-with-mermaid.ps1 `
+pwsh tools/visual-diff/compare-with-mermaid.ps1 `
     -Diagram test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/25-subgraph-basic.mmd -Scale 2
 ```
 
@@ -93,7 +94,7 @@ structural similarity above 0.99: what remains is the anti-aliasing of the edges
 `render-mermaid.mjs` draws diagrams with mermaid-cli's `renderMermaid`, the code behind `mmdc`, in headless Chrome:
 
 ```powershell
-node benchmarks/visual-diff/render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] <diagram.mmd>...
+node tools/visual-diff/render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] <diagram.mmd>...
 ```
 
 For each `<name>.mmd` it writes `<name>.png` and `<name>.layout.json`. Two details make the reference comparable:
@@ -130,7 +131,7 @@ described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/REA
 ### Layout Goldens
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er] [-Fixture <name>...]
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er] [-Fixture <name>...]
 ```
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart

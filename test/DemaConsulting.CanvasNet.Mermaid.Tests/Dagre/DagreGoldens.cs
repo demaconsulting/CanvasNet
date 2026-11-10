@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.Dagre;
 
 /// <summary>
 ///     The dagre stage goldens of <c>Fixtures/upstream-vectors/dagre-layouts.json</c>: graphs from a seeded generator and
-///     the layouts the pinned dagre-d3-es computed for them (<c>benchmarks/visual-diff/mermaid/gen-dagre-goldens.mjs</c>).
+///     the layouts the pinned dagre-d3-es computed for them (<c>tools/visual-diff/mermaid/gen-dagre-goldens.mjs</c>).
 /// </summary>
 internal static class DagreGoldens
 {

@@ -10,12 +10,12 @@ state and ER fixtures of `../state/` and `../er/`; their format is described in 
 
 ## Provenance
 
-- **Generator**: `benchmarks/visual-diff/render-mermaid.mjs`, run by
-  `pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1` (developer machine, not CI).
+- **Generator**: `tools/visual-diff/render-mermaid.mjs`, run by
+  `pwsh tools/visual-diff/update-mermaid-goldens.ps1` (developer machine, not CI).
 - **Versions**: mermaid 11.17.2 drawn by `@mermaid-js/mermaid-cli` 11.16.0 (`renderMermaid`, the code behind
   `mmdc`) in the headless Chrome of puppeteer 25.11.0, Node.js 22.18.0, on Windows. Each file names the mermaid and
   mermaid-cli versions it was made with.
-- **Fonts**: `benchmarks/visual-diff/liberation.css` is added to the page before Mermaid draws. It declares the
+- **Fonts**: `tools/visual-diff/liberation.css` is added to the page before Mermaid draws. It declares the
   bundled `LiberationSans-*.ttf` faces under the names of Mermaid's default font stack (`"trebuchet ms"`, `verdana`,
   `arial`), so the browser measures labels with the same font as CanvasNet.
 - **Extraction**: the SVG is read back from the live DOM. Ids lose the render id prefix (`my-svg-`). Positions are in
@@ -53,14 +53,14 @@ need more:
 
 ## Regenerating
 
-Run `npm ci` in the repository root, then:
+Run `npm install` in the repository root, then:
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1                        # every fixture of every type
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Fixture 25-subgraph-basic
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram sequence      # the sequence goldens only
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the class goldens only
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the state and ER goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1                        # every fixture of every type
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Fixture 25-subgraph-basic
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram sequence      # the sequence goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the class goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the state and ER goldens only
 ```
 
 A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/` or `../er/` needs a golden, or an entry in

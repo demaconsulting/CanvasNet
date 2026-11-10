@@ -2,7 +2,7 @@
  * liberation.css - makes the browser draw and measure Mermaid diagrams with the Liberation Sans faces that CanvasNet
  * bundles, so that the reference pictures and layouts of render-mermaid.mjs use the same text widths as CanvasNet.
  *
- * Developer tooling of benchmarks/visual-diff; see the README there. The font files are named relative to this file;
+ * Developer tooling of tools/visual-diff; see the README there. The font files are named relative to this file;
  * render-mermaid.mjs embeds them as data URLs and adds the style sheet to the page before Mermaid draws, because
  * Mermaid measures its labels while it draws. The families of Mermaid's default font stack ("trebuchet ms", verdana,
  * arial) and of the sequence diagram's actors ("Open Sans") are declared as Liberation Sans, the way CanvasNet maps
