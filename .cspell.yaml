@@ -1024,8 +1024,8 @@ words:
   - CSSCLASS
   - GENERICTYPE
   - braintree
-  # Mermaid state and entity relationship diagram terms (style sheet classes, the texts of mermaid's ER parser specs, jison
-  # terminals of the state grammar)
+  # Mermaid state and entity relationship diagram terms (style sheet classes, the texts of mermaid's ER parser specs,
+  # jison terminals of the state grammar)
   - statediagram
   - CLASSDEFID
   - CLASSENTITY

@@ -24,6 +24,9 @@ internal static class UpstreamVectors
     /// <summary>The state parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> StateVectors = new(() => Load("state-parser.json"));
 
+    /// <summary>The ER parser vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> ErVectors = new(() => Load("er-parser.json"));
+
     /// <summary>
     ///     Gets the flowchart parser cases of <c>flowchart-parser.json</c>.
     /// </summary>
@@ -43,6 +46,11 @@ internal static class UpstreamVectors
     ///     Gets the state parser cases of <c>state-parser.json</c>.
     /// </summary>
     public static JsonArray States => StateVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the ER parser cases of <c>er-parser.json</c>.
+    /// </summary>
+    public static JsonArray Ers => ErVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the theme, configuration and color vectors (<c>themes.json</c>).
