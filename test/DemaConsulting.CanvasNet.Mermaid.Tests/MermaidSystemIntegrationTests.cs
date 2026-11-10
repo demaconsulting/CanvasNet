@@ -234,7 +234,7 @@ public class MermaidSystemIntegrationTests
         Assert.Contains("dagre-es contributors", dagre, StringComparison.Ordinal);
         Assert.Contains("Copyright OpenJS Foundation and other contributors", lodash, StringComparison.Ordinal);
         Assert.Contains("Christopher Jeffrey", marked, StringComparison.Ordinal);
-        Assert.Contains("Copyright 2010-2022 Mike Bostock", d3, StringComparison.Ordinal);
+        Assert.Contains("Copyright 2010-2023 Mike Bostock", d3, StringComparison.Ordinal);
         Assert.Contains("Copyright (c) 2017 Braintree", sanitizeUrl, StringComparison.Ordinal);
         Assert.Contains("not affiliated", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-mermaid.txt", provenance, StringComparison.Ordinal);

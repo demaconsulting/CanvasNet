@@ -185,3 +185,8 @@ is their vector file.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).
+- `gen-time-vectors.mjs` writes `time-axis.json`: the d3 time functions the gantt chart uses (date getters, the Date
+  constructor and setters, the d3-time intervals with `every`, ticks of a time scale by count and by interval,
+  `tickStep`, the `rangeRound` time scale and `timeFormat` with every directive and pad) on original inputs (Node).
+  The script sets the time zone to UTC and refuses to run when it is not UTC or when an installed d3 package is not
+  the version in mermaid's source map.

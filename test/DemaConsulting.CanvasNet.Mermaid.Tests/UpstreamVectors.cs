@@ -27,6 +27,9 @@ internal static class UpstreamVectors
     /// <summary>The ER parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> ErVectors = new(() => Load("er-parser.json"));
 
+    /// <summary>The time axis vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> TimeVectors = new(() => Load("time-axis.json"));
+
     /// <summary>
     ///     Gets the flowchart parser cases of <c>flowchart-parser.json</c>.
     /// </summary>
@@ -51,6 +54,11 @@ internal static class UpstreamVectors
     ///     Gets the ER parser cases of <c>er-parser.json</c>.
     /// </summary>
     public static JsonArray Ers => ErVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the time axis cases of <c>time-axis.json</c>.
+    /// </summary>
+    public static JsonArray Times => TimeVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the theme, configuration and color vectors (<c>themes.json</c>).
