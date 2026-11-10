@@ -341,8 +341,8 @@ internal sealed class StateStyles : UnifiedStyles
 ///     <para>
 ///         <b>Facts the typed resolvers encode.</b> Node labels are colored by <c>.label</c> (<c>nodeTextColor</c>, else
 ///         <c>textColor</c>); edge labels too, at the 14 pixels of <c>.edgeLabel .label</c>. An HTML edge label's
-///         backgrounds are the div's <c>.labelBkg</c> (the faded <c>tertiaryColor</c>) and the span's
-///         <c>.edgeLabel</c>. No rule colors an HTML subgraph title, so it takes the page's initial black; an SVG title
+///         background is the div's <c>.labelBkg</c> (the faded <c>tertiaryColor</c>) alone: the span's
+///         <c>.edgeLabel</c> background is not seen, because the span holds a block paragraph. No rule colors an HTML subgraph title, so it takes the page's initial black; an SVG title
 ///         is filled by <c>.cluster-label text</c>. The markers take <c>.marker</c>'s <c>none !important</c> fill and
 ///         <c>lineColor !important</c> stroke; the zero circles keep their own white fill. The diagram title's class
 ///         <c>erDiagramTitleText</c> has no rule, so the title takes the root font and fill.
@@ -377,10 +377,10 @@ internal sealed class ErStyles : UnifiedStyles
     public override TextPaint EdgeLabel => NodeLabel with { FontSize = Text(".edgeLabel .label", "color").FontSize };
 
     /// <summary>
-    ///     Gets the selectors of the backgrounds of an HTML edge label: the div's <c>.labelBkg</c>, then the span's
-    ///     <c>.edgeLabel</c>.
+    ///     Gets the selectors of the backgrounds of an HTML edge label: the div's <c>.labelBkg</c> alone (Chrome shows
+    ///     no background of the span's <c>.edgeLabel</c>, an inline box that holds only a block paragraph).
     /// </summary>
-    public override IReadOnlyList<string> HtmlEdgeLabelBackgrounds { get; } = [".labelBkg", ".edgeLabel"];
+    public override IReadOnlyList<string> HtmlEdgeLabelBackgrounds { get; } = [".labelBkg"];
 
     /// <summary>Gets the selector of the background rectangle of an SVG edge label (<c>.edgeLabel .label rect</c>).</summary>
     public override string SvgEdgeLabelBackground => ".edgeLabel .label rect";

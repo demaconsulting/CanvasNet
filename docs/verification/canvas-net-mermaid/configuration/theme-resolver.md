@@ -175,8 +175,8 @@ without a report, the composite state fill becoming `#00ff00` and the transition
 
 Asserts that the entity relationship style sheet starts with the same global rules as the flowchart's, selector for
 selector; that in the default theme an entity takes the `#ECECFF` fill and `#9370DB` stroke at width 1, the node labels
-16 pixels, the edge labels the root font at 14 pixels in the node label's color with the HTML backgrounds `.labelBkg`
-and `.edgeLabel`, and the title the root font at 16 pixels in `#333` (its class has no rule); that an HTML subgraph
+16 pixels, the edge labels the root font at 14 pixels in the node label's color with the single HTML background
+`.labelBkg`, and the title the root font at 16 pixels in `#333` (its class has no rule); that an HTML subgraph
 title is black (`rgb(0, 0, 0)`) and an SVG one the theme's `titleColor`; that `.marker` has the important fill `none`
 and the important stroke `#333333`, and that `.edge-pattern-dashed` is dashed `8,8`; and that a directive's `themeCSS`
 rules `.marker { fill: #ff0000 }` and `.relationshipLine { stroke: #0000ff }` give no report, the marker fill staying

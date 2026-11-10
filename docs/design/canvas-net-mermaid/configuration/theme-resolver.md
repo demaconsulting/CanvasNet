@@ -117,10 +117,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   classic). JavaScript's `??` fallbacks take the second value only when the first variable is not set
   (`clusterBkg ?? mainBkg`, `clusterBorder ?? nodeBorder`, and `titleColor ?? textColor`). `NodeLabel` is colored by
   `.label` (`nodeTextColor`, else `textColor`), and `EdgeLabel` takes that color at the 14 pixels of
-  `.edgeLabel .label`. The HTML edge label backgrounds are the div's `.labelBkg` (the `tertiaryColor` faded to 0.5
-  with `Fade`) and then the span's `.edgeLabel`; the SVG one is `.edgeLabel .label rect`. `ClusterTitle(html)` gives an
-  HTML subgraph title the root font in the page's initial black, because no rule colors the `.cluster-label` spans
-  (Chrome draws them black in every theme), and an SVG title the fill of `.cluster-label text`
+  `.edgeLabel .label`. The HTML edge label background is the div's `.labelBkg` (the `tertiaryColor` faded to 0.5
+  with `Fade`) alone: the span's `.edgeLabel` holds only a block paragraph, so Chrome shows no background of it; the
+  SVG one is `.edgeLabel .label rect`. `ClusterTitle(html)` gives an HTML subgraph title the root font in the page's
+  initial black, because no rule colors the `.cluster-label` spans (Chrome draws them black in every theme), and an SVG
+  title the fill of `.cluster-label text`
   (`titleColor ?? textColor`). The markers take `.marker`'s `none !important` fill and `lineColor !important` stroke at
   width 1, so a `themeCSS` fill cannot replace them; a zero marker's circles keep the white of their own `fill`
   attribute, because the rule matches the marker element and not the circle. The entity boxes take `.entityBox` and

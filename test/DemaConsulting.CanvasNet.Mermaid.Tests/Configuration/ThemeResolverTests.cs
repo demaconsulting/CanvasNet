@@ -398,7 +398,7 @@ public class ThemeResolverTests
 
     /// <summary>
     ///     Validates the entity relationship diagram's style rules of the default theme: the global rules first, the node
-    ///     paint, the 14 pixel edge labels and their two backgrounds, the title in the root font (its class has no rule),
+    ///     paint, the 14 pixel edge labels and their one visible background, the title in the root font (its class has no rule),
     ///     the subgraph titles, and the important marker paint.
     /// </summary>
     [Fact]
@@ -418,7 +418,7 @@ public class ThemeResolverTests
         Assert.Equal(new ShapePaint(Color("#ECECFF"), Color("#9370DB"), 1), styles.Node);
         Assert.Equal(16, styles.NodeLabel.FontSize);
         Assert.Equal(new TextPaint(Family, 14, styles.NodeLabel.Color), styles.EdgeLabel);
-        Assert.Equal([".labelBkg", ".edgeLabel"], styles.HtmlEdgeLabelBackgrounds);
+        Assert.Equal([".labelBkg"], styles.HtmlEdgeLabelBackgrounds);
         Assert.Equal(new TextPaint(Family, 16, Color("#333")), styles.Title);
         Assert.Equal(new Rgba32(0, 0, 0, 255), styles.ClusterTitle(true).Color);
         Assert.Equal(Color(config.ThemeVariable("titleColor")!), styles.ClusterTitle(false).Color);

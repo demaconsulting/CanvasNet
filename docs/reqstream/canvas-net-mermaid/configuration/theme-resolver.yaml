@@ -162,9 +162,10 @@ sections:
                   diagram - the same global rules as for a flowchart and the ER rules - from the theme variables of a
                   configuration, apply the themeCSS rules of the diagram's own selectors after them and report every
                   other themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the
-                  entities, the node and edge labels and the two backgrounds of an HTML edge label, the subgraph titles
-                  (an HTML title in the page's color and an SVG title in the title color), the marker paint whose
-                  important fill a themeCSS rule cannot replace, the dashed lines, and the title in the root font.
+                  entities, the node and edge labels and the visible background of an HTML edge label, the subgraph
+                  titles (an HTML title in the page's color and an SVG title in the title color), the marker paint
+                  whose important fill a themeCSS rule cannot replace, the dashed lines, and the title in the root
+                  font.
                 justification: |
                   Mermaid paints an entity relationship diagram through these rules; resolving them the same way,
                   important declarations included, gives the same paint.
