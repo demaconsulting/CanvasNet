@@ -62,7 +62,9 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 ///     </para>
 ///     <para>
 ///         <b>Support.</b> Each type has a <see cref="DiagramSupport"/>: <c>flowchart</c> (written <c>flowchart</c> or
-///         <c>graph</c>) is drawn; the types of the following phases are planned; the rest is not planned. A type that is
+///         <c>graph</c>), <c>sequenceDiagram</c> and <c>classDiagram</c> (written <c>classDiagram</c> or
+///         <c>classDiagram-v2</c>, under Mermaid's <c>classDiagram</c> id or its legacy <c>class</c> id) are drawn; the
+///         types of the following phases are planned; the rest is not planned. A type that is
 ///         not drawn is reported by the document as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         <see cref="UnsupportedHint(DetectedDiagram)"/>.
 ///     </para>

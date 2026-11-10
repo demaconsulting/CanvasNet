@@ -344,4 +344,33 @@ public class ClassParserTests
         // Assert
         Assert.Equal(name, Assert.Single(model.Classes).Id);
     }
+
+    /// <summary>
+    ///     Validates that a text of thousands of class, member, method and relation statements is read without recursion
+    ///     into all of its classes, members and relations.
+    /// </summary>
+    [Fact]
+    public void ClassParser_Parse_TextOfManyStatements_IsReadIteratively()
+    {
+        // Arrange
+        const int count = 1_500;
+        var text = new System.Text.StringBuilder("classDiagram\n");
+        for (var i = 0; i < count; i++)
+        {
+            text.Append("class C").Append(i).Append('\n');
+            text.Append('C').Append(i).Append(" : +int value\n");
+            text.Append('C').Append(i).Append(" : +run()\n");
+            text.Append('C').Append(i).Append(" <|-- C").Append(i + 1).Append('\n');
+        }
+
+        var limits = new MermaidLimits { MaxTextSize = 1_000_000, MaxNodes = 10_000, MaxEdges = 10_000 };
+
+        // Act
+        var model = ClassFacts.Parse(text.ToString(), null, limits);
+
+        // Assert
+        Assert.Equal(count + 1, model.Classes.Count);
+        Assert.Equal(count, model.Relations.Count);
+        Assert.Equal(count, model.Classes.Count(c => c.Members.Count == 1 && c.Methods.Count == 1));
+    }
 }

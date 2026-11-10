@@ -98,13 +98,17 @@ column 15, with no expected tokens; that `classDiagram direction LR` on the keyw
 direction statement, so the text has no header and its `EOF` is refused with no expected tokens, as in Mermaid; and
 that the 11 invalid upstream vectors fail as Mermaid fails.
 
-##### CanvasNetMermaid-Class-ClassParser-LinearTime: Long Names Without Recursion
+##### CanvasNetMermaid-Class-ClassParser-LinearTime: Long Names And Texts Without Recursion
 
-**Tests**: `ClassParserTests.ClassParser_Parse_NameOfManyTokens_IsReadIteratively`
+**Tests**: `ClassParserTests.ClassParser_Parse_NameOfManyTokens_IsReadIteratively`,
+`ClassParserTests.ClassParser_Parse_TextOfManyStatements_IsReadIteratively`
 
 Asserts that, with `MaxLabelLength` raised to 100,000, a class name of 15,000 `a` tokens joined by dashes (29,999
-tokens) is read without recursion into the one class with that whole name; the matchers do no backtracking, so the
-test runs in linear time (no wall-clock assertion).
+tokens) is read without recursion into the one class with that whole name; and that, with `MaxTextSize`, `MaxNodes`
+and `MaxEdges` raised, a text of 6,000 statements (1,500 class statements, 1,500 attribute and 1,500 method member
+statements, and 1,500 inheritance relations in a chain) is read without recursion into 1,501 classes, 1,500 relations,
+and 1,500 classes with one attribute and one method each. The matchers do no backtracking, so the tests run in linear
+time (no wall-clock assertion).
 
 ##### CanvasNetMermaid-Class-ClassParser-Limits: Nesting And Label Limits
 

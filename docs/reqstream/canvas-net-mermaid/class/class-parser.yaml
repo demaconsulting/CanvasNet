@@ -76,6 +76,7 @@ sections:
                   The text is untrusted; a long name or a long text must not exhaust the stack or cost quadratic time.
                 tests:
                   - ClassParser_Parse_NameOfManyTokens_IsReadIteratively
+                  - ClassParser_Parse_TextOfManyStatements_IsReadIteratively
 
               - id: CanvasNetMermaid-Class-ClassParser-Limits
                 title: >-
