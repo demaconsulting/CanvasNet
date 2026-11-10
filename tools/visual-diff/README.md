@@ -57,8 +57,9 @@ the legend of a size channel next to a color field, where CanvasNet draws rings)
 ## Mermaid
 
 The Mermaid scripts use the packages that the repository pins in `package.json`. These are `@mermaid-js/mermaid-cli`
-11.16.0, which brings mermaid 11.17.2 and puppeteer with its headless Chrome. Run `npm ci` in the repository root
-once. They need Node.js 20 or later (tried with Node 22.18). Nothing is downloaded at run time.
+11.16.0, which brings mermaid 11.17.2 and puppeteer with its headless Chrome. Run `npm install` in the repository
+root once (the repository commits no lockfile, so `npm ci` does not apply). They need Node.js 20 or later (tried with
+Node 22.18). Nothing is downloaded at run time.
 
 ### Comparing a Diagram
 

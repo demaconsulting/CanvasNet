@@ -19,7 +19,7 @@
     design, so the numbers are a guide to where to look (the side-by-side picture), not a pass or fail. The layout
     itself is checked by MermaidReferenceLayoutTests against the goldens (update-mermaid-goldens.ps1).
 
-    Needs Node.js 20 or later and "npm ci" in the repository root (it installs @mermaid-js/mermaid-cli, mermaid and
+    Needs Node.js 20 or later and "npm install" in the repository root (it installs @mermaid-js/mermaid-cli, mermaid and
     puppeteer with its headless Chrome).
 
     The tool is "dotnet canvasnet" from the tool manifest, or the command in -ToolCommand / the CANVASNET_TOOL
@@ -95,7 +95,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     throw 'Node.js is needed (node was not found on the path). Install Node.js 20 or later and try again.'
 }
 if (-not (Test-Path (Join-Path $repoRoot 'node_modules/@mermaid-js/mermaid-cli/package.json'))) {
-    throw 'The pinned mermaid-cli is not installed: run "npm ci" in the repository root first.'
+    throw 'The pinned mermaid-cli is not installed: run "npm install" in the repository root first.'
 }
 
 # --- The two pictures -------------------------------------------------------------------------------------------

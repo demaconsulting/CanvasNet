@@ -53,7 +53,7 @@ need more:
 
 ## Regenerating
 
-Run `npm ci` in the repository root, then:
+Run `npm install` in the repository root, then:
 
 ```powershell
 pwsh tools/visual-diff/update-mermaid-goldens.ps1                        # every fixture of every type

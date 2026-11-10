@@ -32,8 +32,9 @@ reference layout goldens and `mermaid/gen-*.mjs` the upstream parser, shape, cur
 
 - **When**: compare while implementing or fixing a rendering feature; regenerate when adding fixtures or upgrading the
   pinned mermaid, then commit the result (CI only compares).
-- **Prerequisites**: `npm ci` in the repository root (the pinned mermaid-cli, mermaid, and puppeteer with its headless
-  Chrome), PowerShell 7, Node.js 18 or later, and the `canvasnet` tool (`dotnet canvasnet` or a local build).
+- **Prerequisites**: `npm install` in the repository root (the pinned mermaid-cli, which brings mermaid and puppeteer
+  with its headless Chrome; the repository commits no lockfile), PowerShell 7, the `canvasnet` tool (`dotnet canvasnet`
+  or a local build), and Node.js 20 or later for the Mermaid scripts (18 or later is enough for the Vega scripts).
 
 See [its README](visual-diff/README.md).
 
