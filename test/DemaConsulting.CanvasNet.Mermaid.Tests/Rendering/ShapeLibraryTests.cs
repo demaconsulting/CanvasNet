@@ -478,6 +478,28 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks that an end state's circles are drawn as rough.js draws them without roughness: the outline's last
+    ///     curve doubles back past its start at angle 0, so the outer ring is 14.013 pixels wide from x -7 (as Chrome's
+    ///     box of Mermaid's path), the inner circle 5.005, and the node is the box of the outline.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_StateEnd_IsTheRoughJsOutline()
+    {
+        // Arrange
+        var context = StateContext(_ => new SceneRect(0, 0, 20, 10));
+
+        // Act
+        var end = ShapeLibrary.Draw(new LayoutNode { Id = "A", Shape = "stateEnd", Label = string.Empty, Padding = 8 }, context);
+        var outer = Scene.BoundsOf([end.Items[0]])!.Value;
+        var inner = Scene.BoundsOf([end.Items[1]])!.Value;
+
+        // Assert
+        Assert.Equal((-7.0, 14.013, 14.0), (Math.Round(outer.X, 3), Math.Round(outer.Width, 3), Math.Round(outer.Height, 3)));
+        Assert.Equal((5.005, 5.0), (Math.Round(inner.Width, 3), Math.Round(inner.Height, 3)));
+        Assert.Equal(outer.Width, end.Width, 3);
+    }
+
+    /// <summary>
     ///     Checks that a flowchart's sheet, whose node rule covers circles and paths, still paints the same shapes in the
     ///     node colors, and that a node's own styles win over both.
     /// </summary>
@@ -603,7 +625,8 @@ public sealed class ShapeLibraryTests
 
     /// <summary>
     ///     Checks the clusters without a title: a concurrency region (<c>divider</c>), a dashed rectangle in the alternate
-    ///     background; and a note's group (<c>noteGroup</c>), an unpainted rectangle that only counts for the box.
+    ///     background; and a note's group (<c>noteGroup</c>), an unpainted rectangle (kept as the cluster's outline,
+    ///     which draws nothing).
     /// </summary>
     [Fact]
     public void ShapeLibrary_DrawCluster_DividerAndNoteGroup_AreDashedAndInvisible()
@@ -622,7 +645,8 @@ public sealed class ShapeLibraryTests
         Assert.Equal((Color("#f0f0f0"), Color(context.Config.ThemeVariable("nodeBorder")!)), (rect.Fill, rect.Stroke!.Color));
         Assert.Equal([10.0, 10.0], rect.Stroke.Dash);
         Assert.Equal((100.0, 80.0, -8.0), (region.Width, region.Height, region.Diff));
-        Assert.Empty(notes.Shape.Items);
+        var outline = Assert.IsType<ScenePath>(Assert.Single(notes.Shape.Items));
+        Assert.Equal(("cluster", null, null), (outline.Role, outline.Fill, outline.Stroke));
         Assert.Equal((new SceneRect(0, 0, 100, 80), 0.0), (notes.Shape.Bounds, notes.Diff));
     }
 

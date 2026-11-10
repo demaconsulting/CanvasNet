@@ -44,7 +44,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.State;
 ///         concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed partial class StateModel
+internal sealed partial class StateModel : IMermaidDiagram
 {
     /// <summary>The type of a state without a special type.</summary>
     public const string DefaultType = "default";
@@ -141,6 +141,30 @@ internal sealed partial class StateModel
 
     /// <summary>Gets the direction of the layout: the last top-level direction statement, else <c>TB</c>.</summary>
     public string LayoutDirection => DirectionOf(_rootDocument);
+
+    /// <summary>Gets the title the diagram declares: none, because the state grammar has no title statement.</summary>
+    public string? Title => null;
+
+    /// <summary>Gets the accessible title, or null when there is none.</summary>
+    public string? AccTitle => AccessibleTitle.Length > 0 ? AccessibleTitle : null;
+
+    /// <summary>
+    ///     Gets the direction of the metadata: the direction the diagram is laid out in (<see cref="LayoutDirection"/>),
+    ///     which is the last top-level direction statement, else <c>TB</c>.
+    /// </summary>
+    string? IMermaidDiagram.Direction => LayoutDirection;
+
+    /// <summary>
+    ///     Gets the number of states drawn as nodes: plain states, states with descriptions, start and end states, forks,
+    ///     joins and choices (composite states, concurrency regions, notes and note groups are not counted).
+    /// </summary>
+    public int NodeCount => _nodes.Count(node => node.Kind == StateNodeKind.State && !node.IsGroup);
+
+    /// <summary>Gets the number of transitions (the edges of notes are not counted).</summary>
+    public int EdgeCount => _edges.Count(edge => !edge.IsNote);
+
+    /// <summary>Gets the number of composite states (concurrency regions and note groups are not counted).</summary>
+    public int SubgraphCount => _nodes.Count(node => node.Kind == StateNodeKind.State && node.IsGroup && node.Shape != DividerType);
 
     /// <summary>Gets the accessible title (empty when there is none).</summary>
     public string AccessibleTitle { get; private set; } = string.Empty;

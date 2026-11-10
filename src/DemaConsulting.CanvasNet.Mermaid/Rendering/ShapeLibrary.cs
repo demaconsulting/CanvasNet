@@ -434,6 +434,7 @@ internal static partial class ShapeLibrary
                 MarkdownAutoWrap = Context.Config.MarkdownAutoWrap,
                 RootFontSize = css.FontSize,
                 ConfigFontSize = Context.Config.FontSize,
+                CenterSvgText = Context.Styles.CentersNodeSvgText,
                 Location = Node.Location,
             };
             return Context.MeasureLabel(request);

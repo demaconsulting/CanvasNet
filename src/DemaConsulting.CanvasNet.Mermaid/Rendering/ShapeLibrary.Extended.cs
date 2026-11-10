@@ -62,7 +62,7 @@ internal static partial class ShapeLibrary
 
     /// <summary>
     ///     <c>stateEnd</c>: a circle of 14 stroked 2 wide in the line color, with a circle of 5 inside in the state border
-    ///     color, both drawn by rough.js.
+    ///     color, both drawn by rough.js (as Catmull-Rom outlines, see <see cref="PathData.RoughEllipse"/>).
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
@@ -72,11 +72,12 @@ internal static partial class ShapeLibrary
         const double strokeWidth = 2;
         var draft = new Draft(input);
         var theme = input.Context.Theme;
-        draft.Part(new PathData().Oval(0, 0, width / 2, width / 2), RoughPaint(input, theme.MainBkg, theme.LineColor, strokeWidth));
-        var inner = width * 5 / 14 / 2;
+        draft.Part(new PathData().RoughEllipse(0, 0, width, width), RoughPaint(input, theme.MainBkg, theme.LineColor, strokeWidth));
         var innerFill = StateBorder(input.Context);
-        draft.Part(new PathData().Oval(0, 0, inner, inner), RoughPaint(input, innerFill, innerFill, strokeWidth));
-        return draft.Finish((node, point) => IntersectCircle(node, width / 2, point));
+        draft.Part(new PathData().RoughEllipse(0, 0, width * 5 / 14, width * 5 / 14), RoughPaint(input, innerFill, innerFill, strokeWidth));
+
+        // The node is the box of the drawn outline (updateNodeBounds), and the edges end on a circle of half its width
+        return draft.Finish((node, point) => IntersectCircle(node, node.Width / 2, point));
     }
 
     /// <summary>

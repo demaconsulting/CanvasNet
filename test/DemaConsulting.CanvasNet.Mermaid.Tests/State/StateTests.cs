@@ -1,4 +1,3 @@
-using System.Text;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.State;
@@ -118,88 +117,5 @@ public class StateTests
         Assert.Equal(("state", true), (model.MermaidId, model.IsLegacy));
         Assert.Equal("stateDiagram", data.DiagramType);
         Assert.Equal(["root_start", "A", "B"], data.Nodes.Select(n => n.Id));
-    }
-
-    /// <summary>
-    ///     Validates, with the default limits, that notes and their groups count against
-    ///     <see cref="MermaidLimits.MaxNodes"/>: 700 states with a note each are 2,100 nodes, which fail at the note that
-    ///     makes the 2,001st, located at its line.
-    /// </summary>
-    [Fact]
-    public void State_Parse_ManyNotes_IsALocatedNodeLimit()
-    {
-        // Arrange
-        var text = new StringBuilder("stateDiagram-v2\n");
-        for (var i = 0; i < 700; i++)
-        {
-            text.Append(System.Globalization.CultureInfo.InvariantCulture, $"s{i}\nnote left of s{i} : n\n");
-        }
-
-        // Act
-        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(text.ToString(), "s.mmd"));
-
-        // Assert
-        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
-        Assert.Equal(1_335, ex.Location.Line);
-    }
-
-    /// <summary>
-    ///     Validates, with the default limits, that concurrent regions count as nesting levels: 16 composite states that
-    ///     each hold the next in a region are 32 levels and are accepted, and 17 fail at the composite state of the 33rd
-    ///     level, though the parser allows 17 nested composite states.
-    /// </summary>
-    [Fact]
-    public void State_Parse_NestedRegions_IsALocatedNestingLimit()
-    {
-        // Act
-        var accepted = StateFacts.Parse(NestedRegions(16));
-        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(NestedRegions(17), "s.mmd"));
-
-        // Assert
-        Assert.Equal(32, accepted.Nodes.Count(n => n.Shape == "divider"));
-        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
-        Assert.Equal(18, ex.Location.Line);
-    }
-
-    /// <summary>
-    ///     Validates, with the default limits, that the descriptions drawn under a title are checked joined: 457 short
-    ///     descriptions of one state make a block of 4,099 characters, which fails at the line that makes it too long.
-    /// </summary>
-    [Fact]
-    public void State_Parse_ManyDescriptions_IsALocatedLabelLimit()
-    {
-        // Arrange
-        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat("S : abcd\n", 500));
-
-        // Act
-        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(text, "s.mmd"));
-
-        // Assert
-        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
-        Assert.Equal(458, ex.Location.Line);
-        Assert.Contains("4099 characters", ex.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
-    ///     state, so each adds two nesting levels.
-    /// </summary>
-    /// <param name="count">The number of composite states.</param>
-    /// <returns>The text, with composite state <c>i</c> on line <c>i + 2</c>.</returns>
-    private static string NestedRegions(int count)
-    {
-        var text = new StringBuilder("stateDiagram-v2\n");
-        for (var i = 0; i < count; i++)
-        {
-            text.Append(System.Globalization.CultureInfo.InvariantCulture, $"state C{i} {{\n");
-        }
-
-        text.Append("x\n");
-        for (var i = count - 1; i >= 0; i--)
-        {
-            text.Append(System.Globalization.CultureInfo.InvariantCulture, $"--\nz{i}\n}}\n");
-        }
-
-        return text.ToString();
     }
 }

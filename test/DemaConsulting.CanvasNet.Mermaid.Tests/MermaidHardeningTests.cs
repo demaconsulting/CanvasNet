@@ -861,6 +861,209 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every state fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile state diagrams through the public API, fitted to 400 by 300 pixels: huge spacings and font
+    ///     sizes, huge dashes, self-loops on states and composite states, notes on composite states, markup in nested
+    ///     notes, composite states inside each other, and a note on a state that appears nowhere else each render, or end
+    ///     in a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  state:\n    nodeSpacing: 1e300\n    rankSpacing: 1e300\n---\nstateDiagram-v2\nA --> B\nA --> C\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e300}}}%%\nstateDiagram-v2\nA --> B : go\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': 1e-308}}}%%\nstateDiagram-v2\nA --> B : go\nB : one\nB : two\n")]
+    [InlineData("stateDiagram-v2\nA\nstyle A stroke:#f00,stroke-dasharray:1e300\n")]
+    [InlineData("stateDiagram-v2\nA --> A : self\nstate C {\n  x\n}\nC --> C\n")]
+    [InlineData("stateDiagram-v2\nstate C {\n  a --> b\n  note right of a : <b>x</b><script>y</script><img src='x'>\n}\nnote left of C : outer\n")]
+    [InlineData("stateDiagram-v2\nstate A {\n  B\n}\nstate B {\n  A\n}\n")]
+    [InlineData("stateDiagram-v2\nnote left of Ghost : boo\n")]
+    [InlineData("stateDiagram-v2\nstate F <<fork>>\nstate J <<join>>\nstate C <<choice>>\nF --> J\nJ --> C\nC --> F\n")]
+    public void CanvasNetMermaid_Hardening_HostileStateDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("state", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that notes and their groups count against <see cref="MermaidLimits.MaxNodes"/>: 700 states with a
+    ///     note each are 2,100 nodes, which fail at open at the note that makes the 2,001st, located at its line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateManyNotes_IsALocatedNodeLimit()
+    {
+        // Arrange
+        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, 700).Select(i => $"s{i}\nnote left of s{i} : n\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(1_335, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that concurrent regions count as nesting levels: 16 composite states that each hold the next in a
+    ///     region are 32 levels and render, and 17 fail at open at the composite state of the 33rd level, though the
+    ///     grammar allows 17 nested composite states.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateNestedRegions_IsALocatedNestingLimit()
+    {
+        // Arrange
+        var accepted = MermaidDocument.Parse(NestedRegions(16));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(NestedRegions(17)));
+
+        // Assert
+        Assert.Equal(16, accepted.SubgraphCount);
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(18, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the descriptions drawn under a state's title are checked joined: 457 short descriptions of one
+    ///     state make a block of 4,099 characters, which fails at open at the line that makes it too long.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateManyDescriptions_IsALocatedLabelLimit()
+    {
+        // Arrange
+        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat("S : abcd\n", 500));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(458, exception.Location.Line);
+        Assert.Contains("4099 characters", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a state diagram with very many transitions renders or hits the work limit, and that the work is
+    ///     bounded.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateLongChain_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange
+        var text = "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, 300).Select(i => $"s{i} --> s{i + 1} : t{i}\n"));
+        var document = MermaidDocument.Parse(text);
+        var small = new MermaidRenderOptions { Scale = 0.1, Limits = new MermaidLimits { MaxLayoutWork = 5_000 } };
+
+        // Act
+        var size = document.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(small, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.True(size.Height > size.Width);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the state fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "-->", "--", "[*]", ":", " : label", "state X", "state Y {", "}", "{", "<<fork>>", "<<join>>", "<<choice>>",
+            "[[fork]]", "state \"T\" as Z", "note left of X : n", "note right of Y\n  n\nend note", "end note", "note \"f\" as N",
+            "direction LR", "direction BT", "classDef c fill:#f00", "class X c", ":::c", "style X fill:#0f0",
+            "click X \"https://example.com\" \"t\"", "hide empty description", "scale 100 width", "accTitle: t", "accDescr: d",
+            "%%", "\n", "  ", "<br>", "\\", "#59;",
+        ];
+        var random = new Random(20261110);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 8; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
+    ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
+    ///     state, so each adds two nesting levels.
+    /// </summary>
+    /// <param name="count">The number of composite states.</param>
+    /// <returns>The text, with composite state <c>i</c> on line <c>i + 2</c>.</returns>
+    private static string NestedRegions(int count) =>
+        "stateDiagram-v2\n" +
+        string.Concat(Enumerable.Range(0, count).Select(i => $"state C{i} {{\n")) +
+        "x\n" +
+        string.Concat(Enumerable.Range(0, count).Reverse().Select(i => $"--\nz{i}\n}}\n"));
+
+    /// <summary>
     ///     Mutates a text: deletes a range, inserts a token, duplicates a line or swaps two characters, one to three times.
     /// </summary>
     /// <param name="text">The text.</param>

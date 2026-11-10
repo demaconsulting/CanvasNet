@@ -210,6 +210,12 @@ internal sealed class StateStyles : UnifiedStyles
     /// <summary>Gets the selector of the background rectangle of an SVG edge label (<c>.edgeLabel .label rect</c>).</summary>
     public override string SvgEdgeLabelBackground => ".edgeLabel .label rect";
 
+    /// <summary>
+    ///     Gets a value indicating whether the SVG text of a node's label is centered on its anchor: no, because the state
+    ///     sheet has no <c>text-anchor</c> rule for node labels, so the text starts at its anchor.
+    /// </summary>
+    public override bool CentersNodeSvgText => false;
+
     /// <summary>Gets the selector of the diagram title (<c>.statediagramTitleText</c>).</summary>
     protected override string TitleSelector => ".statediagramTitleText";
 

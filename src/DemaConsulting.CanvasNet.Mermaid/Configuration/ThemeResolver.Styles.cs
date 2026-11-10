@@ -294,6 +294,12 @@ internal abstract class UnifiedStyles : DiagramStyles
     /// </summary>
     public virtual TextPaint NoteLabel => NodeLabel;
 
+    /// <summary>
+    ///     Gets a value indicating whether the sheet centers the SVG text of a node's label on its anchor (a flowchart's
+    ///     <c>.node .label text { text-anchor: middle }</c>); without the rule the text starts at its anchor.
+    /// </summary>
+    public virtual bool CentersNodeSvgText => true;
+
     /// <summary>Gets the font and color of subgraph titles (<c>.cluster-label span</c>).</summary>
     public TextPaint ClusterLabel => Text(".cluster-label span", "color");
 

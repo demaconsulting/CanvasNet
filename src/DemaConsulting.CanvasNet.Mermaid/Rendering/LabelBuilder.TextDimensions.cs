@@ -56,6 +56,15 @@ internal sealed partial class LabelBuilder
     /// </summary>
     private const double GlyphAntialiasMargin = 0.25;
 
+    /// <summary>The layout units of a pixel in which the browser advances the runs of SVG text.</summary>
+    private const double SvgLayoutUnits = 64;
+
+    /// <summary>
+    ///     The part of a layout unit below which a run's advance counts as on the grid (the advances are measured in
+    ///     single precision).
+    /// </summary>
+    private const double SvgLayoutTolerance = 1e-3;
+
     /// <summary>The font size in pixels that a text gets when its size is not a valid CSS font size (the inherited one).</summary>
     private const double InheritedFontSize = 16;
 
@@ -297,20 +306,31 @@ internal sealed partial class LabelBuilder
     /// <returns>The advance, and the left and right ends of the box relative to the start of the line.</returns>
     internal (double Advance, double Left, double Right) SvgLineExtent(string line, SceneFont font)
     {
-        var advance = Advance(line, font);
+        var exact = Advance(line, font);
+        var advance = SvgRunAdvance(exact);
         var size = (float)font.Size;
         if (line.Length == 0 || !(size > 0) || !float.IsFinite(size))
         {
             return (advance, 0, advance);
         }
 
-        // The box of the first glyph at the start, and the box of the last glyph at its own origin
+        // The box of the first glyph at the start, and the box of the last glyph at its own origin (inside the run the
+        // glyphs keep their exact advances)
         var left = GlyphBox(FirstCharacter(line), font) is { } first ? Math.Min(0, first.Left) : 0;
         var last = LastCharacter(line);
-        var lastOrigin = advance - Advance(last, font);
+        var lastOrigin = exact - Advance(last, font);
         var right = GlyphBox(last, font) is { } box ? Math.Max(advance, lastOrigin + box.Right) : advance;
         return (advance, left, right);
     }
+
+    /// <summary>
+    ///     Gets the advance the browser gives a run of SVG text (a text or <c>tspan</c> of its own): the exact advance
+    ///     rounded up to its layout unit of a 64th of a pixel, so each run of a line starts on that grid.
+    /// </summary>
+    /// <param name="advance">The exact advance of the run.</param>
+    /// <returns>The advance of the run.</returns>
+    internal static double SvgRunAdvance(double advance) =>
+        double.IsFinite(advance) ? Math.Ceiling((advance * SvgLayoutUnits) - SvgLayoutTolerance) / SvgLayoutUnits : advance;
 
     /// <summary>
     ///     Gets the x-height of a font: how far the top of its <c>x</c> is above the baseline.

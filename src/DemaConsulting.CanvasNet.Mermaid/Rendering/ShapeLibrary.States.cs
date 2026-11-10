@@ -278,8 +278,10 @@ internal static partial class ShapeLibrary
     /// <returns>The drawn cluster.</returns>
     private static ClusterShape NoteGroup(LayoutNode node, double x, double y, double width, double height, ShapeContext context)
     {
+        // The rectangle is kept in the scene, unpainted, so the group's box can be found by its role
         var draft = new Draft(new ShapeInput(node, context, "noteGroup"));
-        draft.Invisible(new PathData().Rect(x - (width / 2), y - (height / 2), width, height));
+        var rect = new SceneRect(x - (width / 2), y - (height / 2), width, height);
+        draft.Item(new ScenePath(new PathData().Rect(rect.X, rect.Y, rect.Width, rect.Height).Segments) { Role = "cluster" }, rect);
         return new ClusterShape(draft.Finish(IntersectRect), width, height, 0);
     }
 

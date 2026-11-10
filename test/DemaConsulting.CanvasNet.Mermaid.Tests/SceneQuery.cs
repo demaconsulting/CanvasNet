@@ -60,6 +60,26 @@ internal static class SceneQuery
     }
 
     /// <summary>
+    ///     Gets the inner rectangles of the clusters that have one (a composite state's area under its title) by cluster
+    ///     id.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <returns>The rectangles.</returns>
+    public static Dictionary<string, SceneRect> ClusterInners(Scene scene)
+    {
+        var inners = new Dictionary<string, SceneRect>(StringComparer.Ordinal);
+        foreach (var (item, dx, dy) in scene.Walk())
+        {
+            if (item is ScenePath { Role: "cluster-inner" } path && path.Id is { } id && Scene.BoundsOf([path]) is { } box)
+            {
+                inners[id] = box.Offset(dx, dy);
+            }
+        }
+
+        return inners;
+    }
+
+    /// <summary>
     ///     Gets the edge paths by edge id, translated to scene coordinates.
     /// </summary>
     /// <param name="scene">The scene.</param>
@@ -134,7 +154,7 @@ internal static class SceneQuery
                     case ScenePath { Role: "node" }:
                         AddPart(list, "path", box);
                         break;
-                    case ScenePath { Role: "class-divider" }:
+                    case ScenePath { Role: "class-divider" or "state-divider" }:
                         list.Add(("divider", box));
                         break;
                     case SceneGroup { Role: "class-annotation" or "class-label" or "class-member" or "class-method" } row:

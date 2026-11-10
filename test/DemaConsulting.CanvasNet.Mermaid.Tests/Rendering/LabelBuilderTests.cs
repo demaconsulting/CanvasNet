@@ -646,6 +646,31 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Validates that a run of SVG text advances on Chrome's grid of a 64th of a pixel: the exact advance is rounded
+    ///     up to the grid, so an SVG label whose words are runs of their own is wider than one run of the same text (the
+    ///     reference's <c>waiting for the bank</c> at 16 pixels: 140.766 as word runs, 140.75 as one run), and an advance on
+    ///     the grid stays.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_SvgRunAdvance_RoundsUpToTheLayoutUnit()
+    {
+        // Arrange
+        var builder = NewBuilder(out _);
+        var font = new SceneFont(MermaidConfigResolver.DefaultFontFamily, 16, false, false);
+        var request = new LabelRequest("waiting for the bank", Font) { HtmlLabels = false, Markdown = true, Width = double.PositiveInfinity, CenterSvgText = false };
+
+        // Act
+        var words = builder.Build(request);
+        var (_, left, right) = builder.SvgLineExtent("waiting for the bank", font);
+
+        // Assert
+        Assert.Equal(3188.0 / 64, LabelBuilder.SvgRunAdvance(3187.5 / 64), 9);
+        Assert.Equal(1.5, LabelBuilder.SvgRunAdvance(1.5), 9);
+        Assert.Equal(140.765625, words.Width, 3);
+        Assert.Equal(140.75, right - left, 3);
+    }
+
+    /// <summary>
     ///     Validates the x-height: the top of Liberation Sans's <c>x</c>, 1082 units of 2048, and zero for a size that
     ///     draws nothing.
     /// </summary>

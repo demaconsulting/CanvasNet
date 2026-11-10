@@ -212,8 +212,8 @@ edge label's center, each terminal label's position, and the title's box. There 
   first and last glyphs, and CanvasNet grows it the same way (the rule of the sequence texts), so `Gateway`,
   `+String name`, the method and `Docs` match at 0.01 px. The rasterizer's box of the bold `d` at 16 px reaches to
   10 px, one pixel further than the rule gives (its outline ends at 8.72 px; the bold `s` at 8.24 px ends at 9 px
-  as the rule gives), so `Backend` is 66.922 px wide in Chrome and 66.695 px (the advance) in CanvasNet. The class box
-  of `Backend` is 0.227 px narrower, and the nodes and edges laid out beside it move by up to 0.06 px. The goldens are
+  as the rule gives), so `Backend` is 66.922 px wide in Chrome and 66.703 px (the advance) in CanvasNet. The class box
+  of `Backend` is 0.219 px narrower, and the nodes and edges laid out beside it move by up to 0.06 px. The goldens are
   read back at a scale of exactly 1: shown at its `max-width`, which is the view box width rounded to 0.001 px, the
   diagram is scaled by about 0.99995, and Chrome then lays the SVG texts out about 0.03 px narrower.
 
@@ -279,6 +279,19 @@ Each file holds the [class layout content](#class-layout-content), with these di
 The last region of a concurrent state has an id that Mermaid makes at random (`id-`, a random token, `-`, and a page
 counter). The harness writes it as `id-random-<counter>`, in the node, cluster, and DOM ids alike, so that the goldens
 do not change from run to run.
+
+### State Tolerances
+
+`MermaidReferenceLayoutTests` compares every state golden at **0.01 px**, with no exception: the view box, each
+node's position, box, and parts (as for a class), each cluster's rectangle, inner rectangle, and title, each edge as a
+flowchart edge is compared, each edge label's center, and the title's box. The largest difference is 0.003 px. Two
+browser rules make this possible:
+
+- **The rough.js circles of an end state** are drawn as rough.js draws them without roughness, so the outer ring is
+  14.013 px wide, as in Chrome (the last curve of the outline doubles back past the start point).
+- **SVG text runs** advance on Chrome's grid of a 64th of a pixel: a text or `tspan` of its own takes its advance
+  rounded up to the grid. Mermaid writes each word of an SVG label as its own `tspan`, so in `13-config-title`
+  `waiting for the bank` is 140.766 px wide (140.75 px as one run).
 
 ### State Fixtures
 

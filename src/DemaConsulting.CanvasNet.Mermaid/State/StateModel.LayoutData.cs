@@ -2,6 +2,7 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Rendering;
+using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 namespace DemaConsulting.CanvasNet.Mermaid.State;
 
@@ -14,6 +15,102 @@ internal sealed partial class StateModel
 {
     /// <summary>The markers a state diagram defines (the unified state renderer's <c>markers</c>).</summary>
     private static readonly string[] StateMarkers = ["barb"];
+
+    /// <summary>The padding of the view box, which the state renderer hard-codes.</summary>
+    private const double ViewBoxPadding = 8;
+
+    /// <inheritdoc />
+    public Scene Layout(DiagramRenderContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        // The reports of what is not drawn come first
+        var config = context.Config;
+        var sink = context.Sink;
+        ReportUnsupported(config, sink);
+        var data = GetData(config);
+        CheckShapes(data);
+
+        // The settings of the rendering: pictures, labels, style sheet and the shared work budget
+        var limits = context.Options.Limits;
+        var meter = new Dagre.LayoutWorkMeter(limits.MaxLayoutWork, KeywordLocation, context.CancellationToken);
+        var images = new NodeImages(context.Options.ImageResolver, limits.MaxImages, sink);
+        var labels = new LabelBuilder(context.Fonts, sink, images) { Meter = meter };
+        var shapes = new ShapeContext
+        {
+            Config = config,
+            Styles = StateStyles.Create(config, sink),
+            MeasureLabel = labels.Build,
+            Images = images,
+            Sink = sink,
+        };
+
+        // The drawing, the title above it and the view box grown by the padding
+        return new ClusterLayout(shapes, meter).RenderDiagram(
+            data,
+            context.Source.Frontmatter?.Title,
+            config.State.TitleTopMargin,
+            ViewBoxPadding,
+            labels);
+    }
+
+    /// <summary>
+    ///     Reports what the diagram uses that this version does not draw: the legacy renderer that a
+    ///     <c>state.defaultRenderer</c> other than <c>dagre-wrapper</c> selects (the diagram is drawn by the unified
+    ///     renderer), a look other than <c>classic</c> and a layout other than <c>dagre</c>.
+    /// </summary>
+    /// <param name="config">The effective configuration of the render.</param>
+    /// <param name="sink">The report sink of the render.</param>
+    /// <exception cref="MermaidUnsupportedFeatureException">Thrown by the sink in strict mode at the first report.</exception>
+    public void ReportUnsupported(MermaidConfig config, MermaidReportSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(sink);
+        if (IsLegacy)
+        {
+            sink.Unsupported(
+                MermaidDiagnosticCodes.LayoutUnsupported,
+                $"the '{config.State.DefaultRenderer}' state renderer is not supported; the diagram is drawn with the unified renderer",
+                config.LocationOf("state"),
+                "state.defaultRenderer selects Mermaid's legacy state renderer; drawn with dagre-wrapper");
+        }
+
+        if (config.Look != "classic")
+        {
+            sink.Unsupported(
+                MermaidDiagnosticCodes.LookUnsupported,
+                $"the '{config.Look}' look is not supported; the diagram is drawn in the classic look",
+                config.LocationOf("look"),
+                "remove the look setting, or set look: classic");
+        }
+
+        if (config.Layout != "dagre")
+        {
+            sink.Unsupported(
+                MermaidDiagnosticCodes.LayoutUnsupported,
+                $"the '{config.Layout}' layout is not supported; the diagram is laid out with dagre",
+                config.LocationOf("layout"),
+                "remove the layout setting, or set layout: dagre");
+        }
+    }
+
+    /// <summary>
+    ///     Fails, located at the note, when a node has no shape: a note on a state that appears nowhere before the note.
+    ///     Mermaid leaves the state's shape undefined and its render fails (<c>No such shape: undefined</c>).
+    /// </summary>
+    /// <param name="data">The layout data.</param>
+    /// <exception cref="MermaidRenderException">Thrown, located, when a node has no shape.</exception>
+    private static void CheckShapes(LayoutData data)
+    {
+        if (data.Nodes.FirstOrDefault(node => node.Shape.Length == 0) is { } node)
+        {
+            throw new MermaidRenderException(
+                MermaidDiagnosticCodes.RenderFailed,
+                $"the state '{node.Id}' cannot be drawn: its note comes before any other statement about it, so it has no shape (Mermaid fails on this diagram too: No such shape: undefined)",
+                node.Location,
+                $"declare the state before its note, for example with a line '{node.Id}' above the note");
+        }
+    }
 
     /// <summary>
     ///     Maps the model to the renderer's input under the configuration of a render (Mermaid's <c>getData</c>).

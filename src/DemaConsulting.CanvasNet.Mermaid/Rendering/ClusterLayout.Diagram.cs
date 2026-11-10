@@ -65,14 +65,15 @@ internal sealed partial class ClusterLayout
         var box = bounds ?? new SceneRect(0, 0, 0, 0);
         var x = box.X + (box.Width / 2);
         var baseline = -topMargin;
-        var width = labels.Advance(title, font);
+        // The box is SVG's getBBox of the centered text: the advance grown to the glyph boxes at its ends
+        var (advance, left, right) = labels.SvgLineExtent(title, font);
         var (ascent, descent) = labels.VerticalMetrics(font);
         return new SceneText(
             x,
             baseline,
             SceneTextAnchor.Middle,
             [new SceneTextRun(title, font, paint.Color)],
-            new SceneRect(x - (width / 2), baseline - ascent, width, ascent + descent))
+            new SceneRect(x - (advance / 2) + left, baseline - ascent, right - left, ascent + descent))
         {
             Role = "title",
         };

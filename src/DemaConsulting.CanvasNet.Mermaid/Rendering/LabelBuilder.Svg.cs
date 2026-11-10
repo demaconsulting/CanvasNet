@@ -56,7 +56,7 @@ internal sealed partial class LabelBuilder
                 var bold = words[w].Type == WordType.Strong || (request.SvgInheritsWeight && request.Font.Bold);
                 var font = new SceneFont(request.Font.Family, size, bold, words[w].Type == WordType.Em);
                 var content = (w == 0 ? string.Empty : " ") + DecodeHtmlEntities(words[w].Content);
-                runs.Add(new LabelRun(content, font, request.Font.Color, Advance(content, font)));
+                runs.Add(new LabelRun(content, font, request.Font.Color, SvgRunAdvance(Advance(content, font))));
             }
 
             var width = runs.Sum(run => run.Width);

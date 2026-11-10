@@ -5,12 +5,13 @@ using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 
 /// <summary>
-///     System tests of the flowchart and class diagram layouts against the reference implementation: each golden of
-///     <c>Fixtures/reference/</c> and <c>Fixtures/reference/class/</c> (the layout that the pinned mermaid-cli and mermaid
-///     draw in headless Chrome with Liberation Sans, see <c>Fixtures/reference/README.md</c>) is compared with
-///     CanvasNet's scene: the view box, the node positions and boxes, the subgraph rectangles, the edge paths sampled
-///     along their length and the edge label positions; for a class diagram also the drawn parts of each node, the
-///     namespace titles, the terminal labels and the title.
+///     System tests of the flowchart, class diagram and state diagram layouts against the reference implementation:
+///     each golden of <c>Fixtures/reference/</c>, <c>Fixtures/reference/class/</c> and <c>Fixtures/reference/state/</c>
+///     (the layout that the pinned mermaid-cli and mermaid draw in headless Chrome with Liberation Sans, see
+///     <c>Fixtures/reference/README.md</c>) is compared with CanvasNet's scene: the view box, the node positions and
+///     boxes, the subgraph rectangles, the edge paths sampled along their length and the edge label positions; for a
+///     class or state diagram also the drawn parts of each node, the subgraph titles, the terminal labels and the title,
+///     and for a state diagram the inner rectangles of the composite states.
 /// </summary>
 public class MermaidReferenceLayoutTests
 {
@@ -35,7 +36,7 @@ public class MermaidReferenceLayoutTests
     ///     The class diagram fixtures that need a looser tolerance, with the tolerance; the reasons are in
     ///     <c>Fixtures/reference/README.md</c>: <c>16-config-title-links</c> draws its class box texts as SVG text
     ///     (<c>htmlLabels: false</c>), and Chrome's box of the bold <c>d</c> that ends <c>Backend</c> reaches one pixel
-    ///     further than the glyph box rule gives, so that class box is 0.227 px narrower and the boxes and edges laid out
+    ///     further than the glyph box rule gives, so that class box is 0.219 px narrower and the boxes and edges laid out
     ///     beside it move by up to 0.06 px.
     /// </summary>
     private static readonly Dictionary<string, double> ClassLooserTolerances = new(StringComparer.Ordinal)
@@ -172,11 +173,76 @@ public class MermaidReferenceLayoutTests
             string.Join('\n', comparison.Issues.Take(20)));
     }
 
+    /// <summary>
+    ///     Gets the names of the state diagram goldens.
+    /// </summary>
+    /// <returns>The names (the fixture names).</returns>
+    public static TheoryData<string> StateGoldens()
+    {
+        var data = new TheoryData<string>();
+        foreach (var name in GoldenNames(StateReferenceFolder))
+        {
+            data.Add(name);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Validates that every state diagram fixture has a golden.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_StateDiagram_ReferenceGoldens_CoverEveryFixture()
+    {
+        // Arrange
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state"), "*.mmd")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Order(StringComparer.Ordinal);
+
+        // Act
+        var goldens = GoldenNames(StateReferenceFolder);
+
+        // Assert
+        Assert.Equal(fixtures, goldens);
+    }
+
+    /// <summary>
+    ///     Validates that CanvasNet lays a state diagram fixture out as the reference does: the view box, the nodes and
+    ///     their drawn parts, the clusters (composite states with their inner rectangles and titles, concurrency regions
+    ///     and note groups), the edges, the edge labels and the title.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(StateGoldens))]
+    public void CanvasNetMermaid_StateDiagram_ReferenceLayout_MatchesMermaid(string name)
+    {
+        // Arrange
+        var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(StateReferenceFolder, name + ".layout.json")))!.AsObject();
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "state", (string)golden["source"]!));
+        var tolerance = DefaultTolerance;
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+        var comparison = new Comparison(tolerance);
+        comparison.Compare(golden, scene);
+        comparison.CompareExtended(golden, scene);
+        comparison.CompareClusterInners(golden, scene);
+
+        // Assert
+        Assert.True(
+            comparison.Issues.Count == 0,
+            $"{name}: {comparison.Issues.Count} difference(s) beyond {tolerance} px (largest {comparison.Largest:0.###} px):\n" +
+            string.Join('\n', comparison.Issues.Take(20)));
+    }
+
     /// <summary>Gets the folder of the goldens.</summary>
     private static string ReferenceFolder => Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference");
 
     /// <summary>Gets the folder of the class diagram goldens.</summary>
     private static string ClassReferenceFolder => Path.Combine(ReferenceFolder, "class");
+
+    /// <summary>Gets the folder of the state diagram goldens.</summary>
+    private static string StateReferenceFolder => Path.Combine(ReferenceFolder, "state");
 
     /// <summary>
     ///     Gets the names of the goldens in order.
@@ -359,6 +425,34 @@ public class MermaidReferenceLayoutTests
         }
 
         /// <summary>
+        ///     Compares the inner rectangles of the clusters that have one (a composite state's area under its title).
+        /// </summary>
+        /// <param name="golden">The golden.</param>
+        /// <param name="scene">The scene.</param>
+        public void CompareClusterInners(JsonObject golden, Scene scene)
+        {
+            var inners = SceneQuery.ClusterInners(scene);
+            foreach (var cluster in golden["clusters"]!.AsArray())
+            {
+                var id = (string)cluster!["id"]!;
+                var expected = cluster["inner"] is JsonArray box ? Numbers(box) : null;
+                var found = inners.TryGetValue(id, out var ours);
+                if (expected is null && found)
+                {
+                    Issues.Add($"cluster {id} inner: unexpected");
+                }
+                else if (expected is not null && !found)
+                {
+                    Issues.Add($"cluster {id} inner: missing");
+                }
+                else if (expected is not null)
+                {
+                    Check($"cluster {id} inner", expected, Box(ours));
+                }
+            }
+        }
+
+        /// <summary>
         ///     Gets the kind of a golden part (the names <see cref="SceneQuery.Parts"/> uses).
         /// </summary>
         /// <param name="part">The part.</param>
@@ -375,6 +469,7 @@ public class MermaidReferenceLayoutTests
                 ("g", "methods-group text") => "class-method",
                 ("g" or "text", _) => "label",
                 (_, "divider") => "divider",
+                ("line", _) when (string?)part["class"] == "divider" => "divider",
                 _ => "path",
             };
         }

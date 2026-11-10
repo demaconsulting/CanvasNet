@@ -442,7 +442,7 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
     class text as Chrome's `getBBox` does, with the rule of the sequence texts: the advance, grown to the boxes the
     font rasterizer gives the first and last glyphs. The rule takes those boxes from the glyph outlines, and Chrome's
     rasterizer gives a few glyphs a box one pixel wider: the bold `d` that ends `Backend` reaches 10 pixels in Chrome
-    and 9 by the rule, so that class box is 0.227 pixel narrower and the nodes and edges beside it move by up to 0.06
+    and 9 by the rule, so that class box is 0.219 pixel narrower and the nodes and edges beside it move by up to 0.06
     pixel; the HTML labels of the default configuration are not affected.
 28. **Class reports.** A `style` or `classDef` declaration of a class that is ignored (`mermaid-style-ignored`) is
     located at the class's first mention, not at the statement, because the layout data carries no style locations.

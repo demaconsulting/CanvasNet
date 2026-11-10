@@ -29,8 +29,8 @@ public class DiagramDetectorTests
     [InlineData("sequenceDiagram", "sequence", "sequence", "Supported")]
     [InlineData("classDiagram", "classDiagram", "class", "Supported")]
     [InlineData("classDiagram-v2", "classDiagram", "class", "Supported")]
-    [InlineData("stateDiagram", "stateDiagram", "state", "Planned")]
-    [InlineData("stateDiagram-v2", "stateDiagram", "state", "Planned")]
+    [InlineData("stateDiagram", "stateDiagram", "state", "Supported")]
+    [InlineData("stateDiagram-v2", "stateDiagram", "state", "Supported")]
     [InlineData("erDiagram", "er", "er", "Planned")]
     [InlineData("gantt", "gantt", "gantt", "Planned")]
     [InlineData("pie showData", "pie", "pie", "Planned")]
@@ -118,7 +118,7 @@ public class DiagramDetectorTests
         Assert.Equal("flowchart-elk", DiagramDetector.Detect(MermaidTestHelpers.Mapped("graph TD"), elk).MermaidId);
         Assert.Equal("flowchart", DiagramDetector.Detect(MermaidTestHelpers.Mapped("graph TD"), legacy).MermaidId);
         Assert.Equal("class", DiagramDetector.Detect(MermaidTestHelpers.Mapped("classDiagram"), legacy).MermaidId);
-        Assert.Equal("state", DiagramDetector.Detect(MermaidTestHelpers.Mapped("stateDiagram"), legacy).MermaidId);
+        Assert.Equal(("state", DiagramSupport.Supported), (DiagramDetector.Detect(MermaidTestHelpers.Mapped("stateDiagram"), legacy).MermaidId, DiagramDetector.Detect(MermaidTestHelpers.Mapped("stateDiagram"), legacy).Support));
         Assert.Equal("stateDiagram", DiagramDetector.Detect(MermaidTestHelpers.Mapped("stateDiagram-v2"), legacy).MermaidId);
         Assert.Throws<MermaidSyntaxException>(() => DiagramDetector.Detect(MermaidTestHelpers.Mapped("flowchart TD"), legacy));
     }
@@ -193,9 +193,9 @@ public class DiagramDetectorTests
     public void DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords()
     {
         // Arrange / Act / Assert
-        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram", DiagramDetector.UnsupportedHint(Detect("pie")));
-        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
-        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram"], DiagramDetector.SupportedDiagramKeywords);
+        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram", DiagramDetector.UnsupportedHint(Detect("pie")));
+        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
+        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram"], DiagramDetector.SupportedDiagramKeywords);
     }
 
     /// <summary>
