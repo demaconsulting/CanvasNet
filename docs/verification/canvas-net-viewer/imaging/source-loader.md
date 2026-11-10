@@ -310,9 +310,9 @@ missing file is looked for.
 `journey`, not supported, no direction or titles, and zero counts; it loads as a 16 by 16 picture (twice the diagram
 padding) that is white, with exactly one note (source `mermaid`, severity `unsupported`, code
 `mermaid-diagram-unsupported`, on one line, at line 1) that says the type is not drawn by this version, that journey
-diagrams are not supported, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the code, with a
-hint that says the type is not supported and mentions `--strict`, and the library's `MermaidUnsupportedFeatureException` as
-its cause.
+diagrams are not supported, and that flowcharts are drawn; in strict mode it is `unsupported-feature` naming the
+code, with a hint that says the type is not supported and mentions `--strict`, and the library's
+`MermaidUnsupportedFeatureException` as its cause.
 
 **SourceLoader_Load_Mermaid_MapsWarningsAndUnsupportedFeatures**: a flowchart with a style declaration outside the
 supported subset and a Font Awesome icon in a label has one warning (source `mermaid`, code `mermaid-warning`, detail

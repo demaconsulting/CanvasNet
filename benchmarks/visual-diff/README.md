@@ -127,24 +127,28 @@ because at its `max-width` Chrome scales it by about 0.99995 and lays its SVG te
 the plain layout, and a class diagram the extended one, so their goldens do not change. A pie chart
 (`aria-roledescription="pie"`) gets the pie layout instead (`extractPie`): the outer circle, the slices with their path
 data, the percentage labels, the title and the legend entries, with the computed paint (opacity and CSS `scale`) and
-fonts. The format is described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
+fonts. A gantt chart (`aria-roledescription="gantt"`) gets the gantt layout (`extractGantt`): the excluded days, the
+axes and their ticks, the section rows, the tasks and their texts, the section titles, the today line and the title.
+Gantt charts read the clock, so every page runs in the UTC time zone with its clock fixed at 2024-06-12T10:30:00Z
+(`FIXED_NOW`), and the script checks the page clock before it reads a diagram back. The format is described in
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er|pie] [-Fixture <name>...]
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram <type>...] [-Fixture <name>...]
 ```
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`, and the class, state and ER fixtures (`Fixtures/class`, `Fixtures/state` and
-`Fixtures/er`) give `reference/class`, `reference/state` and `reference/er`, and the pie fixtures (`Fixtures/pie`) give
-`reference/pie`. `-Diagram` picks the types (default: all). The script refuses to run unless the installed mermaid is
-the pinned 11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden;
-no sequence, class, state, ER or pie fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
-flowchart layout with the goldens, and `MermaidChartReferenceLayoutTests` its pie layout. The tolerance is 0.01 px,
-or 0.1 px for the two fixtures with rough.js circles. A
-golden change is reviewed like code.
+`reference/sequence/*.layout.json`, and the class, state, ER, pie and gantt fixtures (`Fixtures/class`,
+`Fixtures/state`, `Fixtures/er`, `Fixtures/pie` and `Fixtures/gantt`) give `reference/class`, `reference/state`,
+`reference/er`, `reference/pie` and `reference/gantt`. `-Diagram` picks the types (`flowchart`, `sequence`, `class`,
+`state`, `er`, `pie` and `gantt`; default: all). The script refuses to run unless the installed mermaid is the pinned
+11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
+class, state, ER, pie or gantt fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's flowchart
+layout with the goldens, and `MermaidChartReferenceLayoutTests` its pie and gantt layouts. The tolerance is 0.01 px,
+or 0.1 px for the two fixtures with rough.js circles. A golden change is reviewed like code.
 
 ### Upstream Vector Generators
 

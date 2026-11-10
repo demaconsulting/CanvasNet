@@ -1057,6 +1057,8 @@ words:
   - Gantts
   - ganttx
   - axisformat
+  - tickinterval
+  - topaxis
   - mermaidjs
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
@@ -1108,3 +1110,8 @@ overrides:
       - "docs/verification/canvas-net-mermaid/state/state-model.md"
     ignoreRegExpList:
       - "/`[^`\\n]*`/g"
+  # The gantt vectors: Mermaid's entity-encoding markers around encoded text
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"
+    ignoreRegExpList:
+      - "/ﬂ°°?|¶ß/g"

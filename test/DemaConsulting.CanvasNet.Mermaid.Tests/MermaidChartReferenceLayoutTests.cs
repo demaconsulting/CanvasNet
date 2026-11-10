@@ -33,6 +33,9 @@ public class MermaidChartReferenceLayoutTests
     /// </summary>
     private const double ArcTolerance = 0.02;
 
+    /// <summary>The clock of the reference renders (the harness's fixed clock).</summary>
+    private static readonly DateTimeOffset ReferenceNow = new(2024, 6, 12, 10, 30, 0, TimeSpan.Zero);
+
     /// <summary>
     ///     Gets the names of the pie goldens.
     /// </summary>
@@ -82,6 +85,64 @@ public class MermaidChartReferenceLayoutTests
         var scene = SceneQuery.Layout(text);
         var comparison = new Comparison();
         comparison.ComparePie(golden, scene);
+
+        // Assert
+        Assert.True(
+            comparison.Issues.Count == 0,
+            $"{name}: {comparison.Issues.Count} difference(s) (largest {comparison.Largest:0.###} px):\n" +
+            string.Join('\n', comparison.Issues.Take(25)));
+    }
+
+    /// <summary>
+    ///     Gets the names of the gantt goldens.
+    /// </summary>
+    /// <returns>The names (the fixture names).</returns>
+    public static TheoryData<string> GanttGoldens()
+    {
+        var data = new TheoryData<string>();
+        foreach (var name in GoldenNames("gantt"))
+        {
+            data.Add(name);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Validates that every gantt fixture has a golden.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Gantt_ReferenceGoldens_CoverEveryFixture()
+    {
+        // Arrange
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gantt"), "*.mmd")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Order(StringComparer.Ordinal);
+
+        // Act
+        var goldens = GoldenNames("gantt");
+
+        // Assert
+        Assert.Equal(fixtures, goldens);
+    }
+
+    /// <summary>
+    ///     Validates that CanvasNet lays a gantt fixture out and paints it as the reference does, within the tolerances,
+    ///     with the clock of the reference (2024-06-12T10:30:00Z, the harness's fixed clock).
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(GanttGoldens))]
+    public void CanvasNetMermaid_GanttReferenceLayout_MatchesMermaid(string name)
+    {
+        // Arrange
+        var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(ReferenceFolder("gantt"), name + ".layout.json")))!.AsObject();
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gantt", (string)golden["source"]!));
+
+        // Act
+        var scene = SceneQuery.Layout(text, new MermaidRenderOptions { Now = ReferenceNow });
+        var comparison = new Comparison();
+        comparison.CompareGantt(golden, scene);
 
         // Assert
         Assert.True(
@@ -204,6 +265,220 @@ public class MermaidChartReferenceLayoutTests
                 Paint($"{what} rect", entry["rect"]!["paint"]!, rect);
                 Text($"{what} text", entry["text"]!, group.Children.OfType<SceneText>().Single(), gx, gy);
             }
+        }
+
+        /// <summary>
+        ///     Compares every fact of a gantt golden: the view box, the excluded days, each axis's ticks and labels, the
+        ///     section rows, the bars (their corners after a milestone's transform) and texts, the section titles, the
+        ///     today line and the title. A rectangle the golden gives without area is not drawn, so it is not compared.
+        /// </summary>
+        /// <param name="golden">The golden.</param>
+        /// <param name="scene">The scene.</param>
+        public void CompareGantt(JsonObject golden, Scene scene)
+        {
+            var viewBox = scene.ViewBox;
+            Check("viewBox", Numbers(golden["viewBox"]), [viewBox.X, viewBox.Y, viewBox.Width, viewBox.Height], DefaultTolerance);
+            var items = scene.Walk().ToList();
+            List<(SceneItem Item, double X, double Y)> OfRole(string role) => [.. items.Where(entry => entry.Item.Role == role)];
+
+            Rects("exclude", golden["excludes"]!.AsArray(), OfRole("gantt-exclude"));
+            Rects("section", golden["sections"]!.AsArray(), OfRole("gantt-section"));
+            Rects("task", golden["tasks"]!.AsArray(), OfRole("gantt-task"));
+
+            // The axes: each tick's line and label, with the tick group's opacity
+            var axes = OfRole("gantt-axis");
+            var expectedAxes = golden["axes"]!.AsArray();
+            Count("axes", expectedAxes.Count, axes.Count);
+            foreach (var (axis, (item, ax, ay)) in expectedAxes.Zip(axes))
+            {
+                var group = (SceneGroup)item;
+                var (gx, gy) = (ax + group.OffsetX, ay + group.OffsetY);
+                Check($"axis {group.Id} origin", Numbers(axis!["origin"]), [gx, gy], DefaultTolerance);
+                var lines = group.Children.Where(c => c.Role == "gantt-tick").Cast<ScenePath>().ToList();
+                var labels = group.Children.Where(c => c.Role == "gantt-tick-label").Cast<SceneText>().ToList();
+                var ticks = axis["ticks"]!.AsArray();
+                Count($"axis {group.Id} ticks", ticks.Count, lines.Count);
+                Count($"axis {group.Id} labels", ticks.Count(t => ((string)t!["text"]!["text"]!).Length > 0), labels.Count);
+                foreach (var (tick, line) in ticks.Zip(lines))
+                {
+                    var what = $"axis {group.Id} tick '{(string)tick!["text"]!["text"]!}'";
+                    Check($"{what} line", [.. Numbers(tick["at"]), .. Numbers(tick["end"])], [line.Segments[0].X + gx, line.Segments[0].Y + gy, line.Segments[1].X + gx, line.Segments[1].Y + gy], DefaultTolerance);
+                    var opacity = (double)tick["tick"]!["opacity"]! * (double)tick["line"]!["opacity"]!;
+                    Color($"{what} line stroke", (string)tick["line"]!["stroke"]!, opacity, line.Stroke?.Color);
+                }
+
+                foreach (var (tick, label) in ticks.Where(t => ((string)t!["text"]!["text"]!).Length > 0).Zip(labels))
+                {
+                    GanttText($"axis {group.Id} label", tick!["text"]!, label, gx, gy, (double)tick["tick"]!["opacity"]!);
+                }
+            }
+
+            // The task texts, the section titles, the today line and the title
+            var texts = OfRole("gantt-task-text");
+            var expectedTexts = golden["texts"]!.AsArray().Where(t => ((string)t!["text"]!).Trim().Length > 0).ToList();
+            Count("task texts", expectedTexts.Count, texts.Count);
+            foreach (var (text, (item, x, y)) in expectedTexts.Zip(texts))
+            {
+                Same("task text id", (string)text!["id"]!, item.Id);
+                GanttText($"task text {item.Id}", text, (SceneText)item, x, y, 1);
+            }
+
+            var titles = OfRole("gantt-section-title");
+            var expectedLines = golden["sectionTitles"]!.AsArray()
+                .SelectMany(title => title!["lines"]!.AsArray().Select(line => (Title: title, Line: line!)))
+                .Where(pair => ((string)pair.Line["text"]!).Trim().Length > 0)
+                .ToList();
+            Count("section title lines", expectedLines.Count, titles.Count);
+            foreach (var ((title, line), (item, x, y)) in expectedLines.Zip(titles))
+            {
+                var ours = (SceneText)item;
+                var content = (string)line["text"]!;
+                Same("section title text", content.Trim(), string.Concat(ours.Runs.Select(run => run.Text)));
+                Check($"section title '{content}' box", Numbers(line["box"]), Box(ours.Box.Offset(x, y)), TextTolerance);
+                Check($"section title '{content}' font size", [(double)title["fontSize"]!], [ours.Runs[0].Font.Size], DefaultTolerance);
+                Color($"section title '{content}' fill", (string)title["fill"]!, 1, ours.Runs[0].Color);
+            }
+
+            var today = OfRole("gantt-today");
+            if (golden["today"] is JsonObject expectedToday)
+            {
+                if (today.Count == 1 && today[0].Item is ScenePath line)
+                {
+                    var (x, y) = (today[0].X, today[0].Y);
+                    Check("today line", [.. Numbers(expectedToday["start"]), .. Numbers(expectedToday["end"])], [line.Segments[0].X + x, line.Segments[0].Y + y, line.Segments[1].X + x, line.Segments[1].Y + y], DefaultTolerance);
+                    var paint = expectedToday["paint"]!;
+                    Color("today stroke", (string)paint["stroke"]!, (double)paint["opacity"]!, line.Stroke?.Color);
+                    Check("today stroke width", [(double)paint["strokeWidth"]!], [line.Stroke?.Width ?? 0], DefaultTolerance);
+                }
+                else
+                {
+                    Issues.Add($"today: 1 line expected, {today.Count} found");
+                }
+            }
+            else
+            {
+                Count("today", 0, today.Count);
+            }
+
+            var title2 = OfRole("title");
+            if (golden["title"] is JsonObject expectedTitle && ((string)expectedTitle["text"]!).Length > 0)
+            {
+                if (title2.Count == 1)
+                {
+                    GanttText("title", expectedTitle, (SceneText)title2[0].Item, title2[0].X, title2[0].Y, 1);
+                }
+                else
+                {
+                    Issues.Add("title: missing");
+                }
+            }
+            else
+            {
+                Count("title", 0, title2.Count);
+            }
+        }
+
+        /// <summary>
+        ///     Compares rectangles of a gantt chart: their corners (after a transform) and their paint; a golden
+        ///     rectangle without area is skipped, as it is not drawn.
+        /// </summary>
+        /// <param name="what">The kind of rectangle.</param>
+        /// <param name="expected">The golden rectangles.</param>
+        /// <param name="actual">The scene's paths with their offsets.</param>
+        private void Rects(string what, JsonArray expected, List<(SceneItem Item, double X, double Y)> actual)
+        {
+            var drawn = expected.Where(rect =>
+            {
+                var corners = rect!["corners"]!.AsArray().Select(Numbers).ToList();
+                var width = Math.Sqrt(Math.Pow(corners[1][0] - corners[0][0], 2) + Math.Pow(corners[1][1] - corners[0][1], 2));
+                var height = Math.Sqrt(Math.Pow(corners[3][0] - corners[0][0], 2) + Math.Pow(corners[3][1] - corners[0][1], 2));
+                return width > 0 && height > 0;
+            }).ToList();
+            Count(what + "s", drawn.Count, actual.Count);
+            foreach (var (rect, (item, x, y)) in drawn.Zip(actual))
+            {
+                var path = (ScenePath)item;
+                var label = $"{what} {rect!["id"] ?? rect["class"]}";
+                Check($"{label} corners", [.. rect["corners"]!.AsArray().SelectMany(Numbers)], Corners(path, x, y), DefaultTolerance);
+                var paint = rect["paint"]!;
+                var opacity = (double)paint["opacity"]!;
+                Color($"{label} fill", (string)paint["fill"]!, opacity, path.Fill);
+                var stroke = (string)paint["stroke"]!;
+                Color($"{label} stroke", stroke, opacity, path.Stroke?.Color);
+                if (stroke != "none" && path.Stroke is { } ours)
+                {
+                    var scale = ((string?)rect["class"])?.Split(' ').Contains("milestone") == true ? 0.8 : 1;
+                    Check($"{label} stroke width", [(double)paint["strokeWidth"]! * scale], [ours.Width], DefaultTolerance);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets the corners of a rectangle path (rounded or not, possibly turned): the intersections of its edges, from
+        ///     the top left clockwise.
+        /// </summary>
+        /// <param name="path">The path.</param>
+        /// <param name="dx">The absolute offset.</param>
+        /// <param name="dy">The absolute offset.</param>
+        /// <returns>The corners as x and y pairs.</returns>
+        private static double[] Corners(ScenePath path, double dx, double dy)
+        {
+            var s = path.Segments;
+            var axisAligned = Math.Abs(s[0].Y - s[1].Y) < 1e-9 && s.Where(seg => seg.Kind != SceneSegmentKind.Close).All(seg => seg.Kind != SceneSegmentKind.ArcTo || Math.Abs(seg.X2) < 1e-9);
+            if (axisAligned && Scene.BoundsOf([path]) is { } b)
+            {
+                return [b.X + dx, b.Y + dy, b.Right + dx, b.Y + dy, b.Right + dx, b.Bottom + dy, b.X + dx, b.Bottom + dy];
+            }
+
+            // A rounded rectangle: top (0, 1), right (2, 3), bottom (4, 5) and left (6, 7) edges
+            (double X, double Y) Meet(int a, int b, int c, int d)
+            {
+                var (x1, y1, x2, y2) = (s[a].X, s[a].Y, s[b].X, s[b].Y);
+                var (x3, y3, x4, y4) = (s[c].X, s[c].Y, s[d].X, s[d].Y);
+                var den = ((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4));
+                var t = (((x1 - x3) * (y3 - y4)) - ((y1 - y3) * (x3 - x4))) / den;
+                return (x1 + (t * (x2 - x1)) + dx, y1 + (t * (y2 - y1)) + dy);
+            }
+
+            var tl = Meet(6, 7, 0, 1);
+            var tr = Meet(0, 1, 2, 3);
+            var br = Meet(2, 3, 4, 5);
+            var bl = Meet(4, 5, 6, 7);
+            return [tl.X, tl.Y, tr.X, tr.Y, br.X, br.Y, bl.X, bl.Y];
+        }
+
+        /// <summary>
+        ///     Compares a text of a gantt chart: its content (white space collapsed), anchor point (its baseline moved by
+        ///     its <c>dy</c>), anchor, box, font size, weight, style and color under a group opacity.
+        /// </summary>
+        /// <param name="what">The text.</param>
+        /// <param name="golden">The golden text.</param>
+        /// <param name="line">The scene's text.</param>
+        /// <param name="dx">The absolute offset of the text.</param>
+        /// <param name="dy">The absolute offset of the text.</param>
+        /// <param name="opacity">The opacity of the text's groups.</param>
+        private void GanttText(string what, JsonNode golden, SceneText line, double dx, double dy, double opacity)
+        {
+            var content = System.Text.RegularExpressions.Regex.Replace((string)golden["text"]!, "\\s+", " ").Trim();
+            Same($"{what} text", content, string.Concat(line.Runs.Select(run => run.Text)));
+            var fontSize = (double)golden["fontSize"]!;
+            var em = (string?)golden["dy"] is { } dyText && dyText.EndsWith("em", StringComparison.Ordinal)
+                ? double.Parse(dyText[..^2], CultureInfo.InvariantCulture) * fontSize
+                : 0;
+            var at = Numbers(golden["at"]);
+            Check($"{what} '{content}' at", [at[0], at[1] + em], [dx + line.X, dy + line.Baseline], DefaultTolerance);
+            Same($"{what} '{content}' anchor", (string)golden["anchor"]!, line.Anchor.ToString().ToLowerInvariant());
+            if (line.Runs.Count == 0)
+            {
+                return;
+            }
+
+            Check($"{what} '{content}' box", Numbers(golden["box"]), Box(line.Box.Offset(dx, dy)), TextTolerance);
+            var font = line.Runs[0].Font;
+            Check($"{what} '{content}' font size", [fontSize], [font.Size], DefaultTolerance);
+            Same($"{what} '{content}' bold", int.Parse((string)golden["fontWeight"]!, CultureInfo.InvariantCulture) >= 600 ? "bold" : "normal", font.Bold ? "bold" : "normal");
+            Same($"{what} '{content}' italic", (string)golden["fontStyle"]! == "italic" ? "italic" : "normal", font.Italic ? "italic" : "normal");
+            Color($"{what} '{content}' fill", (string)golden["fill"]!, opacity, line.Runs[0].Color);
         }
 
         /// <summary>

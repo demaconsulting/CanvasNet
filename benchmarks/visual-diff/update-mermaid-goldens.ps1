@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Developer tool: regenerates the Mermaid layout goldens (test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
-    reference/*.layout.json and reference/{sequence,class,state,er,pie}/*.layout.json) from the reference implementation.
+    reference/*.layout.json and reference/{sequence,class,state,er,pie,gantt}/*.layout.json) from the reference implementation.
 
 .DESCRIPTION
     Not part of the build, the tests, or CI. It runs render-mermaid.mjs (the repository's pinned mermaid-cli and
@@ -13,7 +13,9 @@
     - class: Fixtures/class/*.mmd to Fixtures/reference/class/*.layout.json;
     - state: Fixtures/state/*.mmd to Fixtures/reference/state/*.layout.json;
     - er: Fixtures/er/*.mmd to Fixtures/reference/er/*.layout.json;
-    - pie: Fixtures/pie/*.mmd to Fixtures/reference/pie/*.layout.json (MermaidChartReferenceLayoutTests).
+    - pie: Fixtures/pie/*.mmd to Fixtures/reference/pie/*.layout.json (MermaidChartReferenceLayoutTests);
+    - gantt: Fixtures/gantt/*.mmd to Fixtures/reference/gantt/*.layout.json (MermaidChartReferenceLayoutTests; drawn in
+      the UTC time zone with the clock fixed at 2024-06-12T10:30:00Z).
 
     The fixtures in $Excluded get no golden; Fixtures/reference/README.md gives the reason of each. A golden change
     in a pull request is reviewed like code: the diff shows which coordinates moved.
@@ -22,15 +24,15 @@
     puppeteer with its headless Chrome); it refuses any mermaid but the pinned 11.17.2.
 
 .PARAMETER Diagram
-    The diagram types to regenerate (flowchart, sequence, class, state, er, pie; default: all).
+    The diagram types to regenerate (flowchart, sequence, class, state, er, pie, gantt; default: all).
 
 .PARAMETER Fixture
     The names of the fixtures to regenerate (without .mmd; default: every fixture that is not excluded).
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('flowchart', 'sequence', 'class', 'state', 'er', 'pie')]
-    [string[]]$Diagram = @('flowchart', 'sequence', 'class', 'state', 'er', 'pie'),
+    [ValidateSet('flowchart', 'sequence', 'class', 'state', 'er', 'pie', 'gantt')]
+    [string[]]$Diagram = @('flowchart', 'sequence', 'class', 'state', 'er', 'pie', 'gantt'),
 
     [string[]]$Fixture
 )
@@ -46,6 +48,7 @@ $Folders = @{
     state     = @{ Source = 'state'; Golden = 'reference/state' }
     er        = @{ Source = 'er'; Golden = 'reference/er' }
     pie       = @{ Source = 'pie'; Golden = 'reference/pie' }
+    gantt     = @{ Source = 'gantt'; Golden = 'reference/gantt' }
 }
 
 # Fixtures whose reference depends on the machine (see Fixtures/reference/README.md)
@@ -56,6 +59,7 @@ $Excluded = @{
     state     = @()
     er        = @()
     pie       = @()
+    gantt     = @()
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
