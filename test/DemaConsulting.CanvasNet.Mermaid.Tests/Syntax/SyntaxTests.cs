@@ -1,4 +1,3 @@
-// cspell:ignore avascript Aavascript dfavascript javascrip msgbox
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Tests.Syntax;

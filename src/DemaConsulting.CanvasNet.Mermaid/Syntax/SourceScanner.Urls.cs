@@ -699,7 +699,9 @@ internal static class UrlSanitizer
                 lineEnd++;
             }
 
-            // The greedy .+ gives characters back from the end of the line until a colon or &colon; follows it
+            // The greedy .+ gives characters back from the end of the line until a colon or &colon; follows it. This is
+            // sanitize-url's real behavior, kept on purpose: with a port (http://host:80/...) the "scheme" is
+            // "http://host:" and, containing "://", the text is returned without URL parsing, exactly as mermaid does
             for (var k = lineEnd - 1; k > lineStart; k--)
             {
                 if (text[k] == ':')
