@@ -205,7 +205,11 @@ public static partial class SourceLoader
         /// </summary>
         /// <param name="href">The link as written.</param>
         /// <returns>The kind, or <see langword="null"/> when the name is not one of a known kind.</returns>
-        private static SourceKind? KindOfName(string href)
+        /// <remarks>
+        ///     <see cref="SvgFlattener"/> uses the same rule to tell the links only CanvasNet can draw from the plain
+        ///     pictures, so both agree on what a link is.
+        /// </remarks>
+        internal static SourceKind? KindOfName(string href)
         {
             // A query or fragment is not part of the file name (the resolver cuts it off too)
             var cut = href.AsSpan().IndexOfAny('?', '#');
