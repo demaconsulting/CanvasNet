@@ -6,7 +6,8 @@ flowchart fixture of `../flowchart/`. `MermaidReferenceLayoutTests` compares Can
 [Sequence Goldens](#sequence-goldens). The `class/` subfolder holds the goldens of the class fixtures of `../class/`;
 their format is described in [Class Goldens](#class-goldens). The `state/` and `er/` folders hold the goldens of the
 state and ER fixtures of `../state/` and `../er/`; their format is described in [State Goldens](#state-goldens) and
-[ER Goldens](#er-goldens).
+[ER Goldens](#er-goldens). The `pie/` folder holds the goldens of the pie fixtures of `../pie/`, which
+`MermaidChartReferenceLayoutTests` compares; their format is described in [Pie Goldens](#pie-goldens).
 
 ## Provenance
 
@@ -61,9 +62,11 @@ pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Fixture 25-subgraph-basi
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram sequence      # the sequence goldens only
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the class goldens only
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the state and ER goldens only
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram pie           # the pie goldens only
 ```
 
-A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/` or `../er/` needs a golden, or an entry in
+A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/` or `../pie/` needs a golden, or an
+entry in
 the exclusions of the script, the test and this file. A golden change in a pull request is reviewed like code: the
 diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the browser's geometry is single
 precision, and a value near a rounding boundary can round either way.
@@ -384,3 +387,60 @@ none is excluded.
 `er.rankSpacing`, `er.minEntityWidth`, `er.entityPadding`, and `er.diagramPadding`, and has the accessibility
 texts. The ER texts are drawn as HTML labels by default (a top-level `htmlLabels` that is not set counts as true), so
 only `12-config-title` has SVG text labels.
+
+## Pie Goldens
+
+The files in `pie/` hold the layout that the reference gives each fixture of `../pie/`. They have the provenance,
+fonts, one-line arrays and objects, and the read-back at a scale of exactly 1 of the class goldens, and are written
+by `extractPie` of `render-mermaid.mjs`.
+
+### Pie Layout Content
+
+- `diagram`: `pie`.
+- `viewBox`: the view box Mermaid sets (`[x, 0, width, height]`; `x` is negative when the title is wider than the
+  chart).
+- `origin`: the point of the pie group (the outer circle, the slices and their labels), which a top or left legend
+  moves away from (225, 225).
+- `outerCircle`: the `circle.pieOuterCircle`, with its `center`, `r`, and `paint`.
+- `slices`: each `path.pieCircle` in order, with its `class` (`pieCircle`, with `highlighted` for the highlighted
+  slice), its path data `d` as d3 writes it (in the coordinates of the pie group), its `box`, and its `paint`.
+- `labels`: each percentage label (`text.slice`).
+- `title`: the `text.pieTitleText` (empty when the chart has no title).
+- `legend`: each `g.legend`, with the point of the group (`at`), the `rect` with its `box` and `paint`, and the
+  `text`.
+
+A `paint` holds the computed `fill`, `stroke`, `strokeWidth`, `opacity`, and CSS `scale` (`none`, or `1.05` for the
+highlighted slice). A text holds its `class`, `text`, the point of its anchor (`at`), its computed `anchor`,
+`fontSize`, `fontWeight`, and `fill`, and its `box`.
+
+### Pie Tolerances
+
+`MermaidChartReferenceLayoutTests` compares every pie golden at **0.01 px**: the view box, the origin, the outer
+circle, each slice's path data (the golden's numbers scaled by its CSS `scale`, the arc flags kept), the anchors of
+the texts, the legend points and squares, and the paint, with the opacity folded into the colors as CanvasNet draws
+them. Text boxes are compared at 0.02 px, as for the sequence goldens, and a slice's box at 0.02 px (Chrome's arc
+approximation; the test computes the exact box of the circle arcs). The largest difference is 0.001 px. Two browser
+rules make this possible:
+
+- **The legend is placed by the measured text width.** Mermaid takes the widest legend text from
+  `getBoundingClientRect` before the view box is set, which is the width of the text's `getBBox`, so the view box
+  width is 512 px plus that width for a legend at the right or the left.
+- **A color in `hsl()` is converted in single precision.** The default theme's `pie11` is
+  `hsl(150, 100%, 56.2745098039%)`, whose blue channel is 143.49999... in double precision and 143.5 in single
+  precision, which Chrome rounds to 144.
+
+### Pie Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic` | Three slices, no title (an empty title text), the legend at the right |
+| `02-showdata-title-long` | `showData`, a title on the `pie` line wider than the chart (a negative view box `x`) |
+| `03-acc-comments` | `title`, `accTitle`, a multi-line `accDescr`, comments, single quotes, escapes |
+| `04-small-zero-duplicate` | A section under 1% (in the legend only), a zero value, a repeated label |
+| `05-many-slices` | Fourteen sections (the colors wrap after `pie12`), a title |
+| `06-legend-left-donut-textposition` | `legendPosition: left`, `donutHole`, `textPosition` |
+| `07-legend-top-forest` | `legendPosition: top`, the forest theme, the frontmatter title |
+| `08-legend-bottom-highlight-dark-themevariables` | `legendPosition: bottom`, `highlightSlice`, dark, theme variables |

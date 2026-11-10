@@ -30,7 +30,7 @@ public class MermaidUnsupportedDiagramTests
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
         Assert.Equal(new MermaidLocation("journey.mmd", 2, 1), report.Location);
-        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", report.Hint);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie", report.Hint);
     }
 
     /// <summary>
@@ -97,7 +97,6 @@ public class MermaidUnsupportedDiagramTests
     /// <param name="type">The expected type.</param>
     /// <param name="planned">Whether the type is planned.</param>
     [Theory]
-    [InlineData("pie\n \"a\" : 1", "pie", true)]
     [InlineData("gantt\n title x", "gantt", true)]
     [InlineData("mindmap\n root", "mindmap", true)]
     [InlineData("journey\n title x", "journey", false)]

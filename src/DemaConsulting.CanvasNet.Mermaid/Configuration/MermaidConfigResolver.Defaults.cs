@@ -202,6 +202,7 @@ internal static partial class MermaidConfigResolver
             },
             ["state"] = CreateStateDefaults(),
             ["er"] = CreateErDefaults(),
+            ["pie"] = CreatePieDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -311,5 +312,18 @@ internal static partial class MermaidConfigResolver
         ["stroke"] = "gray",
         ["fill"] = "honeydew",
         ["fontSize"] = 12.0,
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default pie section (the defaults of <c>PieDiagramConfig</c>).
+    /// </summary>
+    /// <returns>The default pie section.</returns>
+    private static JsonObject CreatePieDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["textPosition"] = 0.75,
+        ["donutHole"] = 0.0,
+        ["legendPosition"] = "right",
+        ["highlightSlice"] = string.Empty,
     };
 }

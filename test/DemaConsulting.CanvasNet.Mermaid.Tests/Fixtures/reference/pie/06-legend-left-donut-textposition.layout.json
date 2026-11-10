@@ -1,0 +1,164 @@
+{
+  "source": "06-legend-left-donut-textposition.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "pie",
+  "viewBox": [0, 0, 579.612, 450],
+  "origin": [314.612, 225],
+  "outerCircle": {
+    "center": [314.612, 225],
+    "r": 186,
+    "paint": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 2, "opacity": 1, "scale": "none" }
+  },
+  "slices": [
+    {
+      "class": "pieCircle",
+      "d": "M0,-185A185,185,0,0,1,175.945,57.168L70.378,22.867A74,74,0,0,0,0,-74Z",
+      "box": [314.612, 40, 184.999, 242.168],
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M175.945,57.168A185,185,0,0,1,0,185L0,74A74,74,0,0,0,70.378,22.867Z",
+      "box": [314.612, 247.867, 175.945, 162.133],
+      "paint": {
+        "fill": "rgb(255, 255, 222)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M0,185A185,185,0,1,1,0,-185L0,-74A74,74,0,1,0,0,74Z",
+      "box": [129.612, 40, 185, 370],
+      "paint": {
+        "fill": "rgb(181, 255, 32)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "class": "slice",
+      "text": "30%",
+      "at": [404.413, 159.756],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [387.397, 144.756, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "20%",
+      "at": [379.856, 314.801],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [362.84, 299.801, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "50%",
+      "at": [203.612, 225],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [186.596, 210, 34.031, 19]
+    }
+  ],
+  "title": {
+    "class": "pieTitleText",
+    "text": "Donut",
+    "at": [225, 25],
+    "anchor": "middle",
+    "fontSize": 25,
+    "fontWeight": "400",
+    "fill": "rgb(0, 0, 0)",
+    "box": [191.641, 2, 67.766, 28]
+  },
+  "legend": [
+    {
+      "at": [18, 192],
+      "rect": {
+        "box": [18, 192, 18, 18],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(236, 236, 255)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Apples",
+        "at": [40, 206],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [39, 191, 53.479, 19]
+      }
+    },
+    {
+      "at": [18, 214],
+      "rect": {
+        "box": [18, 214, 18, 18],
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "rgb(255, 255, 222)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Bananas",
+        "at": [40, 228],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [40, 213, 67.612, 19]
+      }
+    },
+    {
+      "at": [18, 236],
+      "rect": {
+        "box": [18, 236, 18, 18],
+        "paint": {
+          "fill": "rgb(181, 255, 32)",
+          "stroke": "rgb(181, 255, 32)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Cherries",
+        "at": [40, 250],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [40, 235, 64.74, 19]
+      }
+    }
+  ]
+}

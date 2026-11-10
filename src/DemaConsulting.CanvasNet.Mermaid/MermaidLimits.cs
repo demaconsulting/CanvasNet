@@ -105,7 +105,8 @@ public sealed class MermaidLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of nodes of a diagram, subgraphs included; 2,000 by default.
+    ///     Gets the maximum number of nodes of a diagram, subgraphs included (the section statements of a pie chart);
+    ///     2,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxNodes
@@ -115,8 +116,8 @@ public sealed class MermaidLimits
     }
 
     /// <summary>
-    ///     Gets the maximum length of one label (the text of a node, an edge or a subgraph title) in UTF-16 characters;
-    ///     4,096 by default.
+    ///     Gets the maximum length of one label (the text of a node, an edge or a subgraph title, a pie chart's title,
+    ///     labels and legend texts) in UTF-16 characters; 4,096 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxLabelLength

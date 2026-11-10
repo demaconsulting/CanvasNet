@@ -1,0 +1,164 @@
+{
+  "source": "01-basic.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "pie",
+  "viewBox": [0, 0, 552.186, 450],
+  "origin": [225, 225],
+  "outerCircle": {
+    "center": [225, 225],
+    "r": 186,
+    "paint": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 2, "opacity": 1, "scale": "none" }
+  },
+  "slices": [
+    {
+      "class": "pieCircle",
+      "d": "M0,-185A185,185,0,1,1,-177.899,-50.763L0,0Z",
+      "box": [40, 40, 370, 370],
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M-177.899,-50.763A185,185,0,0,1,-35.652,-181.532L0,0Z",
+      "box": [47.101, 43.468, 177.899, 181.532],
+      "paint": {
+        "fill": "rgb(255, 255, 222)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M-35.652,-181.532A185,185,0,0,1,0,-185L0,0Z",
+      "box": [189.348, 40, 35.652, 185],
+      "paint": {
+        "fill": "rgb(181, 255, 32)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "class": "slice",
+      "text": "79%",
+      "at": [308.573, 335.757],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [291.558, 320.757, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "17%",
+      "at": [131.097, 122.854],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [114.081, 107.854, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "3%",
+      "at": [211.567, 86.902],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [199.278, 71.902, 24.578, 19]
+    }
+  ],
+  "title": {
+    "class": "pieTitleText",
+    "text": "",
+    "at": [225, 25],
+    "anchor": "middle",
+    "fontSize": 25,
+    "fontWeight": "400",
+    "fill": "rgb(0, 0, 0)",
+    "box": [225, 225, 0, 0]
+  },
+  "legend": [
+    {
+      "at": [441, 192],
+      "rect": {
+        "box": [441, 192, 18, 18],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(236, 236, 255)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Dogs",
+        "at": [463, 206],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 191, 40.186, 19]
+      }
+    },
+    {
+      "at": [441, 214],
+      "rect": {
+        "box": [441, 214, 18, 18],
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "rgb(255, 255, 222)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Cats",
+        "at": [463, 228],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 213, 35.455, 19]
+      }
+    },
+    {
+      "at": [441, 236],
+      "rect": {
+        "box": [441, 236, 18, 18],
+        "paint": {
+          "fill": "rgb(181, 255, 32)",
+          "stroke": "rgb(181, 255, 32)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Rats",
+        "at": [463, 250],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 235, 35.455, 19]
+      }
+    }
+  ]
+}

@@ -4,13 +4,14 @@
 //
 // Developer tooling of benchmarks/visual-diff; see the README there. Usage:
 //
-//     node gen-diagram-vectors.mjs --type class|state|er [--modules <folder>] [--out <file>]
-//     node gen-diagram-vectors.mjs --type class|state|er [--modules <folder>] --probe <file>
+//     node gen-diagram-vectors.mjs --type class|state|er|pie [--modules <folder>] [--out <file>]
+//     node gen-diagram-vectors.mjs --type class|state|er|pie [--modules <folder>] --probe <file>
 //
 // <type> selects the cases (<type>-vector-cases.mjs next to this script) and the facts recorded: for class, the ClassDB
 // classes, relations, notes and namespaces; for state, the StateDB statement tree (after the translation of start, end and
 // concurrent regions), states, relations and style classes; for er, the ErDB entities, relationships, style classes and
-// subgraphs; and for each, the reduced getData() nodes and edges. <modules> is a folder that holds node_modules/mermaid
+// subgraphs; and for each of those, the reduced getData() nodes and edges; for pie, the PieDB sections (each value as
+// String() writes it), showData, title and accessibility texts. <modules> is a folder that holds node_modules/mermaid
 // and node_modules/puppeteer (default: the repository root). <out> is the vector file (default:
 // test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/<type>-parser.json). --probe runs the texts of a
 // JSON file (an array of strings) and prints the results instead (a development aid).
@@ -33,8 +34,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..', '..');
 
 // Read the arguments
-const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er [--modules <folder>] [--out <file> | --probe <file>]';
-const types = ['class', 'state', 'er'];
+const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie [--modules <folder>] [--out <file> | --probe <file>]';
+const types = ['class', 'state', 'er', 'pie'];
 const args = process.argv.slice(2);
 let type = null;
 let modules = root;
@@ -189,10 +190,24 @@ function erFacts(diagram, pick) {
   };
 }
 
-const factsOf = { class: classFacts, state: stateFacts, er: erFacts };
+// Runs in the page: the facts of a pie chart (the PieDB state); each value is written as JavaScript's String() writes
+// it (the legend of showData shows it so, and JSON has neither Infinity nor -0)
+function pieFacts(diagram) {
+  const db = diagram.db;
+  return {
+    type: diagram.type,
+    title: db.getDiagramTitle(),
+    accTitle: db.getAccTitle(),
+    accDescr: db.getAccDescription(),
+    showData: db.getShowData(),
+    sections: [...db.getSections().entries()].map(([label, value]) => ({ label, value: String(value) }))
+  };
+}
+
+const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts };
 // The diagram ids (diagram.type) whose facts each type records: the legacy ids draw (class) or parse (state) the same
 // way
-const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'] };
+const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'] };
 
 // Runs one text in a fresh page: the facts, or the error
 const runCase = async (browser, text, site) => {

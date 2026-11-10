@@ -124,22 +124,26 @@ description texts of a state with descriptions), each piece. The last region of 
 (`id-` and a random token and a counter); it is written as `id-random-<counter>`, so the goldens do not change from run
 to run. Such a diagram is read at a scale of exactly 1 (its view box grown to whole pixels from the same origin),
 because at its `max-width` Chrome scales it by about 0.99995 and lays its SVG texts out narrower. A flowchart keeps
-the plain layout, and a class diagram the extended one, so their goldens do not change. The format is
-described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
+the plain layout, and a class diagram the extended one, so their goldens do not change. A pie chart
+(`aria-roledescription="pie"`) gets the pie layout instead (`extractPie`): the outer circle, the slices with their path
+data, the percentage labels, the title and the legend entries, with the computed paint (opacity and CSS `scale`) and
+fonts. The format is described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er] [-Fixture <name>...]
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er|pie] [-Fixture <name>...]
 ```
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
 `reference/sequence/*.layout.json`, and the class, state and ER fixtures (`Fixtures/class`, `Fixtures/state` and
-`Fixtures/er`) give `reference/class`, `reference/state` and `reference/er`. `-Diagram` picks the types (default:
-all). Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
-class, state or ER fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
-flowchart layout with the goldens. The tolerance is 0.01 px, or 0.1 px for the two fixtures with rough.js circles. A
+`Fixtures/er`) give `reference/class`, `reference/state` and `reference/er`, and the pie fixtures (`Fixtures/pie`) give
+`reference/pie`. `-Diagram` picks the types (default: all). The script refuses to run unless the installed mermaid is
+the pinned 11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden;
+no sequence, class, state, ER or pie fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
+flowchart layout with the goldens, and `MermaidChartReferenceLayoutTests` its pie layout. The tolerance is 0.01 px,
+or 0.1 px for the two fixtures with rough.js circles. A
 golden change is reviewed like code.
 
 ### Upstream Vector Generators
@@ -182,6 +186,11 @@ is their vector file.
   parse error. The inputs are those of mermaid's ER parser specs (MIT; a sample of the per-character entity name
   tests), original texts (every cardinality on both sides, keyword-like names, aliases, styles and subgraphs) and the
   ER fixtures.
+- `gen-diagram-vectors.mjs --type pie` writes `pie-parser.json`: the PieDB facts (the sections in order with each value
+  as JavaScript's `String()` writes it, `showData`, the title and the accessibility texts) of the cases in
+  `pie-vector-cases.mjs`, or the error (Langium's lexer and parser errors, or the database's negative-value error). The
+  inputs are those of mermaid's pie spec and of the pie tests of `@mermaid-js/parser` (MIT), original texts and the
+  pie fixtures. `getDiagramFromText` passes no frontmatter title, so a case's title is that of its text only.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

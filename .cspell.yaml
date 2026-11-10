@@ -1041,8 +1041,15 @@ words:
   # The link check (the vbscript scheme sanitize-url refuses, IDNA host names of the WHATWG URL parser)
   - vbscript
   - IDNA
-  # Mermaid pie and gantt chart terms (the date algorithms of the d3 time port)
+  # Mermaid pie and gantt chart terms (the date algorithms of the d3 time port, the pie grammar's Langium port, its
+  # authors and its fixture names)
   - Hinnant
+  - Langium
+  - Yokozuna
+  - Accessibilities
+  - showdata
+  - textposition
+  - themevariables
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

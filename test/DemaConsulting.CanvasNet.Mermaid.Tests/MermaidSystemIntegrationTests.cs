@@ -224,6 +224,8 @@ public class MermaidSystemIntegrationTests
         var marked = File.ReadAllText(Path.Combine(folder, "LICENSE-marked.txt"));
         var d3 = File.ReadAllText(Path.Combine(folder, "LICENSE-d3.txt"));
         var sanitizeUrl = File.ReadAllText(Path.Combine(folder, "LICENSE-sanitize-url.txt"));
+        var mermaidParser = File.ReadAllText(Path.Combine(folder, "LICENSE-mermaid-parser.txt"));
+        var langium = File.ReadAllText(Path.Combine(folder, "LICENSE-langium.txt"));
         var provenance = File.ReadAllText(Path.Combine(folder, "third-party-provenance.txt"));
 
         // Assert
@@ -236,6 +238,8 @@ public class MermaidSystemIntegrationTests
         Assert.Contains("Christopher Jeffrey", marked, StringComparison.Ordinal);
         Assert.Contains("Copyright 2010-2023 Mike Bostock", d3, StringComparison.Ordinal);
         Assert.Contains("Copyright (c) 2017 Braintree", sanitizeUrl, StringComparison.Ordinal);
+        Assert.Contains("Copyright (c) 2023 Yokozuna59", mermaidParser, StringComparison.Ordinal);
+        Assert.Contains("Copyright 2021 TypeFox GmbH", langium, StringComparison.Ordinal);
         Assert.Contains("not affiliated", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-mermaid.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-js-yaml.txt", provenance, StringComparison.Ordinal);
@@ -245,6 +249,8 @@ public class MermaidSystemIntegrationTests
         Assert.Contains("LICENSE-marked.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-d3.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-sanitize-url.txt", provenance, StringComparison.Ordinal);
+        Assert.Contains("LICENSE-mermaid-parser.txt", provenance, StringComparison.Ordinal);
+        Assert.Contains("LICENSE-langium.txt", provenance, StringComparison.Ordinal);
     }
 
     /// <summary>

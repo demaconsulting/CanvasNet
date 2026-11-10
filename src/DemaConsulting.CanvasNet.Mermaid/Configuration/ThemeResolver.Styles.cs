@@ -34,7 +34,7 @@ internal sealed record TextPaint(string FontFamily, double FontSize, Rgba32 Colo
 ///     </para>
 ///     <para>
 ///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="ClassStyles"/>, <see cref="StateStyles"/>,
-///         <see cref="ErStyles"/>, <see cref="SequenceStyles"/>) share the rule building, the global rules and the
+///         <see cref="ErStyles"/>, <see cref="SequenceStyles"/>, <see cref="PieStyles"/>) share the rule building, the global rules and the
 ///         cascade here. An instance is immutable.
 ///     </para>
 /// </remarks>

@@ -1485,6 +1485,158 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every pie fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_PieFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "pie"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile pie charts through the public API, fitted to 400 by 300 pixels: huge and tiny text sizes and
+    ///     stroke widths, huge and negative label positions and holes, unknown legend positions, an empty chart, a chart
+    ///     whose values are all zero, an infinite value, values far apart, and markup in the texts each render, or end in
+    ///     a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("%%{init: {'themeVariables': {'pieTitleTextSize': '1e300px', 'pieLegendTextSize': '1e300px', 'pieSectionTextSize': '1e300px'}}}%%\npie title T\n\"a\" : 1\n\"b\" : 2\n")]
+    [InlineData("%%{init: {'themeVariables': {'pieOuterStrokeWidth': '1e300px', 'pieStrokeWidth': '1e300px'}}}%%\npie\n\"a\" : 1\n")]
+    [InlineData("%%{init: {'themeVariables': {'pieOuterStrokeWidth': '99999999999999999999', 'pieOpacity': 'x', 'pie1': 'nonsense'}}}%%\npie\n\"a\" : 1\n")]
+    [InlineData("---\nconfig:\n  pie:\n    textPosition: 1e300\n    donutHole: -5\n    legendPosition: diagonal\n---\npie\n\"a\" : 1\n\"b\" : 1\n")]
+    [InlineData("---\nconfig:\n  pie:\n    legendPosition: left\n    highlightSlice: hover\n---\npie\n")]
+    [InlineData("---\nconfig:\n  pie:\n    legendPosition: center\n    donutHole: 0.9\n---\npie showData\n\"a\" : 0\n\"b\" : 0\n")]
+    [InlineData("pie showData\n\"a\" : 1" + "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" + "\n\"b\" : 1\n")]
+    [InlineData("pie\n\"a\" : 1000000000000000000000000000000\n\"b\" : 0.000000000000000000001\n\"c\" : 5\n")]
+    [InlineData("pie title <b>x</b> #amp; <script>y</script>\n\"<i>a</i> #35;\" : 1\n'b \\t c' : 2\n")]
+    public void CanvasNetMermaid_Hardening_HostilePieChart_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("pie", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that more section statements than the default <see cref="MermaidLimits.MaxNodes"/> fail at open,
+    ///     located at the first one over the limit, a repeated label counting too.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_PieManySections_IsALocatedNodeLimit()
+    {
+        // Arrange: 2,001 statements of the same label
+        var text = "pie\n" + string.Concat(Enumerable.Repeat("\"a\" : 1\n", 2_001));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that every text of a pie chart that is longer than the default
+    ///     <see cref="MermaidLimits.MaxLabelLength"/> fails at open, located at its statement: the title, the accessible
+    ///     title, both forms of the accessible description, a label, and a legend text that <c>showData</c> makes too long.
+    /// </summary>
+    /// <param name="statement">The statement.</param>
+    [Theory]
+    [InlineData("title {0}")]
+    [InlineData("accTitle: {0}")]
+    [InlineData("accDescr: {0}")]
+    [InlineData("accDescr {{\n{0}\n}}")]
+    [InlineData("\"{0}\" : 1")]
+    [InlineData("\"{1}\" : 123456")]
+    public void CanvasNetMermaid_Hardening_PieLongTexts_AreALocatedLabelLimit(string statement)
+    {
+        // Arrange: a text one over the limit, and a label that only the legend's " [123456]" makes too long
+        var text = "pie showData\n\"x\" : 1\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, statement, new string('x', 4_097), new string('y', 4_090)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the pie fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedPieFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "pie", "showData", "title ", "accTitle: t", "accDescr: d", "accDescr {", "}", "\"label\"", "'q'", ":", " : 5",
+            "-1", "0.5", "1.5.", "01", "%%", "%%{x}%%", "---\n", "\n", "  ", "\\", "\"", "#35;", "<br>",
+        ];
+        var random = new Random(20261110);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "pie"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 12; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
     ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
     ///     state, so each adds two nesting levels.
     /// </summary>

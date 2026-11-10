@@ -1,0 +1,209 @@
+{
+  "source": "02-showdata-title-long.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "pie",
+  "viewBox": [-252.651, 0, 955.301, 450],
+  "origin": [225, 225],
+  "outerCircle": {
+    "center": [225, 225],
+    "r": 186,
+    "paint": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 2, "opacity": 1, "scale": "none" }
+  },
+  "slices": [
+    {
+      "class": "pieCircle",
+      "d": "M0,-185A185,185,0,0,1,110.888,148.084L0,0Z",
+      "box": [225, 40, 185, 333.084],
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M110.888,148.084A185,185,0,0,1,-141.768,-118.856L0,0Z",
+      "box": [40.001, 106.144, 295.887, 303.856],
+      "paint": {
+        "fill": "rgb(255, 255, 222)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M-141.768,-118.856A185,185,0,0,1,-53.049,-177.231L0,0Z",
+      "box": [83.232, 47.769, 141.768, 177.231],
+      "paint": {
+        "fill": "rgb(181, 255, 32)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M-53.049,-177.231A185,185,0,0,1,0,-185L0,0Z",
+      "box": [171.951, 40, 53.049, 185],
+      "paint": {
+        "fill": "rgb(185, 185, 255)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "class": "slice",
+      "text": "40%",
+      "at": [356.646, 181.173],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [339.631, 166.173, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "46%",
+      "at": [124.23, 320.378],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [107.214, 305.378, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "9%",
+      "at": [148.734, 109.09],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [136.445, 94.09, 24.578, 19]
+    },
+    {
+      "class": "slice",
+      "text": "5%",
+      "at": [204.894, 87.714],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [192.605, 72.714, 24.578, 19]
+    }
+  ],
+  "title": {
+    "class": "pieTitleText",
+    "text": "A pie chart title that is much wider than the chart itself so the view box grows to the left",
+    "at": [225, 25],
+    "anchor": "middle",
+    "fontSize": 25,
+    "fontWeight": "400",
+    "fill": "rgb(0, 0, 0)",
+    "box": [-252.625, 2, 955.301, 28]
+  },
+  "legend": [
+    {
+      "at": [441, 181],
+      "rect": {
+        "box": [441, 181, 18, 18],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(236, 236, 255)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Calcium [42.96]",
+        "at": [463, 195],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 180, 118.125, 19]
+      }
+    },
+    {
+      "at": [441, 203],
+      "rect": {
+        "box": [441, 203, 18, 18],
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "rgb(255, 255, 222)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Potassium [50.05]",
+        "at": [463, 217],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 202, 136.078, 19]
+      }
+    },
+    {
+      "at": [441, 225],
+      "rect": {
+        "box": [441, 225, 18, 18],
+        "paint": {
+          "fill": "rgb(181, 255, 32)",
+          "stroke": "rgb(181, 255, 32)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Magnesium [10.01]",
+        "at": [463, 239],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 224, 144.594, 19]
+      }
+    },
+    {
+      "at": [441, 247],
+      "rect": {
+        "box": [441, 247, 18, 18],
+        "paint": {
+          "fill": "rgb(185, 185, 255)",
+          "stroke": "rgb(185, 185, 255)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Iron [5]",
+        "at": [463, 261],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 246, 52.922, 19]
+      }
+    }
+  ]
+}

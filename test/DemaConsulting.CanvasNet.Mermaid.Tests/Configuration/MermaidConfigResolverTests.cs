@@ -678,6 +678,34 @@ public class MermaidConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the pie section: the schema's defaults without configuration, the values a frontmatter sets, and a
+    ///     value of the wrong type reported at its key and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_PieSection_DefaultsValuesAndInvalidValues()
+    {
+        // Arrange
+        const string Set = "---\nconfig:\n  pie:\n    textPosition: 0.5\n    donutHole: 0.3\n    legendPosition: top\n    highlightSlice: Dogs\n---\npie\n\"Dogs\" : 1\n";
+        const string Wrong = "%%{init: {\"pie\": {\"textPosition\": \"far\", \"legendPosition\": 3}}}%%\npie\n\"a\" : 1\n";
+
+        // Act
+        var (defaults, defaultWarnings) = Resolve("pie\n\"a\" : 1\n", diagramId: "pie");
+        var (set, setWarnings) = Resolve(Set, diagramId: "pie");
+        var (wrong, wrongWarnings) = Resolve(Wrong, diagramId: "pie");
+
+        // Assert
+        Assert.Empty(defaultWarnings);
+        Assert.Empty(setWarnings);
+        Assert.Equal(5, defaults.Raw["pie"]!.AsObject().Count);
+        Assert.Equal(new PieConfig(), defaults.Pie);
+        Assert.Equal((0.75, 0.0, "right", string.Empty), (defaults.Pie.TextPosition, defaults.Pie.DonutHole, defaults.Pie.LegendPosition, defaults.Pie.HighlightSlice));
+        Assert.Equal((0.5, 0.3, "top", "Dogs"), (set.Pie.TextPosition, set.Pie.DonutHole, set.Pie.LegendPosition, set.Pie.HighlightSlice));
+        Assert.Equal(2, wrongWarnings.Count);
+        Assert.All(wrongWarnings, warning => Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code));
+        Assert.Equal(new PieConfig(), wrong.Pie);
+    }
+
+    /// <summary>
     ///     Validates that state and entity relationship values of the wrong type are reported at the key and ignored.
     /// </summary>
     [Fact]

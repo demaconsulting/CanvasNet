@@ -452,6 +452,58 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the pie chart's style rules of the default theme: the global rules first, the slice paint over its
+    ///     color with the opacity of 0.7 folded in, the highlighted slice opaque and 1.05 times larger, the outer circle
+    ///     without fill, and the fonts and colors of the title, the percentage labels and the legend.
+    /// </summary>
+    [Fact]
+    public void PieStyles_Create_DefaultTheme_ResolvesPieRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "pie\n  \"a\" : 1\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+        var color = Color("#ECECFF");
+
+        // Act
+        var styles = PieStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new SlicePaint(color with { A = 179 }, new Rgba32(0, 0, 0, 179), 2, 1), styles.Slice(color, highlighted: false));
+        Assert.Equal(new SlicePaint(color, new Rgba32(0, 0, 0, 255), 2, 1.05), styles.Slice(color, highlighted: true));
+        Assert.Equal(new ShapePaint(null, new Rgba32(0, 0, 0, 255), 2), styles.OuterCircle);
+        Assert.Equal(new TextPaint(Family, 25, new Rgba32(0, 0, 0, 255)), styles.TitleText);
+        Assert.Equal(new TextPaint(Family, 17, Color("#333")), styles.SliceText);
+        Assert.Equal(new TextPaint(Family, 17, new Rgba32(0, 0, 0, 255)), styles.LegendText);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a pie selector overrides the theme's: a slice fill beats the slice's
+    ///     own color, and a legend text color and size apply.
+    /// </summary>
+    [Fact]
+    public void PieStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".pieCircle { fill: #ff0000; opacity: 1 } .legend text { fill: #0000ff; font-size: 20px }\"}}%%\npie\n\"a\" : 1\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "pie", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = PieStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Empty(reports);
+        Assert.Equal(Color("#ff0000"), styles.Slice(Color("#ECECFF"), highlighted: false).Fill);
+        Assert.Equal((20.0, Color("#0000ff")), (styles.LegendText.FontSize, styles.LegendText.Color));
+    }
+
+    /// <summary>
     ///     Validates the facts every unified sheet gives the rendering: only the flowchart and class sheets center the
     ///     SVG text of a node's label on its anchor (the state and entity relationship sheets have no such rule), and the
     ///     root text is the diagram's root font and its text color.

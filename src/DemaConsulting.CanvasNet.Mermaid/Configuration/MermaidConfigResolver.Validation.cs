@@ -111,6 +111,13 @@ internal static partial class MermaidConfigResolver
         ["er.rankSpacing"] = ValueKind.Number,
         ["er.titleTopMargin"] = ValueKind.Number,
         ["er.useMaxWidth"] = ValueKind.Boolean,
+        ["pie"] = ValueKind.Object,
+        ["pie.textPosition"] = ValueKind.Number,
+        ["pie.donutHole"] = ValueKind.Number,
+        ["pie.legendPosition"] = ValueKind.Text,
+        ["pie.highlightSlice"] = ValueKind.Text,
+        ["pie.useMaxWidth"] = ValueKind.Boolean,
+        ["pie.useWidth"] = ValueKind.Number,
     };
 
     /// <summary>

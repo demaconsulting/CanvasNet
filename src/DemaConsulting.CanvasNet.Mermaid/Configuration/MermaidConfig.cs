@@ -138,6 +138,31 @@ internal sealed record ErConfig
 }
 
 /// <summary>
+///     The pie section of the effective configuration, as Mermaid's pie renderer reads it (<c>cleanAndMerge</c> of the
+///     defaults and the section).
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>PieDiagramConfig</c>. The renderer places the percentage labels at
+///     <c>textPosition</c> times the radius, cuts a hole of <c>donutHole</c> times the radius when it is more than 0 and at
+///     most 0.9, places the legend by <c>legendPosition</c> (<c>right</c> for any value but <c>left</c>, <c>top</c>,
+///     <c>bottom</c> and <c>center</c>) and enlarges the slice whose label is <c>highlightSlice</c>.
+/// </remarks>
+internal sealed record PieConfig
+{
+    /// <summary>Gets where the percentage labels are, as a part of the radius (<c>pie.textPosition</c>).</summary>
+    public double TextPosition { get; init; } = 0.75;
+
+    /// <summary>Gets the size of the hole, as a part of the radius (<c>pie.donutHole</c>).</summary>
+    public double DonutHole { get; init; }
+
+    /// <summary>Gets where the legend is (<c>pie.legendPosition</c>).</summary>
+    public string LegendPosition { get; init; } = "right";
+
+    /// <summary>Gets the label of the slice drawn enlarged, or <c>hover</c> (<c>pie.highlightSlice</c>).</summary>
+    public string HighlightSlice { get; init; } = string.Empty;
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -364,6 +389,7 @@ internal sealed class MermaidConfig
         Class = ReadClass(raw);
         State = ReadState(raw);
         Er = ReadEr(raw);
+        Pie = ReadPie(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -428,6 +454,9 @@ internal sealed class MermaidConfig
 
     /// <summary>Gets the entity relationship section, as the ER renderer and its shapes read it.</summary>
     public ErConfig Er { get; }
+
+    /// <summary>Gets the pie section, as the pie renderer reads it.</summary>
+    public PieConfig Pie { get; }
 
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
@@ -584,6 +613,24 @@ internal sealed class MermaidConfig
             NodeSpacing = OrDefault(Number(section, "nodeSpacing", defaults.NodeSpacing), defaults.NodeSpacing),
             RankSpacing = OrDefault(Number(section, "rankSpacing", defaults.RankSpacing), defaults.RankSpacing),
             TitleTopMargin = Number(section, "titleTopMargin", defaults.TitleTopMargin),
+        };
+    }
+
+    /// <summary>
+    ///     Reads the pie section as the pie renderer sees it: the section's values over the schema's defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The pie section.</returns>
+    private static PieConfig ReadPie(JsonObject raw)
+    {
+        var section = raw["pie"] as JsonObject ?? [];
+        var defaults = new PieConfig();
+        return new PieConfig
+        {
+            TextPosition = Number(section, "textPosition", defaults.TextPosition),
+            DonutHole = Number(section, "donutHole", defaults.DonutHole),
+            LegendPosition = Text(section, "legendPosition") ?? defaults.LegendPosition,
+            HighlightSlice = Text(section, "highlightSlice") ?? defaults.HighlightSlice,
         };
     }
 

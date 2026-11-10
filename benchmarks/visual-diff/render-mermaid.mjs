@@ -32,6 +32,9 @@
 // get each cluster's shape (state clusters are g.statediagram-cluster and g.note-cluster groups, which are clusters
 // here too) and the pieces of a label drawn in several parts; the random id of the last region of a concurrent state is
 // written as id-random-<counter>.
+// A pie chart (aria-roledescription="pie") gets the pie layout instead (extractPie): the outer circle, each slice (its
+// path data as written, in the coordinates of the pie group, and its box), each percentage label, the title and each
+// legend entry, with the computed paint and fonts; see Fixtures/reference/README.md for the format.
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -230,9 +233,15 @@ async function readBack(svgText, definition, picture) {
       element.style.height = `${Math.ceil(h)}px`;
       return text;
     });
-    const layout = actors
-      ? await page.evaluate(extractSequence, svgId, samples, actors)
-      : await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
+    const role = await page.$eval(`#${svgId}`, (element) => element.getAttribute('aria-roledescription') ?? '');
+    let layout;
+    if (actors) {
+      layout = await page.evaluate(extractSequence, svgId, samples, actors);
+    } else if (role === 'pie') {
+      layout = await page.evaluate(extractPie, svgId);
+    } else {
+      layout = await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
+    }
     if (viewBoxText) {
       await page.$eval(`#${svgId}`, (element, text) => {
         element.setAttribute('viewBox', text);
@@ -685,5 +694,84 @@ function extractSequence(id, count, actors) {
     boxes,
     menus,
     order: order.map(([key]) => key),
+  };
+}
+
+// Runs in the page: the layout of a pie chart (pieRenderer.ts). The svg holds a group at the pie's center, which holds
+// the pie group (the outer circle, the slices and their percentage labels), the title and the legend groups.
+function extractPie(id) {
+  const svg = document.getElementById(id);
+  const toSvg = svg.getScreenCTM().inverse();
+  const round = (v) => Math.round(v * 1000) / 1000 + 0;
+  const matrix = (element) => toSvg.multiply(element.getScreenCTM());
+  const attr = (element, name) => Number(element.getAttribute(name) ?? 0);
+  const point = (element, x, y) => {
+    const p = new DOMPoint(x, y).matrixTransform(matrix(element));
+    return [round(p.x), round(p.y)];
+  };
+  const box = (element) => {
+    const b = element.getBBox();
+    const m = matrix(element);
+    const a = new DOMPoint(b.x, b.y).matrixTransform(m);
+    const c = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
+    return [Math.min(a.x, c.x), Math.min(a.y, c.y), Math.abs(c.x - a.x), Math.abs(c.y - a.y)].map(round);
+  };
+  // The computed paint (CSS beats the presentation attributes), with the element opacity and the CSS scale
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      fill: s.fill,
+      stroke: s.stroke,
+      strokeWidth: round(parseFloat(s.strokeWidth)),
+      opacity: round(parseFloat(s.opacity)),
+      scale: s.scale
+    };
+  };
+  // A text: its content, the point of its anchor, its computed anchor, font and fill, and its box
+  const text = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      class: element.getAttribute('class'),
+      text: element.textContent,
+      at: point(element, attr(element, 'x'), attr(element, 'y')),
+      anchor: s.textAnchor,
+      fontSize: round(parseFloat(s.fontSize)),
+      fontWeight: s.fontWeight,
+      fill: s.fill,
+      box: box(element)
+    };
+  };
+
+  // mermaid's render leaves an empty group before the chart's group
+  const center = svg.querySelector(':scope > g[transform]');
+  const pie = center.querySelector(':scope > g:not(.legend)');
+  const circle = pie.querySelector(':scope > circle');
+  const title = center.querySelector(':scope > text');
+  const viewBox = svg.getAttribute('data-layout-view-box') ?? svg.dataset.layoutViewBox ?? svg.getAttribute('viewBox');
+  return {
+    diagram: 'pie',
+    viewBox: viewBox.trim().split(/[\s,]+/).map(Number).map(round),
+    origin: point(pie, 0, 0),
+    outerCircle: {
+      center: point(circle, attr(circle, 'cx'), attr(circle, 'cy')),
+      r: round(attr(circle, 'r')),
+      paint: paint(circle)
+    },
+    slices: Array.from(pie.querySelectorAll(':scope > path'), (path) => ({
+      class: path.getAttribute('class'),
+      d: path.getAttribute('d'),
+      box: box(path),
+      paint: paint(path)
+    })),
+    labels: Array.from(pie.querySelectorAll(':scope > text'), text),
+    title: title ? text(title) : null,
+    legend: Array.from(center.querySelectorAll(':scope > g.legend'), (g) => {
+      const rect = g.querySelector('rect');
+      return {
+        at: point(g, 0, 0),
+        rect: { box: box(rect), paint: paint(rect) },
+        text: text(g.querySelector('text'))
+      };
+    })
   };
 }

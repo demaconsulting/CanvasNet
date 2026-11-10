@@ -27,6 +27,9 @@ internal static class UpstreamVectors
     /// <summary>The ER parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> ErVectors = new(() => Load("er-parser.json"));
 
+    /// <summary>The pie parser vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> PieVectors = new(() => Load("pie-parser.json"));
+
     /// <summary>The time axis vectors, read once.</summary>
     private static readonly Lazy<JsonObject> TimeVectors = new(() => Load("time-axis.json"));
 
@@ -54,6 +57,11 @@ internal static class UpstreamVectors
     ///     Gets the ER parser cases of <c>er-parser.json</c>.
     /// </summary>
     public static JsonArray Ers => ErVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the pie parser cases of <c>pie-parser.json</c>.
+    /// </summary>
+    public static JsonArray Pies => PieVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the time axis cases of <c>time-axis.json</c>.
