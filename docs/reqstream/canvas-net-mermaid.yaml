@@ -418,6 +418,8 @@ sections:
           - CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render
           - CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render
           - CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit
+          - CanvasNetMermaid_Hardening_ClassRepeatedClassesAndStyles_AreALocatedLimit
+          - CanvasNetMermaid_Hardening_ClassNamespacesChainedByClassNames_AreALocatedLimit
           - CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded
 
       - id: CanvasNetMermaid-Determinism

@@ -131,14 +131,21 @@ sections:
                   mermaid-limit-exceeded, more relations than MaxEdges, more classes, notes, interfaces, and
                   namespaces (implicit ancestors included) together than MaxNodes, and a drawn text it joins from
                   texts checked apart - the label of a generic class with its type, or the qualified id of a nested
-                  namespace - longer than MaxLabelLength, and a namespace whose qualified id has more parts than
-                  MaxNestingDepth, the parts from nested namespace keywords and from dots in a name counted together.
+                  namespace - longer than MaxLabelLength, CSS classes of a class (joined with spaces) or styles of a
+                  class or a style class (joined with semicolons) that grow longer than MaxLabelLength, and a
+                  namespace whose qualified id has more parts than MaxNestingDepth, the parts from nested namespace
+                  keywords and from dots in a name counted together; and shall refuse in its layout data, with a
+                  located MermaidRenderException of code mermaid-limit-exceeded, namespaces nested deeper than
+                  MaxNestingDepth through classes named like namespaces.
                 justification: |
                   The size of the model, and so the cost of the layout, must be bounded for untrusted text, with
                   namespaces counted as the flowchart counts subgraphs, and a joined text can be longer than any of its
                   parts, so it is checked where it is drawn. Each part of a dotted namespace name is a nested cluster,
                   so the dots must count against the nesting limit or a single name could nest the clusters without
-                  bound.
+                  bound. A name listed again in a cssClass, classDef, or click statement repeats the class or styles,
+                  as in Mermaid, so without a check of the joined text a short text could multiply them without
+                  bound; and a class named like a namespace nests that namespace in its own, so chained names could
+                  nest the clusters without bound though the parser sees no nesting.
                 tests:
                   - ClassModel_Limits_TooManyRelationsOrNodes_ThrowLimitExceeded
                   - ClassModel_AddNamespace_TooManyNamespaces_ThrowsLimitExceeded
@@ -147,6 +154,11 @@ sections:
                   - ClassModel_AddNamespace_LongQualifiedId_ThrowsLimitExceeded
                   - ClassModel_AddNamespace_DottedIdTooDeep_ThrowsLimitExceeded
                   - ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded
+                  - ClassModel_SetCssClass_RepeatedIds_ThrowsLimitExceeded
+                  - ClassModel_DefineClass_RepeatedNames_ThrowsLimitExceeded
+                  - ClassModel_SetCssStyle_RepeatedStyles_ThrowsLimitExceeded
+                  - ClassModel_GetData_NamespacesChainedByClassNames_ThrowsLimitExceeded
+                  - ClassModel_GetData_NamespaceCycle_IsLeftToTheLayout
 
               - id: CanvasNetMermaid-Class-ClassModel-LayoutData
                 title: >-

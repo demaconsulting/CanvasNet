@@ -1,4 +1,5 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
+using System.Globalization;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
@@ -47,6 +48,90 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
 
     /// <summary>Gets the clusters: the nodes that are groups, in node order.</summary>
     public IEnumerable<LayoutNode> Clusters => Nodes.Where(node => node.IsGroup);
+
+    /// <summary>
+    ///     Checks how deeply the clusters nest through the parents of the nodes: a node may be inside at most
+    ///     <paramref name="maxDepth"/> nested clusters (<see cref="MermaidLimits.MaxNestingDepth"/>).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The parsers count the levels they read, but a cluster can also be nested by naming it inside another
+    ///         cluster that is declared elsewhere (a subgraph listed in another subgraph, a composite state named in
+    ///         another composite state, a class named like a namespace), which chains clusters without any nesting in the
+    ///         text. This check follows the parents as the layout sets them (for an id that several nodes share, the last
+    ///         parent given), so every way of nesting counts.
+    ///     </para>
+    ///     <para>
+    ///         The depth of each id is computed once, so the check is linear in the nodes. A chain that runs into a cycle
+    ///         is left to the layout, which fails on it, located, as Mermaid's render does.
+    ///     </para>
+    /// </remarks>
+    /// <param name="maxDepth">The largest number of clusters a node may be inside.</param>
+    /// <param name="clusters">What the diagram's clusters are called, for the message (<c>namespaces</c>, <c>subgraphs</c>, ...).</param>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the clusters nest too deeply, located at the
+    ///     node that gave the parent of the first node (in node order) that is inside too many clusters.
+    /// </exception>
+    public void CheckNestingDepth(int maxDepth, string clusters)
+    {
+        // The parent of each id as the layout sets it (the last one given), and where it was given
+        var parents = new Dictionary<string, (string Id, MermaidLocation Location)>(StringComparer.Ordinal);
+        foreach (var node in Nodes.Where(node => !string.IsNullOrEmpty(node.ParentId)))
+        {
+            parents[node.Id] = (node.ParentId!, node.Location);
+        }
+
+        // The number of ancestors of each id, computed once along each chain
+        const int Cycle = -2;
+        var depths = new Dictionary<string, int>(StringComparer.Ordinal);
+        var chain = new List<string>();
+        var onChain = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in Nodes.Select(node => node.Id))
+        {
+            chain.Clear();
+            onChain.Clear();
+            var current = id;
+            int depth;
+            while (true)
+            {
+                if (depths.TryGetValue(current, out depth))
+                {
+                    break;
+                }
+
+                if (!onChain.Add(current))
+                {
+                    depth = Cycle;
+                    break;
+                }
+
+                chain.Add(current);
+                if (!parents.TryGetValue(current, out var parent))
+                {
+                    // The last id of the chain has no parent: its depth is 0
+                    depth = -1;
+                    break;
+                }
+
+                current = parent.Id;
+            }
+
+            for (var i = chain.Count - 1; i >= 0; i--)
+            {
+                depth = depth == Cycle ? Cycle : depth + 1;
+                depths[chain[i]] = depth;
+            }
+
+            if (depth > maxDepth)
+            {
+                throw new MermaidRenderException(
+                    MermaidDiagnosticCodes.LimitExceeded,
+                    string.Create(CultureInfo.InvariantCulture, $"{clusters} are nested deeper than {maxDepth} levels (MermaidLimits.MaxNestingDepth)"),
+                    parents[id].Location,
+                    $"nest fewer {clusters}, or raise MermaidLimits.MaxNestingDepth when the source is trusted");
+            }
+        }
+    }
 }
 
 /// <summary>

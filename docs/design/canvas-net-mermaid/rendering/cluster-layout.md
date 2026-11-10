@@ -35,7 +35,14 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   class diagram), the edges in declaration order, and the effective configuration, with `DiagramType` (`flowchart-v2`,
   `classDiagram`, the legacy `class`, and so on; it decides whether self-loops are merged), `LayoutAlgorithm` (always
   `dagre`), `Direction`, `NodeSpacing` and `RankSpacing` (50 by default), `Markers`, and `Clusters` (the nodes that are
-  groups). Immutable.
+  groups). Immutable. `CheckNestingDepth(maxDepth, clusters)` checks the nesting that the parents make, as the layout
+  sets them (for an id that several nodes share, the last parent given): a node inside more than `maxDepth` clusters
+  is a `MermaidRenderException` with code `mermaid-limit-exceeded` and the message `<clusters> are nested deeper than
+  N levels (MermaidLimits.MaxNestingDepth)`, located at the node that gave the parent of the first node too deep. A
+  diagram model calls it from its `GetData` with `MaxNestingDepth`, because a cluster can be nested by naming it
+  inside another cluster declared elsewhere, which chains clusters that the parser never sees nested. The depth of
+  each id is computed once, so the check is linear; a chain that runs into a cycle is left to the layout, which fails
+  on it, located, as before.
 - `LayoutNode` - a node or a subgraph (`IsGroup`): `Id`, `Label`, `LabelType` (`text`, `string`, or `markdown`),
   `ParentId`, `Padding`, `CssStyles`, `TrustedStyles` (the styles are the diagram's own and are applied without
   reports), `CssCompiledStyles`, `CssClasses`, `Dir`, `DomId` (`flowchart-A-0`, `classId-A-0`), `Look`, `Shape` (a name

@@ -793,6 +793,73 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Gets class diagrams that repeat a CSS class or styles on one class, as Mermaid does for a name listed again,
+    ///     until the joined text passes <see cref="MermaidLimits.MaxLabelLength"/>, each with the line of the statement
+    ///     that makes it too long.
+    /// </summary>
+    public static TheoryData<string, int> ClassRepeatedClassesAndStyles => new()
+    {
+        // cssClass with the class listed 1,000 times, three times: the CSS classes pass 4,096 characters on line 5
+        { "classDiagram\nclass A\n" + string.Concat(Enumerable.Repeat($"cssClass \"{string.Join(',', Enumerable.Repeat("A", 1_000))}\" c\n", 3)), 5 },
+
+        // classDef with the style class listed 2,000 times: its styles are added once per name
+        { "classDiagram\nclass A:::c\nclassDef " + string.Join(',', Enumerable.Repeat("c", 2_000)) + " " + string.Join(',', Enumerable.Repeat("a:b", 1_000)) + "\n", 3 },
+
+        // Two style classes of 2,099 characters on one class: its styles pass 4,096 characters at the second
+        { "classDiagram\nclass A:::c\ncssClass \"A\" d\n" + string.Concat(new[] { "c", "d" }.Select(name => $"classDef {name} {string.Join(',', Enumerable.Repeat("a:b", 525))}\n")), 5 },
+
+        // Two style statements of 2,099 characters on one class
+        { "classDiagram\nclass A\n" + string.Concat(Enumerable.Repeat($"style A {string.Join(',', Enumerable.Repeat("a:b", 525))}\n", 2)), 4 },
+    };
+
+    /// <summary>
+    ///     Validates that CSS classes and styles a class gets again and again (a class listed many times in a
+    ///     <c>cssClass</c> statement, a style class listed many times in a <c>classDef</c> statement, several style classes
+    ///     or style statements) fail at open, located at the statement that makes them too long, instead of multiplying
+    ///     the styles without bound.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the statement that makes the text too long.</param>
+    [Theory]
+    [MemberData(nameof(ClassRepeatedClassesAndStyles))]
+    public void CanvasNetMermaid_Hardening_ClassRepeatedClassesAndStyles_AreALocatedLimit(string text, int line)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that namespaces chained by class names (a namespace holds a class named like the next namespace,
+    ///     which nests that namespace in it, though no namespace is nested in the text) count against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>: a chain of 32 renders, and one of 40 fails when it is laid out,
+    ///     located at the class that nests the 33rd namespace.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ClassNamespacesChainedByClassNames_AreALocatedLimit()
+    {
+        // Arrange: namespace Ni holds class N(i+1), on line 3 + 3i
+        static string Chain(int count) =>
+            "classDiagram\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"namespace N{i} {{\nclass N{i + 1}\n}}\n"));
+        var accepted = MermaidDocument.Parse(Chain(32));
+        var refused = MermaidDocument.Parse(Chain(40));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: class N33 in namespace N32 nests namespace N33 33 levels deep
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(99, exception.Location.Line);
+        Assert.Contains("namespaces are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a class with very many members renders or hits the work limit, and that the work is bounded.
     /// </summary>
     [Fact]

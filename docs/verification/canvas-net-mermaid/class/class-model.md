@@ -151,7 +151,12 @@ marked as trusted; and that the namespaces `A.B.C` and `D` count four subgraphs 
 `ClassModelTests.ClassModel_Limits_NodesAndNamespacesAtTheLimit_AreAccepted`,
 `ClassModelTests.ClassModel_AddNamespace_LongQualifiedId_ThrowsLimitExceeded`,
 `ClassModelTests.ClassModel_AddNamespace_DottedIdTooDeep_ThrowsLimitExceeded`,
-`ClassModelTests.ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded`
+`ClassModelTests.ClassModel_SetClassLabel_LabelWithGenericType_ThrowsLimitExceeded`,
+`ClassModelTests.ClassModel_SetCssClass_RepeatedIds_ThrowsLimitExceeded`,
+`ClassModelTests.ClassModel_DefineClass_RepeatedNames_ThrowsLimitExceeded`,
+`ClassModelTests.ClassModel_SetCssStyle_RepeatedStyles_ThrowsLimitExceeded`,
+`ClassModelTests.ClassModel_GetData_NamespacesChainedByClassNames_ThrowsLimitExceeded`,
+`ClassModelTests.ClassModel_GetData_NamespaceCycle_IsLeftToTheLayout`
 
 Asserts that with `MaxEdges` of 1 and `MaxNodes` of 3 a second relation is `mermaid-limit-exceeded` at the given
 location with a message that names `MaxEdges`, and a note after three classes is `mermaid-limit-exceeded` at the given
@@ -169,7 +174,20 @@ with the message `namespaces are nested deeper than 3 levels (MermaidLimits.MaxN
 accepted with the namespaces `A`, `A.B`, and `A.B.C`; and that
 `class A~Type~["Labels"]`, whose drawn name `Labels<Type>` is 12 characters long although the name and the label each
 fit, is refused at the class name (line 2, column 7) with the message `a label is 12 characters long`, while
-`class A~Type~["Name"]` is accepted with the drawn name `Name<Type>`.
+`class A~Type~["Name"]` is accepted with the drawn name `Name<Type>`. Asserts that with `MaxLabelLength` of 20
+`cssClass "A,A,A,A,A,A,A" hot` is refused at the statement (line 3, column 1) with the message
+`a label is 23 characters long`, while `cssClass "A,A,A" hot` is accepted with the CSS classes `default hot hot hot`
+(a class listed again gets the class again, as in Mermaid); that `classDef c,c,c a:b,c:d` is refused at the statement
+(line 2, column 1) with the message `a label is 23 characters long`, and three `classDef c` statements of two styles
+each on a class that carries `c` are refused at the third (line 5, column 1), while `classDef c,c a:b,c:d` is
+accepted with the style class styles `a:b,c:d` twice and the class styles `a:b`, `c:d`, `a:b`, `c:d`; and that three
+`style A a:b,c:d` statements are refused at the third (line 5, column 1), while two are accepted with the styles
+`a:b`, `c:d`, `a:b`, `c:d`. Asserts that with `MaxNestingDepth` of 3 four namespaces chained by class names (namespace
+`Ni` holds a class named `N(i+1)`, the last the class `X`) make `GetData` fail with a `MermaidRenderException` of
+code `mermaid-limit-exceeded` located at `class X` (line 12, column 7) with the message
+`namespaces are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)`, while three give `X` the parent `N2`;
+and that namespaces `A` and `B` nested in each other through class names give `GetData` four nodes without a limit
+failure, while measuring the document fails with `mermaid-render-failed` from the layout.
 
 ##### CanvasNetMermaid-Class-ClassModel-LayoutData: The Layout Data Of A Render
 
