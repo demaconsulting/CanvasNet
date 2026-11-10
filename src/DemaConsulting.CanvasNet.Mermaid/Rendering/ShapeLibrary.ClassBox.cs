@@ -188,6 +188,9 @@ internal static partial class ShapeLibrary
 
         if (!empty || renderExtraBox)
         {
+            // The dividers take the class's styles (its style statements and the classDefs applied to it), as the outline
+            // does: Mermaid writes them on each divider and its path (packages/mermaid/src/rendering-util/
+            // rendering-elements/shapes/classBox.ts:213-216, 230-233, 238 and 243); a line's fill encloses nothing
             var divider = body with { Fill = null };
             var first = annotationHeight2 + labelHeight2 + y + padding;
             var second = annotationHeight2 + labelHeight2 + membersHeight2 + y + (gap * 2) + padding;

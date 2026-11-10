@@ -182,6 +182,8 @@ internal sealed partial class ClassModel
                 Location = note.Location,
             });
 
+            // The class is looked up by the name as written, as Mermaid's getData does with this.classes.get(note.class)
+            // (packages/mermaid/src/diagrams/class/classDb.ts:806): a note for Box~T~ (the class is Box) stays unlinked
             if (note.Class is not null && _classIndex.TryGetValue(note.Class, out var target))
             {
                 edges.Add(new LayoutEdge

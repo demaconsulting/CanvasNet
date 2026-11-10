@@ -138,7 +138,8 @@ from the natural size, `w`, `h`, and the aspect constraint, label above or below
 `ShapeLibraryTests.ShapeLibrary_Draw_EmptyClassBox_DrawsTheExtraCompartment`,
 `ShapeLibraryTests.ShapeLibrary_Draw_EmptyClassBoxHidden_DrawsTheNameAlone`,
 `ShapeLibraryTests.ShapeLibrary_Draw_ClassBoxSvgLabels_SpacesTheMembersByTheTextPadding`,
-`ShapeLibraryTests.ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate`
+`ShapeLibraryTests.ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate`,
+`ShapeLibraryTests.ShapeLibrary_Draw_ClassBoxStyles_PaintTheDividersAsTheOutline`
 
 With every text measuring 40 by 24 pixels and the default padding of 12, asserts that a class with two attributes
 `+int x` and one method is drawn by the `classBox` function as a rectangle of 84 by 168 pixels from (-42, -84), that
@@ -149,7 +150,10 @@ rectangle's (a point far to the right gives (42, 0)); that an empty class gets t
 class is its name alone, 64 by 48 pixels from (-32, -24), without dividers; and that with SVG labels (a top-level
 `htmlLabels` of `false`) the attribute rows are 27 pixels apart, their height plus Mermaid's text padding of 3. Asserts
 that HTML labels are used when `htmlLabels` is not set or is `true`, not when the top-level `htmlLabels` is `false`,
-and still when only `flowchart.htmlLabels` is `false` (a theory).
+and still when only `flowchart.htmlLabels` is `false` (a theory). Asserts that both dividers of a class with an
+attribute and a method are stroked as its outline, without fill: red, 3 pixels wide, and dashed 5 by 5 with the styles
+`stroke:#f00`, `stroke-width:3px`, `stroke-dasharray:5 5`, and `fill:#ff0`, and the theme's `#9370DB`, 1 pixel wide,
+without styles.
 
 ##### CanvasNetMermaid-Rendering-ShapeLibrary-TrustedStyles: A Diagram's Own Styles Apply Without Reports
 

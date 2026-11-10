@@ -132,6 +132,7 @@ sections:
                   - ShapeLibrary_Draw_EmptyClassBoxHidden_DrawsTheNameAlone
                   - ShapeLibrary_Draw_ClassBoxSvgLabels_SpacesTheMembersByTheTextPadding
                   - ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate
+                  - ShapeLibrary_Draw_ClassBoxStyles_PaintTheDividersAsTheOutline
 
               - id: CanvasNetMermaid-Rendering-ShapeLibrary-TrustedStyles
                 title: >-
