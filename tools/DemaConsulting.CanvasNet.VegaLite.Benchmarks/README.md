@@ -30,13 +30,13 @@ a function of their index: the same on every machine.
 
 ```powershell
 # Full sizes, 5 timed runs each (a few minutes)
-dotnet run --project benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release
+dotnet run --project tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release
 
 # A quick check that every workload and probe still renders (seconds; the probes are too small to reach a limit)
-dotnet run --project benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release -- --smoke
+dotnet run --project tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release -- --smoke
 
 # Options: --runs N, --filter TEXT (a name contains TEXT), --no-calibration, --help
-dotnet run --project benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release -- --runs 3 --filter loess
+dotnet run --project tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks -c Release -- --runs 3 --filter loess
 ```
 
 Always use the Release configuration, and compare runs only on one machine and one .NET version.

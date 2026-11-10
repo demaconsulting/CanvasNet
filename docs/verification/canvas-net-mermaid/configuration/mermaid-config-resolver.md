@@ -29,7 +29,7 @@ Unit tests reside in `MermaidConfigResolverTests.cs` and `MermaidConfigResolverV
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/themes.json` (configuration cases, configuration keys, and defaults),
-  generated from the pinned Mermaid by `benchmarks/visual-diff/mermaid/gen-theme-vectors.mjs`
+  generated from the pinned Mermaid by `tools/visual-diff/mermaid/gen-theme-vectors.mjs`
 - **Isolation**: Each test builds its own text, options, and report sink; the fixture is read only
 
 #### Acceptance Criteria

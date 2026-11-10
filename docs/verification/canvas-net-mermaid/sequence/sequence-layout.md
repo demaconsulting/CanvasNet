@@ -18,7 +18,7 @@ the boxes and their titles, the menu panels, the title, and the view box. The ex
 for the same text, worked out from `sequenceRenderer.ts` and confirmed against the pinned Mermaid release (for example
 participants 150 wide and 50 apart, the first message line 44 below the participants, and the view box grown by the
 diagram margins of 50 and 10). The expected values for notes, blocks, boxes, and menus were recorded by running the
-reference renderer (`benchmarks/visual-diff/render-mermaid.mjs`, the pinned Mermaid release) on the same texts. The
+reference renderer (`tools/visual-diff/render-mermaid.mjs`, the pinned Mermaid release) on the same texts. The
 layout's agreement with Mermaid on whole diagrams is verified as well by the
 system-level reference layout tests, which compare every fixture with a mermaid-cli golden; the work limit and
 cancellation of the layout are verified at the system level.

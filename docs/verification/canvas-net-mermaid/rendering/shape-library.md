@@ -25,7 +25,7 @@ width where a test needs one.
 
 The vector tests in `ShapeLibraryVectorTests.cs` compare every case of the upstream vectors
 `Fixtures/upstream-vectors/shapes.json` (286 cases) with this library. The vectors were recorded from the pinned Mermaid
-in headless Chrome with the bundled Liberation Sans by `benchmarks/visual-diff/mermaid/gen-shape-vectors.mjs`, which
+in headless Chrome with the bundled Liberation Sans by `tools/visual-diff/mermaid/gen-shape-vectors.mjs`, which
 inserts every node with Mermaid's own `insertNode` and records the node's size, its drawn box, the label's translation
 and measured box, the computed paint of every drawn element, and 48 intersections (24 directions at two radii). The
 cases cover the 53 documented shapes with a short HTML label, a wrapping HTML label, and an SVG label, the undocumented

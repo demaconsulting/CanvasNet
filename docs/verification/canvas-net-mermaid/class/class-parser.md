@@ -8,7 +8,7 @@ two partial files) and the token names of `ClassTokens`.
 
 The unit is verified in two ways. `ClassVectorTests` parses the 179 cases of
 `Fixtures/upstream-vectors/class-parser.json`, recorded from the pinned Mermaid release in headless Chrome by
-`benchmarks/visual-diff/mermaid/gen-diagram-vectors.mjs --type class` from the inputs of Mermaid's class parser specs,
+`tools/visual-diff/mermaid/gen-diagram-vectors.mjs --type class` from the inputs of Mermaid's class parser specs,
 the original texts of `class-vector-cases.mjs`, and the class fixtures: for each of the 168 valid texts the facts of
 Mermaid's class database (the type, the direction, the accessibility texts, the classes with their labels, types, DOM
 ids, CSS classes, styles, annotations, members, methods, parents, and link data, the relations, the notes, the
@@ -35,7 +35,7 @@ Unit tests reside in `ClassParserTests.cs` and `ClassVectorTests.cs` (with the h
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/class-parser.json`, generated from the pinned Mermaid by
-  `benchmarks/visual-diff/mermaid/gen-diagram-vectors.mjs --type class`
+  `tools/visual-diff/mermaid/gen-diagram-vectors.mjs --type class`
 - **Isolation**: Each test parses its own text; the fixture is read only
 
 #### Acceptance Criteria

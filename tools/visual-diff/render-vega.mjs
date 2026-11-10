@@ -1,7 +1,7 @@
 // render-vega.mjs - draws a Vega-Lite specification to SVG with the reference implementation (headless: no browser
 // and no native canvas module, vega's own SVG renderer through view.toSVG()).
 //
-// Developer tooling of benchmarks/visual-diff; see the README there. Usage:
+// Developer tooling of tools/visual-diff; see the README there. Usage:
 //
 //     node render-vega.mjs <spec.vl.json> <out.svg> <modules-folder>
 //

@@ -8,7 +8,7 @@ partial files) and the token names of `ErTokens`.
 
 The unit is verified in two ways. `ErVectorTests` parses the 246 cases of `Fixtures/upstream-vectors/er-parser.json`,
 recorded from the pinned Mermaid release in headless Chrome by
-`benchmarks/visual-diff/mermaid/gen-diagram-vectors.mjs --type er` from the inputs of Mermaid's ER parser specs
+`tools/visual-diff/mermaid/gen-diagram-vectors.mjs --type er` from the inputs of Mermaid's ER parser specs
 (`parser/erDiagram.spec.js` and `parser/subgraph.spec.js`), the original texts of `er-vector-cases.mjs` (some of them
 modeled on Mermaid's `erDb.spec.js`), and the 12 ER fixtures: for each of the 219 valid texts the facts of Mermaid's ER
 database (the type, the direction, the accessibility texts, the entities with their ids, aliases, CSS classes, styles,
@@ -39,7 +39,7 @@ Unit tests reside in `ErParserTests.cs` and `ErVectorTests.cs` (with the helper 
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Fixtures**: `Fixtures/upstream-vectors/er-parser.json`, generated from the pinned Mermaid by
-  `benchmarks/visual-diff/mermaid/gen-diagram-vectors.mjs --type er`
+  `tools/visual-diff/mermaid/gen-diagram-vectors.mjs --type er`
 - **Isolation**: Each test parses its own text; the fixture is read only
 
 #### Acceptance Criteria
