@@ -10,8 +10,10 @@ namespace DemaConsulting.CanvasNet.Mermaid.Rendering;
 ///         and <c>ShapeNames</c> is the registry of the node shapes. <c>ClusterLayout</c> lays the data out with dagre
 ///         (subgraphs, recursively when they have no links to the outside) and draws it: the node shapes of
 ///         <c>ShapeLibrary</c> with the labels of <c>LabelBuilder</c> and the pictures of <c>NodeImages</c> (including the
-///         class boxes of a class diagram), the subgraph rectangles, and the edges, markers, edge labels and terminal
-///         (cardinality) labels of <c>EdgeBuilder</c>. The flowchart and the class diagram both draw through it.
+///         class boxes of a class diagram, the states of a state diagram and the entity boxes of an entity relationship
+///         diagram), the subgraph rectangles (with the composite states, concurrent regions and note groups of a state
+///         diagram), and the edges, markers, edge labels and terminal (cardinality) labels of <c>EdgeBuilder</c>. The
+///         flowchart and the class, state and entity relationship diagrams all draw through it.
 ///     </para>
 ///     <para>
 ///         The namespace is internal to the package.
