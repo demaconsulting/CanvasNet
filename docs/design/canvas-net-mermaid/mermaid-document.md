@@ -31,8 +31,14 @@ lays out the diagram.
   are fixed when the text is opened, under the configuration of the text itself (its frontmatter and directives): for
   a class diagram `NodeCount` is the classes, `EdgeCount` the relations, and `SubgraphCount` the namespaces that are
   drawn under that configuration (with `class.hierarchicalNamespaces` false, only the declared namespaces, so
-  `namespace Geo.Plane` counts once). A site-level setting in `MermaidRenderOptions.Config` is not known when the text
-  is opened, so it changes the drawing but not the counts, as for every other descriptive property.
+  `namespace Geo.Plane` counts once); for a state diagram `NodeCount` is the states drawn as nodes (plain states,
+  states with descriptions, start and end states, forks, joins, and choices, but not notes, note groups, or
+  concurrency regions), `EdgeCount` the transitions (not the links of notes), and `SubgraphCount` the composite states
+  (not the concurrency regions or note groups); for an entity relationship diagram `NodeCount` is the entities drawn
+  (an entity named after a subgraph is not drawn), `EdgeCount` the relationships, and `SubgraphCount` the subgraphs.
+  The `Direction` of a state or entity relationship diagram is the last top-level `direction` statement (the direction
+  the diagram is laid out in), else `TB`. A site-level setting in `MermaidRenderOptions.Config` is not known when the
+  text is opened, so it changes the drawing but not the counts, as for every other descriptive property.
 - **`MermaidOpenOptions`**: `SourceName` (not white space) and `Limits`.
 - **`MermaidRenderOptions`**: `Scale` (finite, above zero, 1 by default), `Background` (`Rgba32?`, null for
   transparent), `Config` (a JSON object text of at most a fixed length and depth, validated when set), `Theme` (one of
@@ -61,9 +67,12 @@ lays out the diagram.
   and the directives), detects again when that configuration chooses another renderer (for example
   `flowchart.defaultRenderer: elk`), and asks `DiagramRegistry.Parse(detected, source, limits, textConfig)` for the
   diagram. The registry dispatches on the public type: `flowchart` to `FlowchartParser` and `FlowchartModel`,
-  `sequence` to `SequenceParser` and `SequenceModel`, and `class` (from the `classDiagram` and legacy `class`
+  `sequence` to `SequenceParser` and `SequenceModel`, `class` (from the `classDiagram` and legacy `class`
   detectors, so `classDiagram` and `classDiagram-v2` texts alike) to `ClassParser` and `ClassModel`, to which it
-  passes the text configuration's `class.hierarchicalNamespaces` so that the namespace count follows what is drawn. A
+  passes the text configuration's `class.hierarchicalNamespaces` so that the namespace count follows what is drawn,
+  `state` (from the `stateDiagram` and legacy `state` detectors, so `stateDiagram` and `stateDiagram-v2` texts alike,
+  whichever state renderer the configuration names) to `StateParser` and `StateModel`, and `er` (from the `er`
+  detector, an `erDiagram` text) to `ErParser` and `ErModel`. A
   known type that is not drawn is not parsed (the document's diagram is null). Postcondition: an immutable document,
   or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
@@ -110,7 +119,7 @@ lays out the diagram.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
 - Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart,
-  Sequence, and Class subsystems; the unit adds nothing but the source name.
+  Sequence, Class, State, and Er subsystems; the unit adds nothing but the source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
   subsystems; a size outside the surface range throws `ArgumentOutOfRangeException` naming the scale and the size.
 - Strict mode throws `MermaidUnsupportedFeatureException` from the sink. Cancellation throws
@@ -129,6 +138,8 @@ lays out the diagram.
 - **Flowchart**: through `DiagramRegistry` (`FlowchartParser`, `FlowchartModel`, which implements `IMermaidDiagram`).
 - **Sequence**: through `DiagramRegistry` (`SequenceParser`, `SequenceModel`, which implements `IMermaidDiagram`).
 - **Class**: through `DiagramRegistry` (`ClassParser`, `ClassModel`, which implements `IMermaidDiagram`).
+- **State**: through `DiagramRegistry` (`StateParser`, `StateModel`, which implements `IMermaidDiagram`).
+- **Er**: through `DiagramRegistry` (`ErParser`, `ErModel`, which implements `IMermaidDiagram`).
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

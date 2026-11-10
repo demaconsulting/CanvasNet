@@ -14,7 +14,9 @@ result, resolve again with the detected diagram - and compares the global values
 `gantt.displayMode`, and every theme variable with the recorded ones; it also compares the configuration keys and the
 global and flowchart defaults with Mermaid's. `MermaidConfigResolverTests` verifies the precedence, the reports, and the
 merge primitives on small hand-written texts, asserting the effective values, the diagnostic codes, the locations
-(file, line, and column of the frontmatter key or of the directive), and the hints. The unit is reached through the
+(file, line, and column of the frontmatter key or of the directive), and the hints; for the sequence, class, state,
+and `er` sections it also asserts the typed values that the renderers read, against Mermaid's schema and the reads of
+its renderers. The unit is reached through the
 test assembly's `InternalsVisibleTo` access; the `Preprocessor` and the report sink are real, so no mocking or stubbing
 is required.
 
@@ -166,3 +168,33 @@ zero falls back, as `||` does), a rank spacing of 80, and a title margin of 0 (a
 a warning; and that a directive with a text `class.padding`, a text `class.hierarchicalNamespaces`, and a text
 `state.nodeSpacing` gives three `mermaid-config-invalid` warnings at the directive (line 1, column 1), whose messages
 name `class.padding` and `state.nodeSpacing`, and leaves the typed class section at its defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection: The State Section As The State Renderer Reads It
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored`
+
+Asserts, for a state diagram without configuration, that the effective state section holds the 18 keys of Mermaid's
+schema (among them `padding` 8 and `edgeLengthFactor` the string `"20"`) and that the typed state section is
+`dagre-wrapper`, a node and rank spacing of 50, and a title margin of 25, without a warning; that a frontmatter with
+`state.nodeSpacing: 0`, `state.rankSpacing: 70`, and `state.titleTopMargin: 0` gives a node spacing of 50 (a zero
+falls back, as `||` does), a rank spacing of 70, and a title margin of 0 (a zero is kept, as `??` does), without a
+warning; and that a directive with a number `state.defaultRenderer` is reported as `mermaid-config-invalid` with a
+message that names `state.defaultRenderer`, and leaves the typed state section at its defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection: The ER Section As The ER Renderer Reads It
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers`,
+`MermaidConfigResolverTests.MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored`
+
+Asserts, for an entity relationship diagram without configuration, that the effective `er` section holds the 12 keys
+of Mermaid's schema (among them `minEntityHeight` 75 and `fill` `honeydew`) and that the typed `er` section is a
+diagram padding of 20, an entity padding of 15, a minimum entity width of 100, a node spacing of 140, a rank spacing of
+80, and a title margin of 25, without a warning; that a frontmatter with `er.nodeSpacing: 0`, `er.rankSpacing: 60`,
+`er.titleTopMargin: 0`, `er.diagramPadding: 5`, `er.entityPadding: 4`, and `er.minEntityWidth: 30` gives a node
+spacing of 140 (a zero falls back), a rank spacing of 60, a title margin of 0 (a zero is kept), and the paddings 5
+and 4 and the width 30 as given, without a warning; and that a directive with a text `er.entityPadding` and a text
+`er.useMaxWidth`, beside the number `state.defaultRenderer`, gives three `mermaid-config-invalid` warnings, one of
+whose messages names `er.entityPadding`, and leaves the typed `er` section at its defaults.

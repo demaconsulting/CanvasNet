@@ -2,8 +2,9 @@
 
 This document describes the unit-level verification strategy for the `ShapeLibrary` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace: the internal static `ShapeLibrary` class (the node shapes, the
-class box of a class diagram, the intersect functions, the style split, and the subgraph rectangle, in
-`ShapeLibrary.cs` and its seven partial files) and the shape registry `ShapeNames`.
+class box of a class diagram, the state shapes and clusters of a state diagram, the entity box of an entity
+relationship diagram, the intersect functions, the style split, and the subgraph rectangle, in `ShapeLibrary.cs` and
+its nine partial files) and the shape registry `ShapeNames`.
 
 #### Verification Approach
 
@@ -11,10 +12,16 @@ The unit is verified at two levels. The analytic tests in `ShapeLibraryTests.cs`
 registry, the intersect functions (with points worked out by hand, including the half-unit rounding offset of the line
 intersection), the bounds of arcs, the style split, the paint of the node's own styles, the documented choices
 (the legacy `ellipse`, the `state` shape, the upright fork, an image without a resolver, a shape not drawn), the class
-box, and the styles a diagram writes for its own nodes. They use a `ShapeContext` of a default flowchart whose label
+box, the styles a diagram writes for its own nodes, the state shapes and clusters, and the entity box. They use a
+`ShapeContext` of a default flowchart whose label
 measurement is either the real `LabelBuilder` or a fixed label box of 40 by 24 pixels, so that the geometry can be
 derived by hand from the shape formulas; the class box tests use the `ShapeContext` of a class diagram text (its
-configuration from the frontmatter and the class diagram's style sheet) with the same fixed label box.
+configuration from the frontmatter and the class diagram's style sheet) with the same fixed label box. The state tests
+use the `ShapeContext` of a default state diagram (`stateDiagram-v2` with the state diagram's style sheet) whose label
+measurement gives a box chosen by the text of the request (and records the requests where a test needs them), and the
+entity box tests the `ShapeContext` of an entity relationship diagram text (its frontmatter `htmlLabels` and the
+entity relationship style sheet) whose labels measure 40 by 24 pixels, or nothing for an empty text, with a fixed text
+width where a test needs one.
 
 The vector tests in `ShapeLibraryVectorTests.cs` compare every case of the upstream vectors
 `Fixtures/upstream-vectors/shapes.json` (286 cases) with this library. The vectors were recorded from the pinned Mermaid
@@ -34,7 +41,9 @@ Unit tests reside in `ShapeLibraryTests.cs`, `ShapeLibraryVectorTests.cs`, and `
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
-- **Mocking**: A fixed label box replaces the label measurement in the analytic geometry tests
+- **Mocking**: A fixed label box (or a box chosen by the label's text) replaces the label measurement in the analytic
+  geometry tests, and a fixed text width replaces Mermaid's `calculateTextWidth` in the entity box test of the minimum
+  width
 - **Fonts**: The bundled Liberation fonts for the measured labels
 - **Files**: `Fixtures/upstream-vectors/shapes.json` of the test project (copied to the output folder)
 - **Isolation**: Each test draws its own nodes; the vectors are read once and not changed
@@ -43,10 +52,13 @@ Unit tests reside in `ShapeLibraryTests.cs`, `ShapeLibraryVectorTests.cs`, and `
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
 asserted. With Mermaid's label box, a node size, drawn box, or label place that differs from the vector by more than 0.02
-pixel (0.06 pixel for the rough.js circles), or an intersection by more than 0.01 pixel, constitutes a failure; with
+pixel (0.06 pixel for the circles that Mermaid draws through rough.js and this library as true circles, a tolerance the
+vector test also applies to the end state, although its rough.js outline is ported exactly and its analytic scenario
+holds it to the thousandth of a pixel), or an intersection by more than 0.01 pixel, constitutes a failure; with
 this library's label measurement, a label box or node size beyond 0.02 pixel for an HTML label or 2 pixels for an SVG
 label (plus the documented differences of individual cases) constitutes a failure; a class box rectangle, divider, or
-row offset that differs from the hand-derived value, or a report count other than the expected, constitutes a failure.
+row offset, a state shape, cluster, or paint, or an entity table column, row, or divider that differs from the
+hand-derived value, or a report count other than the expected, constitutes a failure.
 
 #### Unit-Level Test Scenarios
 
@@ -69,8 +81,8 @@ drawing function, and that a misspelled name gets the nearest name the flowchart
 
 Asserts that every documented short name, the undocumented shapes a flowchart accepts, the icon and image shapes, and
 the legacy `ellipse` are drawn with a positive size, that the vectors cover every documented shape with a short, a
-wrapping, and an SVG label, and that `erBox`, a shape of another diagram type, fails with `mermaid-render-failed` at
-the node's line.
+wrapping, and an SVG label, and that `erBox` on a node without the data of an entity (a shape a flowchart node cannot
+draw) fails with `mermaid-render-failed` at the node's line.
 
 ##### CanvasNetMermaid-Rendering-ShapeLibrary-Geometry: Shapes Have Mermaid's Geometry
 
@@ -163,3 +175,78 @@ Draws a note node with the styles a class diagram writes for its notes (`text-al
 `fill: #fff5ad`, and `stroke: #aaaa33`) and asserts that, marked as trusted, it gives no `mermaid-style-ignored`
 report, that the same styles from the user give two (the alignment and the white space, which this version does not
 draw), and that the fill `#FFF5AD` is applied either way (a theory).
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-StateShapes: State Shapes Are Mermaid's State Shapes
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_StateRect_IsARoundedRectWithTheCssRadius`,
+`ShapeLibraryTests.ShapeLibrary_Draw_RectWithTitle_PlacesTitleDescriptionAndDivider`,
+`ShapeLibraryTests.ShapeLibrary_Draw_StateEnd_IsTheRoughJsOutline`,
+`ShapeLibraryTests.ShapeLibrary_Draw_StateFork_IsTheBarWithoutThePadding`,
+`ShapeLibraryTests.ShapeLibrary_Draw_StateShapes_PaintThroughTheStateSheet`,
+`ShapeLibraryTests.ShapeLibrary_Draw_StateShapesInAFlowchart_TakeTheNodeRule`
+
+Draws a state (`rect` with the radii 10 and 10, a padding of 8, `CenterLabel`, and the class `statediagram-state`)
+around a 40 by 24 label and asserts that it is drawn by `roundedRect`, a rectangle of 56 by 40 pixels from (-28, -20)
+whose corner arcs have the radius 5 of the state sheet's CSS rule, with its label centered at (-20, -12). Draws a state
+with descriptions (`rectWithTitle`) whose title `first line` measures 61.094 by 24 pixels and whose description
+`second line` 80.938 by 24, and asserts the boxes of Mermaid's SVG: a rectangle of 88.938 by 65 pixels from
+(-44.469, -32.5) with corners of radius 5, the `state-divider` line across it at y = -4.5 stroked in `nodeBorder`, and
+the narrower title centered over the description at (-30.547, -29.5). Draws an end state and asserts that its outer
+ring is 14.013 by 14 pixels from x = -7 (the bulge of rough.js's last curve, as Chrome's box of Mermaid's path), that
+its inner circle is 5.005 by 5 pixels, and that the node is as wide as the outer ring. Draws a fork with a padding of 8
+and asserts that it is the bar alone, 70 by 10 pixels from (-35, -5), on whose top a point straight above ends at
+(0, -5). With the default state sheet, asserts the paint of the first part of each shape: the start circle filled and
+stroked in `specialStateColor`, 1 pixel wide; the end state's outer ring in `mainBkg`, stroked in `lineColor`, 2 pixels
+wide, and its inner circle filled and stroked in `nodeBorder`, 2 pixels wide; the fork filled and stroked in
+`lineColor`, the choice in `mainBkg` stroked in `nodeBorder`, and the note in `noteBkgColor` stroked in
+`noteBorderColor`, each 1.3 pixels wide. With a flowchart's sheet, asserts that the start, end, fork, choice, and note
+shapes are painted with the node rule's fill, stroke, and stroke width, and that a fork with the style
+`fill:#ff0000` is filled red.
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-StateClusters: State Clusters Are Mermaid's Clusters
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_DrawCluster_RoundedWithTitle_DrawsOuterTitleAndInner`,
+`ShapeLibraryTests.ShapeLibrary_DrawCluster_RoundedWithTitleNarrow_IsWidenedToTheTitle`,
+`ShapeLibraryTests.ShapeLibrary_DrawCluster_DividerAndNoteGroup_AreDashedAndInvisible`
+
+Draws a composite state (`roundedWithTitle`, padding 8, title 30 by 24) laid out at (100, 100) with a size of 200 by 150
+and asserts, for the classes of a composite state and, in a theory, with the alternate depth's class
+`statediagram-cluster-alt`, that it keeps the size of 200 by 150 with a `diff` of -8; that the outer rectangle is
+(0, 25, 200, 150) with corners of radius 5 and filled in `compositeTitleBackground`; that the inner rectangle is
+(0, 51, 200, 120), without rounded corners, filled `#ffffff`, or `#f0f0f0` at the alternate depth; and that the title is
+placed at (85, 26), a pixel under the top. Draws a composite state given a width of 20 for its 30 pixel title and
+asserts that it is widened to 38 pixels (the title and the padding) with a `diff` of 1 and the box (-19, -50, 38, 100).
+Draws a concurrent region (`divider`) and a note group (`noteGroup`) at (50, 40) with a size of 100 by 80 and asserts
+that the region is one rectangle filled `#f0f0f0`, stroked in `nodeBorder`, and dashed 10, 10, of the layout's size
+with a `diff` of -8, and that the note group is one unpainted `cluster` path, without fill or stroke, with the box
+(0, 0, 100, 80) and a `diff` of 0.
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-ErBox: The Entity Box Is Mermaid's Entity Box
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_ErBoxWithAttributes_LaysOutTheTable`,
+`ShapeLibraryTests.ShapeLibrary_Draw_ErBoxWithoutAttributes_IsAtLeastTheMinimumWidth`,
+`ShapeLibraryTests.ShapeLibrary_Draw_ErBoxSvgEmptyCell_WidensTheBox`,
+`ShapeLibraryTests.ShapeLibrary_ErHtmlLabels_FollowsTheTopLevelSetting`
+
+With every text measuring 40 by 24 pixels and `htmlLabels` unset, so the paddings of 20 and 15 grow to 25 and 18.75,
+draws an entity with the attributes `int x PK` and `int y` and asserts that it is drawn by `erBox` as a table of
+195 by 128.25 pixels from (-97.5, -64.125) (three columns of 65, the empty comment column dropped, a name row and two
+rows of 42.75), that the name group is at (-20, -54.75), the type cells at (-85, -12) and (-85, 30.75), and the name
+cells at x = -20, that there are 8 divider paths (four dividers, each filled and stroked), that the outline and the
+rows are filled `#ECECFF`, `#FFFFFF`, and `#F1F1FF` in turn, and that a point far to the right ends at (97.5, 0). Draws
+an entity without attributes whose text width is 10 and, in a theory, 70, and asserts a box of 100 by 84 pixels (the
+minimum entity width) and of 80 by 84 pixels (the name and twice the padding of 20), from y = -42, with the name
+centered at (-20, -12). With SVG text (`htmlLabels: false`), draws an entity with the attribute `int x PK` and an empty
+comment, and asserts that the table is 195 by 85.5 pixels from (-97.5, -42.75) while the node's box reaches from
+x = -97.5 to x = 110, where the empty comment cell stands. Asserts in a theory that `ErHtmlLabels` gives HTML cells,
+grown paddings, and an HTML plain name when `htmlLabels` is unset; HTML cells without growth when it is `true`; and SVG
+cells with grown paddings and an SVG plain name when it is `false`.
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-SvgTextAnchor: SVG Node Text Is Centered Only When The Sheet Centers It
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_SvgNodeText_IsCenteredOnlyWhenTheSheetCentersIt`
+
+Draws a state node with the state diagram's sheet and a rectangle node with a flowchart's sheet, recording the label
+requests, and asserts that the state's label is requested with its SVG text starting at its anchor (`CenterSvgText`
+false), as the state sheet has no centering rule, and the flowchart's with its SVG text centered on its anchor
+(`CenterSvgText` true), as its `.node .label text` rule centers it.

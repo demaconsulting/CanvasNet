@@ -91,9 +91,10 @@ which skips them. `BoundsOf` and `ToPath` reject only null arguments. The unit p
 
 The units of the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `ClusterLayout`) build the
 items (the class box of `ShapeLibrary` marks the runs of a static member `Underline`), `EdgeBuilder` takes the bounds
-of an edge with `Scene.BoundsOf`, and `ClusterLayout.RenderDiagram` assembles the scene of a flowchart or a class
-diagram with its view box and picture loader, which the `FlowchartModel` unit of the `Flowchart` subsystem and the
-`ClassModel` unit of the `Class` subsystem return; the `SequenceLayout` and
+of an edge with `Scene.BoundsOf`, and `ClusterLayout.RenderDiagram` assembles the scene of a flowchart, a class
+diagram, a state diagram, or an entity relationship diagram with its view box and picture loader, which the
+`FlowchartModel` unit of the `Flowchart` subsystem, the `ClassModel` unit of the `Class` subsystem, the `StateModel`
+unit of the `State` subsystem, and the `ErModel` unit of the `Er` subsystem return; the `SequenceLayout` and
 `SequenceRenderer` units of the `Sequence` subsystem build the items of a sequence diagram (with drop shadows on boxes
 and menus and stroked labels of the `old` text placement) and its scene, and the `MermaidDocument` unit builds
 the empty scene of a diagram type that is not drawn and returns the laid-out scene to the tests; the `ScenePainter`

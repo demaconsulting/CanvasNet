@@ -16,7 +16,11 @@ same text. The other tests are analytic: the markdown and plain-string functions
 lines Mermaid makes of the same text, and the layout rules are checked with numbers derived from the CSS and the font
 metrics (a 16 pixel font gives 24 pixel HTML line boxes and SVG baselines 17.6 pixels apart; a lone picture of natural
 size 40 by 30 is 80 by 60 pixels); the bold weight an SVG label inherits for the name of a class box is checked by
-building the same label with and without it. The text utilities are checked the same way, with numbers derived from
+building the same label with and without it; the run grid of SVG text is checked against Chrome's
+`getComputedTextLength` of the reference (`waiting for the bank` at 16 pixels: 140.766 pixels as word runs, 140.75 as
+one run); and the background of an SVG label whose own size differs from the one it inherits is checked by building
+the same label with the two root sizes and against the label in the inherited size. The text utilities are checked the
+same way, with numbers derived from
 Mermaid's `utils.ts` and the font metrics and confirmed against the boxes of the reference's `getBBox` (a line of
 Liberation Sans at 16 pixels is 17 pixels high; `Async to itself` is 100.258 pixels wide). The builder is created with
 the font resolver of the painter (the bundled fonts), a
@@ -165,3 +169,23 @@ and that hyphenating a word of 1,000 characters under a work limit of 10,000 fai
 Builds the SVG label `Name` in a bold font, not centered, once with `SvgInheritsWeight` (as a class box draws its
 name) and once without, and asserts that the run of the first is bold and that of the second is not (only strong
 markdown is bold there), that the bold line is wider than the regular one, and that the line starts at x = 0.
+
+##### CanvasNetMermaid-Rendering-LabelBuilder-SvgRunGrid: SVG Text Runs Advance On The Browser's Grid
+
+**Tests**: `LabelBuilderTests.LabelBuilder_SvgRunAdvance_RoundsUpToTheLayoutUnit`
+
+Asserts that a run advance of 3187.5 / 64 pixels is rounded up to 3188 / 64 and that an advance on the grid (1.5
+pixels) stays; builds the SVG label `waiting for the bank` (markdown, not wrapped, not centered) at 16 pixels, whose
+words are runs of their own, and asserts that it is 140.766 pixels wide (140.765625 to three decimals), while the same
+text measured as one run by `SvgLineExtent` has a glyph box 140.75 pixels wide, the widths of the reference.
+
+##### CanvasNetMermaid-Rendering-LabelBuilder-SvgBackgroundSize: An SVG Background Is Measured In The Inherited Size
+
+**Tests**: `LabelBuilderTests.LabelBuilder_Build_SvgBackgroundInAnInheritedSize_IsMeasuredInThatSize`
+
+Builds the SVG label `has` in a 14 pixel font with a background, centered, three times: with a root font size of 16
+(the inherited size differs), with a root font size of 14, and in a 16 pixel font with a root font size of 16. Asserts
+that the first is drawn in its own size (its line has the 14 pixel font and the same box as the second's), that the
+second's box is its text box grown by 2 pixels on every side, that the first's box has the width and height of the
+third's (the background measured in the inherited 16 pixels, to the ninth decimal), and that it is taller than the
+second's.
