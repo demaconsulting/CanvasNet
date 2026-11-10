@@ -1,0 +1,313 @@
+using DemaConsulting.CanvasNet.Mermaid.State;
+using DemaConsulting.CanvasNet.Mermaid.Syntax;
+
+namespace DemaConsulting.CanvasNet.Mermaid.Tests.State;
+
+/// <summary>
+///     Unit tests of <see cref="StateModel"/>: the translation of the statement tree, the database, the data fetcher, the
+///     mapping to the layout data, the database errors and the limits.
+/// </summary>
+public class StateModelTests
+{
+    /// <summary>
+    ///     Validates that <c>[*]</c> becomes the start or end state of the document that holds it, and that a state used
+    ///     before its body becomes a composite state.
+    /// </summary>
+    [Fact]
+    public void StateModel_SetRootDocument_StartAndEndStates_TakeTheirParentsId()
+    {
+        // Act
+        var model = StateFacts.Parse("stateDiagram-v2\n[*] --> A\nstate A {\n  [*] --> B\n  B --> [*]\n}\nA --> [*]\n");
+
+        // Assert
+        Assert.Equal(["root_start", "A", "A_start", "B", "A_end", "root_end"], model.Nodes.Select(n => n.Id));
+        Assert.Equal(["stateStart", "roundedWithTitle", "stateStart", "rect", "stateEnd", "stateEnd"], model.Nodes.Select(n => n.Shape));
+        Assert.Equal([null, null, "A", "A", "A", null], model.Nodes.Select(n => n.ParentId));
+        Assert.Equal(["root_start", "A", "root_end"], model.States.Select(s => s.Id));
+    }
+
+    /// <summary>
+    ///     Validates that the legacy diagram applies its statements before the translation, as Mermaid's version 1
+    ///     database does, so its start and end states are numbered in the database, while the layout is the same.
+    /// </summary>
+    [Fact]
+    public void StateModel_SetRootDocument_LegacyDiagram_AppliesStatementsBeforeTranslating()
+    {
+        // Arrange
+        var settings = new DetectorSettings("dagre-wrapper", "dagre-wrapper", "dagre-d3");
+        const string Text = "stateDiagram\n[*] --> A\nA --> [*]\n";
+
+        // Act
+        var model = StateFacts.Parse(Text, settings: settings);
+        var data = model.GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal("state", model.MermaidId);
+        Assert.Equal(["start1:start", "A:default", "start2:start"], model.States.Select(s => $"{s.Id}:{s.Type}"));
+        Assert.Equal(["root_start", "A", "root_end"], data.Nodes.Select(n => n.Id));
+        Assert.Equal("stateDiagram", data.DiagramType);
+    }
+
+    /// <summary>
+    ///     Validates that a document whose last statement is a divider keeps its statements, so its dividers are plain
+    ///     states without a label, as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void StateModel_SetRootDocument_TrailingDivider_KeepsTheStatements()
+    {
+        // Act
+        var model = StateFacts.Parse("stateDiagram-v2\nstate Busy {\n  a\n  --\n  b\n  --\n}\n");
+
+        // Assert
+        Assert.Equal(["a", "divider-id-1", "b", "divider-id-2"], model.RootDocument[0].Doc!.Select(s => s.Id));
+        var divider = model.Nodes.Single(n => n.Id == "divider-id-1");
+        Assert.Equal(("divider", false, string.Empty, "Busy"), (divider.Shape, divider.IsGroup, divider.Label, divider.ParentId));
+    }
+
+    /// <summary>
+    ///     Validates the fields of the layout data: state nodes with Mermaid's radius, padding and centered label, the
+    ///     cluster classes, the transitions with the barb end, the spacing of the state section and the barb marker.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_StatesAndTransitions_HaveMermaidsFields()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  look: classic\n  state:\n    nodeSpacing: 70\n---\nstateDiagram-v2\ndirection LR\nstate Comp {\n  A --> B : go\n}\n";
+
+        // Act
+        var model = StateFacts.Parse(Text);
+        var data = model.GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal(("stateDiagram", "LR", 70.0, 50.0), (data.DiagramType, data.Direction, data.NodeSpacing, data.RankSpacing));
+        Assert.Equal(["barb"], data.Markers);
+        var comp = data.Nodes[0];
+        Assert.Equal(("roundedWithTitle", true, "TB", " statediagram-state statediagram-cluster "), (comp.Shape, comp.IsGroup, comp.Dir, comp.CssClasses));
+        var a = data.Nodes[1];
+        Assert.Equal((10.0, 10.0, 8.0, true), (a.Rx!.Value, a.Ry!.Value, a.Padding, a.CenterLabel));
+        Assert.Equal(("A", "markdown", "state-A-0", "Comp", "classic"), (a.Label, a.LabelType, a.DomId, a.ParentId, a.Look));
+        var edge = Assert.Single(data.Edges);
+        Assert.Equal(("edge0", "go", "arrow_barb", "transition", 1), (edge.Id, edge.Label, edge.ArrowTypeEnd, edge.Classes, edge.MinLen));
+        Assert.Equal(["fill:none"], edge.Style);
+    }
+
+    /// <summary>
+    ///     Validates that the first description of a state is its label and the others its descriptions, and that a
+    ///     description makes a choice state a plain state, as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_Descriptions_FirstIsTheLabelAndTheRestAreDescriptions()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nS : one\nS : two\nS : three\nR : only\nstate c1 <<choice>>\nc1 : a test\n";
+
+        // Act
+        var data = StateFacts.Parse(Text).GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal(["S:rectWithTitle:one", "R:rect:only", "c1:rect:a test"], data.Nodes.Select(n => $"{n.Id}:{n.Shape}:{n.Label}"));
+        Assert.Equal(["two", "three"], data.Nodes[0].Descriptions!);
+        Assert.Empty(data.Nodes[1].Descriptions!);
+    }
+
+    /// <summary>
+    ///     Validates notes: each in a note group at the top level, linked from the note for <c>left of</c> and to it
+    ///     otherwise, with the DOM ids of the counter the transitions share.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_Notes_AreGroupedAndLinkedWithTheSharedCounter()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nA --> B\nnote left of A : first\nnote right of B : second\n";
+
+        // Act
+        var model = StateFacts.Parse(Text);
+        var data = model.GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal(["A", "B", "A----parent", "A----note-1", "B----parent", "B----note-2"], data.Nodes.Select(n => n.Id));
+        Assert.Equal(["state-A-1", "state-B-2", "state-A----parent-1", "state-A----note-1"], data.Nodes.Take(4).Select(n => n.DomId));
+        Assert.Equal((16.0, true, (string?)null), (data.Nodes[2].Padding, data.Nodes[2].IsGroup, data.Nodes[2].ParentId));
+        Assert.Equal((15.0, "note", "A----parent", "left of"), (data.Nodes[3].Padding, data.Nodes[3].Shape, data.Nodes[3].ParentId, model.Nodes[3].Position));
+        Assert.Equal(["edge0", "A----note-1-A", "B-B----note-2"], data.Edges.Select(e => e.Id));
+        Assert.Equal(("transition note-edge", string.Empty), (data.Edges[1].Classes, data.Edges[1].ArrowTypeEnd));
+    }
+
+    /// <summary>
+    ///     Validates that a note on a state seen nowhere before has no shape, as Mermaid leaves it undefined.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_NoteOnAnUnseenState_HasNoShape()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nnote right of X : hello\n";
+
+        // Act
+        var data = StateFacts.Parse(Text).GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        var state = data.Nodes.Single(n => n.Id == "X");
+        Assert.Equal((string.Empty, "X"), (state.Shape, state.Label));
+    }
+
+    /// <summary>
+    ///     Validates style classes and styles: the class styles compile into the node, an attribute with <c>color</c> gives
+    ///     a text style, and a <c>style</c> statement's styles lose their semicolons.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_StyleClassesAndStyles_ApplyLikeMermaid()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nclassDef hot fill:#f96,color:#036\nA:::hot --> B\nstyle B stroke:#333;\n";
+
+        // Act
+        var model = StateFacts.Parse(Text);
+        var data = model.GetData(StateFacts.DefaultConfig(Text));
+
+        // Assert
+        var hot = Assert.Single(model.StyleClasses);
+        Assert.Equal(["fill:#f96", "color:#036"], hot.Styles);
+        Assert.Equal(["fill:#036"], hot.TextStyles);
+        Assert.Equal("hot statediagram-state", data.Nodes[0].CssClasses);
+        Assert.Equal(["fill:#f96", "color:#036"], data.Nodes[0].CssCompiledStyles);
+        Assert.Equal(["stroke:#333"], data.Nodes[1].CssStyles!);
+    }
+
+    /// <summary>
+    ///     Validates that a composite state with a description beyond its title fails with Mermaid's message, located at
+    ///     the statement that added the description.
+    /// </summary>
+    [Fact]
+    public void StateModel_SetRootDocument_CompositeWithDescription_ThrowsLocatedGroupError()
+    {
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() =>
+            StateFacts.Parse("stateDiagram-v2\nstate \"Title\" as Comp {\n  A\n}\nComp : another\n", "s.mmd"));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.SyntaxError, ex.Code);
+        Assert.Contains("Group nodes can only have label. Remove the additional description for node [Comp]", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(new MermaidLocation("s.mmd", 5, 1), ex.Location);
+    }
+
+    /// <summary>
+    ///     Validates that states, composite states, concurrency regions, notes and note groups count together against
+    ///     <see cref="MermaidLimits.MaxNodes"/>, located at the statement that adds the node too many, and that the nodes
+    ///     at the limit are accepted.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="nodes">The number of nodes it has.</param>
+    /// <param name="line">The line of the last node.</param>
+    [Theory]
+    [InlineData("stateDiagram-v2\nstate C {\n  a\n  --\n  b\n}\n", 5, 5)]
+    [InlineData("stateDiagram-v2\nA\nnote left of A : n\n", 3, 3)]
+    public void StateModel_Limits_ClustersNotesAndGroups_CountAgainstMaxNodes(string text, int nodes, int line)
+    {
+        // Act
+        var accepted = StateFacts.Parse(text, null, new MermaidLimits { MaxNodes = nodes });
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(text, null, new MermaidLimits { MaxNodes = nodes - 1 }));
+
+        // Assert
+        Assert.Equal(nodes, accepted.Nodes.Count);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(line, ex.Location.Line);
+        Assert.Contains("nodes and subgraphs (MermaidLimits.MaxNodes)", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the states of the database count against <see cref="MermaidLimits.MaxNodes"/> too, though a
+    ///     state that only a <c>class</c> statement names is not drawn.
+    /// </summary>
+    [Fact]
+    public void StateModel_Limits_TooManyStates_ThrowsLimitExceeded()
+    {
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() =>
+            StateFacts.Parse("stateDiagram-v2\nclass a,b,c,d hot\n", null, new MermaidLimits { MaxNodes = 3 }));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(2, ex.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that transitions count against <see cref="MermaidLimits.MaxEdges"/>, while the edge of a note does not.
+    /// </summary>
+    [Fact]
+    public void StateModel_Limits_TooManyTransitions_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxEdges = 1 };
+
+        // Act
+        var accepted = StateFacts.Parse("stateDiagram-v2\nA --> B\nnote left of A : n\n", null, limits);
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse("stateDiagram-v2\nA --> B\nB --> C\n", null, limits));
+
+        // Assert
+        Assert.Equal(2, accepted.Edges.Count);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(3, ex.Location.Line);
+        Assert.Contains("MermaidLimits.MaxEdges", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the concurrency regions of a composite state count as a nesting level against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>, located at the region too deep.
+    /// </summary>
+    [Fact]
+    public void StateModel_Limits_ConcurrentRegions_CountAsNestingLevels()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nstate A {\n  state B {\n    x\n    --\n    y\n  }\n}\n";
+
+        // Act
+        var accepted = StateFacts.Parse(Text, null, new MermaidLimits { MaxNestingDepth = 3 });
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(Text, null, new MermaidLimits { MaxNestingDepth = 2 }));
+
+        // Assert
+        Assert.Equal(2, accepted.Nodes.Count(n => n.Shape == "divider"));
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(5, ex.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the texts the model joins or derives are checked against
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>: the descriptions drawn under a title (joined with line breaks), the
+    ///     id of a start state (its parent's id with <c>_start</c>) and a text style (with <c>fill</c> as <c>bgFill</c>).
+    /// </summary>
+    /// <param name="text">The diagram, whose tokens each fit a limit of 10.</param>
+    /// <param name="line">The line of the statement.</param>
+    [Theory]
+    [InlineData("stateDiagram-v2\nS : orange\nS : yellow\nS : purple\n", 4)]
+    [InlineData("stateDiagram-v2\nstate Abcdefgh {\n  [*] --> B\n}\n", 3)]
+    [InlineData("stateDiagram-v2\nclassDef c fill color\n", 2)]
+    public void StateModel_Limits_JoinedTexts_ThrowLimitExceeded(string text, int line)
+    {
+        // Act
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(text, null, new MermaidLimits { MaxLabelLength = 10 }));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(line, ex.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that joined texts at the limit are accepted: two descriptions under a title, and a start id of exactly
+    ///     the limit.
+    /// </summary>
+    [Fact]
+    public void StateModel_Limits_JoinedTextsAtTheLimit_AreAccepted()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 10 };
+
+        // Act
+        var model = StateFacts.Parse("stateDiagram-v2\nS : abc\nS : de\nS : fgh\nstate Abcd {\n  [*] --> B\n}\n", null, limits);
+
+        // Assert
+        Assert.Equal(["de", "fgh"], model.Nodes[0].Descriptions!);
+        Assert.Contains(model.Nodes, n => n.Id == "Abcd_start");
+    }
+}
