@@ -118,11 +118,15 @@ without a token (a composite state name of two words, and a description of a com
 the limits of the open call. `MaxNestingDepth` bounds the composite states in the parser and the composite states and
 their concurrent regions, each a level, in the model; `MaxLabelLength` bounds every token text the parser keeps and
 every text the model joins or derives (the descriptions under a title joined with `<br/>`, the `<parent>_start` and
-`<parent>_end` ids, and the text styles with `fill` written `bgFill`); `MaxNodes` bounds the states of the database
+`<parent>_end` ids, the text styles with `fill` written `bgFill`, and, as they grow, the CSS classes of a state, the
+styles of a style class, and the compiled styles of a state, which a state listed again or a class defined again
+repeats as in Mermaid); `MaxNodes` bounds the states of the database
 (those that only a `class` or `style` statement names included) and the nodes of the layout (states, composite states,
 concurrent regions with the generated last region, notes, and note groups); and `MaxEdges` bounds the transitions, the
 links of notes not counted. A render of an opened state diagram only reports what it does not draw (the legacy
-renderer, a look other than classic, a layout other than dagre), and fails, located, only where Mermaid's render fails.
+renderer, a look other than classic, a layout other than dagre), and fails, located, only where Mermaid's render fails,
+or where composite states nest deeper than `MaxNestingDepth` through their names (a composite state named in another
+one and declared again at the top keeps that parent), which the layout data checks as a `MermaidRenderException`.
 
 **Deterministic and bounded.** The parser and the model hold no shared state; a parsed model is never changed again,
 so it is safe for concurrent renders. The generated region ids are numbered per model (`id-random-N`) instead of

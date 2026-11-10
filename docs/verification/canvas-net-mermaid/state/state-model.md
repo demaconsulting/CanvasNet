@@ -120,7 +120,12 @@ accessible title `Keys`, and no title.
 `StateModelTests.StateModel_Limits_TooManyTransitions_ThrowsLimitExceeded`,
 `StateModelTests.StateModel_Limits_ConcurrentRegions_CountAsNestingLevels`,
 `StateModelTests.StateModel_Limits_JoinedTexts_ThrowLimitExceeded`,
-`StateModelTests.StateModel_Limits_JoinedTextsAtTheLimit_AreAccepted`
+`StateModelTests.StateModel_Limits_JoinedTextsAtTheLimit_AreAccepted`,
+`StateModelTests.StateModel_SetCssClass_RepeatedIds_ThrowsLimitExceeded`,
+`StateModelTests.StateModel_AddStyleClass_RepeatedDefinitions_ThrowsLimitExceeded`,
+`StateModelTests.StateModel_GetData_CompiledStyles_AreCheckedAndShared`,
+`StateModelTests.StateModel_GetData_StatesNestedThroughNames_ThrowsLimitExceeded`,
+`StateModelTests.StateModel_GetData_NestingCycle_IsLeftToTheLayout`
 
 Asserts (a theory with two cases) that a composite state `C` with the regions holding `a` and `b` has five nodes (the
 composite state, the two regions, and the two states) and that a state `A` with a note has three nodes (the state, the
@@ -138,7 +143,22 @@ names `MermaidLimits.MaxLabelLength` (a theory): the descriptions `yellow` and `
 characters when joined with `<br/>` (line 4); the start id `Abcdefgh_start` of 14 characters (line 3); and the text
 style `bgFill fill` of 11 characters that `classDef c fill color` derives (line 2). Asserts that with the same limit
 the descriptions `de` and `fgh` under the title `abc`, 10 characters when joined, and the start id `Abcd_start` of 10
-characters are accepted.
+characters are accepted. Asserts that with `MaxLabelLength` of 30 `class A,A,A,A hot` is refused at the statement
+(line 2, column 1) with the message `a label is 34 characters long` (four classes and `statediagram-state`), while
+`class A,A,A hot` is accepted and draws the node with the classes `hot hot hot statediagram-state` (a state listed
+again gets the class again, as in Mermaid). Asserts that with `MaxLabelLength` of 20 a third `classDef c a:b,c:d` is
+refused at its line (line 4, column 1), while two are accepted with the styles `a:b`, `c:d`, `a:b`, `c:d`, and that
+`classDef c color:red,x:yyyyyy` is accepted with the text style `fill:red` (the styles and the text styles are
+checked apart). Asserts that with `MaxLabelLength` of 22 a state given the classes `c` (`a:b,c:d`) and `d`
+(`e:f,g:h,i:j`) and a note draws the compiled styles `a:b`, `c:d`, `e:f`, `g:h`, `i:j` in class order, the very list
+its note group draws, while one more style in `d` (23 characters compiled) is refused at the statement that gave the
+state its second class (line 5, column 1). Asserts that with `MaxNestingDepth` of 3 four composite states chained by
+name (`state Si { S(i+1) }` at the top, the last holding `X`) make `GetData` fail with a `MermaidRenderException` of
+code `mermaid-limit-exceeded` at `X` (line 12, column 1) with the message
+`composite states and their concurrent regions are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)`, while
+three give `X`, `S2`, and `S1` the parents `S2`, `S1`, and `S0`; and that composite states `A` and `B` named in each
+other give `GetData` the parents `B` and `A` without a limit failure, while measuring the document fails with
+`mermaid-render-failed` from the layout.
 
 ##### CanvasNetMermaid-State-StateModel-LayoutData: The Layout Data Of A Render
 

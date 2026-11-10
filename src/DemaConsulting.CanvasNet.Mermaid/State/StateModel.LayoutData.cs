@@ -19,6 +19,12 @@ internal sealed partial class StateModel
     /// <summary>The padding of the view box, which the state renderer hard-codes.</summary>
     private const double ViewBoxPadding = 8;
 
+    /// <summary>The CSS class of a note (Mermaid's <c>CSS_DIAGRAM_NOTE</c>).</summary>
+    private const string NoteClass = "statediagram-note";
+
+    /// <summary>The compiled styles of <see cref="NoteClass"/>, or null until a note is fetched.</summary>
+    private IReadOnlyList<string>? _noteCompiledStyles;
+
     /// <inheritdoc />
     public Scene Layout(DiagramRenderContext context)
     {
@@ -129,9 +135,18 @@ internal sealed partial class StateModel
     ///         <see cref="LayoutEdge.MinLen"/> of 1. The diagram type is <c>stateDiagram</c> for the legacy id too, because
     ///         the legacy diagram is drawn by the unified renderer as well.
     ///     </para>
+    ///     <para>
+    ///         A state keeps the parent it was first given when a later statement names it at the top, so a composite
+    ///         state named inside another one and declared again at the top nests its own states one level deeper; chained,
+    ///         such statements nest composite states without any nesting in the text. The nesting the parents make is
+    ///         checked against <see cref="MermaidLimits.MaxNestingDepth"/> (<see cref="LayoutData.CheckNestingDepth"/>).
+    ///     </para>
     /// </remarks>
     /// <param name="config">The effective configuration of the render.</param>
     /// <returns>The layout data.</returns>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown, located, when the composite states nest deeper than <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </exception>
     public LayoutData GetData(MermaidConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -181,7 +196,7 @@ internal sealed partial class StateModel
             Location = edge.Location,
         }).ToList();
 
-        return new LayoutData(nodes, edges, config)
+        var data = new LayoutData(nodes, edges, config)
         {
             DiagramType = "stateDiagram",
             Direction = LayoutDirection,
@@ -189,6 +204,10 @@ internal sealed partial class StateModel
             RankSpacing = config.State.RankSpacing,
             Markers = StateMarkers,
         };
+
+        // A composite state named in another one declared elsewhere is nested in it, without any nesting in the text
+        data.CheckNestingDepth(_limits.MaxNestingDepth, "composite states and their concurrent regions");
+        return data;
     }
 
     /// <summary>
@@ -291,6 +310,7 @@ internal sealed partial class StateModel
                 Text = Sanitize(itemId),
                 CssClasses = $"{classes} {StateClass}",
                 CssStyles = record is null ? [] : [.. record.Styles],
+                ClassLocation = record?.ClassLocation,
             };
             _fetched[itemId] = state;
         }
@@ -316,8 +336,12 @@ internal sealed partial class StateModel
                 state.Dir = DirectionOf(item.Doc);
                 state.Shape = item.Type == DividerType ? DividerType : "roundedWithTitle";
                 state.CssClasses = $"{state.CssClasses} statediagram-cluster {(altFlag ? "statediagram-cluster-alt" : string.Empty)}";
+                state.CompiledStyles = null;
             }
         }
+
+        // The styles of the state's classes, compiled once for its classes and shared by its nodes
+        var compiled = state.CompiledStyles ??= CompileStyles(state.CssClasses, state.ClassLocation ?? item.Location);
 
         var node = new StateNode
         {
@@ -337,7 +361,7 @@ internal sealed partial class StateModel
 
         if (item.Note is not { } note)
         {
-            Insert(node);
+            Insert(node, compiled);
             return;
         }
 
@@ -348,7 +372,7 @@ internal sealed partial class StateModel
             Kind = StateNodeKind.Note,
             Shape = "note",
             Label = note.Text,
-            CssClasses = "statediagram-note",
+            CssClasses = NoteClass,
             CssStyles = [],
             DomId = string.Create(CultureInfo.InvariantCulture, $"state-{itemId}----note-{_graphItemCount}"),
             IsGroup = state.Type == "group",
@@ -370,9 +394,9 @@ internal sealed partial class StateModel
             Location = item.Location,
         };
         _graphItemCount++;
-        Insert(groupNode);
-        Insert(noteNode);
-        Insert(node);
+        Insert(groupNode, compiled);
+        Insert(noteNode, _noteCompiledStyles ??= CompileStyles(NoteClass, item.Location));
+        Insert(node, compiled);
 
         var (from, to) = note.Position == "left of" ? (noteNode.Id, itemId) : (itemId, noteNode.Id);
         _edges.Add(new StateEdge { Id = $"{from}-{to}", Start = from, End = to, IsNote = true, Location = item.Location });
@@ -422,24 +446,16 @@ internal sealed partial class StateModel
     }
 
     /// <summary>
-    ///     Inserts a node, or updates the node of the same id (Mermaid's <c>insertOrUpdateNode</c>): the styles of its
-    ///     style classes are compiled, and an update keeps the parent of a node that has none.
+    ///     Inserts a node, or updates the node of the same id (Mermaid's <c>insertOrUpdateNode</c>): the node gets the
+    ///     compiled styles of its style classes, and an update keeps the parent of a node that has none.
     /// </summary>
     /// <param name="node">The node.</param>
-    private void Insert(StateNode node)
+    /// <param name="compiled">The styles of the node's style classes (<see cref="CompileStyles"/> of its CSS classes).</param>
+    private void Insert(StateNode node, IReadOnlyList<string> compiled)
     {
         if (node.Id.Length == 0 || node.Id == "</join></fork>" || node.Id == "</choice>")
         {
             return;
-        }
-
-        var compiled = new List<string>();
-        foreach (var name in node.CssClasses.Split(' '))
-        {
-            if (_styleClassIndex.TryGetValue(name, out var styleClass))
-            {
-                compiled.AddRange(styleClass.Styles);
-            }
         }
 
         node.CssCompiledStyles = compiled;
@@ -452,6 +468,44 @@ internal sealed partial class StateModel
         CheckNodeCount(_nodes.Count, node.Location);
         _nodes.Add(node);
         _nodeIndex[node.Id] = node;
+    }
+
+    /// <summary>
+    ///     Compiles the styles of CSS classes as <c>insertOrUpdateNode</c> does: for each space-separated class that is a
+    ///     style class, its styles, in class order (a class named again gives its styles again).
+    /// </summary>
+    /// <remarks>
+    ///     Mermaid compiles the styles again for every node it inserts; they depend only on the CSS classes and on the
+    ///     style classes, which are complete before the data fetcher runs, so they are compiled once for each state and
+    ///     shared by its nodes, which never change them.
+    /// </remarks>
+    /// <param name="cssClasses">The CSS classes, separated by spaces.</param>
+    /// <param name="location">The location to report a failure at: the statement that gave the classes.</param>
+    /// <returns>The compiled styles.</returns>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the compiled styles joined with semicolons are longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    private List<string> CompileStyles(string cssClasses, MermaidLocation location)
+    {
+        var compiled = new List<string>();
+        var length = 0L;
+        foreach (var name in cssClasses.Split(' '))
+        {
+            if (!_styleClassIndex.TryGetValue(name, out var styleClass))
+            {
+                continue;
+            }
+
+            foreach (var style in styleClass.Styles)
+            {
+                length += JoinedLength(compiled.Count, style);
+                CheckLabelLength(length, location);
+                compiled.Add(style);
+            }
+        }
+
+        return compiled;
     }
 
     /// <summary>
@@ -518,6 +572,12 @@ internal sealed partial class StateModel
 
         /// <summary>Gets or sets the CSS classes.</summary>
         public required string CssClasses { get; set; }
+
+        /// <summary>Gets or sets the compiled styles of <see cref="CssClasses"/>, or null until they are compiled.</summary>
+        public IReadOnlyList<string>? CompiledStyles { get; set; }
+
+        /// <summary>Gets the location of the last statement that gave the state a CSS class, or null.</summary>
+        public MermaidLocation? ClassLocation { get; init; }
 
         /// <summary>Gets the styles of the state's <c>style</c> statements.</summary>
         public required IReadOnlyList<string> CssStyles { get; init; }

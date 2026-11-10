@@ -72,7 +72,11 @@ safe for concurrent renders):
   returned as the subgraph's value in the enclosing document.
 - **Styles.** `AddClass` adds or extends a style class: each style is kept, and a style that contains `color` also
   gives a text style with its first `fill` written `bgFill`. `SetClass` adds class names to the entities and subgraphs
-  of the ids that exist, and `AddCssStyles` adds inline styles to them; unknown ids are ignored, as in Mermaid.
+  of the ids that exist, and `AddCssStyles` adds inline styles to them; unknown ids are ignored, as in Mermaid. As in
+  Mermaid, an id listed again gets the classes or the styles again, so the model keeps the running length of the
+  inline styles of each entity and subgraph (`CssStylesLength`) and of the styles and, apart, the text styles of each
+  style class (`StylesLength`, `TextStylesLength`), each joined with semicolons, and checks it against
+  `MaxLabelLength` as it grows (`AddStyles`), as it does for the CSS classes.
 - **Completion.** `Complete`, which the parser calls at the end of the text, does what Mermaid's `getData` computes
   from the database: each entity that is not named after a subgraph gets a color index, counting the drawn entities in
   order (Mermaid's `colorIndex`; an entity named after a subgraph gets none and is not drawn), and the compiled styles
@@ -100,7 +104,9 @@ safe for concurrent renders):
   one) at the end, where `md_parent` names no marker; every edge has a minimum length of 1 (Mermaid's ER edges have no
   `minlen`, so dagre's default applies). The data carries Mermaid's id of the diagram, the direction, the four ER
   markers, and the node and rank spacing of the `er` section (`er.nodeSpacing || 140` and `er.rankSpacing || 80`, which
-  Mermaid's ER renderer writes into the spacing of the render).
+  Mermaid's ER renderer writes into the spacing of the render). A subgraph named in another subgraph is nested in it
+  wherever it is declared, so chained subgraphs nest without any nesting in the text; `GetData` checks the nesting the
+  parents make with `LayoutData.CheckNestingDepth` (`subgraphs`, `MaxNestingDepth`).
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, a look other than `classic`
   (`mermaid-look-unsupported`) and a layout other than `dagre` (`mermaid-layout-unsupported`), each located at its
   configuration key with a hint.
@@ -127,12 +133,18 @@ safe for concurrent renders):
     the `classDef` statement; the CSS classes of an entity (`default` and each class after a space) or of a subgraph
     (joined with spaces), checked as each class is added and located at the `class` statement or the statement with
     `:::`; and the compiled styles joined with semicolons, checked at completion and located at the last statement that
-    gave the entity or subgraph classes (for an entity styled only by the `default` class, at its first mention).
-    Repeated `class` statements and wide `classDef` lists can make the last two grow faster than the text, so they are
-    checked where they are made. Every other text the model keeps was checked by the parser (see _ErParser Unit
-    Design_).
+    gave the entity or subgraph classes (for an entity styled only by the `default` class, at its first mention); the
+    inline styles of an entity or a subgraph and the styles and the text styles of a style class, joined with
+    semicolons, checked as each style is added and located at the `style` or `classDef` statement. Repeated `class`,
+    `style`, and `classDef` statements, ids listed again, and wide `classDef` lists can make these grow faster than the
+    text, so they are checked where they are made. Every other text the model keeps was checked by the parser (see
+    _ErParser Unit Design_).
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first unsupported feature in
   strict mode.
+- `GetData` throws a `MermaidRenderException` with code `mermaid-limit-exceeded` when subgraphs nest deeper than
+  `MaxNestingDepth` through their parents (`subgraphs are nested deeper than N levels`), located at the first entity or
+  subgraph one level too deep (the `subgraph` keyword, or the entity's first mention); a cycle of parents is left to
+  the layout, which fails on it.
 - `Layout` propagates the render errors of the shared rendering (`MermaidRenderException` for the layout work limit
   and the other render limits, `OperationCanceledException` for a canceled token). Among them are the two located
   `mermaid-render-failed` failures for texts on which Mermaid's own render fails too: an edge whose end is not drawn (a
@@ -168,8 +180,9 @@ safe for concurrent renders):
 
 - **Limits at open.** `MaxNodes` refuses more entities (those only named after a subgraph included) and subgraphs
   together, `MaxEdges` more relationships, and `MaxLabelLength` a longer text style, joined class list, or joined
-  compiled styles, when the document is opened, as a `MermaidSyntaxException` with code `mermaid-limit-exceeded`;
-  Mermaid has no such limits.
+  compiled, inline, or style class styles, when the document is opened, as a `MermaidSyntaxException` with code
+  `mermaid-limit-exceeded`; subgraphs nested deeper than `MaxNestingDepth` through names are refused when the diagram
+  is laid out, as a `MermaidRenderException` with the same code. Mermaid has no such limits.
 - **Render failures are located.** A relationship side named like a later subgraph and a subgraph that holds itself
   fail the render as Mermaid's render fails on them, but as a located `MermaidRenderException` with code
   `mermaid-render-failed` and a hint, in place of Mermaid's JavaScript error.

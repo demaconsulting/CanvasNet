@@ -95,11 +95,19 @@ sections:
                   composite states, concurrent regions, notes, and note groups together than MaxNodes (a state that only
                   a class statement names included), concurrent regions that nest deeper than MaxNestingDepth (each
                   region a level), and a text it joins or derives from texts checked apart - the descriptions under a
-                  title, the id of a start or end state, or a text style - longer than MaxLabelLength.
+                  title, the id of a start or end state, a text style, the CSS classes of a state (joined with spaces),
+                  the styles or text styles of a style class or the compiled styles of a state (joined with
+                  semicolons) - longer than MaxLabelLength; and shall refuse in its layout data, with a located
+                  MermaidRenderException of code mermaid-limit-exceeded, composite states nested deeper than
+                  MaxNestingDepth through their parents, however the statements nest them.
                 justification: |
                   The size of the model, and so the cost of the layout, must be bounded for untrusted text; the regions
                   and note groups are clusters of the layout, and a joined text can be longer than any of its parts,
-                  so it is checked where it is made.
+                  so it is checked where it is made. A state listed again in a class statement, or a class defined
+                  again, repeats the class or the styles as in Mermaid, so without a check the compiled styles would
+                  grow with the product of the repetitions and the mentions of the state; and a composite state named
+                  in another one keeps that parent when it is declared again at the top, so chained statements nest
+                  the clusters without bound though the text nests them one level deep.
                 tests:
                   - StateModel_Limits_ClustersNotesAndGroups_CountAgainstMaxNodes
                   - StateModel_Limits_TooManyStates_ThrowsLimitExceeded
@@ -107,6 +115,11 @@ sections:
                   - StateModel_Limits_ConcurrentRegions_CountAsNestingLevels
                   - StateModel_Limits_JoinedTexts_ThrowLimitExceeded
                   - StateModel_Limits_JoinedTextsAtTheLimit_AreAccepted
+                  - StateModel_SetCssClass_RepeatedIds_ThrowsLimitExceeded
+                  - StateModel_AddStyleClass_RepeatedDefinitions_ThrowsLimitExceeded
+                  - StateModel_GetData_CompiledStyles_AreCheckedAndShared
+                  - StateModel_GetData_StatesNestedThroughNames_ThrowsLimitExceeded
+                  - StateModel_GetData_NestingCycle_IsLeftToTheLayout
 
               - id: CanvasNetMermaid-State-StateModel-LayoutData
                 title: >-

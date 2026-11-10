@@ -555,12 +555,15 @@ sections:
           - CanvasNetMermaid_Hardening_StateManyNotes_IsALocatedNodeLimit
           - CanvasNetMermaid_Hardening_StateNestedRegions_IsALocatedNestingLimit
           - CanvasNetMermaid_Hardening_StateManyDescriptions_IsALocatedLabelLimit
+          - CanvasNetMermaid_Hardening_StateNestedThroughNames_IsALocatedNestingLimit
+          - CanvasNetMermaid_Hardening_StateAndErRepeatedClassesAndStyles_AreALocatedLimit
           - CanvasNetMermaid_Hardening_StateLongChain_RendersOrHitsTheWorkLimit
           - CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_StateDiagram_WorkLimit_FailsWithLimitExceeded
           - CanvasNetMermaid_Hardening_HostileErDiagram_RendersOrFailsLocated
           - CanvasNetMermaid_Hardening_ErManyEntities_IsALocatedNodeLimit
           - CanvasNetMermaid_Hardening_ErNestedSubgraphs_IsALocatedNestingLimit
+          - CanvasNetMermaid_Hardening_ErNestedThroughNames_IsALocatedNestingLimit
           - CanvasNetMermaid_Hardening_ErLongComment_IsALocatedLabelLimit
           - CanvasNetMermaid_Hardening_ErManyAttributes_Render
           - CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions

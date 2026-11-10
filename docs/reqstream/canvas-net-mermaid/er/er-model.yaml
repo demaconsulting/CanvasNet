@@ -77,17 +77,25 @@ sections:
                   The ErModel unit shall refuse, with a located MermaidSyntaxException of code mermaid-limit-exceeded,
                   more relationships than MaxEdges, more entities (those only named after a subgraph included) and
                   subgraphs together than MaxNodes, and a text it joins or derives from texts checked apart - a text
-                  style, the classes of an entity or a subgraph joined with spaces, or the compiled styles joined with
-                  semicolons - longer than MaxLabelLength.
+                  style, the classes of an entity or a subgraph joined with spaces, or the compiled styles, the inline
+                  styles of an entity or a subgraph, or the styles or text styles of a style class joined with
+                  semicolons - longer than MaxLabelLength; and shall refuse in its layout data, with a located
+                  MermaidRenderException of code mermaid-limit-exceeded, subgraphs nested deeper than MaxNestingDepth
+                  through their parents, however the statements nest them.
                 justification: |
                   The size of the model, and so the cost of the layout, must be bounded for untrusted text; repeated
-                  class statements can make the joined texts grow faster than the text, so they are checked where they
-                  are made.
+                  class, style, and classDef statements, or an id listed again in one, can make the joined texts grow
+                  faster than the text, so they are checked where they are made. A subgraph named in another subgraph
+                  is nested in it wherever it is declared, so chained subgraphs nest the clusters without bound though
+                  the parser sees no nesting.
                 tests:
                   - ErModel_Limits_EntitiesAndSubgraphs_CountAgainstMaxNodes
                   - ErModel_Limits_TooManyRelationships_ThrowsLimitExceeded
                   - ErModel_Limits_JoinedTexts_ThrowLimitExceeded
                   - ErModel_Limits_JoinedTextsAtTheLimit_AreAccepted
+                  - ErModel_AddCssStyles_RepeatedIds_ThrowsLimitExceeded
+                  - ErModel_AddClass_RepeatedNames_ThrowsLimitExceeded
+                  - ErModel_GetData_SubgraphsNestedThroughNames_ThrowsLimitExceeded
 
               - id: CanvasNetMermaid-Er-ErModel-LayoutData
                 title: >-

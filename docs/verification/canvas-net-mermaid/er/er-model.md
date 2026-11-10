@@ -105,7 +105,10 @@ entities), two edges, and one subgraph, the direction `RL` (the last top-level s
 **Tests**: `ErModelTests.ErModel_Limits_EntitiesAndSubgraphs_CountAgainstMaxNodes`,
 `ErModelTests.ErModel_Limits_TooManyRelationships_ThrowsLimitExceeded`,
 `ErModelTests.ErModel_Limits_JoinedTexts_ThrowLimitExceeded`,
-`ErModelTests.ErModel_Limits_JoinedTextsAtTheLimit_AreAccepted`
+`ErModelTests.ErModel_Limits_JoinedTextsAtTheLimit_AreAccepted`,
+`ErModelTests.ErModel_AddCssStyles_RepeatedIds_ThrowsLimitExceeded`,
+`ErModelTests.ErModel_AddClass_RepeatedNames_ThrowsLimitExceeded`,
+`ErModelTests.ErModel_GetData_SubgraphsNestedThroughNames_ThrowsLimitExceeded`
 
 Asserts that with `MaxNodes` of 3 (a theory with three cases) a fourth entity is `mermaid-limit-exceeded` at its
 statement (line 5); that after a subgraph `S` holding `A`, the relationship `S ||--o{ B : r` is refused at line 5,
@@ -120,7 +123,16 @@ line 3, the subgraph classes `alpha charlie` of `class S alpha,charlie` at line 
 `stroke:red;fill:red` of `class A a,b` at line 5, checked when the model is completed and located at that `class`
 statement. Asserts that with the same limit the texts exactly at it are accepted: the CSS classes `default c ab` of an
 entity, its compiled style `fill:colo` (no text style, as it has no `color`), and the compiled styles `fill:colo` and
-`s` of a subgraph.
+`s` of a subgraph. Asserts that with the same limit `style A,A fill:red` is refused at the statement (line 3,
+column 1) with the message `a label is 17 characters long` (an id listed again gets the styles again, as in Mermaid),
+two `style S fill:red` statements on a subgraph are refused at the second (line 5, column 1), and `style A fill:red`
+is accepted with the inline style `fill:red`; that `classDef c,c a:b,c:d` is refused at the statement (line 2,
+column 1) with the message `a label is 15 characters long`, while `classDef c a:b,c:d` is accepted with the styles
+`a:b` and `c:d` and `classDef c color:red` with the style and the text style `color:red` (checked apart). Asserts
+that with `MaxNestingDepth` of 3 four subgraphs chained by name (`subgraph Si` holding `S(i+1)`, the last holding `X`)
+make `GetData` fail with a `MermaidRenderException` of code `mermaid-limit-exceeded` at the entity `X` (line 12,
+column 1) with the message `subgraphs are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)`, while three
+give `X`, `S2`, and `S1` the parents `S2`, `S1`, and `S0`.
 
 ##### CanvasNetMermaid-Er-ErModel-LayoutData: The Layout Data Of A Render
 

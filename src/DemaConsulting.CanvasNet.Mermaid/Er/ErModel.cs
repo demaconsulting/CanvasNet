@@ -27,9 +27,11 @@ namespace DemaConsulting.CanvasNet.Mermaid.Er;
 ///         <see cref="MermaidLimits.MaxNodes"/>, as the flowchart model counts vertices and subgraphs; relationships count
 ///         against <see cref="MermaidLimits.MaxEdges"/>, as class relations and state transitions do. The texts the model
 ///         joins or derives are checked against <see cref="MermaidLimits.MaxLabelLength"/>: the text styles of a style
-///         class, the CSS classes of an entity or a subgraph (joined with spaces) and their compiled styles (joined with
-///         semicolons) (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>); the parser checks the texts it keeps and
-///         joins. Mermaid's ER database has no errors of its own.
+///         class, the CSS classes of an entity or a subgraph (joined with spaces), their compiled styles, their inline
+///         styles and the styles and text styles of a style class (joined with semicolons), the last three as they grow,
+///         since an id listed again repeats them as in Mermaid (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>); the
+///         parser checks the texts it keeps and joins. Subgraphs nested deeper through their names are refused by
+///         <see cref="GetData"/>. Mermaid's ER database has no errors of its own.
 ///     </para>
 ///     <para>
 ///         The model is filled by one parser on one thread; once parsing is over it is never changed, so it is safe for
@@ -219,20 +221,26 @@ internal sealed partial class ErModel : IMermaidDiagram
     /// <param name="ids">The ids.</param>
     /// <param name="styles">The styles.</param>
     /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the inline styles of an entity or a subgraph, joined with semicolons, get longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
     public void AddCssStyles(IReadOnlyList<string> ids, IReadOnlyList<string> styles, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(ids);
         ArgumentNullException.ThrowIfNull(styles);
+
+        // An id listed again gets the styles again, as in Mermaid, so the joined styles are checked as they grow
         foreach (var id in ids)
         {
             if (_entityIndex.TryGetValue(id, out var entity))
             {
-                entity.CssStyles.AddRange(styles);
+                entity.CssStylesLength = AddStyles(entity.CssStyles, entity.CssStylesLength, styles, location);
             }
 
             if (_subgraphIndex.TryGetValue(id, out var subgraph))
             {
-                subgraph.CssStyles.AddRange(styles);
+                subgraph.CssStylesLength = AddStyles(subgraph.CssStyles, subgraph.CssStylesLength, styles, location);
             }
         }
     }
@@ -244,11 +252,16 @@ internal sealed partial class ErModel : IMermaidDiagram
     /// <param name="ids">The class names.</param>
     /// <param name="styles">The styles.</param>
     /// <param name="location">The location of the statement.</param>
-    /// <exception cref="MermaidSyntaxException">Thrown, located, when a text style is too long.</exception>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when a text style is too long, or when the styles or the text styles of a style class, joined
+    ///     with semicolons, get too long.
+    /// </exception>
     public void AddClass(IReadOnlyList<string> ids, IReadOnlyList<string> styles, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(ids);
         ArgumentNullException.ThrowIfNull(styles);
+
+        // A class listed again gets the styles again, as in Mermaid, so the joined styles are checked as they grow
         foreach (var id in ids)
         {
             if (!_styleClassIndex.TryGetValue(id, out var styleClass))
@@ -263,11 +276,10 @@ internal sealed partial class ErModel : IMermaidDiagram
                 if (style.Contains("color", StringComparison.Ordinal))
                 {
                     var textStyle = ReplaceFirst(style, "fill", "bgFill");
-                    CheckLabelLength(textStyle.Length, location);
-                    styleClass.TextStyles.Add(textStyle);
+                    styleClass.TextStylesLength = AddStyles(styleClass.TextStyles, styleClass.TextStylesLength, [textStyle], location);
                 }
 
-                styleClass.Styles.Add(style);
+                styleClass.StylesLength = AddStyles(styleClass.Styles, styleClass.StylesLength, [style], location);
             }
         }
     }
@@ -442,6 +454,28 @@ internal sealed partial class ErModel : IMermaidDiagram
     }
 
     /// <summary>
+    ///     Adds styles to a list, checking the running length of the list joined with semicolons against
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </summary>
+    /// <param name="list">The list.</param>
+    /// <param name="length">The length of the list joined with semicolons.</param>
+    /// <param name="styles">The styles to add, in order.</param>
+    /// <param name="location">The location of the statement.</param>
+    /// <returns>The length of the list joined with semicolons once the styles are added.</returns>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the joined styles get too long.</exception>
+    private int AddStyles(List<string> list, int length, IReadOnlyList<string> styles, MermaidLocation location)
+    {
+        foreach (var style in styles)
+        {
+            length += (list.Count > 0 ? 1 : 0) + style.Length;
+            CheckLabelLength(length, location);
+            list.Add(style);
+        }
+
+        return length;
+    }
+
+    /// <summary>
     ///     Compiles the styles of classes (Mermaid's <c>getCompiledStyles</c>): for each class that exists, its styles then
     ///     its text styles, trimmed.
     /// </summary>
@@ -542,6 +576,9 @@ internal sealed class ErEntity
     /// <summary>Gets the inline styles (<c>style</c> statements), in order.</summary>
     public List<string> CssStyles { get; } = [];
 
+    /// <summary>Gets or sets the length of <see cref="CssStyles"/> joined with semicolons.</summary>
+    public int CssStylesLength { get; set; }
+
     /// <summary>Gets or sets the compiled styles of the classes, set when the model is complete.</summary>
     public IReadOnlyList<string> CssCompiledStyles { get; set; } = [];
 
@@ -593,6 +630,12 @@ internal sealed record ErStyleClass(string Id)
 
     /// <summary>Gets the text styles (the styles with <c>color</c>, with <c>fill</c> as <c>bgFill</c>), in order.</summary>
     public List<string> TextStyles { get; } = [];
+
+    /// <summary>Gets or sets the length of <see cref="Styles"/> joined with semicolons.</summary>
+    public int StylesLength { get; set; }
+
+    /// <summary>Gets or sets the length of <see cref="TextStyles"/> joined with semicolons.</summary>
+    public int TextStylesLength { get; set; }
 }
 
 /// <summary>
@@ -620,6 +663,9 @@ internal sealed class ErSubgraph
 
     /// <summary>Gets the inline styles in order.</summary>
     public List<string> CssStyles { get; } = [];
+
+    /// <summary>Gets or sets the length of <see cref="CssStyles"/> joined with semicolons.</summary>
+    public int CssStylesLength { get; set; }
 
     /// <summary>Gets or sets the compiled styles of the classes, set when the model is complete.</summary>
     public IReadOnlyList<string> CssCompiledStyles { get; set; } = [];

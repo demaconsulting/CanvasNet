@@ -110,8 +110,13 @@ parsing, so it is safe for concurrent renders.
   its first semicolon and is trimmed, and an attribute that mentions `color` also gives a text style, with its first
   `fill` written `bgFill` and then its first `color` written `fill`. **`SetStyles`** (Mermaid's `handleStyleDef`) gives
   each listed state, added when it does not exist, the comma-separated styles without any semicolon, in place of its
-  styles. **`SetCssClass`** (Mermaid's `setCssClass`) adds a CSS class to comma-separated states, adding the states
-  that do not exist.
+  styles (computed once for the statement). **`SetCssClass`** (Mermaid's `setCssClass`) adds a CSS class to
+  comma-separated states, adding the states that do not exist. As in Mermaid, a state listed again gets the class
+  again and a class defined again gets its styles again, so the database keeps the running length of the CSS classes of
+  each state as the data fetcher joins them (`CssClassesLength`: the classes joined with spaces, then
+  `statediagram-state`) and of the styles and, apart, the text styles of each style class (joined with semicolons),
+  and checks each against `MaxLabelLength` as it grows; it also keeps the location of the last statement that gave a
+  state a class.
 - **`FetchDocument`** (Mermaid's `setupDoc`) fetches the states of a document and, for a transition, both its states,
   checks `MaxEdges`, and adds the edge `edgeN` with the sanitized label, advancing the shared counter. **`Fetch`**
   fetches a state and then its document, with the alternate flag flipped and the level one deeper.
@@ -134,9 +139,16 @@ parsing, so it is safe for concurrent renders.
   state a plain state, as in Mermaid. A `rectWithTitle` with one description goes back to `rect`, or to
   `roundedWithTitle` for a cluster.
 - **`Insert`** (Mermaid's `insertOrUpdateNode`) ignores an empty id and Mermaid's `</join></fork>` and `</choice>` ids,
-  compiles the styles of the style classes named in the node's CSS classes as they are defined at that moment, and
-  either updates the node of the same id (`StateNode.Assign`, JavaScript's `Object.assign`: every field taken except a
+  gives the node the compiled styles of its CSS classes, and either updates the node of the same id
+  (`StateNode.Assign`, JavaScript's `Object.assign`: every field taken except a
   parent the newer node does not have) or adds the node, checking `MaxNodes`.
+- **`CompileStyles`** compiles the styles of CSS classes as `insertOrUpdateNode` does: for each space-separated class
+  that is a style class, its styles, in class order, checking the running length joined with semicolons against
+  `MaxLabelLength`. Mermaid compiles them again for every node it inserts; they depend only on the CSS classes and on
+  the style classes, which are complete before the data fetcher runs, so `FetchState` compiles them once for each
+  fetched state (again only when the state becomes a cluster and its classes change) and shares the list among the
+  state's nodes and its note group, and the note class `statediagram-note` is compiled once for all notes. The result
+  is the same as Mermaid's, while the work no longer grows with the mentions of a state.
 - **`ProcessLabels`** (the end of Mermaid's `extract`) gives each node whose description is a list its first
   description as the label and the others as its descriptions, failing a cluster that has more than its title.
 - **Metadata** (`IMermaidDiagram`): `Title` is always null (the state grammar has no title statement, so the document
@@ -157,7 +169,11 @@ parsing, so it is safe for concurrent renders.
   arrowhead style `fill: #333`, the style `fill:none`, and a minimum length of 1 (Mermaid's state edges have no
   `minlen`, so dagre's default applies). The data carries the diagram type `stateDiagram` (the legacy id too, since it
   is drawn by the unified renderer), the layout direction, the `barb` marker, and the node and rank spacing of the state
-  section (`state.nodeSpacing` and `state.rankSpacing`, each 50 when missing or zero).
+  section (`state.nodeSpacing` and `state.rankSpacing`, each 50 when missing or zero). A state keeps the parent it was
+  first given when a later statement names it at the top (`StateNode.Assign`), so a composite state named inside another
+  one and declared again at the top nests its states one level deeper; chained, such statements nest composite states
+  without any nesting in the text, so `GetData` checks the nesting the parents make with `LayoutData.CheckNestingDepth`
+  (`composite states and their concurrent regions`, `MaxNestingDepth`).
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, the legacy renderer of the legacy id
   (`mermaid-layout-unsupported`, naming the `state.defaultRenderer` and located at the top-level `state` key), a look
   other than `classic` (`mermaid-look-unsupported`), and a layout other than `dagre` (`mermaid-layout-unsupported`),
@@ -190,9 +206,15 @@ parsing, so it is safe for concurrent renders.
     (`mermaid-limit-exceeded`, with the message `a label is N characters long`, checked by `CheckLabel` and
     `CheckLabelLength`): the descriptions under a title, counted as `rectWithTitle` draws them, joined with `<br/>` (5
     characters for each join), located at the statement that adds a description; the id `<parent>_start` or
-    `<parent>_end` of a start or end state, located at its `[*]`; and the text style of a style class (with `fill`
-    written `bgFill`, 2 characters longer), located at the `classDef` statement. Every other text the model keeps was
-    checked by the parser.
+    `<parent>_end` of a start or end state, located at its `[*]`; the text style of a style class (with `fill`
+    written `bgFill`, 2 characters longer), located at the `classDef` statement; the CSS classes of a state, located at
+    the `class` statement or `:::` mention that makes them too long; the styles and the text styles of a style class,
+    located at the `classDef` statement; and the compiled styles of a state, located at the last statement that gave
+    the state a class (else at the statement fetched). Every other text the model keeps was checked by the parser.
+- `GetData` throws a `MermaidRenderException` with code `mermaid-limit-exceeded` when composite states nest deeper than
+  `MaxNestingDepth` through their parents (`composite states and their concurrent regions are nested deeper than N
+  levels`), located at the statement that last set the first state one level too deep; a cycle of parents is left to
+  the layout, which fails on it.
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first unsupported feature in
   strict mode.
 - `Layout` fails a node without a shape (a note on a state that appears nowhere before it, on which Mermaid's render
@@ -235,8 +257,9 @@ parsing, so it is safe for concurrent renders.
   with Mermaid's message and a hint; Mermaid fails on the same texts.
 - **Limits at open.** `MaxEdges` refuses more transitions, `MaxNodes` more states or more layout nodes (regions and
   note groups included), `MaxNestingDepth` composite states and regions nested deeper, and `MaxLabelLength` a longer
-  joined or derived text, when the document is opened, as a `MermaidSyntaxException` with code
-  `mermaid-limit-exceeded`; Mermaid has no such limits.
+  joined or derived text (repeated classes and styles included), when the document is opened, as a
+  `MermaidSyntaxException` with code `mermaid-limit-exceeded`; composite states nested deeper through names are refused
+  when the diagram is laid out, as a `MermaidRenderException` with the same code. Mermaid has no such limits.
 - **Interaction.** The links of the click statements are kept only as data; they are never drawn or bound and are not
   reported.
 - **Security level.** Texts are always sanitized as Mermaid sanitizes them at its strict security level, the only level

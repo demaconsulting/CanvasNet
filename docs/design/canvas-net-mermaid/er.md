@@ -105,11 +105,14 @@ located `MermaidSyntaxException`: a grammar error (with Mermaid's expected token
 `style` or `classDef` statement), and the limits of the open call (`MaxNestingDepth` for the nesting of subgraphs and
 `MaxLabelLength` for every text the parser reads or joins; `MaxNodes` for the entities, those only named after a
 subgraph included, and the subgraphs together, `MaxEdges` for the relationships, and `MaxLabelLength` for the texts the
-model joins or derives). Mermaid's ER database raises no errors of its own. A render of an opened ER diagram reports
+model joins or derives, the classes and styles an id listed again repeats as in Mermaid included). Mermaid's ER
+database raises no errors of its own. A render of an opened ER diagram reports
 what it does not draw (a look other than classic, a layout other than dagre) and then draws; the two kinds of text on
 which Mermaid's own render fails, a relationship whose side is named like a subgraph declared after it (its end is an
 entity that is not drawn) and a subgraph that holds itself (through a relationship to it inside it), fail the render
-with a located `mermaid-render-failed` from the shared cluster layout.
+with a located `mermaid-render-failed` from the shared cluster layout. Subgraphs nested deeper than `MaxNestingDepth`
+through their names (a subgraph named in another one declared elsewhere), which the parser does not see, are refused
+by the layout data as a located `MermaidRenderException` with code `mermaid-limit-exceeded`.
 
 **Deterministic and bounded.** The parser and the model hold no shared state; a completed model is never changed
 again, so it is safe for concurrent renders. The lexer replaces every regular expression of Mermaid with matchers that

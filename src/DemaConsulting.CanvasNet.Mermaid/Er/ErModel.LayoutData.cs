@@ -110,9 +110,17 @@ internal sealed partial class ErModel
     ///         The spacing is <c>er.nodeSpacing</c> and <c>er.rankSpacing</c> (140 and 80 by default), and the direction is
     ///         the diagram's direction.
     ///     </para>
+    ///     <para>
+    ///         A subgraph named in another subgraph is nested in it wherever the subgraph itself is declared, so chained
+    ///         subgraphs nest without any nesting in the text. The nesting the parents make is checked against
+    ///         <see cref="MermaidLimits.MaxNestingDepth"/> (<see cref="LayoutData.CheckNestingDepth"/>).
+    ///     </para>
     /// </remarks>
     /// <param name="config">The effective configuration of the render.</param>
     /// <returns>The layout data.</returns>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown, located, when the subgraphs nest deeper than <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </exception>
     public LayoutData GetData(MermaidConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -191,7 +199,7 @@ internal sealed partial class ErModel
             Location = relationship.Location,
         }).ToList();
 
-        return new LayoutData(nodes, edges, config)
+        var data = new LayoutData(nodes, edges, config)
         {
             DiagramType = MermaidId,
             Direction = Direction,
@@ -199,5 +207,9 @@ internal sealed partial class ErModel
             RankSpacing = config.Er.RankSpacing,
             Markers = ErMarkers,
         };
+
+        // A subgraph named in another subgraph declared elsewhere is nested in it, without any nesting in the text
+        data.CheckNestingDepth(_limits.MaxNestingDepth, "subgraphs");
+        return data;
     }
 }

@@ -71,7 +71,8 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
     /// <param name="clusters">What the diagram's clusters are called, for the message (<c>namespaces</c>, <c>subgraphs</c>, ...).</param>
     /// <exception cref="MermaidRenderException">
     ///     Thrown with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the clusters nest too deeply, located at the
-    ///     node that gave the parent of the first node (in node order) that is inside too many clusters.
+    ///     node that gave its parent to the first node (in node order) that is one level too deep, where the limit is
+    ///     passed.
     /// </exception>
     public void CheckNestingDepth(int maxDepth, string clusters)
     {
@@ -122,15 +123,17 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
                 depth = depth == Cycle ? Cycle : depth + 1;
                 depths[chain[i]] = depth;
             }
+        }
 
-            if (depth > maxDepth)
-            {
-                throw new MermaidRenderException(
-                    MermaidDiagnosticCodes.LimitExceeded,
-                    string.Create(CultureInfo.InvariantCulture, $"{clusters} are nested deeper than {maxDepth} levels (MermaidLimits.MaxNestingDepth)"),
-                    parents[id].Location,
-                    $"nest fewer {clusters}, or raise MermaidLimits.MaxNestingDepth when the source is trusted");
-            }
+        // The limit is passed where a node is first one level too deep: every deeper chain goes through such a node
+        var tooDeep = Nodes.Select(node => node.Id).FirstOrDefault(id => depths[id] == maxDepth + 1);
+        if (tooDeep is not null)
+        {
+            throw new MermaidRenderException(
+                MermaidDiagnosticCodes.LimitExceeded,
+                string.Create(CultureInfo.InvariantCulture, $"{clusters} are nested deeper than {maxDepth} levels (MermaidLimits.MaxNestingDepth)"),
+                parents[tooDeep].Location,
+                $"nest fewer {clusters}, or raise MermaidLimits.MaxNestingDepth when the source is trusted");
         }
     }
 }

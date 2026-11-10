@@ -175,6 +175,80 @@ public class StateModelTests
     }
 
     /// <summary>
+    ///     Validates that a state listed again in a <c>class</c> statement gets the class again, as in Mermaid, and that
+    ///     CSS classes that grow longer than <see cref="MermaidLimits.MaxLabelLength"/> that way (joined with spaces, with
+    ///     <c> statediagram-state</c>, as the node draws them) are refused, located at the statement.
+    /// </summary>
+    [Fact]
+    public void StateModel_SetCssClass_RepeatedIds_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 30 };
+
+        // Act: three classes and the state class are 30 characters; four are 34
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse("stateDiagram-v2\nclass A,A,A,A hot\nA\n", null, limits));
+        var accepted = StateFacts.Parse("stateDiagram-v2\nclass A,A,A hot\nA\n", null, limits);
+        var data = accepted.GetData(StateFacts.DefaultConfig("stateDiagram-v2\nclass A,A,A hot\nA\n"));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 2, 1), ex.Location);
+        Assert.Contains("a label is 34 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("hot hot hot statediagram-state", Assert.Single(data.Nodes).CssClasses);
+    }
+
+    /// <summary>
+    ///     Validates that a style class defined again gets its styles again, as in Mermaid, and that the styles of a style
+    ///     class that grow longer than <see cref="MermaidLimits.MaxLabelLength"/> (joined with semicolons) are refused,
+    ///     located at the statement, while its styles and its text styles are each checked apart.
+    /// </summary>
+    [Fact]
+    public void StateModel_AddStyleClass_RepeatedDefinitions_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 20 };
+        const string Definition = "classDef c a:b,c:d\n";
+
+        // Act: three definitions are 23 characters of styles; two are 15
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse("stateDiagram-v2\n" + Definition + Definition + Definition, null, limits));
+        var accepted = StateFacts.Parse("stateDiagram-v2\n" + Definition + Definition, null, limits);
+        var colored = StateFacts.Parse("stateDiagram-v2\nclassDef c color:red,x:yyyyyy\n", null, limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 4, 1), ex.Location);
+        Assert.Equal(["a:b", "c:d", "a:b", "c:d"], Assert.Single(accepted.StyleClasses).Styles);
+        Assert.Equal(["fill:red"], Assert.Single(colored.StyleClasses).TextStyles);
+    }
+
+    /// <summary>
+    ///     Validates that the compiled styles of a state's classes (joined with semicolons) are checked against
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>, located at the last statement that gave the state a class, and that
+    ///     they are compiled in class order once for each state and shared by its nodes (the state and its note group).
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_CompiledStyles_AreCheckedAndShared()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 22 };
+        const string Accepted = "stateDiagram-v2\nclassDef c a:b,c:d\nclassDef d e:f,g:h,i:j\nclass A c\nclass A d\nA\nnote left of A : n\nA\n";
+        const string Refused = "stateDiagram-v2\nclassDef c a:b,c:d\nclassDef d e:f,g:h,i:j,k:l\nclass A c\nclass A d\nA\n";
+
+        // Act: the classes are 22 characters; the compiled styles are 19, and 23 with one more style
+        var data = StateFacts.Parse(Accepted, null, limits).GetData(StateFacts.DefaultConfig(Accepted));
+        var ex = Assert.Throws<MermaidSyntaxException>(() => StateFacts.Parse(Refused, null, limits));
+
+        // Assert
+        var state = data.Nodes.Single(n => n.Id == "A");
+        var group = data.Nodes.Single(n => n.Id == "A----parent");
+        Assert.Equal(["a:b", "c:d", "e:f", "g:h", "i:j"], state.CssCompiledStyles);
+        Assert.Same(state.CssCompiledStyles, group.CssCompiledStyles);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 5, 1), ex.Location);
+        Assert.Contains("a label is 23 characters long", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a composite state with a description beyond its title fails with Mermaid's message, located at
     ///     the statement that added the description.
     /// </summary>
@@ -270,6 +344,54 @@ public class StateModelTests
         Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
         Assert.Equal(5, ex.Location.Line);
         Assert.Contains("MermaidLimits.MaxNestingDepth", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that composite states nested through names (composite state <c>Si</c> names <c>S(i+1)</c>, which is
+    ///     declared again at the top with its own states and keeps the parent it was first given) count against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/> in the layout data, though the text nests them one level deep: a
+    ///     state four composite states deep is refused with a limit of 3, located at the state, while three are accepted.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_StatesNestedThroughNames_ThrowsLimitExceeded()
+    {
+        // Arrange: state Si { S(i+1) } on lines 2 + 3i to 4 + 3i; the last holds X
+        static string Chain(int count) =>
+            "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"state S{i} {{\n{(i == count - 1 ? "X" : $"S{i + 1}")}\n}}\n"));
+        var limits = new MermaidLimits { MaxNestingDepth = 3 };
+        var refused = StateFacts.Parse(Chain(4), null, limits);
+        var accepted = StateFacts.Parse(Chain(3), null, limits);
+
+        // Act
+        var ex = Assert.Throws<MermaidRenderException>(() => refused.GetData(StateFacts.DefaultConfig(Chain(4))));
+        var data = accepted.GetData(StateFacts.DefaultConfig(Chain(3)));
+
+        // Assert: X is inside S3, S2, S1 and S0
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 12, 1), ex.Location);
+        Assert.Contains("composite states and their concurrent regions are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(("S2", "S1", "S0"), (data.Nodes.Single(n => n.Id == "X").ParentId, data.Nodes.Single(n => n.Id == "S2").ParentId, data.Nodes.Single(n => n.Id == "S1").ParentId));
+    }
+
+    /// <summary>
+    ///     Validates that composite states nested in each other through names (a cycle) are left to the layout, which fails
+    ///     on them located, rather than being taken for a nesting too deep.
+    /// </summary>
+    [Fact]
+    public void StateModel_GetData_NestingCycle_IsLeftToTheLayout()
+    {
+        // Arrange
+        const string Text = "stateDiagram-v2\nstate A {\nB\n}\nstate B {\nA\n}\n";
+        var model = StateFacts.Parse(Text);
+        var document = MermaidDocument.Parse(Text);
+
+        // Act
+        var data = model.GetData(StateFacts.DefaultConfig(Text));
+        var ex = Assert.Throws<MermaidRenderException>(() => document.Measure(null, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(("B", "A"), (data.Nodes.Single(n => n.Id == "A").ParentId, data.Nodes.Single(n => n.Id == "B").ParentId));
+        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, ex.Code);
     }
 
     /// <summary>

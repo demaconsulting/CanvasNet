@@ -41,7 +41,8 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   groups). Immutable. `CheckNestingDepth(maxDepth, clusters)` checks the nesting that the parents make, as the layout
   sets them (for an id that several nodes share, the last parent given): a node inside more than `maxDepth` clusters
   is a `MermaidRenderException` with code `mermaid-limit-exceeded` and the message `<clusters> are nested deeper than
-  N levels (MermaidLimits.MaxNestingDepth)`, located at the node that gave the parent of the first node too deep. A
+  N levels (MermaidLimits.MaxNestingDepth)`, located at the node that gave its parent to the first node (in node order)
+  exactly one level too deep, where the limit is passed (every deeper chain goes through such a node). A
   diagram model calls it from its `GetData` with `MaxNestingDepth`, because a cluster can be nested by naming it
   inside another cluster declared elsewhere, which chains clusters that the parser never sees nested. The depth of
   each id is computed once, so the check is linear; a chain that runs into a cycle is left to the layout, which fails

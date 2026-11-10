@@ -1031,6 +1031,96 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that composite states nested through names (composite state <c>Si</c> names <c>S(i+1)</c>, declared
+    ///     again at the top with its own state, keeping the parent it was first given) count against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>, though the text nests them one level deep: a chain of 32 renders,
+    ///     and chains of 40 and 1,700 fail when laid out, located at the state of the 33rd level.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_StateNestedThroughNames_IsALocatedNestingLimit()
+    {
+        // Arrange: state Si { S(i+1) } on lines 2 + 3i to 4 + 3i
+        static string Chain(int count) =>
+            "stateDiagram-v2\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"state S{i} {{\nS{i + 1}\n}}\n"));
+        var accepted = MermaidDocument.Parse(Chain(32));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exceptions = new[] { 40, 1_700 }
+            .Select(count => Assert.Throws<MermaidRenderException>(() => MermaidDocument.Parse(Chain(count)).Measure(Tenth, TestContext.Current.CancellationToken)))
+            .ToList();
+
+        // Assert: S33, declared on line 101, is the first state inside 33 composite states
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.All(exceptions, exception =>
+        {
+            Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+            Assert.Equal(101, exception.Location.Line);
+            Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Gets state and ER diagrams that repeat CSS classes or styles on one state, entity or style class, as Mermaid
+    ///     does for an id listed or a class defined again, until a joined text passes
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>, each with the line of the statement that makes it too long and the
+    ///     length it reaches there.
+    /// </summary>
+    public static TheoryData<string, int, int> StateAndErRepeatedClassesAndStyles => new()
+    {
+        // The review's state shape: four definitions of 1,000 styles of one class, two class statements listing the
+        // state 2,000 times, and 300 mentions; the styles of the class pass 4,096 characters at the second definition
+        {
+            "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat($"classDef c {string.Join(',', Enumerable.Repeat("a:b", 1_000))}\n", 4)) +
+                string.Concat(Enumerable.Repeat($"class {string.Join(',', Enumerable.Repeat("A", 2_000))} c\n", 2)) + string.Concat(Enumerable.Repeat("A\n", 300)),
+            3,
+            4_099
+        },
+
+        // Two class statements listing a state 2,000 times: its CSS classes (with statediagram-state) pass 4,096
+        // characters at the second
+        { "stateDiagram-v2\n" + string.Concat(Enumerable.Repeat($"class {string.Join(',', Enumerable.Repeat("A", 2_000))} c\n", 2)) + "A\n", 3, 4_098 },
+
+        // Two style classes of 2,099 characters on one state: its compiled styles pass 4,096 characters, located at the
+        // statement that gave it the second class
+        {
+            "stateDiagram-v2\n" + string.Concat(new[] { "c", "d" }.Select(name => $"classDef {name} {string.Join(',', Enumerable.Repeat("a:b", 525))}\n")) +
+                "class A c\nclass A d\n" + string.Concat(Enumerable.Repeat("A\n", 300)),
+            5,
+            4_099
+        },
+
+        // The review's ER shape: a style statement listing the entity 2,000 times with 450 styles
+        { "erDiagram\nA\nstyle " + string.Join(',', Enumerable.Repeat("A", 2_000)) + " " + string.Join(',', Enumerable.Repeat("fill:red", 450)) + "\n", 3, 4_103 },
+
+        // An ER classDef statement listing the class 2,000 times with 1,000 styles
+        { "erDiagram\nA:::c\nclassDef " + string.Join(',', Enumerable.Repeat("c", 2_000)) + " " + string.Join(',', Enumerable.Repeat("a:b", 1_000)) + "\n", 3, 4_099 },
+    };
+
+    /// <summary>
+    ///     Validates that CSS classes and styles a state, an entity or a style class gets again and again (an id listed
+    ///     many times in a <c>class</c>, <c>style</c> or <c>classDef</c> statement, a style class defined many times,
+    ///     several style classes on one state) fail at open, located at the statement that makes them too long, instead of
+    ///     multiplying the styles without bound (for a state, with every mention of it).
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the statement that makes the text too long.</param>
+    /// <param name="length">The length the joined text reaches there.</param>
+    [Theory]
+    [MemberData(nameof(StateAndErRepeatedClassesAndStyles))]
+    public void CanvasNetMermaid_Hardening_StateAndErRepeatedClassesAndStyles_AreALocatedLimit(string text, int line, int length)
+    {
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains($"a label is {length} characters long", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the descriptions drawn under a state's title are checked joined: 457 short descriptions of one
     ///     state make a block of 4,099 characters, which fails at open at the line that makes it too long.
     /// </summary>
@@ -1223,6 +1313,31 @@ public class MermaidHardeningTests
         Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
         Assert.Equal(34, exception.Location.Line);
         Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that subgraphs nested through names (subgraph <c>Si</c> names <c>S(i+1)</c>, declared after it)
+    ///     count against <see cref="MermaidLimits.MaxNestingDepth"/>, though the text nests none: a chain of 32 renders,
+    ///     and a chain of 40 fails when laid out, located at the subgraph of the 33rd level.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_ErNestedThroughNames_IsALocatedNestingLimit()
+    {
+        // Arrange: subgraph Si with S(i+1) on lines 2 + 3i to 4 + 3i
+        static string Chain(int count) =>
+            "erDiagram\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"subgraph S{i}\nS{i + 1}\nend\n"));
+        var accepted = MermaidDocument.Parse(Chain(32));
+        var refused = MermaidDocument.Parse(Chain(40));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: subgraph S33, on line 101, is the first inside 33 subgraphs
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(101, exception.Location.Line);
+        Assert.Contains("subgraphs are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

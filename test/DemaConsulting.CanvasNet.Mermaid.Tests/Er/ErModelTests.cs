@@ -142,6 +142,80 @@ public class ErModelTests
     }
 
     /// <summary>
+    ///     Validates that an entity or a subgraph listed again in a <c>style</c> statement gets the styles again, as in
+    ///     Mermaid, and that inline styles that grow longer than <see cref="MermaidLimits.MaxLabelLength"/> that way
+    ///     (joined with semicolons) are refused, located at the statement.
+    /// </summary>
+    [Fact]
+    public void ErModel_AddCssStyles_RepeatedIds_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 12 };
+
+        // Act: fill:red twice is 17 characters; once is 8
+        var entity = Assert.Throws<MermaidSyntaxException>(() => ErFacts.Parse("erDiagram\nA\nstyle A,A fill:red\n", null, limits));
+        var subgraph = Assert.Throws<MermaidSyntaxException>(() => ErFacts.Parse("erDiagram\nsubgraph S\nend\nstyle S fill:red\nstyle S fill:red\n", null, limits));
+        var accepted = ErFacts.Parse("erDiagram\nA\nstyle A fill:red\n", null, limits);
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 3, 1)), (entity.Code, entity.Location));
+        Assert.Contains("a label is 17 characters long", entity.Message, StringComparison.Ordinal);
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 5, 1)), (subgraph.Code, subgraph.Location));
+        Assert.Equal(["fill:red"], accepted.Entities[0].CssStyles);
+    }
+
+    /// <summary>
+    ///     Validates that a style class listed again in a <c>classDef</c> statement gets the styles again, as in Mermaid,
+    ///     and that the styles of a style class that grow longer than <see cref="MermaidLimits.MaxLabelLength"/> that way
+    ///     (joined with semicolons) are refused, located at the statement, while its styles and its text styles are each
+    ///     checked apart.
+    /// </summary>
+    [Fact]
+    public void ErModel_AddClass_RepeatedNames_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 12 };
+
+        // Act: a:b,c:d twice is 15 characters; once is 7
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ErFacts.Parse("erDiagram\nclassDef c,c a:b,c:d\n", null, limits));
+        var accepted = ErFacts.Parse("erDiagram\nclassDef c a:b,c:d\n", null, limits);
+        var colored = ErFacts.Parse("erDiagram\nclassDef c color:red\n", null, limits);
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 2, 1)), (ex.Code, ex.Location));
+        Assert.Contains("a label is 15 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(["a:b", "c:d"], Assert.Single(accepted.StyleClasses).Styles);
+        Assert.Equal(["color:red"], Assert.Single(colored.StyleClasses).Styles);
+        Assert.Equal(["color:red"], colored.StyleClasses[0].TextStyles);
+    }
+
+    /// <summary>
+    ///     Validates that subgraphs nested through names (subgraph <c>Si</c> names <c>S(i+1)</c>, declared elsewhere)
+    ///     count against <see cref="MermaidLimits.MaxNestingDepth"/> in the layout data, though the text nests none: an
+    ///     entity four subgraphs deep is refused with a limit of 3, located at the entity, while three are accepted.
+    /// </summary>
+    [Fact]
+    public void ErModel_GetData_SubgraphsNestedThroughNames_ThrowsLimitExceeded()
+    {
+        // Arrange: subgraph Si with S(i+1) on lines 2 + 3i to 4 + 3i; the last holds X
+        static string Chain(int count) =>
+            "erDiagram\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"subgraph S{i}\n{(i == count - 1 ? "X" : $"S{i + 1}")}\nend\n"));
+        var limits = new MermaidLimits { MaxNestingDepth = 3 };
+        var refused = ErFacts.Parse(Chain(4), null, limits);
+        var accepted = ErFacts.Parse(Chain(3), null, limits);
+
+        // Act
+        var ex = Assert.Throws<MermaidRenderException>(() => refused.GetData(ErFacts.DefaultConfig(Chain(4))));
+        var data = accepted.GetData(ErFacts.DefaultConfig(Chain(3)));
+
+        // Assert: X is inside S3, S2, S1 and S0
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 12, 1), ex.Location);
+        Assert.Contains("subgraphs are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(("S2", "S1", "S0"), (data.Nodes.Single(n => n.Label == "X").ParentId, data.Nodes.Single(n => n.Id == "S2").ParentId, data.Nodes.Single(n => n.Id == "S1").ParentId));
+    }
+
+    /// <summary>
     ///     Validates that the spacing and the direction of the layout data follow the ER configuration and the direction
     ///     statement.
     /// </summary>

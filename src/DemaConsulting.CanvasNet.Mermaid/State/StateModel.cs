@@ -36,8 +36,12 @@ namespace DemaConsulting.CanvasNet.Mermaid.State;
 ///         regions count as nesting levels against <see cref="MermaidLimits.MaxNestingDepth"/>, because each nests one
 ///         more cluster. The texts the model joins or derives are checked against <see cref="MermaidLimits.MaxLabelLength"/>:
 ///         the descriptions of a state drawn under its title (joined with line breaks), the ids of start and end states
-///         (their parent's id with <c>_start</c> or <c>_end</c>) and the text styles of a style class
-///         (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>).
+///         (their parent's id with <c>_start</c> or <c>_end</c>), the text styles of a style class, and, as they grow, the
+///         CSS classes of a state (joined with spaces), the styles and text styles of a style class and the compiled styles
+///         of a state (joined with semicolons), which a state listed again or a class defined again repeats as in Mermaid
+///         (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>). Composite states nested deeper through their names (a
+///         composite state named in another one keeps that parent when it is declared again at the top) are refused by
+///         <see cref="GetData"/>.
 ///     </para>
 ///     <para>
 ///         The model is filled by one parser on one thread; once parsing is over it is never changed, so it is safe for
@@ -542,16 +546,20 @@ internal sealed partial class StateModel : IMermaidDiagram
             return;
         }
 
+        // A class defined again adds its styles again, as in Mermaid, so the joined styles are checked as they grow
         foreach (var attribute in attributes.Split(','))
         {
             var fixedAttribute = Preprocessor.TrimJs(ReplaceFirst(attribute, ";", string.Empty));
             if (attribute.Contains("color", StringComparison.Ordinal))
             {
                 var textStyle = ReplaceFirst(ReplaceFirst(fixedAttribute, "fill", "bgFill"), "color", "fill");
-                CheckLabel(textStyle, location);
+                styleClass.TextStylesLength += JoinedLength(styleClass.TextStyles.Count, textStyle);
+                CheckLabelLength(styleClass.TextStylesLength, location);
                 styleClass.TextStyles.Add(textStyle);
             }
 
+            styleClass.StylesLength += JoinedLength(styleClass.Styles.Count, fixedAttribute);
+            CheckLabelLength(styleClass.StylesLength, location);
             styleClass.Styles.Add(fixedAttribute);
         }
     }
@@ -563,7 +571,10 @@ internal sealed partial class StateModel : IMermaidDiagram
     /// <param name="item">The statement.</param>
     private void SetStyles(StateStatement item)
     {
-        var styles = (item.StyleClass ?? string.Empty).Split(',');
+        // Every listed state gets the same styles (Mermaid makes a new array of equal texts for each)
+        var styles = (item.StyleClass ?? string.Empty).Split(',')
+            .Select(style => Preprocessor.TrimJs(style.Replace(";", string.Empty, StringComparison.Ordinal)))
+            .ToList();
         foreach (var id in Preprocessor.TrimJs(item.Id).Split(','))
         {
             if (!_stateIndex.TryGetValue(id, out var state))
@@ -574,7 +585,7 @@ internal sealed partial class StateModel : IMermaidDiagram
             }
 
             state.Styles.Clear();
-            state.Styles.AddRange(styles.Select(style => Preprocessor.TrimJs(style.Replace(";", string.Empty, StringComparison.Ordinal))));
+            state.Styles.AddRange(styles);
         }
     }
 
@@ -584,6 +595,9 @@ internal sealed partial class StateModel : IMermaidDiagram
     /// <param name="ids">The ids.</param>
     /// <param name="cssClass">The class.</param>
     /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the CSS classes of a state get longer than <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
     private void SetCssClass(string ids, string cssClass, MermaidLocation location)
     {
         foreach (var id in ids.Split(','))
@@ -595,9 +609,21 @@ internal sealed partial class StateModel : IMermaidDiagram
                 state = _stateIndex[trimmed];
             }
 
+            // A state listed again gets the class again, as in Mermaid, so the joined classes are checked as they grow
+            state.CssClassesLength += JoinedLength(state.Classes.Count, cssClass);
+            CheckLabelLength(state.CssClassesLength, location);
             state.Classes.Add(cssClass);
+            state.ClassLocation = location;
         }
     }
+
+    /// <summary>
+    ///     Gets the length a text adds to a list of texts joined with one-character separators.
+    /// </summary>
+    /// <param name="count">The number of texts in the list before.</param>
+    /// <param name="text">The text.</param>
+    /// <returns>The length of the text, and of its separator when the list is not empty.</returns>
+    private static long JoinedLength(int count, string text) => (count > 0 ? 1 : 0) + (long)text.Length;
 
     /// <summary>
     ///     Replaces the first occurrence of a text, as JavaScript's <c>replace</c> with a string pattern does.
@@ -769,6 +795,15 @@ internal sealed class StateRecord
     /// <summary>Gets the CSS classes.</summary>
     public List<string> Classes { get; } = [];
 
+    /// <summary>
+    ///     Gets or sets the length of the CSS classes as the data fetcher joins them for the node: the classes joined
+    ///     with spaces, then <c> statediagram-state</c>.
+    /// </summary>
+    public long CssClassesLength { get; set; } = 19;
+
+    /// <summary>Gets or sets the location of the last statement that gave the state a CSS class, or null.</summary>
+    public MermaidLocation? ClassLocation { get; set; }
+
     /// <summary>Gets the styles of the <c>style</c> statements.</summary>
     public List<string> Styles { get; } = [];
 
@@ -796,6 +831,12 @@ internal sealed record StateStyleClass(string Id)
 
     /// <summary>Gets the text styles.</summary>
     public List<string> TextStyles { get; } = [];
+
+    /// <summary>Gets or sets the length of <see cref="Styles"/> joined with semicolons.</summary>
+    public long StylesLength { get; set; }
+
+    /// <summary>Gets or sets the length of <see cref="TextStyles"/> joined with semicolons.</summary>
+    public long TextStylesLength { get; set; }
 }
 
 /// <summary>

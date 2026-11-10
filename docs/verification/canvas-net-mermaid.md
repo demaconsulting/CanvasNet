@@ -430,12 +430,15 @@ reported once as `mermaid-look-unsupported` and drawn with the same pixels as th
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_StateManyNotes_IsALocatedNodeLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_StateNestedRegions_IsALocatedNestingLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_StateManyDescriptions_IsALocatedLabelLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateNestedThroughNames_IsALocatedNestingLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateAndErRepeatedClassesAndStyles_AreALocatedLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_StateLongChain_RendersOrHitsTheWorkLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_WorkLimit_FailsWithLimitExceeded`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileErDiagram_RendersOrFailsLocated`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ErManyEntities_IsALocatedNodeLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ErNestedSubgraphs_IsALocatedNestingLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ErNestedThroughNames_IsALocatedNestingLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ErLongComment_IsALocatedLabelLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ErManyAttributes_Render`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions`,
@@ -487,7 +490,15 @@ note each (2,100 nodes once each note and its group are counted) fail at open wi
 the 2,001st (line 1,335); that 16 composite states each nested in a concurrent region of the one before (32 nesting
 levels) render with 16 subgraphs while 17 fail at open with `MaxNestingDepth` at the 17th (line 18); that 500
 descriptions `S : abcd` of one state fail at open at the 457th (line 458), where the joined descriptions reach 4,099
-characters; that a chain of 300 labeled transitions renders with the default work budget and fails with
+characters; that 32 composite states chained by name (`state Si { S(i+1) }` at the top) render while chains of 40
+and 1,700 fail when measured with `mermaid-limit-exceeded` naming `MaxNestingDepth`, located at `state S33` (line 101);
+that CSS classes and styles repeated on one state fail at open with `MaxLabelLength` at the statement that makes them
+too long, with the length they reach there (a theory shared with the ER cases): the reviewed shape of four
+`classDef c` statements of 1,000 styles, two `class` statements listing the state 2,000 times, and 300 mentions at the
+second definition (line 3, 4,099 characters), the two `class` statements alone at the second (line 3, 4,098
+characters with `statediagram-state`), and two style classes of 2,099 characters on one state at the statement that
+gave the second (line 5, 4,099 characters compiled); that a chain of 300 labeled transitions renders with the
+default work budget and fails with
 `mermaid-limit-exceeded` under a work limit of 5,000; that the seeded mutation fuzzer over the state fixtures only
 ever raises the documented exception types; and that a chain of 60 transitions under a work limit of 2,000 fails with
 `mermaid-limit-exceeded` naming `MaxLayoutWork`. For ER diagrams, asserts that hostile diagrams (an `er` node and rank
@@ -497,7 +508,11 @@ comments over two lines, markup and a script in a comment, duplicate subgraph id
 entity named like a later subgraph, and a subgraph that holds a relationship to itself) render fitted to 400 by 300
 pixels or fail with a located render error; that 2,001 entities fail at open with `MaxNodes` at the extra entity
 (line 2,002); that 32 nested subgraphs render with 32 subgraphs while 33 fail at open with `MaxNestingDepth` at the
-33rd (line 34); that an attribute comment of 4,097 characters fails at open with `MaxLabelLength` at its line
+33rd (line 34); that 32 subgraphs chained by name (`subgraph Si` holding `S(i+1)`) render while 40 fail when measured
+with `mermaid-limit-exceeded` and the message `subgraphs are nested deeper than 32 levels`, located at `subgraph S33`
+(line 101); that a `style` statement listing an entity 2,000 times with 450 styles (line 3, 4,103 characters) and a
+`classDef` statement listing a class 2,000 times with 1,000 styles (line 3, 4,099 characters) fail at open with
+`MaxLabelLength`; that an attribute comment of 4,097 characters fails at open with `MaxLabelLength` at its line
 (line 4); that an entity of 1,000 attributes with keys and comments renders; that the seeded mutation fuzzer over the
 ER fixtures only ever raises the documented exception types; and that a chain of 60 relationships under a work limit
 of 2,000 fails with `mermaid-limit-exceeded` naming `MaxLayoutWork`.
