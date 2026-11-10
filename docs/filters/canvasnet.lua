@@ -59,8 +59,9 @@ not from the document's folder, so a diagram that draws pictures must be a .mmd 
 ![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
 
 Diagram types the tool does not draw yet. The tool draws flowchart (and graph), sequenceDiagram, classDiagram,
-stateDiagram (and stateDiagram-v2), and erDiagram diagrams. For any other type (pie, gantt, and so on) the tool
-reports mermaid-diagram-unsupported, and the filter leaves
+stateDiagram (and stateDiagram-v2), erDiagram, pie, and gantt diagrams (a gantt chart without a today line: the
+tool sets no clock). For any other type (mindmap, journey, and so on) the tool reports mermaid-diagram-unsupported,
+and the filter leaves
 the code block (or the .mmd picture) exactly as written, with the tool's message as a warning, so another
 filter can draw it: the CanvasNet build runs mermaid-filter after this filter for that reason. Pandoc runs the
 filters in the order of its command line, a defaults file's filters taking the place of its --defaults option,

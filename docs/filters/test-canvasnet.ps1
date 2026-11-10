@@ -10,9 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence, class, state, and ER diagrams are drawn by the filter itself, a diagram type the tool does not
-    draw yet is left as written for another filter, and the defaults-file filters run before a command-line filter (as
-    the CI's mermaid-filter is run).
+    hashed), sequence, class, state, ER, pie, and gantt diagrams are drawn by the filter itself, a diagram type the
+    tool does not draw yet is left as written for another filter, and the defaults-file filters run before a
+    command-line filter (as the CI's mermaid-filter is run).
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -415,6 +415,42 @@ erDiagram
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $erMarkersBefore -and
         $er.Log -notmatch 'left as written') `
         'an ER block is drawn' "$($er.Log)`n$($er.Html)"
+
+    # A pie chart is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $slices = @'
+```mermaid
+pie title Pets
+    "Dogs" : 386
+    "Cats" : 85
+```
+'@
+    $piesBefore = @(Get-Pictures).Count
+    $pieMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $pie = Invoke-Filter 'mermaid-pie' $slices
+    Write-Result ($pie.ExitCode -eq 0 -and $pie.Html -notmatch '<code' -and
+        $pie.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $piesBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $pieMarkersBefore -and
+        $pie.Log -notmatch 'left as written') `
+        'a pie block is drawn' "$($pie.Log)`n$($pie.Html)"
+
+    # A gantt chart is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $tasks = @'
+```mermaid
+gantt
+    dateFormat YYYY-MM-DD
+    section Build
+    Design    :des, 2024-06-03, 5d
+    Implement :after des, 8d
+```
+'@
+    $ganttsBefore = @(Get-Pictures).Count
+    $ganttMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $gantt = Invoke-Filter 'mermaid-gantt' $tasks
+    Write-Result ($gantt.ExitCode -eq 0 -and $gantt.Html -notmatch '<code' -and
+        $gantt.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $ganttsBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $ganttMarkersBefore -and
+        $gantt.Log -notmatch 'left as written') `
+        'a gantt block is drawn' "$($gantt.Log)`n$($gantt.Html)"
 
     # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
     # marker in the cache remembers it: the next run warns from the marker and does not draw it.

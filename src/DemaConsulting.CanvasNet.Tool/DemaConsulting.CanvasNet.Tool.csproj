@@ -123,10 +123,11 @@
     <None Include="..\DemaConsulting.CanvasNet.VegaLite\third-party\README.md" Pack="true" PackagePath="licenses\VegaLite-third-party-README.md" />
   </ItemGroup>
 
-  <!-- Third-party license notices of the bundled Mermaid library: MIT (mermaid, js-yaml, khroma, dagre, lodash, marked, sanitize-url)
-       and ISC (d3) require the notices to be reproduced in binary distributions, so they ship in the same licenses\
-       folder. The d3 notice of Mermaid (d3-shape and d3-path) differs from the one of Vega-Lite, which already has the
-       name LICENSE-d3.txt there, so it keeps a Mermaid prefix, as the README does. -->
+  <!-- Third-party license notices of the bundled Mermaid library: MIT (mermaid, @mermaid-js/parser, Langium, dayjs,
+       js-yaml, khroma, dagre, lodash, marked, sanitize-url) and ISC (d3) require the notices to be reproduced in binary
+       distributions, so they ship in the same licenses\ folder. The d3 notice of Mermaid (the d3 modules it ports) differs
+       from the one of Vega-Lite, which already has the name LICENSE-d3.txt there, so it keeps a Mermaid prefix, as the
+       README does. -->
   <ItemGroup>
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-*.txt" Exclude="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\" />
     <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\Mermaid-LICENSE-d3.txt" />

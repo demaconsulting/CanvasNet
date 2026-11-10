@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -21,6 +22,9 @@ public class RenderCommandMermaidTests
 
     /// <summary>The fill of a node in Mermaid's forest theme (<c>mainBkg</c>).</summary>
     private static readonly Rgba32 ForestNodeFill = new(0xCD, 0xE4, 0x98, 255);
+
+    /// <summary>The white the tool draws a diagram over by default.</summary>
+    private static readonly Rgba32 White = new(255, 255, 255, 255);
 
     /// <summary>
     ///     Runs the render command with <c>--json</c> and returns the document it prints.
@@ -55,6 +59,24 @@ public class RenderCommandMermaidTests
     /// <returns>The number of pixels.</returns>
     private static int Count(Surface surface, Rgba32 color) =>
         Enumerable.Range(0, surface.Height).Sum(y => Enumerable.Range(0, surface.Width).Count(x => surface[x, y] == color));
+
+    /// <summary>
+    ///     Counts the pixels of a picture that do not have a color.
+    /// </summary>
+    /// <param name="surface">The picture.</param>
+    /// <param name="color">The color.</param>
+    /// <returns>The number of pixels.</returns>
+    private static int CountOther(Surface surface, Rgba32 color) => (surface.Width * surface.Height) - Count(surface, color);
+
+    /// <summary>
+    ///     Gets whether two pictures have the same size and the same pixels.
+    /// </summary>
+    /// <param name="expected">The first picture.</param>
+    /// <param name="actual">The second picture.</param>
+    /// <returns><see langword="true"/> when they are equal.</returns>
+    private static bool SamePixels(Surface expected, Surface actual) =>
+        (expected.Width, expected.Height) == (actual.Width, actual.Height)
+        && Enumerable.Range(0, actual.Height).All(y => Enumerable.Range(0, actual.Width).All(x => expected[x, y] == actual[x, y]));
 
     /// <summary>
     ///     Test that a diagram is drawn at its natural size over white, and that the result names the format, the natural size,
@@ -184,6 +206,100 @@ public class RenderCommandMermaidTests
         Assert.Equal(new Rgba32(255, 255, 255, 255), image[0, 0]);
         Assert.True(Count(image, DefaultNodeFill) > 1000);
         Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
+    ///     Test that a pie chart is drawn strictly at its natural size, pixel for pixel as the library draws it over white,
+    ///     with no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidPie_DrawsTheSlices()
+    {
+        // Arrange
+        const string Text = "pie title Pets\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n";
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "pets.mmd", Text);
+        var output = directory.Combine("pets.png");
+
+        // Act
+        using var document = RunJson(input, "-o", output, "--strict");
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the natural size, a white corner, a picture that is not blank and is the library's, and no diagnostic
+        var root = document.RootElement;
+        var natural = root.GetProperty("input").GetProperty("natural");
+        using var image = PngCodec.Load(output);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (image.Width, image.Height));
+        Assert.Equal(White, image[0, 0]);
+        Assert.True(CountOther(image, White) > image.Width * image.Height / 10);
+        Assert.True(SamePixels(expected, image), "The tool's pie chart differs from the library's.");
+        Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
+    ///     Test that a gantt chart is drawn strictly at its natural size, pixel for pixel as the library draws it without a
+    ///     clock (no today line, though a clock inside the chart would draw one), with no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidGantt_DrawsTheTasksWithoutATodayLine()
+    {
+        // Arrange
+        const string Text = "gantt\n    dateFormat YYYY-MM-DD\n    section Build\n    Design    :des, 2024-06-03, 5d\n    Implement :crit, after des, 8d\n";
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "plan.mmd", Text);
+        var output = directory.Combine("plan.png");
+        var diagram = MermaidDocument.Parse(Text);
+
+        // Act
+        using var document = RunJson(input, "-o", output, "--strict");
+        using var expected = diagram.Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+        using var withToday = diagram.Render(
+            new MermaidRenderOptions { Background = White, Now = new DateTimeOffset(2024, 6, 6, 12, 0, 0, TimeSpan.Zero) },
+            TestContext.Current.CancellationToken);
+
+        // Assert: the natural size, a picture that is not blank and is the library's without a clock, and no diagnostic
+        var root = document.RootElement;
+        var natural = root.GetProperty("input").GetProperty("natural");
+        using var image = PngCodec.Load(output);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (image.Width, image.Height));
+        Assert.True(CountOther(image, White) > image.Width * image.Height / 20);
+        Assert.True(SamePixels(expected, image), "The tool's gantt chart differs from the library's.");
+        Assert.False(SamePixels(withToday, image), "The tool's gantt chart has a today line.");
+        Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
+    ///     Test that a gantt chart that needs today (a <c>todayMarker</c> style) is drawn with the warning
+    ///     <c>mermaid-gantt-today-unavailable</c> as the detail of <c>mermaid-warning</c>, also with <c>--strict</c>, and
+    ///     that a date Mermaid cannot read is a located <c>mermaid-error</c> without a picture.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidGanttTodayAndInvalidDate_AreWarningThenError()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var marked = FixtureFactory.WriteText(directory.Path, "marked.mmd", "gantt\n    todayMarker stroke:#f00\n    Design :des, 2024-06-03, 5d\n");
+        var invalid = FixtureFactory.WriteText(directory.Path, "invalid.mmd", "gantt\n    Design :des, Jan 5 2024, 5d\n");
+
+        // Act
+        using var document = RunJson(marked, "-o", directory.Combine("marked.png"), "--strict");
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", invalid, "-o", directory.Combine("invalid.png"), "--json");
+
+        // Assert: the warning at the todayMarker statement, and the picture
+        var warning = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("mermaid-warning", warning.GetProperty("code").GetString());
+        Assert.Equal("mermaid-gantt-today-unavailable", warning.GetProperty("detail").GetString());
+        Assert.Equal(2, warning.GetProperty("location").GetProperty("line").GetInt32());
+        Assert.True(File.Exists(directory.Combine("marked.png")));
+
+        // Assert: the error names the date and its line, and nothing is written
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Error: mermaid-error:", stdErr, StringComparison.Ordinal);
+        Assert.Contains("Invalid date", stdErr, StringComparison.Ordinal);
+        Assert.Contains("invalid.mmd:2:", stdErr, StringComparison.Ordinal);
+        using var failure = JsonDocument.Parse(stdOut);
+        Assert.Equal("mermaid-error", failure.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(File.Exists(directory.Combine("invalid.png")));
     }
 
     /// <summary>

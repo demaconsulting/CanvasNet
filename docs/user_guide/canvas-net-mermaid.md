@@ -485,6 +485,113 @@ Other behaviors that follow Mermaid:
 - The words `one`, `many`, and `to` are keywords, so a role that holds one of them must be quoted
   (`A ||--o{ B : "one each"`).
 
+### Supported Pie Syntax
+
+A pie chart starts with `pie`. It is drawn by a port of Mermaid's pie renderer, so the slices, the percentage labels,
+the legend, and the title land where Mermaid 11 puts them.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `pie`, optionally followed by `showData` (the legend shows each value after its label) and a `title` on the same line |
+| Slices | `"label" : value`, one per line: a label in double or single quotes, with backslash escapes, and a value that is a whole or a decimal number (`42`, `42.96`); a label seen before is ignored, and a negative value is a `mermaid-syntax-error`, as in Mermaid |
+| Drawing | The slices in the order of the text, clockwise from the top, each labeled with its percentage rounded to a whole number; a slice under 1% of the total is left out of the pie and kept in the legend; the theme colors `pie1` to `pie12` repeat after twelve slices |
+| Legend | A colored square and the label of each slice, at the right of the pie unless `pie.legendPosition` says otherwise |
+| Titles | `title` (on its own line or after `pie`), else the frontmatter `title`, is drawn above the pie; `accTitle` and `accDescr` (on one line, or in braces over several lines) are read as metadata |
+| Comments | `%%` comments, on their own line or after a slice |
+| Colors | The theme variables `pie1` to `pie12`, `pieTitleTextSize`, `pieTitleTextColor`, `pieSectionTextSize`, `pieSectionTextColor`, `pieLegendTextSize`, `pieLegendTextColor`, `pieStrokeColor`, `pieStrokeWidth`, `pieOuterStrokeColor`, `pieOuterStrokeWidth`, and `pieOpacity` |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the pie settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+The pie settings follow Mermaid (`config.pie` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `pie.textPosition` | 0.75 | Where the percentage labels are, as a part of the radius (0 is the center, 1 the edge) |
+| `pie.donutHole` | 0 | The size of a hole in the middle, as a part of the radius; a value above 0 and at most 0.9 draws a donut |
+| `pie.legendPosition` | `right` | Where the legend is: `right`, `left`, `top`, `bottom`, or `center` (over the pie); any other value is `right` |
+| `pie.highlightSlice` | empty | The label of a slice that is drawn enlarged and opaque; `hover`, which enlarges the slice under the pointer in Mermaid, enlarges none in a picture |
+| `pie.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- The chart is 450 pixels high and the pie 450 pixels wide, with a radius of 185; the legend widens or heightens the
+  chart, and a title wider than the chart widens it on both sides.
+- A total of zero draws the outer circle and the legend without slices.
+
+### Supported Gantt Syntax
+
+A gantt chart starts with `gantt`. It is drawn by a port of Mermaid's gantt renderer, with the time scale and the axis
+of d3, so the bars, the texts, the section rows, and the ticks land where Mermaid 11 puts them. The dates are in UTC
+(see *Fonts, Determinism, and Known Differences*).
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `gantt`; the keywords of the statements are case-insensitive |
+| Tasks | `Name : data`, one per line; after the tags, the data is up to three fields separated by commas: an id, a start, and an end (`Design :des, 2024-06-03, 5d`); with two fields, a start and an end; with one field, an end, the task starting where the task before it ends |
+| Tags | `done`, `active`, `crit`, `milestone`, and `vert` before the fields, in any combination; they are listed below |
+| Starts | A date, or `after id1 id2` (the latest end of the named tasks, which may come later in the text) |
+| Ends | A date, a duration (a number, with a fraction if needed, and one of the units `ms`, `s`, `m`, `h`, `d`, `w`, `M`, and `y`, such as `1.5d`), or `until id1 id2` (the earliest start of the named tasks) |
+| Dates | `dateFormat` with the dayjs tokens Mermaid loads (`YYYY`, `MM`, `DD`, `HH`, `mm`, `X`, `x`, and so on), read strictly; without a `dateFormat`, or for a date that does not match it, the ISO forms (`2024-06-03`, `2024-06-03T09:30`); `inclusiveEndDates` makes an end date part of its task |
+| Sections | `section Name` groups the tasks that follow it; the sections take the theme's section colors in turn, and `<br>` breaks a section name into lines |
+| Excluded days | `excludes` with `weekends`, day names (`monday`), and dates; `includes` with dates that are worked anyway; `weekend friday` or `weekend saturday` (the default) for the first day of the weekend; a task whose end is a duration grows over the excluded days, which are shaded |
+| Axis | `axisFormat` with the d3 time format directives (`%b %e`, `%H:%M`, and so on), `tickInterval` (a number and one of `millisecond`, `second`, `minute`, `hour`, `day`, `week`, and `month`, such as `1week`), and `weekday` (the first day of the week for weekly ticks); `gantt.topAxis` draws a second axis at the top (the `topAxis` statement fails in Mermaid, and is a `mermaid-syntax-error` here) |
+| Compact mode | `displayMode: compact` in the frontmatter, or `gantt.displayMode`, puts the tasks of a section on as few rows as keep them apart |
+| Today | `todayMarker off`, or `todayMarker` with a style (`stroke-width:5px,stroke:#0f0`); the today line is drawn only when the caller gives the time (`MermaidRenderOptions.Now`) |
+| Interaction | `click id href "url"` and `click id call fn(args)` are read and never drawn as links, because a picture is static; the text of a task with a click is drawn bold, as in Mermaid |
+| Titles | `title`, else the frontmatter `title`, is drawn above the chart; `accTitle` and `accDescr` are read as metadata |
+| Colors | The theme variables `taskBkgColor`, `taskBorderColor`, `taskTextColor`, `taskTextDarkColor`, `taskTextOutsideColor`, `taskTextClickableColor`, `activeTaskBkgColor`, `activeTaskBorderColor`, `doneTaskBkgColor`, `doneTaskBorderColor`, `critBkgColor`, `critBorderColor`, `sectionBkgColor`, `sectionBkgColor2`, `altSectionBkgColor`, `excludeBkgColor`, `gridColor`, `todayLineColor`, `vertLineColor`, and `titleColor` |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, and the gantt settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+The tags of a task change how it is drawn; `crit` combines with `done` or `active`:
+
+<!-- markdownlint-disable MD013 -->
+| Tag | Drawn as |
+| --- | -------- |
+| `done` | A finished task: a bar in the theme's `doneTaskBkgColor` |
+| `active` | A task in progress: a bar in `activeTaskBkgColor` |
+| `crit` | A critical task: a bar in `critBkgColor` with a `critBorderColor` border, or with `done` or `active`, in their color with that border |
+| `milestone` | A diamond the height of a bar at the middle of the task, so a milestone of `0d` is at its start |
+| `vert` | A vertical line over every row at the start of the task, with its name below the rows |
+<!-- markdownlint-enable MD013 -->
+
+The gantt settings follow Mermaid (`config.gantt` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `gantt.barHeight` | 20 | The height of a bar |
+| `gantt.barGap` | 4 | The space between two rows |
+| `gantt.topPadding` | 50 | The space above the first row and below the last |
+| `gantt.leftPadding` | 75 | The space left of the time axis, where the section names are |
+| `gantt.rightPadding` | 75 | The space right of the time axis |
+| `gantt.gridLineStartPadding` | 35 | The top of the grid lines and of a vertical marker |
+| `gantt.titleTopMargin` | 25 | The baseline of the title |
+| `gantt.fontSize` | 11 | The font size of the task texts |
+| `gantt.sectionFontSize` | 11 | The font size of the section names |
+| `gantt.numberSectionStyles` | 4 | The number of section colors that repeat |
+| `gantt.axisFormat` | `%Y-%m-%d` | The format of the axis labels of a chart without `axisFormat` |
+| `gantt.tickInterval` | unset | The interval of the ticks of a chart without `tickInterval` |
+| `gantt.topAxis` | `false` | `true` draws a second axis at the top |
+| `gantt.displayMode` | empty | `compact` puts the tasks of a section on as few rows as keep them apart |
+| `gantt.useWidth` | unset | The width of the chart; unset is 784, the width Mermaid takes in the page of `mmdc` |
+| `gantt.weekday` | `sunday` | Accepted, and without effect as in Mermaid; the `weekday` statement applies |
+| `gantt.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- The chart is as high as its rows (a bar and a gap each) between two top paddings. The time scale runs from the
+  earliest start to the latest end, rounded to whole pixels, and the ticks are chosen by d3 unless `tickInterval` sets
+  them.
+- The text of a task is drawn inside its bar when it fits, else to the right of the bar, or to its left when it would
+  leave the chart.
+- A task without an id gets the id `taskN`; a task `after` an id that no task has starts today at midnight.
+
 ### Mermaid Unsupported Features and Strict Mode
 
 A construct that Mermaid defines but this package does not draw is reported as a `MermaidUnsupportedFeature` with a
@@ -496,7 +603,7 @@ fail on a warning.
 <!-- markdownlint-disable MD013 -->
 | Code | Kind | Reported when |
 | ---- | ---- | ------------- |
-| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, and `erDiagram`); the picture is empty |
+| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, and `gantt`); the picture is empty |
 | `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant); the node or participant keeps its shape and label without the icon |
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
@@ -510,6 +617,9 @@ fail on a warning.
 | `mermaid-html-tag-ignored` | Warning | An HTML tag outside the supported label subset; the tag is dropped and its text is kept |
 | `mermaid-image-unresolved` | Warning | A picture the resolver did not give; the node keeps its frame |
 | `mermaid-text-missing-glyph` | Warning | A character that no bundled font has (for example CJK); it is drawn as the missing-glyph box |
+| `mermaid-gantt-today-unavailable` | Warning | A gantt chart needs today (a `todayMarker` style, an `after` or `until` id that no task has, or a date without a year, month, or day) and `MermaidRenderOptions.Now` is not set; the today line is not drawn and 1970-01-01 is taken as today |
+| `mermaid-gantt-ticks-skipped` | Warning | The `tickInterval` of a gantt chart would make more than 10,000 ticks; the default ticks are drawn, as in Mermaid |
+| `mermaid-gantt-excludes-skipped` | Warning | The tasks of a gantt chart with excluded days span more than five years; the excluded days are not shaded, as in Mermaid |
 | `mermaid-diagnostics-suppressed` | Warning | More reports than `MaxDiagnostics`; the rest are dropped |
 <!-- markdownlint-enable MD013 -->
 

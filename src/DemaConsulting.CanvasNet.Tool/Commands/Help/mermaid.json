@@ -2,7 +2,7 @@
   "topic": "mermaid",
   "aliases": ["mmd"],
   "title": "Mermaid diagrams (.mmd, .mermaid)",
-  "summary": "A Mermaid flowchart, sequence diagram, class diagram, state diagram, or entity relationship diagram is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
+  "summary": "A Mermaid flowchart, sequence diagram, class diagram, state diagram, entity relationship diagram, pie chart, or gantt chart is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
   "sections": [
     {
       "id": "supported",
@@ -36,7 +36,9 @@
         { "text": "Class diagrams: a class diagram starts with classDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the class boxes, relations, namespaces, and notes land where Mermaid 11 puts them; its syntax, relations, and settings are listed under Class diagrams." },
         { "text": "State diagrams: a state diagram starts with stateDiagram-v2 or stateDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the states, transitions, composite states, and notes land where Mermaid 11 puts them; its syntax and settings are listed under State diagrams." },
         { "text": "Entity relationship diagrams: an entity relationship diagram starts with erDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the entities, relationships, and subgraphs land where Mermaid 11 puts them; its syntax, cardinalities, and settings are listed under Entity relationship diagrams." },
-        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity relationship diagram) without drawing the diagram." }
+        { "text": "Pie charts: a pie chart starts with pie. It is drawn by a port of Mermaid's pie renderer, so the slices, the percentage labels, the legend, and the title land where Mermaid 11 puts them; its syntax and settings are listed under Pie charts." },
+        { "text": "Gantt charts: a gantt chart starts with gantt. It is drawn by a port of Mermaid's gantt renderer, with the time scale and the axis of d3, so the bars, the texts, the section rows, and the ticks land where Mermaid 11 puts them, with the dates in UTC; its syntax, tags, and settings are listed under Gantt charts." },
+        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity relationship diagram; the slices of a pie chart (its legend entries) as nodes; the tasks and the sections of a gantt chart as nodes and subgraphs) without drawing the diagram." }
       ]
     },
     {
@@ -139,11 +141,73 @@
       ]
     },
     {
+      "id": "pie",
+      "title": "Pie charts",
+      "items": [
+        { "text": "Header: pie, optionally followed by showData (the legend shows each value after its label) and a title on the same line." },
+        { "text": "Slices: \"label\" : value, one per line: a label in double or single quotes, with backslash escapes, and a value that is a whole or a decimal number (42, 42.96); a label seen before is ignored, and a negative value is a mermaid-syntax-error, as in Mermaid." },
+        { "text": "Drawing: the slices in the order of the text, clockwise from the top, each labeled with its percentage rounded to a whole number; a slice under 1% of the total is left out of the pie and kept in the legend; the theme colors pie1 to pie12 repeat after twelve slices." },
+        { "text": "Legend: a colored square and the label of each slice, at the right of the pie unless pie.legendPosition says otherwise." },
+        { "text": "Titles: title (on its own line or after pie), else the frontmatter title, is drawn above the pie; accTitle and accDescr (on one line, or in braces over several lines) are read as metadata." },
+        { "text": "Comments: %% comments, on their own line or after a slice." },
+        { "text": "Colors: the theme variables pie1 to pie12, pieTitleTextSize, pieTitleTextColor, pieSectionTextSize, pieSectionTextColor, pieLegendTextSize, pieLegendTextColor, pieStrokeColor, pieStrokeWidth, pieOuterStrokeColor, pieOuterStrokeWidth, and pieOpacity." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the pie settings below, with Mermaid's precedence." },
+        { "term": "pie.textPosition", "text": "Where the percentage labels are, as a part of the radius (0 is the center, 1 the edge) (default 0.75)." },
+        { "term": "pie.donutHole", "text": "The size of a hole in the middle, as a part of the radius; a value above 0 and at most 0.9 draws a donut (default 0)." },
+        { "term": "pie.legendPosition", "text": "Where the legend is: right, left, top, bottom, or center (over the pie); any other value is right (default right)." },
+        { "term": "pie.highlightSlice", "text": "The label of a slice that is drawn enlarged and opaque; hover, which enlarges the slice under the pointer in Mermaid, enlarges none in a picture (default empty)." },
+        { "term": "pie.useMaxWidth", "text": "No meaning for a picture (default true)." }
+      ]
+    },
+    {
+      "id": "gantt",
+      "title": "Gantt charts",
+      "items": [
+        { "text": "Header: gantt; the keywords of the statements are case-insensitive." },
+        { "text": "Tasks: Name : data, one per line; after the tags, the data is up to three fields separated by commas: an id, a start, and an end (Design :des, 2024-06-03, 5d); with two fields, a start and an end; with one field, an end, the task starting where the task before it ends." },
+        { "text": "Tags: done, active, crit, milestone, and vert before the fields, in any combination; they are listed below." },
+        { "text": "Starts: a date, or after id1 id2 (the latest end of the named tasks, which may come later in the text)." },
+        { "text": "Ends: a date, a duration (a number, with a fraction if needed, and one of the units ms, s, m, h, d, w, M, and y, such as 1.5d), or until id1 id2 (the earliest start of the named tasks)." },
+        { "text": "Dates: dateFormat with the dayjs tokens Mermaid loads (YYYY, MM, DD, HH, mm, X, x, and so on), read strictly; without a dateFormat, or for a date that does not match it, the ISO forms (2024-06-03, 2024-06-03T09:30); inclusiveEndDates makes an end date part of its task." },
+        { "text": "Sections: section Name groups the tasks that follow it; the sections take the theme's section colors in turn, and <br> breaks a section name into lines." },
+        { "text": "Excluded days: excludes with weekends, day names (monday), and dates; includes with dates that are worked anyway; weekend friday or weekend saturday (the default) for the first day of the weekend; a task whose end is a duration grows over the excluded days, which are shaded." },
+        { "text": "Axis: axisFormat with the d3 time format directives (%b %e, %H:%M, and so on), tickInterval (a number and one of millisecond, second, minute, hour, day, week, and month, such as 1week), and weekday (the first day of the week for weekly ticks); gantt.topAxis draws a second axis at the top (the topAxis statement fails in Mermaid, and is a mermaid-syntax-error here)." },
+        { "text": "Compact mode: displayMode: compact in the frontmatter, or gantt.displayMode, puts the tasks of a section on as few rows as keep them apart." },
+        { "text": "Today: todayMarker off, or todayMarker with a style (stroke-width:5px,stroke:#0f0); the today line is drawn only when the caller gives the time (MermaidRenderOptions.Now)." },
+        { "text": "Interaction: click id href \"url\" and click id call fn(args) are read and never drawn as links, because a picture is static; the text of a task with a click is drawn bold, as in Mermaid." },
+        { "text": "Titles: title, else the frontmatter title, is drawn above the chart; accTitle and accDescr are read as metadata." },
+        { "text": "Colors: the theme variables taskBkgColor, taskBorderColor, taskTextColor, taskTextDarkColor, taskTextOutsideColor, taskTextClickableColor, activeTaskBkgColor, activeTaskBorderColor, doneTaskBkgColor, doneTaskBorderColor, critBkgColor, critBorderColor, sectionBkgColor, sectionBkgColor2, altSectionBkgColor, excludeBkgColor, gridColor, todayLineColor, vertLineColor, and titleColor." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, and the gantt settings below, with Mermaid's precedence." },
+        { "term": "done", "text": "A finished task: a bar in the theme's doneTaskBkgColor." },
+        { "term": "active", "text": "A task in progress: a bar in activeTaskBkgColor." },
+        { "term": "crit", "text": "A critical task: a bar in critBkgColor with a critBorderColor border, or with done or active, in their color with that border." },
+        { "term": "milestone", "text": "A diamond the height of a bar at the middle of the task, so a milestone of 0d is at its start." },
+        { "term": "vert", "text": "A vertical line over every row at the start of the task, with its name below the rows." },
+        { "term": "gantt.barHeight", "text": "The height of a bar (default 20)." },
+        { "term": "gantt.barGap", "text": "The space between two rows (default 4)." },
+        { "term": "gantt.topPadding", "text": "The space above the first row and below the last (default 50)." },
+        { "term": "gantt.leftPadding", "text": "The space left of the time axis, where the section names are (default 75)." },
+        { "term": "gantt.rightPadding", "text": "The space right of the time axis (default 75)." },
+        { "term": "gantt.gridLineStartPadding", "text": "The top of the grid lines and of a vertical marker (default 35)." },
+        { "term": "gantt.titleTopMargin", "text": "The baseline of the title (default 25)." },
+        { "term": "gantt.fontSize", "text": "The font size of the task texts (default 11)." },
+        { "term": "gantt.sectionFontSize", "text": "The font size of the section names (default 11)." },
+        { "term": "gantt.numberSectionStyles", "text": "The number of section colors that repeat (default 4)." },
+        { "term": "gantt.axisFormat", "text": "The format of the axis labels of a chart without axisFormat (default %Y-%m-%d)." },
+        { "term": "gantt.tickInterval", "text": "The interval of the ticks of a chart without tickInterval (default unset)." },
+        { "term": "gantt.topAxis", "text": "true draws a second axis at the top (default false)." },
+        { "term": "gantt.displayMode", "text": "compact puts the tasks of a section on as few rows as keep them apart (default empty)." },
+        { "term": "gantt.useWidth", "text": "The width of the chart; unset is 784, the width Mermaid takes in the page of mmdc (default unset)." },
+        { "term": "gantt.weekday", "text": "Accepted, and without effect as in Mermaid; the weekday statement applies (default sunday)." },
+        { "term": "gantt.useMaxWidth", "text": "No meaning for a picture (default true)." }
+      ]
+    },
+    {
       "id": "unsupported",
       "title": "Not supported (reported, never silently dropped)",
       "items": [
-        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, and erDiagram); the picture is empty." },
-        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). Pie, gantt, and mindmap diagrams are planned later." },
+        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, and gantt); the picture is empty." },
+        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). Mindmap diagrams are planned later." },
         { "term": "mermaid-icon-unsupported", "text": "An icon (fa:fa-car in a label, an @{ icon: ... } node, an icon in the properties of a sequence participant); the node or participant keeps its shape and label without the icon." },
         { "term": "mermaid-math-unsupported", "text": "Math ($$...$$, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written." },
         { "term": "mermaid-look-unsupported", "text": "A look other than classic (handDrawn, neo); the diagram is drawn classic." },
@@ -171,7 +235,7 @@
         { "term": "mermaid-unknown-diagram", "text": "Error (mermaid-error): the first statement is not a Mermaid diagram keyword; the hint names the nearest one." },
         { "term": "mermaid-yaml-invalid", "text": "Error (mermaid-error): the frontmatter or the shape data is not valid YAML; anchors, aliases, and tags are refused (mermaid-yaml-unsupported)." },
         { "term": "mermaid-limit-exceeded", "text": "Error (budget-exceeded): a limit of the library (nodes, edges, nesting, label length, layout work, pictures, painted pixels); see 'canvasnet help limits'." },
-        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself, an empty sequence block, or two composite states that contain each other." },
+        { "term": "mermaid-render-failed", "text": "Error (mermaid-error): the diagram cannot be laid out, for example a subgraph that contains itself, an empty sequence block, two composite states that contain each other, or a gantt task whose date is invalid or whose after and until references go in a circle." },
         { "term": "mermaid-participant-type-unknown", "text": "Warning: a sequence participant has a type Mermaid does not define; it is not drawn, as in Mermaid, and the hint names the nearest type." },
         { "term": "mermaid-config-unknown-key", "text": "Warning: a configuration key Mermaid does not define; it is ignored." },
         { "term": "mermaid-config-invalid", "text": "Warning: a configuration value of the wrong type or range, or a theme that is not available; it is ignored (sequence.textPlacement: fo is drawn with the default placement)." },
@@ -181,6 +245,9 @@
         { "term": "mermaid-image-unresolved", "text": "Warning: a picture the resolver did not give; the node keeps its frame." },
         { "text": "A link that is not drawn (a missing file, a path outside the folder, a network URL) is the warning svg-image-unresolved with the reason, and --strict makes it a failure." },
         { "term": "mermaid-text-missing-glyph", "text": "Warning: a character that no bundled font has (for example CJK); it is drawn as the missing-glyph box." },
+        { "term": "mermaid-gantt-today-unavailable", "text": "Warning: a gantt chart needs today (a todayMarker style, an after or until id that no task has, or a date without a year, month, or day) and MermaidRenderOptions.Now is not set; the today line is not drawn and 1970-01-01 is taken as today." },
+        { "term": "mermaid-gantt-ticks-skipped", "text": "Warning: the tickInterval of a gantt chart would make more than 10,000 ticks; the default ticks are drawn, as in Mermaid." },
+        { "term": "mermaid-gantt-excludes-skipped", "text": "Warning: the tasks of a gantt chart with excluded days span more than five years; the excluded days are not shaded, as in Mermaid." },
         { "term": "mermaid-diagnostics-suppressed", "text": "Warning: more reports than MaxDiagnostics; the rest are dropped." },
         { "text": "A text longer than {{mmdMaxTextSize}} characters is corrupt-input." }
       ]
@@ -195,7 +262,7 @@
         { "text": "info lays the diagram out without the pictures of its nodes (it reads no other file), so a picture node without w and h can make the drawn diagram a little larger or smaller than the size info reports (with --width or --height it is fitted into the box); give an @{ img } node its w and h (constraint on) so that the layout does not depend on the picture. A render without --width and --height reports the natural size of the diagram it drew (the natural size of render --json); a library render of the diagram file without a size (CanvasNetViewer.Render) also charges its pixel budget for that drawn size, while a document that embeds the diagram always gives it a size." },
         { "text": "A diagram is drawn over white unless --background says otherwise (Mermaid's SVG is transparent); as a picture in an SVG file it stays transparent." },
         { "text": "Mermaid crashes on some invalid graphs (a subgraph cycle, a link to a subgraph without an anchor, two composite states that contain each other, a note on a state that appears nowhere before it, a relationship to an entity named like a subgraph declared after it, a relationship from a subgraph to an entity inside it); these are a located mermaid-error instead." },
-        { "text": "Interaction (click, href, call, tooltips, the link and callback of a class diagram, and the click of a state diagram) is read and ignored without a report, because a picture is static." },
+        { "text": "Interaction (click, href, call, tooltips, the link and callback of a class diagram, and the click of a state diagram or a gantt chart) is read and ignored without a report, because a picture is static." },
         { "text": "Mermaid draws a broken sequence diagram or fails for an empty block (a block with no message or note inside), for link or links on an actor, boundary, control, or entity participant, and for a properties icon that is not text; these are a located mermaid-render-failed instead." },
         { "text": "$$ math is drawn and measured as written (mermaid-math-unsupported), and textPlacement: fo (HTML labels) is drawn with the default placement." },
         { "text": "The color keywords and system colors of a box or a rect background take the values of headless Chrome in the light scheme (system colors depend on the platform in a browser)." },
@@ -211,7 +278,15 @@
         { "text": "The last concurrent region of a composite state has the id id-random-N where Mermaid's id holds a random number; the id is never drawn." },
         { "text": "Mermaid's entity relationship markers clip the line at the edge of their view port, which hides half of the stroke at the tip; the clip is not modeled, so a tip can be half a stroke longer." },
         { "text": "With htmlLabels: false the texts of an entity table take the style sheet's label color (nodeTextColor, else textColor), where Chrome uses textColor; the two are the same in the built-in themes." },
-        { "text": "The marker shapes of the neo look and the entity colors of the redux themes are not drawn (the look is reported, and the themes are not available)." }
+        { "text": "The marker shapes of the neo look and the entity colors of the redux themes are not drawn (the look is reported, and the themes are not available)." },
+        { "text": "The today of a gantt chart is the time the caller gives (MermaidRenderOptions.Now), never the clock; the tool, the Viewer, and the Pandoc filter give none, so the today line is not drawn and 1970-01-01 is taken as today (mermaid-gantt-today-unavailable where it matters). Write todayMarker off, or give the dates in full, to keep the warning away." },
+        { "text": "The dates of a gantt chart are in UTC, where Mermaid uses the time zone of the browser, so a chart never changes with the machine or with daylight saving time." },
+        { "text": "A gantt date that matches neither the dateFormat nor an ISO form (2024-1-5, Jan 5 2024, which browsers read in their own ways) is a located mermaid-render-failed Invalid date." },
+        { "text": "Mermaid fails, or draws a broken chart, for the topAxis statement, a task whose data holds only tags, a first task without a start, a task with more than three fields, after or until references that go in a circle, excluded days that never end, a compact section named like a JavaScript object member (constructor, toString), and a dateFormat with the week (w, ww, wo, gggg) or zone name (z, zzz) tokens; these are a located mermaid-syntax-error or mermaid-render-failed instead." },
+        { "text": "A gantt chart is 784 pixels wide, the width Mermaid takes in the page of mmdc, unless gantt.useWidth is set (in a browser it takes the width of the page), and its ticks keep d3's half-pixel offset at every scale." },
+        { "text": "The opacity of a pie slice, a gantt section row, and the gantt grid is folded into its colors, so where two of them overlap the colors can differ slightly; the turn of a milestone and the enlargement of a highlighted slice are applied to the outline, and the crisp edges of the gantt grid are drawn antialiased." },
+        { "text": "A character that no bundled font has is drawn as the missing-glyph box in a pie or gantt text without the warning mermaid-text-missing-glyph." },
+        { "text": "The links of a gantt chart (click ... href) are always checked as at Mermaid's strict level and kept only as data." }
       ]
     }
   ],
@@ -221,6 +296,8 @@
     { "name": "class", "kind": "source", "language": "mermaid", "fileName": "class.mmd", "description": "A small class diagram with an abstract class, members and methods, a generic, a static method, inheritance, cardinalities, and a note." },
     { "name": "state", "kind": "source", "language": "mermaid", "fileName": "state.mmd", "description": "A small state diagram with start and end states, labeled transitions, a composite state, and a note." },
     { "name": "er", "kind": "source", "language": "mermaid", "fileName": "er.mmd", "description": "A small entity relationship diagram with tables of attributes, keys, comments, and three relationships with their cardinalities." },
+    { "name": "pie", "kind": "source", "language": "mermaid", "fileName": "pie.mmd", "description": "A small pie chart with a title and the values in the legend (showData)." },
+    { "name": "gantt", "kind": "source", "language": "mermaid", "fileName": "gantt.mmd", "description": "A small gantt chart with two sections, done, active, and critical tasks, after references, a milestone, and excluded weekends." },
     { "name": "pictures", "kind": "snippet", "language": "mermaid", "fileName": "pictures.mmd", "description": "Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram." },
     { "name": "render", "kind": "command", "language": "shell", "description": "Draw flowchart.mmd and print the JSON result.", "content": "canvasnet render flowchart.mmd -o flowchart.png --json" },
     { "name": "theme", "kind": "command", "language": "shell", "description": "Draw at twice the size in the dark theme over a transparent background.", "content": "canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png" },
