@@ -1,0 +1,16 @@
+---
+title: Cardinalities
+---
+erDiagram
+    subgraph symbols["Symbols"]
+        A |o--o| B : "zero or one"
+        C ||--|| D : "exactly one"
+        E }o..o{ F : "zero or more"
+        G }|..|{ H : "one or more"
+    end
+    subgraph words["Words"]
+        I one or zero to zero or one J : maybe
+        K only one optionally to 1 L : single
+        M many(0) to 0+ N : any
+        O 1+ optionally to one or many P : some
+    end

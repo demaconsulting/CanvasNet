@@ -1,0 +1,31 @@
+---
+title: A print job
+---
+stateDiagram-v2
+    [*] --> Queued
+    state check <<choice>>
+    Queued --> check
+    check --> Rejected : no paper
+    check --> Printing : ready
+    state Printing {
+        direction LR
+        state split <<fork>>
+        state merge <<join>>
+        [*] --> split
+        split --> Rasterize
+        split --> Warmup
+        Rasterize --> merge
+        Warmup --> merge
+        merge --> Output
+        Output --> [*]
+    }
+    Printing --> Finishing
+    state Finishing {
+        [*] --> Stapling
+        Stapling --> Stacked
+        --
+        [*] --> Cooling
+        Cooling --> Ready
+    }
+    Finishing --> [*]
+    Rejected --> [*]

@@ -1,0 +1,29 @@
+erDiagram
+    classDef stock fill:#e6f4ea,stroke:#2e7d32
+    CUSTOMER["Customer"] {
+        int id PK "assigned at sign-up"
+        string name
+        string email UK
+        List~string~ phones
+        varchar(2) country
+        decimal? credit
+    }
+    ORDER {
+        int number PK
+        int customer FK "the buyer"
+        date placed
+    }
+    LINE {
+        int order PK, FK
+        int position PK
+        string product FK
+        int quantity
+    }
+    PRODUCT:::stock {
+        string code PK
+        string name
+    }
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE : contains
+    PRODUCT ||--o{ LINE : "ordered in"
+    style ORDER stroke:#c60,stroke-width:2px
