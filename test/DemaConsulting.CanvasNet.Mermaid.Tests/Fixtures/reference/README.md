@@ -4,7 +4,9 @@ The `*.layout.json` files in this folder are **goldens**: the layout that the re
 flowchart fixture of `../flowchart/`. `MermaidReferenceLayoutTests` compares CanvasNet's layout with them. The
 `sequence/` subfolder holds the goldens of the sequence fixtures of `../sequence/`; their format is described in
 [Sequence Goldens](#sequence-goldens). The `class/` subfolder holds the goldens of the class fixtures of `../class/`;
-their format is described in [Class Goldens](#class-goldens).
+their format is described in [Class Goldens](#class-goldens). The `state/` and `er/` folders hold the goldens of the
+state and ER fixtures of `../state/` and `../er/`; their format is described in [State Goldens](#state-goldens) and
+[ER Goldens](#er-goldens).
 
 ## Provenance
 
@@ -58,12 +60,13 @@ pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1                        # 
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Fixture 25-subgraph-basic
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram sequence      # the sequence goldens only
 pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the class goldens only
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the state and ER goldens only
 ```
 
-A new fixture in `../flowchart/`, `../sequence/` or `../class/` needs a golden, or an entry in the exclusions of the
-script, the test and this file. A golden change in a pull request is reviewed like code: the diff shows which
-coordinates moved. Regenerating can change a few numbers by 0.001: the browser's geometry is single precision, and a
-value near a rounding boundary can round either way.
+A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/` or `../er/` needs a golden, or an entry in
+the exclusions of the script, the test and this file. A golden change in a pull request is reviewed like code: the
+diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the browser's geometry is single
+precision, and a value near a rounding boundary can round either way.
 
 ## Sequence Goldens
 
@@ -244,3 +247,110 @@ that space a class diagram.
 
 The class texts are drawn as HTML labels by default (a top-level `htmlLabels` that is not set counts as true), so
 only `16-config-title-links` has SVG text labels.
+
+## State Goldens
+
+The files in `state/` hold the layout that the reference gives each fixture of `../state/`. They have the provenance,
+fonts, extraction, one-line arrays and objects, and the read-back at a scale of exactly 1 of the class goldens.
+
+### State Layout Content
+
+Each file holds the [class layout content](#class-layout-content), with these differences:
+
+- `diagram`: `stateDiagram` (for the `stateDiagram-v2` and the `stateDiagram` headers alike).
+- `title`: the `statediagramTitleText` text of the frontmatter title, or null.
+- `nodes`: the DOM id is `state-<id>-<n>` (for a note, `state-<id>----note-<n>`), and the shape is `stateStart`,
+  `stateEnd`, `rect`, `rectWithTitle`, `fork`, `join`, `choice`, or `note`. The parts are the drawing as for a class:
+  the `circle.state-start` of a start; the rough.js paths of an end (`outer-path`), a fork or join bar, a choice
+  diamond, and a note; the `rect.basic label-container` of a state; and the `rect.outer title-state`, the
+  `line.divider`, and the label of a state with descriptions. A label drawn in several pieces (the title and the
+  descriptions of a state with descriptions) also has `items`: the `tag` (`foreignObject`, or `text` for an SVG label),
+  `box`, and `text` of each piece.
+- `clusters`: composite states, the regions of a concurrent state, and the groups that hold a state with its note are
+  clusters. Each has its DOM id (`state-<id>-<n>`, or `state-<id>----parent-<n>` for a note group), `shape`
+  (`roundedWithTitle`, `divider`, or `noteGroup`, from the diagram's data), `box` (the outer or divider rectangle, or
+  the note group's invisible rectangle), `class` (for example
+  `statediagram-state statediagram-cluster statediagram-cluster-alt`, or `note-cluster`), `inner` (the inner rectangle
+  of a composite state), and `label` (the composite state's title).
+- `edges`: the transitions (`edge<n>`, class `transition`, marker `stateDiagram-barbEnd`) and the note links
+  (`<from>-<to>`, class `transition note-edge`, no marker).
+- `terminals`: always empty.
+
+The last region of a concurrent state has an id that Mermaid makes at random (`id-`, a random token, `-`, and a page
+counter). The harness writes it as `id-random-<counter>`, in the node, cluster, and DOM ids alike, so that the goldens
+do not change from run to run.
+
+### State Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic-transitions` | `[*]` start and end, transitions with labels |
+| `02-descriptions` | `state "d" as s`, `s : text`, several descriptions (`rectWithTitle`), a plain state |
+| `03-composite-nested` | Three levels of composite states, each with its own start and end |
+| `04-composite-direction` | `direction LR` at the root, `TB`, `LR`, and `BT` in composite states |
+| `05-fork-join` | `<<fork>>`, `<<join>>`, `[[fork]]`, and `[[join]]` |
+| `06-choice` | `<<choice>>` and `[[choice]]` with labeled branches |
+| `07-concurrency` | A composite state with three regions (`--`) |
+| `08-notes` | `note left of`, `note right of`, a multi-line `end note`, `<br/>`, a note in a composite state |
+| `09-styles` | `classDef`, `class` with one and two states, `:::`, and `style` |
+| `10-v1-header` | The `stateDiagram` header (drawn as `stateDiagram-v2`), a composite state, a description |
+| `11-self-and-parallel-transitions` | Self transitions and parallel transitions with labels |
+| `12-start-end-in-composites` | Start and end states in nested composite states |
+| `13-config-title` | Frontmatter title, `htmlLabels: false`, `state` spacing, a description, a composite, a note |
+| `14-transitions-into-composites` | Transitions to and from a composite state and into a state inside it |
+
+`13-config-title` also has the accessibility texts, `hide empty description`, `scale`, and `click`, which have no
+effect on the drawing. The state texts are drawn as HTML labels by default, so only `13-config-title` has SVG text
+labels.
+
+## ER Goldens
+
+The files in `er/` hold the layout that the reference gives each fixture of `../er/`. They have the provenance, fonts,
+extraction, one-line arrays and objects, and the read-back at a scale of exactly 1 of the class goldens.
+
+### ER Layout Content
+
+Each file holds the [class layout content](#class-layout-content), with these differences:
+
+- `diagram`: `er`.
+- `title`: the `erDiagramTitleText` text of the frontmatter title, or null.
+- `nodes`: the DOM id is the entity's id, `entity-<name>-<n>`, and the shape is `erBox`. An entity without attributes
+  is drawn as a `rect.basic label-container` with a label. An entity with attributes has the parts of its box: two
+  rough.js paths each for the box (`outer-path`) and for each row (`row-rect-odd` or `row-rect-even`), the labels
+  (`label name`, then `label attribute-type`, `label attribute-name`, `label attribute-keys`, and
+  `label attribute-comment` for each row; an empty cell has an empty box), and two paths for each divider (`divider`:
+  the line under the name, a line at each column boundary, and the line under the name again, as Mermaid draws it).
+- `clusters`: the subgraphs, with `shape` (`rect`), `class` (`cluster`), and `label` (the title).
+- `edges`: the relationships (`id_<entityA>_<entityB>_<n>`, class `relationshipLine`, with `edge-pattern-solid` or
+  `edge-pattern-dashed`), and the markers `er-onlyOne`, `er-zeroOrOne`, `er-oneOrMore`, or `er-zeroOrMore`, with
+  `Start` or `End`.
+- `terminals`: always empty.
+
+### ER Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic-relationships` | Relationships with crow's foot markers, a quoted role |
+| `02-cardinality-symbols` | `\|o`, `\|\|`, `}o`, `}\|`, `o\|`, `o{`, and `\|{` in several combinations |
+| `03-cardinality-words` | The cardinality words and their short forms, with `to` and `--` |
+| `04-identifying-non-identifying` | `--`, `..`, `.-`, `-.`, `to`, and `optionally to` |
+| `05-attributes` | Attribute types and names, `varchar(255)`, `string[]`, `decimal?` |
+| `06-keys-comments` | `PK`, `FK`, `UK`, key lists, comments, and boxes without the keys or the comment column |
+| `07-aliases` | `e["Alias"]` and `e[Alias]`, an alias after a relationship, a second alias (ignored) |
+| `08-direction` | `direction LR` |
+| `09-styles` | `classDef`, `:::`, `class` with one and two entities, and `style` |
+| `10-generics-backticks` | `List~int~`, `Map~string,int~`, backtick names and types, a quoted entity name |
+| `11-subgraphs` | Nested subgraphs with a title, `direction LR` in a subgraph with and without outside links |
+| `12-config-title` | Frontmatter title, `htmlLabels: false`, the `er` spacing and box settings |
+
+`03-cardinality-words` uses `one or zero`, `zero or one`, `only one`, `one or more`, `one or many`, `zero or more`,
+`zero or many`, `many(0)`, `many(1)`, `many`, `1+`, `0+`, and `1`. `12-config-title` sets `er.nodeSpacing`,
+`er.rankSpacing`, `er.minEntityWidth`, `er.entityPadding`, and `er.diagramPadding`, and has the accessibility
+texts. The ER texts are drawn as HTML labels by default (a top-level `htmlLabels` that is not set counts as true), so
+only `12-config-title` has SVG text labels.

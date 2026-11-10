@@ -1,0 +1,24 @@
+---
+title: Configured state diagram
+config:
+  htmlLabels: false
+  state:
+    nodeSpacing: 80
+    rankSpacing: 70
+---
+stateDiagram-v2
+    accTitle: Order states
+    accDescr: The states of an order
+    hide empty description
+    scale 350 width
+    [*] --> Placed
+    Placed --> Paid : pay
+    Paid : waiting for the bank
+    Paid : confirmed by mail
+    state Shipping {
+        Packed --> Sent
+    }
+    Paid --> Shipping : ship
+    Shipping --> [*]
+    note right of Placed : online orders
+    click Placed "https://example.com/placed" "Placed orders"

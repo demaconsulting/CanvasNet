@@ -1,0 +1,13 @@
+stateDiagram-v2
+    [*] --> Session
+    state Session {
+        [*] --> Login
+        Login --> Work
+        Work --> [*]
+        state Work {
+            [*] --> Edit
+            Edit --> Save
+            Save --> [*]
+        }
+    }
+    Session --> [*]

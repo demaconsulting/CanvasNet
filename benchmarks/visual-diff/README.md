@@ -117,22 +117,28 @@ attributes. Any other diagram of Mermaid's unified renderer (a class diagram, `a
 gets the flowchart layout extended with the diagram type, the title, the drawn parts of each node (each shape and
 label of a class box, with the group that holds it, such as `label-group text` or `divider`), the label and inner
 rectangle of each cluster, the class and marker ids of each edge, and the terminal labels (cardinalities), each
-matched to its edge and end. Such a diagram is read at a scale of exactly 1 (its view box grown to whole pixels from
-the same origin), because at its `max-width` Chrome scales it by about 0.99995 and lays its SVG texts out narrower. A
-flowchart keeps the plain layout, so its goldens do not change. The format is
+matched to its edge and end. The state and ER diagrams (`stateDiagram` and `er`) also get the shape of each
+cluster (composite states, the regions of a concurrent state and the note groups are clusters too: Mermaid draws them
+as `g.statediagram-cluster` and `g.note-cluster` groups) and, for a label drawn in several pieces (the title and
+description texts of a state with descriptions), each piece. The last region of a concurrent state has a random id
+(`id-` and a random token and a counter); it is written as `id-random-<counter>`, so the goldens do not change from run
+to run. Such a diagram is read at a scale of exactly 1 (its view box grown to whole pixels from the same origin),
+because at its `max-width` Chrome scales it by about 0.99995 and lays its SVG texts out narrower. A flowchart keeps
+the plain layout, and a class diagram the extended one, so their goldens do not change. The format is
 described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
 
 ```powershell
-pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class] [-Fixture <name>...]
+pwsh benchmarks/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er] [-Fixture <name>...]
 ```
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`, and the class fixtures (`Fixtures/class`) give `reference/class/*.layout.json`.
-`-Diagram` picks the types (default: all). Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system
-font) get no golden; no sequence or class fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
+`reference/sequence/*.layout.json`, and the class, state and ER fixtures (`Fixtures/class`, `Fixtures/state` and
+`Fixtures/er`) give `reference/class`, `reference/state` and `reference/er`. `-Diagram` picks the types (default:
+all). Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
+class, state or ER fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
 flowchart layout with the goldens. The tolerance is 0.01 px, or 0.1 px for the two fixtures with rough.js circles. A
 golden change is reviewed like code.
 
@@ -163,6 +169,19 @@ is their vector file.
   inputs are those of mermaid's own class parser specs (MIT), named in each case's `spec` field; the others are
   original texts and the class fixtures. `--probe <file>` prints the results instead. The generator is generic, so
   later diagram types add a `<type>-vector-cases.mjs` and their facts.
+- `gen-diagram-vectors.mjs --type state` writes `state-parser.json`: the StateDB facts (the statement tree after the
+  translation of the start and end states and the concurrent regions, the states with their descriptions, notes,
+  classes and styles, the relations, style classes, links, direction, and accessibility texts) and the reduced
+  `getData()` nodes and edges of the cases in `state-vector-cases.mjs`, or the parse or database error. The inputs
+  are those of mermaid's state parser specs (MIT), original texts (with the legacy renderer as a site configuration)
+  and the state fixtures. The random token of the id that mermaid gives the last region of a concurrent state is
+  written as `random` (`id-random-<counter>`).
+- `gen-diagram-vectors.mjs --type er` writes `er-parser.json`: the ErDB facts (the entities with their aliases and
+  attributes, the relationships with their cardinalities and type, style classes, subgraphs, direction, and
+  accessibility texts) and the reduced `getData()` nodes and edges of the cases in `er-vector-cases.mjs`, or the
+  parse error. The inputs are those of mermaid's ER parser specs (MIT; a sample of the per-character entity name
+  tests), original texts (every cardinality on both sides, keyword-like names, aliases, styles and subgraphs) and the
+  ER fixtures.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

@@ -1,0 +1,24 @@
+---
+title: Configured ER diagram
+config:
+  htmlLabels: false
+  er:
+    nodeSpacing: 100
+    rankSpacing: 60
+    minEntityWidth: 80
+    entityPadding: 10
+    diagramPadding: 12
+---
+erDiagram
+    accTitle: Library model
+    accDescr: Books, members and loans
+    BOOK {
+        string isbn PK "the book number"
+        string title
+    }
+    MEMBER {
+        int id PK
+    }
+    LOAN
+    MEMBER ||--o{ LOAN : borrows
+    BOOK ||--o{ LOAN : "lent in"

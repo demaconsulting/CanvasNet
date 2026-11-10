@@ -1,0 +1,25 @@
+erDiagram
+    ACCOUNT {
+        int id PK "the account number"
+        string owner FK
+        string email UK "unique per account"
+        int parent PK, FK
+        int code PK, UK "composite key"
+        string region FK, UK
+        string note
+    }
+    PLAIN {
+        string first
+        string second
+    }
+    KEYED {
+        int id PK
+        string name
+    }
+    COMMENTED {
+        int id "only a comment"
+        string name
+    }
+    ACCOUNT ||--o{ PLAIN : has
+    ACCOUNT ||--o{ KEYED : has
+    ACCOUNT ||--o{ COMMENTED : has

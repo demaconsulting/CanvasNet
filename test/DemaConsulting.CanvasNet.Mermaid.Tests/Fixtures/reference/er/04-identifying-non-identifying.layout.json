@@ -1,0 +1,348 @@
+{
+  "source": "04-identifying-non-identifying.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 836, 655],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-Car-0",
+      "shape": "erBox",
+      "x": 418,
+      "y": 420,
+      "box": [368, 378, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [368, 378, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [405.109, 408, 25.781, 24], "text": "Car" }
+      ]
+    },
+    {
+      "id": "entity-Wheel-1",
+      "shape": "erBox",
+      "x": 58,
+      "y": 605,
+      "box": [8, 563, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [8, 563, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [35.32, 593, 45.359, 24], "text": "Wheel" }
+      ]
+    },
+    {
+      "id": "entity-Driver-2",
+      "shape": "erBox",
+      "x": 298,
+      "y": 605,
+      "box": [248, 563, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [248, 563, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [276.664, 593, 42.672, 24], "text": "Driver" }
+      ]
+    },
+    {
+      "id": "entity-Garage-3",
+      "shape": "erBox",
+      "x": 441.816,
+      "y": 50,
+      "box": [391.816, 8, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [391.816, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [415.129, 38, 53.375, 24], "text": "Garage" }
+      ]
+    },
+    {
+      "id": "entity-Renter-4",
+      "shape": "erBox",
+      "x": 492.531,
+      "y": 235,
+      "box": [442.531, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [442.531, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [468.516, 223, 48.031, 24], "text": "Renter" }
+      ]
+    },
+    {
+      "id": "entity-Seat-5",
+      "shape": "erBox",
+      "x": 538,
+      "y": 605,
+      "box": [488, 563, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [488, 563, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [521.539, 593, 32.922, 24], "text": "Seat" }
+      ]
+    },
+    {
+      "id": "entity-Mirror-6",
+      "shape": "erBox",
+      "x": 778,
+      "y": 605,
+      "box": [728, 563, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [728, 563, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [757.117, 593, 41.766, 24], "text": "Mirror" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_entity-Car-0_entity-Wheel-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 351.478,
+      "points": [
+        [368, 432.847],
+        [350.979, 437.221],
+        [333.958, 441.594],
+        [316.937, 445.968],
+        [299.918, 450.35],
+        [282.908, 454.765],
+        [265.913, 459.239],
+        [248.936, 463.782],
+        [231.983, 468.412],
+        [215.058, 473.143],
+        [198.167, 477.994],
+        [181.32, 482.994],
+        [164.528, 488.177],
+        [147.81, 493.596],
+        [131.201, 499.336],
+        [114.764, 505.552],
+        [98.648, 512.554],
+        [83.152, 520.827],
+        [69.028, 531.234],
+        [59.156, 545.542],
+        [58, 563]
+      ]
+    },
+    {
+      "id": "id_entity-Car-0_entity-Driver-2_1",
+      "class": "edge-thickness-normal edge-pattern-dashed relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 132.765,
+      "points": [
+        [368, 458.542],
+        [362.742, 462.595],
+        [357.485, 466.647],
+        [352.232, 470.707],
+        [347.016, 474.812],
+        [341.859, 478.992],
+        [336.781, 483.267],
+        [331.798, 487.652],
+        [326.933, 492.169],
+        [322.216, 496.839],
+        [317.692, 501.696],
+        [313.425, 506.78],
+        [309.52, 512.146],
+        [306.116, 517.842],
+        [303.288, 523.844],
+        [301.07, 530.098],
+        [299.476, 536.54],
+        [298.488, 543.102],
+        [298.054, 549.724],
+        [298, 556.362],
+        [298, 563]
+      ]
+    },
+    {
+      "id": "id_entity-Garage-3_entity-Car-0_2",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 313.347,
+      "points": [
+        [397.161, 92],
+        [385.754, 102.74],
+        [374.799, 113.934],
+        [365.005, 126.153],
+        [356.853, 139.516],
+        [350.867, 153.975],
+        [347.133, 169.18],
+        [345.014, 184.699],
+        [343.956, 200.328],
+        [343.548, 215.99],
+        [343.47, 231.657],
+        [343.486, 247.324],
+        [343.661, 262.99],
+        [344.221, 278.647],
+        [345.443, 294.265],
+        [347.717, 309.762],
+        [351.611, 324.926],
+        [357.524, 339.422],
+        [365.222, 353.057],
+        [374.347, 365.786],
+        [384.159, 378]
+      ]
+    },
+    {
+      "id": "id_entity-Garage-3_entity-Renter-4_3",
+      "class": "edge-thickness-normal edge-pattern-dashed relationshipLine",
+      "markerStart": "er-zeroOrMoreStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 106.544,
+      "points": [
+        [441.816, 92],
+        [441.816, 97.327],
+        [441.819, 102.654],
+        [441.884, 107.981],
+        [442.075, 113.305],
+        [442.418, 118.62],
+        [442.933, 123.922],
+        [443.638, 129.203],
+        [444.551, 134.45],
+        [445.693, 139.653],
+        [447.088, 144.794],
+        [448.724, 149.863],
+        [450.563, 154.863],
+        [452.57, 159.797],
+        [454.721, 164.671],
+        [456.995, 169.488],
+        [459.375, 174.253],
+        [461.845, 178.973],
+        [464.382, 183.657],
+        [466.943, 188.329],
+        [469.504, 193]
+      ]
+    },
+    {
+      "id": "id_entity-Car-0_entity-Seat-5_4",
+      "class": "edge-thickness-normal edge-pattern-dashed relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 132.765,
+      "points": [
+        [468, 458.542],
+        [473.258, 462.595],
+        [478.515, 466.647],
+        [483.768, 470.707],
+        [488.984, 474.812],
+        [494.141, 478.992],
+        [499.219, 483.267],
+        [504.202, 487.652],
+        [509.067, 492.169],
+        [513.784, 496.839],
+        [518.308, 501.696],
+        [522.575, 506.78],
+        [526.48, 512.146],
+        [529.884, 517.842],
+        [532.712, 523.844],
+        [534.93, 530.098],
+        [536.524, 536.539],
+        [537.511, 543.102],
+        [537.946, 549.724],
+        [538, 556.362],
+        [538, 563]
+      ]
+    },
+    {
+      "id": "id_entity-Car-0_entity-Mirror-6_5",
+      "class": "edge-thickness-normal edge-pattern-dashed relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 351.479,
+      "points": [
+        [468, 432.847],
+        [485.021, 437.221],
+        [502.042, 441.594],
+        [519.063, 445.968],
+        [536.082, 450.35],
+        [553.092, 454.765],
+        [570.087, 459.239],
+        [587.064, 463.782],
+        [604.017, 468.412],
+        [620.942, 473.143],
+        [637.833, 477.994],
+        [654.68, 482.994],
+        [671.472, 488.177],
+        [688.19, 493.597],
+        [704.799, 499.336],
+        [721.236, 505.552],
+        [737.352, 512.554],
+        [752.848, 520.827],
+        [766.972, 531.234],
+        [776.844, 545.542],
+        [778, 563]
+      ]
+    },
+    {
+      "id": "id_entity-Renter-4_entity-Car-0_6",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 112.379,
+      "points": [
+        [492.531, 277],
+        [492.531, 282.619],
+        [492.523, 288.238],
+        [492.4, 293.855],
+        [492.061, 299.464],
+        [491.468, 305.051],
+        [490.593, 310.6],
+        [489.409, 316.092],
+        [487.895, 321.502],
+        [486.028, 326.801],
+        [483.801, 331.959],
+        [481.275, 336.977],
+        [478.511, 341.869],
+        [475.556, 346.648],
+        [472.443, 351.325],
+        [469.198, 355.913],
+        [465.844, 360.42],
+        [462.4, 364.86],
+        [458.892, 369.249],
+        [455.366, 373.625],
+        [451.841, 378]
+      ]
+    },
+    {
+      "id": "id_entity-Renter-4_entity-Garage-3_7",
+      "class": "edge-thickness-normal edge-pattern-dashed relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 113.576,
+      "points": [
+        [506.878, 193],
+        [508.714, 187.626],
+        [510.543, 182.25],
+        [512.24, 176.831],
+        [513.657, 171.333],
+        [514.717, 165.755],
+        [515.348, 160.113],
+        [515.477, 154.438],
+        [515.032, 148.779],
+        [513.952, 143.208],
+        [512.219, 137.803],
+        [509.957, 132.596],
+        [507.296, 127.58],
+        [504.329, 122.739],
+        [501.122, 118.053],
+        [497.723, 113.505],
+        [494.17, 109.075],
+        [490.496, 104.745],
+        [486.741, 100.485],
+        [482.966, 96.243],
+        [479.191, 92]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_entity-Car-0_entity-Wheel-1_0", "box": [46.711, 502, 22.578, 21] },
+    { "id": "id_entity-Car-0_entity-Driver-2_1", "box": [269.594, 502, 56.813, 21] },
+    { "id": "id_entity-Garage-3_entity-Car-0_2", "box": [324.406, 224.5, 38.125, 21] },
+    { "id": "id_entity-Garage-3_entity-Renter-4_3", "box": [414.184, 132, 55.266, 21] },
+    { "id": "id_entity-Car-0_entity-Seat-5_4", "box": [522.82, 502, 30.359, 21] },
+    { "id": "id_entity-Car-0_entity-Mirror-6_5", "box": [750.758, 502, 54.484, 21] },
+    { "id": "id_entity-Renter-4_entity-Car-0_6", "box": [476.969, 317, 31.125, 21] },
+    { "id": "id_entity-Renter-4_entity-Garage-3_7", "box": [508.566, 132, 31.125, 21] }
+  ],
+  "terminals": []
+}

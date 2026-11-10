@@ -1,0 +1,16 @@
+stateDiagram-v2
+    state split <<fork>>
+    state merge <<join>>
+    state fan [[fork]]
+    state gather [[join]]
+    [*] --> split
+    split --> Left
+    split --> Right
+    Left --> merge
+    Right --> merge
+    merge --> fan
+    fan --> Top
+    fan --> Bottom
+    Top --> gather
+    Bottom --> gather
+    gather --> [*]

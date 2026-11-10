@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> Draft
+    Draft --> Review
+    Review --> Published
+    note left of Draft : written by the author
+    note right of Review
+        checked by
+        two editors
+    end note
+    note right of Published : visible<br/>to everyone
+    state Archive {
+        Stored
+        note left of Stored : kept for a year
+    }
+    Published --> Archive

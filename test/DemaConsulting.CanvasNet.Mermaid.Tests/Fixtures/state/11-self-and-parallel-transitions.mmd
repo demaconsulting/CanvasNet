@@ -1,0 +1,8 @@
+stateDiagram-v2
+    [*] --> Polling
+    Polling --> Polling : timeout
+    Polling --> Polling : retry
+    Polling --> Done : data
+    Polling --> Done : cancel
+    Done --> Polling : restart
+    Done --> [*]

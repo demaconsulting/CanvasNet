@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> Outer
+    state Outer {
+        [*] --> Middle
+        state Middle {
+            [*] --> Inner
+            state Inner {
+                [*] --> Deep
+                Deep --> [*]
+            }
+            Inner --> Done
+        }
+        Middle --> [*]
+    }
+    Outer --> [*]

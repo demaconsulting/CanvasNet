@@ -1,0 +1,245 @@
+{
+  "source": "05-attributes.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 216.297, 587.25],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-CUSTOMER-0",
+      "shape": "erBox",
+      "x": 108.148,
+      "y": 136.25,
+      "box": [28.008, 8, 160.281, 256.5],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [28.008, 8, 160.281, 256.5] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [28.008, 8, 160.281, 256.5] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [28.008, 50.75, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [28.008, 50.75, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [28.008, 93.5, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [28.008, 93.5, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [28.008, 136.25, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [28.008, 136.25, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [28.008, 179, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [28.008, 179, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [28.008, 221.75, 160.281, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [28.008, 221.75, 160.281, 42.75] },
+        { "tag": "g", "class": "label name", "group": null, "box": [62.516, 17.375, 91.266, 24], "text": "CUSTOMER" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [40.508, 60.125, 39.125, 24],
+          "text": "string"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [104.633, 60.125, 40.031, 24],
+          "text": "name"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [200.789, 60.125, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [200.789, 60.125, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [40.508, 102.875, 39.125, 24],
+          "text": "string"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [104.633, 102.875, 38.234, 24],
+          "text": "email"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [200.789, 102.875, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [200.789, 102.875, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [40.508, 145.625, 16.906, 24],
+          "text": "int"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [104.633, 145.625, 26.703, 24],
+          "text": "age"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [200.789, 145.625, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [200.789, 145.625, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [40.508, 188.375, 30.25, 24],
+          "text": "float"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [104.633, 188.375, 56.047, 24],
+          "text": "balance"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [200.789, 188.375, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [200.789, 188.375, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [40.508, 231.125, 31.141, 24],
+          "text": "date"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [104.633, 231.125, 71.156, 24],
+          "text": "registered"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [200.789, 231.125, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [200.789, 231.125, 0, 0], "text": "" },
+        { "tag": "path", "class": null, "group": "divider", "box": [28.008, 50.75, 160.281, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [28.008, 50.75, 160.281, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [92.133, 50.75, 0, 213.75] },
+        { "tag": "path", "class": null, "group": "divider", "box": [92.133, 50.75, 0, 213.75] },
+        { "tag": "path", "class": null, "group": "divider", "box": [28.008, 50.75, 160.281, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [28.008, 50.75, 160.281, 0] }
+      ]
+    },
+    {
+      "id": "entity-ORDER-1",
+      "shape": "erBox",
+      "x": 108.148,
+      "y": 472.375,
+      "box": [8, 365.5, 200.297, 213.75],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [8, 365.5, 200.297, 213.75] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [8, 365.5, 200.297, 213.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [8, 408.25, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [8, 408.25, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [8, 451, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [8, 451, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [8, 493.75, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [8, 493.75, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [8, 536.5, 200.297, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-even", "box": [8, 536.5, 200.297, 42.75] },
+        { "tag": "g", "class": "label name", "group": null, "box": [79.258, 374.875, 57.781, 24], "text": "ORDER" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [20.5, 417.625, 16.906, 24],
+          "text": "int"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [136.203, 417.625, 12.453, 24],
+          "text": "id"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [220.797, 417.625, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [220.797, 417.625, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [20.5, 460.375, 90.703, 24],
+          "text": "varchar(255)"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [136.203, 460.375, 31.141, 24],
+          "text": "note"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [220.797, 460.375, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [220.797, 460.375, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [20.5, 503.125, 48.016, 24],
+          "text": "string[]"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [136.203, 503.125, 30.25, 24],
+          "text": "tags"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [220.797, 503.125, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [220.797, 503.125, 0, 0], "text": "" },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [20.5, 545.875, 64.031, 24],
+          "text": "decimal?"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [136.203, 545.875, 59.594, 24],
+          "text": "discount"
+        },
+        { "tag": "g", "class": "label attribute-keys", "group": null, "box": [220.797, 545.875, 0, 0], "text": "" },
+        { "tag": "g", "class": "label attribute-comment", "group": null, "box": [220.797, 545.875, 0, 0], "text": "" },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 408.25, 200.297, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 408.25, 200.297, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [123.703, 408.25, 0, 171] },
+        { "tag": "path", "class": null, "group": "divider", "box": [123.703, 408.25, 0, 171] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 408.25, 200.297, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 408.25, 200.297, 0] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 101,
+      "points": [
+        [108.148, 264.5],
+        [108.148, 269.55],
+        [108.148, 274.6],
+        [108.148, 279.65],
+        [108.148, 284.7],
+        [108.148, 289.75],
+        [108.148, 294.8],
+        [108.148, 299.85],
+        [108.148, 304.9],
+        [108.148, 309.95],
+        [108.148, 315],
+        [108.148, 320.05],
+        [108.148, 325.1],
+        [108.148, 330.15],
+        [108.148, 335.2],
+        [108.148, 340.25],
+        [108.148, 345.3],
+        [108.148, 350.35],
+        [108.148, 355.4],
+        [108.148, 360.45],
+        [108.148, 365.5]
+      ]
+    }
+  ],
+  "edgeLabels": [{ "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0", "box": [87.914, 304.5, 40.469, 21] }],
+  "terminals": []
+}

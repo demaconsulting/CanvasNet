@@ -1,0 +1,13 @@
+erDiagram
+    p["Person"]
+    a[Address]
+    c["Company Ltd."] {
+        string name
+    }
+    s["Supplier"]
+    p ||--o{ a : "lives at"
+    c ||--|{ p : employs
+    s ||..o{ c : supplies
+    s["Ignored second alias"]
+    x ||--|| p : knows
+    x["Contact"]

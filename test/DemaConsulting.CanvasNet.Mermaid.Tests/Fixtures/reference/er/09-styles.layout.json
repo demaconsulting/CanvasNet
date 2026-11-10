@@ -1,0 +1,141 @@
+{
+  "source": "09-styles.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 597.242, 286.5],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-HOT-0",
+      "shape": "erBox",
+      "x": 59.242,
+      "y": 50,
+      "box": [9.242, 8, 100, 84],
+      "class": "node default warm",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [9.242, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [42.352, 38, 33.781, 24], "text": "HOT" }
+      ]
+    },
+    {
+      "id": "entity-COLD-1",
+      "shape": "erBox",
+      "x": 59.242,
+      "y": 235.75,
+      "box": [8, 193, 102.484, 85.5],
+      "class": "node default cool",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [8, 193, 102.484, 85.5] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [8, 193, 102.484, 85.5] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [8, 235.75, 102.484, 42.75] },
+        { "tag": "path", "class": null, "group": "row-rect-odd", "box": [8, 235.75, 102.484, 42.75] },
+        {
+          "tag": "g",
+          "class": "label name",
+          "group": null,
+          "box": [37.016, 202.375, 44.453, 24],
+          "text": "COLD",
+          "style": "color:#036 !important"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-type",
+          "group": null,
+          "box": [20.5, 245.125, 16.906, 24],
+          "text": "int",
+          "style": "color:#036 !important"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-name",
+          "group": null,
+          "box": [62.406, 245.125, 35.578, 24],
+          "text": "temp",
+          "style": "color:#036 !important"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-keys",
+          "group": null,
+          "box": [122.984, 245.125, 0, 0],
+          "text": "",
+          "style": "color:#036 !important"
+        },
+        {
+          "tag": "g",
+          "class": "label attribute-comment",
+          "group": null,
+          "box": [122.984, 245.125, 0, 0],
+          "text": "",
+          "style": "color:#036 !important"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 235.75, 102.484, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 235.75, 102.484, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [49.906, 235.75, 0, 42.75] },
+        { "tag": "path", "class": null, "group": "divider", "box": [49.906, 235.75, 0, 42.75] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 235.75, 102.484, 0] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 235.75, 102.484, 0] }
+      ]
+    },
+    {
+      "id": "entity-MILD-2",
+      "shape": "erBox",
+      "x": 299.242,
+      "y": 50,
+      "box": [249.242, 8, 100, 84],
+      "class": "node default warm",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [249.242, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [280.125, 38, 38.234, 24], "text": "MILD" }
+      ]
+    },
+    {
+      "id": "entity-CALM-3",
+      "shape": "erBox",
+      "x": 539.242,
+      "y": 50,
+      "box": [489.242, 8, 100, 84],
+      "class": "node default warm",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [489.242, 8, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [517.016, 38, 44.453, 24], "text": "CALM" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_entity-HOT-0_entity-COLD-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 101,
+      "points": [
+        [59.242, 92],
+        [59.242, 97.05],
+        [59.242, 102.1],
+        [59.242, 107.15],
+        [59.242, 112.2],
+        [59.242, 117.25],
+        [59.242, 122.3],
+        [59.242, 127.35],
+        [59.242, 132.4],
+        [59.242, 137.45],
+        [59.242, 142.5],
+        [59.242, 147.55],
+        [59.242, 152.6],
+        [59.242, 157.65],
+        [59.242, 162.7],
+        [59.242, 167.75],
+        [59.242, 172.8],
+        [59.242, 177.85],
+        [59.242, 182.9],
+        [59.242, 187.95],
+        [59.242, 193]
+      ]
+    }
+  ],
+  "edgeLabels": [{ "id": "id_entity-HOT-0_entity-COLD-1_0", "box": [42.898, 132, 32.688, 21] }],
+  "terminals": []
+}

@@ -1,0 +1,18 @@
+erDiagram
+    subgraph Sales["Sales area"]
+        CUSTOMER ||--o{ ORDER : places
+        subgraph Billing
+            direction LR
+            INVOICE ||--|{ PAYMENT : settles
+        end
+    end
+    subgraph Stock
+        PRODUCT
+        WAREHOUSE ||--o{ PRODUCT : holds
+    end
+    subgraph Audit
+        direction LR
+        LOG ||--o{ ENTRY : keeps
+    end
+    ORDER ||--|| INVOICE : billed
+    ORDER }o--|{ PRODUCT : lists

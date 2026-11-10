@@ -1,0 +1,9 @@
+erDiagram
+    Car ||--o{ Wheel : has
+    Car ||..o{ Driver : "driven by"
+    Garage ||--|{ Car : stores
+    Garage }o..o{ Renter : "rented to"
+    Car ||.-o{ Seat : fitted
+    Car ||-.o{ Mirror : mounted
+    Renter only one to zero or more Car : rents
+    Renter only one optionally to zero or more Garage : visits

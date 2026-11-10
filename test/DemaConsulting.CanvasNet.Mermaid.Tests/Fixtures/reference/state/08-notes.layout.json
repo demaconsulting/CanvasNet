@@ -1,0 +1,449 @@
+{
+  "source": "08-notes.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "stateDiagram",
+  "viewBox": [0, 0, 725.184, 656],
+  "title": null,
+  "nodes": [
+    {
+      "id": "state-root_start-0",
+      "shape": "stateStart",
+      "x": 288.91,
+      "y": 60,
+      "box": [281.91, 53, 14, 14],
+      "class": "node default",
+      "parts": [{ "tag": "circle", "class": "state-start", "group": null, "box": [281.91, 53, 14, 14] }]
+    },
+    {
+      "id": "state-Draft-3",
+      "shape": "rect",
+      "x": 371.152,
+      "y": 182,
+      "box": [345.816, 162, 50.672, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [345.816, 162, 50.672, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [353.816, 170, 34.672, 24], "text": "Draft" }
+      ]
+    },
+    {
+      "id": "state-Review-4",
+      "shape": "rect",
+      "x": 371.152,
+      "y": 272,
+      "box": [336.918, 252, 68.469, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [336.918, 252, 68.469, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [344.918, 260, 52.469, 24], "text": "Review" }
+      ]
+    },
+    {
+      "id": "state-Published-7",
+      "shape": "rect",
+      "x": 175.707,
+      "y": 406,
+      "box": [132.566, 386, 86.281, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [132.566, 386, 86.281, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [140.566, 394, 70.281, 24], "text": "Published" }
+      ]
+    },
+    {
+      "id": "state-Draft----note-3",
+      "shape": "note",
+      "x": 453.395,
+      "y": 60,
+      "box": [365.91, 33, 174.969, 54],
+      "class": "node statediagram-note",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [365.91, 33, 174.969, 54] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [365.91, 33, 174.969, 54] },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [380.91, 48, 144.969, 24],
+          "text": "written by the author"
+        }
+      ]
+    },
+    {
+      "id": "state-Review----note-4",
+      "shape": "note",
+      "x": 626.715,
+      "y": 406,
+      "box": [571.246, 367, 110.938, 78],
+      "class": "node statediagram-note",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [571.246, 367, 110.938, 78]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [571.246, 367, 110.938, 78]
+        },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [586.246, 382, 80.938, 48],
+          "text": "checked by two editors"
+        }
+      ]
+    },
+    {
+      "id": "state-Published----note-5",
+      "shape": "note",
+      "x": 99.805,
+      "y": 584,
+      "box": [43, 545, 113.609, 78],
+      "class": "node statediagram-note",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [43, 545, 113.609, 78] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [43, 545, 113.609, 78] },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [58, 560, 83.609, 48],
+          "text": "visible to everyone"
+        }
+      ]
+    },
+    {
+      "id": "state-Stored-6",
+      "shape": "rect",
+      "x": 354.535,
+      "y": 584,
+      "box": [322.965, 564, 63.141, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [322.965, 564, 63.141, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [330.965, 572, 47.141, 24], "text": "Stored" }
+      ]
+    },
+    {
+      "id": "state-Stored----note-6",
+      "shape": "note",
+      "x": 415.105,
+      "y": 406,
+      "box": [348.965, 379, 132.281, 54],
+      "class": "node statediagram-note",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [348.965, 379, 132.281, 54]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [348.965, 379, 132.281, 54]
+        },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [363.965, 394, 102.281, 24],
+          "text": "kept for a year"
+        }
+      ]
+    }
+  ],
+  "clusters": [
+    {
+      "id": "state-Draft----parent-3",
+      "shape": "noteGroup",
+      "box": [330.91, 8, 244.969, 104],
+      "class": "note-cluster",
+      "inner": null,
+      "label": null
+    },
+    {
+      "id": "state-Review----parent-4",
+      "shape": "noteGroup",
+      "box": [536.246, 342, 180.938, 128],
+      "class": "note-cluster",
+      "inner": null,
+      "label": null
+    },
+    {
+      "id": "state-Published----parent-5",
+      "shape": "noteGroup",
+      "box": [8, 520, 183.609, 128],
+      "class": "note-cluster",
+      "inner": null,
+      "label": null
+    },
+    {
+      "id": "state-Archive-7",
+      "shape": "roundedWithTitle",
+      "box": [211.609, 520, 246.781, 128],
+      "class": "statediagram-state statediagram-cluster",
+      "inner": [211.609, 546, 246.781, 98],
+      "label": { "text": "Archive", "box": [308.32, 521, 53.359, 24] }
+    },
+    {
+      "id": "state-Stored----parent-6",
+      "shape": "noteGroup",
+      "box": [313.965, 342, 202.281, 128],
+      "class": "note-cluster",
+      "inner": null,
+      "label": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge0",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 129.952,
+      "points": [
+        [288.91, 67],
+        [288.91, 73.498],
+        [288.91, 79.995],
+        [288.91, 86.493],
+        [288.91, 92.99],
+        [288.91, 99.488],
+        [288.91, 105.986],
+        [288.924, 112.483],
+        [289.22, 118.972],
+        [290.408, 125.35],
+        [293.005, 131.288],
+        [296.901, 136.473],
+        [301.611, 140.943],
+        [306.729, 144.944],
+        [312.064, 148.651],
+        [317.536, 152.154],
+        [323.102, 155.507],
+        [328.736, 158.744],
+        [334.416, 161.898],
+        [340.116, 165.018],
+        [345.816, 168.137]
+      ]
+    },
+    {
+      "id": "edge1",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [371.152, 202],
+        [371.152, 204.5],
+        [371.152, 207],
+        [371.152, 209.5],
+        [371.152, 212],
+        [371.152, 214.5],
+        [371.152, 217],
+        [371.152, 219.5],
+        [371.152, 222],
+        [371.152, 224.5],
+        [371.152, 227],
+        [371.152, 229.5],
+        [371.152, 232],
+        [371.152, 234.5],
+        [371.152, 237],
+        [371.152, 239.5],
+        [371.152, 242],
+        [371.152, 244.5],
+        [371.152, 247],
+        [371.152, 249.5],
+        [371.152, 252]
+      ]
+    },
+    {
+      "id": "edge2",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 224.019,
+      "points": [
+        [336.918, 279.882],
+        [326.003, 282.395],
+        [315.087, 284.909],
+        [304.172, 287.424],
+        [293.262, 289.959],
+        [282.362, 292.535],
+        [271.474, 295.168],
+        [260.604, 297.871],
+        [249.757, 300.66],
+        [238.938, 303.56],
+        [228.158, 306.605],
+        [217.438, 309.851],
+        [206.818, 313.407],
+        [196.405, 317.528],
+        [186.527, 322.782],
+        [178.515, 330.482],
+        [175.752, 341.197],
+        [175.707, 352.397],
+        [175.707, 363.598],
+        [175.707, 374.799],
+        [175.707, 386]
+      ]
+    },
+    {
+      "id": "Draft----note-3-Draft",
+      "class": "edge-thickness-normal edge-pattern-solid transition note-edge",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 109.999,
+      "points": [
+        [453.395, 87],
+        [453.395, 92.5],
+        [453.395, 98],
+        [453.395, 103.5],
+        [453.395, 109],
+        [453.385, 114.5],
+        [453.089, 119.989],
+        [451.993, 125.37],
+        [449.834, 130.418],
+        [446.728, 134.948],
+        [442.952, 138.941],
+        [438.773, 142.515],
+        [434.372, 145.813],
+        [429.835, 148.92],
+        [425.203, 151.885],
+        [420.502, 154.74],
+        [415.749, 157.507],
+        [410.956, 160.206],
+        [406.138, 162.858],
+        [401.313, 165.497],
+        [396.488, 168.137]
+      ]
+    },
+    {
+      "id": "Review-Review----note-4",
+      "class": "edge-thickness-normal edge-pattern-solid transition note-edge",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 262.876,
+      "points": [
+        [405.387, 278.028],
+        [418.332, 280.307],
+        [431.276, 282.586],
+        [444.221, 284.867],
+        [457.164, 287.153],
+        [470.103, 289.466],
+        [483.036, 291.811],
+        [495.96, 294.202],
+        [508.875, 296.649],
+        [521.776, 299.159],
+        [534.662, 301.75],
+        [547.527, 304.442],
+        [560.364, 307.267],
+        [573.159, 310.274],
+        [585.885, 313.561],
+        [598.47, 317.346],
+        [610.728, 322.072],
+        [621.853, 328.97],
+        [626.71, 340.712],
+        [626.715, 353.856],
+        [626.715, 367]
+      ]
+    },
+    {
+      "id": "Published-Published----note-5",
+      "class": "edge-thickness-normal edge-pattern-solid transition note-edge",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 139.92,
+      "points": [
+        [151.988, 426],
+        [146.639, 430.509],
+        [141.292, 435.02],
+        [135.969, 439.56],
+        [130.704, 444.168],
+        [125.522, 448.867],
+        [120.45, 453.686],
+        [115.537, 458.666],
+        [110.868, 463.874],
+        [106.639, 469.442],
+        [103.188, 475.52],
+        [100.89, 482.115],
+        [99.921, 489.034],
+        [99.805, 496.028],
+        [99.805, 503.024],
+        [99.805, 510.02],
+        [99.805, 517.016],
+        [99.805, 524.012],
+        [99.805, 531.008],
+        [99.805, 538.004],
+        [99.805, 545]
+      ]
+    },
+    {
+      "id": "Stored----note-6-Stored",
+      "class": "edge-thickness-normal edge-pattern-solid transition note-edge",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 145.148,
+      "points": [
+        [415.105, 433],
+        [415.105, 440.257],
+        [415.105, 447.515],
+        [415.105, 454.772],
+        [415.105, 462.03],
+        [415.105, 469.287],
+        [415.105, 476.544],
+        [415.105, 483.802],
+        [415.105, 491.059],
+        [415.089, 498.316],
+        [414.615, 505.554],
+        [413.041, 512.629],
+        [410.287, 519.335],
+        [406.628, 525.598],
+        [402.419, 531.509],
+        [397.908, 537.193],
+        [393.205, 542.72],
+        [388.368, 548.13],
+        [383.436, 553.454],
+        [378.452, 558.729],
+        [373.463, 564]
+      ]
+    },
+    {
+      "id": "edge7",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 121.377,
+      "points": [
+        [203.578, 426],
+        [208.509, 429.538],
+        [213.44, 433.076],
+        [218.366, 436.621],
+        [223.268, 440.198],
+        [228.133, 443.826],
+        [232.951, 447.516],
+        [237.707, 451.286],
+        [242.383, 455.155],
+        [246.948, 459.153],
+        [251.352, 463.328],
+        [255.488, 467.767],
+        [259.156, 472.597],
+        [262.096, 477.898],
+        [264.006, 483.648],
+        [264.797, 489.657],
+        [264.895, 495.725],
+        [264.895, 501.793],
+        [264.895, 507.862],
+        [264.895, 513.931],
+        [264.895, 520]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

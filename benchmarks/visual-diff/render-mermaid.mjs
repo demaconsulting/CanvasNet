@@ -28,7 +28,10 @@
 // Any other diagram of the unified renderer (a class diagram, for example) gets the flowchart layout extended with: the
 // diagram (its aria-roledescription), the title, each node's class and drawn parts (shapes and labels, with the group
 // that holds them), each cluster's class, inner rectangle and label, each edge's class and marker ids, and the
-// terminal labels (cardinalities) with their edge. A flowchart keeps the plain layout.
+// terminal labels (cardinalities) with their edge. A flowchart keeps the plain layout. The state and ER diagrams also
+// get each cluster's shape (state clusters are g.statediagram-cluster and g.note-cluster groups, which are clusters
+// here too) and the pieces of a label drawn in several parts; the random id of the last region of a concurrent state is
+// written as id-random-<counter>.
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -40,6 +43,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
 const svgId = 'my-svg';
 const samples = 20;
+// mermaid's generateId ("id-" + Math.random().toString(36).substr(2, 12) + "-" + a page-wide counter), which a state
+// diagram uses for the last region of a concurrent state; the layout of a state diagram writes it as id-random-<counter>
+// so that the goldens do not change from run to run
+const randomIdPattern = '(?<![0-9A-Za-z_])id-[0-9a-z]{4,12}-(\\d+)(?![0-9])';
 
 // --- Arguments ---------------------------------------------------------------------------------------------------
 const args = process.argv.slice(2);
@@ -186,13 +193,17 @@ async function readBack(svgText, definition, picture) {
       await Promise.all(Array.from(document.fonts, (font) => font.load()));
       await document.fonts.ready;
     });
-    const { shapes, actors, terminalTexts } = await page.evaluate(async (text) => {
+    const { shapes, groupShapes, actors, terminalTexts } = await page.evaluate(async (text, randomId) => {
       window.mermaid.initialize({ startOnLoad: false });
       const diagram = await window.mermaid.mermaidAPI.getDiagramFromText(text);
       const data = diagram.db.getData?.();
+      // A state diagram names the last region of a concurrent state with a random id (see randomIdPattern)
+      const key = (id) => (/^state/.test(diagram.type) ? id.replace(new RegExp(randomId, 'g'), 'id-random-$1') : id);
       return {
         // Keyed by the DOM id, or by the id for nodes without one (class notes and lollipop interfaces)
-        shapes: Object.fromEntries((data?.nodes ?? []).filter((n) => !n.isGroup || n.domId).map((n) => [n.domId ?? n.id, n.shape ?? null])),
+        shapes: Object.fromEntries((data?.nodes ?? []).filter((n) => !n.isGroup || n.domId).map((n) => [key(n.domId ?? n.id), n.shape ?? null])),
+        // The shapes of the groups (clusters), keyed the same way
+        groupShapes: Object.fromEntries((data?.nodes ?? []).filter((n) => n.isGroup).map((n) => [key(n.domId ?? n.id), n.shape ?? null])),
         actors: diagram.type === 'sequence'
           ? [...diagram.db.getActors().values()].map((a) => ({ name: a.name, type: a.type, description: a.description }))
           : null,
@@ -200,7 +211,7 @@ async function readBack(svgText, definition, picture) {
         terminalTexts: Object.fromEntries((data?.edges ?? []).filter((e) => e.startLabelRight || e.endLabelLeft)
           .map((e) => [e.id, [e.startLabelRight || '', e.endLabelLeft || '']])),
       };
-    }, definition);
+    }, definition, randomIdPattern);
 
     // A diagram of the unified renderer other than a flowchart is read back at a scale of exactly 1: shown at its
     // max-width (the view box width rounded to 0.001 px), Chrome lays its SVG texts out with a font scaled by about
@@ -221,7 +232,7 @@ async function readBack(svgText, definition, picture) {
     });
     const layout = actors
       ? await page.evaluate(extractSequence, svgId, samples, actors)
-      : await page.evaluate(extract, svgId, samples, shapes, terminalTexts);
+      : await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
     if (viewBoxText) {
       await page.$eval(`#${svgId}`, (element, text) => {
         element.setAttribute('viewBox', text);
@@ -248,11 +259,16 @@ async function readBack(svgText, definition, picture) {
 }
 
 // Runs in the page.
-function extract(id, count, shapes, terminalTexts) {
+function extract(id, count, shapes, terminalTexts, groupShapes, randomId) {
   const svg = document.getElementById(id);
   const toSvg = svg.getScreenCTM().inverse();
   const round = (v) => Math.round(v * 1000) / 1000 + 0;
-  const withoutPrefix = (text) => (text && text.startsWith(`${id}-`) ? text.slice(id.length + 1) : text);
+  const role = svg.getAttribute('aria-roledescription') ?? '';
+  // A state diagram's random ids (see randomIdPattern) are written as id-random-<counter>
+  const stable = /^state/.test(role)
+    ? (text) => (text ? text.replace(new RegExp(randomId, 'g'), 'id-random-$1') : text)
+    : (text) => text;
+  const withoutPrefix = (text) => stable(text && text.startsWith(`${id}-`) ? text.slice(id.length + 1) : text);
   const matrix = (element) => toSvg.multiply(element.getScreenCTM());
   const box = (element) => {
     const b = element.getBBox();
@@ -264,26 +280,45 @@ function extract(id, count, shapes, terminalTexts) {
 
   // A diagram of the unified renderer other than a flowchart (class, for example) gets the extended layout: the
   // drawn parts of each node, the labels and inner rectangles of the clusters, the edge markers, the terminal labels
-  // and the title. A flowchart keeps the plain layout, so its goldens do not change.
-  const role = svg.getAttribute('aria-roledescription') ?? '';
+  // and the title. A flowchart keeps the plain layout, so its goldens do not change. The diagrams after the class
+  // diagram (state and ER) also get each cluster's shape and the lines of a label drawn in several pieces (a state
+  // with descriptions); the class goldens keep their format.
   const extended = !/^flowchart/.test(role);
+  const rich = extended && role !== 'classDiagram';
   // A marker id without the render id prefix (my-svg_classDiagram-extensionStart becomes classDiagram-extensionStart)
   const marker = (element, name) => {
     const match = /url\(#(.+)\)/.exec(element.getAttribute(name) ?? '');
     return match ? (match[1].startsWith(`${id}_`) ? match[1].slice(id.length + 1) : withoutPrefix(match[1])) : null;
   };
   const textOf = (element) => element.textContent.replace(/\s+/g, ' ').trim();
+  // In the rich layout, the lines and pieces of a text (HTML lines split by <br>, SVG tspans, the title and description
+  // texts of a state) are joined with a space
+  const labelText = (element) => {
+    if (!rich) {
+      return textOf(element);
+    }
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const parts = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      parts.push(node.data);
+    }
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  };
 
   // The drawn parts of a node in document order: each shape (rect, path, line, circle, ellipse, polygon) and each
-  // label (g.label, or a text outside a label) with the class of the node's child group that holds it
+  // label (g.label, or a text outside a label) with the class of the node's child group that holds it. In the rich
+  // layout, a label drawn in several pieces (the title and description texts of a state with descriptions) also lists
+  // each piece (a foreignObject or text) as an item.
   const partsOf = (node) => {
     const result = [];
     const walk = (element, group) => {
       for (const child of element.children) {
         if (child.matches('g.label, text')) {
           const style = child.getAttribute('style');
+          const pieces = rich ? Array.from(child.querySelectorAll(':scope > foreignObject, :scope > text, :scope > g > text')) : [];
           result.push({ tag: child.tagName, class: child.getAttribute('class'), group, box: box(child),
-            text: textOf(child), ...(style ? { style } : {}) });
+            text: labelText(child), ...(style ? { style } : {}),
+            ...(pieces.length > 1 ? { items: pieces.map((p) => ({ tag: p.tagName, box: box(p), text: labelText(p) })) } : {}) });
         } else if (child.matches('rect, path, line, circle, ellipse, polygon')) {
           result.push({ tag: child.tagName, class: child.getAttribute('class'), group, box: box(child) });
         } else if (child.tagName === 'g') {
@@ -307,17 +342,25 @@ function extract(id, count, shapes, terminalTexts) {
     nodes.push(entry);
   }
 
+  // Clusters: flowchart subgraphs, class namespaces and ER subgraphs (g.cluster), composite states and the regions of a
+  // concurrent state (g.statediagram-cluster: the outer or divider rectangle) and the invisible groups that hold a
+  // state with its note (g.note-cluster)
   const clusters = [];
-  for (const cluster of svg.querySelectorAll('g.cluster')) {
-    const rect = cluster.querySelector(':scope > rect') ?? cluster.querySelector('rect, path');
+  for (const cluster of svg.querySelectorAll('g.cluster, g.statediagram-cluster, g.note-cluster')) {
+    const rect = cluster.matches('.statediagram-cluster')
+      ? cluster.querySelector('rect.outer, rect.divider')
+      : cluster.querySelector(':scope > rect') ?? cluster.querySelector('rect, path');
     if (rect) {
-      const entry = { id: withoutPrefix(cluster.id), box: box(rect) };
+      const clusterId = withoutPrefix(cluster.id);
+      const entry = rich
+        ? { id: clusterId, shape: groupShapes[clusterId] ?? null, box: box(rect) }
+        : { id: clusterId, box: box(rect) };
       if (extended) {
         const inner = cluster.querySelector(':scope > rect.inner');
         const label = cluster.querySelector('.cluster-label');
         entry.class = cluster.getAttribute('class');
         entry.inner = inner ? box(inner) : null;
-        entry.label = label ? { text: textOf(label), box: box(label) } : null;
+        entry.label = label ? { text: labelText(label), box: box(label) } : null;
       }
       clusters.push(entry);
     }

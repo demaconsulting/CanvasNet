@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Developer tool: regenerates the Mermaid layout goldens (test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
-    reference/*.layout.json and reference/{sequence,class}/*.layout.json) from the reference implementation.
+    reference/*.layout.json and reference/{sequence,class,state,er}/*.layout.json) from the reference implementation.
 
 .DESCRIPTION
     Not part of the build, the tests, or CI. It runs render-mermaid.mjs (the repository's pinned mermaid-cli and
@@ -10,7 +10,9 @@
 
     - flowchart: Fixtures/flowchart/*.mmd to Fixtures/reference/*.layout.json (MermaidReferenceLayoutTests);
     - sequence: Fixtures/sequence/*.mmd to Fixtures/reference/sequence/*.layout.json;
-    - class: Fixtures/class/*.mmd to Fixtures/reference/class/*.layout.json.
+    - class: Fixtures/class/*.mmd to Fixtures/reference/class/*.layout.json;
+    - state: Fixtures/state/*.mmd to Fixtures/reference/state/*.layout.json;
+    - er: Fixtures/er/*.mmd to Fixtures/reference/er/*.layout.json.
 
     The fixtures in $Excluded get no golden; Fixtures/reference/README.md gives the reason of each. A golden change
     in a pull request is reviewed like code: the diff shows which coordinates moved.
@@ -19,15 +21,15 @@
     puppeteer with its headless Chrome).
 
 .PARAMETER Diagram
-    The diagram types to regenerate (flowchart, sequence, class; default: all).
+    The diagram types to regenerate (flowchart, sequence, class, state, er; default: all).
 
 .PARAMETER Fixture
     The names of the fixtures to regenerate (without .mmd; default: every fixture that is not excluded).
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('flowchart', 'sequence', 'class')]
-    [string[]]$Diagram = @('flowchart', 'sequence', 'class'),
+    [ValidateSet('flowchart', 'sequence', 'class', 'state', 'er')]
+    [string[]]$Diagram = @('flowchart', 'sequence', 'class', 'state', 'er'),
 
     [string[]]$Fixture
 )
@@ -40,6 +42,8 @@ $Folders = @{
     flowchart = @{ Source = 'flowchart'; Golden = 'reference' }
     sequence  = @{ Source = 'sequence'; Golden = 'reference/sequence' }
     class     = @{ Source = 'class'; Golden = 'reference/class' }
+    state     = @{ Source = 'state'; Golden = 'reference/state' }
+    er        = @{ Source = 'er'; Golden = 'reference/er' }
 }
 
 # Fixtures whose reference depends on the machine (see Fixtures/reference/README.md)
@@ -47,6 +51,8 @@ $Excluded = @{
     flowchart = @('38-unicode')
     sequence  = @()
     class     = @()
+    state     = @()
+    er        = @()
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
