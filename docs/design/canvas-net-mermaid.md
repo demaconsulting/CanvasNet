@@ -314,7 +314,7 @@ third-party/README.md`:
 | js-yaml | MIT | `YamlSubsetParser` |
 | lodash | MIT | `Lodash` helpers of `DagreLayout` (sorting, extremes, unique ids) |
 | marked | MIT | the markdown subset of `LabelBuilder` |
-| sanitize-url (a dependency of mermaid) | MIT | the link check `UrlSanitizer` (class, sequence, and state links, never drawn) |
+| sanitize-url (a dependency of mermaid) | MIT | the link check `UrlSanitizer` (class, sequence, and state links) |
 
 The license texts ship in the package's `licenses/` folder (and in the tool package, where the d3 notice is renamed
 `Mermaid-LICENSE-d3.txt` because the Vega-Lite package ships a different `LICENSE-d3.txt`). The public API, the scene
@@ -431,8 +431,8 @@ groups, and subgraphs), every edge (its length and 21 sampled points), the edge 
 8. **Interaction and animation.** `click`, `href`, `call`, callbacks, tooltips, and links are parsed and ignored
    (only the `clickable` class is kept; the links of a class diagram are checked as Mermaid's `strict` security level
    checks them, the only level modeled, and kept as data, and the `click` statements of a state diagram are kept as
-   data, with their URLs checked by the same link check, and never drawn); an animated edge is drawn as its first frame (dash `9,5`,
-   offset 900);
+   data, with their URLs checked by the same link check, and never drawn); an animated edge is drawn as its first
+   frame (dash `9,5`, offset 900);
    `accTitle` and `accDescr` are metadata only.
 9. **CSS.** `style`, `classDef`, `linkStyle`, and `themeCSS` honor only the declarations that change pixels (fill,
    stroke, stroke width and dash, opacity, color, and font properties); others are reported (`mermaid-style-ignored`),

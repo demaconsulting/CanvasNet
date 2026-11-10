@@ -23,7 +23,8 @@ errors as located `MermaidSyntaxException`s that list the expected tokens as jis
 The unit also holds the link check of the parsers' models (`UrlSanitizer`), grouped here because it is built from
 the same JavaScript semantics (JavaScript's white space, line terminators, `\w`, `trim`, and `toLowerCase`) as the
 matchers. A diagram can keep links (the `link` and `click ... href` of a class diagram, the `link` and `links` of a
-sequence participant, the `click` and `click ... href` of a state diagram), and a link whose scheme is `javascript`, `data`, or `vbscript` runs code where it is used.
+sequence participant, the `click` and `click ... href` of a state diagram), and a link whose scheme is
+`javascript`, `data`, or `vbscript` runs code where it is used.
 Mermaid refuses those schemes with sanitize-url, which first undoes every encoding that can hide a scheme; a check
 that undoes only the common encodings lets an encoded scheme through. `UrlSanitizer` is therefore an exact port of the
 whole of sanitize-url's `sanitizeUrl` (the version the pinned Mermaid bundles), shared by every diagram type, and a

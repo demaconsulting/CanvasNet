@@ -1082,7 +1082,12 @@ overrides:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassParserTests.cs"
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceModelTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateModelTests.cs"
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs"
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SyntaxTests.cs"
     ignoreRegExpList:
       - "/\"(?:[^\"\\\\\\n]|\\\\.)*\"/g"
+  - filename:
+      - "docs/verification/canvas-net-mermaid/state/state-model.md"
+    ignoreRegExpList:
+      - "/`[^`\\n]*`/g"
