@@ -87,8 +87,8 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
   that exist; a name in `SetCssClass` or `SetLink` that starts with a digit first gets the `classId-` prefix of
   Mermaid's DOM-id lookup, so it matches no class. As in Mermaid, a name listed again gets the CSS class or the styles
   again, so the model keeps the running length of the CSS classes of each class (joined with spaces), of the styles of
-  each class (`StylesLength`, joined with semicolons), and of the styles and text styles of each style class, and checks
-  each against `MaxLabelLength` as it grows.
+  each class (`StylesLength`, joined with semicolons), and of the styles and, apart, the text styles of each style
+  class, and checks each against `MaxLabelLength` as it grows.
 - **Links.** `SetLink` records the checked link and the target (`_blank` when none is given) and `SetClickEvent` the
   callback flag on the classes that exist, and both add the `clickable` CSS class; `SetTooltip` records a sanitized
   tooltip. `FormatUrl` is Mermaid's `formatUrl` at the strict security level: the trimmed link, no link when it is

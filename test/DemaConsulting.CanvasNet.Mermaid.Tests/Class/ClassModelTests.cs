@@ -253,7 +253,7 @@ public class ClassModelTests
     ///     Validates that a style class listed again in a <c>classDef</c> statement gets the styles again, as in Mermaid,
     ///     and that the styles of a style class or of a class that grow longer than
     ///     <see cref="MermaidLimits.MaxLabelLength"/> (joined with semicolons) that way are refused, located at the
-    ///     statement.
+    ///     statement, while the styles and the text styles of a style class are each checked apart.
     /// </summary>
     [Fact]
     public void ClassModel_DefineClass_RepeatedNames_ThrowsLimitExceeded()
@@ -265,13 +265,15 @@ public class ClassModelTests
         var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclassDef c,c,c a:b,c:d\n", null, limits));
         var applied = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclass A:::c\nclassDef c a:b,c:d\nclassDef c e:f,g:h\nclassDef c i:j,k:l\n", null, limits));
         var accepted = ClassFacts.Parse("classDiagram\nclass A:::c\nclassDef c,c a:b,c:d\n", null, limits);
+        var colored = ClassFacts.Parse("classDiagram\nclassDef c color:red,x:yy\n", null, limits);
 
-        // Assert
+        // Assert: the styles and the text styles of a style class are each checked apart
         Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 2, 1)), (ex.Code, ex.Location));
         Assert.Contains("a label is 23 characters long", ex.Message, StringComparison.Ordinal);
         Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 5, 1)), (applied.Code, applied.Location));
         Assert.Equal(["a:b,c:d", "a:b,c:d"], Assert.Single(accepted.StyleClasses).Styles);
         Assert.Equal(["a:b", "c:d", "a:b", "c:d"], Assert.Single(accepted.Classes).Styles);
+        Assert.Equal(["color:red,x:yy"], Assert.Single(colored.StyleClasses).TextStyles);
     }
 
     /// <summary>
