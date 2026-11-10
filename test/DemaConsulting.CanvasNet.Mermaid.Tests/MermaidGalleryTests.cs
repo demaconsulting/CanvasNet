@@ -12,10 +12,10 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 public class MermaidGalleryTests
 {
     /// <summary>The fewest diagrams the gallery must hold.</summary>
-    private const int MinimumDiagrams = 16;
+    private const int MinimumDiagrams = 20;
 
     /// <summary>The diagram types this version draws, which the gallery shows.</summary>
-    private static readonly string[] DrawnTypes = ["flowchart", "sequence", "class", "state", "er"];
+    private static readonly string[] DrawnTypes = ["flowchart", "sequence", "class", "state", "er", "pie", "gantt"];
 
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -60,9 +60,9 @@ public class MermaidGalleryTests
     }
 
     /// <summary>
-    ///     Validates that the gallery holds at least sixteen diagrams, that every one is a supported diagram of a type this
-    ///     version draws (a flowchart, a sequence diagram, a class diagram, a state diagram, or an entity relationship
-    ///     diagram), and that every drawn type is shown.
+    ///     Validates that the gallery holds at least twenty diagrams, that every one is a supported diagram of a type this
+    ///     version draws (a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship
+    ///     diagram, a pie chart, or a gantt chart), and that every drawn type is shown.
     /// </summary>
     [Fact]
     public void CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType()

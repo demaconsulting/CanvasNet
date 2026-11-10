@@ -59,8 +59,8 @@ specification and is rendered, in strict mode, by a test.*
 - 📉 **Vega-Lite Charts** - Render a growing subset of Vega-Lite specs (see User Guide)
 - 🛡️ **Vega-Lite Hardening** - Resource limits for every stage (rows, steps, items, painted pixels), cancellation,
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
-- 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams with
-  ports of Mermaid's own layouts; pie, gantt, and mindmap diagrams are planned (see User Guide)
+- 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams, pie
+  charts, and gantt charts with ports of Mermaid's own layouts; mindmap diagrams are planned (see User Guide)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
@@ -115,7 +115,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
-| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid flowchart, sequence, class, state, ER    |
+| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams, pie charts, and gantt charts   |
 | `DemaConsulting.CanvasNet.Viewer`   | The `canvasnet` operations as library calls      |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
@@ -202,10 +202,12 @@ Mermaid's SVG (`--scale`, `--width`, `--height`, and `--size` change it), for ex
 `canvasnet info flow.mmd` reports its diagram type, direction, title, and the numbers of nodes, edges, and subgraphs
 (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram;
 states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity
-relationship diagram) without drawing it. This version draws flowcharts (`flowchart` and `graph`), sequence diagrams
-(`sequenceDiagram`), class diagrams (`classDiagram`), state diagrams (`stateDiagram-v2` and `stateDiagram`), and
-entity relationship diagrams (`erDiagram`); every other type is recognized, reported as `mermaid-diagram-unsupported`,
-and drawn as an empty picture (pie, gantt, and mindmap diagrams are planned later).
+relationship diagram; slices for a pie chart; tasks and sections for a gantt chart) without drawing it. This version
+draws flowcharts (`flowchart` and `graph`), sequence diagrams (`sequenceDiagram`), class diagrams (`classDiagram`),
+state diagrams (`stateDiagram-v2` and `stateDiagram`), entity relationship diagrams (`erDiagram`), pie charts
+(`pie`), and gantt charts (`gantt`, with every date in UTC and no today line, because the tool sets no clock); every
+other type is recognized, reported as `mermaid-diagram-unsupported`, and drawn as an empty picture (mindmap diagrams
+are planned later).
 `--theme default|base|dark|forest|neutral` chooses the theme like
 `mmdc -t` (a theme the diagram sets itself still wins), and `flow.mmd#theme=dark` does the same for one input or link.
 What the library recognizes but cannot draw (icons, the hand-drawn look, the ELK layout) is reported in `diagnostics`
@@ -264,7 +266,7 @@ canvasnet render bracket.scad --view top -D width=55 -o top.png --json
 canvasnet info sales.vl.json --json
 canvasnet render sales.vl.json --scale 2 -o sales.png --json
 
-# 4e. Draw a Mermaid diagram (flowchart, sequence, class, state, ER) in the dark theme; info reports its type and support
+# 4e. Draw a Mermaid diagram (flowchart, sequence, class, state, ER, pie, gantt) in the dark theme; info reports its type
 canvasnet info flow.mmd --json
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 ```
@@ -612,8 +614,11 @@ text language and contains code ported, with attribution, from mermaid (MIT, Cop
 Sveidqvist), dagre-d3-es and the dagre and graphlib libraries it derives from (MIT, Copyright (c) 2012-2014 Chris
 Pettitt and the dagre-es contributors), js-yaml (MIT, Copyright (C) 2011-2015 by Vitaly Puzrin), khroma (MIT,
 Copyright (c) 2019-present Fabio Spampinato, Andrew Maney), lodash (MIT, Copyright OpenJS Foundation and other
-contributors), marked (MIT, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey), and d3-shape
-and d3-path (ISC, Copyright Mike Bostock). The license texts ship in the packages under `licenses/`; see
+contributors), marked (MIT, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey),
+@mermaid-js/parser (MIT, Copyright (c) 2023 Yokozuna59), Langium (MIT, Copyright 2021 TypeFox GmbH), dayjs (MIT,
+Copyright (c) 2018-present, iamkun), sanitize-url (MIT, Copyright (c) 2017 Braintree), and the d3 modules d3-shape,
+d3-path, d3-scale, d3-time, d3-time-format, d3-array, d3-interpolate, and d3-axis (ISC, Copyright 2010-2023 Mike
+Bostock). The license texts ship in the packages under `licenses/`; see
 [the third-party notice][link-mermaid-third-party] (`src/DemaConsulting.CanvasNet.Mermaid/third-party`) for the
 record of what was ported from where. The package is not affiliated with or endorsed by the Mermaid project or the
 authors of these libraries.

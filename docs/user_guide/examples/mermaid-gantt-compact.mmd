@@ -1,0 +1,21 @@
+---
+displayMode: compact
+config:
+  theme: forest
+  gantt:
+    topAxis: true
+    barHeight: 24
+---
+gantt
+    title Room bookings
+    dateFormat YYYY-MM-DD HH:mm
+    axisFormat %H:%M
+    section Room A
+    Stand-up              :a1, 2025-03-10 09:00, 30m
+    Design review         :a2, 2025-03-10 10:00, 90m
+    Lunch talk            :crit, a3, 2025-03-10 12:00, 1h
+    section Room B
+    Interviews            :b1, 2025-03-10 09:00, 2h
+    Planning              :b2, 2025-03-10 10:30, 1.5h
+    Retrospective         :done, b3, 2025-03-10 13:00, 45m
+    click a3 href "https://example.com/talks"

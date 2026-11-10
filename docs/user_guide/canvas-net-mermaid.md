@@ -8,13 +8,14 @@
 `DemaConsulting.CanvasNet.Mermaid` NuGet package, whose only dependency is the core `DemaConsulting.CanvasNet`
 package - see the Installation section of the project README. It reads diagrams written in the Mermaid v11 text
 language and draws them as **static pictures** with Mermaid's own layout: a flowchart, a class diagram, a state
-diagram, and an entity relationship diagram are laid out by a port of the dagre layout that Mermaid uses, and a
-sequence diagram by a port of Mermaid's sequence renderer, so the nodes, edges, classes, states, entities,
-participants, messages, and labels land where Mermaid 11 puts them. This version draws **flowcharts** (the `flowchart`
-and `graph` keywords), **sequence diagrams** (the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram`
-keyword), **state diagrams** (the `stateDiagram-v2` and `stateDiagram` keywords), and **entity relationship
-diagrams** (the `erDiagram` keyword). Every other diagram type that Mermaid knows is recognized and reported, never
-drawn wrongly: pie, gantt, and mindmap diagrams are planned later. The
+diagram, and an entity relationship diagram are laid out by a port of the dagre layout that Mermaid uses, a sequence
+diagram by a port of Mermaid's sequence renderer, and a pie chart and a gantt chart by ports of Mermaid's pie and gantt
+renderers, so the nodes, edges, classes, states, entities, participants, messages, slices, tasks, and labels land where
+Mermaid 11 puts them. This version draws **flowcharts** (the `flowchart` and `graph` keywords), **sequence diagrams**
+(the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram` keyword), **state diagrams** (the
+`stateDiagram-v2` and `stateDiagram` keywords), **entity relationship diagrams** (the `erDiagram` keyword), **pie
+charts** (the `pie` keyword), and **gantt charts** (the `gantt` keyword). Every other diagram type that Mermaid knows
+is recognized and reported, never drawn wrongly: mindmap diagrams are planned later. The
 package is derived with attribution from the Mermaid project and the libraries it uses,
 and it is **not affiliated with or endorsed by** the Mermaid project (see *Mermaid Third-Party Attribution*). A document
 is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
@@ -28,14 +29,14 @@ public sealed partial class MermaidDocument
     public static MermaidDocument Open(Stream stream, MermaidOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "flowchart" (also "graph"), "sequence", "class", "state", "er", "pie", ...
+    public string DiagramType { get; }      // "flowchart" (also graph), "sequence", "er", "pie", "gantt", ...
     public bool IsSupported { get; }        // true when this version draws the type
     public string? Title { get; }           // the title statement, else the frontmatter title
     public string? AccTitle { get; }        // accTitle, metadata only
-    public string? Direction { get; }       // TB, TD, BT, LR, or RL; null for a sequence diagram
-    public int NodeCount { get; }           // the participants, classes, states, or entities
+    public string? Direction { get; }       // TB, TD, BT, LR, or RL; null for a sequence, pie, or gantt chart
+    public int NodeCount { get; }           // the participants, classes, states, entities, slices, or tasks
     public int EdgeCount { get; }           // the messages, relations, transitions, or relationships
-    public int SubgraphCount { get; }       // the boxes, namespaces, composite states, or subgraphs
+    public int SubgraphCount { get; }       // the boxes, namespaces, composite states, subgraphs, or gantt sections
 
     public MermaidSize Measure(
         MermaidRenderOptions? options = null,
@@ -68,8 +69,11 @@ public sealed partial class MermaidDocument
   are not counted), and `SubgraphCount` the number of composite states (their concurrent regions are not counted). For
   an entity relationship diagram, `NodeCount` is the number of entities drawn, `EdgeCount` the number of
   relationships, and `SubgraphCount` the number of subgraphs. For both, `Direction` is the direction the diagram is
-  laid out in: the last top-level `direction` statement, else `TB`. For a type that is not drawn, `IsSupported` is
-  `false`, the counts are zero, and `Direction` and `AccTitle` are `null`.
+  laid out in: the last top-level `direction` statement, else `TB`. For a pie chart, `NodeCount` is the number of
+  slices (the legend entries, a label seen before not counted), and `EdgeCount` and `SubgraphCount` are zero. For a
+  gantt chart, `NodeCount` is the number of tasks (vertical markers included), `SubgraphCount` the number of sections
+  drawn (a section without tasks is not drawn), and `EdgeCount` is zero. A pie or gantt chart has no `Direction`. For a
+  type that is not drawn, `IsSupported` is `false`, the counts are zero, and `Direction` and `AccTitle` are `null`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
 - `Render()` draws the diagram onto a new `Surface` at its **natural size** (the view box of Mermaid's SVG, rounded up
@@ -77,7 +81,7 @@ public sealed partial class MermaidDocument
   size, not enlarged afterwards. The caller owns, and must dispose, the returned surface.
 - `Render(width, height)` draws onto a surface of exactly that size: the diagram is scaled uniformly to fit and
   centered, and the margins take the background. `Scale` is not used.
-- A known type that this version does not draw (`pie`, `gantt`, `mindmap`, ...) opens without error.
+- A known type that this version does not draw (`mindmap`, `journey`, ...) opens without error.
   Measuring or rendering it reports the unsupported feature `mermaid-diagram-unsupported` and gives an empty,
   transparent picture of 16 by 16 pixels (twice Mermaid's diagram padding), or throws in strict mode.
 
@@ -87,7 +91,8 @@ public sealed partial class MermaidDocument
   (8192) on a side. A diagram larger than that needs a smaller `Scale` or the sized overload.
 - `MermaidRenderException`: a limit of `MermaidLimits` was met while the diagram was laid out or painted
   (`mermaid-limit-exceeded`), or the diagram cannot be laid out (`mermaid-render-failed`, for example a subgraph that
-  contains itself, an empty sequence block, or two composite states that contain each other). An unexpected internal
+  contains itself, an empty sequence block, two composite states that contain each other, or a gantt task whose date
+  is invalid or whose `after` and `until` references go in a circle). An unexpected internal
   error of the layout is reported the same way (`mermaid-render-failed` at the diagram keyword, with the original
   exception as the inner exception); an exception of your image resolver reaches you unchanged.
 - `MermaidUnsupportedFeatureException`: the first unsupported feature when `ThrowOnUnsupportedFeature` is set.
@@ -123,6 +128,7 @@ between threads and calls.
 | ------------------------------- | ------- | ------- |
 | `Scale` | 1 | The factor by which the natural size is multiplied, text included; finite, greater than zero |
 | `Background` | `null` | The color under the diagram; `null` is transparent, as Mermaid's SVG is |
+| `Now` | `null` | The time a gantt chart takes as now (its UTC date and time), for the today line and the dates that need today; `null` draws no today line and takes 1970-01-01 as today (see *Fonts, Determinism, and Known Differences*) |
 | `Config` | `null` | A Mermaid site configuration as JSON object text, like the argument of `mermaid.initialize` or the file of `mmdc -c` |
 | `Theme` | `null` (`default`) | The site theme, one of `MermaidRenderOptions.ThemeNames` (`default`, `base`, `dark`, `forest`, `neutral`), like `mmdc -t` |
 | `ImageResolver` | `null` | A core `IImageResolver` that loads the pictures of the nodes (see *Pictures in Nodes*); `null` draws none |
@@ -146,11 +152,11 @@ wall-clock bound.
 | -------- | ------- | -------------- | ------------------- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
 | `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), the relations of a class diagram, the transitions of a state diagram, or the relationships of an entity relationship diagram | `MermaidSyntaxException` |
-| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, or the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram | `MermaidSyntaxException` |
-| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, and the descriptions of a state joined with line breaks included) | `MermaidSyntaxException` |
+| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram, the slices of a pie chart (every slice statement), or the task and section statements of a gantt chart | `MermaidSyntaxException` |
+| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, the descriptions of a state joined with line breaks, the legend text of a pie slice with its value, and every text of a gantt chart included; an axis label of a gantt chart, which is only known when it is laid out, is checked then) | `MermaidSyntaxException` (`MermaidRenderException` for a gantt axis label) |
 | `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), composite states inside composite states (a concurrent region counts as a level too), subgraphs of an entity relationship diagram, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` (`MermaidRenderException` for namespaces, composite states, or entity relationship subgraphs nested through their names, found when laid out) |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
-| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram) | `MermaidRenderException` |
+| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram and a pie chart; the date passes, the days of the excluded-day loops, and the ticks of a gantt chart) | `MermaidRenderException` |
 | `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |
 | `MaxPaintedPixels` | 250,000,000 | The device pixels one render paints (after `Scale`) | `MermaidRenderException` |
 | `MaxDiagnostics` | 1,000 | The reports kept per call; the rest become one `mermaid-diagnostics-suppressed` warning | (rendering continues) |
@@ -200,7 +206,8 @@ The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`b
 `rounded`), `padding`, `diagramPadding`, `wrappingWidth`, `htmlLabels`, `titleTopMargin`, `subGraphTitleMargin`, and
 `inheritDir`, with the global `fontFamily`, `fontSize`, and `markdownAutoWrap`. The sequence settings are listed under
 *Supported Sequence Syntax*, the class settings under *Supported Class Syntax*, the state settings under *Supported
-State Syntax*, and the entity relationship settings under *Supported Entity Relationship Syntax*.
+State Syntax*, the entity relationship settings under *Supported Entity Relationship Syntax*, the pie settings under
+*Supported Pie Syntax*, and the gantt settings under *Supported Gantt Syntax*.
 
 ### Supported Flowchart Syntax
 
@@ -649,7 +656,8 @@ a size) reports the size of the diagram it drew, with its pictures, and charges 
 
 Rendering is **deterministic**: two renders of one document with the same options give identical pixels, for every
 degree of parallelism, on every machine, and in every culture. The package reads no clock, environment variable,
-locale, or installed font, runs no script, and never uses the network. Text is measured and drawn with the bundled
+locale, or installed font, runs no script, and never uses the network: the only "now" a gantt chart knows is
+`MermaidRenderOptions.Now`, and its dates are in UTC. Text is measured and drawn with the bundled
 fonts only: Mermaid's default `"trebuchet ms", verdana, arial, sans-serif` resolves to Liberation Sans, a family that
 is not bundled falls back to it, and the bundled Noto fonts draw the characters it lacks. Compare the pixels of two
 surfaces, not the bytes of two PNG files, because the PNG encoder of .NET 9 and later writes a different stream for the
@@ -661,7 +669,9 @@ as does every participant, message, note, activation, block, and box of a sequen
 hundredths), every class box with its compartments, relation, cardinality, namespace, and note of a class diagram
 drawn with HTML labels, every state, transition, composite state, concurrent region, and note of a state diagram, and
 every entity with its rows and cells, relationship, and subgraph of an entity relationship diagram, with HTML or SVG
-labels. The known differences from Mermaid are:
+labels, every slice, percentage label, legend entry, and title of a pie chart, and every bar, task text, section row
+and title, axis tick, excluded day, and today line of a gantt chart (drawn with `Now` set to the clock of the
+reference renderer, `tools/visual-diff/`). The known differences from Mermaid are:
 
 - **Fonts.** Mermaid uses the fonts of the browser, so its pictures differ from these where Trebuchet MS is installed.
   Against Mermaid drawn with Liberation Sans the text widths agree to a fraction of a pixel.
@@ -672,7 +682,8 @@ labels. The known differences from Mermaid are:
 - **Icons, looks, and layouts.** Icons are not drawn, the `handDrawn` and `neo` looks are drawn classic, and `elk` is
   laid out with dagre (each is reported, see the table above).
 - **Interaction and animation.** `click`, `href`, `call`, tooltips, the `link` and `callback` of a class diagram, and
-  the `click` of a state diagram are ignored; an animated edge is drawn as its first frame.
+  the `click` of a state diagram or a gantt chart are ignored (the text of a gantt task with a `click` is still drawn
+  bold, as in Mermaid); an animated edge is drawn as its first frame.
 - **CSS.** `classDef`, `style`, `linkStyle`, and `themeCSS` honor only the declarations listed under *Styles*; there are
   no CSS animations. A `font-size` that text cannot be drawn at (zero, or more than 32768 pixels) is ignored with a
   `mermaid-style-ignored` warning and the inherited size is kept, and a `stroke-dasharray` with a dash longer than
@@ -681,7 +692,8 @@ labels. The known differences from Mermaid are:
 - **Security.** `securityLevel` changes nothing (no script ever runs), and the texts of class and state diagrams are
   always cleaned as at Mermaid's `strict` level. The links a diagram keeps as data (the `link` and `click ... href` of
   a class diagram, the `link` and `links` of a sequence participant, the `click` and `click ... href` of a state
-  diagram) are always checked as Mermaid's `strict` level checks them, with Mermaid's own link check (sanitize-url),
+  diagram, the `click ... href` of a gantt chart) are always checked as Mermaid's `strict` level checks them, with
+  Mermaid's own link check (sanitize-url),
   even when the configuration asks for `loose`: a
   `javascript:`, `data:`, or `vbscript:` link, however it is encoded (character references, tabs or control characters
   inside the scheme, percent escapes), is kept only as `about:blank`. YAML anchors, aliases, and tags are refused,
@@ -722,34 +734,71 @@ labels. The known differences from Mermaid are:
   `textColor`; the two are the same in the built-in themes. The marker shapes of the `neo` look and the entity colors
   of the `redux` themes are not drawn (the look is reported, and the themes are not available). A `style` declaration
   outside the supported subset is reported at the first mention of the entity.
+- **Pie charts.** The opacity of a slice (`pieOpacity`) is folded into its colors, so where the stroke of one slice
+  overlaps another the colors can differ slightly; the enlargement of a highlighted slice is applied to its outline.
+  A character that no bundled font has is drawn as the missing-glyph box without the warning
+  `mermaid-text-missing-glyph`.
+- **Gantt charts: today.** Mermaid reads the clock of the browser; this package never reads a clock, and today is
+  `MermaidRenderOptions.Now`. Without it the today line is not drawn (Mermaid draws it unless the chart says
+  `todayMarker off`), and
+  1970-01-01 is taken as today where a date needs it (an `after` or `until` id that no task has, a date without a
+  year, month, or day); `mermaid-gantt-today-unavailable` reports it where it changes the picture. The `canvasnet`
+  tool, the Viewer, and the Pandoc filter never set `Now`, so their gantt charts have no today line; give the dates in
+  full to keep the warning away.
+- **Gantt charts: dates.** Every date is in UTC, the same as Mermaid in a browser whose time zone is UTC, where
+  Mermaid uses the time zone of the browser (with its daylight saving time), so a chart never changes with the
+  machine. A date that matches neither the `dateFormat` nor an ISO form (`2024-1-5` or `Jan 5 2024`, which browsers
+  read in their own ways) is a located `mermaid-render-failed` "Invalid date", with a hint to write it as the
+  `dateFormat` says. A `dateFormat` with the week (`w`, `ww`, `wo`, `gggg`) or zone name (`z`, `zzz`) tokens, whose
+  dayjs plugins Mermaid does not load, fails as it does in Mermaid, as a located `mermaid-render-failed`.
+- **Gantt charts: errors.** Mermaid fails, or draws a broken chart, for the `topAxis` statement, a task whose data
+  holds only tags, a first task without a start, a task with more than three fields, `after` or `until` references
+  that go in a circle (Mermaid draws its bars at no place), excluded days that never end (more than 10,000 in a row),
+  and a section named like a JavaScript object member (`constructor`, `toString`) in compact mode; these are a
+  located `mermaid-syntax-error` or `mermaid-render-failed` instead.
+- **Gantt charts: drawing.** The chart is 784 pixels wide, the width Mermaid takes in the page of `mmdc`, unless
+  `gantt.useWidth` is set; in a browser Mermaid takes the width of the page. The ticks keep d3's half-pixel offset at
+  every scale. The opacity of the section rows and of the grid is folded into their colors, the turn of a milestone is
+  applied to its outline, and the crisp edges of the grid are drawn antialiased. Mermaid's console warnings for a
+  `tickInterval` that would make more than 10,000 ticks (the default ticks are drawn) and for excluded days over more
+  than five years (they are not shaded) are reported as `mermaid-gantt-ticks-skipped` and
+  `mermaid-gantt-excludes-skipped`. A character that no bundled font has is drawn as the missing-glyph box without the
+  warning `mermaid-text-missing-glyph`.
 - **Pictures.** A picture that cannot be loaded leaves the node's frame (Mermaid fails the whole render).
 - **Background and size.** The background is transparent by default (as the SVG is), and `useMaxWidth` has no meaning
   for a picture of a fixed size.
 - **Themes.** `neo`, `neo-dark`, and `redux` are not available.
 - **Limits.** `MaxNodes`, `MaxNestingDepth`, `MaxLabelLength`, `MaxLayoutWork`, `MaxImages`, and `MaxPaintedPixels`
-  have no Mermaid equivalent.
+  have no Mermaid equivalent; a gantt chart's date passes, excluded days, and ticks are charged to `MaxLayoutWork`.
 - **Version.** The target is Mermaid 11.17.2; later Mermaid versions are not followed automatically.
 
 ### Mermaid Third-Party Attribution
 
 `DemaConsulting.CanvasNet.Mermaid` is **derived with attribution**: to draw diagrams the way Mermaid draws them, its
-preprocessing, diagram detection, flowchart, sequence, class, state, and entity relationship parsers and models,
-configuration defaults, themes, shapes, edges, labels, and layouts are ports of these projects (all MIT unless stated):
+preprocessing, diagram detection, flowchart, sequence, class, state, entity relationship, pie, and gantt parsers and
+models, configuration defaults, themes, shapes, edges, labels, time axes, and layouts are ports of these projects (all
+MIT unless stated):
 
 - **mermaid** (Copyright (c) 2014 - 2022 Knut Sveidqvist): the preprocessing, detectors, flowchart grammar and
   database, configuration and the five themes, the shapes, clusters, edges, markers, and label rules of its renderer,
   the sequence grammar, database, renderer, drawing functions, and style sheet, the class grammar, database, class box,
   markers, and style sheet, the state grammar, database, data fetcher, state shapes, and style sheet, the entity
-  relationship grammar, database, entity box, markers, and style sheet, and the text utilities they use;
+  relationship grammar, database, entity box, markers, and style sheet, the pie database, renderer, and style sheet,
+  the gantt grammar, database, renderer, and style sheet, and the text utilities they use;
+- **@mermaid-js/parser** (Copyright (c) 2023 Yokozuna59): the pie grammar and its value converters;
+- **Langium** (Copyright 2021 TypeFox GmbH): the token order and the string and number conversion of the pie parser;
 - **dagre-d3-es**, derived from **dagre** and **graphlib** (Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
   contributors): the graph and the layered layout;
 - **js-yaml** (Copyright (C) 2011-2015 by Vitaly Puzrin): the YAML reader of the frontmatter and shape data;
 - **khroma** (Copyright (c) 2019-present Fabio Spampinato, Andrew Maney): the color functions of the themes;
 - **lodash** (Copyright OpenJS Foundation and other contributors): the sort and extremum rules the layout depends on;
 - **marked** (Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey): the Markdown of labels;
-- **d3-shape** and **d3-path** (ISC, Copyright Mike Bostock): the edge curves;
+- **dayjs** (Copyright (c) 2018-present, iamkun): the date parsing, formatting, and arithmetic of gantt charts;
+- **d3** (ISC, Copyright 2010-2023 Mike Bostock): d3-shape and d3-path for the edge curves and the pie slices,
+  d3-scale for the pie colors and the gantt time scale, and d3-time, d3-time-format, d3-array, d3-interpolate, and
+  d3-axis for the gantt time axis;
 - **sanitize-url** (`@braintree/sanitize-url`, Copyright (c) 2017 Braintree): the check of the links that class,
-  sequence, and state diagrams keep, which are never drawn.
+  sequence, state, and gantt diagrams keep, which are never drawn.
 
 The license texts ship in the NuGet packages under `licenses/` (also for the `canvasnet` tool, which bundles the
 assembly), and `src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md` records what was ported, from which
@@ -836,10 +885,10 @@ catch (MermaidSyntaxException ex)
 }
 
 // A known type that this version does not draw opens, is reported, and gives an empty picture
-var pie = MermaidDocument.Parse("pie\n    \"Ducks\" : 3\n");
-Console.WriteLine($"{pie.DiagramType} {pie.IsSupported}");            // Output: pie False
+var journey = MermaidDocument.Parse("journey\n    title Ducks\n");
+Console.WriteLine($"{journey.DiagramType} {journey.IsSupported}");    // Output: journey False
 var reports = new List<MermaidUnsupportedFeature>();
-using var empty = pie.Render(new MermaidRenderOptions { UnsupportedFeatureHandler = reports.Add });
+using var empty = journey.Render(new MermaidRenderOptions { UnsupportedFeatureHandler = reports.Add });
 Console.WriteLine($"{reports[0].Feature} {empty.Width}x{empty.Height}");
                                                                       // Output: mermaid-diagram-unsupported 16x16
 
@@ -936,13 +985,13 @@ flowchart LR
 
 A plain ` ```mermaid ` block works the same way, without a caption. The text of a block is written to the filter's
 cache folder and drawn from there, so a diagram that shows pictures must be a `.mmd` file of its own (as in Example
-55). A block or a `.mmd` picture of a type that this version does not draw (`pie`, `gantt`, ...) is
+55). A block or a `.mmd` picture of a type that this version does not draw (`mindmap`, `journey`, ...) is
 left as written, with the tool's message as a warning, so that another filter, such as `mermaid-filter`, can draw it.
 
 ### Example 57: The Mermaid Gallery
 
-The gallery is a set of small flowcharts, sequence diagrams, class diagrams, state diagrams, and entity relationship
-diagrams that together use the major features of the package.
+The gallery is a set of small flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship
+diagrams, pie charts, and gantt charts that together use the major features of the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `mermaid-*.mmd`, and is drawn
 below by the Pandoc filter, so the pictures are always those of the version of the library that built this guide. A
 test (`MermaidGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any warning, so a
@@ -1024,6 +1073,26 @@ type, `classDef` with `:::`, and `style`:
 `optionally to`, in two subgraphs, from left to right (Mermaid lays the last subgraph out first):
 
 ![Cardinalities](examples/mermaid-er-cardinality.mmd){scale=2 width=90%}
+
+*A pie chart.* `showData`, a title, accessibility texts, decimal values, and a slice under 1% that only the legend
+shows:
+
+![A pie chart](examples/mermaid-pie.mmd){scale=2 width=70%}
+
+*A donut.* The `base` theme with its own slice colors and strokes, a hole in the middle, the labels moved out, the
+legend at the bottom, and a highlighted slice, all from the frontmatter:
+
+![A donut](examples/mermaid-pie-donut.mmd){scale=2 width=50%}
+
+*A project plan.* Three sections, `done`, `active`, and `crit` tasks, `after` and `until` references, a milestone, a
+vertical marker, excluded weekends, and weekly ticks on Mondays with an `axisFormat` of their own:
+
+![A project plan](examples/mermaid-gantt.mmd){scale=2 width=100%}
+
+*Compact mode.* Times of day with a `dateFormat` and an `axisFormat`, durations in minutes and hours, the tasks of
+each room on as few rows as keep them apart, a top axis, and a task with a link (drawn bold), in the `forest` theme:
+
+![Compact mode](examples/mermaid-gantt-compact.mmd){scale=2 width=100%}
 
 ### Example 58: Rendering a Mermaid Sequence Diagram
 
@@ -1318,4 +1387,104 @@ erDiagram
         string isbn PK "the book number"
         string title
     }
+```
+
+### Example 63: Rendering a Mermaid Pie Chart
+
+A pie chart is opened, measured, and drawn exactly like a flowchart. Its node count is the number of slices (the
+legend entries), and it has no direction, edges, or subgraphs:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    pie showData
+        title Pets adopted by volunteers
+        "Dogs" : 386
+        "Cats" : 85.5
+        "Rats" : 15
+    """);
+
+Console.WriteLine($"{diagram.DiagramType} {diagram.Direction ?? "-"}");   // Output: pie -
+Console.WriteLine(diagram.Title);                                         // Output: Pets adopted by volunteers
+Console.WriteLine($"{diagram.NodeCount} slices");                         // Output: 3 slices
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 595x450
+var white = new Rgba32(255, 255, 255, 255);
+using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Background = white });
+PngCodec.Save(picture, "pets.png");                                       // 1190x900 pixels
+```
+
+The same text is the `pie` example of the tool's help (`canvasnet help mermaid --example pie`), and the Pandoc filter
+draws it from a code block:
+
+```{.mermaid caption="Pets adopted by volunteers, drawn from a code block" scale=2 width=60%}
+pie showData
+    title Pets adopted by volunteers
+    "Dogs" : 386
+    "Cats" : 85.5
+    "Rats" : 15
+```
+
+### Example 64: Rendering a Mermaid Gantt Chart
+
+A gantt chart is opened, measured, and drawn exactly like a flowchart. Its counts are the tasks (a milestone
+included) and the sections. The library never reads the clock: give `Now` to draw the today line
+(a render without it draws none, as the tool, the Viewer, and the Pandoc filter do):
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    gantt
+        title Release plan
+        dateFormat YYYY-MM-DD
+        axisFormat %b %e
+        excludes weekends
+        section Build
+        Design          :done, des, 2024-06-03, 5d
+        Implement       :active, imp, after des, 8d
+        Code freeze     :milestone, frz, after imp, 0d
+        section Test
+        System test     :crit, tst, after imp, 5d
+        Release         :rel, after tst, 2d
+    """);
+
+Console.WriteLine(diagram.DiagramType);                                   // Output: gantt
+Console.WriteLine($"{diagram.NodeCount} tasks, {diagram.SubgraphCount} sections");
+                                                                          // Output: 5 tasks, 2 sections
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 784x220
+var options = new MermaidRenderOptions
+{
+    Scale = 2,
+    Background = new Rgba32(255, 255, 255, 255),
+    Now = new DateTimeOffset(2024, 6, 14, 9, 0, 0, TimeSpan.Zero),     // the today line on June 14
+};
+using var picture = diagram.Render(options);
+PngCodec.Save(picture, "release-plan.png");                               // 1568x440 pixels
+```
+
+The same text is the `gantt` example of the tool's help (`canvasnet help mermaid --example gantt`), and the Pandoc
+filter draws it from a code block, without a today line:
+
+```{.mermaid caption="A release plan, drawn from a code block" scale=2 width=100%}
+gantt
+    title Release plan
+    dateFormat YYYY-MM-DD
+    axisFormat %b %e
+    excludes weekends
+    section Build
+    Design          :done, des, 2024-06-03, 5d
+    Implement       :active, imp, after des, 8d
+    Code freeze     :milestone, frz, after imp, 0d
+    section Test
+    System test     :crit, tst, after imp, 5d
+    Release         :rel, after tst, 2d
 ```
