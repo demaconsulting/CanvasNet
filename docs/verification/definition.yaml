@@ -203,6 +203,12 @@ input-files:
   - docs/verification/canvas-net-mermaid/class.md
   - docs/verification/canvas-net-mermaid/class/class-parser.md
   - docs/verification/canvas-net-mermaid/class/class-model.md
+  - docs/verification/canvas-net-mermaid/state.md
+  - docs/verification/canvas-net-mermaid/state/state-parser.md
+  - docs/verification/canvas-net-mermaid/state/state-model.md
+  - docs/verification/canvas-net-mermaid/er.md
+  - docs/verification/canvas-net-mermaid/er/er-parser.md
+  - docs/verification/canvas-net-mermaid/er/er-model.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

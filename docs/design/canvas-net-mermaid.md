@@ -18,22 +18,26 @@ library and the public API of the core `CanvasNet` package.
 
 The goal is **fidelity to Mermaid**: a diagram must look like the picture the pinned Mermaid release draws in a
 browser. The package is therefore a port, derived with attribution, of the parts of Mermaid that decide the picture:
-its preprocessing and diagram detection, the jison grammars and databases of the flowchart, the sequence diagram, and
-the class diagram (with the URL check of sanitize-url that the class database applies to links),
+its preprocessing and diagram detection, the jison grammars and databases of the flowchart, the sequence diagram, the
+class diagram (with the URL check of sanitize-url that the class database applies to links), the state diagram, and
+the entity relationship diagram,
 its configuration defaults and precedence, its five themes and the khroma color functions they use, its unified
 renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and graphlib graph that Mermaid bundles,
 and its sequence renderer with the drawing functions of the sequence diagram. Every
 construct that is recognized but not drawn is **reported with a stable `mermaid-*` code and the exact location,
 never skipped silently** (see _Fidelity and Known Differences_).
 
-This version (Phases 1a, 1b, and 2a, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph` keywords),
-**sequence diagrams** (the `sequenceDiagram` keyword), and **class diagrams** (the `classDiagram` and
-`classDiagram-v2` keywords, and the legacy `class` id of `class.defaultRenderer: dagre-d3`). Every other
+This version (Phases 1a, 1b, 2a, and 2b, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph`
+keywords), **sequence diagrams** (the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram` and
+`classDiagram-v2` keywords, and the legacy `class` id of `class.defaultRenderer: dagre-d3`), **state diagrams** (the
+`stateDiagram` and `stateDiagram-v2` keywords, and the legacy `state` id that a `state.defaultRenderer` other than
+`dagre-wrapper` selects for a `stateDiagram` text), and **entity relationship diagrams** (the `erDiagram` keyword).
+Every other
 Mermaid diagram type is detected (the 40 detectors of Mermaid, in Mermaid's order) and handled the same way: opening
 succeeds, `IsSupported` is false, and measuring or rendering reports `mermaid-diagram-unsupported` once and gives an
 empty, transparent 16 by 16 pixel picture (an exception in strict mode).
 
-The system consists of one direct unit and nine internal subsystems:
+The system consists of one direct unit and eleven internal subsystems:
 
 - **MermaidDocument** (unit, root namespace; see _MermaidDocument Unit Design_) - the public API: `MermaidDocument`
   with `Parse`, `Open(path)`, `Open(stream)`, the metadata properties, `Measure`, `Render`, and
@@ -50,8 +54,8 @@ The system consists of one direct unit and nine internal subsystems:
   DOMPurify behavior that Mermaid applies to labels, with the `HtmlEntities` table).
 - **Configuration** (subsystem; see _Configuration Design_) - the effective configuration and paint:
   `MermaidConfigResolver` (defaults, precedence, secure keys, directive parsing, typed `MermaidConfig` view),
-  `ThemeResolver` (the five themes and the flowchart, sequence, and class style sheets), `ColorMath` (the khroma
-  subset), and
+  `ThemeResolver` (the five themes and the flowchart, sequence, class, state, and entity relationship style sheets),
+  `ColorMath` (the khroma subset), and
   `StyleDeclarations` (the CSS declaration subset of `style`, `classDef`, `linkStyle`, and `themeCSS`).
 - **Graphlib** (subsystem; see _Graphlib Design_) - `Graph` (graphlib's directed, multi, and compound graph with
   JavaScript key order) and `GraphAlgorithms` (the traversals dagre uses).
@@ -59,9 +63,11 @@ The system consists of one direct unit and nine internal subsystems:
   `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`,
   `DagreCoordinateSystem`, and `LayoutWorkMeter` (the work budget, cancellation, and the shared unique-id counter).
 - **Rendering** (subsystem; see _Rendering Design_) - Mermaid's unified renderer for any layout data:
-  `ClusterLayout` (subgraph extraction, recursive layout, placement, and the frame of a class diagram), `ShapeLibrary`
-  (the 53 documented shapes, their aliases, the bracket shapes, the class box, subgraph rectangles, and their
-  intersections), `EdgeBuilder` (edge routes, curves, strokes, markers including the class markers, edge labels, and
+  `ClusterLayout` (subgraph extraction, recursive layout, placement, the check of the edge ends, and the frame of a
+  class, state, or entity relationship diagram), `ShapeLibrary` (the 53 documented shapes, their aliases, the bracket
+  shapes, the class box, the state shapes and the clusters of composite states, concurrent regions, and notes, the
+  entity box, subgraph rectangles, and their intersections), `EdgeBuilder` (edge routes, curves, strokes, markers
+  including the class markers, the `barb` of a state transition, and the four cardinality markers, edge labels, and
   the terminal labels of class relations), `LabelBuilder` (HTML, markdown, and SVG labels measured with the
   bundled fonts, and the text utilities that measure and wrap the texts of sequence diagrams), and `NodeImages`
   (pictures through the caller's resolver).
@@ -77,6 +83,13 @@ The system consists of one direct unit and nine internal subsystems:
 - **Class** (subsystem; see _Class Design_) - `ClassParser` (the `classDiagram.jison` lexer and grammar) and
   `ClassModel` (the `classDb` semantics with Mermaid's `ClassMember`, the URL check of sanitize-url, the metadata,
   the reports, and the mapping to layout data for the shared renderer).
+- **State** (subsystem; see _State Design_) - `StateParser` (the `stateDiagram.jison` lexer and grammar, and the
+  statement tree its actions build) and `StateModel` (the `stateDb` semantics with the translation of the statement
+  tree, the data fetcher with its note groups and DOM ids, the metadata, the reports, and the mapping to layout data
+  for the shared renderer).
+- **Er** (subsystem; see _Er Design_) - `ErParser` (the `erDiagram.jison` lexer and grammar) and `ErModel` (the `erDb`
+  semantics with its entities, relationships, subgraphs, and compiled styles, the metadata, the reports, and the
+  mapping to layout data for the shared renderer).
 
 The dependency direction is one way:
 
@@ -87,7 +100,15 @@ MermaidDocument -> Syntax -> Configuration -> Flowchart -> Rendering -> Dagre ->
                                                         -> Scenegraph
                                            -> Class     -> Rendering -> Dagre -> Graphlib
                                                         -> Scenegraph
+                                           -> State     -> Rendering -> Dagre -> Graphlib
+                                                        -> Scenegraph
+                                           -> Er        -> Rendering -> Dagre -> Graphlib
+                                                        -> Scenegraph
 ```
+
+The one call against that direction is the entity box of `ShapeLibrary`, which draws a `~T~` attribute type with
+the static `ClassModel.ParseGenericTypes`, the port of Mermaid's `parseGenericTypes` that the class and ER drawings
+share; it is a pure text function and holds no state.
 
 Only `ScenePainter` and `LabelBuilder` use the core `Fonts`, `Rendering`, and `Drawing` APIs, and only
 `NodeImages` and `MermaidImageSource` use the core `ImageSources` API. The internal subsystems are visible to the
@@ -104,7 +125,12 @@ test assembly through `InternalsVisibleTo` and to nothing else.
   counts are its participants, its messages drawn as arrows, and its boxes, and `Direction` is null. For a class
   diagram they are its classes, its relations, and the namespaces drawn under the text's own configuration (every
   namespace, implicit dotted parents included, or only the declared ones when the text sets
-  `class.hierarchicalNamespaces: false`); a site configuration changes the drawing but not the counts.
+  `class.hierarchicalNamespaces: false`); a site configuration changes the drawing but not the counts. For a state
+  diagram they are its states (the start, end, fork, join, and choice states included; notes, note groups, and
+  concurrent regions not counted), its transitions (the links of notes not counted), and its composite states, and
+  `Direction` is the last top-level `direction` statement, the one that is drawn. For an entity relationship diagram
+  they are its drawn entities (an entity named only after a subgraph is not drawn and not counted), its
+  relationships, and its subgraphs, and `Direction` is the last top-level `direction` statement.
 - **Picture output** (`Measure`, `Render`, `Render(width, height)` with `MermaidRenderOptions`): a `MermaidSize` or a
   `Surface` (RGBA, straight alpha) whose sides lie within 1 and `Surface.MaxDimension`; a `CancellationToken` is
   observed.
@@ -189,6 +215,10 @@ flowchart LR
     W --> S
     C --> K[ClassParser and ClassModel]
     K --> L
+    C --> N[StateParser and StateModel]
+    N --> L
+    C --> M[ErParser and ErModel]
+    M --> L
     S --> X[ScenePainter]
     X --> O[Surface]
 ```
@@ -202,7 +232,12 @@ flowchart LR
    diagram, `SequenceParser` lexes and parses the body and `SequenceModel` applies the collected statements with the
    `sequenceDb` rules; for a class diagram, `ClassParser` lexes and parses the body and runs each `classDb` action of
    `ClassModel` where Mermaid's grammar reduces, with the text's own `class.hierarchicalNamespaces` (resolved from the
-   frontmatter and the directives, and passed on by the registry) choosing the namespaces it counts. Syntax errors,
+   frontmatter and the directives, and passed on by the registry) choosing the namespaces it counts; for a state
+   diagram (the `stateDiagram` and `stateDiagram-v2` texts and the legacy `state` id), `StateParser` lexes and parses
+   the body into Mermaid's statement tree and `StateModel` translates it and applies it with the `stateDb` rules (the
+   legacy id applies the statements before it translates them, as Mermaid's legacy database does); for an entity
+   relationship diagram, `ErParser` lexes and parses the body and runs each `erDb` action of `ErModel` where Mermaid's
+   grammar reduces. Syntax errors,
    database errors, and the
    open-time limits (edges, nodes, label length, nesting, YAML depth) fail here. Other known types are kept as
    unsupported diagrams.
@@ -221,7 +256,13 @@ flowchart LR
    unsupported constructs (look, layout) and maps the model to layout data (namespaces as clusters, class boxes,
    notes, hidden lollipop interfaces, relations with their markers and cardinalities); `ClusterLayout` lays it out as
    for a flowchart, draws the class boxes (`ShapeLibrary`) and the terminal labels (`EdgeBuilder`), and
-   `ClusterLayout.RenderDiagram` adds the title and grows the view box by the class renderer's padding of 8.
+   `ClusterLayout.RenderDiagram` adds the title and grows the view box by the class renderer's padding of 8. A state
+   diagram and an entity relationship diagram go the same way: `StateModel` reports the unsupported constructs (look,
+   layout, and the legacy renderer) and maps the model to layout data (states with their shapes, composite states,
+   concurrent regions, and note groups as clusters, notes, and transitions with the `barb` marker), and `ErModel`
+   reports the look and layout and maps the model to layout data (entity boxes with their attribute tables,
+   subgraphs as clusters, and relationships with their cardinality markers); `ClusterLayout` checks that every edge
+   end is drawn, lays the data out, and `RenderDiagram` adds the title and the padding of 8 of their renderers.
    `Measure` stops here and returns the view box
    rounded up and multiplied by the scale. `Render` paints the scene with `ScenePainter` (uniformly scaled, or fitted
    and centered for an exact size) over the background, loading pictures through the same `NodeImages`.
@@ -266,7 +307,7 @@ third-party/README.md`:
 
 | Upstream project | License | Ported into |
 | --- | --- | --- |
-| mermaid | MIT | the Syntax units except `HtmlSanitizer`, configuration, themes, flowchart, renderer, sequence, class |
+| mermaid | MIT | the Syntax units except `HtmlSanitizer`, configuration, themes, renderer, every drawn diagram type |
 | dagre-d3-es (dagre, graphlib, dagre-d3) | MIT | `Graph`, `GraphAlgorithms`, the `Dagre` units, intersections |
 | d3-shape and d3-path | ISC | `EdgeBuilder` curves and path number formatting |
 | khroma | MIT | `ColorMath` |
@@ -290,13 +331,22 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
 
 - `MaxTextSize`, 50,000 (Mermaid's `maxTextSize`): checked at open on the code after the frontmatter, directives,
   and comments are removed; the raw text may be at most four times larger. Failure: `InvalidDataException`.
-- `MaxEdges`, 500 (Mermaid's `maxEdges`; also the relations of a class diagram); `MaxNodes`, 2,000 (subgraphs
+- `MaxEdges`, 500 (Mermaid's `maxEdges`; also the relations of a class diagram, the transitions of a state diagram,
+  not the links of its notes, and the relationships of an entity relationship diagram); `MaxNodes`, 2,000 (subgraphs
   included; the participants and boxes of a sequence diagram; the classes, notes, lollipop interfaces, and namespaces,
-  implicit dotted parents included, of a class diagram); `MaxLabelLength`, 4,096 (also the accessible title and
-  description, the type and alias of sequence participant metadata, and the texts a class diagram joins: the label of
-  a generic class with its type, and the qualified id of a nested namespace); `MaxNestingDepth`, 32 (subgraphs,
-  namespaces, the dotted parts of a namespace name counted as levels, and the blocks and boxes of a sequence diagram;
-  at most 256); `MaxYamlDepth`, 32 (at
+  implicit dotted parents included, of a class diagram; the states of a state diagram, a state that only a `class` or
+  `style` statement names included, and, counted apart, its laid-out nodes with every kind of cluster: states,
+  composite states, concurrent regions with the generated last region, notes, and note groups; the entities of an
+  entity relationship diagram, those named only after a subgraph included, and its subgraphs together);
+  `MaxLabelLength`, 4,096 (also the accessible title and description, the type and alias of sequence participant
+  metadata, and the texts a diagram joins or derives from texts checked apart: the label of a generic class with its
+  type and the qualified id of a nested namespace; the descriptions of a state joined with line breaks as its box
+  draws them, the `_start` and `_end` ids of the start and end states of a composite state, and a text style once
+  `fill` is renamed; the styles, the bracketed subgraph titles, the attribute types with `?`, the CSS classes, and the
+  compiled styles of an entity relationship diagram); `MaxNestingDepth`, 32 (subgraphs, namespaces, the dotted parts
+  of a namespace name counted as levels, composite states with each concurrent region counted as a level, the
+  subgraphs of an entity relationship diagram, and the blocks and boxes of a sequence diagram; at most 256);
+  `MaxYamlDepth`, 32 (at
   most 256; YAML aliases, anchors, and tags are refused): checked at open. Failure: `MermaidSyntaxException` with
   `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused YAML construct).
 - `MaxLayoutWork`, 50,000,000 metered layout steps (the dagre stages, the text measurement of a class box, and the
@@ -320,7 +370,8 @@ tracked automatically.
 
 **How fidelity is measured.** Algorithmic parts are compared exactly against upstream vectors generated by the
 pinned packages: 207 flowchart parser and database vectors, 242 sequence parser and database vectors, 179 class
-parser and database vectors, 53
+parser and database vectors, 157 state parser and database vectors, 246 entity relationship parser and database
+vectors, 53
 configuration cases and 622 khroma calls, 224 dagre
 stage goldens (ranks and orders exact, coordinates within 1e-9), 286 shape vectors, and 144 d3 curve vectors. The
 whole layout is compared against reference layouts extracted from mermaid-cli renders of the 42 original flowchart
@@ -340,7 +391,15 @@ The 16 original class fixtures are compared the same way (`Fixtures/reference/cl
 position and box and each part of each class box (annotation, name, members, methods, and dividers), the namespace
 rectangles and titles, every edge (its length and 21 sampled points), the edge label centers, the terminal label
 positions, and the title box, at 0.01 pixel; only `16-config-title-links`, the one fixture with SVG class texts, is
-compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
+compared at 0.23 pixel (item 27 below), and no class fixture is excluded. The 14 original state fixtures
+(`Fixtures/reference/state/`) and the 12 original entity relationship fixtures (`Fixtures/reference/er/`) are
+compared the same way: the view box, every node's position and box and its drawn parts (the label box of the title
+and descriptions and the divider of a state with descriptions; the outline, rows, text cells, and dividers of an
+entity table), every cluster's rectangle, inner rectangle, and title (composite states, concurrent regions, note
+groups, and subgraphs), every edge (its length and 21 sampled points), the edge label centers, and the title box, at
+0.01 pixel with no exception; in practice every state fixture agrees to within 0.003 pixel (the largest at
+`08-notes`) and every entity relationship fixture to within 0.002 pixel, the fixtures with SVG text
+(`13-config-title` and `12-config-title`) included, and no state or entity relationship fixture is excluded.
 
 **Known and accepted differences from Mermaid:**
 
@@ -363,11 +422,12 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
    drawn, and icon shapes keep their frame and size.
 7. **Looks and layouts.** `look: handDrawn`, `look: neo`, and any other look but `classic` are drawn classic
    (`mermaid-look-unsupported`); `layout: elk`, the `flowchart-elk` keyword, and any other layout fall back to dagre
-   (`mermaid-layout-unsupported`). The rough.js circles of some shapes are drawn as true circles (at most 0.06 pixel
-   different).
+   (`mermaid-layout-unsupported`). The rough.js circles of some flowchart shapes are drawn as true circles (at most
+   0.06 pixel different); the end state of a state diagram is the exact rough.js outline, as Mermaid draws it.
 8. **Interaction and animation.** `click`, `href`, `call`, callbacks, tooltips, and links are parsed and ignored
    (only the `clickable` class is kept; the links of a class diagram are checked as Mermaid's `strict` security level
-   checks them, the only level modeled, and kept as data); an animated edge is drawn as its first frame (dash `9,5`,
+   checks them, the only level modeled, and kept as data, and the `click` statements of a state diagram are kept as
+   data and never drawn); an animated edge is drawn as its first frame (dash `9,5`,
    offset 900);
    `accTitle` and `accDescr` are metadata only.
 9. **CSS.** `style`, `classDef`, `linkStyle`, and `themeCSS` honor only the declarations that change pixels (fill,
@@ -388,7 +448,9 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
 13. **Errors.** Mermaid draws an error picture for bad text; CanvasNet throws a located `MermaidSyntaxException` with a
     hint. Errors that Mermaid's database raises as JavaScript type errors (an anonymous subgraph, a bad `linkStyle`
     index, an unknown shape) are located syntax errors with CanvasNet messages; failures that crash Mermaid at render
-    time (a subgraph cycle, a link to a subgraph without an anchor) are `mermaid-render-failed`.
+    time (a subgraph cycle, a link to a subgraph without an anchor, a state that is its own ancestor, a note on a state
+    that appears nowhere before it, a relationship to an entity hidden by a subgraph of the same name, and a subgraph
+    that holds itself) are `mermaid-render-failed`, located at the statement.
 14. **Shapes Mermaid cannot draw.** The legacy `A(-text-)` ellipse, which the pinned Mermaid fails to render, is drawn
     as an ellipse. A picture node whose picture cannot be loaded (Mermaid's render fails) is drawn as its frame and
     reported (`mermaid-image-unresolved`).
@@ -396,11 +458,15 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
     natural size of a picture is the size the resolver returns for a 256 by 256 request (a raster comes back at its
     own size); a picture is stretched to its box as Mermaid's `preserveAspectRatio="none"` does. An `<img>` beside text
     is as wide as the label's content; alone it is five times the font size, as in Mermaid.
-16. **Only what flowcharts, sequence diagrams, and class diagrams reach is ported** from the unified renderer: the
-    `rect` subgraph, the class box, the `point`, `circle`, and `cross` markers (the circle's ring is not clipped to its
-    marker box, at most 0.55 pixel) and the five class markers, and the terminal labels of class relations.
+16. **Only what flowcharts, sequence diagrams, class diagrams, state diagrams, and entity relationship diagrams reach
+    is ported** from the unified renderer: the `rect` subgraph, the class box, the state shapes (`stateStart`,
+    `stateEnd`, `fork`, `join`, `choice`, `note`, and `rectWithTitle`), the clusters of a state diagram
+    (`roundedWithTitle`, `divider`, and `noteGroup`), the entity box, the `point`, `circle`, and `cross` markers (the
+    circle's ring is not clipped to its marker box, at most 0.55 pixel), the five class markers, the `barb` of a state
+    transition, the four cardinality markers, and the terminal labels of class relations.
 17. **Diagram types.** Only `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, and `classDiagram-v2` (with the
-    legacy `class` id) are drawn in this version; every other type is
+    legacy `class` id), `stateDiagram` and `stateDiagram-v2` (with the legacy `state` id), and `erDiagram` are drawn in
+    this version; every other type is
     `mermaid-diagram-unsupported` with a 16 by 16 transparent picture, and the documentation filter leaves such blocks
     to another filter.
 18. **Size and background.** The background is transparent by default (as Mermaid's SVG); the natural size is the SVG
@@ -458,6 +524,30 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
 31. **Underline.** The bar of a static member (`$`, CSS `text-decoration: underline`) is placed with the underline
     position and thickness of the bundled face's `post` table; Chrome's own placement, which may adjust to the glyphs
     and the pixel grid, is not reproduced, so the bar can sit a little higher or lower. No measured box changes.
+32. **State region ids.** The concurrent regions of a composite state get the ids `id-random-1`, `id-random-2`, and
+    so on from a counter of the document, where Mermaid draws random numbers; the ids are never drawn, so only their
+    order in the layout (which follows the counter in both) matters, and every render is the same.
+33. **State links and sanitizing.** The `click` statements of a state diagram are read and kept as data, never drawn
+    or bound, and nothing is reported for them. The labels and notes are always sanitized as Mermaid's `strict`
+    security level sanitizes them, the only level modeled, whatever `securityLevel` the configuration gives.
+34. **The legacy state renderer.** A `stateDiagram` text whose `state.defaultRenderer` selects the legacy `state` id
+    is read with the legacy database order and drawn by the unified renderer, with the same pixels as the
+    `stateDiagram-v2` text; the legacy renderer is reported once as `mermaid-layout-unsupported`, located at the
+    top-level `state` key of the configuration that selects it (only the top-level keys carry locations).
+35. **State direction metadata.** `Direction` is the last top-level `direction` statement, the one the layout uses;
+    Mermaid's `getDirection` of the state database gives the first one, which Mermaid itself does not draw.
+36. **User radii.** The corner radii of a state diagram come from the state style sheet (5 pixels on a state, 5 on
+    the outer and 0 on the inner rectangle of a composite state); an `rx` or `ry` declaration in a `style` statement
+    or in `themeCSS` is reported as `mermaid-style-ignored` (located at the first mention of the styled state or
+    entity, or at the `themeCSS` key) and has no effect.
+37. **Marker clipping.** The cardinality markers of an entity relationship diagram are not clipped to the view port
+    of their marker elements; the curves of the markers touch its edges, so half a stroke shows at those tips where
+    Mermaid clips it (a difference in pixels only, no measured box changes).
+38. **Entity relationship looks and themes.** The `data-color-id` of the `redux-color` themes, the background node of
+    the hand-drawn look, and the markers of the `neo` look are not modeled (the themes are not ported, and the looks
+    are reported and drawn classic, item 7). The text of an SVG cell of an entity table takes the color of the
+    sheet's `.label` rule (`nodeTextColor`, else `textColor`), where Chrome gives an SVG text the root `fill`
+    (`textColor`); the two are the same in every built-in theme.
 
 ## Phase Plan
 
@@ -466,10 +556,13 @@ compared at 0.23 pixel (item 27 below), and no class fixture is excluded.
   source, the Viewer, tool, and documentation filter integration, and the reference harness and goldens.
 - **Phase 1b (delivered)**: sequence diagrams (parser, model, layout, and renderer), with the sequence configuration
   and style sheet, the text utilities of Mermaid, and drop shadows in the scene.
-- **Phase 2a (delivered by this version)**: class diagrams (parser and model) on the shared renderer, with the class
+- **Phase 2a (delivered)**: class diagrams (parser and model) on the shared renderer, with the class
   box, the class markers, the terminal labels, the class configuration and style sheet, underlined text in the scene,
   and the URL check of sanitize-url.
-- **Phase 2 (planned)**: state and entity-relationship diagrams on the same renderer.
+- **Phase 2b (delivered by this version)**: state and entity relationship diagrams (parsers and models) on the same
+  renderer, with the state shapes, the clusters of composite states, concurrent regions, and notes, the entity box,
+  the `barb` and cardinality markers, the state and entity relationship configuration sections and style sheets, the
+  check of the edge ends, and the 1/64 pixel advance grid of SVG text runs.
 - **Phase 3 (planned)**: pie, Gantt, and mindmap diagrams (mindmap with a port of Mermaid's force-directed layout).
 Each phase adds only its own subsystems and units and extends the supported list of `DiagramDetector`; the public API,
 the report codes, and the limits stay compatible.

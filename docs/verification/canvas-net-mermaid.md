@@ -10,8 +10,9 @@ This document describes the system-level verification strategy for CanvasNetMerm
 
 - **System tests** (described here) use only the public API, as a consumer would: they open original-work diagrams
   from in-memory text, streams, temporary files, the 42 flowchart fixtures in `Fixtures/flowchart/`, the 24
-  sequence fixtures in `Fixtures/sequence/`, and the 16 class fixtures in `Fixtures/class/` with
-  `MermaidDocument.Parse` and `MermaidDocument.Open`, supply `MermaidOpenOptions`, `MermaidRenderOptions`, and
+  sequence fixtures in `Fixtures/sequence/`, the 16 class fixtures in `Fixtures/class/`, the 14 state fixtures in
+  `Fixtures/state/`, and the 12 ER fixtures in `Fixtures/er/` with `MermaidDocument.Parse` and
+  `MermaidDocument.Open`, supply `MermaidOpenOptions`, `MermaidRenderOptions`, and
   `MermaidLimits`, and assert on observable outputs: the metadata properties, the sizes, sampled pixels of the
   rendered `Surface`, the reports delivered to the handlers, and the exceptions with their codes, locations, and
   hints. The system test classes are `MermaidSystemIntegrationTests` (entry points, metadata, errors, configuration,
@@ -20,10 +21,16 @@ This document describes the system-level verification strategy for CanvasNetMerm
   `MermaidSequenceIntegrationTests` (every sequence fixture in strict mode, theme pixels, look, math, and icon reports,
   scale, work limit, determinism, cancellation), `MermaidClassIntegrationTests` (every class fixture in strict mode,
   metadata, theme, classifier, and style pixels, look, layout, and style reports, the legacy renderer, scale, work
-  limit, determinism, cancellation), `MermaidReferenceLayoutTests` (the flowchart and class layout goldens) and
-  `MermaidSequenceReferenceLayoutTests` (the sequence layout goldens), `MermaidHardeningTests` (limits and seeded mutation
-  fuzzers), `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw), and `MermaidGalleryTests`
-  (the diagrams of the documentation gallery). They are named `CanvasNetMermaid_<Area>_<Scenario>_<Result>`.
+  limit, determinism, cancellation), `MermaidStateIntegrationTests` (every state fixture in strict mode, metadata,
+  theme, region, and style pixels, sanitized notes, the legacy renderer, look and layout reports, located render
+  failures, scale, work limit, determinism, cancellation), `MermaidErIntegrationTests` (every ER fixture in strict
+  mode, metadata, theme, row, outline, marker, and style pixels, the markers of the cardinalities, generic types,
+  spacing, look and layout reports, located render failures, scale, work limit, determinism, cancellation),
+  `MermaidReferenceLayoutTests` (the flowchart, class, state, and ER layout goldens) and
+  `MermaidSequenceReferenceLayoutTests` (the sequence layout goldens), `MermaidHardeningTests` (limits and seeded
+  mutation fuzzers), `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw), and
+  `MermaidGalleryTests` (the diagrams of the documentation gallery). They are named
+  `CanvasNetMermaid_<Area>_<Scenario>_<Result>`.
 - **Subsystem tests** (`{Subsystem}Tests.cs` in each folder) and **unit tests** (`{Unit}Tests.cs`) are described in
   the subsystem and unit verification designs that follow this document; the direct unit `MermaidDocument` is
   described in _MermaidDocument Unit Verification Design_.
@@ -46,7 +53,14 @@ Two kinds of upstream evidence make the fidelity objective:
   (`Fixtures/reference/class/*.layout.json`) are extracted the same way from every class fixture; the system test
   compares the view box, every node's position and box and each drawn part of each class box, the namespace
   rectangles and titles, every edge (its length and 21 sampled points), the edge label centers, the terminal label
-  positions, and the title box.
+  positions, and the title box. The state goldens (`Fixtures/reference/state/*.layout.json`) are extracted the same
+  way from every state fixture; the system test compares the view box, each node's position, box, and drawn parts,
+  each cluster's rectangle, inner rectangle, and title (the composite states, the concurrent regions, and the groups
+  of a state and its note), every edge (its length and 21 sampled points), the edge label centers, and the title box.
+  The ER goldens (`Fixtures/reference/er/*.layout.json`) are extracted the same way from every ER fixture; the system
+  test compares the view box, each node's position and box and the parts of each entity table (the outline, the rows,
+  each text cell by its own box, and the dividers), each subgraph's rectangle and title, every edge (its length and 21
+  sampled points), the edge label centers, and the title box.
 
 The goldens and vectors are committed; CI only compares. `benchmarks/visual-diff/compare-with-mermaid.ps1` produces
 side-by-side pictures for a manual visual review and never gates.
@@ -70,9 +84,9 @@ A system-level test run passes when every scenario below passes on every target 
 exception beyond those explicitly asserted. A layout that differs from a golden beyond its documented tolerance
 (0.01 pixel, 0.1 pixel for the two fixtures with rough.js circles; for the sequence goldens 0.01 pixel, 0.02 pixel for
 text boxes and cylinder arcs; for the class goldens 0.01 pixel, 0.23 pixel for `16-config-title-links`, whose class
-texts are SVG text), a fixture that gives a report it should not give
-in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the mutation
-fuzzer, or two renders of the same document that differ constitutes a failure.
+texts are SVG text; for the state and ER goldens 0.01 pixel with no exception), a fixture that gives a report it should
+not give in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the
+mutation fuzzer, or two renders of the same document that differ constitutes a failure.
 
 ## System-Level Test Scenarios
 
@@ -90,32 +104,56 @@ by its path.
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Metadata_Flowchart_DescribesTheDiagram`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Metadata_CountsClassesRelationsAndNamespaces`,
-`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Metadata_CountsTheDrawnNamespaces`
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Metadata_CountsTheDrawnNamespaces`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_Metadata_CountsStatesTransitionsAndComposites`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_Metadata_CountsEntitiesRelationshipsAndSubgraphs`
 
 Asserts the type, the supported flag, the frontmatter title, the accessible title, the direction, and the node, edge,
 and subgraph counts of a flowchart without rendering it, and the type and the unsupported flag of other known
 diagram types. For a class diagram with a namespace, two classes, two relations (one to a lollipop interface), and a
 note, asserts the type `class`, the supported flag, the counts 2, 2, and 1 (notes, interfaces, and note links are not
 counted), the direction `LR`, and no title; and that `namespace Geo.Plane` counts 2 namespaces by default and 1 when
-the frontmatter sets `class.hierarchicalNamespaces: false`, each equal to the number of clusters drawn.
+the frontmatter sets `class.hierarchicalNamespaces: false`, each equal to the number of clusters drawn. For a state
+diagram with a start, a state `Off`, a `<<fork>>` state, a composite state of two concurrent regions with one state
+each, a note on `Off`, an end, `accTitle: Lamp`, and `direction BT` before a final `direction LR`, asserts the type
+`state`, the supported flag, the counts 6, 4, and 1 (the start, `Off`, the fork, the two inner states, and the end;
+the note, its link, the regions, and the note group are not counted), the direction `LR` (the last top-level
+direction statement), the accessible title `Lamp`, and no title. For an ER diagram with the frontmatter title `Shop`,
+`accTitle: Orders`, `direction RL` before a final `direction LR`, a subgraph `S` that holds `A ||--o{ B`, and a
+relationship from `C` to the subgraph `S`, asserts the type `er`, the supported flag, the counts 3, 2, and 1 (the
+entity `S` that the relationship adds is not drawn and not counted), the direction `LR`, the accessible title
+`Orders`, and the title `Shop`.
 
 ### CanvasNetMermaid-SyntaxErrors: Invalid Text Fails Closed With A Location And A Hint
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_SyntaxErrors_AreLocatedCodedAndHinted`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions`
 
 Asserts the `mermaid-syntax-error` code, the source name, the line, the expected tokens, and the message prefix of an
 unclosed label, and the `mermaid-unknown-diagram` code with a hint naming `flowchart` for a misspelled keyword; the
-fuzzers assert that mutated flowchart and class fixtures only ever raise the documented exception types.
+fuzzers assert that mutated flowchart, class, state, and ER fixtures only ever raise the documented exception types.
+For a state diagram, the seeded fuzzer (seed 20261110) mutates each of the 14 state fixtures eight times with the
+tokens of the state language (transitions, `[*]`, composite states, `<<fork>>`, `<<join>>`, `<<choice>>`, notes,
+directions, `classDef`, `class`, `style`, `click`, and accessibility texts) and asserts that opening and measuring
+raise only `MermaidSyntaxException`, `MermaidRenderException`, `InvalidDataException`, or
+`ArgumentOutOfRangeException`. For an ER diagram, the seeded fuzzer (seed 20261111) does the same over the 12 ER
+fixtures with the tokens of the ER language (the cardinalities in symbols and words, roles, attribute blocks with
+keys, comments, generic types and backticks, aliases, subgraphs, directions, `classDef`, `class`, `style`, and
+accessibility texts).
 
 ### CanvasNetMermaid-Configuration: The Text Overrides The Caller
 
-**Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Configuration_TextOverridesTheCaller`
+**Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Configuration_TextOverridesTheCaller`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_TopLevelNodeSpacing_WinsOverTheErSpacing`
 
 Renders the same flowchart with the caller's `dark` theme alone, under a frontmatter `forest` theme, and under a
 frontmatter `forest` theme plus a `neutral` init directive, and asserts by the node fill pixels that the frontmatter
-replaces the caller's theme and the directive replaces the frontmatter.
+replaces the caller's theme and the directive replaces the frontmatter. For an ER diagram with two entities under one
+parent, asserts that the gap between them is 140 pixels with the default ER spacing and 30 pixels when the frontmatter
+sets a top-level `nodeSpacing: 30` beside `er.nodeSpacing: 200`, as Mermaid's dagre layout takes it.
 
 ### CanvasNetMermaid-Themes: Mermaid's Theme Colors
 
@@ -124,7 +162,14 @@ replaces the caller's theme and the directive replaces the frontmatter.
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_DefaultTheme_PaintsMermaidsColors`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Theme_ChangesTheParticipantFill`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_DefaultTheme_PaintsMermaidsColors`,
-`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Theme_ChangesTheBoxFill`
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Theme_ChangesTheBoxFill`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_DefaultTheme_PaintsMermaidsColors`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_ConcurrentRegion_IsFilledWithTheAlternateBackground`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_Theme_ChangesTheStateFill`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_DefaultTheme_PaintsTheRowsInTurn`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_DefaultTheme_StrokesTheTableInTheNodeBorder`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_ZeroMarker_IsAWhiteCircle`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_Theme_ChangesTheEntityFill`
 
 Asserts the default theme's node fill `#ECECFF`, node border `#9370DB`, arrowhead `#333333`, and subgraph fill
 `#ffffde` at sampled pixels, and the node fill of the `dark`, `forest`, and `neutral` themes; for a sequence diagram
@@ -132,7 +177,17 @@ rendered at scale 4, the participant fill `#ECECFF` and border `#9370DB`, the no
 `#f4f4f4`, and the arrowhead `#333333`, and the participant fill of the `default`, `dark`, `forest`, and `neutral`
 themes (`#ECECFF`, `#1F2020`, `#CDE498`, and `#EEEEEE`); for a class diagram rendered at scale 4, the class box fill
 `#ECECFF`, the divider in the node border `#9370DB`, the composition marker filled with the line color `#333333`, and
-the extension marker left hollow, and the class box fill of the same four themes at scale 2.
+the extension marker left hollow, and the class box fill of the same four themes at scale 2. For a state diagram
+rendered at scale 4, asserts the state fill `#ECECFF`, the start state in `#333333`, the end state's inner circle in
+the node border `#9370DB` inside a ring in the line color `#333333`, a composite state's title band in `#ECECFF` over
+its white (`#FFFFFF`) inner area, and the inner area of a composite state nested in it in the alternate background
+`#F0F0F0`; that each of the two concurrent regions of a composite state is a cluster and a region is filled with
+`#F0F0F0`; and the state fill of the same four themes at scale 2. For an ER diagram rendered at scale 2, asserts that
+a table of three attributes has its name row in `#ECECFF` and its rows in turn in `#FFFFFF`, `#F1F1FF`, and
+`#FFFFFF`, and that an entity without attributes is filled `#ECECFF`; at scale 4, that the table's left edge is drawn
+in the node border `#9370DB` and that the circle of a zero-or-one end marker, 21 pixels before the end of the line,
+is filled white over the line while the marker is not filled beside it (the transparent background shows); and the
+entity fill and the name row fill of the same four themes at scale 2.
 
 ### CanvasNetMermaid-Flowcharts: Every Fixture Draws Strictly
 
@@ -147,13 +202,12 @@ HTML labels, unicode, long labels, many nodes) in strict mode and asserts that i
 renders, and gives no report other than the documented missing-glyph warning of `38-unicode`; asserts the pixels of
 `classDef`, `class`, and `style` declarations. The diagrams of the documentation gallery
 (`docs/user_guide/examples/mermaid-*.mmd`, copied next to the test assembly as `Gallery`) are checked the same way: the
-first test asserts that there are at least twelve, that each opens as a supported diagram of a type this version
-draws (a flowchart, a sequence diagram, or a class diagram), and that every drawn type is shown; the theory renders
-each
-with `ThrowOnUnsupportedFeature = true`, a warning handler, and a resolver that gives a solid picture for every link,
-and asserts that no warning is raised, that the surface has the measured size, that more than one pixel in fifty
-differs from the corner pixel, and that the pictures diagram asks the resolver for its `.scad`, `.svg`, and `.vl.json`
-links.
+first test asserts that there are at least sixteen, that each opens as a supported diagram of a type this version
+draws (a flowchart, a sequence diagram, a class diagram, a state diagram, or an entity relationship diagram), and that
+every drawn type is shown; the theory renders each with `ThrowOnUnsupportedFeature = true`, a warning handler, and a
+resolver that gives a solid picture for every link, and asserts that no warning is raised, that the surface has the
+measured size, that more than one pixel in fifty differs from the corner pixel, and that the pictures diagram asks the
+resolver for its `.scad`, `.svg`, and `.vl.json` links.
 
 ### CanvasNetMermaid-SequenceDiagrams: Every Sequence Fixture Draws Strictly
 
@@ -187,6 +241,60 @@ underlined, the class name bold, and that `style Dog fill:#ff0000` fills that cl
 that a text whose `class.defaultRenderer` selects the legacy `class` id has that type and the same pixels as the
 current renderer; and the gallery holds class diagrams that render strictly without warnings.
 
+### CanvasNetMermaid-StateDiagrams: Every State Fixture Draws Strictly
+
+**Tests**: `MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_Fixture_RendersStrictly` (a theory with one
+case for each file), `MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_StylesAndClasses_FillTheState`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_NestedNoteMarkup_IsSanitized`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_LegacyRenderer_IsReportedAndDrawnTheSame`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_MermaidRenderFailures_AreLocated`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
+
+Opens each of the 14 state fixtures by its path (`[*]` start and end states and labeled transitions, `state "d" as s`
+and several descriptions, three levels of composite states, `direction LR` at the root with `TB`, `LR`, and `BT` in
+composite states, `<<fork>>`, `<<join>>`, `[[fork]]`, and `[[join]]`, `<<choice>>` and `[[choice]]`, a composite
+state of three concurrent regions, notes on one and several lines and in a composite state, `classDef`, `class`,
+`:::`, and `style`, the `stateDiagram` header, self and parallel transitions, start and end states in nested
+composite states, transitions into composite states, and a frontmatter title with `htmlLabels: false`, the `state`
+spacing, `hide empty description`, `scale`, and `click`) and renders it in strict mode, and asserts the type `state`,
+that the surface has the measured size, is not fully transparent, and that no report or warning is given. Asserts that
+`classDef hot fill:#ff0000` applied with `:::` fills that state red and `style B fill:#00ff00` fills that state green
+at their pixels; that a note in a composite state written `<b>kept</b><script>dropped</script>` draws `kept` bold and
+draws neither the script nor its text; and that a `stateDiagram` whose frontmatter sets `state.defaultRenderer:
+dagre-d3` has the type `state`, is supported, is reported once at the `state` key (line 3), and draws the same pixels
+as the `stateDiagram-v2` text. Asserts the located `mermaid-render-failed` errors where Mermaid's render fails too: a
+note on a state that appears nowhere before it fails at the note (line 3) with a message that names `No such shape`
+(Mermaid's `No such shape: undefined`), and two composite states inside each other fail at the second (line 5) with a
+message that names the `cycle` of parents. The gallery holds state diagrams that render strictly without warnings.
+
+### CanvasNetMermaid-ErDiagrams: Every ER Fixture Draws Strictly
+
+**Tests**: `MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_Fixture_RendersStrictly` (a theory with one case
+for each file), `MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_Markers_FollowTheCardinalities`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_StylesAndClasses_FillTheNameAndEvenRows`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_GenericTypes_AreDrawnWithAngleBrackets`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_MermaidRenderFailures_AreLocated`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
+
+Opens each of the 12 ER fixtures by its path (relationships with crow's foot markers and quoted roles, every
+cardinality in symbols and in words with `to` and `--`, identifying and non-identifying lines (`--`, `..`, `.-`,
+`-.`, `to`, and `optionally to`), attribute types and names, `PK`, `FK`, and `UK` keys, key lists, and comments,
+aliases, `direction LR`, `classDef`, `:::`, `class`, and `style`, generic types and backtick names, nested subgraphs
+with a title and their own direction, and a frontmatter title with `htmlLabels: false` and the `er` spacing and box
+settings) and renders it in strict mode, and asserts the type `er`, that the surface has the measured size, is not
+fully transparent, and that no report or warning is given. Asserts that `A ||--o{ B` draws three marker parts (one
+path for the only-one start; a circle and a path for the zero-or-more end) and that `A u--o{ B` draws two, since
+Mermaid has no marker for `md_parent`; that a class with `fill:#ff0000` on a table of two attributes fills the name
+row and the even row red while the odd row keeps `#FFFFFF`, and fills an entity without attributes red; and that the
+attribute type `List~int~` is drawn as `List<int>` and that the empty keys and comment columns are dropped (six
+divider paths: the line under the name twice and the line after the type column, each a fill and a stroke). Asserts
+the located `mermaid-render-failed` errors where Mermaid's render fails too: a relationship whose entity is named like
+a subgraph declared after it fails at the relationship (line 2) with a message that its end `is not drawn`, and a
+subgraph that holds a relationship to itself fails at the subgraph (line 2) with a message that names the `cycle` of
+parents. The gallery holds ER diagrams that render strictly without warnings.
+
 ### CanvasNetMermaid-LayoutFidelity: The Layout Matches Mermaid
 
 **Tests**: `MermaidReferenceLayoutTests.CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid`,
@@ -194,7 +302,11 @@ current renderer; and the gallery holds class diagrams that render strictly with
 `MermaidSequenceReferenceLayoutTests.CanvasNetMermaid_SequenceReferenceLayout_MatchesMermaid`,
 `MermaidSequenceReferenceLayoutTests.CanvasNetMermaid_Sequence_ReferenceGoldens_CoverEveryFixture`,
 `MermaidReferenceLayoutTests.CanvasNetMermaid_ClassDiagram_ReferenceLayout_MatchesMermaid`,
-`MermaidReferenceLayoutTests.CanvasNetMermaid_ClassDiagram_ReferenceGoldens_CoverEveryFixture`
+`MermaidReferenceLayoutTests.CanvasNetMermaid_ClassDiagram_ReferenceGoldens_CoverEveryFixture`,
+`MermaidReferenceLayoutTests.CanvasNetMermaid_StateDiagram_ReferenceLayout_MatchesMermaid`,
+`MermaidReferenceLayoutTests.CanvasNetMermaid_StateDiagram_ReferenceGoldens_CoverEveryFixture`,
+`MermaidReferenceLayoutTests.CanvasNetMermaid_ErDiagram_ReferenceLayout_MatchesMermaid`,
+`MermaidReferenceLayoutTests.CanvasNetMermaid_ErDiagram_ReferenceGoldens_CoverEveryFixture`
 
 Compares the scene of each fixture with its mermaid-cli golden within the documented tolerance, and asserts that
 every fixture has a golden except the documented `38-unicode` exclusion; compares the scene of each sequence fixture
@@ -203,21 +315,30 @@ messages with their markers, texts, numbers, and circles, the notes, activations
 and the paint order) within the documented tolerances and allowances, and asserts that every sequence fixture has a
 golden; compares the scene of each class fixture with its golden (the view box, the nodes and the parts of each class
 box, the namespaces with their titles, the edges, the edge labels, the terminal labels, and the title box) at 0.01
-pixel, 0.23 pixel for `16-config-title-links`, and asserts that every class fixture has a golden.
+pixel, 0.23 pixel for `16-config-title-links`, and asserts that every class fixture has a golden. Compares the scene
+of each state fixture with its golden (the view box, each node's position, box, and drawn parts, each cluster's
+rectangle, inner rectangle, and title, each edge's length and 21 sampled points, the edge label centers, and the
+title box) at 0.01 pixel with no exception, and asserts that the 14 state fixtures and the state goldens are the same
+set. Compares the scene of each ER fixture with its golden (the view box, each node's position and box, the parts of
+each table: the outline, the rows, each text cell, and the dividers, each subgraph's rectangle and title, each edge's
+length and 21 sampled points, the edge label centers, and the title box) at 0.01 pixel with no exception, and asserts
+that the 12 ER fixtures and the ER goldens are the same set.
 
 ### CanvasNetMermaid-MeasureRender: Natural Size, Scale, Exact Size, And Background
 
 **Tests**: `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Scale_KeepsTheDrawing`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_Scale_MultipliesTheNaturalSize`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_Scale_MultipliesTheNaturalSize`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_Scale_MultipliesTheNaturalSize`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_Scale_MultipliesTheNaturalSize`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_Background_IsTransparentByDefault`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_FixedSize_FitsTheDiagram`,
 `MermaidUnsupportedDiagramTests.CanvasNetMermaid_RenderSized_InvalidSize_Throws`
 
-Asserts that a scale multiplies the natural size and keeps the drawing, that the natural size of a sequence diagram
-and of a class diagram is its view box rounded up and doubles at scale 2, that the corners are transparent without a
-background and take the background color when one is given, that an exact size gives a picture of exactly that size
-with the drawing in it, and that an invalid size is rejected.
+Asserts that a scale multiplies the natural size and keeps the drawing, that the natural size of a sequence diagram,
+a class diagram, a state diagram, and an ER diagram is its view box rounded up and doubles at scale 2, that the
+corners are transparent without a background and take the background color when one is given, that an exact size
+gives a picture of exactly that size with the drawing in it, and that an invalid size is rejected.
 
 ### CanvasNetMermaid-ImageEmbedding: Pictures Only Through The Resolver
 
@@ -241,7 +362,12 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_PropertiesIcon_IsReportedOrFails`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_HandDrawnLook_IsReportedAndDrawnClassic`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_ElkLayout_IsReportedAndLaidOutWithDagre`,
-`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_UserStyleIgnored_IsReportedButDiagramStylesAreNot`
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_UserStyleIgnored_IsReportedButDiagramStylesAreNot`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_HandDrawnLook_IsReportedAndDrawnClassic`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_ElkLayout_IsReportedAndLaidOutWithDagre`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_LegacyRenderer_IsReportedAndDrawnTheSame`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_HandDrawnLook_IsReportedAndDrawnClassic`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_ElkLayout_IsReportedAndLaidOutWithDagre`
 
 Asserts the `mermaid-look-unsupported` report at its frontmatter line and the `mermaid-style-ignored` warning at the
 styled node while the diagram is drawn; that a pie chart gives one located report with the planned hint and a
@@ -256,7 +382,14 @@ with `mermaid-render-failed` at the participant (line 2), as Mermaid fails. For 
 refused in strict mode; that `layout: elk` is reported once as `mermaid-layout-unsupported` and drawn with the same
 pixels as dagre; and that `style A cursor:pointer` is one `mermaid-style-ignored` warning at line 2 (the class's first
 mention) while the styles the diagram writes itself (the note colors, the opacity of a lollipop interface) give no
-report.
+report. For a state diagram, asserts that the `handDrawn` look is reported once as `mermaid-look-unsupported` and
+drawn with the same pixels as the classic look; that `layout: elk` is reported once as `mermaid-layout-unsupported`
+and drawn with the same pixels as dagre; and that a `stateDiagram` whose frontmatter sets `state.defaultRenderer:
+dagre-d3` gives one `mermaid-layout-unsupported` report at the `state` key (line 3) with the hint
+`state.defaultRenderer selects Mermaid's legacy state renderer; drawn with dagre-wrapper`, draws the same pixels as
+the `stateDiagram-v2` text, and is refused in strict mode. For an ER diagram, asserts that the `handDrawn` look is
+reported once as `mermaid-look-unsupported` and drawn with the same pixels as the classic look, and that
+`layout: elk` is reported once as `mermaid-layout-unsupported` and drawn with the same pixels as dagre.
 
 ### CanvasNetMermaid-Limits: Hostile Input Is Bounded
 
@@ -290,7 +423,21 @@ report.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit`,
-`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded`
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileStateDiagram_RendersOrFailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateManyNotes_IsALocatedNodeLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateNestedRegions_IsALocatedNestingLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateManyDescriptions_IsALocatedLabelLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateLongChain_RendersOrHitsTheWorkLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_WorkLimit_FailsWithLimitExceeded`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileErDiagram_RendersOrFailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ErManyEntities_IsALocatedNodeLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ErNestedSubgraphs_IsALocatedNestingLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ErLongComment_IsALocatedLabelLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ErManyAttributes_Render`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_WorkLimit_FailsWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
 `InvalidDataException` for too long text, refusal of a YAML alias bomb, a label limit that can be raised, a complete
@@ -324,7 +471,29 @@ class each fail at the next namespace (line 3,002) with `MaxNodes`; that two nes
 overflowed the stack) fail at their line (line 2) with `MaxNestingDepth`, as do 17 nested namespaces of two-part names
 at the 17th (line 18), while a name of 32 parts and 16 nested namespaces of two-part names render with 32 subgraphs;
 that note theme variables set to a number or a boolean by a directive or the frontmatter render without an exception;
-and that a class diagram under a small work limit fails with `mermaid-limit-exceeded`.
+and that a class diagram under a small work limit fails with `mermaid-limit-exceeded`. For state diagrams, asserts
+that hostile diagrams (a `state` node and rank spacing of 1e300, theme font sizes of 1e300 and 1e-308, a dash of
+1e300, self-loops on a state and on a composite state, a note on a composite state, markup and a script in a nested
+note, composite states inside each other, a note on a state that appears nowhere else, and a cycle through a fork, a
+join, and a choice) render fitted to 400 by 300 pixels or fail with a located render error; that 700 states with a
+note each (2,100 nodes once each note and its group are counted) fail at open with `MaxNodes` at the note that makes
+the 2,001st (line 1,335); that 16 composite states each nested in a concurrent region of the one before (32 nesting
+levels) render with 16 subgraphs while 17 fail at open with `MaxNestingDepth` at the 17th (line 18); that 500
+descriptions `S : abcd` of one state fail at open at the 457th (line 458), where the joined descriptions reach 4,099
+characters; that a chain of 300 labeled transitions renders with the default work budget and fails with
+`mermaid-limit-exceeded` under a work limit of 5,000; that the seeded mutation fuzzer over the state fixtures only
+ever raises the documented exception types; and that a chain of 60 transitions under a work limit of 2,000 fails with
+`mermaid-limit-exceeded` naming `MaxLayoutWork`. For ER diagrams, asserts that hostile diagrams (an `er` node and rank
+spacing of 1e300, a diagram padding, entity padding, and minimum entity width of 1e300, theme font sizes of 1e300 and
+1e-308, a stroke width and dash of 1e300, self-relationships, the `u` (`md_parent`) cardinality, generic types,
+comments over two lines, markup and a script in a comment, duplicate subgraph ids, relationships to subgraphs, an
+entity named like a later subgraph, and a subgraph that holds a relationship to itself) render fitted to 400 by 300
+pixels or fail with a located render error; that 2,001 entities fail at open with `MaxNodes` at the extra entity
+(line 2,002); that 32 nested subgraphs render with 32 subgraphs while 33 fail at open with `MaxNestingDepth` at the
+33rd (line 34); that an attribute comment of 4,097 characters fails at open with `MaxLabelLength` at its line
+(line 4); that an entity of 1,000 attributes with keys and comments renders; that the seeded mutation fuzzer over the
+ER fixtures only ever raises the documented exception types; and that a chain of 60 relationships under a work limit
+of 2,000 fails with `mermaid-limit-exceeded` naming `MaxLayoutWork`.
 
 ### CanvasNetMermaid-Determinism: Identical Renders
 
@@ -333,22 +502,29 @@ and that a class diagram under a small work limit fails with `mermaid-limit-exce
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_RepeatedAndConcurrentRenders_AreIdentical`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_SequenceFixtures_RenderDeterministically`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_RepeatedAndConcurrentRenders_AreIdentical`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassFixtures_RenderDeterministically`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassFixtures_RenderDeterministically`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_RepeatedAndConcurrentRenders_AreIdentical`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_StateFixtures_RenderDeterministically`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_RepeatedAndConcurrentRenders_AreIdentical`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ErFixtures_RenderDeterministically`
 
 Renders the same documents repeatedly and from parallel threads and asserts identical pixels, sizes, and reports;
 renders a numbered sequence fixture twice and six times in parallel, and every sequence fixture twice, and asserts
 identical pixels; renders the class fixture `10-namespaces` twice and six times in parallel, and every class fixture
-twice, and asserts identical pixels.
+twice, and asserts identical pixels; renders the state fixture `07-concurrency` and the ER fixture `11-subgraphs`
+twice and six times in parallel, and every state and ER fixture twice, and asserts identical pixels.
 
 ### CanvasNetMermaid-Cancellation: A Canceled Token Stops The Work
 
 **Tests**: `MermaidSystemIntegrationTests.CanvasNetMermaid_Render_CanceledToken_Throws`,
 `MermaidFlowchartIntegrationTests.CanvasNetMermaid_Flowchart_CanceledToken_Throws`,
 `MermaidSequenceIntegrationTests.CanvasNetMermaid_Sequence_CanceledToken_Throws`,
-`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_CanceledToken_Throws`
+`MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_CanceledToken_Throws`,
+`MermaidStateIntegrationTests.CanvasNetMermaid_StateDiagram_CanceledToken_Throws`,
+`MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_CanceledToken_Throws`
 
 Asserts `OperationCanceledException` from `Measure`, `Render`, and `Render(width, height)` with a canceled token, and
-from the render of a sequence diagram and of a class diagram.
+from the render of a sequence diagram, a class diagram, a state diagram, and an ER diagram.
 
 ### CanvasNetMermaid-ImageSource: Diagram Bytes Through The Image-Source Contract
 
