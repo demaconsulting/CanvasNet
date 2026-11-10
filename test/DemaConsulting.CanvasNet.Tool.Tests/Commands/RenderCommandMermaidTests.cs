@@ -246,14 +246,14 @@ public class RenderCommandMermaidTests
 
     /// <summary>
     ///     Test that a diagram type this version does not draw renders an empty picture with the diagnostic
-    ///     <c>mermaid-diagram-unsupported</c>, which says that the type is planned, and fails with <c>--strict</c>.
+    ///     <c>mermaid-diagram-unsupported</c>, which says that the type is not supported, and fails with <c>--strict</c>.
     /// </summary>
     [Fact]
-    public void RenderCommand_Run_MermaidPie_IsUnsupportedDiagnosticThenStrictError()
+    public void RenderCommand_Run_MermaidJourney_IsUnsupportedDiagnosticThenStrictError()
     {
         // Arrange
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "pie\n    \"Ducks\" : 3\n");
+        var input = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "journey\n    title Ducks\n");
 
         // Act
         using var document = RunJson(input, "-o", directory.Combine("zoo.png"));
@@ -264,7 +264,7 @@ public class RenderCommandMermaidTests
         Assert.Equal("mermaid", diagnostic.GetProperty("source").GetString());
         Assert.Equal("unsupported", diagnostic.GetProperty("severity").GetString());
         Assert.Equal("mermaid-diagram-unsupported", diagnostic.GetProperty("code").GetString());
-        Assert.Contains("pie diagrams are planned", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains("journey diagrams are not supported", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
         Assert.Equal(1, diagnostic.GetProperty("location").GetProperty("line").GetInt32());
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.False(File.Exists(directory.Combine("strict.png")));

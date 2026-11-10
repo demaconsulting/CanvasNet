@@ -44,7 +44,7 @@ sections:
               and without rendering.
             tests:
               - MermaidDocument_Parse_Flowchart_IsSupportedFlowchart
-              - MermaidDocument_Parse_PieChart_IsKnownButNotSupported
+              - MermaidDocument_Parse_JourneyDiagram_IsKnownButNotSupported
               - MermaidDocument_Parse_FrontmatterTitle_IsTitle
               - MermaidDocument_Parse_ClassDiagram_CountsFollowTheTextConfiguration
 

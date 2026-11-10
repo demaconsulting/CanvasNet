@@ -193,8 +193,8 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
-    ///     Test that a diagram type this version does not draw (a pie chart) is probed with <c>Supported</c> false and
-    ///     drawn as an empty picture with one unsupported note that says it is planned, and that strict mode makes it an
+    ///     Test that a diagram type this version does not draw (a user journey) is probed with <c>Supported</c> false and
+    ///     drawn as an empty picture with one unsupported note that says it is not supported, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.
     /// </summary>
     [Fact]
@@ -202,7 +202,7 @@ public class SourceLoaderMermaidTests
     {
         // Arrange
         using var directory = new TempDirectory();
-        var path = CopyFixture(directory, "pie.mmd");
+        var path = CopyFixture(directory, "journey.mmd");
 
         // Act
         var info = SourceLoader.Probe(path);
@@ -210,7 +210,7 @@ public class SourceLoaderMermaidTests
         var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Strict = true }));
 
         // Assert: the facts and the empty picture of 16 pixels (twice the diagram padding)
-        Assert.Equal(new DiagramFacts("pie", false, null, null, null, 0, 0, 0), info.Diagram);
+        Assert.Equal(new DiagramFacts("journey", false, null, null, null, 0, 0, 0), info.Diagram);
         Assert.Equal((16, 16), (loaded.Surface.Width, loaded.Surface.Height));
         Assert.Equal(White, loaded.Surface[8, 8]);
 
@@ -218,7 +218,7 @@ public class SourceLoaderMermaidTests
         var note = Assert.Single(loaded.Diagnostics);
         Assert.Equal(("mermaid", "unsupported", MermaidDiagnosticCodes.DiagramUnsupported), (note.Source, note.Severity, note.Code));
         Assert.Contains("not drawn by this version", note.Message, StringComparison.Ordinal);
-        Assert.Contains("pie diagrams are planned", note.Message, StringComparison.Ordinal);
+        Assert.Contains("journey diagrams are not supported", note.Message, StringComparison.Ordinal);
         Assert.Contains("flowchart", note.Message, StringComparison.Ordinal);
         Assert.Equal(1, note.Location!.Line);
         Assert.DoesNotContain('\n', note.Message);
@@ -226,7 +226,7 @@ public class SourceLoaderMermaidTests
         // Assert: strict mode is an error with the hint of the library and its exception as the cause
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains(MermaidDiagnosticCodes.DiagramUnsupported, strict.Message, StringComparison.Ordinal);
-        Assert.Contains("planned", strict.Hint, StringComparison.Ordinal);
+        Assert.Contains("not supported", strict.Hint, StringComparison.Ordinal);
         Assert.Contains("--strict", strict.Hint, StringComparison.Ordinal);
         Assert.IsType<MermaidUnsupportedFeatureException>(strict.InnerException);
     }

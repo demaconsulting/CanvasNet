@@ -163,9 +163,9 @@ two titles, 3, 2, 1); the text is exactly one line
 `<path>: mermaid, WxH px (laid out), flowchart TB, 3 nodes, 2 edges, 1 subgraph, title "Shipping", accTitle
 "Shipping steps", <bytes> bytes`.
 
-**DiscoveryCommands_Info_PieChart_IsNotSupported**: a pie chart is described with the type `pie`,
+**DiscoveryCommands_Info_JourneyDiagram_IsNotSupported**: a user journey is described with the type `journey`,
 `supported` false, no `direction` and no `title` member, and zero nodes, and its text line says
-`pie (not drawn by this version), 0 nodes`.
+`journey (not drawn by this version), 0 nodes`.
 
 **DiscoveryCommands_Info_SequenceDiagram_ReportsParticipantsAndMessages**: a sequence diagram with the title `Talk`, a
 box, two participants, and two messages is described with the type `sequence`, `supported` true, no `direction`

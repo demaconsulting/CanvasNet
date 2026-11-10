@@ -193,7 +193,7 @@ public class DiagramDetectorTests
     public void DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords()
     {
         // Arrange / Act / Assert
-        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", DiagramDetector.UnsupportedHint(Detect("pie")));
+        Assert.Equal("mindmap diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", DiagramDetector.UnsupportedHint(Detect("mindmap")));
         Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
         Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram"], DiagramDetector.SupportedDiagramKeywords);
     }

@@ -227,7 +227,7 @@ sections:
           empty, and a bad diagram must be a concise, coded error that says how to fix it.
         tests:
           - RenderCommand_Run_Mermaid_WritesTheDiagramAndDescribesIt
-          - RenderCommand_Run_MermaidPie_IsUnsupportedDiagnosticThenStrictError
+          - RenderCommand_Run_MermaidJourney_IsUnsupportedDiagnosticThenStrictError
           - RenderCommand_Run_MermaidSequence_DrawsTheParticipants
           - RenderCommand_Run_MermaidClass_DrawsTheClassBoxes
           - RenderCommand_Run_MermaidState_DrawsTheStates

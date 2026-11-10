@@ -63,13 +63,13 @@ public partial class CanvasNetToolTests
         // Arrange
         using var directory = new TempDirectory();
         var unknown = FixtureFactory.WriteText(directory.Path, "unknown.mmd", "drawing LR\n    a --> b\n");
-        var pie = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "pie\n    \"Ducks\" : 3\n");
+        var journey = FixtureFactory.WriteText(directory.Path, "zoo.mmd", "journey\n    title Ducks\n");
         var svg = FixtureFactory.WriteSource(directory.Path, "svg");
 
         // Act
         var (unknownExit, _, unknownErr) = ToolHost.Invoke("render", unknown, "-o", directory.Combine("u.png"));
-        var (pieExit, _, pieErr) = ToolHost.Invoke("render", pie, "-o", directory.Combine("s.png"));
-        var (strictExit, _, strictErr) = ToolHost.Invoke("render", pie, "--strict", "-o", directory.Combine("t.png"));
+        var (journeyExit, _, journeyErr) = ToolHost.Invoke("render", journey, "-o", directory.Combine("s.png"));
+        var (strictExit, _, strictErr) = ToolHost.Invoke("render", journey, "--strict", "-o", directory.Combine("t.png"));
         var (themeExit, _, themeErr) = ToolHost.Invoke("render", svg, "--theme", "dark", "-o", directory.Combine("v.png"));
 
         // Assert
@@ -77,8 +77,8 @@ public partial class CanvasNetToolTests
         Assert.Contains("Error: mermaid-error:", unknownErr, StringComparison.Ordinal);
         Assert.Contains("mermaid-unknown-diagram", unknownErr, StringComparison.Ordinal);
         Assert.Contains("Hint: ", unknownErr, StringComparison.Ordinal);
-        Assert.Equal(0, pieExit);
-        Assert.Contains("Unsupported: mermaid-diagram-unsupported:", pieErr, StringComparison.Ordinal);
+        Assert.Equal(0, journeyExit);
+        Assert.Contains("Unsupported: mermaid-diagram-unsupported:", journeyErr, StringComparison.Ordinal);
         Assert.Equal(1, strictExit);
         Assert.Contains("Error: unsupported-feature:", strictErr, StringComparison.Ordinal);
         Assert.Equal(1, themeExit);

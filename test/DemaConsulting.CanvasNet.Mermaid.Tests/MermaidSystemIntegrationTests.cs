@@ -254,7 +254,7 @@ public class MermaidSystemIntegrationTests
     public void CanvasNetMermaid_Render_CanceledToken_Throws()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
         using var source = new CancellationTokenSource();
         source.Cancel();
 
@@ -271,7 +271,7 @@ public class MermaidSystemIntegrationTests
     public void CanvasNetMermaid_Render_Concurrent_IsDeterministic()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
 
         // Act
         var results = Enumerable.Range(0, 8).AsParallel().Select(_ =>

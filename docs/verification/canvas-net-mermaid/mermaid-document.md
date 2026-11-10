@@ -7,7 +7,7 @@ exceptions, the internal `MermaidReportSink`, and the `MermaidImageSource`.
 ### Verification Approach
 
 The unit is verified through its public surface and, for the report sink, through `InternalsVisibleTo`. The tests
-use small inline diagrams (a two-node flowchart and a one-slice pie chart from `MermaidTestHelpers`), byte
+use small inline diagrams (a two-node flowchart and a titled user journey from `MermaidTestHelpers`), byte
 arrays and memory streams for the decoding cases, and temporary files for `Open(path)`. The lower subsystems are real,
 not mocked: the unit's responsibility is the contract around them (arguments, decoding, metadata, option validation,
 error shapes, report delivery, and the image-source adapter), and the subsystems are verified by their own tests.
@@ -50,11 +50,11 @@ that text and streams over the size limit throw `InvalidDataException`.
 #### CanvasNetMermaid-MermaidDocument-Metadata: What A Document Exposes
 
 **Tests**: `MermaidDocumentTests.MermaidDocument_Parse_Flowchart_IsSupportedFlowchart`,
-`MermaidDocumentTests.MermaidDocument_Parse_PieChart_IsKnownButNotSupported`,
+`MermaidDocumentTests.MermaidDocument_Parse_JourneyDiagram_IsKnownButNotSupported`,
 `MermaidDocumentTests.MermaidDocument_Parse_FrontmatterTitle_IsTitle`,
 `MermaidDocumentTests.MermaidDocument_Parse_ClassDiagram_CountsFollowTheTextConfiguration`
 
-Asserts the type, support, direction, and counts of a flowchart, that a pie chart opens as a known but
+Asserts the type, support, direction, and counts of a flowchart, that a user journey opens as a known but
 unsupported type, and that the frontmatter title becomes the title; and that a class diagram whose directive sets
 `class.hierarchicalNamespaces` to false, with one class in `namespace Geo.Plane` and one relation to a second class,
 opens as the supported `class` type with the direction `TB` and the counts 2 nodes, 1 edge, and 1 subgraph: the
@@ -138,7 +138,7 @@ when delivering after a failure.
 `MermaidImageSourceTests.MermaidImageSource_Render_NullRequest_Throws`
 
 Asserts the claimed extensions, schemes, and fragment parameter; a transparent picture at the requested size with one
-located unsupported note for a pie chart, and an exception in strict mode; a flowchart at its natural size and
+located unsupported note for a user journey, and an exception in strict mode; a flowchart at its natural size and
 at a requested size with the `theme=dark` fragment; a 120-node chain wider than the largest surface (whose
 `Measure` refuses the natural size) drawn 200 pixels wide with the height of its natural aspect ratio; the refusal
 of an unknown theme; and the propagation of a syntax error and of a null request.

@@ -471,10 +471,10 @@ sections:
           - CanvasNetMermaid-Er-UnsupportedFeatures
         tests:
           - CanvasNetMermaid_Reports_AreCodedAndLocated
-          - CanvasNetMermaid_Render_PieChart_ReportsOnceAndDrawsTransparentPlaceholder
-          - CanvasNetMermaid_Render_PieChartStrict_Throws
-          - CanvasNetMermaid_Measure_PieChart_ReportsAndGivesScaledPlaceholderSize
-          - CanvasNetMermaid_RenderSized_PieChartWithBackground_FillsBackground
+          - CanvasNetMermaid_Render_JourneyDiagram_ReportsOnceAndDrawsTransparentPlaceholder
+          - CanvasNetMermaid_Render_JourneyDiagramStrict_Throws
+          - CanvasNetMermaid_Measure_JourneyDiagram_ReportsAndGivesScaledPlaceholderSize
+          - CanvasNetMermaid_RenderSized_JourneyDiagramWithBackground_FillsBackground
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
           - CanvasNetMermaid_Render_FailingHandler_Propagates
           - CanvasNetMermaid_Sequence_NeoLook_IsReportedAndDrawnClassic

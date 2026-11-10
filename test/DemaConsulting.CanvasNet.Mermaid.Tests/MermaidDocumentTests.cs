@@ -72,16 +72,16 @@ public class MermaidDocumentTests
     }
 
     /// <summary>
-    ///     Validates that a pie chart opens as a known type that is not drawn, without parsing its body.
+    ///     Validates that a user journey opens as a known type that is not drawn, without parsing its body.
     /// </summary>
     [Fact]
-    public void MermaidDocument_Parse_PieChart_IsKnownButNotSupported()
+    public void MermaidDocument_Parse_JourneyDiagram_IsKnownButNotSupported()
     {
         // Arrange / Act
-        var document = MermaidDocument.Parse("pie\n \"a\" : 1\n this body is not parsed in this version ]]][[[");
+        var document = MermaidDocument.Parse("journey\n title x\n this body is not parsed in this version ]]][[[");
 
         // Assert
-        Assert.Equal("pie", document.DiagramType);
+        Assert.Equal("journey", document.DiagramType);
         Assert.False(document.IsSupported);
         Assert.Equal((0, 0, 0), (document.NodeCount, document.EdgeCount, document.SubgraphCount));
         Assert.Null(document.Direction);
@@ -147,14 +147,14 @@ public class MermaidDocumentTests
     public void MermaidDocument_Open_StreamWithBom_ParsesAndLeavesStreamOpen()
     {
         // Arrange
-        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(MermaidTestHelpers.PieText)).ToArray();
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(MermaidTestHelpers.UnsupportedText)).ToArray();
         using var stream = new MemoryStream(bytes);
 
         // Act
         var document = MermaidDocument.Open(stream, new MermaidOpenOptions { SourceName = "s.mmd" });
 
         // Assert
-        Assert.Equal(("pie", "s.mmd"), (document.DiagramType, document.SourceName));
+        Assert.Equal(("journey", "s.mmd"), (document.DiagramType, document.SourceName));
         Assert.True(stream.CanRead);
     }
 
@@ -179,14 +179,14 @@ public class MermaidDocumentTests
     public void MermaidDocument_Open_File_UsesPathAsSourceName()
     {
         // Arrange
-        var path = MermaidTestHelpers.WriteTempFile(Encoding.UTF8.GetBytes("pie\n \"a\" : 1\n"));
+        var path = MermaidTestHelpers.WriteTempFile(Encoding.UTF8.GetBytes(MermaidTestHelpers.UnsupportedText));
         try
         {
             // Act
             var document = MermaidDocument.Open(path);
 
             // Assert
-            Assert.Equal(("pie", path), (document.DiagramType, document.SourceName));
+            Assert.Equal(("journey", path), (document.DiagramType, document.SourceName));
         }
         finally
         {
@@ -220,11 +220,11 @@ public class MermaidDocumentTests
     {
         // Arrange
         var options = new MermaidOpenOptions { Limits = new MermaidLimits { MaxTextSize = 30 } };
-        var commented = "%% a comment line that is long enough\n" + MermaidTestHelpers.PieText;
+        var commented = "%% a comment line that is long enough\n" + MermaidTestHelpers.UnsupportedText;
 
         // Act / Assert
-        Assert.Throws<InvalidDataException>(() => MermaidDocument.Parse("pie\n" + new string('x', 40), options));
-        Assert.Equal("pie", MermaidDocument.Parse(commented, options).DiagramType);
+        Assert.Throws<InvalidDataException>(() => MermaidDocument.Parse("journey\n" + new string('x', 40), options));
+        Assert.Equal("journey", MermaidDocument.Parse(commented, options).DiagramType);
     }
 
     /// <summary>

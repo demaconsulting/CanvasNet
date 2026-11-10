@@ -79,7 +79,7 @@ state and entity relationship texts above `state.titleTopMargin: yes` and `er.en
 warning of their text, `mermaid-config-invalid` at line 6, with the defaults 25 and 15 kept and no unsupported-feature
 report, that a secure
 key in the frontmatter of a flowchart is delivered by a render call as `mermaid-config-secure-key` at its location,
-and that the secure and unknown keys of a pie chart (not drawn by this version) produce no warning, only the
+and that the secure and unknown keys of a user journey (not drawn by this version) produce no warning, only the
 unsupported diagram report.
 
 #### CanvasNetMermaid-Configuration-Themes: Five Themes With Mermaid's Variables

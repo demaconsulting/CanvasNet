@@ -167,7 +167,7 @@ sections:
         tests:
           - DiscoveryCommands_Formats_IncludesMermaidDiagram
           - DiscoveryCommands_Info_Flowchart_ReportsTheDiagramObject
-          - DiscoveryCommands_Info_PieChart_IsNotSupported
+          - DiscoveryCommands_Info_JourneyDiagram_IsNotSupported
           - DiscoveryCommands_Info_SequenceDiagram_ReportsParticipantsAndMessages
           - DiscoveryCommands_Info_ClassDiagram_ReportsClassesAndRelations
           - DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored

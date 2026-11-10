@@ -8,8 +8,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 /// </summary>
 internal static class MermaidTestHelpers
 {
-    /// <summary>A small pie chart, a known type that this version does not draw.</summary>
-    public const string PieText = "pie\n    \"a\" : 1\n";
+    /// <summary>A small user journey, a known type that this version does not draw.</summary>
+    public const string UnsupportedText = "journey\n    title Ducks\n";
 
     /// <summary>A small flowchart, the supported type.</summary>
     public const string FlowchartText = "flowchart LR\n    A --> B\n";

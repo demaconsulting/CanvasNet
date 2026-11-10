@@ -86,7 +86,7 @@ column 1, and that a text that starts with `---` is `mermaid-syntax-error` with 
 
 **Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords`
 
-Asserts the exact hints for a planned type (`pie`: "pie diagrams are planned; supported in this version: flowchart,
+Asserts the exact hints for a planned type (`mindmap`: "mindmap diagrams are planned; supported in this version: flowchart,
 graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram") and a type that is not planned (`gitGraph`: "gitGraph
 diagrams are not supported; ..." with the same list), and that the supported keywords are exactly `flowchart`,
 `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, and `erDiagram`, in that order.
