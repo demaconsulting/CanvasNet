@@ -85,7 +85,10 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
   classes already contain its name (a substring match, as in Mermaid); `SetCssClass` adds a CSS class to the classes
   named in a comma-separated list, and `SetCssStyle` adds styles, split at commas, to a class, both only to classes
   that exist; a name in `SetCssClass` or `SetLink` that starts with a digit first gets the `classId-` prefix of
-  Mermaid's DOM-id lookup, so it matches no class.
+  Mermaid's DOM-id lookup, so it matches no class. As in Mermaid, a name listed again gets the CSS class or the styles
+  again, so the model keeps the running length of the CSS classes of each class (joined with spaces), of the styles of
+  each class (`StylesLength`, joined with semicolons), and of the styles and text styles of each style class, and checks
+  each against `MaxLabelLength` as it grows.
 - **Links.** `SetLink` records the checked link and the target (`_blank` when none is given) and `SetClickEvent` the
   callback flag on the classes that exist, and both add the `clickable` CSS class; `SetTooltip` records a sanitized
   tooltip. `FormatUrl` is Mermaid's `formatUrl` at the strict security level: the trimmed link, no link when it is
@@ -116,7 +119,10 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
   cardinalities as the terminal labels `StartLabelRight` and `EndLabelLeft` (`none` as no label), and a solid or dashed
   line. Every edge has a minimum length of 1 (Mermaid's class edges have no `minlen`, so dagre's default applies). The
   data carries Mermaid's id of the diagram, the direction, the five class markers, and the node and rank spacing that
-  Mermaid's class renderer reads from the state section (`ClassConfig`).
+  Mermaid's class renderer reads from the state section (`ClassConfig`). A class named like a namespace shares the
+  namespace's node, so it nests that namespace in the class's own; chained, such names nest namespaces without any
+  nesting in the text, so `GetData` checks the nesting the parents make with `LayoutData.CheckNestingDepth`
+  (`namespaces`, `MaxNestingDepth`).
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, a look other than `classic`
   (`mermaid-look-unsupported`) and a layout other than `dagre` (`mermaid-layout-unsupported`), each located at its
   configuration key with a hint.
@@ -143,8 +149,11 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
     `CheckLabel`): the drawn name `label<T>` that `SetClassLabel` joins from the label and the generic type of the name,
     located at the class name, and the qualified id that `AddNamespace` joins from the names of the enclosing
     namespaces, located at the namespace name. The qualified id is the drawn label when `class.hierarchicalNamespaces`
-    is false, which the site configuration may set after the text is parsed, so it is checked in both modes. Every
-    other text the model keeps was checked by the parser (see _ClassParser Unit Design_);
+    is false, which the site configuration may set after the text is parsed, so it is checked in both modes. The CSS
+    classes of a class (joined with spaces), its styles, and the styles of a style class (joined with semicolons) are
+    checked as they grow (`CheckLabelLength`), located at the `cssClass`, `classDef`, `style`, class, or click
+    statement that makes them too long, because a name listed again repeats them as in Mermaid. Every other text the
+    model keeps was checked by the parser (see _ClassParser Unit Design_);
   - a namespace whose qualified id has more parts than `MaxNestingDepth` (`mermaid-limit-exceeded`, located at the
     namespace name, with the parser's message `namespaces are nested deeper than N levels`, checked by `CheckDepth`):
     the parts of nested `namespace` keywords and of the dots in a name count together, because with
@@ -153,6 +162,9 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
     without bound and exhaust the stack. It is checked in both modes, as the setting may change after parsing.
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first unsupported feature in
   strict mode.
+- `GetData` throws a `MermaidRenderException` with code `mermaid-limit-exceeded` when the namespaces nest deeper than
+  `MaxNestingDepth` through class names (`namespaces are nested deeper than N levels`), located at the class statement
+  that nests the namespace one level too deep; a cycle of such names is left to the layout, which fails on it.
 - `Layout` propagates the render errors of the shared rendering (`MermaidRenderException` for the layout work limit
   and the other render limits, `OperationCanceledException` for a canceled token); the style warnings of a class,
   reported by the class box shape, are located at the class's first mention.
@@ -186,9 +198,11 @@ gives Mermaid's display text (visibility, name, parameters, and return type with
 - **Database errors are located.** Where Mermaid's database throws a JavaScript error, the model raises a located
   `MermaidSyntaxException` with Mermaid's message after the location and code, and a hint.
 - **Limits at open.** `MaxEdges` refuses more relations, `MaxNodes` more classes, notes, interfaces, and namespaces
-  together, `MaxLabelLength` a longer joined label or qualified namespace id, and `MaxNestingDepth` a qualified
-  namespace id of more parts (keywords and dots together), when the document is opened, as a
-  `MermaidSyntaxException` with code `mermaid-limit-exceeded`; Mermaid has no such limits.
+  together, `MaxLabelLength` a longer joined label or qualified namespace id and longer CSS classes or styles of a
+  class or style class, and `MaxNestingDepth` a qualified namespace id of more parts (keywords and dots together), when
+  the document is opened, as a `MermaidSyntaxException` with code `mermaid-limit-exceeded`; namespaces nested deeper
+  through class names are refused when the diagram is laid out, as a `MermaidRenderException` with the same code.
+  Mermaid has no such limits.
 - **Interaction.** The link, target, tooltip, and callback of a class are kept only as data; they are never drawn, no
   function is ever bound, and the `clickable` CSS class changes no paint.
 - **Security level.** Links are always checked as Mermaid's strict security level checks them, the only level

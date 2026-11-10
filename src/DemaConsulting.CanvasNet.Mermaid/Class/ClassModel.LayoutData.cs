@@ -105,9 +105,17 @@ internal sealed partial class ClassModel
     ///         <see cref="LayoutEdge.MinLen"/> of 1. A cardinality of <c>none</c> is no terminal label. The spacing is the
     ///         state section's, as Mermaid's class renderer reads it (<see cref="ClassConfig"/>).
     ///     </para>
+    ///     <para>
+    ///         A class named like a namespace shares the namespace's node, so the namespace is nested in the class's own
+    ///         namespace; chained, such names nest namespaces without any nesting in the text. The nesting the parents
+    ///         make is checked against <see cref="MermaidLimits.MaxNestingDepth"/> (<see cref="LayoutData.CheckNestingDepth"/>).
+    ///     </para>
     /// </remarks>
     /// <param name="config">The effective configuration of the render.</param>
     /// <returns>The layout data.</returns>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown, located, when the namespaces nest deeper than <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </exception>
     public LayoutData GetData(MermaidConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -252,7 +260,7 @@ internal sealed partial class ClassModel
             });
         }
 
-        return new LayoutData(nodes, edges, config)
+        var data = new LayoutData(nodes, edges, config)
         {
             DiagramType = MermaidId,
             Direction = Direction,
@@ -260,6 +268,10 @@ internal sealed partial class ClassModel
             RankSpacing = config.Class.RankSpacing,
             Markers = ClassMarkers,
         };
+
+        // A class named like a namespace nests that namespace in the class's own, without any nesting in the text
+        data.CheckNestingDepth(_limits.MaxNestingDepth, "namespaces");
+        return data;
     }
 
     /// <summary>

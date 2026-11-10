@@ -537,13 +537,13 @@ internal sealed partial class ClassParser
             {
                 var members = ParseBody(allowEmpty: false);
                 CheckLookahead(StructEnds, endAllowed: true);
-                _model.SetCssClass(name, cssClass);
+                _model.SetCssClass(name, cssClass, location);
                 _model.AddMembers(name, members, location);
             }
             else
             {
                 CheckLookahead(BodyOrEnd, endAllowed: true);
-                _model.SetCssClass(name, cssClass);
+                _model.SetCssClass(name, cssClass, location);
             }
         }
         else if (Is(AnnotationStart))
@@ -789,7 +789,7 @@ internal sealed partial class ClassParser
     /// </summary>
     private void ParseClassDefStatement()
     {
-        Advance();
+        var location = Locate(Advance());
         var ids = new List<string>();
         while (true)
         {
@@ -815,7 +815,7 @@ internal sealed partial class ClassParser
 
         var styles = ParseStyles();
         CheckLookahead(StatementEnds, endAllowed: true);
-        _model.DefineClass(ids, styles);
+        _model.DefineClass(ids, styles, location);
     }
 
     /// <summary>
@@ -823,7 +823,7 @@ internal sealed partial class ClassParser
     /// </summary>
     private void ParseStyleStatement()
     {
-        Advance();
+        var location = Locate(Advance());
         var id = Expect(Alpha);
         if (!Is(StyleComponents))
         {
@@ -832,7 +832,7 @@ internal sealed partial class ClassParser
 
         var styles = ParseStyles();
         CheckLookahead(StatementEnds, endAllowed: true);
-        _model.SetCssStyle(TextOf(id), styles);
+        _model.SetCssStyle(TextOf(id), styles, location);
     }
 
     /// <summary>
@@ -873,11 +873,11 @@ internal sealed partial class ClassParser
     /// </summary>
     private void ParseCssClassStatement()
     {
-        Advance();
+        var location = Locate(Advance());
         var ids = Expect(Str);
         var cssClass = Expect(Alpha);
         CheckLookahead(StatementEnds, endAllowed: true);
-        _model.SetCssClass(TextOf(ids), TextOf(cssClass));
+        _model.SetCssClass(TextOf(ids), TextOf(cssClass), location);
     }
 
     /// <summary>
@@ -886,6 +886,7 @@ internal sealed partial class ClassParser
     private void ParseClickStatement()
     {
         var keyword = Advance();
+        var location = Locate(keyword);
         if (!Is(NameStarts))
         {
             throw Fail(NameStarts);
@@ -899,7 +900,7 @@ internal sealed partial class ClassParser
                     // CALLBACK className STR [STR]
                     var function = Expect(Str);
                     var tooltip = Optional(Str, [Newline, Eof, Str]);
-                    _model.SetClickEvent(name, TextOf(function));
+                    _model.SetClickEvent(name, TextOf(function), location);
                     _model.SetTooltip(name, tooltip);
                     break;
                 }
@@ -910,13 +911,13 @@ internal sealed partial class ClassParser
                     var link = TextOf(Expect(Str));
                     var tooltip = Optional(Str, [Newline, Eof, Str, LinkTarget]);
                     var target = Optional(LinkTarget, tooltip is null ? [Newline, Eof, Str, LinkTarget] : [Newline, Eof, LinkTarget]);
-                    _model.SetLink(name, link, target);
+                    _model.SetLink(name, link, target, location);
                     _model.SetTooltip(name, tooltip);
                     break;
                 }
 
             default:
-                ParseClickAction(name);
+                ParseClickAction(name, location);
                 break;
         }
     }
@@ -926,7 +927,8 @@ internal sealed partial class ClassParser
     ///     <c>href "link" ["tooltip"] [target]</c>.
     /// </summary>
     /// <param name="name">The class name.</param>
-    private void ParseClickAction(string name)
+    /// <param name="location">The location of the statement.</param>
+    private void ParseClickAction(string name, MermaidLocation location)
     {
         if (Is(CallbackName))
         {
@@ -938,7 +940,7 @@ internal sealed partial class ClassParser
             }
 
             var tooltip = Optional(Str, arguments is null ? [Newline, Eof, Str, CallbackArgs] : [Newline, Eof, Str]);
-            _model.SetClickEvent(name, function, arguments);
+            _model.SetClickEvent(name, function, location, arguments);
             _model.SetTooltip(name, tooltip);
             return;
         }
@@ -952,7 +954,7 @@ internal sealed partial class ClassParser
         var link = TextOf(Expect(Str));
         var linkTooltip = Optional(Str, [Newline, Eof, Str, LinkTarget]);
         var target = Optional(LinkTarget, linkTooltip is null ? [Newline, Eof, Str, LinkTarget] : [Newline, Eof, LinkTarget]);
-        _model.SetLink(name, link, target);
+        _model.SetLink(name, link, target, location);
         _model.SetTooltip(name, linkTooltip);
     }
 

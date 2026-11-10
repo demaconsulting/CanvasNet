@@ -340,12 +340,14 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   entity relationship diagram, those named only after a subgraph included, and its subgraphs together);
   `MaxLabelLength`, 4,096 (also the accessible title and description, the type and alias of sequence participant
   metadata, and the texts a diagram joins or derives from texts checked apart: the label of a generic class with its
-  type and the qualified id of a nested namespace; the descriptions of a state joined with line breaks as its box
+  type, the qualified id of a nested namespace, and the CSS classes and styles of a class or style class as
+  they grow; the descriptions of a state joined with line breaks as its box
   draws them, the `_start` and `_end` ids of the start and end states of a composite state, and a text style once
   `fill` is renamed; the styles, the bracketed subgraph titles, the attribute types with `?`, the CSS classes, and the
   compiled styles of an entity relationship diagram); `MaxNestingDepth`, 32 (subgraphs, namespaces, the dotted parts
   of a namespace name counted as levels, composite states with each concurrent region counted as a level, the
-  subgraphs of an entity relationship diagram, and the blocks and boxes of a sequence diagram; at most 256);
+  subgraphs of an entity relationship diagram, and the blocks and boxes of a sequence diagram; at most 256;
+  namespaces nested through class names are checked when the diagram is laid out, as a `MermaidRenderException`);
   `MaxYamlDepth`, 32 (at
   most 256; YAML aliases, anchors, and tags are refused): checked at open. Failure: `MermaidSyntaxException` with
   `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused YAML construct).

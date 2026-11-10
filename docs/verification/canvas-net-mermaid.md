@@ -423,6 +423,8 @@ reported once as `mermaid-look-unsupported` and drawn with the same pixels as th
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassDottedNamespacesAtTheLimit_Render`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNonStringNoteThemeVariables_Render`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassLabelWithGenericType_IsALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassRepeatedClassesAndStyles_AreALocatedLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_ClassNamespacesChainedByClassNames_AreALocatedLimit`,
 `MermaidClassIntegrationTests.CanvasNetMermaid_ClassDiagram_WorkLimit_FailsWithLimitExceeded`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileStateDiagram_RendersOrFailsLocated`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_StateManyNotes_IsALocatedNodeLimit`,
@@ -471,7 +473,12 @@ class each fail at the next namespace (line 3,002) with `MaxNodes`; that two nes
 overflowed the stack) fail at their line (line 2) with `MaxNestingDepth`, as do 17 nested namespaces of two-part names
 at the 17th (line 18), while a name of 32 parts and 16 nested namespaces of two-part names render with 32 subgraphs;
 that note theme variables set to a number or a boolean by a directive or the frontmatter render without an exception;
-and that a class diagram under a small work limit fails with `mermaid-limit-exceeded`. For state diagrams, asserts
+that CSS classes and styles repeated on one class (a class listed 1,000 times in three `cssClass` statements, a style
+class listed 2,000 times in one `classDef`, two style classes or two `style` statements of 2,099 characters each)
+fail at open with `MaxLabelLength` at the statement that makes them too long; that 32 namespaces chained by class
+names (namespace `Ni` holds a class named `N(i+1)`) render while 40 fail when measured with `mermaid-limit-exceeded`
+and the message `namespaces are nested deeper than 32 levels`, located at `class N33` (line 99); and that a class
+diagram under a small work limit fails with `mermaid-limit-exceeded`. For state diagrams, asserts
 that hostile diagrams (a `state` node and rank spacing of 1e300, theme font sizes of 1e300 and 1e-308, a dash of
 1e300, self-loops on a state and on a composite state, a note on a composite state, markup and a script in a nested
 note, composite states inside each other, a note on a state that appears nowhere else, and a cycle through a fork, a

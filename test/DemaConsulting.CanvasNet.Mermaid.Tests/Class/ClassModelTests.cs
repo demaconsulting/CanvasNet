@@ -197,11 +197,11 @@ public class ClassModelTests
         var model = CreateModel();
         model.AddClass("Hot", default);
         model.AddClass("Later", default);
-        model.SetCssClass("Hot", "warm");
+        model.SetCssClass("Hot", "warm", default);
 
         // Act
-        model.DefineClass(["warm"], ["fill:#f96,color:#036"]);
-        model.SetCssClass("Later", "warm");
+        model.DefineClass(["warm"], ["fill:#f96,color:#036"], default);
+        model.SetCssClass("Later", "warm", default);
 
         // Assert
         Assert.Equal(["fill:#f96", "color:#036"], model.Classes[0].Styles);
@@ -221,10 +221,79 @@ public class ClassModelTests
         model.AddClass("Beta", default);
 
         // Act
-        model.SetCssClass("1Alpha,Beta", "hot");
+        model.SetCssClass("1Alpha,Beta", "hot", default);
 
         // Assert
         Assert.Equal(["default", "default hot"], model.Classes.Select(c => c.CssClasses));
+    }
+
+    /// <summary>
+    ///     Validates that a class listed again in a <c>cssClass</c> statement gets the CSS class again, as in Mermaid, and
+    ///     that CSS classes that grow longer than <see cref="MermaidLimits.MaxLabelLength"/> that way are refused, located
+    ///     at the statement.
+    /// </summary>
+    [Fact]
+    public void ClassModel_SetCssClass_RepeatedIds_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 20 };
+
+        // Act: default and seven " hot" are 35 characters; default and three are 19
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclass A\ncssClass \"A,A,A,A,A,A,A\" hot\n", null, limits));
+        var accepted = ClassFacts.Parse("classDiagram\nclass A\ncssClass \"A,A,A\" hot\n", null, limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 3, 1), ex.Location);
+        Assert.Contains("a label is 23 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("default hot hot hot", Assert.Single(accepted.Classes).CssClasses);
+    }
+
+    /// <summary>
+    ///     Validates that a style class listed again in a <c>classDef</c> statement gets the styles again, as in Mermaid,
+    ///     and that the styles of a style class or of a class that grow longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/> (joined with semicolons) that way are refused, located at the
+    ///     statement.
+    /// </summary>
+    [Fact]
+    public void ClassModel_DefineClass_RepeatedNames_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 20 };
+
+        // Act: three copies of the 7-character style are 23 characters; two are 15
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclassDef c,c,c a:b,c:d\n", null, limits));
+        var applied = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclass A:::c\nclassDef c a:b,c:d\nclassDef c e:f,g:h\nclassDef c i:j,k:l\n", null, limits));
+        var accepted = ClassFacts.Parse("classDiagram\nclass A:::c\nclassDef c,c a:b,c:d\n", null, limits);
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 2, 1)), (ex.Code, ex.Location));
+        Assert.Contains("a label is 23 characters long", ex.Message, StringComparison.Ordinal);
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, new MermaidLocation(null, 5, 1)), (applied.Code, applied.Location));
+        Assert.Equal(["a:b,c:d", "a:b,c:d"], Assert.Single(accepted.StyleClasses).Styles);
+        Assert.Equal(["a:b", "c:d", "a:b", "c:d"], Assert.Single(accepted.Classes).Styles);
+    }
+
+    /// <summary>
+    ///     Validates that the styles of <c>style</c> statements accumulate on a class, as in Mermaid, and that styles that
+    ///     grow longer than <see cref="MermaidLimits.MaxLabelLength"/> (joined with semicolons) are refused, located at the
+    ///     statement that makes them too long.
+    /// </summary>
+    [Fact]
+    public void ClassModel_SetCssStyle_RepeatedStyles_ThrowsLimitExceeded()
+    {
+        // Arrange
+        var limits = new MermaidLimits { MaxLabelLength = 20 };
+        const string Style = "style A a:b,c:d\n";
+
+        // Act: three statements are 23 characters of styles; two are 15
+        var ex = Assert.Throws<MermaidSyntaxException>(() => ClassFacts.Parse("classDiagram\nclass A\n" + Style + Style + Style, null, limits));
+        var accepted = ClassFacts.Parse("classDiagram\nclass A\n" + Style + Style, null, limits);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 5, 1), ex.Location);
+        Assert.Equal(["a:b", "c:d", "a:b", "c:d"], Assert.Single(accepted.Classes).Styles);
     }
 
     /// <summary>
@@ -414,6 +483,54 @@ public class ClassModelTests
         Assert.Equal(new MermaidLocation(null, 2, 7), ex.Location);
         Assert.Contains("a label is 12 characters long", ex.Message, StringComparison.Ordinal);
         Assert.Equal("Name<Type>", Assert.Single(accepted.Classes).Text);
+    }
+
+    /// <summary>
+    ///     Validates that namespaces chained by class names (namespace <c>Ni</c> holds a class named like namespace
+    ///     <c>N(i+1)</c>, which nests that namespace in it) count against <see cref="MermaidLimits.MaxNestingDepth"/> in the
+    ///     layout data: a class four namespaces deep is refused with a limit of 3, located at the class statement that
+    ///     gives the namespace its parent, while three namespaces deep are accepted.
+    /// </summary>
+    [Fact]
+    public void ClassModel_GetData_NamespacesChainedByClassNames_ThrowsLimitExceeded()
+    {
+        // Arrange: namespace Ni holds class N(i+1) on line 3 + 3i; the last holds X
+        static string Chain(int count) =>
+            "classDiagram\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"namespace N{i} {{\nclass {(i == count - 1 ? "X" : $"N{i + 1}")}\n}}\n"));
+        var limits = new MermaidLimits { MaxNestingDepth = 3 };
+        var refused = ClassFacts.Parse(Chain(4), null, limits);
+        var accepted = ClassFacts.Parse(Chain(3), null, limits);
+
+        // Act
+        var ex = Assert.Throws<MermaidRenderException>(() => refused.GetData(ClassFacts.DefaultConfig(Chain(4))));
+        var data = accepted.GetData(ClassFacts.DefaultConfig(Chain(3)));
+
+        // Assert: X, in N3, is inside N3, N2, N1 and N0
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(new MermaidLocation(null, 12, 7), ex.Location);
+        Assert.Contains("namespaces are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("N2", data.Nodes.Last(node => node.Id == "X").ParentId);
+    }
+
+    /// <summary>
+    ///     Validates that namespaces nested in each other through class names (a cycle) are left to the layout, which
+    ///     fails on them located as before, rather than being taken for a nesting too deep.
+    /// </summary>
+    [Fact]
+    public void ClassModel_GetData_NamespaceCycle_IsLeftToTheLayout()
+    {
+        // Arrange
+        const string Text = "classDiagram\nnamespace A {\nclass B\n}\nnamespace B {\nclass A\n}\n";
+        var model = ClassFacts.Parse(Text);
+        var document = MermaidDocument.Parse(Text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(Text));
+        var ex = Assert.Throws<MermaidRenderException>(() => document.Measure(null, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal(4, data.Nodes.Count);
+        Assert.Equal(MermaidDiagnosticCodes.RenderFailed, ex.Code);
     }
 
     /// <summary>

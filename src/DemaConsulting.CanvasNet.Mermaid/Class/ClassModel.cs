@@ -32,9 +32,13 @@ namespace DemaConsulting.CanvasNet.Mermaid.Class;
 ///         <see cref="MermaidLimits.MaxEdges"/>. The texts the model joins are checked against
 ///         <see cref="MermaidLimits.MaxLabelLength"/> where they are drawn: the class name text of a labeled generic class
 ///         (<c>label&lt;T&gt;</c>) and the qualified id of a namespace, which is its label when
-///         <c>class.hierarchicalNamespaces</c> is false (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>). The parts of
+///         <c>class.hierarchicalNamespaces</c> is false, and, as they grow, the CSS classes of a class (joined with
+///         spaces), the styles of a class and of a style class (joined with semicolons), which a name listed again in a
+///         <c>cssClass</c>, <c>classDef</c> or click statement repeats as in Mermaid
+///         (<see cref="MermaidDiagnosticCodes.LimitExceeded"/>). The parts of
 ///         a qualified namespace id, from nested <c>namespace</c> keywords and from dots in a name alike, count against
-///         <see cref="MermaidLimits.MaxNestingDepth"/>, because each part nests one more namespace cluster.
+///         <see cref="MermaidLimits.MaxNestingDepth"/>, because each part nests one more namespace cluster; so does the
+///         nesting a class named like a namespace makes, which <see cref="GetData"/> checks.
 ///     </para>
 ///     <para>
 ///         The model is filled by one parser on one thread; once parsing is over it is never changed, so it is safe for
@@ -460,7 +464,11 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <param name="ids">The class names, separated by commas (not trimmed); a name that starts with a digit gets the
     ///     <c>classId-</c> prefix first, so it matches no class.</param>
     /// <param name="cssClass">The CSS class.</param>
-    public void SetCssClass(string ids, string cssClass)
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the CSS classes of a class get longer than <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    public void SetCssClass(string ids, string cssClass, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(ids);
         ArgumentNullException.ThrowIfNull(cssClass);
@@ -468,6 +476,8 @@ internal sealed partial class ClassModel : IMermaidDiagram
         {
             if (FindClass(PrefixDigitId(id)) is { } node)
             {
+                // A class named again (A,A,...) gets the CSS class again, as in Mermaid, so the joined text is checked
+                CheckLabelLength(node.CssClasses.Length + 1L + cssClass.Length, location);
                 node.CssClasses += " " + cssClass;
             }
         }
@@ -480,7 +490,12 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// </summary>
     /// <param name="ids">The style class names.</param>
     /// <param name="styles">The styles.</param>
-    public void DefineClass(IReadOnlyList<string> ids, IReadOnlyList<string> styles)
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the styles of a style class or of a class, joined with semicolons, get longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    public void DefineClass(IReadOnlyList<string> ids, IReadOnlyList<string> styles, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(ids);
         ArgumentNullException.ThrowIfNull(styles);
@@ -493,20 +508,26 @@ internal sealed partial class ClassModel : IMermaidDiagram
                 _styleClasses.Add(styleClass);
             }
 
+            // A name listed again (c,c,...) gets the styles again, as in Mermaid, so the joined styles are checked
             foreach (var style in styles)
             {
                 if (style.Contains("color", StringComparison.Ordinal))
                 {
-                    styleClass.TextStyles.Add(ReplaceFirst(style, "fill", "bgFill"));
+                    var textStyle = ReplaceFirst(style, "fill", "bgFill");
+                    styleClass.StylesLength += JoinedLength(styleClass.Styles.Count + styleClass.TextStyles.Count, textStyle);
+                    CheckLabelLength(styleClass.StylesLength, location);
+                    styleClass.TextStyles.Add(textStyle);
                 }
 
+                styleClass.StylesLength += JoinedLength(styleClass.Styles.Count + styleClass.TextStyles.Count, style);
+                CheckLabelLength(styleClass.StylesLength, location);
                 styleClass.Styles.Add(style);
             }
 
             // The name is matched as a substring of the CSS classes, as in Mermaid
             foreach (var node in _classes.Where(node => node.CssClasses.Contains(id, StringComparison.Ordinal)))
             {
-                node.Styles.AddRange(styles.SelectMany(style => style.Split(',')));
+                AddStyles(node, styles.SelectMany(style => style.Split(',')), location);
             }
         }
     }
@@ -516,7 +537,12 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// </summary>
     /// <param name="id">The class name as written.</param>
     /// <param name="styles">The styles.</param>
-    public void SetCssStyle(string id, IReadOnlyList<string> styles)
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the styles of the class, joined with semicolons, get longer than
+    ///     <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    public void SetCssStyle(string id, IReadOnlyList<string> styles, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(styles);
@@ -525,11 +551,34 @@ internal sealed partial class ClassModel : IMermaidDiagram
             return;
         }
 
+        AddStyles(node, styles.SelectMany(style => style.Split(',')), location);
+    }
+
+    /// <summary>
+    ///     Adds styles to a class, checking their running length joined with semicolons (as Mermaid's
+    ///     <c>styles2String</c> joins them for the shape) against <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </summary>
+    /// <param name="node">The class.</param>
+    /// <param name="styles">The styles in order.</param>
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the joined styles get too long.</exception>
+    private void AddStyles(ClassNode node, IEnumerable<string> styles, MermaidLocation location)
+    {
         foreach (var style in styles)
         {
-            node.Styles.AddRange(style.Split(','));
+            node.StylesLength += JoinedLength(node.Styles.Count, style);
+            CheckLabelLength(node.StylesLength, location);
+            node.Styles.Add(style);
         }
     }
+
+    /// <summary>
+    ///     Gets the length a text adds to a list of texts joined with one-character separators.
+    /// </summary>
+    /// <param name="count">The number of texts in the list before.</param>
+    /// <param name="text">The text.</param>
+    /// <returns>The length of the text, and of its separator when the list is not empty.</returns>
+    private static long JoinedLength(int count, string text) => (count > 0 ? 1 : 0) + (long)text.Length;
 
     /// <summary>
     ///     Records a link on classes that exist (<c>link</c> and <c>click ... href</c>, Mermaid's <c>setLink</c>) and gives
@@ -539,7 +588,11 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <param name="ids">The class names, separated by commas.</param>
     /// <param name="link">The link as written.</param>
     /// <param name="target">The link target, or null for <c>_blank</c>.</param>
-    public void SetLink(string ids, string link, string? target)
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the CSS classes of a class get longer than <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    public void SetLink(string ids, string link, string? target, MermaidLocation location)
     {
         ArgumentNullException.ThrowIfNull(ids);
         ArgumentNullException.ThrowIfNull(link);
@@ -552,7 +605,7 @@ internal sealed partial class ClassModel : IMermaidDiagram
             }
         }
 
-        SetCssClass(ids, "clickable");
+        SetCssClass(ids, "clickable", location);
     }
 
     /// <summary>
@@ -561,8 +614,12 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// </summary>
     /// <param name="ids">The class names, separated by commas.</param>
     /// <param name="function">The function name.</param>
+    /// <param name="location">The location of the statement.</param>
     /// <param name="arguments">The function arguments, or null.</param>
-    public void SetClickEvent(string ids, string function, string? arguments = null)
+    /// <exception cref="MermaidSyntaxException">
+    ///     Thrown, located, when the CSS classes of a class get longer than <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </exception>
+    public void SetClickEvent(string ids, string function, MermaidLocation location, string? arguments = null)
     {
         ArgumentNullException.ThrowIfNull(ids);
         ArgumentNullException.ThrowIfNull(function);
@@ -574,7 +631,7 @@ internal sealed partial class ClassModel : IMermaidDiagram
             }
         }
 
-        SetCssClass(ids, "clickable");
+        SetCssClass(ids, "clickable", location);
     }
 
     /// <summary>
@@ -1219,13 +1276,22 @@ internal sealed partial class ClassModel : IMermaidDiagram
     /// <param name="text">The joined text.</param>
     /// <param name="location">The location of the statement.</param>
     /// <exception cref="MermaidSyntaxException">Thrown, located, when the text is too long.</exception>
-    private void CheckLabel(string text, MermaidLocation location)
+    private void CheckLabel(string text, MermaidLocation location) => CheckLabelLength(text.Length, location);
+
+    /// <summary>
+    ///     Checks the length of a text the model joins (a label, the CSS classes or the styles of a class, the styles of a
+    ///     style class) against <see cref="MermaidLimits.MaxLabelLength"/>.
+    /// </summary>
+    /// <param name="length">The length of the joined text.</param>
+    /// <param name="location">The location of the statement.</param>
+    /// <exception cref="MermaidSyntaxException">Thrown, located, when the text is too long.</exception>
+    private void CheckLabelLength(long length, MermaidLocation location)
     {
-        if (text.Length > _limits.MaxLabelLength)
+        if (length > _limits.MaxLabelLength)
         {
             throw new MermaidSyntaxException(
                 MermaidDiagnosticCodes.LimitExceeded,
-                string.Create(CultureInfo.InvariantCulture, $"a label is {text.Length} characters long, more than the limit of {_limits.MaxLabelLength} (MermaidLimits.MaxLabelLength)"),
+                string.Create(CultureInfo.InvariantCulture, $"a label is {length} characters long, more than the limit of {_limits.MaxLabelLength} (MermaidLimits.MaxLabelLength)"),
                 location,
                 "shorten the label, or raise MermaidLimits.MaxLabelLength when the source is trusted");
         }
@@ -1302,6 +1368,9 @@ internal sealed class ClassNode
 
     /// <summary>Gets the styles of <c>style</c> statements and of style classes, in order.</summary>
     public List<string> Styles { get; } = [];
+
+    /// <summary>Gets or sets the length of <see cref="Styles"/> joined with semicolons.</summary>
+    public long StylesLength { get; set; }
 
     /// <summary>Gets the DOM id (<c>classId-Name-N</c>).</summary>
     public required string DomId { get; init; }
@@ -1724,4 +1793,7 @@ internal sealed class ClassStyleClass
 
     /// <summary>Gets the styles that set a color, with <c>fill</c> written <c>bgFill</c>.</summary>
     public List<string> TextStyles { get; } = [];
+
+    /// <summary>Gets or sets the length of the styles and text styles joined with semicolons.</summary>
+    public long StylesLength { get; set; }
 }

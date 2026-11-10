@@ -105,9 +105,12 @@ located `MermaidSyntaxException`: a grammar or lexical error (with Mermaid's exp
 fails on (an annotation of a class that does not exist, a method text that Mermaid's member expression cannot read),
 and the limits of the open call (`MaxNestingDepth` and `MaxLabelLength` for every text the parser reads; `MaxEdges`
 for the relations, `MaxNodes` for the classes, notes, interfaces, and namespaces together, `MaxLabelLength` for
-the texts the model joins, and `MaxNestingDepth` for the parts of a qualified namespace id, nested keywords and dots
-in a name together). A render of an opened class diagram only reports what it does not draw (a look other than
-classic, a layout other than dagre) and then draws.
+the texts the model joins, the CSS classes and styles of a class and the styles of a style class included, and
+`MaxNestingDepth` for the parts of a qualified namespace id, nested keywords and dots in a name together). A render of
+an opened class diagram only reports what it does not draw (a look other than classic, a layout other than dagre) and
+then draws; the one limit a render checks is the nesting that class names make (a class named like a namespace nests
+that namespace in its own), which depends on the namespace mode a render may set, refused as a located
+`MermaidRenderException` when it passes `MaxNestingDepth`.
 
 **Deterministic and bounded.** The parser and the model hold no shared state; a parsed model is never changed again,
 so it is safe for concurrent renders. The lexer replaces every regular expression of Mermaid with matchers that cannot
