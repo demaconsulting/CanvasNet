@@ -272,9 +272,10 @@ public static partial class SvgFlattener
     /// <param name="outputFolder">The folder it must be relative to.</param>
     /// <returns>
     ///     The new attribute value (escaped for XML), or <see langword="null"/> for a link that is not a relative path: one
-    ///     with a URI scheme (<c>data:</c>, <c>http:</c>, <c>file:</c>), a same-document <c>#</c> link, an empty link, and a
-    ///     rooted path. The query and the fragment are kept as written; the path is percent-encoded per segment, and is a
-    ///     <c>file:</c> URI when no relative path exists (another drive).
+    ///     with a URI scheme (<c>data:</c>, <c>http:</c>, <c>file:</c>), a same-document <c>#</c> link, an empty link, a
+    ///     rooted path, a path with a null character, and a path the file system cannot resolve (too long). The query and
+    ///     the fragment are kept as written; the path is percent-encoded per segment, and is a <c>file:</c> URI when no
+    ///     relative path exists (another drive).
     /// </returns>
     internal static string? RebaseLink(string href, char quote, string inputFolder, string outputFolder)
     {
@@ -288,17 +289,25 @@ public static partial class SvgFlattener
         var path = cut < 0 ? href : href[..cut];
         var suffix = cut < 0 ? string.Empty : href[cut..];
         var decoded = path.Contains('%', StringComparison.Ordinal) ? Uri.UnescapeDataString(path) : path;
-        if (decoded.Length == 0 || Path.IsPathRooted(decoded))
+        if (decoded.Length == 0 || decoded.Contains('\0', StringComparison.Ordinal) || Path.IsPathRooted(decoded))
         {
             return null;
         }
 
-        var full = Path.GetFullPath(Path.Combine(inputFolder, decoded));
-        var relative = Path.GetRelativePath(outputFolder, full);
-        var moved = Path.IsPathRooted(relative)
-            ? new Uri(full).AbsoluteUri
-            : string.Join('/', relative.Replace(Path.DirectorySeparatorChar, '/').Split('/').Select(Uri.EscapeDataString));
-        return moved + EscapeAttribute(suffix, quote);
+        // A path the file system cannot name (too long, for example) names no file, so it is left as written too
+        try
+        {
+            var full = Path.GetFullPath(Path.Combine(inputFolder, decoded));
+            var relative = Path.GetRelativePath(outputFolder, full);
+            var moved = Path.IsPathRooted(relative)
+                ? new Uri(full).AbsoluteUri
+                : string.Join('/', relative.Replace(Path.DirectorySeparatorChar, '/').Split('/').Select(Uri.EscapeDataString));
+            return moved + EscapeAttribute(suffix, quote);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or UriFormatException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

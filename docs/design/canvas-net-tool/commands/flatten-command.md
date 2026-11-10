@@ -26,8 +26,9 @@ no picture that only CanvasNet draws; <output> was not written`, and the notes a
 (standard error). With `--json` it writes one document with `ResultWriter.Success` whose keys, in order, are `tool`,
 `input` (`path`, `format`, `natural`), `scale`, `flattened`, `replaced` (`href`, `format`, `width`, `height`,
 `elements`, `bytes`), `rebased` (`href`, `newHref`), `outputs` (`path`, `format`, `bytes`; empty when nothing was
-written), `diagnostics` (the shape of `render`, with `ResultWriter.WriteDiagnosticExtras`), and `echo`. Nothing to
-flatten is a success (exit code 0).
+written), `diagnostics` (the shape of `render`: `source`, `severity`, `code`, `message`, `page` when the report belongs
+to a page of a linked document, then `ResultWriter.WriteDiagnosticExtras`), and `echo`. Nothing to flatten is a success
+(exit code 0).
 
 **RenderText(result, output)**: the text line above, in the invariant culture.
 

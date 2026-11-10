@@ -14,8 +14,8 @@
     draw yet is left as written for another filter, and the defaults-file filters run before a command-line filter (as
     the CI's mermaid-filter is run). An SVG picture that links no file only the tool draws is left alone without
     starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
-    diagram is a PNG picture, cached like the other pictures, and WeasyPrint ("dotnet weasyprint") is run over both to
-    check that the flattened diagram reaches the PDF.
+    diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
+    and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF.
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -539,6 +539,21 @@ pie title Pets
     $changed = Invoke-Filter 'svg-comp' $compDoc
     Write-Result ($changed.ExitCode -eq 0 -and @(Get-Copies).Count -eq $copies + 2) `
         'a changed linked diagram flattens the drawing again' $changed.Log
+
+    # The same drawing in another folder gets its own copy: the links the tool rebases lead to that folder
+    $movedDir = Join-Path $guide 'svg-moved'
+    New-Item -ItemType Directory -Force -Path $movedDir | Out-Null
+    foreach ($file in 'comp.svg', 'flow.mmd', 'logo.png') {
+        Copy-Item (Join-Path $svgDir $file) (Join-Path $movedDir $file)
+    }
+    $moved = Invoke-Filter 'svg-moved' '![c](svg-moved/comp.svg){width=80%}'
+    $movedSrc = [regex]::Match($moved.Html, 'src="(\.\./\.\./generated/canvasnet/comp-[0-9a-f]+\.svg)"').Groups[1].Value
+    $movedPath = if ($movedSrc) { Join-Path (Split-Path $moved.HtmlPath) $movedSrc } else { '' }
+    $movedCopy = if ($movedPath -and (Test-Path -LiteralPath $movedPath)) { Get-Content -LiteralPath $movedPath -Raw } else { '' }
+    $movedLogo = [regex]::Match($movedCopy, 'xlink:href="([^"]+logo\.png)"').Groups[1].Value
+    Write-Result ($moved.ExitCode -eq 0 -and @(Get-Copies).Count -eq $copies + 3 -and $movedLogo -match 'svg-moved/logo\.png$' -and
+        (Test-Path -LiteralPath (Join-Path (Split-Path $movedPath) $movedLogo))) `
+        'the same drawing in another folder gets its own copy, whose links find the files of that folder' "$($moved.Log)`n$movedLogo"
     $nested = Invoke-Filter 'svg-nested' '![o](svg/outer.svg)'
     Write-Result ($nested.ExitCode -eq 0 -and $nested.Html -match 'generated/canvasnet/outer-[0-9a-f]+\.svg') `
         'an SVG picture that links a composite SVG file is flattened' "$($nested.Log)`n$($nested.Html)"

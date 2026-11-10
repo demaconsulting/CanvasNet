@@ -4989,6 +4989,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
+
   # CanvasNetTool-Commands-FlattenCommand Review (one per unit)
   - id: CanvasNetTool-Commands-FlattenCommand
     title: Review that CanvasNetTool Commands FlattenCommand Implementation is Correct

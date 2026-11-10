@@ -1544,7 +1544,7 @@ was not written`; the notes are written to standard error as for `render`. With 
 `replaced` lists each link that became a picture, with the size of the picture, the number of `image` elements that use
 the link (`elements`), and the size of the PNG (`bytes`); `rebased` lists the relative links that were rewritten for the
 folder of the copy. With nothing to flatten, `flattened` is `false` and `replaced`, `rebased`, and `outputs` are empty.
-The diagnostics have the shape of those of `render`.
+The diagnostics have the shape of those of `render`, with `page` for a report about a page of a linked document.
 
 #### Flatten Reference
 
@@ -1933,9 +1933,9 @@ picture is left alone and the tool is not started, so a plain SVG stays a vector
 `canvasnet flatten ... --json` and the picture points at the flattened copy in `docs/generated/canvasnet/`, in which
 each such link is a PNG picture of its placement size (`scale=2` for sharper pictures in print; every other attribute
 stays on the picture) and the relative links that are left are rewritten to find their files from there. The copy is
-cached like the PNG pictures, by a hash of the drawing and of every file it links. A drawing that the tool finds
-nothing to flatten in (a diagram the drawing never shows, reported as a warning) is left alone, with a marker in the
-cache so that the tool is not started again for it.
+cached like the PNG pictures, by a hash of the drawing, of its folder (which the rewritten links lead to), and of every
+file it links. A drawing that the tool finds nothing to flatten in (a diagram the drawing never shows, reported as a
+warning) is left alone, with a marker in the cache so that the tool is not started again for it.
 
 Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
 found stops the build with a message that names the picture. All other attributes

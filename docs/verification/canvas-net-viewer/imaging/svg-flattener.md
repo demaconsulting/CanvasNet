@@ -69,6 +69,9 @@ is
 **SvgFlattener_Execute_OutputInOtherFolder_RebasesRemainingRelativeLinks**: a copy over a 1000-byte limit is
 `size-limit` with no file; a copy in a sub folder rewrites `my logo.png` to `../my%20logo.png`.
 
+**SvgFlattener_Execute_OutputInOtherFolder_InvalidLinkPathLeftAsWritten**: a link `x%00.png` is kept as written and not
+rebased, and the copy is written.
+
 **SvgFlattener_Execute_NotSvg_ThrowsUnsupportedFormat**, **SvgFlattener_Execute_Doctype_ThrowsCorruptInput**,
 **SvgFlattener_Execute_InvalidUtf8_ThrowsCorruptInput**, **SvgFlattener_Execute_NonUtf8Declaration_ThrowsUnsupportedFeature**,
 **SvgFlattener_Execute_OutputIsInput_ThrowsSameInputOutput**, **SvgFlattener_Execute_NoClobberExisting_ThrowsOutputExists**,
@@ -85,4 +88,5 @@ prefixed `s:image` with `x:href` is found.
 
 **SvgFlattener_RebaseLink_\*** (`SvgFlattenerLinkTests.cs`): sibling and parent folders give relative paths with `/`,
 the query and the fragment are kept and escaped for the quote, a space is percent-encoded, and a data URI, a network URL,
-a `#` link, a rooted path, and an empty link are left alone.
+a `#` link, a rooted path, and an empty link are left alone; a path with a null character is left alone, and a path too
+long for the file system does not throw.

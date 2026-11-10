@@ -566,6 +566,28 @@ public class SvgFlattenerTests
     }
 
     /// <summary>
+    ///     Test that a relative link whose path contains a null character is left as written when the copy is written to
+    ///     another folder, and does not fail the flatten.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_OutputInOtherFolder_InvalidLinkPathLeftAsWritten()
+    {
+        // Arrange: a diagram to replace, and a raster link that decodes to a null character
+        using var directory = new TempDirectory();
+        CopyDiagram(directory);
+        var input = WriteSvg(directory, "a.svg", "<image href='flow.mmd' width='40' height='40'/><image href='x%00.png' x='50' width='40' height='40'/>");
+        var output = directory.Combine("out", "b.svg");
+
+        // Act
+        var result = Flatten(input, output);
+
+        // Assert: the diagram is replaced, and the link is kept as written and not reported as rebased
+        Assert.True(result.Flattened);
+        Assert.Empty(result.Rebased);
+        Assert.Contains("href='x%00.png'", File.ReadAllText(output), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a file that is not an SVG drawing is refused.
     /// </summary>
     [Fact]

@@ -71,10 +71,11 @@ another attribute is never taken for a link. A position that does not match the 
 **Rewrite**: copies the text and replaces, link by link in document order, the raw value of a kept link by its data URI
 and, when the output folder is not the folder of the input, the raw value of a relative link that is left by
 **RebaseLink**; the size of the copy is checked as it grows. **RebaseLink(href, quote, inputFolder, outputFolder)**
-leaves a link with a URI scheme, a `#` link, an empty link, and a rooted path alone; otherwise it resolves the path (cut
-at the first `?` or `#` and percent-decoded, as the resolver reads it) against the input folder and writes it relative to
-the output folder with each segment percent-encoded (a `file:` URI when there is no relative path), followed by the
-query and the fragment escaped for the attribute.
+leaves a link with a URI scheme, a `#` link, an empty link, and a rooted path alone (and a path with a null character, or
+one the file system cannot resolve, such as one that is too long, since it names no file); otherwise it resolves the
+path (cut at the first `?` or `#` and percent-decoded, as the resolver reads it) against the input folder and writes it
+relative to the output folder with each segment percent-encoded (a `file:` URI when there is no relative path), followed
+by the query and the fragment escaped for the attribute.
 
 #### Error Handling
 

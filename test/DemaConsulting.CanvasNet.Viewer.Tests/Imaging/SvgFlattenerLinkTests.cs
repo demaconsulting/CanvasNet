@@ -191,4 +191,37 @@ public class SvgFlattenerLinkTests
         Assert.Null(SvgFlattener.RebaseLink("/abs/a.png", '\'', root, output));
         Assert.Null(SvgFlattener.RebaseLink(string.Empty, '\'', root, output));
     }
+
+    /// <summary>
+    ///     Test that a link whose path contains a null character is left alone instead of failing the rebase.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_RebaseLink_InvalidPath_Untouched()
+    {
+        // Arrange
+        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "flatten-rebase"));
+        var output = Path.Combine(root, "out");
+
+        // Act / Assert: an encoded null character in the file name, and in a folder name with a fragment
+        Assert.Null(SvgFlattener.RebaseLink("x%00.png", '\'', root, output));
+        Assert.Null(SvgFlattener.RebaseLink("a%00b/c.pdf#page=2", '\'', root, output));
+    }
+
+    /// <summary>
+    ///     Test that a link too long for the file system does not fail the rebase.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_RebaseLink_VeryLongPath_DoesNotThrow()
+    {
+        // Arrange: a path longer than Windows allows (other systems rebase it)
+        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "flatten-rebase"));
+        var output = Path.Combine(root, "out");
+        var link = new string('a', 40000) + ".png";
+
+        // Act
+        var exception = Record.Exception(() => SvgFlattener.RebaseLink(link, '\'', root, output));
+
+        // Assert
+        Assert.Null(exception);
+    }
 }

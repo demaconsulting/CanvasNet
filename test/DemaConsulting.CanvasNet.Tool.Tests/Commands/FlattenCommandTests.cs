@@ -167,6 +167,29 @@ public class FlattenCommandTests
     }
 
     /// <summary>
+    ///     Test that a note about a page of a linked document carries its page, as the notes of render do.
+    /// </summary>
+    [Fact]
+    public void FlattenCommand_Run_Json_LinkedDocumentNote_HasPage()
+    {
+        // Arrange: a drawing that links a presentation whose first slide has a picture the renderer skips
+        using var directory = new TempDirectory();
+        File.WriteAllBytes(directory.Combine("deck.pptx"), FixtureFactory.CreatePptx(withMetafile: true));
+        var input = WriteDrawing(directory, "<image href='deck.pptx' width='60' height='40'/>");
+
+        // Act
+        var (stdOut, _) = Run(true, input, "-o", directory.Combine("flat.svg"));
+
+        // Assert: the note has its page right after the message
+        using var document = JsonDocument.Parse(stdOut);
+        var note = Assert.Single(
+            document.RootElement.GetProperty("diagnostics").EnumerateArray(),
+            n => n.GetProperty("source").GetString() == "pptx");
+        Assert.Equal(["source", "severity", "code", "message", "page"], note.EnumerateObject().Select(p => p.Name).Take(5));
+        Assert.Equal(1, note.GetProperty("page").GetInt32());
+    }
+
+    /// <summary>
     ///     Test that <c>--scale</c> multiplies the size of the replaced picture.
     /// </summary>
     [Fact]

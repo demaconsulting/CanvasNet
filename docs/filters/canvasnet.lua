@@ -120,6 +120,8 @@ that decides the picture:
     elements link (an .svg file with its own links, a model, chart or diagram with its own files, any other
     file as it is; a link in a comment, or in a tag with a ">" inside an attribute before the link, may be
     over- or under-counted, which can only add a file to the hash or miss a change in an unusual file);
+  - for an SVG drawing, its folder as seen from docs/generated/canvasnet/, since the links the tool rewrites in the
+    copy lead from there to it;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
     fingerprint of the DLLs beside it; and this filter's version.
@@ -1265,11 +1267,15 @@ local function flatten_svg(img)
   end
 
   local command = find_tool()
+  -- The links the tool rebases in the copy lead from the cache folder to the drawing's folder, so the same drawing in
+  -- another folder (or a renamed folder) is another copy. The folder is taken relative to the cache folder, so the
+  -- name does not depend on where the repository is checked out (the full path when there is no relative one).
   local key = pandoc.sha1(table.concat({
     "canvasnet.lua " .. FILTER_VERSION,
     "svg",
     command.identity,
     table.concat(options, ";"),
+    "folder " .. (relative_path(out_dir, root) or root),
     table.concat(sources, "\n\0\n"),
   }, "\n\0\n"))
 

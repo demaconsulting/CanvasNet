@@ -33,6 +33,9 @@ URI.
 `input`, `scale`, `flattened`, `replaced`, `rebased`, `outputs`, `diagnostics`, and `echo`, in that order, and a replaced
 entry has `href`, `format`, `width`, `height`, `elements`, and `bytes`.
 
+**FlattenCommand_Run_Json_LinkedDocumentNote_HasPage**: the note about the skipped picture on slide 1 of a linked
+presentation has `page` 1 right after `message`.
+
 **FlattenCommand_Run_PlainSvg_PrintsNothingToFlattenAndWritesNothing** and
 **FlattenCommand_Run_Json_PlainSvg_FlattenedFalse**: a drawing without such links prints the nothing-to-flatten line,
 or `flattened` false with empty `replaced` and `outputs`, and writes no file.

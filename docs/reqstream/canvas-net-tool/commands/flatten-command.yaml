@@ -26,13 +26,15 @@ sections:
           The flatten command shall write the copy and report it as one text line that names the output, its size, and
           each replaced link with the size and format of its picture, or, with the JSON option, as one JSON document
           with the tool, input, scale, flattened, replaced, rebased, outputs, diagnostics, and echo keys in that order,
-          and shall write the notes to standard error when the JSON option is not given.
+          with each diagnostic in the shape of the render command, including the page of a report about a page of a
+          linked document, and shall write the notes to standard error when the JSON option is not given.
         justification: |
           A person reads one line; a script or an agent reads a fixed JSON shape to decide whether to use the copy; a
           link that was not drawn must not be silent.
         tests:
           - FlattenCommand_Run_CompositeSvg_WritesCopyAndPrintsSummary
           - FlattenCommand_Run_Json_HasDocumentedShapeAndKeyOrder
+          - FlattenCommand_Run_Json_LinkedDocumentNote_HasPage
           - FlattenCommand_Run_HiddenDiagram_WarnsOnStandardError
 
       - id: CanvasNetTool-Commands-FlattenCommand-NothingToFlatten

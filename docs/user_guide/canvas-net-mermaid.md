@@ -828,8 +828,9 @@ canvasnet render docs/user_guide/examples/composition-dashboard.svg --strict --s
 
 In a Pandoc document, link the SVG as a picture. The Pandoc filter sees that it links diagrams, models, and charts that
 the writer cannot draw, and runs `canvasnet flatten`: the copy it links replaces only those links with PNG pictures
-drawn at their size on the page times `scale`, so the frame, the panels, and the titles stay vector. An SVG that links
-no such file is left to the writer as before.
+drawn at the size of their placement in the drawing at its natural size, times `scale` (the width the picture takes on
+the page does not change them), so the frame, the panels, and the titles stay vector. An SVG that links no such file is
+left to the writer as before.
 
 ```markdown
 ![Release dashboard](examples/composition-dashboard.svg){scale=2 width=100%}

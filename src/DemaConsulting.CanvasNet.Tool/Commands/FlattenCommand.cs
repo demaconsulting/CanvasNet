@@ -186,6 +186,11 @@ internal sealed class FlattenCommand : ICommand
             writer.WriteString("severity", diagnostic.Severity);
             writer.WriteString("code", diagnostic.Code);
             writer.WriteString("message", diagnostic.Message);
+            if (diagnostic.Page is { } page)
+            {
+                writer.WriteNumber("page", page);
+            }
+
             ResultWriter.WriteDiagnosticExtras(writer, diagnostic);
             writer.WriteEndObject();
         }
