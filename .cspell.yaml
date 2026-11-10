@@ -1024,6 +1024,8 @@ words:
   - CSSCLASS
   - GENERICTYPE
   - braintree
+  # Mermaid state and entity relationship diagram terms (style sheet classes)
+  - statediagram
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

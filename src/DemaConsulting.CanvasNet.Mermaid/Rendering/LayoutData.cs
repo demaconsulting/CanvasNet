@@ -26,7 +26,8 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
 {
     /// <summary>
     ///     Gets the diagram type as Mermaid names it (<c>flowchart-v2</c>, <c>classDiagram</c>, the legacy
-    ///     <c>class</c>, ...); it decides whether self-loops are merged into one compact loop.
+    ///     <c>class</c>, <c>stateDiagram</c>, <c>er</c>, ...); it decides whether self-loops are merged into one compact
+    ///     loop.
     /// </summary>
     public required string DiagramType { get; init; }
 
@@ -127,9 +128,53 @@ internal sealed record LayoutNode
     /// <summary>Gets the texts of a class box (a node of shape <c>classBox</c>), or null for any other node.</summary>
     public LayoutClassBox? ClassBox { get; init; }
 
+    /// <summary>
+    ///     Gets the x radius Mermaid gives the node's rectangle (a state's 10), or null. A <c>rect</c> node with both radii
+    ///     set is drawn as a <c>roundedRect</c> (Mermaid's <c>insertNode</c>).
+    /// </summary>
+    public double? Rx { get; init; }
+
+    /// <summary>Gets the y radius Mermaid gives the node's rectangle, or null.</summary>
+    public double? Ry { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the node's label is centered on the node's center whatever its kind
+    ///     (Mermaid's <c>node.centerLabel</c>, which a state sets).
+    /// </summary>
+    public bool CenterLabel { get; init; }
+
+    /// <summary>
+    ///     Gets the descriptions a <c>rectWithTitle</c> state draws under its title (the state's descriptions after the
+    ///     first, which is its <see cref="Label"/>), or null for any other node.
+    /// </summary>
+    public IReadOnlyList<string>? Descriptions { get; init; }
+
+    /// <summary>Gets the alias and attributes of an entity box (a node of shape <c>erBox</c>), or null for any other node.</summary>
+    public LayoutErBox? ErBox { get; init; }
+
     /// <summary>Gets the location of the node's first mention in the text, for reports.</summary>
     public MermaidLocation Location { get; init; }
 }
+
+/// <summary>
+///     The texts of an entity box as Mermaid's <c>erBox</c> shape reads them from an entity node: its alias, drawn in
+///     place of its name when set, and its attributes.
+/// </summary>
+/// <remarks>
+///     The record is immutable.
+/// </remarks>
+/// <param name="Alias">The alias, or empty when the entity has none.</param>
+/// <param name="Attributes">The attributes in order.</param>
+internal sealed record LayoutErBox(string Alias, IReadOnlyList<LayoutErAttribute> Attributes);
+
+/// <summary>
+///     An attribute of an entity box: one row of its type, name, keys and comment columns.
+/// </summary>
+/// <param name="Type">The type, as written (a generic <c>~T~</c> is drawn as <c>&lt;T&gt;</c> by the shape).</param>
+/// <param name="Name">The name.</param>
+/// <param name="Keys">The keys in order (<c>PK</c>, <c>FK</c>, <c>UK</c>); empty for none.</param>
+/// <param name="Comment">The comment, or empty for none.</param>
+internal sealed record LayoutErAttribute(string Type, string Name, IReadOnlyList<string> Keys, string Comment);
 
 /// <summary>
 ///     The texts of a class box as Mermaid's <c>classBox</c> shape reads them from a class node: the drawn name, the

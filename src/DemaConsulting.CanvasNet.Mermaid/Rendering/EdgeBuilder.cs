@@ -223,7 +223,13 @@ internal static partial class EdgeBuilder
             var path = PathOf(segments, style, edge.Id, data.Location);
             items.Add(path);
             bounds = Scene.BoundsOf([path]);
-            items.AddRange(DrawMarkers(segments, edge.ArrowTypeStart, edge.ArrowTypeEnd, shape => MarkerPaintOf(shape, strokeText, context.Styles), edge.Id)
+            items.AddRange(DrawMarkers(
+                    segments,
+                    edge.ArrowTypeStart,
+                    edge.ArrowTypeEnd,
+                    shape => MarkerPaintOf(shape, strokeText, context.Styles),
+                    edge.Id,
+                    style.Length("stroke-width", 1))
                 .Select(item => item with { Location = data.Location }));
         }
 
@@ -993,8 +999,9 @@ internal static partial class EdgeBuilder
 
     /// <summary>
     ///     Gets the paint of a marker type: the style sheet's <c>.marker</c> rule, then <c>.marker.cross</c> for the cross
-    ///     or the type's own rule for a user-space marker (<c>.composition</c>, ...), and the edge's stroke color for the
-    ///     stroke and, for the types whose colored copy is filled, the fill.
+    ///     or the type's own rule for a user-space marker (<c>.composition</c>, ...); for the <c>barb</c>, which has no
+    ///     class, a state diagram's <c>[id$="-barbEnd"]</c> rule under its more specific <c>defs [id$="-barbEnd"]</c>
+    ///     rule. The edge's stroke color then sets the stroke and, for the types whose colored copy is filled, the fill.
     /// </summary>
     /// <param name="type">The marker type.</param>
     /// <param name="strokeText">The edge's stroke color as written, or null.</param>
@@ -1002,12 +1009,14 @@ internal static partial class EdgeBuilder
     /// <returns>The paint.</returns>
     private static MarkerPaint MarkerPaintOf(string type, string? strokeText, UnifiedStyles styles)
     {
-        var rule = styles.Resolve(".marker");
+        var rule = type == "barb"
+            ? styles.Resolve("[id$=\"-barbEnd\"]").Cascade(styles.Resolve("defs [id$=\"-barbEnd\"]"))
+            : styles.Resolve(".marker");
         if (type == "cross")
         {
             rule = rule.Cascade(styles.Resolve(".marker.cross"));
         }
-        else if (UserSpaceMarkerOf(type, false) is not null)
+        else if (type != "barb" && UserSpaceMarkerOf(type, false) is not null)
         {
             rule = rule.Cascade(styles.Resolve("." + type));
         }

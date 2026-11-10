@@ -39,7 +39,29 @@ internal static class RenderingTestContext
     /// </summary>
     /// <param name="text">The class diagram text (its frontmatter and directives configure the rendering).</param>
     /// <returns>The settings.</returns>
-    public static ShapeContext CreateClass(string text = "classDiagram\n  class A\n")
+    public static ShapeContext CreateClass(string text = "classDiagram\n  class A\n") => CreateWith(text, ClassStyles.Create);
+
+    /// <summary>
+    ///     Creates the settings of a state diagram text: its configuration with the state diagram's style sheet.
+    /// </summary>
+    /// <param name="text">The state diagram text (its frontmatter and directives configure the rendering).</param>
+    /// <returns>The settings.</returns>
+    public static ShapeContext CreateState(string text = "stateDiagram-v2\n  A --> B\n") => CreateWith(text, StateStyles.Create);
+
+    /// <summary>
+    ///     Creates the settings of an entity relationship diagram text: its configuration with its style sheet.
+    /// </summary>
+    /// <param name="text">The entity relationship diagram text (its frontmatter and directives configure the rendering).</param>
+    /// <returns>The settings.</returns>
+    public static ShapeContext CreateEr(string text = "erDiagram\n  A ||--o{ B : has\n") => CreateWith(text, ErStyles.Create);
+
+    /// <summary>
+    ///     Creates the settings of a text with a diagram's style sheet and the real label measurement.
+    /// </summary>
+    /// <param name="text">The diagram text.</param>
+    /// <param name="styles">The style sheet factory of the diagram.</param>
+    /// <returns>The settings.</returns>
+    private static ShapeContext CreateWith(string text, Func<MermaidConfig, MermaidReportSink?, UnifiedStyles> styles)
     {
         var reports = new MermaidReportSink(100, false);
         var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), text);
@@ -47,7 +69,7 @@ internal static class RenderingTestContext
         return new ShapeContext
         {
             Config = config,
-            Styles = ClassStyles.Create(config, reports),
+            Styles = styles(config, reports),
             MeasureLabel = labels.Build,
             Sink = reports,
         };

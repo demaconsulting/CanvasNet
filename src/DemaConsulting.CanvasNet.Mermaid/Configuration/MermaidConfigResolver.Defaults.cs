@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
-///     global keys, the flowchart, the sequence diagram and the class diagram, and the set of configuration keys that
-///     Mermaid's <c>sanitizeDirective</c> accepts.
+///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, and the set of
+///     configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {
@@ -200,6 +200,8 @@ internal static partial class MermaidConfigResolver
                 ["hideEmptyMembersBox"] = false,
                 ["hierarchicalNamespaces"] = true,
             },
+            ["state"] = CreateStateDefaults(),
+            ["er"] = CreateErDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -262,5 +264,52 @@ internal static partial class MermaidConfigResolver
         ["wrapPadding"] = 10.0,
         ["labelBoxWidth"] = 50.0,
         ["labelBoxHeight"] = 20.0,
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default state section (the defaults of <c>StateDiagramConfig</c>; <c>nodeSpacing</c> and
+    ///     <c>rankSpacing</c> have none).
+    /// </summary>
+    /// <returns>The default state section.</returns>
+    private static JsonObject CreateStateDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["titleTopMargin"] = 25.0,
+        ["dividerMargin"] = 10.0,
+        ["sizeUnit"] = 5.0,
+        ["padding"] = 8.0,
+        ["textHeight"] = 10.0,
+        ["titleShift"] = -15.0,
+        ["noteMargin"] = 10.0,
+        ["forkWidth"] = 70.0,
+        ["forkHeight"] = 7.0,
+        ["miniPadding"] = 2.0,
+        ["fontSizeFactor"] = 5.02,
+        ["fontSize"] = 24.0,
+        ["labelHeight"] = 16.0,
+        ["edgeLengthFactor"] = "20",
+        ["compositTitleSize"] = 35.0,
+        ["radius"] = 5.0,
+        ["defaultRenderer"] = "dagre-wrapper",
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default entity relationship section (the defaults of <c>ErDiagramConfig</c>).
+    /// </summary>
+    /// <returns>The default entity relationship section.</returns>
+    private static JsonObject CreateErDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["titleTopMargin"] = 25.0,
+        ["diagramPadding"] = 20.0,
+        ["layoutDirection"] = "TB",
+        ["minEntityWidth"] = 100.0,
+        ["minEntityHeight"] = 75.0,
+        ["entityPadding"] = 15.0,
+        ["nodeSpacing"] = 140.0,
+        ["rankSpacing"] = 80.0,
+        ["stroke"] = "gray",
+        ["fill"] = "honeydew",
+        ["fontSize"] = 12.0,
     };
 }

@@ -98,9 +98,19 @@ internal static partial class MermaidConfigResolver
         ["class.hierarchicalNamespaces"] = ValueKind.Boolean,
         ["class.padding"] = ValueKind.Number,
         ["state"] = ValueKind.Object,
+        ["state.defaultRenderer"] = ValueKind.Text,
         ["state.nodeSpacing"] = ValueKind.Number,
         ["state.rankSpacing"] = ValueKind.Number,
         ["state.titleTopMargin"] = ValueKind.Number,
+        ["state.useMaxWidth"] = ValueKind.Boolean,
+        ["er"] = ValueKind.Object,
+        ["er.diagramPadding"] = ValueKind.Number,
+        ["er.entityPadding"] = ValueKind.Number,
+        ["er.minEntityWidth"] = ValueKind.Number,
+        ["er.nodeSpacing"] = ValueKind.Number,
+        ["er.rankSpacing"] = ValueKind.Number,
+        ["er.titleTopMargin"] = ValueKind.Number,
+        ["er.useMaxWidth"] = ValueKind.Boolean,
     };
 
     /// <summary>

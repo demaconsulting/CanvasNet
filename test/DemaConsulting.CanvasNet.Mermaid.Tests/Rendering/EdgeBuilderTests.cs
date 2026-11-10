@@ -567,6 +567,97 @@ public sealed class EdgeBuilderTests
     }
 
     /// <summary>
+    ///     Checks the state and entity relationship markers: the barb at a transition's end only, the four entity
+    ///     relationship markers at both ends with the reference points of <c>markers.js</c>, their white rings, their units
+    ///     of the stroke width, and none for an arrow type Mermaid's map does not know (<c>md_parent</c>).
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_UserSpaceMarkerOf_StateAndErArrowTypes_GiveMermaidsMarkers()
+    {
+        // Act
+        var barb = EdgeBuilder.UserSpaceMarkerOf("arrow_barb", false)!;
+        var ends = new[] { "only_one", "zero_or_one", "one_or_more", "zero_or_more" }
+            .Select(type => (EdgeBuilder.UserSpaceMarkerOf(type, true)!, EdgeBuilder.UserSpaceMarkerOf(type, false)!))
+            .ToList();
+
+        // Assert
+        Assert.Equal(("barb", 19.0, 7.0, false), (barb.Type, barb.RefX, barb.RefY, barb.ScalesWithStroke));
+        Assert.Null(EdgeBuilder.UserSpaceMarkerOf("arrow_barb", true));
+        Assert.Equal(
+            [(0.0, 9.0, 18.0, 9.0), (0, 9, 30, 9), (18, 18, 27, 18), (18, 18, 39, 18)],
+            ends.Select(e => (e.Item1.RefX, e.Item1.RefY, e.Item2.RefX, e.Item2.RefY)));
+        Assert.Equal(["onlyOne", "zeroOrOne", "oneOrMore", "zeroOrMore"], ends.Select(e => e.Item2.Type));
+        Assert.All(ends, e => Assert.True(e.Item1.ScalesWithStroke && e.Item2.ScalesWithStroke));
+        Assert.Equal(new string?[] { "white", null }, ends[3].Item2.Parts.Select(part => part.Fill));
+        Assert.Null(EdgeBuilder.UserSpaceMarkerOf("md_parent", false));
+    }
+
+    /// <summary>
+    ///     Checks that an entity relationship marker is drawn in units of the path's stroke width: a zero-or-more end on a
+    ///     path 2 wide is twice its size, its ring 12 pixels in radius 60 pixels behind the vertex, stroked 2 wide.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_DrawUserSpaceMarker_ErMarker_ScalesWithTheStrokeWidth()
+    {
+        // Act
+        var items = EdgeBuilder.DrawUserSpaceMarker(EdgeBuilder.UserSpaceMarkerOf("zero_or_more", false)!, 100, 50, 0, Gray, "e", 2);
+
+        // Assert: the ring (9, 18, r 6) with refX 39 and refY 18; the crow's foot from x 21 to x 57
+        var ring = Assert.IsType<ScenePath>(items[0]);
+        var foot = Assert.IsType<ScenePath>(items[1]);
+        AssertBox(new SceneRect(28, 38, 24, 24), Scene.BoundsOf([ring]));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), ring.Fill);
+        Assert.Equal(2, ring.Stroke!.Width);
+        AssertBox(new SceneRect(64, 32, 72, 36), Scene.BoundsOf([foot]));
+    }
+
+    /// <summary>
+    ///     Checks a state transition: its barb at the end, its tip on the route's end (no shortening), filled and stroked
+    ///     by the more specific <c>defs [id$="-barbEnd"]</c> rule in the transition color, not the line color.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_Draw_StateTransition_BarbTakesTheTransitionColor()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  themeVariables:\n    transitionColor: '#00aa00'\n    lineColor: '#aa0000'\n---\nstateDiagram-v2\n  A --> B\n";
+        var green = new Rgba32(0, 0xaa, 0, 255);
+        var edge = Relation("none", "arrow_barb") with { Classes = "transition" };
+
+        // Act
+        var drawing = EdgeBuilder.Draw(new EdgeRoute(edge, "t", [new(0, 0), new(0, 50), new(0, 100)]), null, null, RenderingTestContext.CreateState(Text));
+
+        // Assert
+        Assert.Equal("M0,0L0,50L0,100", drawing.PathData);
+        var path = Assert.IsType<ScenePath>(drawing.Items[0]);
+        var barb = Assert.IsType<ScenePath>(drawing.Items[1]);
+        Assert.Equal(green, path.Stroke!.Color);
+        Assert.Equal((green, green, 1.0), (barb.Fill, barb.Stroke!.Color, barb.Stroke.Width));
+        Assert.Equal(100, Scene.BoundsOf([barb])!.Value.Bottom, 9);
+    }
+
+    /// <summary>
+    ///     Checks an entity relationship: its route not shortened, its markers unfilled by <c>.marker</c>'s important
+    ///     <c>none</c> and stroked in the line color, the zero ring keeping its own white fill.
+    /// </summary>
+    [Fact]
+    public void EdgeBuilder_Draw_ErRelationship_MarkersAreUnfilledWithWhiteRings()
+    {
+        // Arrange
+        var gray = new Rgba32(0x33, 0x33, 0x33, 255);
+        var edge = Relation("only_one", "zero_or_more") with { Classes = "relationshipLine" };
+
+        // Act
+        var drawing = EdgeBuilder.Draw(new EdgeRoute(edge, "r", [new(0, 0), new(0, 50), new(0, 100)]), null, null, RenderingTestContext.CreateEr());
+
+        // Assert
+        Assert.Equal("M0,0L0,50L0,100", drawing.PathData);
+        var markers = drawing.Items.Skip(1).Cast<ScenePath>().ToList();
+        Assert.Equal(3, markers.Count);
+        Assert.All(markers, marker => Assert.Equal((gray, 1.0), (marker.Stroke!.Color, marker.Stroke.Width)));
+        Assert.Equal(new Rgba32?[] { null, new Rgba32(255, 255, 255, 255), null }, markers.Select(marker => marker.Fill));
+    }
+
+    /// <summary>
     ///     Checks where terminal labels go on a straight route: beside the middle of the first 35 pixels (25 plus the
     ///     marker size), 15 pixels to the right of the walking direction, the end label moved 5 pixels up and left.
     /// </summary>

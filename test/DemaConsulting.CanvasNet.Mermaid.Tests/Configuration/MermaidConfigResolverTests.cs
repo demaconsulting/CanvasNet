@@ -631,6 +631,74 @@ public class MermaidConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the state and entity relationship sections without configuration: the schema's defaults in the
+    ///     effective configuration, and the values their renderers and shapes read.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid()
+    {
+        // Act
+        var (state, stateWarnings) = Resolve("stateDiagram-v2\n  A --> B\n", diagramId: "stateDiagram");
+        var (er, erWarnings) = Resolve("erDiagram\n  A ||--o{ B : has\n", diagramId: "er");
+
+        // Assert
+        Assert.Empty(stateWarnings);
+        Assert.Empty(erWarnings);
+        Assert.Equal(18, state.Raw["state"]!.AsObject().Count);
+        Assert.Equal((8.0, "20"), (state.Raw["state"]!["padding"]!.GetValue<double>(), state.Raw["state"]!["edgeLengthFactor"]!.GetValue<string>()));
+        Assert.Equal(12, er.Raw["er"]!.AsObject().Count);
+        Assert.Equal((75.0, "honeydew"), (er.Raw["er"]!["minEntityHeight"]!.GetValue<double>(), er.Raw["er"]!["fill"]!.GetValue<string>()));
+        Assert.Equal(new StateConfig(), state.State);
+        Assert.Equal(("dagre-wrapper", 50.0, 50.0, 25.0), (state.State.DefaultRenderer, state.State.NodeSpacing, state.State.RankSpacing, state.State.TitleTopMargin));
+        Assert.Equal(new ErConfig(), er.Er);
+        Assert.Equal((20.0, 15.0, 100.0), (er.Er.DiagramPadding, er.Er.EntityPadding, er.Er.MinEntityWidth));
+        Assert.Equal((140.0, 80.0, 25.0), (er.Er.NodeSpacing, er.Er.RankSpacing, er.Er.TitleTopMargin));
+    }
+
+    /// <summary>
+    ///     Validates the state and entity relationship renderers' reads: a zero spacing falls back to the default
+    ///     (<c>||</c>), a zero title margin is kept (<c>??</c>), and the entity box keys are taken as given.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  state:\n    nodeSpacing: 0\n    rankSpacing: 70\n    titleTopMargin: 0\n" +
+                            "  er:\n    nodeSpacing: 0\n    rankSpacing: 60\n    titleTopMargin: 0\n    diagramPadding: 5\n    entityPadding: 4\n    minEntityWidth: 30\n---\n" +
+                            "erDiagram\n  A ||--o{ B : has\n";
+
+        // Act
+        var (config, warnings) = Resolve(Text, diagramId: "er");
+
+        // Assert
+        Assert.Empty(warnings);
+        Assert.Equal((50.0, 70.0, 0.0), (config.State.NodeSpacing, config.State.RankSpacing, config.State.TitleTopMargin));
+        Assert.Equal((140.0, 60.0, 0.0), (config.Er.NodeSpacing, config.Er.RankSpacing, config.Er.TitleTopMargin));
+        Assert.Equal((5.0, 4.0, 30.0), (config.Er.DiagramPadding, config.Er.EntityPadding, config.Er.MinEntityWidth));
+    }
+
+    /// <summary>
+    ///     Validates that state and entity relationship values of the wrong type are reported at the key and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"state\": {\"defaultRenderer\": 3}, \"er\": {\"entityPadding\": \"big\", \"useMaxWidth\": \"no\"}}}%%\nerDiagram\n  A ||--o{ B : has\n";
+
+        // Act
+        var (config, warnings) = Resolve(Text, diagramId: "er");
+
+        // Assert
+        Assert.Equal(3, warnings.Count);
+        Assert.All(warnings, warning => Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code));
+        Assert.Contains(warnings, warning => warning.Message.Contains("state.defaultRenderer", StringComparison.Ordinal));
+        Assert.Contains(warnings, warning => warning.Message.Contains("er.entityPadding", StringComparison.Ordinal));
+        Assert.Equal(new StateConfig(), config.State);
+        Assert.Equal(new ErConfig(), config.Er);
+    }
+
+    /// <summary>
     ///     Resolves the configuration of a text and collects the warnings.
     /// </summary>
     /// <param name="text">The text.</param>
