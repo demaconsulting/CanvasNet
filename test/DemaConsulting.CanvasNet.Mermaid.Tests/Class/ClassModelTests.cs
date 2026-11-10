@@ -467,6 +467,51 @@ public class ClassModelTests
     }
 
     /// <summary>
+    ///     Validates that a note's class is looked up by the name as written, as Mermaid's getData does: a note for the
+    ///     generic <c>Box~T~</c> (the class is <c>Box</c>) is not linked, while notes for <c>Box</c> and for the
+    ///     backticked <c>My Class</c> are.
+    /// </summary>
+    /// <param name="text">The class diagram text.</param>
+    /// <param name="expectedEnd">The class the note is linked to, or null for no link.</param>
+    [Theory]
+    [InlineData("classDiagram\n    class Box~T~\n    note for Box~T~ \"n\"\n", null)]
+    [InlineData("classDiagram\n    class Box~T~\n    note for Box \"n\"\n", "Box")]
+    [InlineData("classDiagram\n    class `My Class`\n    note for `My Class` \"n\"\n", "My Class")]
+    public void ClassModel_GetData_NoteTarget_IsLookedUpAsWritten(string text, string? expectedEnd)
+    {
+        // Arrange
+        var model = ClassFacts.Parse(text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(text));
+
+        // Assert
+        (string, string)[] expected = expectedEnd is null ? [] : [("note0", expectedEnd)];
+        Assert.Equal(expected, data.Edges.Select(edge => (edge.Start, edge.End)));
+    }
+
+    /// <summary>
+    ///     Validates that the ends of a relation are the class ids, as Mermaid's addRelation sets them: a generic end
+    ///     <c>Box~T~</c> is the class <c>Box</c>, and a backticked end <c>My Class</c> is the class <c>My Class</c>.
+    /// </summary>
+    [Fact]
+    public void ClassModel_AddRelation_GenericAndBacktickedEnds_AreTheClassIds()
+    {
+        // Arrange
+        const string Text = "classDiagram\n    Box~T~ --> Other\n    Box --> Other2\n    `My Class` --> B\n";
+        var model = ClassFacts.Parse(Text);
+
+        // Act
+        var data = model.GetData(ClassFacts.DefaultConfig(Text));
+
+        // Assert
+        Assert.Equal(["Box", "Other", "Other2", "My Class", "B"], data.Nodes.Select(node => node.Id));
+        Assert.Equal(
+            [("id_Box_Other_1", "Box", "Other"), ("id_Box_Other2_2", "Box", "Other2"), ("id_My Class_B_3", "My Class", "B")],
+            data.Edges.Select(edge => (edge.Id, edge.Start, edge.End)));
+    }
+
+    /// <summary>
     ///     Validates that note theme variables a directive sets to a number or a boolean are stringified as Mermaid's
     ///     template strings do, instead of failing.
     /// </summary>

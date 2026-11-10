@@ -55,6 +55,7 @@ sections:
               - id: CanvasNetMermaid-Class-ClassModel-Relations
                 title: >-
                   The ClassModel unit shall keep each relation with its end types, line type, cardinalities, and label,
+                  with its ends the class ids (a generic end without its type, as Mermaid's addRelation sets them),
                   shall add an invisible interface node for each lollipop end, and shall map each relation to the
                   markers and the terminal labels Mermaid draws at its ends.
                 justification: |
@@ -62,6 +63,7 @@ sections:
                   Mermaid.
                 tests:
                   - ClassModel_AddRelation_Lollipop_AddsInterfaceNode
+                  - ClassModel_AddRelation_GenericAndBacktickedEnds_AreTheClassIds
                   - ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels
 
               - id: CanvasNetMermaid-Class-ClassModel-Namespaces
@@ -80,12 +82,14 @@ sections:
               - id: CanvasNetMermaid-Class-ClassModel-Notes
                 title: >-
                   The ClassModel unit shall keep each note with its text, map it to a note node with the styles that
-                  Mermaid's class diagram writes for it, and link a note to its class only when the class exists.
+                  Mermaid's class diagram writes for it, and link a note to its class only when a class has the name
+                  as written in the note (as Mermaid looks it up, so a note for a generic name is not linked).
                 justification: |
                   Notes are drawn as boxes beside their classes; a note for a missing class is drawn alone, as in
                   Mermaid.
                 tests:
                   - ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes
+                  - ClassModel_GetData_NoteTarget_IsLookedUpAsWritten
 
               - id: CanvasNetMermaid-Class-ClassModel-Styles
                 title: >-

@@ -828,6 +828,8 @@ cssClass "C1" styleClass
   { name: 'relation-label-colon', spec: 'original', text: lines('classDiagram', 'Alpha --> Beta : ratio a:b', 'Beta --> Gamma : semi; colon') },
   { name: 'statement-semicolons', spec: 'original', text: 'classDiagram\nAlpha --> Beta;\nclass Gamma;' },
   { name: 'note-in-namespace', spec: 'original', text: lines('classDiagram', 'namespace Area {', '  class Inside', '  note for Inside "kept"', '}', 'note for Missing "orphan"') },
+  { name: 'note-target-as-written', spec: 'original', text: lines('classDiagram', 'class Box~T~', 'class `My Class`', 'note for Box~T~ "unlinked"', 'note for Box "linked"', 'note for `My Class` "linked"') },
+  { name: 'relation-ends-class-ids', spec: 'original', text: lines('classDiagram', 'Box~T~ --> Other', 'Box --> Other2', '`My Class` --> B') },
   { name: 'css-digit-ids', spec: 'original', text: lines('classDiagram', 'class 1Alpha', 'class Beta', 'cssClass "1Alpha,Beta" hot', 'link 1Alpha "https://example.com"') },
   { name: 'classdef-color-text-styles', spec: 'original', text: lines('classDiagram', 'class Alpha:::warm', 'classDef warm fill:#f96,color:#036,stroke:#333') },
   { name: 'classdef-before-use', spec: 'original', text: lines('classDiagram', 'classDef warm fill:#f96', 'class Alpha:::warm', 'class Beta', 'cssClass "Beta" warm') },

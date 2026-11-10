@@ -425,6 +425,42 @@ public sealed class ShapeLibraryTests
     }
 
     /// <summary>
+    ///     Checks that the dividers of a class box take the class's styles as its outline does (Mermaid writes the
+    ///     class's styles on each divider path): the stroke, its width and its dashes, and the theme's paint without
+    ///     styles.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_ClassBoxStyles_PaintTheDividersAsTheOutline()
+    {
+        // Arrange
+        var member = new LayoutClassMember("+int x", string.Empty);
+        LayoutNode Node(string[] styles) =>
+            new() { Id = "A", Shape = "classBox", ClassBox = new LayoutClassBox("A", [], [member], [member], styles) };
+        var context = ClassContext("classDiagram\n  class A\n", new SceneRect(0, 0, 40, 24));
+
+        // Act
+        var styled = ShapeLibrary.Draw(Node(["stroke:#f00", "stroke-width:3px", "stroke-dasharray:5 5", "fill:#ff0"]), context);
+        var plain = ShapeLibrary.Draw(Node([]), context);
+
+        // Assert: both dividers stroked as the outline, never filled
+        foreach (var (result, color, width) in new[] { (styled, new Rgba32(0xff, 0, 0, 255), 3.0), (plain, new Rgba32(0x93, 0x70, 0xdb, 255), 1.0) })
+        {
+            var outline = result.Items.OfType<ScenePath>().First(path => path.Role != "class-divider" && path.Stroke is not null);
+            var dividers = result.Items.OfType<ScenePath>().Where(path => path.Role == "class-divider").ToList();
+            Assert.Equal(2, dividers.Count);
+            Assert.Equal((color, width), (outline.Stroke!.Color, outline.Stroke.Width));
+            Assert.All(dividers, divider =>
+            {
+                Assert.Null(divider.Fill);
+                Assert.Equal((outline.Stroke.Color, outline.Stroke.Width), (divider.Stroke!.Color, divider.Stroke.Width));
+                Assert.Equal(outline.Stroke.Dash, divider.Stroke.Dash);
+            });
+        }
+
+        Assert.Equal([5.0, 5.0], styled.Items.OfType<ScenePath>().First(path => path.Role == "class-divider").Stroke!.Dash!);
+    }
+
+    /// <summary>
     ///     Gets the boxes of the dividers of a drawn class box.
     /// </summary>
     /// <param name="result">The drawn node.</param>

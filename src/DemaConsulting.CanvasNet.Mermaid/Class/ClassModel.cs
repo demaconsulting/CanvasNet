@@ -413,6 +413,8 @@ internal sealed partial class ClassModel : IMermaidDiagram
             AddClass(id2, location);
         }
 
+        // The ends are the class ids AddClass gives (sanitized, the generic type split off), as Mermaid's addRelation
+        // sets them (packages/mermaid/src/diagrams/class/classDb.ts:239-240), so Box~T~ --> Other starts at Box
         _relations.Add(new ClassRelation
         {
             Id1 = SplitClassNameAndType(id1).ClassName,
@@ -438,6 +440,8 @@ internal sealed partial class ClassModel : IMermaidDiagram
         ArgumentNullException.ThrowIfNull(text);
         CheckNodeCount(location);
         var index = _notes.Count;
+        // The class name is kept as written, not split or sanitized: Mermaid's addNote stores it so
+        // (packages/mermaid/src/diagrams/class/classDb.ts:306-316), and getData looks it up as is (see GetData)
         var note = new ClassNote
         {
             Id = string.Create(CultureInfo.InvariantCulture, $"note{index}"),

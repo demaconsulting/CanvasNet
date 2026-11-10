@@ -77,11 +77,14 @@ given location (line 3, column 5) with Mermaid's message "Cannot read properties
 ##### CanvasNetMermaid-Class-ClassModel-Relations: Relations, Lollipops, And Their Markers
 
 **Tests**: `ClassModelTests.ClassModel_AddRelation_Lollipop_AddsInterfaceNode`,
+`ClassModelTests.ClassModel_AddRelation_GenericAndBacktickedEnds_AreTheClassIds`,
 `ClassModelTests.ClassModel_GetData_Relation_MapsMarkersAndTerminalLabels`
 
 Asserts that a relation with a lollipop at the first end only adds the interface `interface0` labeled `Ignition` for
 the class `Engine` in place of a class, and a relation with lollipops at both ends adds both classes, so the classes
-are `Engine`, `Left`, and `Right` and the first relation goes from `interface0` to `Engine`; and that
+are `Engine`, `Left`, and `Right` and the first relation goes from `interface0` to `Engine`; that the relations
+`Box~T~ --> Other`, `Box --> Other2`, and `` `My Class` --> B `` give the classes `Box`, `Other`, `Other2`, `My Class`,
+and `B` and the edges `id_Box_Other_1` and `id_Box_Other2_2` from `Box` and `id_My Class_B_3` from `My Class`; and that
 `Customer "1" *--> Order : places` maps to the edge `id_Customer_Order_1` with the markers `composition` and
 `dependency`, a minimum length of 1, the label `places`, the start terminal label `1`, no end terminal label, and a
 solid line, in layout data of type `classDiagram` with the direction `TB` and the five class markers `aggregation`,
@@ -101,12 +104,15 @@ parent (the implicit `A.B` is not drawn), with the class `Deep` in `A.B.C` and t
 
 ##### CanvasNetMermaid-Class-ClassModel-Notes: Notes And Their Links
 
-**Tests**: `ClassModelTests.ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes`
+**Tests**: `ClassModelTests.ClassModel_GetData_NotesNamespacesAndClasses_MapToNodes`,
+`ClassModelTests.ClassModel_GetData_NoteTarget_IsLookedUpAsWritten`
 
 Asserts that a note for the existing class `Order` and a note for the missing class `Missing` map to the note nodes
 `note0` and `note1` with the styles `text-align: left`, `white-space: nowrap`, `fill: #fff5ad`, and `stroke: #aaaa33`
 (the default theme's note colors), marked as trusted, and that only the first note has a link: the dotted edge
-`edgeNote0` from `note0` to `Order` with a minimum length of 1.
+`edgeNote0` from `note0` to `Order` with a minimum length of 1. Asserts that the class is looked up by the name as
+written in the note (a theory): with the class `Box~T~` a note for `Box~T~` has no link, as in Mermaid, while a note
+for `Box` is linked to `Box`, and a note for the backticked `My Class` is linked to `My Class`.
 
 ##### CanvasNetMermaid-Class-ClassModel-Styles: Style Classes And Mermaid's DOM-Id Lookup
 
