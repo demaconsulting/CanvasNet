@@ -191,6 +191,13 @@ is their vector file.
   `pie-vector-cases.mjs`, or the error (Langium's lexer and parser errors, or the database's negative-value error). The
   inputs are those of mermaid's pie spec and of the pie tests of `@mermaid-js/parser` (MIT), original texts and the
   pie fixtures. `getDiagramFromText` passes no frontmatter title, so a case's title is that of its text only.
+- `gen-diagram-vectors.mjs --type gantt` writes `gantt-parser.json`: the GanttDB statements (formats, tick interval,
+  today marker, includes, excludes, weekday, inclusive end dates, sections, sanitized links, title and accessibility
+  texts) and the tasks of `getTasks()` (each date as its time in milliseconds) of the cases in
+  `gantt-vector-cases.mjs`, or the parse error, or the error `getTasks` throws. Every page of the script runs in the UTC
+  time zone with its clock fixed at 2024-06-12T10:30:00Z, so "today" is that day. The inputs are those of mermaid's
+  gantt parser and database specs (MIT; the database calls written as gantt texts), original texts and the gantt
+  fixtures.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

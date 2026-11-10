@@ -8,7 +8,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 public class MermaidRenderOptionsTests
 {
     /// <summary>
-    ///     Validates the defaults: scale 1, transparent background, no theme or configuration, default limits, lenient.
+    ///     Validates the defaults: scale 1, transparent background, no theme or configuration, no clock, default limits,
+    ///     lenient.
     /// </summary>
     [Fact]
     public void MermaidRenderOptions_Defaults_AreDocumented()
@@ -22,8 +23,25 @@ public class MermaidRenderOptionsTests
         Assert.Null(options.Config);
         Assert.Null(options.Theme);
         Assert.Null(options.ImageResolver);
+        Assert.Null(options.Now);
         Assert.Same(MermaidLimits.Default, options.Limits);
         Assert.False(options.ThrowOnUnsupportedFeature);
+    }
+
+    /// <summary>
+    ///     Validates that the clock of gantt charts can be set to any time with any offset.
+    /// </summary>
+    [Fact]
+    public void MermaidRenderOptions_Now_CanBeSet()
+    {
+        // Arrange
+        var now = new DateTimeOffset(2024, 6, 12, 10, 30, 0, TimeSpan.FromHours(-4));
+
+        // Act
+        var options = new MermaidRenderOptions { Now = now };
+
+        // Assert
+        Assert.Equal(now, options.Now);
     }
 
     /// <summary>

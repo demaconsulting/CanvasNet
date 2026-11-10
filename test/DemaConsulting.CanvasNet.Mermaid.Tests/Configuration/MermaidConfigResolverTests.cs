@@ -706,6 +706,35 @@ public class MermaidConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the gantt section: the schema's defaults without configuration (no tick interval and no width), the
+    ///     values a frontmatter sets (its <c>displayMode</c> included), and a value of the wrong type reported and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_GanttSection_DefaultsValuesAndInvalidValues()
+    {
+        // Arrange
+        const string Set = "---\ndisplayMode: compact\nconfig:\n  gantt:\n    barHeight: 30\n    axisFormat: '%d'\n    tickInterval: 1week\n    topAxis: true\n    useWidth: 900\n---\ngantt\nA :1d\n";
+        const string Wrong = "%%{init: {\"gantt\": {\"barHeight\": \"tall\", \"topAxis\": 1}}}%%\ngantt\nA :1d\n";
+
+        // Act
+        var (defaults, defaultWarnings) = Resolve("gantt\nA :1d\n", diagramId: "gantt");
+        var (set, setWarnings) = Resolve(Set, diagramId: "gantt");
+        var (wrong, wrongWarnings) = Resolve(Wrong, diagramId: "gantt");
+
+        // Assert
+        Assert.Empty(defaultWarnings);
+        Assert.Empty(setWarnings);
+        Assert.Equal(15, defaults.Raw["gantt"]!.AsObject().Count);
+        Assert.Equal(new GanttConfig(), defaults.Gantt);
+        Assert.Equal((25.0, 20.0, 4.0, 50.0, 75.0, 75.0, 35.0), (defaults.Gantt.TitleTopMargin, defaults.Gantt.BarHeight, defaults.Gantt.BarGap, defaults.Gantt.TopPadding, defaults.Gantt.RightPadding, defaults.Gantt.LeftPadding, defaults.Gantt.GridLineStartPadding));
+        Assert.Equal((11.0, 11.0, 4.0, "%Y-%m-%d", (string?)null, false, string.Empty, (double?)null), (defaults.Gantt.FontSize, defaults.Gantt.SectionFontSize, defaults.Gantt.NumberSectionStyles, defaults.Gantt.AxisFormat, defaults.Gantt.TickInterval, defaults.Gantt.TopAxis, defaults.Gantt.DisplayMode, defaults.Gantt.UseWidth));
+        Assert.Equal((30.0, "%d", "1week", true, "compact", (double?)900), (set.Gantt.BarHeight, set.Gantt.AxisFormat, set.Gantt.TickInterval, set.Gantt.TopAxis, set.Gantt.DisplayMode, set.Gantt.UseWidth));
+        Assert.Equal(2, wrongWarnings.Count);
+        Assert.All(wrongWarnings, warning => Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code));
+        Assert.Equal(new GanttConfig(), wrong.Gantt);
+    }
+
+    /// <summary>
     ///     Validates that state and entity relationship values of the wrong type are reported at the key and ignored.
     /// </summary>
     [Fact]

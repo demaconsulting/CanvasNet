@@ -203,6 +203,7 @@ internal static partial class MermaidConfigResolver
             ["state"] = CreateStateDefaults(),
             ["er"] = CreateErDefaults(),
             ["pie"] = CreatePieDefaults(),
+            ["gantt"] = CreateGanttDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -325,5 +326,29 @@ internal static partial class MermaidConfigResolver
         ["donutHole"] = 0.0,
         ["legendPosition"] = "right",
         ["highlightSlice"] = string.Empty,
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default gantt section (the defaults of <c>GanttDiagramConfig</c>; <c>tickInterval</c> and
+    ///     <c>useWidth</c> are undefined).
+    /// </summary>
+    /// <returns>The default gantt section.</returns>
+    private static JsonObject CreateGanttDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["titleTopMargin"] = 25.0,
+        ["barHeight"] = 20.0,
+        ["barGap"] = 4.0,
+        ["topPadding"] = 50.0,
+        ["rightPadding"] = 75.0,
+        ["leftPadding"] = 75.0,
+        ["gridLineStartPadding"] = 35.0,
+        ["fontSize"] = 11.0,
+        ["sectionFontSize"] = 11.0,
+        ["numberSectionStyles"] = 4.0,
+        ["axisFormat"] = "%Y-%m-%d",
+        ["topAxis"] = false,
+        ["displayMode"] = string.Empty,
+        ["weekday"] = "sunday",
     };
 }

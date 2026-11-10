@@ -1050,6 +1050,14 @@ words:
   - showdata
   - textposition
   - themevariables
+  # The gantt chart port (its jison token names, dayjs and the vector cases' texts)
+  - dayjs
+  - iamkun
+  - Mdhmswy
+  - Gantts
+  - ganttx
+  - axisformat
+  - mermaidjs
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

@@ -101,6 +101,21 @@ public sealed class MermaidRenderOptions
     public Rgba32? Background { get; init; }
 
     /// <summary>
+    ///     Gets the current time a gantt chart takes as now, or <see langword="null"/> (the default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Mermaid reads the clock of the viewer for a gantt chart's today marker, for an <c>after</c> or <c>until</c>
+    ///         id that no task has (today at midnight) and for a date format without a day (today's date). This is the only
+    ///         clock of the library, which never reads the system clock, so a render is the same every time: with a value,
+    ///         its UTC date and time are today (gantt dates are in UTC); without one, the today marker is not drawn and
+    ///         1970-01-01 is taken as today, reported as <see cref="MermaidDiagnosticCodes.GanttTodayUnavailable"/> where
+    ///         it matters.
+    ///     </para>
+    /// </remarks>
+    public DateTimeOffset? Now { get; init; }
+
+    /// <summary>
     ///     Gets a Mermaid site configuration (a JSON object, such as the argument of <c>mermaid.initialize</c> or the file
     ///     of <c>mmdc -c</c>), or <see langword="null"/> for none.
     /// </summary>

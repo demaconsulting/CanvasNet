@@ -30,6 +30,9 @@ internal static class UpstreamVectors
     /// <summary>The pie parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> PieVectors = new(() => Load("pie-parser.json"));
 
+    /// <summary>The gantt parser vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> GanttVectors = new(() => Load("gantt-parser.json"));
+
     /// <summary>The time axis vectors, read once.</summary>
     private static readonly Lazy<JsonObject> TimeVectors = new(() => Load("time-axis.json"));
 
@@ -62,6 +65,11 @@ internal static class UpstreamVectors
     ///     Gets the pie parser cases of <c>pie-parser.json</c>.
     /// </summary>
     public static JsonArray Pies => PieVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the gantt parser cases of <c>gantt-parser.json</c>.
+    /// </summary>
+    public static JsonArray Gantts => GanttVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the time axis cases of <c>time-axis.json</c>.

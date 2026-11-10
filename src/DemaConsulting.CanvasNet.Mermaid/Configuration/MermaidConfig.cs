@@ -163,6 +163,63 @@ internal sealed record PieConfig
 }
 
 /// <summary>
+///     The gantt section of the effective configuration, as Mermaid's gantt renderer reads it (<c>getConfig().gantt</c>).
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>GanttDiagramConfig</c>. The renderer takes <c>useWidth</c> as the
+///     chart's width when it is set, falls back from the chart's <c>axisFormat</c> to this one (and to <c>%Y-%m-%d</c>
+///     when this one is missing), and from the chart's <c>tickInterval</c> to this one; <c>weekday</c> is never read,
+///     because the chart's own weekday (<c>sunday</c> by default) is always set.
+/// </remarks>
+internal sealed record GanttConfig
+{
+    /// <summary>Gets the y of the title (<c>gantt.titleTopMargin</c>).</summary>
+    public double TitleTopMargin { get; init; } = 25;
+
+    /// <summary>Gets the height of a bar (<c>gantt.barHeight</c>).</summary>
+    public double BarHeight { get; init; } = 20;
+
+    /// <summary>Gets the gap between bars (<c>gantt.barGap</c>).</summary>
+    public double BarGap { get; init; } = 4;
+
+    /// <summary>Gets the space above the first row and below the last (<c>gantt.topPadding</c>).</summary>
+    public double TopPadding { get; init; } = 50;
+
+    /// <summary>Gets the space right of the time axis (<c>gantt.rightPadding</c>).</summary>
+    public double RightPadding { get; init; } = 75;
+
+    /// <summary>Gets the space left of the time axis, where the section titles are (<c>gantt.leftPadding</c>).</summary>
+    public double LeftPadding { get; init; } = 75;
+
+    /// <summary>Gets the y where the grid lines start (<c>gantt.gridLineStartPadding</c>).</summary>
+    public double GridLineStartPadding { get; init; } = 35;
+
+    /// <summary>Gets the font size of the task texts (<c>gantt.fontSize</c>).</summary>
+    public double FontSize { get; init; } = 11;
+
+    /// <summary>Gets the font size of the section titles (<c>gantt.sectionFontSize</c>).</summary>
+    public double SectionFontSize { get; init; } = 11;
+
+    /// <summary>Gets the number of section styles that repeat (<c>gantt.numberSectionStyles</c>).</summary>
+    public double NumberSectionStyles { get; init; } = 4;
+
+    /// <summary>Gets the d3 format of the axis labels, or null when it is not set (<c>gantt.axisFormat</c>).</summary>
+    public string? AxisFormat { get; init; } = "%Y-%m-%d";
+
+    /// <summary>Gets the interval of the axis ticks, or null (<c>gantt.tickInterval</c>).</summary>
+    public string? TickInterval { get; init; }
+
+    /// <summary>Gets a value indicating whether a second axis is drawn at the top (<c>gantt.topAxis</c>).</summary>
+    public bool TopAxis { get; init; }
+
+    /// <summary>Gets the display mode, <c>compact</c> or empty (<c>gantt.displayMode</c>).</summary>
+    public string DisplayMode { get; init; } = string.Empty;
+
+    /// <summary>Gets the width of the chart, or null to take the width of the page (<c>gantt.useWidth</c>).</summary>
+    public double? UseWidth { get; init; }
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -390,6 +447,7 @@ internal sealed class MermaidConfig
         State = ReadState(raw);
         Er = ReadEr(raw);
         Pie = ReadPie(raw);
+        Gantt = ReadGantt(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -457,6 +515,9 @@ internal sealed class MermaidConfig
 
     /// <summary>Gets the pie section, as the pie renderer reads it.</summary>
     public PieConfig Pie { get; }
+
+    /// <summary>Gets the gantt section, as the gantt renderer reads it.</summary>
+    public GanttConfig Gantt { get; }
 
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
@@ -631,6 +692,35 @@ internal sealed class MermaidConfig
             DonutHole = Number(section, "donutHole", defaults.DonutHole),
             LegendPosition = Text(section, "legendPosition") ?? defaults.LegendPosition,
             HighlightSlice = Text(section, "highlightSlice") ?? defaults.HighlightSlice,
+        };
+    }
+
+    /// <summary>
+    ///     Reads the gantt section as the gantt renderer sees it: the section's values over the schema's defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The gantt section.</returns>
+    private static GanttConfig ReadGantt(JsonObject raw)
+    {
+        var section = raw["gantt"] as JsonObject ?? [];
+        var defaults = new GanttConfig();
+        return new GanttConfig
+        {
+            TitleTopMargin = Number(section, "titleTopMargin", defaults.TitleTopMargin),
+            BarHeight = Number(section, "barHeight", defaults.BarHeight),
+            BarGap = Number(section, "barGap", defaults.BarGap),
+            TopPadding = Number(section, "topPadding", defaults.TopPadding),
+            RightPadding = Number(section, "rightPadding", defaults.RightPadding),
+            LeftPadding = Number(section, "leftPadding", defaults.LeftPadding),
+            GridLineStartPadding = Number(section, "gridLineStartPadding", defaults.GridLineStartPadding),
+            FontSize = Number(section, "fontSize", defaults.FontSize),
+            SectionFontSize = Number(section, "sectionFontSize", defaults.SectionFontSize),
+            NumberSectionStyles = Number(section, "numberSectionStyles", defaults.NumberSectionStyles),
+            AxisFormat = Text(section, "axisFormat"),
+            TickInterval = Text(section, "tickInterval"),
+            TopAxis = Boolean(section, "topAxis", defaults.TopAxis),
+            DisplayMode = Text(section, "displayMode") ?? defaults.DisplayMode,
+            UseWidth = section["useWidth"] is JsonValue width && width.TryGetValue<double>(out var value) && double.IsFinite(value) ? value : null,
         };
     }
 
