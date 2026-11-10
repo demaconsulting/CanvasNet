@@ -180,7 +180,9 @@ fit, is refused at the class name (line 2, column 7) with the message `a label i
 (a class listed again gets the class again, as in Mermaid); that `classDef c,c,c a:b,c:d` is refused at the statement
 (line 2, column 1) with the message `a label is 23 characters long`, and three `classDef c` statements of two styles
 each on a class that carries `c` are refused at the third (line 5, column 1), while `classDef c,c a:b,c:d` is
-accepted with the style class styles `a:b,c:d` twice and the class styles `a:b`, `c:d`, `a:b`, `c:d`; and that three
+accepted with the style class styles `a:b,c:d` twice and the class styles `a:b`, `c:d`, `a:b`, `c:d`, and
+`classDef c color:red,x:yy` with the text style `color:red,x:yy` (the styles and the text styles are checked apart, 14
+characters each); and that three
 `style A a:b,c:d` statements are refused at the third (line 5, column 1), while two are accepted with the styles
 `a:b`, `c:d`, `a:b`, `c:d`. Asserts that with `MaxNestingDepth` of 3 four namespaces chained by class names (namespace
 `Ni` holds a class named `N(i+1)`, the last the class `X`) make `GetData` fail with a `MermaidRenderException` of

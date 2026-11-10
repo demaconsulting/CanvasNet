@@ -514,12 +514,12 @@ internal sealed partial class ClassModel : IMermaidDiagram
                 if (style.Contains("color", StringComparison.Ordinal))
                 {
                     var textStyle = ReplaceFirst(style, "fill", "bgFill");
-                    styleClass.StylesLength += JoinedLength(styleClass.Styles.Count + styleClass.TextStyles.Count, textStyle);
-                    CheckLabelLength(styleClass.StylesLength, location);
+                    styleClass.TextStylesLength += JoinedLength(styleClass.TextStyles.Count, textStyle);
+                    CheckLabelLength(styleClass.TextStylesLength, location);
                     styleClass.TextStyles.Add(textStyle);
                 }
 
-                styleClass.StylesLength += JoinedLength(styleClass.Styles.Count + styleClass.TextStyles.Count, style);
+                styleClass.StylesLength += JoinedLength(styleClass.Styles.Count, style);
                 CheckLabelLength(styleClass.StylesLength, location);
                 styleClass.Styles.Add(style);
             }
@@ -1794,6 +1794,9 @@ internal sealed class ClassStyleClass
     /// <summary>Gets the styles that set a color, with <c>fill</c> written <c>bgFill</c>.</summary>
     public List<string> TextStyles { get; } = [];
 
-    /// <summary>Gets or sets the length of the styles and text styles joined with semicolons.</summary>
+    /// <summary>Gets or sets the length of <see cref="Styles"/> joined with semicolons.</summary>
     public long StylesLength { get; set; }
+
+    /// <summary>Gets or sets the length of <see cref="TextStyles"/> joined with semicolons.</summary>
+    public long TextStylesLength { get; set; }
 }
