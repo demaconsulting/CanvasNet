@@ -10,7 +10,10 @@ The `Rendering` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Rendering
 class diagram's `ClassModel`, the state diagram's `StateModel`, or the entity relationship diagram's `ErModel`) hands
 it the layout data of one render - the nodes (subgraphs included), the edges, and the effective configuration - and
 gets back the drawn diagram as scene items with the box of everything drawn, or the whole framed scene with the
-diagram title and the padded view box. The subsystem is **internal**: its types are
+diagram title and the padded view box. A mindmap, which Mermaid lays out with cose-bilkent rather than dagre, uses the
+shapes, the labels, and the edges of the subsystem directly: its `MindmapRenderer` draws each node with `ShapeLibrary`
+and each edge with `EdgeBuilder` through the points of the `Cose` layout, without `ClusterLayout`; the `Rendering`
+subsystem does not call the `Cose` subsystem. The subsystem is **internal**: its types are
 visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It contains
 five units:
 
@@ -24,11 +27,14 @@ five units:
   _ClusterLayout Unit Design_ (`rendering/cluster-layout.md`)
 - **ShapeLibrary** - the internal static `ShapeLibrary` (a partial class in `ShapeLibrary.cs`, `ShapeLibrary.Basic.cs`,
   `ShapeLibrary.Extended.cs`, `ShapeLibrary.Images.cs`, `ShapeLibrary.Intersect.cs`, `ShapeLibrary.Parts.cs`,
-  `ShapeLibrary.Clusters.cs`, `ShapeLibrary.ClassBox.cs`, `ShapeLibrary.States.cs`, and `ShapeLibrary.ErBox.cs`) with
+  `ShapeLibrary.Clusters.cs`, `ShapeLibrary.ClassBox.cs`, `ShapeLibrary.States.cs`, `ShapeLibrary.ErBox.cs`, and
+  `ShapeLibrary.Mindmap.cs`) with
   its value types (`ShapePoint`, `NodeBox`, `ShapeIntersect`, `NodePaint`, `ShapeTheme`, `ShapeContext`,
   `ShapeResult`, `ClusterShape`) and the shape registry `ShapeNames` (`ShapeNames.cs`): every node shape a flowchart
-  can name, the class box of a class diagram, the state shapes of a state diagram, and the entity box of an entity
-  relationship diagram, sized from its label, drawn in the classic look, with its intersect function, and the subgraph
+  can name, the class box of a class diagram, the state shapes of a state diagram, the entity box of an entity
+  relationship diagram, and the two shapes of a mindmap (`defaultMindmapNode` and `mindmapCircle`), sized from its
+  label, drawn in the classic look, with its intersect function, painted by the node's classes when the style sheet
+  says so, and the subgraph
   rectangle and the clusters of a state diagram; see _ShapeLibrary Unit Design_ (`rendering/shape-library.md`)
 - **EdgeBuilder** - the internal static `EdgeBuilder` (a partial class in `EdgeBuilder.cs`, `EdgeBuilder.Curves.cs`,
   `EdgeBuilder.Markers.cs`, and `EdgeBuilder.Terminals.cs`) with `EdgeEnd`, `EdgeRoute`, `EdgeDrawing`,
@@ -41,8 +47,10 @@ five units:
   `LabelBuilder.Markdown.cs`, `LabelBuilder.MarkdownLexer.cs`, `LabelBuilder.Svg.cs`, and
   `LabelBuilder.TextDimensions.cs`) with `LabelFont`, `LabelRequest`, `LabelRun`, `LabelLine`, `LabelImage`,
   `LabelLayout`, and `TextDimensions`: the label text of Mermaid's `createText` (plain and markdown strings, HTML
-  labels, and SVG labels) laid out and measured with the bundled fonts, and Mermaid's text utilities, which measure and
-  wrap the texts of sequence diagrams; see _LabelBuilder Unit Design_ (`rendering/label-builder.md`)
+  labels, and SVG labels) laid out and measured with the bundled fonts, Mermaid's text utilities, which measure and
+  wrap the texts of sequence diagrams, and the test that finds a Font Awesome icon in a label
+  (`ContainsFontAwesome`), which the flowchart and the mindmap share; see _LabelBuilder Unit Design_
+  (`rendering/label-builder.md`)
 - **NodeImages** - the internal sealed `NodeImages` (`NodeImages.cs`): the pictures of one rendering, loaded only
   through the caller's image resolver, with their natural sizes for the layout and their pixels for the painter; see
   _NodeImages Unit Design_ (`rendering/node-images.md`)
@@ -71,7 +79,7 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 - `LabelBuilder(FontResolver, MermaidReportSink?, NodeImages?)`, `LabelBuilder.Build(LabelRequest)`, which returns a
   `LabelLayout`, and `LabelLayout.ToScene`; and the text utilities `LabelBuilder.Meter`, `CalculateTextDimensions`,
   `CalculateTextWidth`, `WrapLabel`, `BreakString`, `ParseFontSize`, `FontPixels`, `SplitBreaks`, `SvgLineExtent`,
-  `SvgRunAdvance`, `XHeight`, and `VerticalMetrics`
+  `SvgRunAdvance`, `XHeight`, `VerticalMetrics`, `DecodeEntities`, and `ContainsFontAwesome`
 - `NodeImages(IImageResolver?, int, MermaidReportSink)`, `NodeImages.NaturalSize`, and `NodeImages.Load` (the
   `ISceneImageLoader` of the painter)
 
@@ -82,8 +90,9 @@ names the subsystem `MermaidRendering` (the core library already has a `Renderin
 - the `Graphlib` subsystem: the compound multigraph `Graph`
 - the `Configuration` subsystem: `MermaidConfig` (with its `class` and `er` sections and the theme variables),
   `UnifiedStyles` (the style sheet of the theme as the shared units read it, which is the diagram's `FlowchartStyles`,
-  `ClassStyles`, `StateStyles`, or `ErStyles`, with the sheet facts `CentersNodeSvgText`, `ClusterTitle`, and
-  `RootText`), `StyleDeclarations` (the CSS subset of the node and edge styles), and `MermaidFontConfig` and
+  `ClassStyles`, `StateStyles`, `ErStyles`, or `MindmapStyles`, with the sheet facts `CentersNodeSvgText`,
+  `ClusterTitle`, and `RootText`, and the paints of a node by its classes, `NodePaintFor` and `NodeLabelFor`),
+  `StyleDeclarations` (the CSS subset of the node and edge styles), and `MermaidFontConfig` and
   `ConfigScalar` (the fonts of the text utilities)
 - the `Class` subsystem: `ClassModel.ParseGenericTypes`, which writes the generic type of an entity attribute
   (`~T~` as `<T>`) as the class diagram writes it
@@ -111,7 +120,12 @@ the layout data of an entity relationship diagram (`ErModel.GetData`: the entiti
 same objects with the entity relationship diagram's style sheet and a `ShapeContext.TextWidth` of
 `LabelBuilder.CalculateTextWidth`, and calls `ClusterLayout.RenderDiagram`; the `Scenegraph` painter loads the pictures
 through the same `NodeImages`, so that the image limit is shared by the layout and the painting; the `Sequence`
-subsystem creates a `LabelBuilder` for each render and measures, wraps, and boxes its texts with the text utilities.
+subsystem creates a `LabelBuilder` for each render and measures, wraps, and boxes its texts with the text utilities;
+and the `Mindmap` subsystem (`MindmapRenderer`) creates a `LabelBuilder` and a `ShapeContext` with the mindmap's style
+sheet for each render, draws every node with `ShapeLibrary.Draw` from a `LayoutNode` whose `Width` is the width its
+label wraps at, draws every edge with `EdgeBuilder.Draw` through the three points of the layout with ends that have no
+intersect function (so the route is not cut), and reports Font Awesome labels with `LabelBuilder.ContainsFontAwesome`,
+as the `Flowchart` subsystem does.
 
 ### Design
 
@@ -141,7 +155,13 @@ paints through selectors of its own (`.node circle.state-start`, `.statediagram-
 `[id$="-barbEnd"]`, and so on) are looked up in the sheet by those selectors, so a sheet without them (a flowchart's)
 keeps the paint it had; the parts that Mermaid draws through rough.js take their paint attributes unless the sheet
 has a `.node path` rule. The styles a diagram writes for its own nodes (a class diagram's note colors and its hidden
-lollipop interfaces) are marked `LayoutNode.TrustedStyles` and applied without reports.
+lollipop interfaces) are marked `LayoutNode.TrustedStyles` and applied without reports. A mindmap's sheet paints each
+node by its classes and by the SVG element its shape draws (`.section-2 rect`, `.section-2 line`), so the shapes ask
+the sheet for the paint of their element (`NodePaintFor`) and their label (`NodeLabelFor`); every other sheet gives
+its one node rule for every element, so the flowchart, class, state, and entity relationship drawings do not change.
+The width a label wraps at is the node's `Width` when it is set and not zero (Mermaid's `node.width ||
+flowchart.wrappingWidth`), and a node with an icon or a picture gives its SVG label the background, as `labelHelper`
+does.
 
 **The scene is the result.** Nothing is painted here: every unit returns scene items with Mermaid's roles and DOM ids
 (`node-group` with the id `flowchart-A-0`, `cluster`, `edge` with the id `L_A_B_0`, `edge-label`, `edge-terminal`,
@@ -163,7 +183,8 @@ emulated with the bundled fonts. The ported files are (see `third-party/README.m
   `stateRenderer-v3-unified.ts`, and `erRenderer-unified.ts` (`insertTitle` and `setupViewPortForSVG`); `LayoutData`
   follows `rendering-util/types.ts`
 - `ShapeLibrary`: `rendering-elements/shapes/*.ts` (including `classBox.ts`, `rectWithTitle.ts`, the state shapes
-  `stateStart.ts`, `stateEnd.ts`, `forkJoin.ts`, `choice.ts`, and `note.ts`, and `erBox.ts`), `shapes/util.ts`,
+  `stateStart.ts`, `stateEnd.ts`, `forkJoin.ts`, `choice.ts`, and `note.ts`, `erBox.ts`, and the mindmap shapes
+  `defaultMindmapNode.ts` and `mindmapCircle.ts`), `shapes/util.ts`,
   `shapes/handDrawnShapeStyles.ts`, the text placement of the class diagram's `shapeUtil.ts` (`textHelper`),
   `rendering-elements/nodes.ts` (`insertNode`), `rendering-util/createGraph.ts`, `rendering-elements/clusters.js`
   (`rect`, `roundedWithTitle`, `divider`, and `noteGroup`), the ellipse of rough.js without roughness (the end state's
@@ -202,7 +223,8 @@ the last bit of the trigonometric functions (_EdgeBuilder Unit Design_); and the
 state inside itself or an entity relationship subgraph that is its own parent), for a link to a subgraph without an
 anchor, and for an edge end that is not drawn (_ClusterLayout Unit Design_). The position of the underline of a static
 class member is a difference of the painter (_ScenePainter Unit Design_). Only what a flowchart, a class diagram, a
-state diagram, and an entity relationship diagram reach is ported: subgraphs, namespaces, and entity relationship
+state diagram, an entity relationship diagram, and a mindmap reach is ported: subgraphs, namespaces, and entity
+relationship
 subgraphs are drawn as `clusters.js`'s `rect`, and the clusters of a state diagram as its `roundedWithTitle`,
 `divider`, and `noteGroup`; the markers are the flowchart's `point`, `circle`, and `cross`, the class diagram's
 `aggregation`, `extension`, `composition`, `dependency`, and `lollipop`, the state diagram's `barb`, and the entity

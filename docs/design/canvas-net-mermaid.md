@@ -19,27 +19,29 @@ library and the public API of the core `CanvasNet` package.
 The goal is **fidelity to Mermaid**: a diagram must look like the picture the pinned Mermaid release draws in a
 browser. The package is therefore a port, derived with attribution, of the parts of Mermaid that decide the picture:
 its preprocessing and diagram detection, the jison grammars and databases of the flowchart, the sequence diagram, the
-class diagram, the state diagram, the entity relationship diagram, and the gantt chart, and the Langium grammar and
-database of the pie chart (with the URL check of sanitize-url that Mermaid applies to the links a diagram keeps),
-its configuration defaults and precedence, its five themes and the khroma color functions they use, its unified
-renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and graphlib graph that Mermaid bundles,
-its sequence renderer with the drawing functions of the sequence diagram, and its pie and gantt renderers with the
-d3 time scale, intervals, format, and axis and the dayjs date functions they use. Every
+class diagram, the state diagram, the entity relationship diagram, the gantt chart, and the mindmap, and the Langium
+grammar and database of the pie chart (with the URL check of sanitize-url that Mermaid applies to the links a diagram
+keeps), its configuration defaults and precedence, its five themes and the khroma color functions they use, its
+unified renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and graphlib graph that Mermaid
+bundles, its sequence renderer with the drawing functions of the sequence diagram, its pie and gantt renderers with the
+d3 time scale, intervals, format, and axis and the dayjs date functions they use, and its mindmap renderer with the
+cose-bilkent force-directed layout (cytoscape-cose-bilkent over cose-base and layout-base) and the cytoscape edge
+points it reads back. Every
 construct that is recognized but not drawn is **reported with a stable `mermaid-*` code and the exact location,
 never skipped silently** (see _Fidelity and Known Differences_).
 
-This version (Phases 1a, 1b, 2a, 2b, and 3a, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph`
+This version (Phases 1a, 1b, 2a, 2b, 3a, and 3b, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph`
 keywords), **sequence diagrams** (the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram` and
 `classDiagram-v2` keywords, and the legacy `class` id of `class.defaultRenderer: dagre-d3`), **state diagrams** (the
 `stateDiagram` and `stateDiagram-v2` keywords, and the legacy `state` id that a `state.defaultRenderer` other than
 `dagre-wrapper` selects for a `stateDiagram` text), **entity relationship diagrams** (the `erDiagram` keyword),
-**pie charts** (the `pie` keyword), and **gantt charts** (the `gantt` keyword).
+**pie charts** (the `pie` keyword), **gantt charts** (the `gantt` keyword), and **mindmaps** (the `mindmap` keyword).
 Every other
 Mermaid diagram type is detected (the 40 detectors of Mermaid, in Mermaid's order) and handled the same way: opening
 succeeds, `IsSupported` is false, and measuring or rendering reports `mermaid-diagram-unsupported` once and gives an
 empty, transparent 16 by 16 pixel picture (an exception in strict mode).
 
-The system consists of one direct unit and thirteen internal subsystems:
+The system consists of one direct unit and fifteen internal subsystems:
 
 - **MermaidDocument** (unit, root namespace; see _MermaidDocument Unit Design_) - the public API: `MermaidDocument`
   with `Parse`, `Open(path)`, `Open(stream)`, the metadata properties, `Measure`, `Render`, and
@@ -56,8 +58,9 @@ The system consists of one direct unit and thirteen internal subsystems:
   DOMPurify behavior that Mermaid applies to labels, with the `HtmlEntities` table).
 - **Configuration** (subsystem; see _Configuration Design_) - the effective configuration and paint:
   `MermaidConfigResolver` (defaults, precedence, secure keys, directive parsing, typed `MermaidConfig` view),
-  `ThemeResolver` (the five themes and the flowchart, sequence, class, state, entity relationship, pie, and gantt
-  style sheets, the gantt one with a class-set cascade), `ColorMath` (the khroma subset), and
+  `ThemeResolver` (the five themes and the flowchart, sequence, class, state, entity relationship, pie, gantt, and
+  mindmap style sheets, the gantt one with a class-set cascade and the mindmap one painting each node by its classes),
+  `ColorMath` (the khroma subset), and
   `StyleDeclarations` (the CSS declaration subset of `style`, `classDef`, `linkStyle`, and `themeCSS`).
 - **Graphlib** (subsystem; see _Graphlib Design_) - `Graph` (graphlib's directed, multi, and compound graph with
   JavaScript key order) and `GraphAlgorithms` (the traversals dagre uses).
@@ -67,8 +70,9 @@ The system consists of one direct unit and thirteen internal subsystems:
 - **Rendering** (subsystem; see _Rendering Design_) - Mermaid's unified renderer for any layout data:
   `ClusterLayout` (subgraph extraction, recursive layout, placement, the check of the edge ends, and the frame of a
   class, state, or entity relationship diagram), `ShapeLibrary` (the 53 documented shapes, their aliases, the bracket
-  shapes, the class box, the state shapes and the clusters of composite states, concurrent regions, and notes, the
-  entity box, subgraph rectangles, and their intersections), `EdgeBuilder` (edge routes, curves, strokes, markers
+  shapes, the two mindmap shapes, the class box, the state shapes and the clusters of composite states, concurrent
+  regions, and notes, the entity box, subgraph rectangles, and their intersections), `EdgeBuilder` (edge routes,
+  curves, strokes, markers
   including the class markers, the `barb` of a state transition, and the four cardinality markers, edge labels, and
   the terminal labels of class relations), `LabelBuilder` (HTML, markdown, and SVG labels measured with the
   bundled fonts, and the text utilities that measure and wrap the texts of sequence diagrams), and `NodeImages`
@@ -100,6 +104,14 @@ The system consists of one direct unit and thirteen internal subsystems:
   the clock of the render options), `GanttRenderer` (Mermaid's gantt renderer with d3-axis: rows, bars, milestones,
   vertical markers, texts, section titles, excluded days, axes, today line, and title), and `TimeAxis` (JavaScript
   dates in UTC and the d3 time intervals, ticks, time scale, and time format).
+- **Mindmap** (subsystem; see _Mindmap Design_) - `MindmapParser` (the `mindmap.jison` lexer and grammar and the
+  `mindmapDb` semantics, with the `MindmapDiagram` that gives the metadata and the sections, classes, and edges of
+  `getData`) and `MindmapRenderer` (Mermaid's mindmap renderer: the node data and the changes per shape, the nodes drawn
+  by the shared shapes, their sizes in single precision, the edges through the layout's points, the reports, and the
+  view box).
+- **Cose** (subsystem; see _Cose Design_) - `CoseLayout` (the cose-bilkent layout of layout-base, cose-base, and
+  cytoscape-cose-bilkent as Mermaid runs it for one tree, cytoscape's straight-edge points, and the correctly rounded
+  sine, cosine, logarithm, and power that make it equal to the browser's layout).
 
 The dependency direction is one way:
 
@@ -118,6 +130,10 @@ MermaidDocument -> Syntax -> Configuration -> Flowchart -> Rendering -> Dagre ->
                                                         -> Scenegraph
                                            -> Gantt     -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
                                                         -> Graphlib (ObjectKeyMap)
+                                                        -> Scenegraph
+                                           -> Mindmap   -> Rendering (ShapeLibrary, EdgeBuilder, LabelBuilder)
+                                                        -> Cose -> Dagre (LayoutWorkMeter)
+                                                        -> Dagre (LayoutWorkMeter)
                                                         -> Scenegraph
 ```
 
@@ -148,7 +164,8 @@ test assembly through `InternalsVisibleTo` and to nothing else.
   relationships, and its subgraphs, and `Direction` is the last top-level `direction` statement. For a pie chart they
   are its sections (each label once; the legend entries) with no edges or subgraphs, and `Direction` is null. For a
   gantt chart they are its tasks (vertical markers included) and the sections whose titles are drawn (those of the
-  tasks that are not vertical markers), with no edges, and `Direction` is null.
+  tasks that are not vertical markers), with no edges, and `Direction` is null. For a mindmap they are its nodes, one
+  edge for each node but the root, and no subgraphs; `Direction` is null and the title is only the frontmatter title.
 - **Picture output** (`Measure`, `Render`, `Render(width, height)` with `MermaidRenderOptions`): a `MermaidSize` or a
   `Surface` (RGBA, straight alpha) whose sides lie within 1 and `Surface.MaxDimension`; a `CancellationToken` is
   observed.
@@ -172,6 +189,7 @@ test assembly through `InternalsVisibleTo` and to nothing else.
   contract for the extensions `.mmd` and `.mermaid` with the fragment parameter `theme` and a transparent background.
 - **Third-party notices** (output, the `licenses/` folder of the package): `LICENSE-mermaid.txt`,
   `LICENSE-mermaid-parser.txt`, `LICENSE-langium.txt`, `LICENSE-dagre.txt`, `LICENSE-d3.txt`, `LICENSE-dayjs.txt`,
+  `LICENSE-cose-base.txt` (layout-base and cose-base), `LICENSE-cytoscape.txt` (cytoscape and cytoscape-cose-bilkent),
   `LICENSE-js-yaml.txt`, `LICENSE-khroma.txt`, `LICENSE-lodash.txt`, `LICENSE-marked.txt`,
   `LICENSE-sanitize-url.txt`, and the provenance README.
 The report and error codes are the `MermaidDiagnosticCodes` constants: `mermaid-syntax-error`,
@@ -193,10 +211,12 @@ records the name and the class simply adds no style.
   and drawing text, `WordWrap` for HTML label wrapping), and `ImageSources` (`IImageSource`, `IFragmentImageSource`,
   `IImageResolver`, `ImageFragment`). Only the public API is used.
 - **.NET base class library** - `System.Text.Json` (validation of the site configuration and the JSON of init
-  directives), `System.Text` (strict UTF-8), collections, and `System.Math`.
+  directives), `System.Text` (strict UTF-8), collections, `System.Math`, and `System.Numerics.BigInteger` (the
+  correctly rounded math of the cose layout).
 - **No OTS runtime dependency.** Mermaid, the Mermaid parser package (`@mermaid-js/parser`) and Langium, dagre-d3-es,
-  graphlib, the d3 modules (shape, path, scale, time, time format, array, axis, and interpolate), dayjs, khroma,
-  js-yaml, lodash, marked, and sanitize-url are **not** dependencies: their behavior is ported into local source (see
+  graphlib, the d3 modules (shape, path, scale, time, time format, array, axis, and interpolate), dayjs, cytoscape,
+  cytoscape-cose-bilkent, cose-base, layout-base, khroma, js-yaml, lodash, marked, and sanitize-url are **not**
+  dependencies: their behavior is ported into local source (see
   _Third-Party Provenance and Attribution_). The pinned `mermaid`, `@mermaid-js/mermaid-cli`, `dagre-d3-es`, and
   `puppeteer` npm packages of the repository are used only by the developer scripts in `tools/visual-diff/` that
   generate the test vectors and layout goldens; CI never runs them.
@@ -219,8 +239,9 @@ and services, so its risk controls are about availability, integrity of the pict
 - **No secure-key escalation.** Text cannot change a key the site marks as secure (`mermaid-config-secure-key`);
   `securityLevel` values have no effect because nothing is executed.
 - **Determinism.** Only bundled fonts are used, the layout reproduces JavaScript iteration order, dates are computed
-  in UTC, and nothing reads the system clock, a random source, or the culture (a gantt chart takes today only from
-  `MermaidRenderOptions.Now`), so the output can be cached and reviewed.
+  in UTC, the cose layout of a mindmap computes its sines, cosines, logarithms, and powers correctly rounded rather than
+  with the host's math library, and nothing reads the system clock, a random source, or the culture (a gantt chart takes
+  today only from `MermaidRenderOptions.Now`), so the output can be cached and reviewed.
 
 ## Data Flow
 
@@ -251,6 +272,11 @@ flowchart LR
     C --> GP[GanttParser and GanttModel]
     GP --> GR[GanttRenderer with TimeAxis]
     GR --> S
+    C --> MP[MindmapParser]
+    MP --> MR[MindmapRenderer with ShapeLibrary, LabelBuilder, EdgeBuilder]
+    MR --> CL[CoseLayout]
+    CL --> MR
+    MR --> S
     S --> X[ScenePainter]
     X --> O[Surface]
 ```
@@ -272,7 +298,9 @@ flowchart LR
    grammar reduces; for a pie chart, `PieParser` lexes and parses the body with the Langium grammar and fills the
    `PieDiagram` with the `pieDb` rules; for a gantt chart, `GanttParser` lexes and parses the body and runs each
    `ganttDb` action of `GanttModel` where Mermaid's grammar reduces (the task dates are not compiled yet, because they
-   depend on the clock of a render). Syntax errors,
+   depend on the clock of a render); for a mindmap, `MindmapParser` lexes and parses the body, makes each `mindmapDb`
+   call where Mermaid's grammar reduces, and its `MindmapDiagram` derives the sections, classes, and edges of `getData`.
+   Syntax errors,
    database errors, and the
    open-time limits (edges, nodes, label length, nesting, YAML depth) fail here. Other known types are kept as
    unsupported diagrams.
@@ -303,7 +331,11 @@ flowchart LR
    `GanttRenderer` has `GanttModel` compile the task dates with the clock of the render (`MermaidRenderOptions.Now`,
    in UTC) and the dayjs subset, reporting what needs an unknown today, then lays out the rows, the time scale, and
    the axes with `TimeAxis` and draws the bars, texts, section titles, excluded days, today line, and title, with
-   the view box of the page width and the rows. `Measure` stops here and returns the view box
+   the view box of the page width and the rows. For a mindmap, `MindmapRenderer` reports the unsupported constructs
+   (look, layout, icons), draws every node with `ShapeLibrary` and `LabelBuilder` in the paint of the mindmap style
+   sheet, gives `CoseLayout` the node sizes in single precision and the edges of the tree, places the nodes at the
+   centers it returns, draws the edges with `EdgeBuilder` through the points it returns, and grows the box of the
+   drawing by `mindmap.padding` for the view box. `Measure` stops here and returns the view box
    rounded up and multiplied by the scale. `Render` paints the scene with `ScenePainter` (uniformly scaled, or fitted
    and centered for an exact size) over the background, loading pictures through the same `NodeImages`.
 3. **Reports** recorded by any stage go to the call's `MermaidReportSink` and are delivered to the handlers after the
@@ -334,7 +366,9 @@ instead use `MermaidDocument` directly with `MermaidRenderOptions`.
   steps are reproduced, so ties are broken as in Mermaid and never by hash order.
 - **Arithmetic**: layout uses `double` arithmetic in Mermaid's order of operations; nothing depends on the culture,
   the system clock, or a random source. lodash's `uniqueId` counter lives in the per-render `LayoutWorkMeter`, so names
-  never depend on earlier renders.
+  never depend on earlier renders. The cose layout of a mindmap draws no random number (a tree never reaches the random
+  code of cose-base) and computes its sines, cosines, logarithms, and powers correctly rounded, without the host's math
+  library, so its chaotic layout is the same on every platform and equal to the browser's.
 - **Clock and time zone**: the library never reads the system clock. A gantt chart takes today only from
   `MermaidRenderOptions.Now` (else 1970-01-01, reported), and every date is computed as JavaScript computes it in a
   browser whose time zone is UTC, so a chart is the same on every machine; the reference harness renders the goldens
@@ -358,6 +392,8 @@ Portions derived from <project> (<license>); see third-party/README.md`:
 | d3-shape and d3-path | ISC | `EdgeBuilder` curves and path numbers, the `pie` and `arc` of `PieRenderer` |
 | d3-scale, d3-time, d3-time-format, d3-array, d3-axis, d3-interpolate | ISC | `TimeAxis`, the axes of `GanttRenderer` |
 | dayjs (with the plugins Mermaid loads) | MIT | `Dayjs` of `GanttModel` |
+| layout-base and cose-base | MIT | the graph model, radial placement, and spring embedder of `CoseLayout` |
+| cytoscape-cose-bilkent and cytoscape | MIT | the layout glue and the straight-edge points of `CoseLayout` |
 | khroma | MIT | `ColorMath` |
 | js-yaml | MIT | `YamlSubsetParser` |
 | lodash | MIT | `Lodash` helpers of `DagreLayout` (sorting, extremes, unique ids) |
@@ -367,9 +403,11 @@ Portions derived from <project> (<license>); see third-party/README.md`:
 The license texts ship in the package's `licenses/` folder (and in the tool package, where the d3 notice is renamed
 `Mermaid-LICENSE-d3.txt` because the Vega-Lite package ships a different `LICENSE-d3.txt`). The public API, the scene
 model and painter, `NodeImages`, `HtmlEntities`, `HtmlSanitizer` (which reproduces DOMPurify's results for label HTML
-without porting its code), `StyleDeclarations`, `ObjectKeyMap`, `LayoutWorkMeter`, the limits other than
+without porting its code), `StyleDeclarations`, `ObjectKeyMap`, `LayoutWorkMeter`, the correctly rounded math of
+`CoseLayout`, the limits other than
 `maxTextSize` and `maxEdges`, the diagnostics, and all tests and fixtures are original work. The package is not
-affiliated with, and not endorsed by, the Mermaid project or the authors of the other projects. The upstream test
+affiliated with, and not endorsed by, the Mermaid project, the Cytoscape Consortium, iVis@Bilkent, or the authors of
+the other projects. The upstream test
 vectors are generated from the pinned packages from original inputs by the developer scripts in
 `tools/visual-diff/mermaid/`.
 
@@ -386,7 +424,8 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   `style` statement names included, and, counted apart, its laid-out nodes with every kind of cluster: states, composite
   states, concurrent regions with the generated last region, notes, and note groups; the entities of an entity
   relationship diagram, those named only after a subgraph included, and its subgraphs together; the section statements
-  of a pie chart; the task and section statements of a gantt chart); `MaxLabelLength`, 4,096 (also the accessible title
+  of a pie chart; the task and section statements of a gantt chart; the nodes of a mindmap); `MaxLabelLength`, 4,096
+  (also the accessible title
   and description, the type and alias of sequence participant metadata, and the texts a diagram joins or derives from
   texts checked apart: the label of a generic class with its type, the qualified id of a nested namespace, and the CSS
   classes and styles of a class or style class as they grow; the descriptions of a state joined with line breaks as its
@@ -394,10 +433,12 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   is renamed, and the CSS classes, style class styles, and compiled styles of a state as they grow; the styles, the
   bracketed subgraph titles, the attribute types with `?`, the CSS classes, the inline and style class styles as they
   grow, and the compiled styles of an entity relationship diagram; the legend text `label [value]` of a pie chart with
-  `showData`; the class list a gantt task gathers from `click` statements and its checked link); `MaxNestingDepth`, 32
+  `showData`; the class list a gantt task gathers from `click` statements and its checked link; every id, text, icon,
+  and class of a mindmap, sanitized, and the class list of each node); `MaxNestingDepth`, 32
   (subgraphs, namespaces, the dotted parts of a namespace name counted as levels, composite states with each concurrent
-  region counted as a level, the subgraphs of an entity relationship diagram, and the blocks and boxes of a sequence
-  diagram; at most 256; namespaces nested through class names, composite states nested through their names, and entity
+  region counted as a level, the subgraphs of an entity relationship diagram, the blocks and boxes of a sequence
+  diagram, and the depth of a node in a mindmap's tree; at most 256; namespaces nested through class names, composite
+  states nested through their names, and entity
   relationship subgraphs nested through their names are checked when the diagram is laid out, as a
   `MermaidRenderException`); `MaxYamlDepth`, 32 (at most 256; YAML aliases, anchors, and tags are refused): checked at
   open. Failure: `MermaidSyntaxException` with `mermaid-limit-exceeded` (or `mermaid-yaml-unsupported` for a refused
@@ -405,10 +446,13 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
 - `MaxLayoutWork`, 50,000,000 metered layout steps (the dagre stages, the text measurement of a class box, the
   measuring, wrapping, and placing of a sequence diagram, the measured texts of a pie chart, and for a gantt chart
   every compile pass, reference, and day of the date loops, each tick and tick label, the compact rows, and the
-  sorts, with weights pinned by tests); `MaxImages`, 256 resolver calls; `MaxPaintedPixels`,
+  sorts, and for a mindmap the node data, every measured label, every drawn edge, and every step of the cose layout:
+  the tree and its placement, each iteration, each repulsion pair, the cells of each grid before it is built, and each
+  transcendental function, with weights pinned by tests; a mindmap of about 1,000 nodes or more can reach the default
+  limit); `MaxImages`, 256 resolver calls; `MaxPaintedPixels`,
   250,000,000 (charged before each item and drop shadow is painted): checked per call. Failure:
-  `MermaidRenderException` with `mermaid-limit-exceeded`. The formatted tick labels of a gantt chart are also checked
-  against `MaxLabelLength` when they are made.
+  `MermaidRenderException` with `mermaid-limit-exceeded`. The formatted tick labels of a gantt chart and the labels of a
+  mindmap, as they are built for drawing, are also checked against `MaxLabelLength` when they are made.
 - `MaxDiagnostics`, 1,000 reports per call: further reports become one `mermaid-diagnostics-suppressed` notice and
   rendering continues.
 
@@ -428,9 +472,11 @@ tracked automatically.
 pinned packages: 207 flowchart parser and database vectors, 242 sequence parser and database vectors, 179 class
 parser and database vectors, 157 state parser and database vectors, 246 entity relationship parser and database
 vectors, 133 pie parser and database vectors, 291 gantt parser and database vectors (the compiled task dates
-included), 1,166 time vectors of the d3 time functions, 53
+included), 246 mindmap parser and database vectors (the nodes and edges of `getData` included), 1,166 time vectors of
+the d3 time functions, 36 cose layouts and the sines, cosines, logarithms, and powers of 29,332 math vectors recorded in
+Chrome (compared bit for bit), 53
 configuration cases and 622 khroma calls, 224 dagre
-stage goldens (ranks and orders exact, coordinates within 1e-9), 286 shape vectors, and 144 d3 curve vectors. The
+stage goldens (ranks and orders exact, coordinates within 1e-9), 296 shape vectors, and 144 d3 curve vectors. The
 whole layout is compared against reference layouts extracted from mermaid-cli renders of the 42 original flowchart
 fixtures with the bundled Liberation Sans (`tools/visual-diff/render-mermaid.mjs` with `liberation.css`): the
 view box, node centers and sizes, subgraph rectangles, 21 arc-length samples of every edge, and edge label centers.
@@ -464,7 +510,16 @@ The 14 original gantt fixtures (`Fixtures/reference/gantt/`) are rendered by the
 set to UTC and its clock fixed at 2024-06-12T10:30:00Z, the `Now` the tests pass, and compared the same way: the view
 box, the excluded days, both axes with every tick line and label, the section rows, every task bar and text with
 its paint, the section titles, the today line, and the title, at 0.01 pixel (0.02 pixel for text boxes); every
-gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excluded.
+gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excluded. The 14 original mindmap fixtures
+(`Fixtures/reference/mindmap/`) are rendered twice by the harness, which fails if the two layouts differ or if the
+layout ever draws a random number, and compared in three tiers, because the cose-bilkent layout is chaotic: the node
+sizes the layout is given, at 0.02 pixel (152 of the 155 sizes are bit-identical to Chrome's `getBBox`); the layout
+alone, given each golden's own sizes, bit for bit (all 14 fixtures are bit-identical, the 56 nodes of `13-large`
+included); and the whole drawing (the view box, every node's center, box, and paint, and every edge sampled at 21 points
+with its paint) at 0.01 pixel. In the whole drawing, 11 of the 14 fixtures have exactly Mermaid's node centers;
+`03-root-shapes`, whose cloud root is 1.5e-5 pixel off in Chrome's single-precision arc bounds, has its centers within
+0.0001 pixel (5.7e-5), and `09-htmllabels-false`, whose three-line SVG label differs from Chrome's by 3.8e-6 pixel,
+within 0.0004 pixel; `02-shapes` is excluded from the whole-drawing tier (item 49 below).
 
 **Known and accepted differences from Mermaid:**
 
@@ -487,7 +542,8 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
    drawn, and icon shapes keep their frame and size.
 7. **Looks and layouts.** `look: handDrawn`, `look: neo`, and any other look but `classic` are drawn classic
    (`mermaid-look-unsupported`); `layout: elk`, the `flowchart-elk` keyword, and any other layout fall back to dagre
-   (`mermaid-layout-unsupported`). The rough.js circles of some flowchart shapes are drawn as true circles (at most
+   (`mermaid-layout-unsupported`), and for a mindmap any layout but `cose-bilkent` falls back to cose-bilkent (item 51).
+   The rough.js circles of some flowchart shapes are drawn as true circles (at most
    0.06 pixel different); the end state of a state diagram is the exact rough.js outline, as Mermaid draws it.
 8. **Interaction and animation.** `click`, `href`, `call`, callbacks, tooltips, and links are parsed and ignored
    (only the `clickable` class is kept; the links of a class diagram are checked as Mermaid's `strict` security level
@@ -502,7 +558,8 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
    (`mermaid-theme-css-unsupported`). Mermaid's `classDef` CSS rules beyond the inline node styles are not modeled; a
    subgraph title's `font-*` styles are not applied after measuring.
 10. **Themes and configuration.** The `neo`, `neo-dark`, and `redux` themes are not ported (`mermaid-config-invalid`,
-    no effect). A value of the wrong type is reported and dropped, so the lower layer wins (Mermaid would use it); a
+    no effect), so the mindmap shapes of the `redux` themes and the mindmap rules of the neo look are not drawn either.
+    A value of the wrong type is reported and dropped, so the lower layer wins (Mermaid would use it); a
     directive theme variable with characters outside Mermaid's allowed set is removed; a theme variable that is not a
     color is dropped and the theme recomputed (at most 16 times; Mermaid fails); khroma's limit loops are capped at
     64 iterations; a non-object init argument is reported and ignored.
@@ -524,9 +581,10 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
     natural size of a picture is the size the resolver returns for a 256 by 256 request (a raster comes back at its
     own size); a picture is stretched to its box as Mermaid's `preserveAspectRatio="none"` does. An `<img>` beside text
     is as wide as the label's content; alone it is five times the font size, as in Mermaid.
-16. **Only what flowcharts, sequence diagrams, class diagrams, state diagrams, and entity relationship diagrams reach
-    is ported** from the unified renderer: the `rect` subgraph, the class box, the state shapes (`stateStart`,
-    `stateEnd`, `fork`, `join`, `choice`, `note`, and `rectWithTitle`), the clusters of a state diagram
+16. **Only what flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, and
+    mindmaps reach is ported** from the unified renderer: the `rect` subgraph, the class box, the state shapes
+    (`stateStart`, `stateEnd`, `fork`, `join`, `choice`, `note`, and `rectWithTitle`), the mindmap shapes
+    (`defaultMindmapNode` and `mindmapCircle`, classic look), the clusters of a state diagram
     (`roundedWithTitle`, `divider`, and `noteGroup`), the entity box, the `point`, `circle`, and `cross` markers (the
     circle's ring is not clipped to its marker box, at most 0.55 pixel), the five class markers, the `barb` of a state
     transition, the four cardinality markers, and the terminal labels of class relations.
@@ -543,7 +601,8 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
     inconsistent comparator on 64 or more entries); JavaScript prototype keys (`constructor`, `__proto__`) are
     ordinary names (a `shape: constructor` is refused); negative or fractional edge weights are not supported; a
     broken cluster path throws instead of looping; .NET's `Math.Sin` and `Math.Acos` can differ from V8 in the last
-    bit (no visible effect). Non-string shape-data values are converted as JavaScript's `String()` does.
+    bit (no visible effect; the cose layout of a mindmap, where the last bit matters, uses its own correctly rounded
+    functions). Non-string shape-data values are converted as JavaScript's `String()` does.
 21. **Detection.** All 40 detectors of the pinned release are known, with their quirks kept (`c4` keywords match
     anywhere; keyword prefixes such as `graphs` detect a flowchart); detection at open uses only the text's own
     configuration, and a site `flowchart.defaultRenderer: elk` is honored at render.
@@ -652,6 +711,39 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
 48. **Pie texts.** The texts of a pie chart are not checked for glyphs that no bundled font has (no
     `mermaid-text-missing-glyph` report), as for the direct texts of a sequence diagram; a negative value, which
     Mermaid reports as an error picture, is a located syntax error at its section.
+49. **Mindmap layout exactness.** A mindmap is laid out by a port of Mermaid's cose-bilkent layout, which is chaotic: a
+    node size that differs in its last bit can move every node by hundreds of pixels.
+    - **No random number generator.** The request for this phase asked for a seeded, deterministic generator in place
+      of `Math.random`, matching Mermaid except in tie cases. The pinned Mermaid's mindmap layout provably never calls
+      `Math.random`: a mindmap is one tree, a flat forest, so the layout always takes the radial path, and the only
+      random code (cose-base's `findPlaceforPrunedNode`, and layout-base's `RandomSeed` through `positionNodesRandomly`
+      and `LNode.scatter`) is unreachable. So no generator is ported, there is no tie case, and the layout is equal to
+      Mermaid's bit for bit whenever the node sizes are bit-identical (see _Cose Design_).
+    - **Measured fidelity.** Given the browser's own node sizes, the layout of all 14 mindmap fixtures and of all 36
+      recorded cose layouts is bit-identical to Chrome's. With the library's own sizes, 152 of the 155 fixture node
+      sizes are bit-identical, and 11 of the 14 fixtures have exactly Mermaid's node centers; `03-root-shapes` is
+      within 0.0001 pixel and `09-htmllabels-false` within 0.0004 pixel. `02-shapes` diverges: Chrome bounds the arcs
+      of its cloud node in single precision, which makes the node 7.6e-6 pixel taller, and the chaotic layout moves its
+      nodes by up to 292 pixels.
+    - **Remaining sources of difference.** The arc bounds of cloud and bang nodes, which Chrome computes in single
+      precision, and the height of a multi-line SVG label, which Chrome gives as the single-precision number just below
+      it (for example 52.19999695 for 52.2), can differ in the last bit from the library's sizes. From 1,017 nodes,
+      Chrome's `Math.pow` is not correctly rounded for some node counts, and the cooling of such a layout may differ.
+      The layout is the same on every machine.
+50. **Mindmap icons.** The icon of a node (`::icon(...)`) and Font Awesome icons in a label (`fa:fa-...`) are not drawn
+    and are reported (`mermaid-icon-unsupported`); Mermaid's current renderer does not draw mindmap icons either. An
+    icon still gives an SVG label its background, as in Mermaid.
+51. **Other mindmap layouts.** A `layout` of `dagre`, `elk`, `tidy-tree`, or any other value, which mermaid-cli can
+    load as an extra layout, is reported (`mermaid-layout-unsupported`) and the mindmap is laid out with cose-bilkent.
+    `mindmap.layoutAlgorithm` is accepted and has no effect, as in Mermaid.
+52. **The empty mindmap.** A mindmap of the keyword alone has no view box in Mermaid; the library gives the empty box
+    grown by `mindmap.padding` (20 by 20 pixels at the default padding), transparent.
+53. **Mindmap failures.** An icon or class decoration before the first node, where Mermaid fails with a JavaScript
+    `TypeError`, is a located syntax error; a layout that Mermaid's cose-bilkent cannot complete (a JavaScript
+    `RangeError` or `TypeError` for huge node sizes) is a located `mermaid-render-failed`.
+54. **Mindmap limits.** The depth of a mindmap's tree is bounded by `MaxNestingDepth`, where Mermaid has no limit, and
+    the work of its layout by `MaxLayoutWork`: a mindmap of about 1,000 nodes or more can reach the default limit (a
+    root with 40 children of 48 children each, 1,961 nodes, does), while one of 301 nodes is far within it.
 
 ## Phase Plan
 
@@ -667,10 +759,16 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
   renderer, with the state shapes, the clusters of composite states, concurrent regions, and notes, the entity box,
   the `barb` and cardinality markers, the state and entity relationship configuration sections and style sheets, the
   check of the edge ends, and the 1/64 pixel advance grid of SVG text runs.
-- **Phase 3a (delivered by this version)**: pie and gantt charts (the `Pie` and `Gantt` subsystems) with their own
+- **Phase 3a (delivered)**: pie and gantt charts (the `Pie` and `Gantt` subsystems) with their own
   renderers, the pie and gantt configuration sections and style sheets (the gantt one with a class-set cascade), the
   d3 time functions and the dayjs date functions they use, the clock option `MermaidRenderOptions.Now`, and the three
   gantt report codes.
-- **Phase 3b (planned)**: mindmap diagrams with a port of Mermaid's force-directed layout.
+- **Phase 3b (delivered by this version)**: mindmaps (the `Mindmap` subsystem) laid out by a port of Mermaid's
+  cose-bilkent force-directed layout (the `Cose` subsystem) with correctly rounded math, the two mindmap shapes, the
+  mindmap configuration section and style sheet, and the mindmap reference goldens. With every diagram type of the plan
+  drawn, the documentation build no longer runs a second, browser-based Mermaid filter: a block of a type this version
+  does not draw is left as
+  written, with a warning.
+
 Each phase adds only its own subsystems and units and extends the supported list of `DiagramDetector`; the public API,
 the report codes, and the limits stay compatible.

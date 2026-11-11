@@ -217,6 +217,11 @@ input-files:
   - docs/verification/canvas-net-mermaid/gantt/gantt-model.md
   - docs/verification/canvas-net-mermaid/gantt/gantt-renderer.md
   - docs/verification/canvas-net-mermaid/gantt/time-axis.md
+  - docs/verification/canvas-net-mermaid/mindmap.md
+  - docs/verification/canvas-net-mermaid/mindmap/mindmap-parser.md
+  - docs/verification/canvas-net-mermaid/mindmap/mindmap-renderer.md
+  - docs/verification/canvas-net-mermaid/cose.md
+  - docs/verification/canvas-net-mermaid/cose/cose-layout.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

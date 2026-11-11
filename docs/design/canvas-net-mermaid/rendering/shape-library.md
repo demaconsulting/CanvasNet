@@ -3,14 +3,15 @@
 ![Rendering Structure](MermaidRenderingView.svg)
 
 The `ShapeLibrary` unit is the second software unit in the `Rendering` subsystem. It is the internal static partial
-class `ShapeLibrary` in ten source files - `ShapeLibrary.cs` (the entry point, the style split, and the value
+class `ShapeLibrary` in eleven source files - `ShapeLibrary.cs` (the entry point, the style split, and the value
 types), `ShapeLibrary.Basic.cs` (the classic and bracket shapes and the small undocumented shapes),
 `ShapeLibrary.Extended.cs` (the extended shape set of Mermaid), `ShapeLibrary.Images.cs` (the image and icon
 shapes), `ShapeLibrary.Intersect.cs` (the intersect functions), `ShapeLibrary.Parts.cs` (path data, part paint, and the
 draft that collects a node), `ShapeLibrary.Clusters.cs` (the subgraph rectangle and the hidden `labelRect` node),
 `ShapeLibrary.ClassBox.cs` (the class box of a class diagram), `ShapeLibrary.States.cs` (the state with descriptions,
-the clusters of a state diagram, and the paint of the parts that rough.js draws), and `ShapeLibrary.ErBox.cs` (the
-entity box of an entity relationship diagram) - with the value types `ShapePoint`, `NodeBox`,
+the clusters of a state diagram, and the paint of the parts that rough.js draws), `ShapeLibrary.ErBox.cs` (the
+entity box of an entity relationship diagram), and `ShapeLibrary.Mindmap.cs` (the two shapes of a mindmap) - with the
+value types `ShapePoint`, `NodeBox`,
 `ShapeIntersect`, `NodePaint`, `ShapeTheme`, `ShapeContext`, `ShapeResult`, and `ClusterShape`. The unit also groups
 the shape registry, the internal static class `ShapeNames` in `ShapeNames.cs`. All types are in the
 `DemaConsulting.CanvasNet.Mermaid.Rendering` namespace.
@@ -23,7 +24,8 @@ flowchart accepts, each sized from its label and padding with Mermaid's formulas
 intersect function on which edges end. It also draws the class box of a class diagram (`shapes/classBox.ts` with the
 text placement of the class diagram's `shapeUtil.ts`), the shapes of a state diagram (the state, the state with
 descriptions of `shapes/rectWithTitle.ts`, the start and end states, the fork and join bars, the choice, and the note,
-painted through the state style sheet), the entity box of an entity relationship diagram (`shapes/erBox.ts`), the
+painted through the state style sheet), the entity box of an entity relationship diagram (`shapes/erBox.ts`), the two
+shapes of a mindmap that no other diagram uses (`shapes/defaultMindmapNode.ts` and `shapes/mindmapCircle.ts`), the
 subgraph rectangle with its title (`clusters.js`'s `rect`), and the clusters of a state diagram (`clusters.js`'s
 `roundedWithTitle`, `divider`, and `noteGroup`). `ShapeNames` is Mermaid's shape registry
 (`rendering-elements/shapes.ts`): which names exist and which drawing
@@ -38,8 +40,10 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml`
   center to a point leaves the shape (Mermaid's `node.intersect`).
 - `ShapeContext` - the settings of one render that every shape reads: the effective `MermaidConfig`, the style sheet
   `Styles` (a `UnifiedStyles`: the flowchart's `FlowchartStyles`, the class diagram's `ClassStyles`, the state
-  diagram's `StateStyles`, or the entity relationship diagram's `ErStyles`, read through the selectors the shared units
-  name, such as `NodeLabel` and `NoteLabel`, through the sheet fact `CentersNodeSvgText`, and, for the parts a state
+  diagram's `StateStyles`, the entity relationship diagram's `ErStyles`, or the mindmap's `MindmapStyles`, read
+  through the selectors the shared units
+  name, such as `NodeLabel` and `NoteLabel`, through the sheet fact `CentersNodeSvgText`, through the paints of a node
+  by its classes and element, `NodePaintFor` and `NodeLabelFor`, and, for the parts a state
   diagram paints by selectors of its own, through `Resolve` of those selectors), the `MeasureLabel` delegate
   (`LabelBuilder.Build` in a render, a fixed box in the geometry tests), the `TextWidth` delegate (the width that
   Mermaid's `calculateTextWidth` gives a text in the configured font, which a class box wraps its texts at and which an
@@ -49,10 +53,15 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml`
   (or null), the report sink, and the theme colors
   (`ShapeTheme`: the `mainBkg`, `nodeBorder`, `lineColor`, `clusterBorder`, and `edgeLabelBackground` variables, read
   once).
-- `NodePaint(Css, User, Theme)` - the paint cascade of a node: the style sheet's node rule (`.node rect` and its
-  siblings), the node's own non-label styles (applied as Mermaid's inline `!important` styles), and the theme colors
-  that some parts use directly.
-- The inputs read from `LayoutNode` beyond its shape and label: `TrustedStyles` (the node's styles are the diagram's
+- `NodePaint(Css, User, Theme)` - the paint cascade of a node: the style sheet's rule for the SVG element the shape
+  draws its body with and the node's classes (`UnifiedStyles.NodePaintFor`: the node rule `.node rect` and its siblings
+  for every sheet but the mindmap's, which gives the `.section-k rect`, `circle`, `polygon`, or `path` rule of the
+  node's classes), the node's own non-label styles (applied as Mermaid's inline `!important` styles), and the theme
+  colors that some parts use directly.
+- The inputs read from `LayoutNode` beyond its shape and label: `Width` (Mermaid's `node.width` before the shape is
+  drawn: when it is set and not zero or NaN, the label wraps at it instead of `flowchart.wrappingWidth`, as a mindmap's
+  `maxNodeWidth` does), `CssClasses` (which a mindmap's sheet paints by), `Icon` and `Img` (either gives the label its
+  SVG background, as `labelHelper`'s `addSvgBackground` does), `TrustedStyles` (the node's styles are the diagram's
   own, such as a class diagram's note colors and the `opacity: 0;` of a hidden lollipop interface, and are applied
   without restriction and without reports) and `ClassBox` (a `LayoutClassBox` of the drawn name, the annotations, the
   attributes, the methods, and the class's own styles, each member a `LayoutClassMember` of its text and the style of
@@ -72,9 +81,11 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml`
   height, and the horizontal correction `diff` for a title wider than the layout's box.
 - `ShapeNames` - a frozen table of every name (short names, aliases, internal aliases, and the undocumented shapes) to
   its drawing function, and the documented shapes in Mermaid's order.
-- Private helpers: `ShapeInput` (a node being drawn with its split styles and paint, and its `MeasureLabel(width,
-  assetShape, label, css)`, whose `css` is the text rule of the label - the style sheet's `NodeLabel` unless a shape
-  names another, as the note names `NoteLabel`), `PathData` (SVG path commands written as Mermaid writes them, with
+- Private helpers: `ShapeInput` (a node being drawn with its split styles and paint, its `PaintFor(element)` (the paint
+  of another element of the shape, such as a mindmap node's `line`), and its `MeasureLabel(width,
+  assetShape, label, css)`, whose `css` is the text rule of the label - the style sheet's `NodeLabelFor` the node's
+  classes unless a shape names another, as the note names `NoteLabel`), `PathData` (SVG path commands written as
+  Mermaid writes them, relative quadratic curves included, with
   exact arc bounds, and `RoughEllipse`, the ellipse of rough.js without roughness), `PartPaint`, `Draft` (collects the
   parts, the label, and the box of everything drawn; an item may add nothing to the box, as an empty HTML cell of an
   entity box), and for the
@@ -230,6 +241,15 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml`
   - **Result**: a table with an attribute `int x PK` and an attribute `int y`, every text 40 by 24, is 195 by 128.25
     pixels (three columns of 65, a name row and two rows of 42.75) with eight divider paths; the node's intersect
     function is the rectangle's, and its label is the name's.
+- The mindmap shapes (`ShapeLibrary.Mindmap.cs`), in the classic look:
+  - `defaultMindmapNode` - a rectangle four times the padding wider than the label on each side (`w = label width +
+    8 * padding / 2`) and half the padding higher above and below (`h = label height + padding`), with corners rounded
+    by 5, drawn as Mermaid's path with relative quadratic corners; a line along its bottom edge (the role `node-line`)
+    that only the sheet paints (a mindmap's `.section-k line`: the section's inverse color 3 pixels wide, or 0 in the
+    themes with gradients; a flowchart's sheet has no such rule, so no line is drawn); the label centered; and the
+    rectangle's intersect function.
+  - `mindmapCircle` - `circle` with the whole node padding as its padding (a radius of half the label's width plus
+    the padding), where a flowchart's circle takes half of it.
 - `ErHtmlLabels(MermaidConfig config)` - how an entity box reads the top-level `htmlLabels` as it is (not through
   `getEffectiveHtmlLabels`): whether the table's texts are HTML (unless the value is falsy; unset counts as HTML,
   `createText`'s default), whether the paddings grow (unless the value is truthy; unset grows them), and whether the
@@ -302,7 +322,11 @@ of 10, the padding of 8, `CenterLabel`, and the class `statediagram-state` (or `
 `Descriptions`), its pseudo-states the `stateStart`, `stateEnd`, `fork`, `join`, and `choice` shapes, its notes the
 `note` shape, and its composite states, concurrent regions, and note groups the `roundedWithTitle`, `divider`, and
 `noteGroup` clusters with their classes. `ErModel` (the `Er` subsystem) gives its entities the `erBox` shape with their
-`LayoutErBox` and its subgraphs the `rect` cluster, and sets the `TextWidth` of its `ShapeContext`. The tests in
+`LayoutErBox` and its subgraphs the `rect` cluster, and sets the `TextWidth` of its `ShapeContext`. `MindmapRenderer`
+(the `Mindmap` subsystem) draws every node of a mindmap through `Draw`, with the `defaultMindmapNode`, `rect`,
+`rounded`, `mindmapCircle`, `cloud`, `bang`, and `hexagon` shapes, the node's `Width`, padding, classes, and icon, and
+the mindmap's style sheet in its `ShapeContext`; a flowchart cannot name the two mindmap shapes, as in Mermaid, whose
+flowchart refuses them. The tests in
 `ShapeLibraryTests.cs`, `ShapeLibraryVectorTests.cs`, and
 `ShapeNamesTests.cs` call the unit directly through `InternalsVisibleTo`.
 
@@ -322,10 +346,10 @@ of 10, the padding of 8, `CenterLabel`, and the class `statediagram-state` (or `
 - Mermaid applies the `font-*` styles of a subgraph title after it has measured the title; this library does not
   apply them (only the `color`, as for the HTML span), so the subgraph has Mermaid's size but its title keeps the style
   sheet's font.
-- Only the shapes and the subgraph drawing that a flowchart, a class diagram, a state diagram, and an entity
-  relationship diagram can reach are ported; subgraphs, namespaces, and entity relationship subgraphs are drawn as
+- Only the shapes and the subgraph drawing that a flowchart, a class diagram, a state diagram, an entity relationship
+  diagram, and a mindmap can reach are ported; subgraphs, namespaces, and entity relationship subgraphs are drawn as
   `clusters.js`'s `rect`, and the clusters of a state diagram as its `roundedWithTitle`, `divider`, and `noteGroup`
-  (not `kanbanSection`).
+  (not `kanbanSection`); the mindmap shapes are drawn in the classic look only.
 - The corner radii of the state shapes and clusters come from the built-in rules of the state style sheet; an `rx` or
   `ry` in a node's own styles or in the `themeCSS` is not applied (it is reported, outside the supported CSS subset).
 - The SVG text of an entity box cell takes the color of the sheet's `.label` rule (`nodeTextColor`, else `textColor`),

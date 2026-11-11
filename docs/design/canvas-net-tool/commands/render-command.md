@@ -58,8 +58,10 @@ read from the folder of the specification
 and below it only, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
 there is no data-folder option, and nothing is read from the network; its only option is `--param`, which sets the
 parameters of the chart, and the usage text shows the option and the `param.` fragment of a link), and how a Mermaid
-diagram is drawn (a flowchart at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme` sets
-unless the text sets one; a diagram type that is not drawn yet is an empty picture with the note
+diagram is drawn (a flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart, or
+mindmap at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme` sets
+unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with the
+note
 `mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
 `flow.mmd --theme dark --scale 2`). A verb has no alias, and its
 usage text is `canvasnet {verb} <input>
@@ -270,7 +272,7 @@ maximum, or a rotation whose canvas would be larger than the maximum, is `size-l
 `SourceLoader`
 (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` - also with
 `--strict` for a skipped picture, an approximated construct, or an unsupported feature of a model, a chart, or a diagram
-(including a diagram type that is not drawn yet) - `page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a
+(including a diagram type that is not drawn) - `page-out-of-range`, `size-limit`, `scad-error` for a syntax error, a
 failed `assert`, or an `include` that cannot be read, `vega-lite-error` for an invalid chart specification or a chart
 that cannot be rendered, `mermaid-error` for diagram text that is not valid or a diagram that cannot be laid out, with
 the hint of the library, and `budget-exceeded` for a model that exceeds a limit such as `--max-triangles` or a chart or

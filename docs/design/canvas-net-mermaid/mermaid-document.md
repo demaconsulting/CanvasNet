@@ -39,7 +39,9 @@ lays out the diagram.
   The `Direction` of a state or entity relationship diagram is the last top-level `direction` statement (the direction
   the diagram is laid out in), else `TB`. For a pie chart `NodeCount` is the sections (each label once), and for a
   gantt chart the tasks (vertical markers included) with `SubgraphCount` the sections whose titles are drawn; both
-  have no edges and a null `Direction`. A site-level setting in `MermaidRenderOptions.Config` is not known when the
+  have no edges and a null `Direction`. For a mindmap `NodeCount` is the nodes and `EdgeCount` one fewer (0 for an
+  empty mindmap), with no subgraphs, a null `Direction`, and the frontmatter title as its only title. A site-level
+  setting in `MermaidRenderOptions.Config` is not known when the
   text is opened, so it changes the drawing but not the counts, as for every other descriptive property.
 - **`MermaidOpenOptions`**: `SourceName` (not white space) and `Limits`.
 - **`MermaidRenderOptions`**: `Scale` (finite, above zero, 1 by default), `Background` (`Rgba32?`, null for
@@ -76,7 +78,8 @@ lays out the diagram.
   `state` (from the `stateDiagram` and legacy `state` detectors, so `stateDiagram` and `stateDiagram-v2` texts alike,
   whichever state renderer the configuration names) to `StateParser` and `StateModel`, and `er` (from the `er`
   detector, an `erDiagram` text) to `ErParser` and `ErModel`, `pie` to `PieParser` (whose `PieDiagram` implements
-  `IMermaidDiagram`), and `gantt` to `GanttParser` and `GanttModel`. A
+  `IMermaidDiagram`), `gantt` to `GanttParser` and `GanttModel`, and `mindmap` to `MindmapParser` (whose
+  `MindmapDiagram` implements `IMermaidDiagram`). A
   known type that is not drawn is not parsed (the document's diagram is null). Postcondition: an immutable document,
   or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
@@ -123,9 +126,10 @@ lays out the diagram.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
 - Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart,
-  Sequence, Class, State, Er, Pie, and Gantt subsystems; the unit adds nothing but the source name.
+  Sequence, Class, State, Er, Pie, Gantt, and Mindmap subsystems; the unit adds nothing but the source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
-  subsystems; a size outside the surface range throws `ArgumentOutOfRangeException` naming the scale and the size.
+  subsystems (for a mindmap, the Mindmap and Cose subsystems); a size outside the surface range throws
+  `ArgumentOutOfRangeException` naming the scale and the size.
 - Strict mode throws `MermaidUnsupportedFeatureException` from the sink. Cancellation throws
   `OperationCanceledException` from the stage that observes the token.
 - An unexpected exception of the layout (a defect) is reported as a located `MermaidRenderException`
@@ -147,6 +151,8 @@ lays out the diagram.
 - **Pie**: through `DiagramRegistry` (`PieParser`, whose `PieDiagram` implements `IMermaidDiagram`).
 - **Gantt**: through `DiagramRegistry` (`GanttParser`, `GanttModel`, which implements `IMermaidDiagram`); a render
   passes `Now` to the model in the render context.
+- **Mindmap**: through `DiagramRegistry` (`MindmapParser`, whose `MindmapDiagram` implements `IMermaidDiagram`); its
+  renderer uses the `Cose` subsystem for the layout.
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

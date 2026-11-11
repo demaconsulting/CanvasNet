@@ -84,12 +84,13 @@ belong to the "Sequential" collection because console redirection is process-wid
   exceeds a limit while it is laid out or drawn is `budget-exceeded`, an overlong specification file `corrupt-input`
   as for a model, and only a chart that lays out larger than 8192 pixels is `size-limit`); a diagram is recognized by
   its `.mmd` or `.mermaid` file name, drawn at the size Mermaid lays it out at over white with the bundled fonts in the
-  theme `--theme` names, its pictures read from its folder only, a type that is not drawn yet is the diagnostic
+  theme `--theme` names, its pictures read from its folder only, a type that is not drawn (a user journey, for example)
+  is the diagnostic
 `mermaid-diagram-unsupported` (an `unsupported-feature` error with `--strict`), invalid text is a `mermaid-error` with a
 hint, and `--theme` on another kind of input is a `usage-error`;
   `info` describes a
   file, the pages of a document, the declarations of a model, and the marks, data, and parameters of a chart, and the
-  type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn yet), without
+  type, direction, titles, and counts of a diagram (with `supported` false for a type that is not drawn), without
   rendering it.
 - `compare` reports exact metrics (MAE, RMSE, PSNR, SSIM, largest channel difference, differing-pixel ratio) and a
   grid of per-cell errors, writes the difference, side-by-side, and overlay pictures, refuses images of different sizes
@@ -375,6 +376,11 @@ section with a dated task and a task `after` it, so no date needs today) are eac
 processes: `info --json` gives the `diagram` object with the type `pie` or `gantt`, `supported` true, and two `nodes`;
 `render --strict --json` exits with 0 without a diagnostic and writes a PNG of exactly the size `info` reported with a
 white corner.
+
+**CanvasNetTool_Mermaid_MindmapAsProcess_IsDrawn**: a mindmap of three nodes (the circle root `Garden` with the
+children `Soil` and `Plants`) is described and rendered by real processes: `info --json` gives the `diagram` object
+with the type `mindmap`, `supported` true, three `nodes`, and two `edges`; `render --strict --json` exits with 0 without
+a diagnostic and writes a PNG of exactly the size `info` reported with a white corner.
 
 **CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract**: in-process through the entry point, a diagram whose
 first keyword is not a Mermaid keyword (`drawing LR`) returns exit code 1 with an `Error: mermaid-error:` line that

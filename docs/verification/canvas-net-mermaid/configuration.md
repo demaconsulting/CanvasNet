@@ -3,8 +3,9 @@
 This document describes the subsystem-level verification strategy for the `Configuration` subsystem (internal
 namespace `DemaConsulting.CanvasNet.Mermaid.Configuration`), containing four units: `MermaidConfigResolver` (the
 effective configuration of a call and its located reports, with the typed view `MermaidConfig`), `ThemeResolver` (the
-five built-in themes and the flowchart, sequence, class, state, and entity relationship style sheets
-`FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, and `ErStyles`), `ColorMath` (the port of the
+five built-in themes and the flowchart, sequence, class, state, entity relationship, pie, gantt, and mindmap style
+sheets `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`, `GanttStyles`, and
+`MindmapStyles`), `ColorMath` (the port of the
 khroma color functions), and `StyleDeclarations` (the CSS subset of style statements and `themeCSS`).
 
 ### Verification Approach
@@ -18,7 +19,8 @@ texts: the `Preprocessor` of the `Syntax` subsystem reads the frontmatter and th
 parsed by `StyleDeclarations` (`SequenceStyles.Create` the sequence diagram's paint, with the sequence section of the
 configuration, `ClassStyles.Create` the class diagram's paint, with the class section and the state spacing of the
 configuration, and `StateStyles.Create` and `ErStyles.Create` the state and entity relationship diagrams' paint, with
-the state and `er` sections of the configuration). Two scenarios go through the public `MermaidDocument` to verify
+the state and `er` sections of the configuration, and `MindmapStyles.Create` the mindmap's paint, with the mindmap
+section and the layout of the configuration). Two scenarios go through the public `MermaidDocument` to verify
 that the configuration of the text drives the diagram detection and that its warnings are delivered by a render
 call.
 
@@ -51,7 +53,8 @@ scenario in the four unit verification documents passes without error or unexpec
 `ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveClassSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveStateAndErSectionsAndStyles_FullText`,
-`ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`
+`ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveMindmapSectionAndStyles_FullText`
 
 Asserts that a text whose frontmatter names the `forest` theme and whose directive names `dark`, rendered with the theme
 option `neutral`, resolves to the `dark` theme with the frontmatter's flowchart curve, and that the theme option alone
@@ -65,7 +68,9 @@ spacing of 70, and an entity relationship diagram whose frontmatter names the `d
 `er.minEntityWidth: 30` resolves to a minimum entity width of 30, each with the node fill of its resolved theme's
 `mainBkg`; and that a pie chart whose frontmatter names the `forest` theme and sets `pie.donutHole: 0.4` resolves to a
 donut hole of 0.4, and a gantt chart whose frontmatter names the `dark` theme and sets `gantt.barHeight: 30` resolves
-to a bar height of 30.
+to a bar height of 30; and that a mindmap whose frontmatter names the `forest` theme and sets `mindmap.padding: 6`
+resolves to a padding of 6 and the layout `cose-bilkent`, while a mindmap whose frontmatter sets `layout: elk` keeps
+`elk` (the user's layout wins).
 
 #### CanvasNetMermaid-Configuration-Reports: Configuration Problems Are Reported And Ignored
 
@@ -73,6 +78,7 @@ to a bar height of 30.
 `ConfigurationTests.Configuration_ResolveClassSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveStateAndErSectionsAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveMindmapSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_Document_RenderDeliversConfigurationWarnings`,
 `ConfigurationTests.Configuration_Document_UnsupportedType_ConfigurationSilent`
 
@@ -83,6 +89,8 @@ state and entity relationship texts above `state.titleTopMargin: yes` and `er.en
 warning of their text, `mermaid-config-invalid` at line 6, with the defaults 25 and 15 kept and no unsupported-feature
 report, that in the pie and gantt texts above `pie.textPosition: far` and `gantt.barGap: wide` are each the one warning
 of their text, `mermaid-config-invalid` at line 6, with the defaults 0.75 and 4 kept and no unsupported-feature report,
+that in the mindmap text above `mindmap.maxNodeWidth: narrow` is the one warning, `mermaid-config-invalid` at line 6,
+with the default 200 kept and no unsupported-feature report,
 that a secure key in the frontmatter of a flowchart is delivered by a render call as `mermaid-config-secure-key` at its
 location, and that the secure and unknown keys of a user journey (not drawn by this version) produce no warning, only
 the unsupported diagram report.
@@ -103,7 +111,8 @@ dark theme named by a directive gives its `mainBkg` (`#1f2020`) while the direct
 `ConfigurationTests.Configuration_ResolveSequenceSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveClassSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveStateAndErSectionsAndStyles_FullText`,
-`ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`
+`ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveMindmapSectionAndStyles_FullText`
 
 Asserts that the flowchart's edge and marker colors follow the overridden `lineColor`, that the node fill of the
 style sheet is the theme's, and that a `themeCSS` rule for `.cluster rect` is applied to that selector's declarations;
@@ -115,7 +124,9 @@ directive rules `.transition { stroke: #ff0000 }` and `.relationshipLine { strok
 selectors without a report, the node fill of each sheet is its theme's `mainBkg`, neither sheet centers the SVG text
 of a node, and the entity relationship sheet's root text is 16 pixels; and that for the pie and gantt charts above the
 directive rules `.pieOuterCircle { stroke: #ff0000 }` and `.task0 { fill: #0000ff }` make the outer circle red and the
-fill a plain bar computes blue without a report.
+fill a plain bar computes blue without a report; and that for the mindmap above the directive rule
+`.section-1 circle { fill: #ff0000 }` makes the circle of a node of section 1 red without a report, while the rectangle
+of a node of that section takes the `forest` theme's `cScale2` and the root's path its `git0`.
 
 #### CanvasNetMermaid-Configuration-Declarations: CSS Declarations Take Effect
 

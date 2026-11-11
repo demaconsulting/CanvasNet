@@ -50,11 +50,12 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
-- A diagram (a flowchart, a sequence diagram, a class diagram, a state diagram, or an entity relationship diagram) is
+- A diagram (a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship diagram, a pie
+  chart, a gantt chart, or a mindmap) is
   rendered at the size Mermaid lays it out at over
   white, in the theme `--theme` names (the theme
   fragment of the input wins over the option, and a theme the text sets wins over both), with the operation, the natural
-  size, and the diagnostics in the result; a type that is not drawn yet is the diagnostic `mermaid-diagram-unsupported`
+  size, and the diagnostics in the result; a type that is not drawn is the diagnostic `mermaid-diagram-unsupported`
   or, in strict mode, an error; invalid text is a `mermaid-error` with a hint; a theme that does not exist and
   `--theme` for another kind of input (`render` and `inspect`) are usage errors; no failure leaves an output.
 - The pipeline operations are applied in the order written, after the source sizing and before the output is written,
@@ -529,6 +530,16 @@ is drawn, also with `--strict`, with the one diagnostic `mermaid-warning` whose 
 is `mermaid-gantt-today-unavailable` at line 2 (the `todayMarker` statement); a gantt chart with the date `Jan 5 2024`
 returns exit code 1 with an `Error: mermaid-error:` line on standard error that names `Invalid date` and
 `invalid.mmd:2:`, a failure document with the code `mermaid-error`, and no output.
+
+**RenderCommand_Run_MermaidMindmap_DrawsTheNodes**: a mindmap with the circle root `Garden`, the children `Soil` (with
+`Compost`) and `Plants` (with the rectangle `Beans`), rendered with `--strict` and `--json`, writes a PNG of the
+`natural` size with a white corner, more than a twentieth of its pixels not white, and exactly the pixels the library
+draws for the text over white, and there is no diagnostic.
+
+**RenderCommand_Run_MermaidMindmapIcon_IsUnsupportedDiagnosticThenStrictError**: a mindmap whose node `Novels` has
+`::icon(fa fa-book)` is drawn with the one diagnostic of severity `unsupported` and code `mermaid-icon-unsupported`,
+whose message names `fa fa-book`, located at line 4 (the icon), and the picture is written; with `--strict` the render
+fails with the code `unsupported-feature` and writes no picture.
 
 **RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
 supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`

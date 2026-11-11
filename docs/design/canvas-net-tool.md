@@ -142,7 +142,7 @@ diagram `mermaid-error` is text that is not a valid diagram or a diagram the lib
 hint of the library); `budget-exceeded` is a limit of the library (nodes, edges, nesting, label length, layout work,
 pictures, painted pixels); `corrupt-input` is a text longer than the text limit of the library; `size-limit` is a
 target size larger than the maximum image size (a diagram whose natural size is larger is still drawn with a smaller
-`--scale`, `--width`, or `--height`); `unsupported-feature` is a construct or a diagram type that is not drawn yet, with
+`--scale`, `--width`, or `--height`); `unsupported-feature` is a construct or a diagram type that is not drawn, with
 `--strict` (without it the diagnostic `mermaid-diagram-unsupported` and an empty picture); and `usage-error` is a
 `--theme` that is not a Mermaid theme or that is given for another kind of input. See _SourceLoader Unit Design_ for the
 mapping.

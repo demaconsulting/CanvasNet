@@ -139,10 +139,13 @@ positions of the scanner input, which map to the original text.
 
 `FlowchartParser` of the `Flowchart` subsystem builds its 122 rules and 21 start conditions, and `ClassParser` of the
 `Class` subsystem its 99 rules and 15 start conditions, on `SourceScanner` and `ScanPatterns` and parses with a
-`TokenCursor`, and so does `GanttParser` of the `Gantt` subsystem with its 53 rules and their start conditions; both
-lexers take the letters of their `UNICODE_TEXT` rule from `ScanPatterns.IsUnicodeLetter`; `ScanPatterns`' JavaScript
-character classes are also used by `Preprocessor`, `DiagramDetector`, `FlowchartModel`, `ClassModel`, `LabelBuilder` of
-the `Rendering` subsystem, and the color parsers of the `Configuration` subsystem. `UrlSanitizer` is called by
+`TokenCursor`, and so does `GanttParser` of the `Gantt` subsystem with its 53 rules and their start conditions, and
+`MindmapParser` of the `Mindmap` subsystem with its 37 rules and five start conditions (it also lists the expected
+tokens of an error with `TokenCursor.JoinAlternatives` and describes unmatched text with `SourceScanner.Describe`); the
+flowchart and class lexers take the letters of their `UNICODE_TEXT` rule from `ScanPatterns.IsUnicodeLetter`;
+`ScanPatterns`' JavaScript character classes are also used by `Preprocessor`, `DiagramDetector`, `FlowchartModel`,
+`ClassModel`, `LabelBuilder` of the `Rendering` subsystem (its Font Awesome test among them), and the color parsers of
+the `Configuration` subsystem. `UrlSanitizer` is called by
 `ClassModel` of the `Class` subsystem (`link` and `click ... href`), `SequenceModel` of the `Sequence` subsystem (`link`
 and `links`), and `StateModel` of the `State` subsystem (`click` and `click ... href`), and `GanttModel` of the `Gantt`
 subsystem (`click ... href`); `FlowchartModel` keeps no link, so a flowchart needs no check. The tests in

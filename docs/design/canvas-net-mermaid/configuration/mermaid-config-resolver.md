@@ -9,8 +9,8 @@ computation with recovery), `MermaidConfigResolver.Defaults.cs` (the defaults, t
 secure keys), `MermaidConfigResolver.Merge.cs` (the JSON operations: `assignWithDepth`, lodash's `merge`, the
 sanitizers, and the directive JSON parser), and `MermaidConfigResolver.Validation.cs` (the validation and the reports of
 one layer) - and the grouped typed view of its result in `MermaidConfig.cs`: the sealed class `MermaidConfig`, the
-records `FlowchartConfig`, `SequenceConfig`, `ClassConfig`, `StateConfig`, `ErConfig`, `PieConfig`, and `GanttConfig`,
-the font record
+records `FlowchartConfig`, `SequenceConfig`, `ClassConfig`, `StateConfig`, `ErConfig`, `PieConfig`, `GanttConfig`, and
+`MindmapConfig`, the font record
 `MermaidFontConfig`, and the value `ConfigScalar` (a number or a string, kept as JavaScript holds it).
 
 #### Purpose
@@ -35,7 +35,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   reads.
 - **Defaults** (`CreateDefaults`): the global keys, the `flowchart` section, the `sequence` section (the defaults
   of Mermaid's `SequenceDiagramConfig`), the `class` section, the `state` section, the `er` section, the `pie` section,
-  and the `gantt` section of Mermaid's
+  the `gantt` section, and the `mindmap` section of Mermaid's
   `config.schema.yaml` and `defaultConfig.ts`, with the variables of the `default` theme. The class section is the one
   `defaultConfig.ts` writes in place of the schema's: `defaultRenderer` (`dagre-wrapper`), `hideEmptyMembersBox`
   (false), and `hierarchicalNamespaces` (true), with `padding` deliberately left undefined so that each use keeps its
@@ -54,8 +54,10 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   `barGap` (4), `topPadding` (50), `rightPadding` (75), `leftPadding` (75), `gridLineStartPadding` (35), `fontSize`
   (11), `sectionFontSize` (11), `numberSectionStyles` (4), `axisFormat` (`%Y-%m-%d`), `topAxis` (false),
   `displayMode` (empty), and `weekday` (`sunday`); `tickInterval` and `useWidth` have no default and are absent. A
-  frontmatter `displayMode` moves to `gantt.displayMode`, as in Mermaid. `DefaultFontFamily` is Mermaid's font family
-  list.
+  frontmatter `displayMode` moves to `gantt.displayMode`, as in Mermaid. The `mindmap` section
+  (`CreateMindmapDefaults`) is the whole of the schema's `MindmapDiagramConfig`, 4 keys: `useMaxWidth` (true),
+  `padding` (10), `maxNodeWidth` (200), and `layoutAlgorithm` (`cose-bilkent`). `DefaultFontFamily` is Mermaid's font
+  family list.
 - **Configuration keys** (`ConfigKeys`, a frozen set of 705 names): every key that Mermaid's `sanitizeDirective`
   accepts (the keys of every diagram section and of the default theme variables); a key of the text outside the set is
   deleted by Mermaid and reported here as unknown.
@@ -70,7 +72,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   the state renderer read, the `pie` keys (`textPosition` and `donutHole` as numbers, `legendPosition` and
   `highlightSlice` as text, `useMaxWidth` as a Boolean, and `useWidth` as a number), the `gantt` keys (the margins,
   sizes, paddings, font sizes, and `numberSectionStyles` as numbers, `axisFormat`, `tickInterval`, `displayMode`, and
-  `weekday` as text, `topAxis` and `useMaxWidth` as Booleans, and `useWidth` as a number), and the `er` keys (`er` as an
+  `weekday` as text, `topAxis` and `useMaxWidth` as Booleans, and `useWidth` as a number), the `mindmap` keys
+  (`mindmap` as an object, `mindmap.padding` and `mindmap.maxNodeWidth` as numbers, `mindmap.layoutAlgorithm` as text,
+  and `mindmap.useMaxWidth` as a Boolean), and the `er` keys (`er` as an
   object, `er.diagramPadding`, `er.entityPadding`, `er.minEntityWidth`, `er.nodeSpacing`, `er.rankSpacing`, and
   `er.titleTopMargin` as numbers, and `er.useMaxWidth` as a Boolean). The sequence alignments (`sequence.messageAlign`
   and `sequence.noteAlign`) must also be one of the values that Mermaid's `drawText` honors (`ChoiceKeys`: `left`,
@@ -81,7 +85,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   `ThemeVariables`, and typed properties with Mermaid's defaults - `Theme`, `FontFamily`, `AltFontFamily`, `FontSize`,
   `Look`, `Layout`, `ThemeCss`, `HtmlLabels` (the global key, else the deprecated `flowchart.htmlLabels`, else true),
   `MarkdownAutoWrap`, `Wrap`, `SecurityLevel`, `MaxTextSize`, `MaxEdges`, `DeterministicIds`, `Flowchart`, `Sequence`,
-  `Class`, `State`, `Er`, and `DetectorSettings` (the `defaultRenderer` of the flowchart, class, and state sections, the
+  `Class`, `State`, `Er`, `Pie`, `Gantt`, `Mindmap`, and `DetectorSettings` (the `defaultRenderer` of the flowchart,
+  class, and state sections, the
   class one read through `Class` and the state one through `State`). `FlowchartConfig` holds the flowchart keys the
   drawing reads: `UseMaxWidth`, `TitleTopMargin`, `SubGraphTitleMarginTop`, `SubGraphTitleMarginBottom`,
   `DiagramPadding`, `HtmlLabels`, `NodeSpacing`, `RankSpacing`, `Curve`, `Padding`, `DefaultRenderer`, `WrappingWidth`,
@@ -115,7 +120,12 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   Mermaid's gantt renderer reads them: `TitleTopMargin`, `BarHeight`, `BarGap`, `TopPadding`, `RightPadding`,
   `LeftPadding`, `GridLineStartPadding`, `FontSize`, `SectionFontSize`, `NumberSectionStyles`, `AxisFormat`,
   `TickInterval` (null by default), `TopAxis`, `DisplayMode`, and `UseWidth` (null by default; when set it replaces the
-  page width). Because every layer is validated before the merge, a typed property always has a value of its type.
+  page width). `MindmapConfig` holds the `mindmap` keys as Mermaid's mindmap database and renderer read them:
+  `Padding` (10; the node padding, doubled by the database for a rectangle, a rounded rectangle, and a hexagon, and the
+  margin the renderer grows the view box by), `MaxNodeWidth` (200; the width a node's label wraps at),
+  `LayoutAlgorithm` (`cose-bilkent`, read by nothing, as in Mermaid), and `UseMaxWidth` (true). `Layout` is `dagre` by
+  default and `cose-bilkent` for a mindmap unless the user set a layout. Because every layer is validated before the
+  merge, a typed property always has a value of its type.
 
 #### Key Methods
 
@@ -137,7 +147,10 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
      `assignWithDepth`, and the theme computed again only when the text names a theme (so a directive that sets
      `themeVariables` without a `theme` overrides variables without deriving the others again);
   6. for a flowchart (`flowchart-v2`, `flowchart`, or `flowchart-elk`), the flowchart's `init`: the `layout` of the
-     user configuration, else `elk` for an ELK flowchart, and the copy of `arrowMarkerAbsolute` into the section.
+     user configuration, else `elk` for an ELK flowchart, and the copy of `arrowMarkerAbsolute` into the section;
+  7. for a mindmap, `InitializeMindmap`, the layout step of the mindmap database's `getData`: the layout becomes
+     `cose-bilkent` unless the user configuration (`getUserDefinedConfig`: the site configuration and the merged
+     frontmatter and directives, not the defaults) sets one.
 - `MermaidConfig.Sequence` (built with the configuration) - reads the sequence section over Mermaid's defaults, then
   applies the sequence diagram's `init` (texts wrap when the top-level `wrap`, which a `wrap` directive sets, or the
   section's `wrap` is true) and the sequence renderer's `setConf` (the top-level `fontFamily` and `fontSize` replace
@@ -155,6 +168,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   `OrDefault`.
 - `MermaidConfig.Pie` and `MermaidConfig.Gantt` (built with the configuration) - read the `pie` and `gantt` sections
   over the defaults of `PieConfig` and `GanttConfig`, every value as given.
+- `MermaidConfig.Mindmap` (built with the configuration, `ReadMindmap`) - reads the `mindmap` section over the defaults
+  of `MindmapConfig`, every value as given (`conf.mindmap?.key ?? defaultConfig.mindmap.key`).
 - `OrDefault(value, fallback)` (private) - JavaScript's `value || fallback` for a number: a zero gives the fallback;
   shared by the class, state, and `er` readers.
 - `ComputeTheme` (private) - calls `ThemeResolver.GetThemeVariables`; when it fails with a `ColorFormatException`,
@@ -236,13 +251,16 @@ handled locally as described above; no other exception is expected.
 detector, and its class section gives the class parser `hierarchicalNamespaces`) and with the call's sink in every
 measure or render call, and hands the `MermaidConfig` to the diagram through the render context;
 `FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`,
-`GanttStyles.Create`, and `SequenceStyles.Create` (the `ThemeResolver` unit) read its theme variables and `themeCSS`;
+`GanttStyles.Create`, `MindmapStyles.Create`, and `SequenceStyles.Create` (the `ThemeResolver` unit) read its theme
+variables and `themeCSS`;
 the `Flowchart` subsystem (`FlowchartModel`), the `Sequence` subsystem (`SequenceModel`, `SequenceLayout`, and
 `SequenceRenderer`, through `MermaidConfig.Sequence`), the `Class` subsystem (`ClassModel`, through
 `MermaidConfig.Class`, and `ClassParser`, which `MermaidDocument` gives the text's own `hierarchicalNamespaces`), the
 `State` subsystem (`StateModel`, through `MermaidConfig.State`), the `Er` subsystem (`ErModel`, through
 `MermaidConfig.Er`), the `Pie` subsystem (`PieRenderer`, through `MermaidConfig.Pie`), the `Gantt` subsystem
-(`GanttRenderer`, through `MermaidConfig.Gantt`), and the `Rendering` subsystem (through `LayoutData`, `ShapeLibrary`,
+(`GanttRenderer`, through `MermaidConfig.Gantt`), the `Mindmap` subsystem (`MindmapRenderer`, through
+`MermaidConfig.Mindmap`, `Look`, `Layout`, and `LocationOf`), and the `Rendering` subsystem (through `LayoutData`,
+`ShapeLibrary`,
 which reads `MermaidConfig.Class` for a class box and `MermaidConfig.Er` for an entity box, and `LabelBuilder`, which
 measures with `MermaidFontConfig`) read the typed settings. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/MermaidConfigResolverTests.cs` and

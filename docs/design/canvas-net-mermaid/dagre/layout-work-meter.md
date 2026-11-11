@@ -39,7 +39,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Dagre-LayoutWorkMeter-
 diagram (each extracted cluster is laid out separately) and by the cluster code of the `Rendering` subsystem. The
 charges of the stages are deterministic, so the same graph always uses the same work: the complete acyclic graph on 30
 nodes takes 2,955,593 steps and a four-node cyclic graph with a cluster and a label 1,369, both pinned by the subsystem
-tests. The meter bounds the date and tick work of a chart as well as the work of a graph layout.
+tests. The meter bounds the date and tick work of a chart and the force-directed layout of a mindmap as well as the
+work of a graph layout.
 
 #### Error Handling
 
@@ -68,6 +69,18 @@ and the cancellation token.
 - `SequenceLayout` creates a meter in its constructor and charges the message loops and the scans of
   `SequenceBounds`.
 - `PieRenderer` creates a meter and charges the sections and every text it measures.
+- `MindmapRenderer` creates a meter for each render and charges the node data (nodes plus edges plus 1), each label
+  (its length plus 1, before it is checked against `MaxLabelLength`), the measuring of every label through its
+  `LabelBuilder`, and 4 for each drawn edge; it passes the meter to `CoseLayout.Run`. A mindmap of three nodes takes
+  1,271 units.
+- `CoseLayout` (the `Cose` subsystem) charges every step of the layout to the meter it is given: the input (nodes plus
+  edges plus 1), the forest search (1 plus the edges of each visited node), the center search (the list length on each
+  pass), the radial placement (1 plus the edges of each placed node), each iteration (nodes plus edges plus 1), each
+  node's repulsion pairs, each grid (its columns times rows, before it is filled), the cells a node is put in, the
+  surrounding cells scanned and their entries, each transcendental function (1 plus each extra precision step), and the
+  edge points (edges plus 1). It raises the meter's `Failure` (`mermaid-render-failed`) for a grid JavaScript could not
+  build or a node outside it and for a math argument outside its domain, and its `LimitExceeded()` when the radial
+  recursion would exhaust the stack. A tree of two nodes takes 903 units and a path of ten nodes 5,598.
 - `GanttRenderer` creates a meter and passes it to `GanttModel.Compile`, which charges each pass and task, each date
   text, the `Dayjs.Format` and `Dayjs.ParseStrict` work (by the lengths of the text and the format), and `DayCost()`
   for every day of the excluded-days loop (one unit, the date format, and the `excludes` and `includes` tokens). The

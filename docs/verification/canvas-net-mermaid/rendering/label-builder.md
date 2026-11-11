@@ -189,3 +189,11 @@ that the first is drawn in its own size (its line has the 14 pixel font and the 
 second's box is its text box grown by 2 pixels on every side, that the first's box has the width and height of the
 third's (the background measured in the inherited 16 pixels, to the ninth decimal), and that it is taller than the
 second's.
+
+##### CanvasNetMermaid-Rendering-LabelBuilder-FontAwesome: Font Awesome Icons Are Found As Mermaid Finds Them
+
+**Tests**: `LabelBuilderTests.LabelBuilder_ContainsFontAwesome_Label_FindsIcons`
+
+Asserts (a theory with eight cases) that `fa:fa-car Car`, `fab:fa-github`, and `see fas:fa-x-y here` hold a Font
+Awesome icon, and that `fa:fa-` (no icon name), `fax:fa-car` (an unknown prefix), `fa:car` (no `fa-`), a plain text,
+and no text do not, as Mermaid's expression decides; the flowchart and the mindmap report an icon with this one test.
