@@ -212,3 +212,14 @@ is their vector file.
   `tickStep`, the `rangeRound` time scale and `timeFormat` with every directive and pad) on original inputs (Node).
   The script sets the time zone to UTC and refuses to run when it is not UTC or when an installed d3 package is not
   the version in mermaid's source map.
+- `gen-cose-goldens.mjs` writes `cose-layouts.json` and `js-math.json` (`--layouts <file>` and `--math <file>` instead
+  of `--out`). It runs only in Chrome, never in Node: the cose layout of mindmaps is chaotic, so its results depend on
+  the last bit of every sine, cosine, logarithm and power, and Node's `Math` differs from Chrome's. The script extracts
+  cytoscape, layout-base, cose-base and cytoscape-cose-bilkent from mermaid's source map (it checks their paths and
+  versions), runs Mermaid's `createCytoscapeInstance` on seeded trees and on three mindmaps that the pinned mermaid draws
+  in the same browser (the replay must give what mermaid drew), and records every node center, every edge's start,
+  middle and end point, and the iteration count, or the error. It fails when `Math.random` is called during a layout or
+  when a layout does not take the radial (flat forest) path. `js-math.json` holds Chrome's `Math.sin` and `Math.cos` of
+  seeded angles and of every angle the layouts used, `Math.log` of seeded values and of the layouts' arguments, and
+  `Math.pow` of every pair the cooling schedule makes for 1 to 1,016 nodes, each double as 16 hexadecimal digits.
+  Regenerate both files together whenever puppeteer's Chrome changes.

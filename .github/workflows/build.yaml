@@ -420,6 +420,8 @@ jobs:
               'licenses/LICENSE-lodash.txt',
               'licenses/LICENSE-marked.txt',
               'licenses/LICENSE-sanitize-url.txt',
+              'licenses/LICENSE-cose-base.txt',
+              'licenses/LICENSE-cytoscape.txt',
               'licenses/Mermaid-LICENSE-d3.txt',
               'licenses/Mermaid-third-party-README.md'
             )

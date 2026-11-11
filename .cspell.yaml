@@ -1060,6 +1060,18 @@ words:
   - tickinterval
   - topaxis
   - mermaidjs
+  # The mindmap layout port (cytoscape-cose-bilkent over cose-base and layout-base, cytoscape's edge points) and its
+  # correctly rounded math (Machin's formula for pi, ECMAScript's exponentiate)
+  - cose
+  - bilkent
+  - cytoscape
+  - rscratch
+  - allpts
+  - embedder
+  - mindmaps
+  - significand
+  - Machin
+  - exponentiate
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
@@ -1115,6 +1127,11 @@ overrides:
       - "docs/verification/canvas-net-mermaid/state/state-model.md"
     ignoreRegExpList:
       - "/`[^`\\n]*`/g"
+  # The math vectors: every value is the 16 hexadecimal digits of a double
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json"
+    ignoreRegExpList:
+      - "/\"[0-9a-f]{16}\"/g"
   # The gantt vectors: Mermaid's entity-encoding markers around encoded text
   - filename:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"

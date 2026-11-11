@@ -36,6 +36,12 @@ internal static class UpstreamVectors
     /// <summary>The time axis vectors, read once.</summary>
     private static readonly Lazy<JsonObject> TimeVectors = new(() => Load("time-axis.json"));
 
+    /// <summary>The cose layout goldens, read once.</summary>
+    private static readonly Lazy<JsonObject> CoseVectors = new(() => Load("cose-layouts.json"));
+
+    /// <summary>The JavaScript math vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> MathVectors = new(() => Load("js-math.json"));
+
     /// <summary>
     ///     Gets the flowchart parser cases of <c>flowchart-parser.json</c>.
     /// </summary>
@@ -75,6 +81,17 @@ internal static class UpstreamVectors
     ///     Gets the time axis cases of <c>time-axis.json</c>.
     /// </summary>
     public static JsonArray Times => TimeVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the cose layout cases of <c>cose-layouts.json</c>.
+    /// </summary>
+    public static JsonArray CoseLayouts => CoseVectors.Value["layouts"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the JavaScript math vectors of <c>js-math.json</c> (<c>trig</c>, <c>log</c> and <c>pow</c>, each value the
+    ///     hexadecimal bits of a double).
+    /// </summary>
+    public static JsonObject JsMath => MathVectors.Value;
 
     /// <summary>
     ///     Gets the theme, configuration and color vectors (<c>themes.json</c>).
