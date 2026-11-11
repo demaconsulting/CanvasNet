@@ -111,37 +111,38 @@ the line of page 1 (pixels at 96 dpi, points, rotation 0); `--page 2` describes 
 object; the default is the first page, `--all-pages` lists both, `--page 2` of the drawing lists the page with its
 name and no rotation, each page object equal to the exact text.
 
-**DiscoveryCommands_Info_BadPageOptions_ThrowExpectedErrors** and **DiscoveryCommands_Info_PageOptionsOnImage_DescribeTheImage**:
-a page that does not exist (for a document or for a PNG) is `page-out-of-range`; both options together are a usage
-error; a PNG described with `--page 1` or `--all-pages` gives the same text as without.
+**DiscoveryCommands_Info_BadPageOptions_ThrowExpectedErrors** and
+**DiscoveryCommands_Info_PageOptionsOnImage_DescribeTheImage**: a page that does not exist (for a document or for a PNG)
+is `page-out-of-range`; both options together are a usage error; a PNG described with `--page 1` or `--all-pages` gives
+the same text as without.
 
-**DiscoveryCommands_Info_BadInput_ThrowsToolException**, **DiscoveryCommands_Info_TruncatedDocument_ThrowsCorruptInput**,
-**DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError**,
-and **DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException**: a missing file, a truncated PNG, a PDF with
-no pages, and a text file are `input-not-found`, `corrupt-input`, `corrupt-input`, and `unsupported-format`; each
-document cut after 300 bytes is `corrupt-input`; no input, two inputs, and an unknown option are usage errors; null
-arguments throw.
+**DiscoveryCommands_Info_BadInput_ThrowsToolException**,
+**DiscoveryCommands_Info_TruncatedDocument_ThrowsCorruptInput**,
+**DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError**, and
+**DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException**: a missing file, a truncated PNG, a PDF with no
+pages, and a text file are `input-not-found`, `corrupt-input`, `corrupt-input`, and `unsupported-format`; each document
+cut after 300 bytes is `corrupt-input`; no input, two inputs, and an unknown option are usage errors; null arguments
+throw.
 
 **DiscoveryCommands_Info_ModelText_ListsModulesFunctionsAndDirectives**,
-**DiscoveryCommands_Info_ModelWithoutDeclarations_DescribesCounts**, **DiscoveryCommands_Info_ModelJson_HasModelObject**,
-and **DiscoveryCommands_Info_BrokenModelAndPageTwo_ThrowExpectedErrors**: the text for a model with two modules, a
-function, an include, and a use is exactly the counts line (`2 modules, 1 function, 2 include/use directives`) and one
-line for each module, function, and directive with its line; a model with nothing declared has zero counts, and one
-module is `1 module`; the JSON is exactly the documented document, with the `model` object (modules, functions, and
-directives with kind, path, and line) and no `image` or `document` object; a model with a syntax error is a
-`scad-error` and page 2 of a model is `page-out-of-range`.
+**DiscoveryCommands_Info_ModelWithoutDeclarations_DescribesCounts**,
+**DiscoveryCommands_Info_ModelJson_HasModelObject**, and
+**DiscoveryCommands_Info_BrokenModelAndPageTwo_ThrowExpectedErrors**: the text for a model with two modules, a function,
+an include, and a use is exactly the counts line (`2 modules, 1 function, 2 include/use directives`) and one line for
+each module, function, and directive with its line; a model with nothing declared has zero counts, and one module is `1
+module`; the JSON is exactly the documented document, with the `model` object (modules, functions, and directives with
+kind, path, and line) and no `image` or `document` object; a model with a syntax error is a `scad-error` and page 2 of a
+model is `page-out-of-range`.
 
-**DiscoveryCommands_Formats_IncludesVegaLiteChart**: the table row is the `chart` kind, a vector, single-page format with
-the extensions `.vl.json` and `.vl`; the JSON listing has the same row and the text listing shows it as a single-page,
-scalable chart; a file of the kind is probed by the loader as a chart.
+**DiscoveryCommands_Formats_IncludesVegaLiteChart**: the table row is the `chart` kind, a vector, single-page format
+with the extensions `.vl.json` and `.vl`; the JSON listing has the same row and the text listing shows it as a
+single-page, scalable chart; a file of the kind is probed by the loader as a chart.
 
 **DiscoveryCommands_Info_VegaLiteWritesChartObject**: for a chart with a title, a layer of a `bar` and a `rule` mark, a
-parameter, and an inline and a named data source, the JSON is exactly the documented document - the `image` object
-with the
-laid-out size, four channels, and alpha, then the `chart` object with the title, the schema major version, the
-marks, the data
-references (kind, row count, and line), and the parameters, and no `model` or `document` object - and the text is one line
-with the size, the counts, the title, the schema version, and the byte count.
+parameter, and an inline and a named data source, the JSON is exactly the documented document - the `image` object with
+the laid-out size, four channels, and alpha, then the `chart` object with the title, the schema major version, the
+marks, the data references (kind, row count, and line), and the parameters, and no `model` or `document` object - and
+the text is one line with the size, the counts, the title, the schema version, and the byte count.
 
 **DiscoveryCommands_Info_ChartWithoutOptionalFacts_OmitsThemAndReportsErrors** and
 **DiscoveryCommands_InfoUsage_NamesVegaLite**: a chart of one `tick` mark with no data, schema, or title has no
@@ -163,9 +164,9 @@ two titles, 3, 2, 1); the text is exactly one line
 `<path>: mermaid, WxH px (laid out), flowchart TB, 3 nodes, 2 edges, 1 subgraph, title "Shipping", accTitle
 "Shipping steps", <bytes> bytes`.
 
-**DiscoveryCommands_Info_PieChart_IsNotSupported**: a pie chart is described with the type `pie`,
+**DiscoveryCommands_Info_JourneyDiagram_IsNotSupported**: a user journey is described with the type `journey`,
 `supported` false, no `direction` and no `title` member, and zero nodes, and its text line says
-`pie (not drawn by this version), 0 nodes`.
+`journey (not drawn by this version), 0 nodes`.
 
 **DiscoveryCommands_Info_SequenceDiagram_ReportsParticipantsAndMessages**: a sequence diagram with the title `Talk`, a
 box, two participants, and two messages is described with the type `sequence`, `supported` true, no `direction`
@@ -178,6 +179,15 @@ namespace `Zoo` holding the class `Duck`, the inheritance `Animal <|-- Duck`, th
 note for `Duck` is described with the type `class`, `supported` true, the direction `LR`, and 2 nodes, 2 edges, and 1
 subgraph (the classes, the relations, and the namespace; the note and the lollipop interface are not counted); its
 text line is exactly `<path>: mermaid, WxH px (laid out), class LR, 2 nodes, 2 edges, 1 subgraph, <bytes> bytes`.
+
+**DiscoveryCommands_Info_PieChart_ReportsTheSlicesAsNodes**: a pie chart titled `Pets` with the sections `Dogs`, `Cats`,
+and `Dogs` again is described with the type `pie`, `supported` true, no `direction`, the title `Pets`, and 2 nodes (the
+legend entries; the repeated label is not counted), 0 edges, and 0 subgraphs, and its text line has the same facts.
+
+**DiscoveryCommands_Info_GanttChart_ReportsTasksAndSections**: a gantt chart with two tasks, a vertical marker, and a
+section without tasks is described with the type `gantt`, `supported` true, no `direction`, and 3 nodes (the tasks, the
+marker included), 0 edges, and 2 subgraphs (the drawn sections), laid out 784 pixels wide, the width Mermaid takes in
+the page of `mmdc`, and its text line has the same facts.
 
 **DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and

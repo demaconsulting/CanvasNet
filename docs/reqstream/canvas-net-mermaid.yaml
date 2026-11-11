@@ -1,24 +1,26 @@
 ---
 # Software System Requirements for CanvasNetMermaid
 #
-# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Mermaid package
-# (root namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Graphlib,
-# Dagre, Rendering, Scenegraph, Flowchart, Sequence, Class, State, and Er) from the perspective of its consumers,
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Mermaid package (root
+# namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Graphlib, Dagre,
+# Rendering, Scenegraph, Flowchart, Sequence, Class, State, Er, Pie, and Gantt) from the perspective of its consumers,
 # without specifying implementation details.
 #
-# CanvasNetMermaid is an independent software system distributed as its own NuGet package. It reads Mermaid diagram
-# text and renders a static, deterministic picture onto a CanvasNet Surface using only managed code and the public
-# CanvasNet APIs: there is no browser, no JavaScript runtime, no network access, and no dependency on any Mermaid,
-# dagre, or d3 package. This version draws flowcharts (the flowchart and graph keywords) with Mermaid's own layout
-# (a port of dagre) and Mermaid's own shapes, labels, edges, themes, and styles, sequence diagrams (the
-# sequenceDiagram keyword) with a port of Mermaid's sequence renderer, class diagrams (the classDiagram keyword)
-# with the same layout and Mermaid's class boxes, markers, and cardinalities, state diagrams (the stateDiagram
-# keyword) with the same layout and Mermaid's state shapes, composite states, and notes, and entity relationship
-# diagrams (the erDiagram keyword) with the same layout and Mermaid's entity tables and cardinality markers; every
-# other Mermaid diagram type is recognized and reported as unsupported with a stable mermaid-* identifier instead of
-# failing or drawing a guess (see docs/design/canvas-net-mermaid.md, Fidelity and Known Differences, and the Phase
-# Plan). The ported behavior of Mermaid, dagre, graphlib, d3, khroma, js-yaml, lodash, marked, and sanitize-url is
-# attributed in the package's third-party notices (src/DemaConsulting.CanvasNet.Mermaid/third-party).
+# CanvasNetMermaid is an independent software system distributed as its own NuGet package. It reads Mermaid diagram text
+# and renders a static, deterministic picture onto a CanvasNet Surface using only managed code and the public CanvasNet
+# APIs: there is no browser, no JavaScript runtime, no network access, and no dependency on any Mermaid, dagre, or d3
+# package. This version draws flowcharts (the flowchart and graph keywords) with Mermaid's own layout (a port of dagre)
+# and Mermaid's own shapes, labels, edges, themes, and styles, sequence diagrams (the sequenceDiagram keyword) with a
+# port of Mermaid's sequence renderer, class diagrams (the classDiagram keyword) with the same layout and Mermaid's
+# class boxes, markers, and cardinalities, state diagrams (the stateDiagram keyword) with the same layout and Mermaid's
+# state shapes, composite states, and notes, and entity relationship diagrams (the erDiagram keyword) with the same
+# layout and Mermaid's entity tables and cardinality markers, pie charts (the pie keyword) with a port of Mermaid's pie
+# renderer, and gantt charts (the gantt keyword) with a port of Mermaid's gantt renderer and of the d3 time scale and
+# the dayjs date functions it uses, with today taken only from the caller; every other Mermaid diagram type is
+# recognized and reported as unsupported with a stable mermaid-* identifier instead of failing or drawing a guess (see
+# docs/design/canvas-net-mermaid.md, Fidelity and Known Differences, and the Phase Plan). The ported behavior of
+# Mermaid, the Mermaid parser package and Langium, dagre, graphlib, d3, dayjs, khroma, js-yaml, lodash, marked, and
+# sanitize-url is attributed in the package's third-party notices (src/DemaConsulting.CanvasNet.Mermaid/third-party).
 #
 # Every requirement below links down to the subsystem and unit requirements that implement it; the test evidence is
 # described in docs/verification/canvas-net-mermaid.md.
@@ -45,6 +47,8 @@ sections:
           - CanvasNetMermaid-Class-Language
           - CanvasNetMermaid-State-Language
           - CanvasNetMermaid-Er-Language
+          - CanvasNetMermaid-Pie-Language
+          - CanvasNetMermaid-Gantt-Language
         tests:
           - CanvasNetMermaid_Open_StringStreamAndPath_Agree
           - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
@@ -55,7 +59,8 @@ sections:
           draws it, its title, its accessible title, its direction, and its node, edge, and subgraph counts (for a
           sequence diagram its participants, messages, and boxes; for a class diagram its classes, relations, and
           the namespaces it draws; for a state diagram its states, transitions, and composite states; for an entity
-          relationship diagram its drawn entities, relationships, and subgraphs) - from a parsed document without
+          relationship diagram its drawn entities, relationships, and subgraphs; for a pie chart its sections; for a
+          gantt chart its tasks and the sections it draws) - from a parsed document without
           rendering it and without opening any other file or the network.
         tags: [system]
         justification: |
@@ -72,6 +77,8 @@ sections:
           - CanvasNetMermaid-Class-Metadata
           - CanvasNetMermaid-State-Metadata
           - CanvasNetMermaid-Er-Metadata
+          - CanvasNetMermaid-Pie-Metadata
+          - CanvasNetMermaid-Gantt-Metadata
         tests:
           - CanvasNetMermaid_Metadata_Flowchart_DescribesTheDiagram
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
@@ -79,6 +86,8 @@ sections:
           - CanvasNetMermaid_ClassDiagram_Metadata_CountsTheDrawnNamespaces
           - CanvasNetMermaid_StateDiagram_Metadata_CountsStatesTransitionsAndComposites
           - CanvasNetMermaid_ErDiagram_Metadata_CountsEntitiesRelationshipsAndSubgraphs
+          - CanvasNetMermaid_PieChart_Metadata_CountsTheSections
+          - CanvasNetMermaid_GanttChart_Metadata_CountsTasksAndSections
 
       - id: CanvasNetMermaid-SyntaxErrors
         title: >-
@@ -103,12 +112,17 @@ sections:
           - CanvasNetMermaid-Class-FailClosed
           - CanvasNetMermaid-State-FailClosed
           - CanvasNetMermaid-Er-FailClosed
+          - CanvasNetMermaid-Pie-FailClosed
+          - CanvasNetMermaid-Gantt-FailClosed
         tests:
           - CanvasNetMermaid_SyntaxErrors_AreLocatedCodedAndHinted
           - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_Hardening_MutatedClassFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_Hardening_MutatedStateFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_MutatedPieFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_MutatedGanttFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_PieChart_NegativeValue_FailsLocated
 
       - id: CanvasNetMermaid-Configuration
         title: >-
@@ -155,6 +169,8 @@ sections:
           - CanvasNetMermaid-Class-Drawing
           - CanvasNetMermaid-State-Drawing
           - CanvasNetMermaid-Er-Drawing
+          - CanvasNetMermaid-Pie-Drawing
+          - CanvasNetMermaid-Gantt-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors
           - CanvasNetMermaid_Flowchart_Theme_ChangesTheNodeFill
@@ -169,6 +185,10 @@ sections:
           - CanvasNetMermaid_ErDiagram_DefaultTheme_StrokesTheTableInTheNodeBorder
           - CanvasNetMermaid_ErDiagram_ZeroMarker_IsAWhiteCircle
           - CanvasNetMermaid_ErDiagram_Theme_ChangesTheEntityFill
+          - CanvasNetMermaid_PieChart_DefaultTheme_PaintsSlicesAndLegend
+          - CanvasNetMermaid_PieChart_Theme_ChangesTheSectionColors
+          - CanvasNetMermaid_GanttChart_DefaultTheme_PaintsTheTaskStates
+          - CanvasNetMermaid_GanttChart_Theme_ChangesTheBarColors
 
       - id: CanvasNetMermaid-Flowcharts
         title: >-
@@ -344,6 +364,75 @@ sections:
           - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
+      - id: CanvasNetMermaid-PieCharts
+        title: >-
+          The library shall draw pie charts (the pie keyword) with their sections in order (a repeated label keeping
+          its first value), the showData flag, the title, the accessibility statements, the slices with their
+          percentage labels (a section under one percent of the sum not drawn as a slice), the legend in each of
+          Mermaid's positions, the donut hole, the highlighted slice, the text position, and the colors of the theme;
+          and shall fail, located, on a negative value, as Mermaid does.
+        tags: [system]
+        justification: |
+          Pie charts are among the most used Mermaid diagram types in documentation; an author must be able to use the
+          whole pie language and its settings without checking which parts are drawn, and a value Mermaid refuses must
+          not be drawn as a guess.
+        children:
+          - CanvasNetMermaid-Syntax-ParserInput
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Configuration-Precedence
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Painting
+          - CanvasNetMermaid-Pie-Language
+          - CanvasNetMermaid-Pie-FailClosed
+          - CanvasNetMermaid-Pie-Drawing
+        tests:
+          - CanvasNetMermaid_PieChart_Fixture_RendersStrictly
+          - CanvasNetMermaid_PieChart_DefaultTheme_PaintsSlicesAndLegend
+          - CanvasNetMermaid_PieChart_NegativeValue_FailsLocated
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
+          - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
+
+      - id: CanvasNetMermaid-GanttCharts
+        title: >-
+          The library shall draw gantt charts (the gantt keyword) with their sections, tasks with their tags (active,
+          done, crit, milestone, and vert), ids, starts, ends, and durations, after and until references, the
+          dateFormat, axisFormat, tickInterval, weekday, excludes, includes, weekend, inclusiveEndDates, and
+          todayMarker statements, the compact display mode, the click statements (kept as data, never drawn as links),
+          the title, the accessibility statements, and the gantt configuration settings, with every date in UTC; shall
+          take today only from the time the caller gives as the clock of the render (MermaidRenderOptions.Now), never
+          from the system clock, and without it draw no today line and report with mermaid-gantt-today-unavailable
+          what needs today; shall report with mermaid-gantt-ticks-skipped and mermaid-gantt-excludes-skipped the
+          ticks and excluded days that Mermaid leaves out; and shall fail, located, on the gantt charts that Mermaid's
+          render fails on (a date it cannot read, a first task without a start, excluded days that never end, tasks
+          whose references never resolve).
+        tags: [system]
+        justification: |
+          Gantt charts plan projects in documentation; an author must be able to use the whole gantt language without
+          checking which parts are drawn. A render must be the same on every machine and every day, so the time zone
+          is fixed and the host decides the clock; a chart Mermaid cannot draw must not be drawn as a guess.
+        children:
+          - CanvasNetMermaid-MermaidDocument-Options
+          - CanvasNetMermaid-Syntax-ParserInput
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Configuration-Precedence
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Painting
+          - CanvasNetMermaid-Gantt-Language
+          - CanvasNetMermaid-Gantt-FailClosed
+          - CanvasNetMermaid-Gantt-Dates
+          - CanvasNetMermaid-Gantt-Clock
+          - CanvasNetMermaid-Gantt-Drawing
+        tests:
+          - CanvasNetMermaid_GanttChart_Fixture_RendersStrictly
+          - CanvasNetMermaid_GanttChart_DefaultTheme_PaintsTheTaskStates
+          - CanvasNetMermaid_GanttChart_Now_DrawsTheTodayLineOrReports
+          - CanvasNetMermaid_GanttChart_SkippedTicksAndExcludes_AreReported
+          - CanvasNetMermaid_GanttChart_InvalidDate_FailsLocated
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
+          - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
+
       - id: CanvasNetMermaid-LayoutFidelity
         title: >-
           The library shall lay out a flowchart as Mermaid does - the same view box, node centers and sizes,
@@ -354,7 +443,11 @@ sections:
           state diagram as Mermaid does - the same view box, states and their parts, composite state rectangles,
           inner areas, and titles, concurrent regions, notes, transition routes, labels, and title - and an entity
           relationship diagram as Mermaid does - the same view box, entity tables with their rows, cells, and
-          dividers, subgraph rectangles and titles, relationship routes, roles, and title - within the tolerance
+          dividers, subgraph rectangles and titles, relationship routes, roles, and title - and a pie chart as Mermaid
+          does - the same view box, outer circle, slice paths, percentage labels, title, and legend entries - and a
+          gantt chart as Mermaid does for the same clock - the same view box, section rows, bars, milestones, vertical
+          markers, task texts, section titles, excluded days, axes and their ticks, today line, and title - within the
+          tolerance
           documented in the system design when Mermaid measures text with the same bundled fonts.
         tags: [system]
         justification: |
@@ -382,6 +475,9 @@ sections:
           - CanvasNetMermaid-State-Drawing
           - CanvasNetMermaid-Er-Layout
           - CanvasNetMermaid-Er-Drawing
+          - CanvasNetMermaid-Pie-Drawing
+          - CanvasNetMermaid-Gantt-Dates
+          - CanvasNetMermaid-Gantt-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid
           - CanvasNetMermaid_Flowchart_ReferenceGoldens_CoverEveryFixture
@@ -393,6 +489,10 @@ sections:
           - CanvasNetMermaid_StateDiagram_ReferenceGoldens_CoverEveryFixture
           - CanvasNetMermaid_ErDiagram_ReferenceLayout_MatchesMermaid
           - CanvasNetMermaid_ErDiagram_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetMermaid_PieReferenceLayout_MatchesMermaid
+          - CanvasNetMermaid_Pie_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetMermaid_GanttReferenceLayout_MatchesMermaid
+          - CanvasNetMermaid_Gantt_ReferenceGoldens_CoverEveryFixture
 
       - id: CanvasNetMermaid-MeasureRender
         title: >-
@@ -413,12 +513,16 @@ sections:
           - CanvasNetMermaid-Class-Drawing
           - CanvasNetMermaid-State-Drawing
           - CanvasNetMermaid-Er-Drawing
+          - CanvasNetMermaid-Pie-Drawing
+          - CanvasNetMermaid-Gantt-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_Scale_KeepsTheDrawing
           - CanvasNetMermaid_Sequence_Scale_MultipliesTheNaturalSize
           - CanvasNetMermaid_ClassDiagram_Scale_MultipliesTheNaturalSize
           - CanvasNetMermaid_StateDiagram_Scale_MultipliesTheNaturalSize
           - CanvasNetMermaid_ErDiagram_Scale_MultipliesTheNaturalSize
+          - CanvasNetMermaid_PieChart_Scale_MultipliesTheNaturalSize
+          - CanvasNetMermaid_PieChart_NoBackground_LeavesTheCornersTransparent
           - CanvasNetMermaid_Flowchart_Background_IsTransparentByDefault
           - CanvasNetMermaid_Flowchart_FixedSize_FitsTheDiagram
           - CanvasNetMermaid_RenderSized_InvalidSize_Throws
@@ -443,12 +547,12 @@ sections:
       - id: CanvasNetMermaid-UnsupportedFeatures
         title: >-
           The library shall report every construct it recognizes but does not draw - a diagram type other than a
-          flowchart, a sequence diagram, a class diagram, a state diagram, or an entity relationship diagram (drawn as
-          an empty transparent picture), the hand-drawn look, a layout other than dagre, the legacy state renderer,
-          icons, math, style declarations outside the supported subset, and HTML elements outside the supported
-          subset - with a stable mermaid-* code, a message, a hint, and the location, delivered once, in order, on
-          the calling thread to the caller's handlers, and shall throw a MermaidUnsupportedFeatureException at the
-          first one in strict mode.
+          flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship diagram, a pie chart,
+          or a gantt chart (drawn as an empty transparent picture), the hand-drawn look, a layout other than dagre, the
+          legacy state renderer, icons, math, style declarations outside the supported subset, and HTML elements outside
+          the supported subset - with a stable mermaid-* code, a message, a hint, and the location, delivered once, in
+          order, on the calling thread to the caller's handlers, and shall throw a MermaidUnsupportedFeatureException at
+          the first one in strict mode.
         tags: [system]
         justification: |
           A partial picture must never be mistaken for a complete one; reports with stable codes let a host warn,
@@ -471,10 +575,10 @@ sections:
           - CanvasNetMermaid-Er-UnsupportedFeatures
         tests:
           - CanvasNetMermaid_Reports_AreCodedAndLocated
-          - CanvasNetMermaid_Render_PieChart_ReportsOnceAndDrawsTransparentPlaceholder
-          - CanvasNetMermaid_Render_PieChartStrict_Throws
-          - CanvasNetMermaid_Measure_PieChart_ReportsAndGivesScaledPlaceholderSize
-          - CanvasNetMermaid_RenderSized_PieChartWithBackground_FillsBackground
+          - CanvasNetMermaid_Render_JourneyDiagram_ReportsOnceAndDrawsTransparentPlaceholder
+          - CanvasNetMermaid_Render_JourneyDiagramStrict_Throws
+          - CanvasNetMermaid_Measure_JourneyDiagram_ReportsAndGivesScaledPlaceholderSize
+          - CanvasNetMermaid_RenderSized_JourneyDiagramWithBackground_FillsBackground
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
           - CanvasNetMermaid_Render_FailingHandler_Propagates
           - CanvasNetMermaid_Sequence_NeoLook_IsReportedAndDrawnClassic
@@ -492,12 +596,13 @@ sections:
       - id: CanvasNetMermaid-Limits
         title: >-
           The library shall treat diagram text as untrusted and bound the work and memory of a document with
-          caller-adjustable limits - the text size, edges, nodes (counted together with every group a diagram draws
-          as a cluster: subgraphs, sequence boxes, namespaces, composite states, concurrent regions, and note
-          groups), label length (also of the texts a diagram joins from shorter ones), nesting depth, YAML depth
-          (refusing YAML aliases), layout work, pictures, painted pixels, and reports - failing with a located
-          mermaid-limit-exceeded error (or an InvalidDataException for oversized text) instead of hanging or
-          exhausting memory.
+          caller-adjustable limits - the text size, edges, nodes (counted together with every group a diagram draws as a
+          cluster: subgraphs, sequence boxes, namespaces, composite states, concurrent regions, and note groups; the
+          sections of a pie chart; the tasks and sections of a gantt chart), label length (also of the texts a diagram
+          joins from shorter ones), nesting depth, YAML depth (refusing YAML aliases), layout work (also the days,
+          references, and ticks of a gantt chart), pictures, painted pixels, and reports - failing with a located
+          mermaid-limit-exceeded error (or an InvalidDataException for oversized text) instead of hanging or exhausting
+          memory.
         tags: [system]
         justification: |
           Diagrams arrive from documents, prompts, and the network; a hostile or accidental input (an alias bomb, a
@@ -517,6 +622,8 @@ sections:
           - CanvasNetMermaid-Class-FailClosed
           - CanvasNetMermaid-State-FailClosed
           - CanvasNetMermaid-Er-FailClosed
+          - CanvasNetMermaid-Pie-FailClosed
+          - CanvasNetMermaid-Gantt-FailClosed
         tests:
           - CanvasNetMermaid_Hardening_TooManyEdges_IsALocatedLimit
           - CanvasNetMermaid_Hardening_TooLongText_IsRefused
@@ -568,11 +675,22 @@ sections:
           - CanvasNetMermaid_Hardening_ErManyAttributes_Render
           - CanvasNetMermaid_Hardening_MutatedErFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_ErDiagram_WorkLimit_FailsWithLimitExceeded
+          - CanvasNetMermaid_Hardening_HostilePieChart_RendersOrFailsLocated
+          - CanvasNetMermaid_Hardening_PieManySections_IsALocatedNodeLimit
+          - CanvasNetMermaid_Hardening_PieLongTexts_AreALocatedLabelLimit
+          - CanvasNetMermaid_Hardening_MutatedPieFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_PieChart_WorkLimit_FailsWithLimitExceeded
+          - CanvasNetMermaid_Hardening_HostileGanttChart_RendersOrFailsLocated
+          - CanvasNetMermaid_Hardening_GanttManyTasksAndSections_IsALocatedNodeLimit
+          - CanvasNetMermaid_Hardening_GanttLongTexts_AreALocatedLabelLimit
+          - CanvasNetMermaid_Hardening_GanttWorkAndLabelLimits_FailLocated
+          - CanvasNetMermaid_Hardening_MutatedGanttFixtures_ThrowOnlyDocumentedExceptions
 
       - id: CanvasNetMermaid-UnsafeLinks
         title: >-
           The library shall check every link a diagram keeps (the link and click href of a class diagram, the link
-          and links of a sequence diagram, the click and click href of a state diagram) exactly as the pinned
+          and links of a sequence diagram, the click and click href of a state diagram, the click href of a gantt
+          chart) exactly as the pinned
           Mermaid checks it at its strict security level, whatever the configured security level, so that a
           javascript, data, or vbscript link in any encoding is kept only as about:blank, and shall never expose a
           link as written in any output.
@@ -586,6 +704,7 @@ sections:
           - CanvasNetMermaid-Class-InteractionIgnored
           - CanvasNetMermaid-Sequence-Language
           - CanvasNetMermaid-State-Language
+          - CanvasNetMermaid-Gantt-Language
         tests:
           - CanvasNetMermaid_Hardening_EncodedUnsafeLinks_AppearInNoOutput
 
@@ -593,7 +712,8 @@ sections:
         title: >-
           The library shall produce identical pixels and identical reports for the same document and options on
           every render, on every thread, and on every supported platform, measuring and drawing text only with the
-          fonts bundled with CanvasNet.
+          fonts bundled with CanvasNet, computing dates in UTC, and never reading the system clock (a gantt chart takes
+          today only from the render options).
         tags: [system]
         justification: |
           Documentation builds cache and compare pictures; a picture that changed with the machine, the installed
@@ -606,6 +726,7 @@ sections:
           - CanvasNetMermaid-Dagre-Determinism
           - CanvasNetMermaid-Rendering-Labels
           - CanvasNetMermaid-Scenegraph-Determinism
+          - CanvasNetMermaid-Gantt-Clock
         tests:
           - CanvasNetMermaid_Flowchart_RepeatedAndConcurrentRenders_AreIdentical
           - CanvasNetMermaid_Render_Concurrent_IsDeterministic
@@ -617,6 +738,11 @@ sections:
           - CanvasNetMermaid_Hardening_StateFixtures_RenderDeterministically
           - CanvasNetMermaid_ErDiagram_RepeatedAndConcurrentRenders_AreIdentical
           - CanvasNetMermaid_Hardening_ErFixtures_RenderDeterministically
+          - CanvasNetMermaid_PieChart_RepeatedAndConcurrentRenders_AreIdentical
+          - CanvasNetMermaid_Hardening_PieFixtures_RenderDeterministically
+          - CanvasNetMermaid_GanttChart_RepeatedAndConcurrentRenders_AreIdentical
+          - CanvasNetMermaid_Hardening_GanttFixtures_RenderDeterministically
+          - CanvasNetMermaid_GanttChart_Now_DrawsTheTodayLineOrReports
 
       - id: CanvasNetMermaid-Cancellation
         title: >-
@@ -637,6 +763,8 @@ sections:
           - CanvasNetMermaid_ClassDiagram_CanceledToken_Throws
           - CanvasNetMermaid_StateDiagram_CanceledToken_Throws
           - CanvasNetMermaid_ErDiagram_CanceledToken_Throws
+          - CanvasNetMermaid_PieChart_CanceledToken_Throws
+          - CanvasNetMermaid_GanttChart_CanceledToken_Throws
 
       - id: CanvasNetMermaid-ImageSource
         title: >-
@@ -654,9 +782,10 @@ sections:
 
       - id: CanvasNetMermaid-ThirdPartyNotices
         title: >-
-          The package shall ship the license texts of the projects whose behavior it ports (Mermaid, dagre and
-          graphlib, d3, khroma, js-yaml, lodash, marked, and sanitize-url) and a provenance record that names, for
-          each, what was ported and that the package is not affiliated with those projects.
+          The package shall ship the license texts of the projects whose behavior it ports (Mermaid, the Mermaid parser
+          package, Langium, dagre and graphlib, d3, dayjs, khroma, js-yaml, lodash, marked, and sanitize-url) and a
+          provenance record that names, for each, what was ported and that the package is not affiliated with those
+          projects.
         tags: [system]
         justification: |
           The ported projects are MIT or ISC licensed, which requires their notices to accompany the derived work;

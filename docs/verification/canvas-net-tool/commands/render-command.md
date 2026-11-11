@@ -491,9 +491,9 @@ Mermaid theme") whose hint lists `default, base, dark, forest, neutral`; `--them
 that says that `--theme` only applies to a Mermaid diagram and names the `scad` kind, and writes no output; and
 `inspect colors` of the model with `--theme dark` exits with 1 and the same usage error.
 
-**RenderCommand_Run_MermaidPie_IsUnsupportedDiagnosticThenStrictError**: a pie chart renders with exactly
-one diagnostic (source `mermaid`, severity `unsupported`, code `mermaid-diagram-unsupported`, a message that says
-pie diagrams are planned, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
+**RenderCommand_Run_MermaidJourney_IsUnsupportedDiagnosticThenStrictError**: a user journey renders with exactly one
+diagnostic (source `mermaid`, severity `unsupported`, code `mermaid-diagram-unsupported`, a message that says journey
+diagrams are not supported, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
 
 **RenderCommand_Run_MermaidSequence_DrawsTheParticipants**: a two-message sequence diagram rendered with `--strict` and
 `--json` writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000
@@ -513,6 +513,22 @@ states), and there is no diagnostic.
 `CUSTOMER ||--o{ ORDER : places` and the entity `ORDER` with the attributes `int id PK` and `string note`, rendered with
 `--strict` and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner and
 more than 1,000 pixels of the default node fill (the entities), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidPie_DrawsTheSlices**: a pie chart titled `Pets` with three sections, rendered with `--strict`
+and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner, more than a
+tenth of its pixels not white, and exactly the pixels the library draws for the text over white, and there is no
+diagnostic.
+
+**RenderCommand_Run_MermaidGantt_DrawsTheTasksWithoutATodayLine**: a gantt chart of one section with a dated task and a
+critical task `after` it, rendered with `--strict` and `--json`, writes a PNG of the `natural` size with more than a
+twentieth of its pixels not white, exactly the pixels the library draws without a clock, and not those it draws with a
+clock inside the chart (no today line), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidGanttTodayAndInvalidDate_AreWarningThenError**: a gantt chart with `todayMarker stroke:#f00`
+is drawn, also with `--strict`, with the one diagnostic `mermaid-warning` whose `detail`
+is `mermaid-gantt-today-unavailable` at line 2 (the `todayMarker` statement); a gantt chart with the date `Jan 5 2024`
+returns exit code 1 with an `Error: mermaid-error:` line on standard error that names `Invalid date` and
+`invalid.mmd:2:`, a failure document with the code `mermaid-error`, and no output.
 
 **RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
 supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`

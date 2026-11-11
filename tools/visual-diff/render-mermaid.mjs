@@ -32,6 +32,12 @@
 // get each cluster's shape (state clusters are g.statediagram-cluster and g.note-cluster groups, which are clusters
 // here too) and the pieces of a label drawn in several parts; the random id of the last region of a concurrent state is
 // written as id-random-<counter>.
+// A pie chart (aria-roledescription="pie") gets the pie layout instead (extractPie): the outer circle, each slice (its
+// path data as written, in the coordinates of the pie group, and its box), each percentage label, the title and each
+// legend entry, with the computed paint and fonts; see Fixtures/reference/README.md for the format.
+// A gantt chart (aria-roledescription="gantt") gets the gantt layout (extractGantt): the excluded days, each axis with its
+// ticks, the section rows, the tasks and their texts, the section titles, the today line and the title, with the computed
+// paint and fonts. Every page runs in the UTC time zone with the clock fixed at FIXED_NOW (2024-06-12T10:30:00Z).
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -108,10 +114,30 @@ const addStyleSheet = (text) => {
   }
 };
 
+// A gantt chart reads the clock (its today marker, and today for an unknown after or until id): every page runs in the
+// UTC time zone, the zone of the CanvasNet port, with a Date whose constructor without arguments and now() give the fixed
+// instant FIXED_NOW (the MermaidRenderOptions.Now that MermaidChartReferenceLayoutTests passes)
+export const FIXED_NOW = '2024-06-12T10:30:00Z';
+const fixClock = (now) => {
+  const RealDate = Date;
+  class FixedDate extends RealDate {
+    constructor(...args) {
+      super(...(args.length === 0 ? [now] : args));
+    }
+
+    static now() {
+      return now;
+    }
+  }
+  window.Date = FixedDate;
+};
+
 const browser = await puppeteer.launch({ headless: true });
 const host = {
   newPage: async () => {
     const page = await browser.newPage();
+    await page.emulateTimezone('UTC');
+    await page.evaluateOnNewDocument(fixClock, Date.parse(FIXED_NOW));
     await page.evaluateOnNewDocument(addStyleSheet, css);
     return page;
   },
@@ -188,7 +214,14 @@ async function readBack(svgText, definition, picture) {
   try {
     await page.setViewport({ width: 4096, height: 1024, deviceScaleFactor: scale });
     await page.setContent(`<!DOCTYPE html><html><head><style>${css}</style></head><body style="margin: 0; background: white">${svgText}</body></html>`);
+    // setContent keeps the page's document, which the new-document scripts never saw: the clock is fixed here too
+    await page.evaluate(fixClock, Date.parse(FIXED_NOW));
     await page.addScriptTag({ path: join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js') });
+    const clock = await page.evaluate(() => [new Date().getTimezoneOffset(), Date.now(), new Date().getTime()]);
+    if (clock[0] !== 0 || clock[1] !== Date.parse(FIXED_NOW) || clock[2] !== Date.parse(FIXED_NOW)) {
+      throw new Error(`the page clock is not fixed to ${FIXED_NOW} in UTC: ${clock}`);
+    }
+
     await page.evaluate(async () => {
       await Promise.all(Array.from(document.fonts, (font) => font.load()));
       await document.fonts.ready;
@@ -230,9 +263,17 @@ async function readBack(svgText, definition, picture) {
       element.style.height = `${Math.ceil(h)}px`;
       return text;
     });
-    const layout = actors
-      ? await page.evaluate(extractSequence, svgId, samples, actors)
-      : await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
+    const role = await page.$eval(`#${svgId}`, (element) => element.getAttribute('aria-roledescription') ?? '');
+    let layout;
+    if (actors) {
+      layout = await page.evaluate(extractSequence, svgId, samples, actors);
+    } else if (role === 'pie') {
+      layout = await page.evaluate(extractPie, svgId);
+    } else if (role === 'gantt') {
+      layout = await page.evaluate(extractGantt, svgId);
+    } else {
+      layout = await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
+    }
     if (viewBoxText) {
       await page.$eval(`#${svgId}`, (element, text) => {
         element.setAttribute('viewBox', text);
@@ -685,5 +726,197 @@ function extractSequence(id, count, actors) {
     boxes,
     menus,
     order: order.map(([key]) => key),
+  };
+}
+
+// Runs in the page: the layout of a gantt chart (ganttRenderer.js). The svg holds, in order, an empty group, the group
+// of the excluded days, the bottom axis (and the top axis), the group of the section rows, the group of the tasks and
+// their texts, the group of the section titles, the today line and the title.
+function extractGantt(id) {
+  const svg = document.getElementById(id);
+  const toSvg = svg.getScreenCTM().inverse();
+  const round = (v) => Math.round(v * 1000) / 1000 + 0;
+  const matrix = (element) => toSvg.multiply(element.getScreenCTM());
+  const attr = (element, name) => Number(element.getAttribute(name) ?? 0);
+  const point = (element, x, y) => {
+    const p = new DOMPoint(x, y).matrixTransform(matrix(element));
+    return [round(p.x), round(p.y)];
+  };
+  const box = (element) => {
+    const b = element.getBBox();
+    const m = matrix(element);
+    const corners = [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]
+      .map(([x, y]) => new DOMPoint(x, y).matrixTransform(m));
+    const xs = corners.map((c) => c.x);
+    const ys = corners.map((c) => c.y);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(round);
+  };
+  // The computed paint (CSS beats the presentation attributes), with the element opacity
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    return { fill: s.fill, stroke: s.stroke, strokeWidth: round(parseFloat(s.strokeWidth)), opacity: round(parseFloat(s.opacity)) };
+  };
+  // A text: its content, the point of its anchor, its computed anchor, font and fill, and its box
+  const text = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      text: element.textContent,
+      at: point(element, attr(element, 'x'), attr(element, 'y')),
+      dy: element.getAttribute('dy'),
+      anchor: s.textAnchor,
+      fontSize: round(parseFloat(s.fontSize)),
+      fontWeight: s.fontWeight,
+      fontStyle: s.fontStyle,
+      fill: s.fill,
+      box: element.textContent.length > 0 ? box(element) : null
+    };
+  };
+  // The class of an element without the measured width that the task texts carry (width-<number>)
+  const classOf = (element) => (element.getAttribute('class') ?? '').split(/\s+/).filter((c) => c && !c.startsWith('width-')).join(' ');
+  // The corners of a rectangle after its transforms (a milestone is rotated and scaled by CSS)
+  const corners = (rect) => {
+    const [x, y, w, h] = ['x', 'y', 'width', 'height'].map((n) => attr(rect, n));
+    return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(([px, py]) => point(rect, px, py));
+  };
+
+  const groups = Array.from(svg.children).filter((c) => c.tagName === 'g');
+  const axes = groups.filter((g) => g.classList.contains('grid'));
+  const excludeGroup = groups.find((g) => g.querySelector(':scope > rect.exclude-range'));
+  const sectionGroup = groups.find((g) => g.querySelector(':scope > rect.section'));
+  const taskGroup = groups.find((g) => g.querySelector(':scope > rect.task'));
+  const titleGroup = groups.find((g) => g.querySelector(':scope > text.sectionTitle'));
+  const todayLine = svg.querySelector(':scope > g.today > line');
+  const title = svg.querySelector(':scope > text.titleText');
+  const viewBox = svg.getAttribute('data-layout-view-box') ?? svg.dataset.layoutViewBox ?? svg.getAttribute('viewBox');
+  return {
+    diagram: 'gantt',
+    viewBox: viewBox.trim().split(/[\s,]+/).map(Number).map(round),
+    excludes: Array.from(excludeGroup?.querySelectorAll(':scope > rect') ?? [], (rect) => ({
+      id: rect.id.replace(`${id}-`, ''),
+      corners: corners(rect),
+      paint: paint(rect)
+    })),
+    axes: axes.map((g) => ({
+      origin: point(g, 0, 0),
+      ticks: Array.from(g.querySelectorAll(':scope > g.tick'), (tick) => {
+        const line = tick.querySelector('line');
+        return {
+          at: point(tick, 0, 0),
+          end: point(line, 0, attr(line, 'y2')),
+          tick: { opacity: round(parseFloat(getComputedStyle(tick).opacity)) },
+          line: paint(line),
+          text: text(tick.querySelector('text'))
+        };
+      })
+    })),
+    sections: Array.from(sectionGroup?.querySelectorAll(':scope > rect') ?? [], (rect) => ({
+      class: classOf(rect),
+      corners: corners(rect),
+      paint: paint(rect)
+    })),
+    tasks: Array.from(taskGroup?.querySelectorAll(':scope > rect') ?? [], (rect) => ({
+      id: rect.id.replace(`${id}-`, ''),
+      class: classOf(rect),
+      rx: attr(rect, 'rx'),
+      corners: corners(rect),
+      paint: paint(rect)
+    })),
+    texts: Array.from(taskGroup?.querySelectorAll(':scope > text') ?? [], (element) => ({
+      id: element.id.replace(`${id}-`, ''),
+      class: classOf(element),
+      ...text(element)
+    })),
+    sectionTitles: Array.from(titleGroup?.querySelectorAll(':scope > text') ?? [], (element) => ({
+      class: classOf(element),
+      fill: getComputedStyle(element).fill,
+      fontSize: round(parseFloat(getComputedStyle(element).fontSize)),
+      lines: Array.from(element.querySelectorAll('tspan'), (tspan) => ({
+        text: tspan.textContent,
+        box: tspan.textContent.length > 0 ? box(tspan) : null
+      }))
+    })),
+    today: todayLine
+      ? { start: point(todayLine, attr(todayLine, 'x1'), attr(todayLine, 'y1')), end: point(todayLine, attr(todayLine, 'x2'), attr(todayLine, 'y2')), paint: paint(todayLine) }
+      : null,
+    title: title ? text(title) : null
+  };
+}
+
+// Runs in the page: the layout of a pie chart (pieRenderer.ts). The svg holds a group at the pie's center, which holds
+// the pie group (the outer circle, the slices and their percentage labels), the title and the legend groups.
+function extractPie(id) {
+  const svg = document.getElementById(id);
+  const toSvg = svg.getScreenCTM().inverse();
+  const round = (v) => Math.round(v * 1000) / 1000 + 0;
+  const matrix = (element) => toSvg.multiply(element.getScreenCTM());
+  const attr = (element, name) => Number(element.getAttribute(name) ?? 0);
+  const point = (element, x, y) => {
+    const p = new DOMPoint(x, y).matrixTransform(matrix(element));
+    return [round(p.x), round(p.y)];
+  };
+  const box = (element) => {
+    const b = element.getBBox();
+    const m = matrix(element);
+    const a = new DOMPoint(b.x, b.y).matrixTransform(m);
+    const c = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
+    return [Math.min(a.x, c.x), Math.min(a.y, c.y), Math.abs(c.x - a.x), Math.abs(c.y - a.y)].map(round);
+  };
+  // The computed paint (CSS beats the presentation attributes), with the element opacity and the CSS scale
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      fill: s.fill,
+      stroke: s.stroke,
+      strokeWidth: round(parseFloat(s.strokeWidth)),
+      opacity: round(parseFloat(s.opacity)),
+      scale: s.scale
+    };
+  };
+  // A text: its content, the point of its anchor, its computed anchor, font and fill, and its box
+  const text = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      class: element.getAttribute('class'),
+      text: element.textContent,
+      at: point(element, attr(element, 'x'), attr(element, 'y')),
+      anchor: s.textAnchor,
+      fontSize: round(parseFloat(s.fontSize)),
+      fontWeight: s.fontWeight,
+      fill: s.fill,
+      box: box(element)
+    };
+  };
+
+  // mermaid's render leaves an empty group before the chart's group
+  const center = svg.querySelector(':scope > g[transform]');
+  const pie = center.querySelector(':scope > g:not(.legend)');
+  const circle = pie.querySelector(':scope > circle');
+  const title = center.querySelector(':scope > text');
+  const viewBox = svg.getAttribute('data-layout-view-box') ?? svg.dataset.layoutViewBox ?? svg.getAttribute('viewBox');
+  return {
+    diagram: 'pie',
+    viewBox: viewBox.trim().split(/[\s,]+/).map(Number).map(round),
+    origin: point(pie, 0, 0),
+    outerCircle: {
+      center: point(circle, attr(circle, 'cx'), attr(circle, 'cy')),
+      r: round(attr(circle, 'r')),
+      paint: paint(circle)
+    },
+    slices: Array.from(pie.querySelectorAll(':scope > path'), (path) => ({
+      class: path.getAttribute('class'),
+      d: path.getAttribute('d'),
+      box: box(path),
+      paint: paint(path)
+    })),
+    labels: Array.from(pie.querySelectorAll(':scope > text'), text),
+    title: title ? text(title) : null,
+    legend: Array.from(center.querySelectorAll(':scope > g.legend'), (g) => {
+      const rect = g.querySelector('rect');
+      return {
+        at: point(g, 0, 0),
+        rect: { box: box(rect), paint: paint(rect) },
+        text: text(g.querySelector('text'))
+      };
+    })
   };
 }

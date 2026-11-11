@@ -506,6 +506,8 @@ sections:
           - SourceLoader_Probe_EachKind_ReportsHeaderFacts
           - SourceLoader_Load_MermaidSequence_ProbesAndDraws
           - SourceLoader_Load_MermaidClass_ProbesAndDraws
+          - SourceLoader_Load_MermaidPie_ProbesAndDraws
+          - SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock
 
       - id: CanvasNetViewer-Imaging-SourceLoader-MermaidRender
         title: >-
@@ -513,7 +515,8 @@ sections:
           Mermaid places it, when neither a width nor a height is given, and sharply into the box (fitted inside and
           centered when both sides are given) otherwise; over the background color given, white by default, and
           transparent when the background has no alpha; with only the bundled fonts, giving the same picture for the
-          same options every time; in the theme of SourceOptions.Mermaid (a DiagramOptions whose theme is one of
+          same options every time (a gantt chart without a today line, as no clock is set); in the theme of
+          SourceOptions.Mermaid (a DiagramOptions whose theme is one of
           Mermaid's themes; a theme fragment of the input replaces it, and a theme the text sets itself wins over both,
           as with the Mermaid command line), measured again in that theme before the target size is worked out; shall
           describe the drawn size, the background, and the theme when one is set in the render operation; shall
@@ -531,6 +534,8 @@ sections:
           - SourceLoader_Load_Mermaid_DrawsAtTheNaturalSizeOverWhite
           - SourceLoader_Load_MermaidSequence_ProbesAndDraws
           - SourceLoader_Load_MermaidClass_ProbesAndDraws
+          - SourceLoader_Load_MermaidPie_ProbesAndDraws
+          - SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock
           - SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions
           - SourceLoader_Load_MermaidTheme_IsAppliedAndValidated
           - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme

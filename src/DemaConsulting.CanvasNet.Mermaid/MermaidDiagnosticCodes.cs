@@ -97,4 +97,23 @@ public static class MermaidDiagnosticCodes
 
     /// <summary>An HTML tag outside the supported label subset is dropped and its text kept (a warning).</summary>
     public const string HtmlTagIgnored = "mermaid-html-tag-ignored";
+
+    /// <summary>
+    ///     A gantt chart needs today's date (a <c>todayMarker</c> style, an <c>after</c> or <c>until</c> id that no task
+    ///     has, or a date format without a day) but <see cref="MermaidRenderOptions.Now"/> is not set: the today marker is
+    ///     not drawn and 1970-01-01 is taken as today (a warning).
+    /// </summary>
+    public const string GanttTodayUnavailable = "mermaid-gantt-today-unavailable";
+
+    /// <summary>
+    ///     A gantt chart's <c>tickInterval</c> would make more than 10,000 ticks, so the default ticks are drawn, as in
+    ///     Mermaid (a warning).
+    /// </summary>
+    public const string GanttTicksSkipped = "mermaid-gantt-ticks-skipped";
+
+    /// <summary>
+    ///     A gantt chart's tasks span more than five years, so the excluded days are not shaded, as in Mermaid (a
+    ///     warning).
+    /// </summary>
+    public const string GanttExcludesSkipped = "mermaid-gantt-excludes-skipped";
 }

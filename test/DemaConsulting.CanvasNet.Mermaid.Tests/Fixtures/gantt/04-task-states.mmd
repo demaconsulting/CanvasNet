@@ -1,0 +1,9 @@
+gantt
+    dateFormat YYYY-MM-DD
+    section States
+    Plain           :p, 2024-01-01, 3d
+    Done            :done, d, after p, 3d
+    Active          :active, a, after d, 3d
+    Critical        :crit, c, after a, 3d
+    Done critical   :crit, done, dc, 2024-01-02, 3d
+    Active critical :active, crit, ac, after dc, 3d

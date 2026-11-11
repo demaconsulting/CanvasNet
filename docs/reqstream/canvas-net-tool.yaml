@@ -816,6 +816,7 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-Mermaid
         tests:
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn
           - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
 
       - id: CanvasNetTool-System-SvgEmbed

@@ -209,6 +209,14 @@ input-files:
   - docs/verification/canvas-net-mermaid/er.md
   - docs/verification/canvas-net-mermaid/er/er-parser.md
   - docs/verification/canvas-net-mermaid/er/er-model.md
+  - docs/verification/canvas-net-mermaid/pie.md
+  - docs/verification/canvas-net-mermaid/pie/pie-parser.md
+  - docs/verification/canvas-net-mermaid/pie/pie-renderer.md
+  - docs/verification/canvas-net-mermaid/gantt.md
+  - docs/verification/canvas-net-mermaid/gantt/gantt-parser.md
+  - docs/verification/canvas-net-mermaid/gantt/gantt-model.md
+  - docs/verification/canvas-net-mermaid/gantt/gantt-renderer.md
+  - docs/verification/canvas-net-mermaid/gantt/time-axis.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

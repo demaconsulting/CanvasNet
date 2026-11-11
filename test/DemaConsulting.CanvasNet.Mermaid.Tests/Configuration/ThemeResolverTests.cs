@@ -452,6 +452,123 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the pie chart's style rules of the default theme: the global rules first, the slice paint over its
+    ///     color with the opacity of 0.7 folded in, the highlighted slice opaque and 1.05 times larger, the outer circle
+    ///     without fill, and the fonts and colors of the title, the percentage labels and the legend.
+    /// </summary>
+    [Fact]
+    public void PieStyles_Create_DefaultTheme_ResolvesPieRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "pie\n  \"a\" : 1\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+        var color = Color("#ECECFF");
+
+        // Act
+        var styles = PieStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new SlicePaint(color with { A = 179 }, new Rgba32(0, 0, 0, 179), 2, 1), styles.Slice(color, highlighted: false));
+        Assert.Equal(new SlicePaint(color, new Rgba32(0, 0, 0, 255), 2, 1.05), styles.Slice(color, highlighted: true));
+        Assert.Equal(new ShapePaint(null, new Rgba32(0, 0, 0, 255), 2), styles.OuterCircle);
+        Assert.Equal(new TextPaint(Family, 25, new Rgba32(0, 0, 0, 255)), styles.TitleText);
+        Assert.Equal(new TextPaint(Family, 17, Color("#333")), styles.SliceText);
+        Assert.Equal(new TextPaint(Family, 17, new Rgba32(0, 0, 0, 255)), styles.LegendText);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a pie selector overrides the theme's: a slice fill beats the slice's
+    ///     own color, and a legend text color and size apply.
+    /// </summary>
+    [Fact]
+    public void PieStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".pieCircle { fill: #ff0000; opacity: 1 } .legend text { fill: #0000ff; font-size: 20px }\"}}%%\npie\n\"a\" : 1\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "pie", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = PieStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Empty(reports);
+        Assert.Equal(Color("#ff0000"), styles.Slice(Color("#ECECFF"), highlighted: false).Fill);
+        Assert.Equal((20.0, Color("#0000ff")), (styles.LegendText.FontSize, styles.LegendText.Color));
+    }
+
+    /// <summary>
+    ///     Validates the gantt chart's cascade of the default theme: the global rules first; a bar's class rules over the
+    ///     section style; an <c>!important</c> clickable text color over a later normal rule; a compound selector
+    ///     (<c>.doneText0.taskTextOutsideRight</c>) over its single classes; the descendant rule of the axis labels over
+    ///     their <c>fill</c> attribute; <c>currentColor</c> and the tick group's opacity for the grid lines; the section rows'
+    ///     opacity; and the milestone's transform.
+    /// </summary>
+    [Fact]
+    public void GanttStyles_Create_DefaultTheme_CascadesClassSets()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "gantt\nA :1d\n");
+        var svg = new GanttElement("svg", []);
+        var group = new GanttElement("g", []);
+        var grid = GanttElement.Of("g", "grid", ("fill", "none"), ("font-size", "10"));
+        var tick = GanttElement.Of("g", "tick", ("opacity", "1"));
+
+        // Act
+        var styles = GanttStyles.Create(config, null);
+        var bar = styles.Compute([svg, group, GanttElement.Of("rect", "task crit1 ")]);
+        var clickable = styles.Compute([svg, group, GanttElement.Of("text", "clickable taskText taskText0  activeText0", ("font-size", "11"))]);
+        var doneOutside = styles.Compute([svg, group, GanttElement.Of("text", " taskTextOutsideRight taskTextOutside0  doneText0")]);
+        var label = styles.Compute([svg, grid, tick, GanttElement.Of("text", string.Empty, ("fill", "#000"), ("font-size", "10"))]);
+        var line = styles.Compute([svg, grid, tick, GanttElement.Of("line", string.Empty, ("stroke", "currentColor"))]);
+        var row = styles.Compute([svg, group, GanttElement.Of("rect", "section section0")]);
+        var milestone = styles.Compute([svg, group, GanttElement.Of("rect", "task milestone  task0 ")]);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal((Color("red"), Color("#ff8888"), 2.0), (bar.Fill, bar.Stroke, bar.StrokeWidth));
+        Assert.Equal((Color("#003163"), true, 11.0, "middle"), (clickable.Fill, clickable.Bold, clickable.FontSize, clickable.TextAnchor));
+        Assert.Equal((Color("black"), "start"), (doneOutside.Fill, doneOutside.TextAnchor));
+        Assert.Equal((Color("#333"), 10.0, 0.8), (label.Fill, label.FontSize, label.Opacity));
+        Assert.Equal((new Rgba32(0, 0, 0, 255), 0.8), (line.Stroke, line.Opacity));
+        Assert.Equal(0.2, row.Opacity, 6);
+        Assert.Equal("rotate(45deg) scale(0.8,0.8)", milestone.Transform);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a gantt selector overrides the theme's: a bar fill and a section title
+    ///     color apply, and an unknown selector is reported.
+    /// </summary>
+    [Fact]
+    public void GanttStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".task0 { fill: #ff0000 } .sectionTitle0 { fill: #0000ff } .bogus { fill: red }\"}}%%\ngantt\nA :1d\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "gantt", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = GanttStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+        var bar = styles.Compute([new GanttElement("svg", []), new GanttElement("g", []), GanttElement.Of("rect", "task task0")]);
+        var title = styles.Compute([new GanttElement("svg", []), new GanttElement("g", []), GanttElement.Of("text", "sectionTitle sectionTitle0")]);
+
+        // Assert
+        Assert.Single(reports);
+        Assert.Equal(Color("#ff0000"), bar.Fill);
+        Assert.Equal(Color("#0000ff"), title.Fill);
+    }
+    /// <summary>
     ///     Validates the facts every unified sheet gives the rendering: only the flowchart and class sheets center the
     ///     SVG text of a node's label on its anchor (the state and entity relationship sheets have no such rule), and the
     ///     root text is the diagram's root font and its text color.

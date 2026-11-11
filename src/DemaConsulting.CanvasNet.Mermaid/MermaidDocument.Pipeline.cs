@@ -3,6 +3,8 @@ using DemaConsulting.CanvasNet.Mermaid.Class;
 using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Er;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
+using DemaConsulting.CanvasNet.Mermaid.Gantt;
+using DemaConsulting.CanvasNet.Mermaid.Pie;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Sequence;
 using DemaConsulting.CanvasNet.Mermaid.State;
@@ -103,8 +105,10 @@ internal sealed record DiagramRenderContext(
 ///         diagram (<c>sequenceDiagram</c>) by <see cref="SequenceParser"/> into a <see cref="SequenceModel"/>, the class
 ///         diagram (<c>classDiagram</c>, <c>classDiagram-v2</c> and the legacy id) by <see cref="ClassParser"/> into a
 ///         <see cref="ClassModel"/>, the state diagram (<c>stateDiagram</c>, <c>stateDiagram-v2</c> and the legacy id) by
-///         <see cref="StateParser"/> into a <see cref="StateModel"/>, and the entity relationship diagram
-///         (<c>erDiagram</c>) by <see cref="ErParser"/> into an <see cref="ErModel"/>.
+///         <see cref="StateParser"/> into a <see cref="StateModel"/>, the entity relationship diagram
+///         (<c>erDiagram</c>) by <see cref="ErParser"/> into an <see cref="ErModel"/>, the pie chart (<c>pie</c>) by
+///         <see cref="PieParser"/> into a <see cref="PieDiagram"/>, and the gantt chart (<c>gantt</c>) by <see cref="GanttParser"/>
+///         into a <see cref="GanttModel"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -138,6 +142,8 @@ internal static class DiagramRegistry
             (true, "class") => ClassParser.Parse(source, detected, limits, textConfig.Class.HierarchicalNamespaces),
             (true, "state") => StateParser.Parse(source, detected, limits),
             (true, "er") => ErParser.Parse(source, detected, limits),
+            (true, "pie") => PieParser.Parse(source, detected, limits),
+            (true, "gantt") => GanttParser.Parse(source, detected, limits),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

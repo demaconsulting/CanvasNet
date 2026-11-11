@@ -198,3 +198,27 @@ spacing of 140 (a zero falls back), a rank spacing of 60, a title margin of 0 (a
 and 4 and the width 30 as given, without a warning; and that a directive with a text `er.entityPadding` and a text
 `er.useMaxWidth`, beside the number `state.defaultRenderer`, gives three `mermaid-config-invalid` warnings, one of
 whose messages names `er.entityPadding`, and leaves the typed `er` section at its defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-PieSection: The Pie Section As The Pie Renderer Reads It
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_PieSection_DefaultsValuesAndInvalidValues`
+
+Asserts, for a pie chart without configuration, that the effective `pie` section holds the 5 keys of Mermaid's schema
+and that the typed `pie` section is the default `PieConfig`: a text position of 0.75, a donut hole of 0, the legend at
+the `right`, and no highlighted slice, without a warning; that a frontmatter with `pie.textPosition: 0.5`,
+`pie.donutHole: 0.3`, `pie.legendPosition: top`, and `pie.highlightSlice: Dogs` gives those values without a warning;
+and that a directive with a text `pie.textPosition` and a number `pie.legendPosition` gives two `mermaid-config-invalid`
+warnings and leaves the typed `pie` section at its defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-GanttSection: The Gantt Section As The Gantt Renderer Reads It
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_GanttSection_DefaultsValuesAndInvalidValues`
+
+Asserts, for a gantt chart without configuration, that the effective `gantt` section holds the 15 keys of Mermaid's
+schema and that the typed `gantt` section is the default `GanttConfig`: a title margin of 25, a bar height of 20, a bar
+gap of 4, a top padding of 50, right and left paddings of 75, a grid line start of 35, font sizes of 11, 4 section
+styles, the axis format `%Y-%m-%d`, no tick interval, no top axis, an empty display mode, and no width, without a
+warning; that a frontmatter with a top-level `displayMode: compact` and `gantt.barHeight: 30`, `gantt.axisFormat: '%d'`,
+`gantt.tickInterval: 1week`, `gantt.topAxis: true`, and `gantt.useWidth: 900` gives those values (the display mode
+`compact` moved from the frontmatter) without a warning; and that a directive with a text `gantt.barHeight` and a number
+`gantt.topAxis` gives two `mermaid-config-invalid` warnings and leaves the typed `gantt` section at its defaults.

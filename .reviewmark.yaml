@@ -3740,7 +3740,8 @@ reviews:
   # ---------------------------------------------------------------------------------------------
   # CanvasNetMermaid review-sets (static Mermaid renderer, derived with attribution)
   # Provenance check for every CanvasNetMermaid set: reviewers confirm that no source, test, example,
-  # or documentation text of Mermaid, dagre, graphlib, d3, khroma, js-yaml, lodash, or marked was copied
+  # or documentation text of Mermaid, the Mermaid parser package, Langium, dagre, graphlib, d3, dayjs,
+  # khroma, js-yaml, lodash, or marked was copied
   # beyond the ported behavior, that every file containing ported logic carries the "Portions derived
   # from" header, and that the attribution is recorded in
   # src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md (see the Third-Party Provenance and
@@ -3768,6 +3769,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidClassIntegrationTests.cs"  # class system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidStateIntegrationTests.cs"  # state system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidErIntegrationTests.cs"  # ER system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidPieIntegrationTests.cs"  # pie system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGanttIntegrationTests.cs"  # gantt system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidChartReferenceLayoutTests.cs"  # pie and gantt goldens
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
@@ -4720,6 +4724,146 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErModel.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErModel.LayoutData.cs"  # unit source (layout data, drawing)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Pie Review (subsystem)
+  - id: CanvasNetMermaid-Pie
+    title: Review that CanvasNetMermaid Pie Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/pie.yaml"               # subsystem requirements
+      - "docs/design/canvas-net-mermaid/pie.md"                    # subsystem design
+      - "docs/verification/canvas-net-mermaid/pie.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/pie.sysml"           # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/pie/*.mmd"  # original pie fixtures
+
+  # CanvasNetMermaid-Pie-PieParser Review (one per unit)
+  - id: CanvasNetMermaid-Pie-PieParser
+    title: Review that CanvasNetMermaid Pie PieParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/pie.md"
+      - "docs/reqstream/canvas-net-mermaid/pie.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/pie/pie-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/pie/pie-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/pie/pie-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/pie/pie-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieParser.cs"  # unit source (grammar, database, PieDiagram)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/pie-parser.json"  # vectors
+
+  # CanvasNetMermaid-Pie-PieRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Pie-PieRenderer
+    title: Review that CanvasNetMermaid Pie PieRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/pie.md"
+      - "docs/reqstream/canvas-net-mermaid/pie.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/pie/pie-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/pie/pie-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/pie/pie-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/pie/pie-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieRenderer.Arcs.cs"  # unit source (d3 pie, arc, and path)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Gantt Review (subsystem)
+  - id: CanvasNetMermaid-Gantt
+    title: Review that CanvasNetMermaid Gantt Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-mermaid/gantt.md"                  # subsystem design
+      - "docs/verification/canvas-net-mermaid/gantt.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/gantt/*.mmd"  # original gantt fixtures
+
+  # CanvasNetMermaid-Gantt-GanttParser Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-GanttParser
+    title: Review that CanvasNetMermaid Gantt GanttParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/gantt-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/gantt-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/gantt-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/gantt-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"  # vectors
+
+  # CanvasNetMermaid-Gantt-GanttModel Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-GanttModel
+    title: Review that CanvasNetMermaid Gantt GanttModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/gantt-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/gantt-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/gantt-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/gantt-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttModel.cs"  # unit source (database)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttModel.Tasks.cs"  # unit source (task dates, clock)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttModel.Dayjs.cs"  # unit source (dayjs subset)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Gantt-GanttRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-GanttRenderer
+    title: Review that CanvasNetMermaid Gantt GanttRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/gantt-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/gantt-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/gantt-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/gantt-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttRenderer.Tasks.cs"  # unit source (bars, texts, today)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttRenderer.Axis.cs"  # unit source (d3-axis, ticks)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Gantt-TimeAxis Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-TimeAxis
+    title: Review that CanvasNetMermaid Gantt TimeAxis Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/time-axis.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/time-axis.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/time-axis.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/time-axis.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/TimeAxis.cs"  # unit source (JsDate, intervals)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/TimeAxis.Scale.cs"  # unit source (ticks, time scale)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/TimeAxis.Format.cs"  # unit source (time format)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/TimeAxisTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/time-axis.json"  # vectors
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

@@ -42,6 +42,23 @@ public class SourceLoaderMermaidTests
         Enumerable.Range(0, surface.Height).Sum(y => Enumerable.Range(0, surface.Width).Count(x => surface[x, y] == color));
 
     /// <summary>
+    ///     Counts the pixels of a surface that do not have a color.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="color">The color.</param>
+    /// <returns>The number of pixels.</returns>
+    private static int CountNot(Surface surface, Rgba32 color) => (surface.Width * surface.Height) - Count(surface, color);
+
+    /// <summary>
+    ///     Counts the pixels in which two surfaces of the same size differ.
+    /// </summary>
+    /// <param name="expected">The first surface.</param>
+    /// <param name="actual">The second surface.</param>
+    /// <returns>The number of pixels.</returns>
+    private static int CountDifferences(Surface expected, Surface actual) =>
+        Enumerable.Range(0, actual.Height).Sum(y => Enumerable.Range(0, actual.Width).Count(x => expected[x, y] != actual[x, y]));
+
+    /// <summary>
     ///     Test that a flowchart is probed without drawing it: its natural size and the facts of its text.
     /// </summary>
     [Fact]
@@ -193,8 +210,62 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
-    ///     Test that a diagram type this version does not draw (a pie chart) is probed with <c>Supported</c> false and
-    ///     drawn as an empty picture with one unsupported note that says it is planned, and that strict mode makes it an
+    ///     Test that a pie chart is probed as a supported diagram with its title and its slices as nodes, and drawn strictly
+    ///     at its natural size over white, as the library draws it, with no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidPie_ProbesAndDraws()
+    {
+        // Arrange
+        const string Text = "pie title Pets\n    \"Dogs\" : 386\n    \"Cats\" : 85\n    \"Rats\" : 15\n";
+        using var directory = new TempDirectory();
+        var path = directory.Combine("pets.mmd");
+        File.WriteAllText(path, Text);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the facts, the size, the white corner, the library's pixels, and no note
+        Assert.Equal(new DiagramFacts("pie", true, null, "Pets", null, 3, 0, 0), info.Diagram);
+        Assert.Equal((info.Width, info.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(White, loaded.Surface[0, 0]);
+        Assert.Equal((expected.Width, expected.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(0, CountDifferences(expected, loaded.Surface));
+        Assert.True(CountNot(loaded.Surface, White) > loaded.Surface.Width * loaded.Surface.Height / 10);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a gantt chart is probed as a supported diagram with its tasks and sections, and drawn strictly at its
+    ///     natural size as the library draws it without a clock (no today line), with no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock()
+    {
+        // Arrange
+        const string Text = "gantt\n    dateFormat YYYY-MM-DD\n    section Build\n    Design :des, 2024-06-03, 5d\n    section Test\n    Test :crit, after des, 3d\n";
+        using var directory = new TempDirectory();
+        var path = directory.Combine("plan.mmd");
+        File.WriteAllText(path, Text);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the facts, the width of mmdc's page, the library's pixels, and no note
+        Assert.Equal(new DiagramFacts("gantt", true, null, null, null, 2, 0, 2), info.Diagram);
+        Assert.Equal(784, info.Width);
+        Assert.Equal((expected.Width, expected.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(0, CountDifferences(expected, loaded.Surface));
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a diagram type this version does not draw (a user journey) is probed with <c>Supported</c> false and
+    ///     drawn as an empty picture with one unsupported note that says it is not supported, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.
     /// </summary>
     [Fact]
@@ -202,7 +273,7 @@ public class SourceLoaderMermaidTests
     {
         // Arrange
         using var directory = new TempDirectory();
-        var path = CopyFixture(directory, "pie.mmd");
+        var path = CopyFixture(directory, "journey.mmd");
 
         // Act
         var info = SourceLoader.Probe(path);
@@ -210,7 +281,7 @@ public class SourceLoaderMermaidTests
         var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Strict = true }));
 
         // Assert: the facts and the empty picture of 16 pixels (twice the diagram padding)
-        Assert.Equal(new DiagramFacts("pie", false, null, null, null, 0, 0, 0), info.Diagram);
+        Assert.Equal(new DiagramFacts("journey", false, null, null, null, 0, 0, 0), info.Diagram);
         Assert.Equal((16, 16), (loaded.Surface.Width, loaded.Surface.Height));
         Assert.Equal(White, loaded.Surface[8, 8]);
 
@@ -218,7 +289,7 @@ public class SourceLoaderMermaidTests
         var note = Assert.Single(loaded.Diagnostics);
         Assert.Equal(("mermaid", "unsupported", MermaidDiagnosticCodes.DiagramUnsupported), (note.Source, note.Severity, note.Code));
         Assert.Contains("not drawn by this version", note.Message, StringComparison.Ordinal);
-        Assert.Contains("pie diagrams are planned", note.Message, StringComparison.Ordinal);
+        Assert.Contains("journey diagrams are not supported", note.Message, StringComparison.Ordinal);
         Assert.Contains("flowchart", note.Message, StringComparison.Ordinal);
         Assert.Equal(1, note.Location!.Line);
         Assert.DoesNotContain('\n', note.Message);
@@ -226,7 +297,7 @@ public class SourceLoaderMermaidTests
         // Assert: strict mode is an error with the hint of the library and its exception as the cause
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains(MermaidDiagnosticCodes.DiagramUnsupported, strict.Message, StringComparison.Ordinal);
-        Assert.Contains("planned", strict.Hint, StringComparison.Ordinal);
+        Assert.Contains("not supported", strict.Hint, StringComparison.Ordinal);
         Assert.Contains("--strict", strict.Hint, StringComparison.Ordinal);
         Assert.IsType<MermaidUnsupportedFeatureException>(strict.InnerException);
     }

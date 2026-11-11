@@ -1,0 +1,8 @@
+gantt
+    dateFormat YYYY-MM-DD
+    section Work
+    Phase one       :p1, 2024-04-01, 10d
+    Gate            :milestone, g1, after p1, 0d
+    Phase two       :p2, after g1, 8d
+    Review          :vert, v1, 2024-04-06, 0d
+    Done            :milestone, done, m2, after p2, 0d

@@ -4,7 +4,8 @@
 # These requirements describe the design-level behavior of the ThemeResolver unit of the Configuration subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's five built-in themes
 # (with the JavaScript object model their derivations rely on, ThemeObject) and of the style sheet Mermaid writes for
-# a flowchart (FlowchartStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for the
+# a flowchart (FlowchartStyles), with the style sheets of the other diagrams and of pie and gantt charts (PieStyles,
+# GanttStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for the
 # test-evidence mapping.
 
 sections:
@@ -172,6 +173,39 @@ sections:
                 tests:
                   - ErStyles_Create_DefaultTheme_ResolvesErRules
                   - ErStyles_Create_ThemeCss_KeepsTheImportantMarkerFill
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-PieStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a pie chart - the same
+                  global rules as for a flowchart and the pie rules - from the theme variables of a configuration, apply
+                  the themeCSS rules of the chart's own selectors after them, and resolve the paint of a slice over its
+                  section color (its opacity folded into the fill and the stroke, a highlighted slice opaque and
+                  larger), of the outer circle without fill, and the fonts and colors of the title, the percentage
+                  labels, and the legend texts.
+                justification: |
+                  Mermaid paints a pie chart through these rules; resolving them the same way, the author's themeCSS
+                  included, gives the same paint.
+                tests:
+                  - PieStyles_Create_DefaultTheme_ResolvesPieRules
+                  - PieStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-GanttStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a gantt chart - the same
+                  global rules as for a flowchart and the gantt rules - from the theme variables of a configuration,
+                  apply the themeCSS rules of the chart's own selectors after them and report every other themeCSS rule
+                  as mermaid-theme-css-unsupported, and compute the style of an element from the classes of the element
+                  and of its ancestors as the browser's cascade does - important declarations first, then the
+                  specificity of compound and descendant selectors, then the order of the rules, over the element's own
+                  attributes - for the section rows, the bars and their states, the milestones, the task texts inside
+                  and beside their bars, the clickable texts, the section titles, the grid and its labels, the excluded
+                  days, the today line, and the title.
+                justification: |
+                  Mermaid paints a gantt chart through compound and descendant class selectors and important
+                  declarations; only the same cascade gives the same paint for every combination of task states.
+                tests:
+                  - GanttStyles_Create_DefaultTheme_CascadesClassSets
+                  - GanttStyles_Create_ThemeCss_OverridesKnownSelectors
 
               - id: CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
                 title: >-

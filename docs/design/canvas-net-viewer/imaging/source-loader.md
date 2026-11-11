@@ -372,28 +372,29 @@ The target size is `ComputeTargetSize` of the natural size. The placement depend
 The `MermaidRenderOptions` (`CreateMermaidOptions`) are fixed except for what the options say: the `Theme`, the
 `Background` (the background option, white when none was given, because Mermaid's own SVG is transparent; a background
 with zero alpha is passed as `null` and keeps the transparency), the `ImageResolver` of the pictures (below),
-`ThrowOnUnsupportedFeature` from `Strict`, and the handlers that collect the notes. The library uses only its bundled
-fonts and reads nothing from the network, so the picture is the same for the same diagram and options. A warning becomes
-a note (`mermaid`, `warning`, the generic code `mermaid-warning` (`MermaidImageSource.WarningCode`), the library's
+`ThrowOnUnsupportedFeature` from `Strict`, and the handlers that collect the notes. No clock (`Now`) is set, so a gantt
+chart is drawn without a today line and reports, as a warning, what needs today. The library uses only its bundled fonts
+and reads nothing from the network, so the picture is the same for the same diagram and options. A warning becomes a
+note (`mermaid`, `warning`, the generic code `mermaid-warning` (`MermaidImageSource.WarningCode`), the library's
 one-line text, with the specific `mermaid-*` code as `Detail` and the file, line, and column as `Location`); a construct
 the library recognizes but does not draw becomes a note (`mermaid`, `unsupported`, the feature identifier as the code,
 such as `mermaid-icon-unsupported`, and `file:line:column: message (hint)`, `DescribeUnsupported`). A diagram type that
-is recognized but not drawn yet (a pie chart, for example) is one such note, `mermaid-diagram-unsupported`, whose
-hint says that the type is planned and which types are drawn, and the picture is the background alone; in strict mode
-the library throws instead (see *Error Handling*). The surface is charged to the `LoadContext` before the library draws
-it. Without a size option the pictures of the nodes can enlarge the drawn diagram (a picture node without its `w` and
-`h` takes the size of its picture, and the probe measured the diagram without them), and that size is known only after
-the draw: a surface larger than the charge is charged the rest (as one row of the excess pixels, through the same
-`Charge` hook) before it is returned, and is disposed and refused when the rest does not fit. The surface is therefore
-allocated before the excess is validated, bounded by `Surface.MaxDimension` squared, as the resolver already accepts for
-a source that under-charges; measuring with the pictures first would resolve every picture a third time and lay the
-diagram out once more. A refusal reports the pixels of the whole surface and the budget left once the charge before the
-draw is refunded. When the pictures make the diagram smaller than the probe, the larger probed size stays charged:
-`LoadContext` has no way to give pixels back, and that over-charge, bounded by the probed size, only makes the budget
-stricter. The `SourceInfo` of the result then carries the natural size of the drawn diagram (the drawn size
-over the scale, rounded, at least one pixel; exact at a scale of 1 or more), so the loaded picture's size and charge are
-the drawn size while `info` still reports the size without the pictures. The operation recorded is `render` with the
-`width` and the `height` of the surface that was drawn, the `background`, and, when one is set, the `theme`.
+is recognized but not drawn (a user journey, for example) is one such note, `mermaid-diagram-unsupported`, whose hint
+says whether the type is planned and which types are drawn, and the picture is the background alone; in strict mode the
+library throws instead (see *Error Handling*). The surface is charged to the `LoadContext` before the library draws it.
+Without a size option the pictures of the nodes can enlarge the drawn diagram (a picture node without its `w` and `h`
+takes the size of its picture, and the probe measured the diagram without them), and that size is known only after the
+draw: a surface larger than the charge is charged the rest (as one row of the excess pixels, through the same `Charge`
+hook) before it is returned, and is disposed and refused when the rest does not fit. The surface is therefore allocated
+before the excess is validated, bounded by `Surface.MaxDimension` squared, as the resolver already accepts for a source
+that under-charges; measuring with the pictures first would resolve every picture a third time and lay the diagram out
+once more. A refusal reports the pixels of the whole surface and the budget left once the charge before the draw is
+refunded. When the pictures make the diagram smaller than the probe, the larger probed size stays charged: `LoadContext`
+has no way to give pixels back, and that over-charge, bounded by the probed size, only makes the budget stricter. The
+`SourceInfo` of the result then carries the natural size of the drawn diagram (the drawn size over the scale, rounded,
+at least one pixel; exact at a scale of 1 or more), so the loaded picture's size and charge are the drawn size while
+`info` still reports the size without the pictures. The operation recorded is `render` with the `width` and the `height`
+of the surface that was drawn, the `background`, and, when one is set, the `theme`.
 
 *Diagram pictures.* A node written `@{ img: "part.png", ... }` shows a file that lies beside the diagram, through the
 same wiring as the pictures of a chart: unless the caller supplied the resolver of an embedding document

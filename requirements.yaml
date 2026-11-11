@@ -222,6 +222,14 @@ includes:
   - docs/reqstream/canvas-net-mermaid/er.yaml
   - docs/reqstream/canvas-net-mermaid/er/er-parser.yaml
   - docs/reqstream/canvas-net-mermaid/er/er-model.yaml
+  - docs/reqstream/canvas-net-mermaid/pie.yaml
+  - docs/reqstream/canvas-net-mermaid/pie/pie-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/pie/pie-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/gantt-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/gantt-model.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/gantt-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/time-axis.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

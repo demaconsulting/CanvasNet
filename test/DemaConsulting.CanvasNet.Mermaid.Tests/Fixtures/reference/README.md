@@ -6,7 +6,10 @@ flowchart fixture of `../flowchart/`. `MermaidReferenceLayoutTests` compares Can
 [Sequence Goldens](#sequence-goldens). The `class/` subfolder holds the goldens of the class fixtures of `../class/`;
 their format is described in [Class Goldens](#class-goldens). The `state/` and `er/` folders hold the goldens of the
 state and ER fixtures of `../state/` and `../er/`; their format is described in [State Goldens](#state-goldens) and
-[ER Goldens](#er-goldens).
+[ER Goldens](#er-goldens). The `pie/` folder holds the goldens of the pie fixtures of `../pie/`, which
+`MermaidChartReferenceLayoutTests` compares; their format is described in [Pie Goldens](#pie-goldens). The `gantt/`
+folder holds the goldens of the gantt fixtures of `../gantt/`, which the same test compares; their format is
+described in [Gantt Goldens](#gantt-goldens).
 
 ## Provenance
 
@@ -61,12 +64,14 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Fixture 25-subgraph-basic
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram sequence      # the sequence goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the class goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the state and ER goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram pie           # the pie goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram gantt         # the gantt goldens only
 ```
 
-A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/` or `../er/` needs a golden, or an entry in
-the exclusions of the script, the test and this file. A golden change in a pull request is reviewed like code: the
-diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the browser's geometry is single
-precision, and a value near a rounding boundary can round either way.
+A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/`, `../pie/` or `../gantt/` needs a
+golden, or an entry in the exclusions of the script, the test and this file. A golden change in a pull request is
+reviewed like code: the diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the
+browser's geometry is single precision, and a value near a rounding boundary can round either way.
 
 ## Sequence Goldens
 
@@ -384,3 +389,122 @@ none is excluded.
 `er.rankSpacing`, `er.minEntityWidth`, `er.entityPadding`, and `er.diagramPadding`, and has the accessibility
 texts. The ER texts are drawn as HTML labels by default (a top-level `htmlLabels` that is not set counts as true), so
 only `12-config-title` has SVG text labels.
+
+## Pie Goldens
+
+The files in `pie/` hold the layout that the reference gives each fixture of `../pie/`. They have the provenance,
+fonts, one-line arrays and objects, and the read-back at a scale of exactly 1 of the class goldens, and are written
+by `extractPie` of `render-mermaid.mjs`.
+
+### Pie Layout Content
+
+- `diagram`: `pie`.
+- `viewBox`: the view box Mermaid sets (`[x, 0, width, height]`; `x` is negative when the title is wider than the
+  chart).
+- `origin`: the point of the pie group (the outer circle, the slices and their labels), which a top or left legend
+  moves away from (225, 225).
+- `outerCircle`: the `circle.pieOuterCircle`, with its `center`, `r`, and `paint`.
+- `slices`: each `path.pieCircle` in order, with its `class` (`pieCircle`, with `highlighted` for the highlighted
+  slice), its path data `d` as d3 writes it (in the coordinates of the pie group), its `box`, and its `paint`.
+- `labels`: each percentage label (`text.slice`).
+- `title`: the `text.pieTitleText` (empty when the chart has no title).
+- `legend`: each `g.legend`, with the point of the group (`at`), the `rect` with its `box` and `paint`, and the
+  `text`.
+
+A `paint` holds the computed `fill`, `stroke`, `strokeWidth`, `opacity`, and CSS `scale` (`none`, or `1.05` for the
+highlighted slice). A text holds its `class`, `text`, the point of its anchor (`at`), its computed `anchor`,
+`fontSize`, `fontWeight`, and `fill`, and its `box`.
+
+### Pie Tolerances
+
+`MermaidChartReferenceLayoutTests` compares every pie golden at **0.01 px**: the view box, the origin, the outer
+circle, each slice's path data (the golden's numbers scaled by its CSS `scale`, the arc flags kept), the anchors of
+the texts, the legend points and squares, and the paint, with the opacity folded into the colors as CanvasNet draws
+them. Text boxes are compared at 0.02 px, as for the sequence goldens, and a slice's box at 0.02 px (Chrome's arc
+approximation; the test computes the exact box of the circle arcs). The largest difference is 0.001 px. Two browser
+rules make this possible:
+
+- **The legend is placed by the measured text width.** Mermaid takes the widest legend text from
+  `getBoundingClientRect` before the view box is set, which is the width of the text's `getBBox`, so the view box
+  width is 512 px plus that width for a legend at the right or the left.
+- **A color in `hsl()` is converted in single precision.** The default theme's `pie11` is
+  `hsl(150, 100%, 56.2745098039%)`, whose blue channel is 143.49999... in double precision and 143.5 in single
+  precision, which Chrome rounds to 144.
+
+### Pie Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic` | Three slices, no title (an empty title text), the legend at the right |
+| `02-showdata-title-long` | `showData`, a title on the `pie` line wider than the chart (a negative view box `x`) |
+| `03-acc-comments` | `title`, `accTitle`, a multi-line `accDescr`, comments, single quotes, escapes |
+| `04-small-zero-duplicate` | A section under 1% (in the legend only), a zero value, a repeated label |
+| `05-many-slices` | Fourteen sections (the colors wrap after `pie12`), a title |
+| `06-legend-left-donut-textposition` | `legendPosition: left`, `donutHole`, `textPosition` |
+| `07-legend-top-forest` | `legendPosition: top`, the forest theme, the frontmatter title |
+| `08-legend-bottom-highlight-dark-themevariables` | `legendPosition: bottom`, `highlightSlice`, dark, theme variables |
+
+## Gantt Goldens
+
+The files in `gantt/` hold the layout that the reference gives each fixture of `../gantt/`. They have the provenance,
+fonts, one-line arrays and objects, and the read-back at a scale of exactly 1 of the pie goldens, and are written by
+`extractGantt` of `render-mermaid.mjs`. The page runs in the UTC time zone with its clock fixed at
+2024-06-12T10:30:00Z, so the today marker and the dates Mermaid fills in from "today" do not change from run to run;
+the test lays each fixture out with `MermaidRenderOptions.Now` set to the same instant.
+
+### Gantt Layout Content
+
+- `diagram`: `gantt`.
+- `viewBox`: the view box Mermaid sets (`[0, 0, width, height]`).
+- `excludes`: each `rect.exclude-range` (a run of excluded days), with its `corners` and `paint`.
+- `axes`: each axis group (`g.grid`: the bottom axis and, with `topAxis`, the top one): the point of the group (`origin`)
+  and each tick, with the point of its line (`at`) and the line's other `end`, the opacity of the tick group, the
+  `paint` of the line, and its text.
+- `sections`: each section background `rect.section`, with its `class`, `corners` and `paint`.
+- `tasks`: each task `rect` (and vert marker) in order, with its `id`, `class`, corner radius `rx`, the four
+  `corners` (after the CSS transform of a milestone) and the `paint`.
+- `texts`: each task text, with its `id` and `class` (which tells inside from outside placement).
+- `sectionTitles`: each `text.sectionTitle`, with its `class`, `fill`, `fontSize`, and its `lines` (a section name
+  with `<br>` has one line per `tspan`), each with its `text` and `box`.
+- `today`: the line of `g.today` with its `start`, `end` and `paint`, or `null` without one.
+- `title`: the `text.titleText`.
+
+A `paint` holds the computed `fill`, `stroke`, `strokeWidth` and `opacity`. A text holds its `text`, the point of its
+anchor (`at`), its `dy`, its computed `anchor`, `fontSize`, `fontWeight`, `fontStyle` and `fill`, and its `box`.
+
+### Gantt Tolerances
+
+`MermaidChartReferenceLayoutTests` compares every gantt golden at **0.01 px**: the view box, the axis origins and tick
+lines, the corners of every rectangle (exclude ranges, sections, tasks and milestones), the today line, the anchors
+of the texts, and the paint, with the opacity folded into the colors as CanvasNet draws them. Text boxes are compared
+at 0.02 px, as for the other goldens. A rectangle without area (a zero-length bar) is not drawn by the browser and is
+skipped. The largest difference is 0.001 px.
+
+### Gantt Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic` | Two sections, `after`, an implicit start, no `dateFormat` (end dates give zero-length bars) |
+| `02-dateformat-durations-inclusive` | `dateFormat DD-MM-YYYY`, `inclusiveEndDates`, day, week and hour durations |
+| `03-after-until` | `after` and `until` with several ids, a forward reference |
+| `04-task-states` | `done`, `active`, `crit` and their combinations |
+| `05-milestones-vert` | Milestones (rotated and scaled) and a `vert` marker |
+| `06-excludes-includes` | `excludes` with weekends, a date and a weekday, `includes` |
+| `07-weekend-friday` | `excludes weekends` with `weekend friday` |
+| `08-axisformat-tickinterval-week` | `axisFormat`, `tickInterval 1week`, `weekday monday` |
+| `09-topaxis-compact` | `displayMode: compact` and `topAxis` from the frontmatter |
+| `10-time-of-day` | `dateFormat HH:mm`, `axisFormat %H:%M`, minute and hour durations |
+| `11-click-links` | `click` with `href` and `call` (not drawn as links) |
+| `12-today-marker-style` | A `todayMarker` style, the today line at the fixed clock |
+| `13-config-theme-br-sections` | The dark theme, bar and font sizes, `useWidth`, a section name with `<br>` |
+| `14-text-outside` | Task texts beside short bars (left and right), a title wider than the chart |
+| `15-excludes-second-pass` | `excludes weekends` on a Friday task when a forward `after` needs a second pass |
+| `16-end-dates-strict` | End dates read strictly: an ISO end that `DD-MM-YYYY` does not read ends at the start |
+| `17-dateformat-unix-seconds` | `dateFormat X`: a numeric start is milliseconds, a numeric end is seconds |
+| `18-number-section-styles-zero` | `gantt.numberSectionStyles: 0`: the `NaN` section classes that no style rule names |

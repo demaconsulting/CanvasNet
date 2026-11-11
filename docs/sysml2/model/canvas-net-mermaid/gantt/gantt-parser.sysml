@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def GanttParser {
+        doc /* The internal sealed GanttParser (a partial class in two files) and the static GanttTokens (the jison terminal names, their printed names and numbers): Parse reads the preprocessed text of a gantt chart into a new GanttModel. The lexer ports the rules and the start conditions of the lexer that jison generates from Mermaid's gantt.jison, case-insensitive, first match wins, with hand-written linear matchers in place of the regular expressions and Mermaid's quirks kept (a statement value running to the end of the line or to a semicolon or hash, a line feed as the one white-space character after a keyword, the comment rules, click, call, and href taking precedence over task names, a task name running to the first colon, and a date, accDescription, or lone colon at the start of a statement being a token the grammar does not accept). A recursive-descent parser with one token of lookahead accepts the language of the LALR(1) grammar (the statements, sections, tasks, and the seven click forms) and calls the gantt database with the substrings of jison's actions, trailing white space kept. A token the grammar does not accept is a MermaidSyntaxException with code mermaid-syntax-error located in the original text with jison's expected tokens; the topAxis statement and a task whose data holds only tags fail located where Mermaid's own parser fails. Every task and section statement counts against MaxNodes and every kept token text against MaxLabelLength (mermaid-limit-exceeded). An instance parses one text on one thread. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttParser.cs, src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttParser.Lexer.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttParserTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttVectorTests.cs (with the upstream vectors test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json) */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/gantt/gantt-parser.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/gantt/gantt-parser.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/gantt/gantt-parser.yaml */
+    }
+}

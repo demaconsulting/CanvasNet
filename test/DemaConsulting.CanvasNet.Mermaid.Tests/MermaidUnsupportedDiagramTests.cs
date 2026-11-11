@@ -3,21 +3,21 @@ using DemaConsulting.CanvasNet.Canvas;
 namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 
 /// <summary>
-///     System tests of the behavior for a known diagram type that this version does not draw (<c>pie</c>
+///     System tests of the behavior for a known diagram type that this version does not draw (<c>journey</c>
 ///     here): one <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> report and an empty transparent picture, or a
 ///     <see cref="MermaidUnsupportedFeatureException"/> in strict mode.
 /// </summary>
 public class MermaidUnsupportedDiagramTests
 {
     /// <summary>
-    ///     Validates that rendering a pie chart delivers one report, located at the keyword, with the planned hint,
+    ///     Validates that rendering a user journey delivers one report, located at the keyword, with the not-planned hint,
     ///     and returns a transparent 16 by 16 surface.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Render_PieChart_ReportsOnceAndDrawsTransparentPlaceholder()
+    public void CanvasNetMermaid_Render_JourneyDiagram_ReportsOnceAndDrawsTransparentPlaceholder()
     {
         // Arrange
-        var document = MermaidDocument.Parse("%% comment\n" + MermaidTestHelpers.PieText, new MermaidOpenOptions { SourceName = "pie.mmd" });
+        var document = MermaidDocument.Parse("%% comment\n" + MermaidTestHelpers.UnsupportedText, new MermaidOpenOptions { SourceName = "journey.mmd" });
         var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
 
         // Act
@@ -29,18 +29,18 @@ public class MermaidUnsupportedDiagramTests
         Assert.Empty(warnings);
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
-        Assert.Equal(new MermaidLocation("pie.mmd", 2, 1), report.Location);
-        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", report.Hint);
+        Assert.Equal(new MermaidLocation("journey.mmd", 2, 1), report.Location);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt", report.Hint);
     }
 
     /// <summary>
     ///     Validates that strict mode throws the unsupported-feature exception after delivering the report.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Render_PieChartStrict_Throws()
+    public void CanvasNetMermaid_Render_JourneyDiagramStrict_Throws()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
         var (options, _, unsupported) = MermaidTestHelpers.Collecting(strict: true);
 
         // Act
@@ -48,7 +48,7 @@ public class MermaidUnsupportedDiagramTests
 
         // Assert
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, ex.Feature);
-        Assert.StartsWith("pie diagrams are planned", ex.Hint, StringComparison.Ordinal);
+        Assert.StartsWith("journey diagrams are not supported", ex.Hint, StringComparison.Ordinal);
         Assert.Single(unsupported);
     }
 
@@ -56,10 +56,10 @@ public class MermaidUnsupportedDiagramTests
     ///     Validates that measuring reports the same and gives the size of the placeholder, scaled.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Measure_PieChart_ReportsAndGivesScaledPlaceholderSize()
+    public void CanvasNetMermaid_Measure_JourneyDiagram_ReportsAndGivesScaledPlaceholderSize()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
         var unsupported = new List<MermaidUnsupportedFeature>();
         var options = new MermaidRenderOptions { Scale = 2.5, UnsupportedFeatureHandler = unsupported.Add };
 
@@ -75,10 +75,10 @@ public class MermaidUnsupportedDiagramTests
     ///     Validates that an explicit size and a background are honored for the placeholder.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_RenderSized_PieChartWithBackground_FillsBackground()
+    public void CanvasNetMermaid_RenderSized_JourneyDiagramWithBackground_FillsBackground()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
         var white = new Rgba32(255, 255, 255, 255);
         var (options, _, _) = MermaidTestHelpers.Collecting(background: white);
 
@@ -97,8 +97,6 @@ public class MermaidUnsupportedDiagramTests
     /// <param name="type">The expected type.</param>
     /// <param name="planned">Whether the type is planned.</param>
     [Theory]
-    [InlineData("pie\n \"a\" : 1", "pie", true)]
-    [InlineData("gantt\n title x", "gantt", true)]
     [InlineData("mindmap\n root", "mindmap", true)]
     [InlineData("journey\n title x", "journey", false)]
     [InlineData("gitGraph\n commit", "gitGraph", false)]
@@ -126,7 +124,7 @@ public class MermaidUnsupportedDiagramTests
     public void CanvasNetMermaid_Render_FailingHandler_Propagates()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
         var options = new MermaidRenderOptions { UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
 
         // Act / Assert
@@ -141,7 +139,7 @@ public class MermaidUnsupportedDiagramTests
     public void CanvasNetMermaid_RenderSized_InvalidSize_Throws()
     {
         // Arrange
-        var document = MermaidDocument.Parse(MermaidTestHelpers.PieText);
+        var document = MermaidDocument.Parse(MermaidTestHelpers.UnsupportedText);
 
         // Act / Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => document.Render(0, 10, cancellationToken: TestContext.Current.CancellationToken));

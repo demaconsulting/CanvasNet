@@ -1,0 +1,20 @@
+gantt
+    title Building a garden shed
+    dateFormat YYYY-MM-DD
+    axisFormat %b %e
+    tickInterval 1week
+    weekday monday
+    excludes weekends
+    section Plan
+    Measure the site      :done, measure, 2025-04-07, 2d
+    Order the timber      :done, order, after measure, 1d
+    Delivery              :milestone, delivery, 2025-04-16, 0d
+    section Build
+    Lay the base          :crit, base, after order, 3d
+    Frame the walls       :active, walls, after delivery, 4d
+    Roof                  :crit, roof, after walls, 3d
+    Inspection            :vert, check, 2025-04-28, 0d
+    section Finish
+    Paint                 :paint, after roof, 2d
+    Shelves               :shelves, after walls, until paint
+    Move the tools in     :tools, after paint shelves, 1d

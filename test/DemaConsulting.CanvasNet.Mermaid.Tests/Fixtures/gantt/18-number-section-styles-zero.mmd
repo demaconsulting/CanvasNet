@@ -1,0 +1,13 @@
+---
+config:
+  gantt:
+    numberSectionStyles: 0
+---
+gantt
+    dateFormat YYYY-MM-DD
+    section One
+    Plain           :a, 2024-03-04, 3d
+    Done            :done, b, after a, 2d
+    section Two
+    Active          :active, c, 2024-03-05, 3d
+    Critical        :crit, d, after c, 2d

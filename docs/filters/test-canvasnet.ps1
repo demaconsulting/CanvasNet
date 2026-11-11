@@ -10,9 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence, class, state, and ER diagrams are drawn by the filter itself, a diagram type the tool does not
-    draw yet is left as written for another filter, and the defaults-file filters run before a command-line filter (as
-    the CI's mermaid-filter is run). An SVG picture that links no file only the tool draws is left alone without
+    hashed), sequence, class, state, ER, pie, and gantt diagrams are drawn by the filter itself, a diagram type the
+    tool does not draw yet is left as written for another filter, and the defaults-file filters run before a
+    command-line filter (as the CI's mermaid-filter is run). An SVG picture that links no file only the tool draws is left alone without
     starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
     diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
     and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF. The scan
@@ -422,22 +422,58 @@ erDiagram
         $er.Log -notmatch 'left as written') `
         'an ER block is drawn' "$($er.Log)`n$($er.Html)"
 
-    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
-    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
-    Set-Content (Join-Path $guide 'zoo.mmd') -Value "pie`n    `"Ducks`" : 3"
-    $pies = @'
+    # A pie chart is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $slices = @'
 ```mermaid
 pie title Pets
-    "Cats" : 2
+    "Dogs" : 386
+    "Cats" : 85
+```
+'@
+    $piesBefore = @(Get-Pictures).Count
+    $pieMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $pie = Invoke-Filter 'mermaid-pie' $slices
+    Write-Result ($pie.ExitCode -eq 0 -and $pie.Html -notmatch '<code' -and
+        $pie.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $piesBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $pieMarkersBefore -and
+        $pie.Log -notmatch 'left as written') `
+        'a pie block is drawn' "$($pie.Log)`n$($pie.Html)"
+
+    # A gantt chart is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $tasks = @'
+```mermaid
+gantt
+    dateFormat YYYY-MM-DD
+    section Build
+    Design    :des, 2024-06-03, 5d
+    Implement :after des, 8d
+```
+'@
+    $ganttsBefore = @(Get-Pictures).Count
+    $ganttMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $gantt = Invoke-Filter 'mermaid-gantt' $tasks
+    Write-Result ($gantt.ExitCode -eq 0 -and $gantt.Html -notmatch '<code' -and
+        $gantt.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $ganttsBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $ganttMarkersBefore -and
+        $gantt.Log -notmatch 'left as written') `
+        'a gantt block is drawn' "$($gantt.Log)`n$($gantt.Html)"
+
+    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
+    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
+    Set-Content (Join-Path $guide 'zoo.mmd') -Value "journey`n    title Ducks"
+    $journeys = @'
+```mermaid
+journey
+    title Pets
 ```
 
 ![s](zoo.mmd)
 '@
-    $piesBefore = @(Get-Pictures).Count
-    $unsupported = Invoke-Filter 'mermaid-unsupported' $pies
+    $journeysBefore = @(Get-Pictures).Count
+    $unsupported = Invoke-Filter 'mermaid-unsupported' $journeys
     Write-Result ($unsupported.ExitCode -eq 0 -and $unsupported.Html -match '<code class="[^"]*mermaid"' -and
         $unsupported.Html -match 'Pets' -and
-        $unsupported.Html -match 'src="zoo\.mmd"' -and @(Get-Pictures).Count -eq $piesBefore) `
+        $unsupported.Html -match 'src="zoo\.mmd"' -and @(Get-Pictures).Count -eq $journeysBefore) `
         'an unsupported diagram type is left as written, as a code block and as a picture' "$($unsupported.Log)`n$($unsupported.Html)"
     Write-Result ($unsupported.Log -match 'are not drawn by this version' -and $unsupported.Log -match 'left as written') `
         'an unsupported diagram type is a warning with the tool message' $unsupported.Log
@@ -446,17 +482,17 @@ pie title Pets
     foreach ($marker in $markers) {
         Set-Content -LiteralPath $marker.FullName -Value 'remembered-unsupported' -NoNewline
     }
-    $remembered = Invoke-Filter 'mermaid-unsupported' $pies
+    $remembered = Invoke-Filter 'mermaid-unsupported' $journeys
     Write-Result ($remembered.ExitCode -eq 0 -and ([regex]::Matches($remembered.Log, 'remembered-unsupported')).Count -eq 2) `
         'a later run takes an unsupported diagram from its marker without drawing it' $remembered.Log
 
     # A flowchart that embeds a diagram of a type the tool does not draw is still drawn: the report about the
     # embedded picture (which names it in its origin) is an ordinary warning, not the whole picture unsupported.
-    Set-Content (Join-Path $guide 'embeds-pie.mmd') -Value "flowchart LR`n    A --> B@{ img: `"zoo.mmd`", h: 60, constraint: `"on`" }"
+    Set-Content (Join-Path $guide 'embeds-journey.mmd') -Value "flowchart LR`n    A --> B@{ img: `"zoo.mmd`", h: 60, constraint: `"on`" }"
     $embedBefore = @(Get-Pictures).Count
     $markersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
-    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-pie.mmd)'
-    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-pie-' -and
+    $embedded = Invoke-Filter 'mermaid-embeds-unsupported' '![e](embeds-journey.mmd)'
+    Write-Result ($embedded.ExitCode -eq 0 -and $embedded.Html -match 'generated/canvasnet/embeds-journey-' -and
         @(Get-Pictures).Count -eq $embedBefore + 1 -and
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $markersBefore -and
         $embedded.Log -match 'are not drawn by this version' -and $embedded.Log -notmatch 'left as written') `
@@ -469,7 +505,7 @@ pie title Pets
     Set-Content (Join-Path $root 'observe.lua') -Value (
         'function CodeBlock(b) return pandoc.Para{ pandoc.Str("OBSERVED-" .. (b.text:match("^(%S+)") or "")) } end')
     Set-Content (Join-Path $guide 'order.md') -Value $blocks.Replace('X --> Y', 'X --> Y --> Z') -NoNewline
-    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $pies.Replace('![s](zoo.mmd)', ''))
+    Add-Content (Join-Path $guide 'order.md') -Value ("`n`n" + $journeys.Replace('![s](zoo.mmd)', ''))
     Push-Location $tree
     try {
         $orderLog = & dotnet pandoc --defaults (Join-Path $root 'defaults.yaml') --lua-filter (Join-Path $root 'observe.lua') `
@@ -481,7 +517,7 @@ pie title Pets
         Pop-Location
     }
     $orderHtml = Get-Content -LiteralPath (Join-Path $guide 'generated/order.html') -Raw -ErrorAction SilentlyContinue
-    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-pie' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
+    Write-Result ($orderCode -eq 0 -and $orderHtml -match 'OBSERVED-journey' -and $orderHtml -notmatch 'OBSERVED-flowchart' -and
         ([regex]::Matches($orderHtml, 'generated/canvasnet/mermaid-')).Count -eq 2) `
         'defaults-file filters run before a command-line filter, which sees only the unsupported blocks' "$orderLog`n$orderHtml"
 

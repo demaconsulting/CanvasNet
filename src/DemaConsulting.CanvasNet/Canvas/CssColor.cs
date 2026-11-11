@@ -19,7 +19,8 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///         <item><description><c>hsl()</c> and <c>hsla()</c> with a hue in degrees (a number, or with the unit <c>deg</c>, <c>rad</c>, <c>grad</c> or <c>turn</c>), saturation and lightness as percentages (the space syntax also takes numbers), and the same alpha forms.</description></item>
 ///     </list>
 ///     <para>
-///         Out-of-range channels are clamped, as CSS specifies; fractions are rounded half away from zero. The
+///         Out-of-range channels are clamped, as CSS specifies; fractions are rounded half away from zero, and an
+///         <c>hsl()</c> color is converted to RGB in single precision, as browsers convert it. The
 ///         pixel type holds straight (not premultiplied) alpha, so <c>rgba(255,0,0,0.5)</c> is
 ///         <c>(255, 0, 0, 128)</c>. Parsing is culture invariant and never throws for bad text: <see cref="TryParse"/>
 ///         returns <see langword="false"/>. Callers that accept a narrower grammar (for example names and hexadecimal
@@ -463,17 +464,19 @@ public static class CssColor
             return false;
         }
 
-        var s = Math.Clamp(saturation, 0, 100) / 100;
-        var l = Math.Clamp(lightness, 0, 100) / 100;
-        var h = ((hue % 360) + 360) % 360;
-        var a = s * Math.Min(l, 1 - l);
-        double Channel(int n)
+        // The conversion runs in single precision, as browsers convert it (Blink's HSLToSRGB), so a channel that falls
+        // on a half after the rounding of the percentages rounds as in a browser
+        var s = (float)(Math.Clamp(saturation, 0, 100) / 100);
+        var l = (float)(Math.Clamp(lightness, 0, 100) / 100);
+        var h = (float)(((hue % 360) + 360) % 360);
+        var a = s * MathF.Min(l, 1 - l);
+        float Channel(int n)
         {
             var k = (n + (h / 30)) % 12;
-            return l - (a * Math.Max(-1, Math.Min(Math.Min(k - 3, 9 - k), 1)));
+            return l - (a * MathF.Max(-1, MathF.Min(MathF.Min(k - 3, 9 - k), 1)));
         }
 
-        color = new Rgba32(ToByte(Channel(0) * 255), ToByte(Channel(8) * 255), ToByte(Channel(4) * 255), alpha);
+        color = new Rgba32(ToByte(Channel(0) * 255f), ToByte(Channel(8) * 255f), ToByte(Channel(4) * 255f), alpha);
         return true;
     }
 

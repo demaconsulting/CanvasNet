@@ -439,11 +439,11 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the <c>mermaid</c> topic says, word for word, what the tables of the Mermaid user guide say: the
-    ///     <c>class</c>, <c>state</c>, and <c>er</c> sections hold exactly the rows of the guide's class, state, and entity
-    ///     relationship syntax, relation, and settings tables, in order, and every row of the guide's table of unsupported
-    ///     features and warnings is an item of the <c>unsupported</c> or <c>diagnostics</c> section. Backticks are dropped,
-    ///     <c>\|</c> is read as <c>|</c>, and the first letter of a text (after an <c>Area: </c> prefix) is compared
-    ///     ignoring case.
+    ///     <c>class</c>, <c>state</c>, <c>er</c>, <c>pie</c>, and <c>gantt</c> sections hold exactly the rows of the guide's
+    ///     class, state, entity relationship, pie, and gantt syntax, relation, tag, and settings tables, in order, and every
+    ///     row of the guide's table of unsupported features and warnings is an item of the <c>unsupported</c> or
+    ///     <c>diagnostics</c> section. Backticks are dropped, <c>\|</c> is read as <c>|</c>, and the first letter of a text
+    ///     (after an <c>Area: </c> prefix) is compared ignoring case.
     /// </summary>
     [Fact]
     public void HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide()
@@ -457,6 +457,8 @@ public partial class HelpTopicsTests
             ("class", "### Supported Class Syntax", 30),
             ("state", "### Supported State Syntax", 18),
             ("er", "### Supported Entity Relationship Syntax", 24),
+            ("pie", "### Supported Pie Syntax", 12),
+            ("gantt", "### Supported Gantt Syntax", 35),
         ];
 
         // Act: the items that the rows of the guide's tables promise
@@ -496,7 +498,7 @@ public partial class HelpTopicsTests
             Assert.True(counts[section] >= minimumRows, $"Only {counts[section]} rows were found in the {section} tables of the guide.");
         }
 
-        Assert.True(codeRows.Count >= 15, $"Only {codeRows.Count} rows were found in the code table of the guide.");
+        Assert.True(codeRows.Count >= 18, $"Only {codeRows.Count} rows were found in the code table of the guide.");
         Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
     }
 
@@ -910,9 +912,9 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Gets the help item, in canonical form, that a row of a class, state, or entity relationship table of the guide
-    ///     promises: an <c>Area: text.</c> item for a syntax row, a term and its text for a relation or cardinality row,
-    ///     and a key with its meaning and default for a settings row.
+    ///     Gets the help item, in canonical form, that a row of a diagram table of the guide promises: an <c>Area: text.</c>
+    ///     item for a syntax row, a term and its text for a relation, cardinality, or tag row, and a key with its meaning
+    ///     and default for a settings row.
     /// </summary>
     /// <param name="row">The header and the cells of the row.</param>
     /// <returns>The canonical item.</returns>
@@ -922,7 +924,7 @@ public partial class HelpTopicsTests
         return string.Join("|", header) switch
         {
             "Area|Supported" => Canonical(null, $"{cells[0]}: {cells[1]}."),
-            "Relation|Drawn as" => Canonical(cells[0], $"{cells[1]}."),
+            "Relation|Drawn as" or "Tag|Drawn as" => Canonical(cells[0], $"{cells[1]}."),
             "Key|Default|Meaning" => Canonical(cells[0], $"{cells[2]} (default {cells[1]})."),
             _ => throw new InvalidOperationException($"The guide has a diagram table with the unknown header '{string.Join(" | ", header)}'."),
         };

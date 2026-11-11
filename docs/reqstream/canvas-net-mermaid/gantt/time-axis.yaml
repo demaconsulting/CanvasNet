@@ -1,0 +1,88 @@
+---
+# Software Unit Requirements for TimeAxis
+#
+# These requirements describe the design-level behavior of the TimeAxis unit of the Gantt subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Gantt): the time arithmetic that the gantt charts of the pinned Mermaid
+# release are built on, in a browser whose time zone is UTC - JavaScript's Date, the time intervals of d3-time, the
+# ticks of a time domain and d3-array's tick step, d3-scale's time scale with rounding, and d3-time-format's time
+# format with the en-US locale. See docs/verification/canvas-net-mermaid/gantt/time-axis.md for the test-evidence
+# mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Gantt Requirements
+        sections:
+          - title: TimeAxis Requirements
+            requirements:
+              - id: CanvasNetMermaid-Gantt-TimeAxis-Dates
+                title: >-
+                  The TimeAxis unit shall compute dates as JavaScript's Date computes them in a browser whose time zone
+                  is UTC - the year, month, day, weekday, and time of a time value, before 1970 too; a date from its
+                  components, the years 0 to 99 taken as 1900 to 1999 and overflowing components carried; the
+                  setters, which carry and keep an invalid date invalid, except the year setter, which starts an
+                  invalid date from time zero; and an invalid date for a time beyond 8.64e15 milliseconds from 1970.
+                justification: |
+                  Every task date and every tick of a gantt chart is computed with JavaScript dates, so the dates
+                  must be JavaScript's to the millisecond, also for the overflowing and invalid ones.
+                tests:
+                  - TimeAxis_JsDate_EcmaScriptArithmetic_MatchesJavaScript
+                  - TimeAxis_JsDate_SettersOfInvalidDate_FollowJavaScript
+                  - TimeAxis_UpstreamVector_MatchesD3
+                  - TimeAxis_Vectors_FileHasEveryKind_EnoughCases
+
+              - id: CanvasNetMermaid-Gantt-TimeAxis-Intervals
+                title: >-
+                  The TimeAxis unit shall give the time intervals of d3-time - millisecond, second, minute, hour, day,
+                  the weeks from Sunday to Saturday, month, and year - with their floor, ceiling, offset, range, count,
+                  and every as d3-time computes them, every giving no interval for a step that is not positive, the
+                  interval itself for a step of one, and the special intervals of d3 for milliseconds and years, and
+                  an interval without count refusing count and every.
+                justification: |
+                  The intervals decide the dates of the ticks, also those of a custom tick interval; they must be
+                  d3's boundaries for the same dates.
+                tests:
+                  - TimeAxis_Intervals_FloorCeilOffsetRangeCount_FollowD3
+                  - TimeAxis_Every_SpecialCases_FollowD3
+                  - TimeAxis_UpstreamVector_MatchesD3
+                  - TimeAxis_Vectors_FileHasEveryKind_EnoughCases
+
+              - id: CanvasNetMermaid-Gantt-TimeAxis-Ticks
+                title: >-
+                  The TimeAxis unit shall give the ticks of a time domain as d3's time scale gives them - at the
+                  interval of d3-time's table nearest to the length of the domain over the count of ticks wanted, at
+                  a multiple of years beyond the table or of milliseconds below it, or at a given interval - no ticks
+                  for a domain of invalid dates, and the tick step of d3-array.
+                justification: |
+                  The ticks decide the grid lines and the labels of the axes; they must be d3's for the same domain.
+                tests:
+                  - TimeAxis_Ticks_MonthDomain_GivesTwoDayTicksAndEmptyForInvalid
+                  - TimeAxis_UpstreamVector_MatchesD3
+                  - TimeAxis_Vectors_FileHasEveryKind_EnoughCases
+
+              - id: CanvasNetMermaid-Gantt-TimeAxis-Scale
+                title: >-
+                  The TimeAxis unit shall map a time onto the range of a time scale linearly from its domain, rounded
+                  as JavaScript's Math.round rounds (halves up), a descending domain mapping in reverse, a domain of
+                  zero length to the middle of the range, and an invalid time to NaN, without clamping.
+                justification: |
+                  The time scale places every bar, marker, and tick of the chart on whole pixels; the pixels must be
+                  those of d3's scale.
+                tests:
+                  - TimeAxis_TimeScale_RangeRound_FollowsJavaScriptRounding
+                  - TimeAxis_UpstreamVector_MatchesD3
+                  - TimeAxis_Vectors_FileHasEveryKind_EnoughCases
+
+              - id: CanvasNetMermaid-Gantt-TimeAxis-Format
+                title: >-
+                  The TimeAxis unit shall format a date as d3-time-format's timeFormat formats it with the en-US
+                  locale - each directive with its pad modifiers and default pads, the locale's date and time formats,
+                  +0000 as the zone, an unknown directive as its own character, and an invalid date as JavaScript
+                  writes it.
+                justification: |
+                  The tick labels are the dates in the axis format the author writes; they must read as in Mermaid's
+                  picture.
+                tests:
+                  - TimeAxis_Format_Directives_FollowD3TimeFormat
+                  - TimeAxis_UpstreamVector_MatchesD3
+                  - TimeAxis_Vectors_FileHasEveryKind_EnoughCases

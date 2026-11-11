@@ -1,0 +1,18 @@
+---
+config:
+  theme: dark
+  gantt:
+    barHeight: 26
+    barGap: 6
+    fontSize: 13
+    sectionFontSize: 14
+    useWidth: 900
+---
+gantt
+    dateFormat YYYY-MM-DD
+    title Release train
+    section Line one<br>and two
+    Build           :b, 2024-09-02, 6d
+    Test            :t, after b, 4d
+    section Ship
+    Deploy          :d, after t, 2d

@@ -125,23 +125,32 @@ description texts of a state with descriptions), each piece. The last region of 
 (`id-` and a random token and a counter); it is written as `id-random-<counter>`, so the goldens do not change from run
 to run. Such a diagram is read at a scale of exactly 1 (its view box grown to whole pixels from the same origin),
 because at its `max-width` Chrome scales it by about 0.99995 and lays its SVG texts out narrower. A flowchart keeps
-the plain layout, and a class diagram the extended one, so their goldens do not change. The format is
-described in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
+the plain layout, and a class diagram the extended one, so their goldens do not change. A pie chart
+(`aria-roledescription="pie"`) gets the pie layout instead (`extractPie`): the outer circle, the slices with their path
+data, the percentage labels, the title and the legend entries, with the computed paint (opacity and CSS `scale`) and
+fonts. A gantt chart (`aria-roledescription="gantt"`) gets the gantt layout (`extractGantt`): the excluded days, the
+axes and their ticks, the section rows, the tasks and their texts, the section titles, the today line and the title.
+Gantt charts read the clock, so every page runs in the UTC time zone with its clock fixed at 2024-06-12T10:30:00Z
+(`FIXED_NOW`), and the script checks the page clock before it reads a diagram back. The format is described in
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
 
 ```powershell
-pwsh tools/visual-diff/update-mermaid-goldens.ps1 [-Diagram flowchart|sequence|class|state|er] [-Fixture <name>...]
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 [-Diagram <type>...] [-Fixture <name>...]
 ```
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`, and the class, state and ER fixtures (`Fixtures/class`, `Fixtures/state` and
-`Fixtures/er`) give `reference/class`, `reference/state` and `reference/er`. `-Diagram` picks the types (default:
-all). Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
-class, state or ER fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
-flowchart layout with the goldens. The tolerance is 0.01 px, or 0.1 px for the two fixtures with rough.js circles. A
-golden change is reviewed like code.
+`reference/sequence/*.layout.json`, and the class, state, ER, pie and gantt fixtures (`Fixtures/class`,
+`Fixtures/state`, `Fixtures/er`, `Fixtures/pie` and `Fixtures/gantt`) give `reference/class`, `reference/state`,
+`reference/er`, `reference/pie` and `reference/gantt`. `-Diagram` picks the types (`flowchart`, `sequence`, `class`,
+`state`, `er`, `pie` and `gantt`; default: all). The script refuses to run unless the installed mermaid is the pinned
+11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
+class, state, ER, pie or gantt fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's flowchart
+layout with the goldens, and `MermaidChartReferenceLayoutTests` its pie and gantt layouts. The tolerance is 0.01 px,
+or 0.1 px for the two flowchart fixtures with rough.js circles; text boxes, and the slice boxes of a pie, are compared
+at 0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A golden change is reviewed like code.
 
 ### Upstream Vector Generators
 
@@ -183,6 +192,23 @@ is their vector file.
   parse error. The inputs are those of mermaid's ER parser specs (MIT; a sample of the per-character entity name
   tests), original texts (every cardinality on both sides, keyword-like names, aliases, styles and subgraphs) and the
   ER fixtures.
+- `gen-diagram-vectors.mjs --type pie` writes `pie-parser.json`: the PieDB facts (the sections in order with each value
+  as JavaScript's `String()` writes it, `showData`, the title and the accessibility texts) of the cases in
+  `pie-vector-cases.mjs`, or the error (Langium's lexer and parser errors, or the database's negative-value error). The
+  inputs are those of mermaid's pie spec and of the pie tests of `@mermaid-js/parser` (MIT), original texts and the
+  pie fixtures. `getDiagramFromText` passes no frontmatter title, so a case's title is that of its text only.
+- `gen-diagram-vectors.mjs --type gantt` writes `gantt-parser.json`: the GanttDB statements (formats, tick interval,
+  today marker, includes, excludes, weekday, inclusive end dates, sections, sanitized links, title and accessibility
+  texts) and the tasks of `getTasks()` (each date as its time in milliseconds) of the cases in
+  `gantt-vector-cases.mjs`, or the parse error, or the error `getTasks` throws. Every page of the script runs in the UTC
+  time zone with its clock fixed at 2024-06-12T10:30:00Z, so "today" is that day. The inputs are those of mermaid's
+  gantt parser and database specs (MIT; the database calls written as gantt texts), original texts and the gantt
+  fixtures.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).
+- `gen-time-vectors.mjs` writes `time-axis.json`: the d3 time functions the gantt chart uses (date getters, the Date
+  constructor and setters, the d3-time intervals with `every`, ticks of a time scale by count and by interval,
+  `tickStep`, the `rangeRound` time scale and `timeFormat` with every directive and pad) on original inputs (Node).
+  The script sets the time zone to UTC and refuses to run when it is not UTC or when an installed d3 package is not
+  the version in mermaid's source map.

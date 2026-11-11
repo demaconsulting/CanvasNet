@@ -1,0 +1,12 @@
+gantt
+    title Release plan
+    dateFormat YYYY-MM-DD
+    axisFormat %b %e
+    excludes weekends
+    section Build
+    Design          :done, des, 2024-06-03, 5d
+    Implement       :active, imp, after des, 8d
+    Code freeze     :milestone, frz, after imp, 0d
+    section Test
+    System test     :crit, tst, after imp, 5d
+    Release         :rel, after tst, 2d

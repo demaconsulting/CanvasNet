@@ -1,0 +1,260 @@
+---
+# Software Unit Requirements for GanttModel
+#
+# These requirements describe the design-level behavior of the GanttModel unit of the Gantt subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Gantt): the gantt database of the pinned Mermaid release (the statements,
+# the tasks, the links, and the JavaScript object that finds tasks by id), the metadata of the diagram, the compilation
+# of the task dates of each render with the dayjs functions Mermaid bundles and the clock of the render, the located
+# failures of that compilation, its work charges, and the limits of the texts it derives. See
+# docs/verification/canvas-net-mermaid/gantt/gantt-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Gantt Requirements
+        sections:
+          - title: GanttModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-Gantt-GanttModel-Database
+                title: >-
+                  The GanttModel unit shall keep the statements as Mermaid's gantt database keeps them - the date
+                  format, the axis format, the tick interval, and the today marker as written, the last of each kind
+                  winning; the excludes and includes tokens in lower case, split on white space and commas, and merged
+                  across statements, each once; the weekday of the week ticks (sunday by default), the first day of
+                  the weekend (saturday by default), and whether end dates are inclusive; the section statements in
+                  order; and the title and the accessibility texts sanitized as Mermaid's common database sanitizes
+                  them.
+                justification: |
+                  The settings of the database decide how the dates are read and compiled and how the axis is drawn;
+                  they must be Mermaid's for the same statements.
+                tests:
+                  - GanttParser_Parse_Statements_KeepTheActionsSubstrings
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Tasks
+                title: >-
+                  The GanttModel unit shall keep each task as Mermaid's database adds it, in the order of the text -
+                  its name as written, the current section, the leading active, done, crit, milestone, and vert tags
+                  taken off its data, and then one field as an end after the task before it, two as a start and an
+                  end, or three as an id, a start, and an end, a task without an id numbered task1, task2, and so on -
+                  with the next row for each task and the row -1 for a vertical marker.
+                justification: |
+                  The fields, tags, ids, and rows of the tasks decide which bars are drawn, how they are painted, and
+                  which tasks a reference names.
+                tests:
+                  - GanttParser_Parse_Tasks_SplitNameTagsAndFields
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Links
+                title: >-
+                  The GanttModel unit shall add the class clickable to each existing task of a click statement once
+                  for each of its calls, keep the link of an href by task id sanitized as Mermaid's strict security
+                  level sanitizes it, the last link of a task winning, as data that is never drawn as a link, and never
+                  bind a callback.
+                justification: |
+                  The clickable class changes the paint of a task text as in Mermaid, while untrusted links and
+                  scripts must never act in a rendered picture.
+                tests:
+                  - GanttParser_Parse_ClickForms_AddClassesAndSanitizedLinks
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-ObjectKeys
+                title: >-
+                  The GanttModel unit shall find tasks by id as Mermaid's JavaScript object of tasks finds them - a
+                  later task with the same id replacing the earlier one, the id __proto__ never found, and a task
+                  without an id found under the key undefined.
+                justification: |
+                  References, links, and classes reach the tasks that Mermaid's object lookup finds, so texts that
+                  repeat ids or use the names of object members must behave as in Mermaid.
+                tests:
+                  - GanttModel_FindTask_JavaScriptObjectSemantics
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Metadata
+                title: >-
+                  The GanttModel unit shall give the title of the title statement trimmed, or none; the accessible
+                  title, or none; no direction; the number of tasks, vertical markers included, as nodes; no edges; and
+                  the number of sections of the tasks that are not vertical markers, each once and not counting a
+                  section named __proto__, as subgraphs.
+                justification: |
+                  The counts must keep the meaning of the document's node, edge, and subgraph counts and describe the
+                  chart that is drawn - its tasks and the section titles it shows; the document falls back to the
+                  frontmatter title only when the chart has none.
+                tests:
+                  - GanttParser_Parse_Tasks_SplitNameTagsAndFields
+                  - GanttParser_Parse_Statements_KeepTheActionsSubstrings
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Compile
+                title: >-
+                  The GanttModel unit shall compile the task dates anew for each render as Mermaid's getTasks does - in
+                  passes over the tasks, at most eleven, so that a task may refer to tasks written after it - giving
+                  the render its own tasks with their starts, ends, and ends of the drawn bars, a task without a start
+                  taking the end of the task before it.
+                justification: |
+                  Mermaid compiles the dates when it draws, with the clock of that moment; compiling per render keeps
+                  the parsed chart unchanged and safe for concurrent renders with different clocks.
+                tests:
+                  - GanttModel_Compile_AfterUntilAndForwardReferences_Resolve
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Durations
+                title: >-
+                  The GanttModel unit shall read a duration as Mermaid's parseDuration reads it - a number with an
+                  optional fraction followed by ms, s, m, h, d, w, M, or y - and add it to the start as the dayjs that
+                  Mermaid bundles adds it - milliseconds, seconds, minutes, and hours as time; days and weeks as a
+                  rounded number of calendar days; months and years through the calendar, keeping the day or taking
+                  the last day of a shorter month - an end that is neither a date nor a duration being the start.
+                justification: |
+                  Durations are the most common way to give an end, and their calendar arithmetic decides where a bar
+                  ends.
+                tests:
+                  - GanttModel_Compile_Durations_AddAsDayjsDoes
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-References
+                title: >-
+                  The GanttModel unit shall start a task written with after and ids at the latest end of the tasks the
+                  ids name, and end a task written with until and ids at the earliest start of the tasks the ids name,
+                  the words in lower case only and ids that name no task ignored, and take today at midnight when no id
+                  names a task.
+                justification: |
+                  Tasks that follow or precede other tasks are the core of a plan, and the chosen task decides where
+                  the bar starts or ends.
+                tests:
+                  - GanttModel_Compile_AfterUntilAndForwardReferences_Resolve
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Excludes
+                title: >-
+                  The GanttModel unit shall, when excludes are set, move the end of a task one day later for each
+                  excluded day from the day after its start to its end, keep as the end of the drawn bar the end before
+                  the excluded days, and leave an end given as a YYYY-MM-DD date where it is; a day is excluded when it
+                  is not an included date and is a weekend day (Saturday and Sunday, or Friday and Saturday with
+                  weekend friday) with weekends excluded, an excluded weekday, or an excluded date in the date format
+                  or as YYYY-MM-DD.
+                justification: |
+                  Excluded days lengthen the tasks that span them, which moves every task after them; the ends must
+                  be Mermaid's.
+                tests:
+                  - GanttModel_Compile_ExcludesAndIncludes_MoveEnds
+                  - GanttModel_Compile_ExcludesWithSecondPass_MoveEndsOnce
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-InclusiveEnd
+                title: >-
+                  The GanttModel unit shall, with inclusiveEndDates, end a task whose end is given as a date one day
+                  after that date, and leave an end given as a duration as it is.
+                justification: |
+                  Authors who write the last day of a task expect the bar to cover that day, as Mermaid draws it.
+                tests:
+                  - GanttModel_Compile_InclusiveEndDates_AddADayToDates
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Today
+                title: >-
+                  The GanttModel unit shall take today from the clock of the render - the UTC date and time of
+                  MermaidRenderOptions.Now - for a reference that names no task (today at midnight) and for the parts
+                  of a date that its format does not give; and, when Now is not set, take 1970-01-01T00:00Z as today
+                  and report it with one mermaid-gantt-today-unavailable warning for each compilation, located at the
+                  first task that needs today and with a hint.
+                justification: |
+                  The library never reads the system clock, so a render is the same every time; a date taken from a
+                  missing clock is visibly wrong and must be reported.
+                tests:
+                  - GanttModel_Compile_Today_FromClockOrEpochWithWarning
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-DateFallback
+                title: >-
+                  The GanttModel unit shall read a start or end date as Mermaid's database reads it - for a start only,
+                  a text of digits alone as a timestamp in milliseconds when the date format is x or X (Mermaid's
+                  getStartDate fast path); a date that the date format reads strictly (with X in seconds and x in
+                  milliseconds); and otherwise, for a start only, a date text of the ECMAScript date time string format
+                  as JavaScript's Date reads it, a date alone in UTC, a time without an offset in UTC, a day up to 31
+                  carried past the end of a shorter month, and 24:00 as the next midnight - and shall take any other
+                  start text, the legacy forms of browsers included, and a year before -10,000 or after 10,000 as an
+                  invalid date, while an end that the date format does not read is a duration or else the start, as
+                  Mermaid's getEndDate has no ECMAScript fallback.
+                justification: |
+                  Without a date format Mermaid reads the start dates with the browser's date parser; the ECMAScript
+                  forms are the ones whose meaning is specified and the same in every browser. Mermaid reads end dates
+                  and the numeric starts of x and X differently, and the bars must stand where Mermaid draws them.
+                tests:
+                  - GanttModel_Compile_DateFallback_ReadsEcmaScriptFormsOnly
+                  - GanttModel_Compile_UnixDateFormats_ReadAsMermaid
+                  - GanttModel_Compile_EndDates_HaveNoIsoFallback
+                  - Dayjs_NumberAndDateStrings_FollowJavaScript
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Dayjs
+                title: >-
+                  The GanttModel unit shall format and strictly parse dates as the dayjs that Mermaid bundles does with
+                  the plugins that Mermaid loads - the core and advancedFormat tokens of the English locale with text
+                  in brackets kept, and the strict parse of the customParseFormat plugin, which takes the fields that
+                  the format does not give from today and refuses a text that does not format back to itself - fail
+                  where formatting a valid date needs a plugin that Mermaid does not load, and read numbers as
+                  JavaScript's Number reads them.
+                justification: |
+                  The date format decides which texts are dates, which days are excluded, and what the dates are; it
+                  must accept, refuse, and format exactly as Mermaid's dayjs does.
+                tests:
+                  - Dayjs_Format_TokensAsTheBundledDayjs
+                  - Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce
+                  - Dayjs_ParseStrict_MatchesTheCustomParseFormatPlugin
+                  - Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken
+                  - Dayjs_NumberAndDateStrings_FollowJavaScript
+                  - GanttModel_Compile_Durations_AddAsDayjsDoes
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-RenderFailures
+                title: >-
+                  The GanttModel unit shall fail a compilation with a MermaidRenderException of code
+                  mermaid-render-failed, located at the task statement and with a hint, where Mermaid's compilation
+                  fails - an invalid date (with Mermaid's message Invalid date: and the text), the first task without a
+                  start, a task with more than three data fields, excluded days that leave no valid day within 10,000
+                  days, and a date format whose formatting needs a plugin that Mermaid does not load - and where
+                  Mermaid would draw a task without valid dates, such as a task of a circular reference that is still
+                  unresolved after the passes.
+                justification: |
+                  Mermaid draws nothing, or bars without geometry, for these texts; the author needs the task at fault
+                  and a way to fix it, and no partial chart may be drawn.
+                tests:
+                  - GanttModel_Compile_Failures_AreLocatedRenderFailures
+                  - GanttModel_Compile_DateFallback_ReadsEcmaScriptFormsOnly
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-WorkCharges
+                title: >-
+                  The GanttModel unit shall charge the work meter of the render one unit for each task in each pass,
+                  one unit for each id of an after or until reference, for each strict parse of a date one unit plus
+                  the length of the text and twice the length of the format, one unit plus twice the length of the rest
+                  of the text for each token with a value, and the formatting of the strict check, for each formatting
+                  of a date one unit plus the length of the format and of the text its advanced tokens give, and, for
+                  each day of the excluded-days loop, one unit plus the length of the date format plus one unit and the
+                  length of each excludes and includes token, besides the formatting of the day.
+                justification: |
+                  The work of compiling the dates grows with the passes, the references, the lengths of the date texts
+                  and the date format, and the days that excluded days walk through; charging it deterministically, in
+                  proportion to the scans of the texts, bounds a render without measuring time.
+                tests:
+                  - GanttModel_Compile_WorkCharges_ArePinned
+                  - Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce
+                  - Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken
+                  - GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded
+
+              - id: CanvasNetMermaid-Gantt-GanttModel-Limits
+                title: >-
+                  The GanttModel unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded located
+                  at the statement, a text that it derives from the texts the parser checked - the class list of a
+                  task, which grows with each click call, a sanitized title or accessibility text, and a sanitized link
+                  - that is longer than MaxLabelLength; and shall fail a compilation whose work exceeds MaxLayoutWork
+                  with a MermaidRenderException of code mermaid-limit-exceeded.
+                justification: |
+                  Repeated click statements and the sanitizer can make texts grow faster than the text, so they are
+                  checked where they are made; a long span of excluded days can walk through millions of days, and the
+                  strict parse of a long date text with a long date format reads the text for every token of the format
+                  in every pass, so the work of a render must be bounded.
+                tests:
+                  - GanttParser_Parse_ManyClicks_ClassListExceedsMaxLabelLength
+                  - GanttModel_Compile_LongExcludedSpan_ExceedsWorkLimit
+                  - GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded
+                  - GanttModel_Compile_BracketHeavyFormat_EndsWithWorkLimit

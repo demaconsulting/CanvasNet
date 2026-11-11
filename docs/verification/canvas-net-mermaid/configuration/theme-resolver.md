@@ -182,6 +182,35 @@ and the important stroke `#333333`, and that `.edge-pattern-dashed` is dashed `8
 rules `.marker { fill: #ff0000 }` and `.relationshipLine { stroke: #0000ff }` give no report, the marker fill staying
 `none` against the theme's `!important` while the relationship line stroke becomes `#0000ff`.
 
+##### CanvasNetMermaid-Configuration-ThemeResolver-PieStyleSheet: Mermaid's Pie Chart Paint
+
+**Tests**: `ThemeResolverTests.PieStyles_Create_DefaultTheme_ResolvesPieRules`,
+`ThemeResolverTests.PieStyles_Create_ThemeCss_OverridesKnownSelectors`
+
+Asserts that the pie style sheet starts with the same global rules as the flowchart's, selector for selector; that in
+the default theme a slice over the color `#ECECFF` is filled with that color and stroked black, both at the opacity of
+0.7 (alpha 179), at width 2 and scale 1, while a highlighted slice is opaque at scale 1.05; that the outer circle has no
+fill and a black stroke of 2; and that the title is the root font at 25 pixels in black, the percentage labels 17
+pixels in `#333`, and the legend texts 17 pixels in black; and that a directive's `themeCSS` rules
+`.pieCircle { fill: #ff0000; opacity: 1 }` and `.legend text { fill: #0000ff; font-size: 20px }` give no report, a slice
+fill of `#ff0000` over the section color, and a legend text of 20 pixels in `#0000ff`.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-GanttStyleSheet: Mermaid's Gantt Chart Paint Through The Cascade
+
+**Tests**: `ThemeResolverTests.GanttStyles_Create_DefaultTheme_CascadesClassSets`,
+`ThemeResolverTests.GanttStyles_Create_ThemeCss_OverridesKnownSelectors`
+
+Asserts that the gantt style sheet starts with the same global rules as the flowchart's, selector for selector; that in
+the default theme a critical bar (`task crit1`) is filled `red` and stroked `#ff8888` at width 2 over the section
+style; that a clickable active text is `#003163`, bold, 11 pixels, and centered, its `!important` color winning over a
+later normal rule; that a done text outside a bar on the right takes the compound rule
+`.doneText0.taskTextOutsideRight` (black, start-anchored) over its single classes; that an axis label inside
+`.grid .tick` is `#333`, 10 pixels, at the tick group's opacity of 0.8, over its own `fill` attribute; that a grid
+line drawn in `currentColor` is black at 0.8; that a section row has the opacity 0.2; and that a milestone has the
+transform `rotate(45deg) scale(0.8,0.8)`; and that a directive's `themeCSS` rules `.task0 { fill: #ff0000 }`,
+`.sectionTitle0 { fill: #0000ff }`, and `.bogus { fill: red }` fill a bar red and a section title blue and report the
+unknown selector once.
+
 ##### CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts: The Text Facts Of Each Unified Sheet
 
 **Tests**: `ThemeResolverTests.UnifiedStyles_Create_EachSheet_CentersSvgNodeTextAndGivesTheRootText`

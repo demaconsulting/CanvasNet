@@ -32,8 +32,8 @@ public class DiagramDetectorTests
     [InlineData("stateDiagram", "stateDiagram", "state", "Supported")]
     [InlineData("stateDiagram-v2", "stateDiagram", "state", "Supported")]
     [InlineData("erDiagram", "er", "er", "Supported")]
-    [InlineData("gantt", "gantt", "gantt", "Planned")]
-    [InlineData("pie showData", "pie", "pie", "Planned")]
+    [InlineData("gantt", "gantt", "gantt", "Supported")]
+    [InlineData("pie showData", "pie", "pie", "Supported")]
     [InlineData("mindmap", "mindmap", "mindmap", "Planned")]
     [InlineData("architecture-beta", "architecture", "architecture", "NotPlanned")]
     [InlineData("C4Context", "c4", "c4", "NotPlanned")]
@@ -193,9 +193,9 @@ public class DiagramDetectorTests
     public void DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords()
     {
         // Arrange / Act / Assert
-        Assert.Equal("pie diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", DiagramDetector.UnsupportedHint(Detect("pie")));
-        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
-        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram"], DiagramDetector.SupportedDiagramKeywords);
+        Assert.Equal("mindmap diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt", DiagramDetector.UnsupportedHint(Detect("mindmap")));
+        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
+        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt"], DiagramDetector.SupportedDiagramKeywords);
     }
 
     /// <summary>

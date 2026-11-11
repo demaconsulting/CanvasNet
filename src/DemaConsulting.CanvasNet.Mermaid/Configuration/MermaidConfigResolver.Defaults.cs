@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
-///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, and the set of
-///     configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
+///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, the pie and gantt
+///     charts, and the set of configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {
@@ -202,6 +202,8 @@ internal static partial class MermaidConfigResolver
             },
             ["state"] = CreateStateDefaults(),
             ["er"] = CreateErDefaults(),
+            ["pie"] = CreatePieDefaults(),
+            ["gantt"] = CreateGanttDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -311,5 +313,42 @@ internal static partial class MermaidConfigResolver
         ["stroke"] = "gray",
         ["fill"] = "honeydew",
         ["fontSize"] = 12.0,
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default pie section (the defaults of <c>PieDiagramConfig</c>).
+    /// </summary>
+    /// <returns>The default pie section.</returns>
+    private static JsonObject CreatePieDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["textPosition"] = 0.75,
+        ["donutHole"] = 0.0,
+        ["legendPosition"] = "right",
+        ["highlightSlice"] = string.Empty,
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default gantt section (the defaults of <c>GanttDiagramConfig</c>; <c>tickInterval</c> and
+    ///     <c>useWidth</c> are undefined).
+    /// </summary>
+    /// <returns>The default gantt section.</returns>
+    private static JsonObject CreateGanttDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["titleTopMargin"] = 25.0,
+        ["barHeight"] = 20.0,
+        ["barGap"] = 4.0,
+        ["topPadding"] = 50.0,
+        ["rightPadding"] = 75.0,
+        ["leftPadding"] = 75.0,
+        ["gridLineStartPadding"] = 35.0,
+        ["fontSize"] = 11.0,
+        ["sectionFontSize"] = 11.0,
+        ["numberSectionStyles"] = 4.0,
+        ["axisFormat"] = "%Y-%m-%d",
+        ["topAxis"] = false,
+        ["displayMode"] = string.Empty,
+        ["weekday"] = "sunday",
     };
 }

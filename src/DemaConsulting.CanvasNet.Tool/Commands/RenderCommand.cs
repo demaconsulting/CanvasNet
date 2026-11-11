@@ -87,10 +87,11 @@ internal sealed partial class RenderCommand : ICommand
         + "unless its format.parse is \"auto\". --param name=value sets a parameter of the chart (a number, true, false, text," + Environment.NewLine
         + "or a JSON array or object such as brush={\"x\":[2,6]}; repeatable). A feature that is not supported yet is reported" + Environment.NewLine
         + "(an error with --strict)." + Environment.NewLine
-        + "A Mermaid diagram (flowchart, sequence, class, state, or entity relationship diagram) is drawn at the size" + Environment.NewLine
-        + "Mermaid lays it out at, with the bundled fonts; --theme sets its theme (default, base, dark, forest, or neutral)" + Environment.NewLine
-        + "unless the text sets one. A diagram type that is not drawn yet (pie, gantt, mindmap, and so on) is an empty" + Environment.NewLine
-        + "picture with the note mermaid-diagram-unsupported; run 'canvasnet help mermaid' for what is supported." + Environment.NewLine
+        + "A Mermaid diagram (flowchart, sequence, class, state, or entity relationship diagram, pie chart, or gantt chart)" + Environment.NewLine
+        + "is drawn at the size Mermaid lays it out at, with the bundled fonts; --theme sets its theme (default, base, dark," + Environment.NewLine
+        + "forest, or neutral) unless the text sets one. A gantt chart has no today line (the tool sets no clock). A diagram" + Environment.NewLine
+        + "type that is not drawn yet (mindmap, journey, and so on) is an empty picture with the note" + Environment.NewLine
+        + "mermaid-diagram-unsupported; run 'canvasnet help mermaid' for what is supported." + Environment.NewLine
         + "An SVG drawing can embed a picture, model, chart, SVG file, or document page that sits beside it with" + Environment.NewLine
         + "<image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20 and chart.vl.json#param.cutoff=50" + Environment.NewLine
         + "set a variable or a parameter); run 'canvasnet help svg' for the file types," + Environment.NewLine

@@ -238,7 +238,7 @@ commands too, and `inspect` accepts them as well.
 | Visio | `.vsdx` | Multi-page (drawing pages) |
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
-| Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, or ER diagram, drawn at its laid-out size |
+| Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, ER, pie, or gantt diagram at its laid-out size |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -330,11 +330,12 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   the folder of the specification (see *Vega-Lite Charts* below; a missing file is a `vega-lite-error`) and uses no
   network.
 - A **Mermaid diagram** reports the size it is laid out at (the size of Mermaid's SVG), 4 channels with transparency,
-  and what the text declares: the diagram type, whether this version draws it (`pie (not drawn by this version)`
-  otherwise), the direction, the title and the accessible title, and the numbers of nodes, edges, and subgraphs
-  (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram;
-  states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity
-  relationship diagram). The diagram is laid out without the pictures of its nodes, so no other file is read (see
+  and what the text declares: the diagram type, whether this version draws it (`journey (not drawn by this
+  version)` otherwise), the direction, the title and the accessible title, and the numbers of nodes, edges, and
+  subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class
+  diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an
+  entity relationship diagram; the slices of a pie chart as nodes; the tasks and sections of a gantt chart as nodes and
+  subgraphs). The diagram is laid out without the pictures of its nodes, so no other file is read (see
   *Mermaid Diagrams* below).
 
 <!-- markdownlint-disable MD013 -->
@@ -361,6 +362,10 @@ $ canvasnet info order.mmd
 order.mmd: mermaid, 558x969 px (laid out), state TB, 10 nodes, 10 edges, 1 subgraph, title "Order", 358 bytes
 $ canvasnet info lending.mmd
 lending.mmd: mermaid, 762x691 px (laid out), er TB, 4 nodes, 3 edges, 0 subgraphs, title "Lending", 386 bytes
+$ canvasnet info pets.mmd
+pets.mmd: mermaid, 595x450 px (laid out), pie, 3 nodes, 0 edges, 0 subgraphs, title "Pets adopted by volunteers", 101 bytes
+$ canvasnet info plan.mmd
+plan.mmd: mermaid, 784x220 px (laid out), gantt, 5 nodes, 0 edges, 2 subgraphs, title "Release plan", 365 bytes
 ```
 <!-- markdownlint-enable MD013 -->
 
@@ -793,10 +798,17 @@ lollipop interfaces, namespaces, notes, styles, and the class settings. **State 
 composite states with their own direction, concurrent regions, fork, join, and choice states, notes, styles, and the
 state settings. **Entity relationship diagrams** (`erDiagram`) are too: entities with their tables of attributes,
 keys, and comments, aliases, relationships with every cardinality marker, identifying and non-identifying lines,
-subgraphs, styles, and the entity relationship settings. `canvasnet help mermaid` lists them. Every other diagram type
-is recognized: `info` reports it with `"supported": false`, and `render` writes an empty picture of 16 by 16 pixels
-with the diagnostic `mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure). Pie, gantt,
-and mindmap diagrams are planned later.
+subgraphs, styles, and the entity relationship settings. **Pie charts** (`pie`) are drawn with a port of Mermaid's pie
+renderer: slices with their percentages, `showData`, the title, the legend in its five positions, a donut hole, a
+highlighted slice, and the pie colors of the theme. **Gantt charts** (`gantt`) are drawn with a port of Mermaid's gantt
+renderer and d3's time axis: sections, tasks with dates, durations, `after` and `until`, the `done`, `active`,
+`crit`, `milestone`, and `vert` tags, `dateFormat`, `axisFormat`, `tickInterval`, excluded days, compact mode,
+and a top axis, with every date in UTC. The tool sets no clock, so a gantt chart has no today line, and a chart that
+needs today (a `todayMarker` style, an `after` id that no task has) takes 1970-01-01 with the warning
+`mermaid-gantt-today-unavailable`. `canvasnet help mermaid` lists them. Every other diagram type is recognized:
+`info` reports it with `"supported": false`, and `render` writes an empty picture of 16 by 16 pixels with the
+diagnostic `mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure). Mindmap diagrams
+are planned later.
 
 **Theme.** `--theme <name>` chooses one of Mermaid's five themes, `default`, `base`, `dark`, `forest`, or `neutral`
 (any letter case), exactly like `mmdc -t`: a theme that the diagram sets itself, in its frontmatter or an
@@ -855,6 +867,8 @@ canvasnet help mermaid --example sequence > checkout.mmd
 canvasnet help mermaid --example class > library.mmd
 canvasnet help mermaid --example state > order.mmd
 canvasnet help mermaid --example er > lending.mmd
+canvasnet help mermaid --example pie > pets.mmd
+canvasnet help mermaid --example gantt > plan.mmd
 ```
 
 #### Embedding Images, Charts, and Models in an SVG
@@ -1592,7 +1606,7 @@ every command. A subject is matched in any letter case, and a topic may be named
 | --- | --- | --- |
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
-| `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, and ER diagrams laid out like Mermaid 11, themes |
+| `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, and gantt diagrams like Mermaid 11, themes |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
@@ -1686,7 +1700,8 @@ objects:
   when the diagram has them, and `nodes`, `edges`, and `subgraphs` (the counts; the participants, messages, and boxes
   of a sequence diagram; the classes, relations, and namespaces of a class diagram; the states, transitions, and
   composite states of a state diagram; the entities, relationships, and subgraphs of an entity relationship diagram;
-  zero for a type that is not drawn):
+  the slices of a pie chart as nodes; the tasks and sections of a gantt chart as nodes and subgraphs; zero for a type
+  that is not drawn):
 
 ```json
 {"schemaVersion":1,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
@@ -1921,7 +1936,7 @@ flowchart LR
 
 The text of a block is written to the cache folder and drawn from there, so a diagram whose nodes show pictures must be
 a `.mmd` file of its own, used as a picture. A block or a `.mmd` picture of a diagram type that the tool does not draw
-yet (the tool reports `mermaid-diagram-unsupported` for `pie`, `gantt`, and so on) is left exactly
+yet (the tool reports `mermaid-diagram-unsupported` for `mindmap`, `journey`, and so on) is left exactly
 as written, with the tool's message as a Pandoc warning, so that another filter can draw it. Pandoc runs the filters in
 the order of its command line, and the filters of a defaults file take the place of its `--defaults` option, so
 `--defaults ... --filter mermaid-filter` runs this filter first; the CanvasNet build does this.
@@ -2225,10 +2240,11 @@ pictures side by side.
   from the command line),
   and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is
   reported). Vega (as opposed to Vega-Lite) specifications are not read.
-- **Diagrams.** A static picture of one Mermaid flowchart, sequence, class, state, or entity relationship diagram: no
-  interaction (`click`, tooltips, and menu links are ignored), no network, pictures only from the folder of the
-  diagram, and the other diagram types (pie, gantt, and so on) are recognized but drawn as an empty picture with the
-  diagnostic `mermaid-diagram-unsupported` until a later version draws them.
+- **Diagrams.** A static picture of one Mermaid flowchart, sequence, class, state, or entity relationship diagram, pie
+  chart, or gantt chart: no interaction (`click`, tooltips, and menu links are ignored), no network, pictures only from
+  the folder of the diagram, no clock (a gantt chart has no today line, and its dates are in UTC), and the other diagram
+  types (mindmap, journey, and so on) are recognized but drawn as an empty picture with the diagnostic
+  `mermaid-diagram-unsupported` until a later version draws them.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
   constructs is drawn without them.
 - **Rotation.** Any angle, clockwise, with nearest or bilinear sampling (the other `--filter` values mean bilinear

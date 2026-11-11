@@ -42,6 +42,12 @@ Out-of-range channels and alpha values are clamped, as CSS specifies, and fracti
 away from zero (so 30% of 255, which is 76.5, is 77). Surrounding white space is ignored by `TryParse`; function names
 and keywords are case-insensitive.
 
+An `hsl()` or `hsla()` color is converted to RGB in single precision, as browsers convert it (Blink converts in
+`float`), and then rounded. A channel whose double value lies just below a half can therefore round up as in a
+browser. For example, `hsl(150, 100%, 56.2745098039%)` gives the blue channel 144, as Chrome does, not the 143 of a
+double-precision conversion. Mermaid themes write derived colors such as the pie section color `pie11` as `hsl()`
+text, so a pie slice would otherwise differ from the browser by one in a channel.
+
 #### Key Methods
 
 - `TryParse(string? text, out Rgba32 color)` - the full grammar above; `false` with `default` for null, empty, and

@@ -1,0 +1,209 @@
+{
+  "source": "03-acc-comments.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "pie",
+  "viewBox": [0, 0, 637.5, 450],
+  "origin": [225, 225],
+  "outerCircle": {
+    "center": [225, 225],
+    "r": 186,
+    "paint": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 2, "opacity": 1, "scale": "none" }
+  },
+  "slices": [
+    {
+      "class": "pieCircle",
+      "d": "M0,-185A185,185,0,0,1,123.613,137.64L0,0Z",
+      "box": [225, 40, 185, 322.64],
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M123.613,137.64A185,185,0,0,1,-161.908,-89.503L0,0Z",
+      "box": [40, 135.497, 308.613, 274.503],
+      "paint": {
+        "fill": "rgb(255, 255, 222)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M-161.908,-89.503A185,185,0,0,1,-115.337,-144.646L0,0Z",
+      "box": [63.092, 80.354, 161.908, 144.646],
+      "paint": {
+        "fill": "rgb(181, 255, 32)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    },
+    {
+      "class": "pieCircle",
+      "d": "M-115.337,-144.646A185,185,0,0,1,0,-185L0,0Z",
+      "box": [109.663, 40, 115.337, 185],
+      "paint": {
+        "fill": "rgb(185, 185, 255)",
+        "stroke": "rgb(0, 0, 0)",
+        "strokeWidth": 2,
+        "opacity": 0.7,
+        "scale": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "class": "slice",
+      "text": "38%",
+      "at": [354.566, 175.359],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [337.55, 160.359, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "45%",
+      "at": [138.619, 333.581],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [121.603, 318.581, 34.031, 19]
+    },
+    {
+      "class": "slice",
+      "text": "6%",
+      "at": [118.997, 135.474],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [106.708, 120.474, 24.578, 19]
+    },
+    {
+      "class": "slice",
+      "text": "11%",
+      "at": [179.178, 94.035],
+      "anchor": "middle",
+      "fontSize": 17,
+      "fontWeight": "400",
+      "fill": "rgb(51, 51, 51)",
+      "box": [162.795, 79.035, 32.766, 19]
+    }
+  ],
+  "title": {
+    "class": "pieTitleText",
+    "text": "Key elements in Product X",
+    "at": [225, 25],
+    "anchor": "middle",
+    "fontSize": 25,
+    "fontWeight": "400",
+    "fill": "rgb(0, 0, 0)",
+    "box": [77.703, 2, 294.917, 28]
+  },
+  "legend": [
+    {
+      "at": [441, 181],
+      "rect": {
+        "box": [441, 181, 18, 18],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(236, 236, 255)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Calcium",
+        "at": [463, 195],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 180, 61.406, 19]
+      }
+    },
+    {
+      "at": [441, 203],
+      "rect": {
+        "box": [441, 203, 18, 18],
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "rgb(255, 255, 222)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Potassium",
+        "at": [463, 217],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 202, 79.375, 19]
+      }
+    },
+    {
+      "at": [441, 225],
+      "rect": {
+        "box": [441, 225, 18, 18],
+        "paint": {
+          "fill": "rgb(181, 255, 32)",
+          "stroke": "rgb(181, 255, 32)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Single quoted",
+        "at": [463, 239],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 224, 103.984, 19]
+      }
+    },
+    {
+      "at": [441, 247],
+      "rect": {
+        "box": [441, 247, 18, 18],
+        "paint": {
+          "fill": "rgb(185, 185, 255)",
+          "stroke": "rgb(185, 185, 255)",
+          "strokeWidth": 1,
+          "opacity": 1,
+          "scale": "none"
+        }
+      },
+      "text": {
+        "class": null,
+        "text": "Escaped \"quote\"",
+        "at": [463, 261],
+        "anchor": "start",
+        "fontSize": 17,
+        "fontWeight": "400",
+        "fill": "rgb(0, 0, 0)",
+        "box": [463, 246, 125.5, 19]
+      }
+    }
+  ]
+}

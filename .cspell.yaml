@@ -1041,6 +1041,25 @@ words:
   # The link check (the vbscript scheme sanitize-url refuses, IDNA host names of the WHATWG URL parser)
   - vbscript
   - IDNA
+  # Mermaid pie and gantt chart terms (the date algorithms of the d3 time port, the pie grammar's Langium port, its
+  # authors and its fixture names)
+  - Hinnant
+  - Langium
+  - Yokozuna
+  - Accessibilities
+  - showdata
+  - textposition
+  - themevariables
+  # The gantt chart port (its jison token names, dayjs and the vector cases' texts)
+  - dayjs
+  - iamkun
+  - Mdhmswy
+  - Gantts
+  - ganttx
+  - axisformat
+  - tickinterval
+  - topaxis
+  - mermaidjs
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
@@ -1096,3 +1115,8 @@ overrides:
       - "docs/verification/canvas-net-mermaid/state/state-model.md"
     ignoreRegExpList:
       - "/`[^`\\n]*`/g"
+  # The gantt vectors: Mermaid's entity-encoding markers around encoded text
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"
+    ignoreRegExpList:
+      - "/ﬂ°°?|¶ß/g"

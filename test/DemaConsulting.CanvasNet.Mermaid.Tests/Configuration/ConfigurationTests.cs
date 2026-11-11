@@ -149,6 +149,47 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a pie chart text and a gantt chart text that each configure their section and their style at once:
+    ///     the section's settings take effect, a <c>themeCSS</c> rule of the chart's own selector overrides the theme
+    ///     without a report, the theme's colors reach the style sheet, and a section value of the wrong type is reported at
+    ///     its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolvePieAndGanttSectionsAndStyles_FullText()
+    {
+        // Arrange
+        const string PieText = "---\nconfig:\n  theme: forest\n  pie:\n    donutHole: 0.4\n    textPosition: far\n---\n" +
+                               "%%{init: {'themeCSS': '.pieOuterCircle { stroke: #ff0000 }'}}%%\n" +
+                               "pie\n  \"a\" : 1\n";
+        const string GanttText = "---\nconfig:\n  theme: dark\n  gantt:\n    barHeight: 30\n    barGap: wide\n---\n" +
+                                 "%%{init: {'themeCSS': '.task0 { fill: #0000ff }'}}%%\n" +
+                                 "gantt\n  A :1d\n";
+        var pieSink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var ganttSink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var pieConfig = MermaidConfigResolver.Resolve(Preprocessor.Run(PieText, "pie.mmd", MermaidLimits.Default), "pie", null, pieSink);
+        var pieStyles = PieStyles.Create(pieConfig, pieSink);
+        var ganttConfig = MermaidConfigResolver.Resolve(Preprocessor.Run(GanttText, "gantt.mmd", MermaidLimits.Default), "gantt", null, ganttSink);
+        var ganttStyles = GanttStyles.Create(ganttConfig, ganttSink);
+        var bar = ganttStyles.Compute([new GanttElement("svg", []), new GanttElement("g", []), GanttElement.Of("rect", "task task0")]);
+        var pieWarnings = new List<MermaidDiagnostic>();
+        var ganttWarnings = new List<MermaidDiagnostic>();
+        var unsupported = new List<MermaidUnsupportedFeature>();
+        pieSink.Deliver(pieWarnings.Add, unsupported.Add);
+        ganttSink.Deliver(ganttWarnings.Add, unsupported.Add);
+
+        // Assert
+        Assert.Equal((0.4, 0.75), (pieConfig.Pie.DonutHole, pieConfig.Pie.TextPosition));
+        Assert.Equal(CssColor.Parse("#ff0000"), pieStyles.OuterCircle.Stroke);
+        Assert.Equal((30.0, 4.0), (ganttConfig.Gantt.BarHeight, ganttConfig.Gantt.BarGap));
+        Assert.Equal(CssColor.Parse("#0000ff"), bar.Fill);
+        Assert.Empty(unsupported);
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (Assert.Single(pieWarnings).Code, pieWarnings[0].Location.Line));
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (Assert.Single(ganttWarnings).Code, ganttWarnings[0].Location.Line));
+    }
+
+    /// <summary>
     ///     Validates that each of the five themes gives the flowchart its node fill (the theme's <c>mainBkg</c>) through
     ///     the site theme option.
     /// </summary>
@@ -226,7 +267,7 @@ public class ConfigurationTests
     public void Configuration_Document_UnsupportedType_ConfigurationSilent()
     {
         // Arrange
-        const string Text = "---\nconfig:\n  securityLevel: loose\n  notAKey: 1\n---\npie\n  \"a\" : 1\n";
+        const string Text = "---\nconfig:\n  securityLevel: loose\n  notAKey: 1\n---\njourney\n  title x\n";
         var document = MermaidDocument.Parse(Text);
         var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
 
