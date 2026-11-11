@@ -458,6 +458,25 @@ gantt
         $gantt.Log -notmatch 'left as written') `
         'a gantt block is drawn' "$($gantt.Log)`n$($gantt.Html)"
 
+    # A mindmap is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $branches = @'
+```mermaid
+mindmap
+  root((Garden))
+    Soil
+    Plants
+      beans[Beans]
+```
+'@
+    $mindmapsBefore = @(Get-Pictures).Count
+    $mindmapMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $mindmap = Invoke-Filter 'mermaid-mindmap' $branches
+    Write-Result ($mindmap.ExitCode -eq 0 -and $mindmap.Html -notmatch '<code' -and
+        $mindmap.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $mindmapsBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $mindmapMarkersBefore -and
+        $mindmap.Log -notmatch 'left as written') `
+        'a mindmap block is drawn' "$($mindmap.Log)`n$($mindmap.Html)"
+
     # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
     # marker in the cache remembers it: the next run warns from the marker and does not draw it.
     Set-Content (Join-Path $guide 'zoo.mmd') -Value "journey`n    title Ducks"

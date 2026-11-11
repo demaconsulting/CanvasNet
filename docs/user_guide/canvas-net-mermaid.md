@@ -599,6 +599,46 @@ Other behaviors that follow Mermaid:
   leave the chart.
 - A task without an id gets the id `taskN`; a task `after` an id that no task has starts today at midnight.
 
+### Supported Mindmap Syntax
+
+A mindmap starts with `mindmap`. It is drawn by a port of Mermaid's mindmap renderer and laid out with a port of
+cose-bilkent, the force-directed layout Mermaid uses for a mindmap, so the nodes and the branches land where Mermaid 11
+puts them.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `mindmap` on its own line |
+| Nodes | One node per line; the first node is the root, and each other node is a child of the nearest node above it that is indented less; a node that no node can take as its parent (a second root) is a `mermaid-syntax-error`, as in Mermaid |
+| Shapes | `id[text]` a rectangle, `id(text)` a rounded rectangle, `id((text))` a circle, `id)text(` a cloud, `id))text((` a bang, the text between two braces on each side a hexagon, and a node without brackets the default shape, a box with a line under it |
+| Texts | A node's text is its id when it has no brackets; in brackets it can be quoted (`id["text"]`), also as a Markdown string (a backtick inside each quote); every text is Markdown (`**bold**`, `*italic*`) and wraps at `mindmap.maxNodeWidth` |
+| Icons | `::icon(fa fa-book)` on the line after a node is read and reported (`mermaid-icon-unsupported`), and the node keeps its shape and text; Mermaid 11 does not draw it either |
+| Classes | `:::urgent large` on the line after a node gives it classes, which only `themeCSS` can style |
+| Sections | Each child of the root starts a section that its whole branch shares; the sections take the theme's section colors in turn, eleven before they repeat, and the root has a color of its own |
+| Edges | A curve from each node to each of its children, in the color of the section, thinner the further its node is indented, as in Mermaid |
+| Layout | cose-bilkent, Mermaid's default for a mindmap: the root's children around it, and each branch pushed away from the others; a `layout` other than `cose-bilkent` is reported (`mermaid-layout-unsupported`), and the mindmap is laid out with cose-bilkent |
+| Comments | `%%` comments on their own line |
+| Colors | The theme variables `cScale0` to `cScale11` (the section fills and edges), `cScaleLabel0` to `cScaleLabel11` (the section texts), `cScaleInv0` to `cScaleInv11` (the line under a default node, which the base, dark, forest, and neutral themes leave out), `git0` (the root's fill), and `gitBranchLabel0` (the root's text) |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, `themeCSS`, and the mindmap settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+The mindmap settings follow Mermaid (`config.mindmap` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `mindmap.padding` | 10 | The space between a node's text and its outline (twice as much in a hexagon; a rectangle and a rounded rectangle keep Mermaid's own space), and the margin around the mindmap |
+| `mindmap.maxNodeWidth` | 200 | The width at which a node's text wraps (a rectangle, a rounded rectangle, and a hexagon wrap at `flowchart.wrappingWidth`, as in Mermaid) |
+| `mindmap.layoutAlgorithm` | `cose-bilkent` | Accepted, and without effect as in Mermaid; the top-level `layout` selects the layout |
+| `mindmap.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- A mindmap draws no title: a frontmatter `title` is only the document's title.
+- The layout makes no random choice, so a mindmap is laid out the same way on every machine and in every render.
+- A mindmap of the keyword alone draws nothing.
+
 ### Mermaid Unsupported Features and Strict Mode
 
 A construct that Mermaid defines but this package does not draw is reported as a `MermaidUnsupportedFeature` with a
@@ -610,11 +650,11 @@ fail on a warning.
 <!-- markdownlint-disable MD013 -->
 | Code | Kind | Reported when |
 | ---- | ---- | ------------- |
-| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, and `gantt`); the picture is empty |
-| `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant); the node or participant keeps its shape and label without the icon |
+| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, and `mindmap`); the picture is empty |
+| `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant, an `::icon(...)` of a mindmap node); the node or participant keeps its shape and label without the icon |
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
-| `mermaid-layout-unsupported` | Unsupported | A `layout` other than `dagre` (`elk`, also the `flowchart-elk` keyword), or a `state.defaultRenderer` that selects Mermaid's legacy state renderer; the diagram is laid out with dagre, and a legacy state diagram is drawn as a `stateDiagram-v2` |
+| `mermaid-layout-unsupported` | Unsupported | A `layout` other than `dagre` (`elk`, also the `flowchart-elk` keyword) or, for a mindmap, other than `cose-bilkent`, or a `state.defaultRenderer` that selects Mermaid's legacy state renderer; the diagram is laid out with dagre (a mindmap with cose-bilkent), and a legacy state diagram is drawn as a `stateDiagram-v2` |
 | `mermaid-theme-css-unsupported` | Unsupported | A `themeCSS` rule whose selector is not one of the diagram's own (such as `.node rect` in a flowchart), an at-rule, or a nested rule; the rule is not applied |
 | `mermaid-config-unknown-key` | Warning | A configuration key Mermaid does not define; it is ignored |
 | `mermaid-config-invalid` | Warning | A configuration value of the wrong type or range, or a theme that is not available; it is ignored (`sequence.textPlacement: fo` is drawn with the default placement) |

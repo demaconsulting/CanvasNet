@@ -225,6 +225,38 @@ public class DiscoveryCommandsDiagramTests
     }
 
     /// <summary>
+    ///     Test that a mindmap is described as supported, without a direction, with its nodes, its edges (one fewer than its
+    ///     nodes) and no subgraphs, and with the frontmatter title (a mindmap declares no title of its own).
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_Mindmap_ReportsNodesAndEdges()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "garden.mmd",
+            "---\ntitle: Garden\n---\nmindmap\n  root((Garden))\n    Soil\n      Compost\n    Plants\n");
+        var info = SourceLoader.Probe(path);
+
+        // Act
+        var json = RunInfo(true, path);
+        var text = RunInfo(false, path).TrimEnd();
+
+        // Assert
+        using var document = JsonDocument.Parse(json);
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal("mindmap", diagram.GetProperty("type").GetString());
+        Assert.True(diagram.GetProperty("supported").GetBoolean());
+        Assert.False(diagram.TryGetProperty("direction", out _));
+        Assert.Equal("Garden", diagram.GetProperty("title").GetString());
+        Assert.Equal((4, 3, 0), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Equal(
+            $"{path}: mermaid, {info.Width}x{info.Height} px (laid out), mindmap, 4 nodes, 3 edges, 0 subgraphs, title \"Garden\", {info.Bytes} bytes",
+            text);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
     ///     titles, so an agent learns before rendering that it would get an empty picture.
     /// </summary>
