@@ -758,8 +758,8 @@ catch (ViewerException ex)
 `SvgFlattener.Execute` writes a copy of the drawing in which each such link is a PNG picture of its placement size
 times `Scale`, as a `data:` URI, drawn with the resolver of `render` (the folder of the drawing is the sandbox, with the
 same limits); only those attribute values change. When the drawing links no such picture nothing is written and
-`Flattened` is false, so the original can be used as it is. A link to such a file that the drawing never shows (hidden,
-or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`):
+`Flattened` is false, so the original can be used as it is. A link to such a file that the drawing, or an SVG file it shows,
+never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`):
 
 <!-- compile -->
 

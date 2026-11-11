@@ -477,6 +477,57 @@ public class SvgFlattenerTests
     }
 
     /// <summary>
+    ///     Test that a diagram that a shown nested SVG file defines but never shows is reported with the nested file as
+    ///     its location and origin.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_HiddenDiagramInNestedSvg_ReportsNotDrawnWithOrigin()
+    {
+        // Arrange: the drawing shows parts/inner.svg, whose only diagram is an unused definition
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("parts"));
+        File.Copy(FixtureFactory.FixturePath("mermaid/flow.mmd"), directory.Combine("parts", "flow.mmd"));
+        FixtureFactory.WriteText(
+            directory.Path,
+            "parts/inner.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'>\n"
+            + "<defs><image id='x' href='flow.mmd' width='40' height='40'/></defs><rect width='10' height='10'/></svg>");
+        var input = WriteSvg(directory, "a.svg", "<image href='parts/inner.svg' width='100' height='100'/>");
+        var output = directory.Combine("b.svg");
+
+        // Act
+        var result = Flatten(input, output);
+
+        // Assert: the nested file is plain, so nothing is written, and its hidden diagram is reported
+        Assert.False(result.Flattened);
+        var note = Assert.Single(result.Diagnostics);
+        Assert.Equal((SvgFlattener.ImageNotDrawnCode, "warning", "svg"), (note.Code, note.Severity, note.Source));
+        Assert.Equal(["parts/inner.svg"], note.Origin);
+        Assert.Equal(("parts/inner.svg", 2), (note.Location?.File, note.Location?.Line));
+        Assert.Contains("'flow.mmd'", note.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a diagram a nested SVG file shows is not reported as not drawn.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_ShownDiagramInNestedSvg_NotReported()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        CopyDiagram(directory);
+        WriteSvg(directory, "inner.svg", "<image href='flow.mmd' width='40' height='40'/>");
+        var input = WriteSvg(directory, "a.svg", "<image href='inner.svg' width='100' height='100'/>");
+
+        // Act
+        var result = Flatten(input, directory.Combine("b.svg"));
+
+        // Assert
+        Assert.True(result.Flattened);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == SvgFlattener.ImageNotDrawnCode);
+    }
+
+    /// <summary>
     ///     Test that a link to a missing file is reported as render reports it and nothing is written.
     /// </summary>
     [Fact]
@@ -645,6 +696,33 @@ public class SvgFlattenerTests
         Assert.True(result.Flattened);
         Assert.Empty(result.Rebased);
         Assert.Contains("href='x%00.png'", File.ReadAllText(output), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that the size of the copy is counted in UTF-8 bytes while it is built: a replaced link of characters that
+    ///     take three bytes each fits a limit of exactly the size of the copy, and one byte less is refused.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_NonAsciiHrefAtOutputLimit_CountsUtf8Bytes()
+    {
+        // Arrange: a diagram whose name is twelve CJK characters (36 bytes for 12 UTF-16 characters)
+        using var directory = new TempDirectory();
+        const string name = "流程图流程图流程图流程图.mmd";
+        CopyDiagram(directory, name);
+        var input = WriteSvg(directory, "a.svg", $"<image href='{name}' width='40' height='40'/>");
+        var size = Flatten(input, directory.Combine("size.svg")).Bytes;
+        var info = SourceLoader.Probe(input);
+
+        // Act
+        var atLimit = SvgFlattener.Execute(info, new FlattenRequest(directory.Combine("b.svg")) { MaxOutputBytes = size });
+        var ex = Assert.Throws<ViewerException>(
+            () => SvgFlattener.Execute(info, new FlattenRequest(directory.Combine("c.svg")) { MaxOutputBytes = size - 1 }));
+
+        // Assert
+        Assert.True(atLimit.Flattened);
+        Assert.Equal(size, atLimit.Bytes);
+        Assert.Equal(ErrorCodes.SizeLimit, ex.Code);
+        Assert.False(File.Exists(directory.Combine("c.svg")));
     }
 
     /// <summary>

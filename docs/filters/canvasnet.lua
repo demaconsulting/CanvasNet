@@ -49,7 +49,8 @@ scale; every other attribute of it stays on the picture.
 
 SVG drawings. An SVG reader such as WeasyPrint draws nothing for an <image href="flow.mmd"> (or a .scad, .vl.json,
 .pdf, .pptx, or .vsdx link, or a nested .svg file that links one). For an .svg picture the filter reads the drawing
-and the .svg files it links (as the tool does: the href of every image element, or its xlink:href when it has no href,
+and the .svg files it links (as the tool does: the href of every image element, or its xlink:href (an href in the
+XLink namespace, under any prefix bound to it) when it has no href,
 entities decoded, a fragment and a query dropped, remote and data: links skipped; comments, CDATA sections, processing
 instructions and a DOCTYPE hold no links, and a ">" in a quoted attribute does not end a tag); when none of them links
 such a file, the picture is left alone and the tool is not started, so a plain SVG drawing stays a vector picture
@@ -831,18 +832,22 @@ end
 
 -- Reads the attributes of a start tag from "pos" (just after the element name) up to its closing ">", a ">" inside a
 -- quoted value (single or double quotes) being part of the value. Returns the attributes as a list of { name, value }
--- (an unquoted value, which is not XML, is read up to white space or ">") and the position after the tag.
+-- (an unquoted value, which is not XML, is read up to white space or ">"), the position after the tag, and whether the
+-- tag closes itself ("/>").
 local function read_attributes(content, pos)
   local attributes = {}
   local length = #content
+  local closes = false
   while pos <= length do
     pos = content:find("[^%s]", pos) or (length + 1)
     local char = content:sub(pos, pos)
     if char == ">" then
-      return attributes, pos + 1
+      return attributes, pos + 1, closes
     elseif char == "/" then
+      closes = true
       pos = pos + 1
     else
+      closes = false
       local name = content:match("^[^%s=/>]+", pos)
       if not name then
         pos = pos + 1 -- a stray "=", which is not XML
@@ -865,19 +870,36 @@ local function read_attributes(content, pos)
       end
     end
   end
-  return attributes, pos
+  return attributes, pos, closes
 end
+
+-- The namespace of the legacy xlink:href attribute.
+local XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
 
 -- The text that ends each kind of markup that holds no elements, by the text that starts it.
 local SKIPPED_MARKUP = { { "<!--", "-->" }, { "<![CDATA[", "]]>" }, { "<?", "?>" } }
 
 -- Collects the links of the image elements of an SVG text, as the tool finds them: for each element whose name is image
--- (with or without a namespace prefix), the unprefixed href, or a prefixed href (xlink:href) when there is none; the
--- value with entities decoded and white space trimmed. Comments, character data, processing instructions, a DOCTYPE
--- (with its internal subset) and end tags hold no links, and a ">" inside a quoted attribute value does not end a tag.
+-- (with or without a namespace prefix), the unprefixed href, or the href in the XLink namespace (xlink:href, under any
+-- prefix that is bound to that namespace on the element or an ancestor) when there is none; the value with entities
+-- decoded and white space trimmed. Comments, character data, processing instructions, a DOCTYPE (with its internal
+-- subset) and end tags hold no links, and a ">" inside a quoted attribute value does not end a tag.
 local function collect_svg_links(content, links)
   local pos = 1
   local length = #content
+  -- The namespace bindings of the open elements, innermost last: each a table of prefix to namespace
+  local scopes = {}
+  local function namespace_of(prefix, own)
+    if own[prefix] then
+      return own[prefix]
+    end
+    for i = #scopes, 1, -1 do
+      if scopes[i][prefix] then
+        return scopes[i][prefix]
+      end
+    end
+    return nil
+  end
   while true do
     local open = content:find("<", pos, true)
     if not open then
@@ -920,19 +942,28 @@ local function collect_svg_links(content, links)
         pos = i + 1
       elseif next_char == "/" then
         pos = (content:find(">", open + 2, true) or length) + 1
+        table.remove(scopes)
       else
         local name = content:match("^[%w_%.%-:]+", open + 1)
         if not name then
           pos = open + 1
         else
-          local attributes
-          attributes, pos = read_attributes(content, open + 1 + #name)
+          local attributes, closes
+          attributes, pos, closes = read_attributes(content, open + 1 + #name)
+          local own = {}
+          for _, attribute in ipairs(attributes) do
+            local prefix = attribute[1]:match("^xmlns:(.+)$")
+            if prefix then
+              own[prefix] = decode_entities(attribute[2])
+            end
+          end
           if name == "image" or name:match(":image$") then
             local plain, legacy = nil, nil
             for _, attribute in ipairs(attributes) do
+              local prefix = attribute[1]:match("^([^:]+):href$")
               if attribute[1] == "href" then
                 plain = attribute[2]
-              elseif legacy == nil and attribute[1]:match("^[^:]+:href$") then
+              elseif legacy == nil and prefix and namespace_of(prefix, own) == XLINK_NAMESPACE then
                 legacy = attribute[2]
               end
             end
@@ -940,6 +971,9 @@ local function collect_svg_links(content, links)
             if link then
               links[(decode_entities(link):gsub("^%s+", ""):gsub("%s+$", ""))] = true
             end
+          end
+          if not closes then
+            table.insert(scopes, own)
           end
         end
       end

@@ -222,8 +222,9 @@ public static partial class SvgFlattener
                 continue;
             }
 
-            // The size is checked as the copy grows, so a picture linked many times cannot use up the memory first
-            size += value.Length - link.Length;
+            // The size is checked as the copy grows, so a picture linked many times cannot use up the memory first; it is
+            // counted in UTF-8 bytes, as the copy is encoded, so a link with other than ASCII characters is counted right
+            size += StrictUtf8.GetByteCount(value) - StrictUtf8.GetByteCount(text.AsSpan(link.Start, link.Length));
             CheckSize(size, request.MaxOutputBytes);
             builder.Append(text, copied, link.Start - copied).Append(value);
             copied = link.Start + link.Length;

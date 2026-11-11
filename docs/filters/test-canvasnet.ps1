@@ -17,7 +17,7 @@
     diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
     and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF. The scan
     of an SVG drawing ignores image tags in comments, CDATA sections and processing instructions, reads past a ">" in a
-    quoted attribute, and starts the tool for a link to a missing diagram (directly or in a nested SVG file), whose
+    quoted attribute, takes a prefixed href only in the XLink namespace (under any prefix bound to it), and starts the tool for a link to a missing diagram (directly or in a nested SVG file), whose
     warning is shown on every build until creating the file flattens the drawing.
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
@@ -601,6 +601,18 @@ pie title Pets
         '<!-- <image href="flow.mmd" width="50" height="50"/> -->' +
         '<style><![CDATA[ /* <image href="flow.mmd"/> */ rect { fill: #cccccc; } ]]></style>' +
         '<?note <image href="flow.mmd"/> ?><rect width="200" height="100"/><image href="logo.png" width="50" height="50"/></svg>')
+    # A prefixed href outside the XLink namespace is not a link (checked below, without the tool), but any prefix bound to
+    # the XLink namespace is
+    Set-Content (Join-Path $svgDir 'foreign-href.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:foo="urn:example:foo" width="200" height="100">' +
+        '<image foo:href="part.scad" width="50" height="50"/>' +
+        '<g xmlns:xlink="urn:example:not-xlink"><image xlink:href="flow.mmd" width="50" height="50"/></g></svg>')
+    Set-Content (Join-Path $svgDir 'other-prefix.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:l="http://www.w3.org/1999/xlink" width="200" height="100">' +
+        '<image l:href="flow.mmd" width="100" height="50"/></svg>')
+    $otherPrefix = Invoke-Filter 'svg-other-prefix' '![o](svg/other-prefix.svg)'
+    Write-Result ($otherPrefix.ExitCode -eq 0 -and $otherPrefix.Html -match 'generated/canvasnet/other-prefix-[0-9a-f]+\.svg') `
+        'an href under another prefix bound to the XLink namespace is found and flattened' "$($otherPrefix.Log)`n$($otherPrefix.Html)"
 
     # WeasyPrint, which draws the HTML into the PDF, shows the flattened copy: its page is darker than the page of a
     # control document that shows the original drawing (whose diagram WeasyPrint cannot draw), and the control page
@@ -641,6 +653,10 @@ pie title Pets
         Write-Result ($commented.ExitCode -eq 0 -and $commented.Html -match 'src="svg/commented\.svg"') `
             'an SVG whose diagram links are only in a comment, CDATA, or a processing instruction never starts the tool' `
             "$($commented.Log)`n$($commented.Html)"
+        $foreign = Invoke-Filter 'svg-foreign-href' '![f](svg/foreign-href.svg)'
+        Write-Result ($foreign.ExitCode -eq 0 -and $foreign.Html -match 'src="svg/foreign-href\.svg"') `
+            'an SVG whose only prefixed hrefs are outside the XLink namespace never starts the tool' `
+            "$($foreign.Log)`n$($foreign.Html)"
         $missing = Invoke-Filter 'missing-tool' '![model](bad.scad)'
         Write-Result ($missing.ExitCode -ne 0 -and $missing.Log -match 'cannot run the canvasnet tool') `
             'a tool that cannot start is a clear error' $missing.Log

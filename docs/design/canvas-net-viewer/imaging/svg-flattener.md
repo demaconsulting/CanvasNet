@@ -45,10 +45,20 @@ the caller, a scale out of range with `usage-error` (the validator of `SourceLoa
    2048 by 2048 pixels, the placement sizes enlarged by the same factor), with the **Recorder** as the image resolver;
 3. applies the strict policy of render (`SvgImages.ThrowForUnresolved`);
 4. finds the link attributes (**FindImageLinks**), and reports each link to a file only CanvasNet draws that the drawing
-   never asked for as the warning `svg-flatten-image-not-drawn` with its line and column;
+   never asked for as the warning `svg-flatten-image-not-drawn` with its line and column; then does the same for each
+   SVG file the drawing showed at any depth (**NotDrawnNested**), see below;
 5. rewrites the text (**Rewrite**) and, when at least one link was replaced, encodes it (with the byte order mark of the
    input), checks it against `MaxOutputBytes` (`size-limit`), writes it to a temporary file next to the output, and
    publishes it with `ImageWriter.PublishAll`. Nothing is written when nothing was replaced.
+
+**NotDrawnNested(path, requested)**: the links an embedded SVG file shows are asked of the resolver's scopes, not of the
+Recorder, so they are read from `FolderImageResolver.Requested`: each entry that was drawn (it has a `Name`) and is an
+SVG file by a file link is one shown nested file, whose origin is the entry's origin followed by its name. Each such
+origin is checked once: the file (the folder of the drawing joined with its folder-relative name) is read and its links
+found as for the drawing (one that cannot be read or parsed is skipped, since the SVG library already drew it), and each
+link to a file only CanvasNet draws that no entry of that origin asked for is the warning `svg-flatten-image-not-drawn`
+with the folder-relative name, line and column as its location and the origin as its `Origin`, as the resolver's own
+notes about links of an embedded file carry it.
 
 **Recorder.Resolve(href, width, height)**: the SVG library calls it for every link it shows (never for a `data:` URI or
 a `#` link), with the device size of the placement through the `viewBox` and every transform (the edge lengths of a
@@ -74,7 +84,9 @@ another attribute is never taken for a link. A position that does not match the 
 
 **Rewrite**: copies the text and replaces, link by link in document order, the raw value of a kept link by its data URI
 and, when the output folder is not the folder of the input, the raw value of a relative link that is left by
-**RebaseLink**; the size of the copy is checked as it grows. **RebaseLink(href, quote, inputFolder, outputFolder)**
+**RebaseLink**; the size of the copy is checked as it grows, in UTF-8 bytes (the byte count of the new value minus that
+of the old one, with the strict UTF-8 encoding the copy is written with), so a link with other than ASCII characters is
+counted as it will be written. **RebaseLink(href, quote, inputFolder, outputFolder)**
 leaves a link with a URI scheme, a `#` link, an empty link, and a rooted path alone (and a path with a null character, or
 one the file system cannot resolve, such as one that is too long, since it names no file); otherwise it resolves the
 path (cut at the first `?` or `#` and percent-decoded, as the resolver reads it) against the input folder and writes it

@@ -481,6 +481,48 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
+    ///     Test that every link asked for, at every level, is listed in Requested with the files that contain it, and
+    ///     with the name of the picture only when it was drawn.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_LinksAtEveryLevel_ListedInRequestedWithOriginAndName()
+    {
+        // Arrange: sub/a.stub links b.stub (beside it), which links a file that does not exist
+        using var folder = new ImageTestFolder();
+        folder.WriteText("sub/a.stub", "b.stub");
+        folder.WriteText("sub/b.stub", "nothing-here.stub");
+        var resolver = new FolderImageResolver(folder.Path, [Chaining(Ext)]);
+
+        // Act
+        resolver.Resolve("sub/a.stub", 10, 10)?.Dispose();
+
+        // Assert: in the order asked; the missing link has no name
+        Assert.Equal(
+            [
+                new RequestedImage("sub/a.stub", []) { Name = "sub/a.stub" },
+                new RequestedImage("b.stub", ["sub/a.stub"]) { Name = "sub/b.stub" },
+                new RequestedImage("nothing-here.stub", ["sub/a.stub", "sub/b.stub"])
+            ],
+            resolver.Requested);
+    }
+
+    /// <summary>
+    ///     Test that two requested entries are equal when their origins have the same entries, and differ by name.
+    /// </summary>
+    [Fact]
+    public void RequestedImage_Equals_ComparesOriginByEntries()
+    {
+        // Arrange
+        var first = new RequestedImage("x.stub", ["a.svg"]) { Name = "x.stub" };
+        var second = new RequestedImage("x.stub", new List<string> { "a.svg" }) { Name = "x.stub" };
+
+        // Act / Assert
+        Assert.Equal(first, second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+        Assert.NotEqual(first, second with { Name = null });
+    }
+
+    /// <summary>
     ///     Test that a link whose picture does not fit in the pixel budget, found inside an embedded file, names that
     ///     file as its origin.
     /// </summary>
@@ -965,6 +1007,7 @@ public class FolderImageResolverTests
         ReadOnlyListAssert.IsReadOnly(resolver.Diagnostics, new ImageSourceDiagnostic("s", ImageDiagnosticSeverity.Info, "c", "m"));
         ReadOnlyListAssert.IsReadOnly(resolver.Echo, "x");
         ReadOnlyListAssert.IsReadOnly(resolver.Embedded, new EmbeddedImage("a", "b", 1, 1));
+        ReadOnlyListAssert.IsReadOnly(resolver.Requested, new RequestedImage("a", []));
     }
 
     /// <summary>

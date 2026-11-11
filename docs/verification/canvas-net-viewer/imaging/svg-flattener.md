@@ -65,6 +65,11 @@ pixels with no `svg-image-too-large` warning, so the smaller placement is never 
 **SvgFlattener_Execute_HiddenDiagram_ReportsNotDrawnAndWritesNothing**: a diagram in an unused definition is the warning
 `svg-flatten-image-not-drawn` with the file and line, and nothing is written.
 
+**SvgFlattener_Execute_HiddenDiagramInNestedSvg_ReportsNotDrawnWithOrigin** and
+**SvgFlattener_Execute_ShownDiagramInNestedSvg_NotReported**: a diagram in an unused definition of `parts/inner.svg`,
+which the drawing shows, is the warning `svg-flatten-image-not-drawn` with `parts/inner.svg`, line 2 as its location and
+`["parts/inner.svg"]` as its origin, and nothing is written; a diagram a nested file shows is flattened and not reported.
+
 **SvgFlattener_Execute_MissingLinkedFile_ReportsUnresolved**,
 **SvgFlattener_Execute_MissingLinkedFileStrict_ThrowsUnsupportedFeature**,
 **SvgFlattener_Execute_LinkOutsideFolder_RefusedBySandbox**, **SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle**,
@@ -76,6 +81,10 @@ is
 **SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing** and
 **SvgFlattener_Execute_OutputInOtherFolder_RebasesRemainingRelativeLinks**: a copy over a 1000-byte limit is
 `size-limit` with no file; a copy in a sub folder rewrites `my logo.png` to `../my%20logo.png`.
+
+**SvgFlattener_Execute_NonAsciiHrefAtOutputLimit_CountsUtf8Bytes**: a replaced link of twelve three-byte CJK characters
+is flattened under a limit of exactly the size of the copy, and is `size-limit` with no file under one byte less, so the
+check while the copy is built counts UTF-8 bytes as the final check does.
 
 **SvgFlattener_Execute_OutputInOtherFolder_InvalidLinkPathLeftAsWritten**: a link `x%00.png` is kept as written and not
 rebased, and the copy is written.

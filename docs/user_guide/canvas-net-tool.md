@@ -1929,10 +1929,11 @@ the order of its command line, and the filters of a defaults file take the place
 **SVG drawings.** WeasyPrint, which turns the HTML into the PDF, draws nothing for an `<image href="flow.mmd">` (or a
 model, a chart, or a page of a document) inside an SVG picture. For an `.svg` picture the filter reads the drawing and
 the `.svg` files it links the way the tool does (the `href` of each `image` element, or its `xlink:href` when it has no
-`href`; comments, CDATA sections, processing instructions, and a DOCTYPE hold no links, and a `>` inside a quoted
-attribute value does not end a tag); when none of them links such a file the picture is left alone and the tool is not
-started, so a plain SVG stays a vector picture. A link to such a file that does not exist counts too: the tool reports it
-(`svg-image-unresolved`) as a warning instead of the link being left silently broken. Otherwise the filter runs
+`href`, under any prefix bound to the XLink namespace; comments, CDATA sections, processing instructions, and a
+DOCTYPE hold no links, and a `>` inside a quoted attribute value does not end a tag); when none of them links such a
+file the picture is left alone and the tool is not started, so a plain SVG stays a vector picture. A link to such a file
+that does not exist counts too: the tool reports it (`svg-image-unresolved`) as a warning instead of the link being
+left silently broken. Otherwise the filter runs
 `canvasnet flatten ... --json` and the picture points at the flattened copy in `docs/generated/canvasnet/`, in which
 each such link is a PNG picture of its placement size (`scale=2` for sharper pictures in print; every other attribute
 stays on the picture) and the relative links that are left are rewritten to find their files from there. The copy is

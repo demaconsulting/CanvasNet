@@ -87,14 +87,17 @@ sections:
       - id: CanvasNetViewer-Imaging-SvgFlattener-NothingToReplace
         title: >-
           When no link is replaced, the SvgFlattener class shall write nothing and shall report that nothing was
-          flattened, and it shall report each link to a file only CanvasNet draws that the drawing never shows with the
-          warning svg-flatten-image-not-drawn and its line and column.
+          flattened, and it shall report each link to a file only CanvasNet draws that the drawing, or an SVG file it
+          shows at any depth, never shows with the warning svg-flatten-image-not-drawn, its file, line and column, and
+          for a nested file the files that contain the link as its origin.
         justification: |
           A caller (the Pandoc filter) must be able to keep a plain drawing as the vector original, and a diagram that
           is hidden or unused must not disappear silently.
         tests:
           - SvgFlattener_Execute_PlainRasterAndPlainSvg_NothingWritten
           - SvgFlattener_Execute_HiddenDiagram_ReportsNotDrawnAndWritesNothing
+          - SvgFlattener_Execute_HiddenDiagramInNestedSvg_ReportsNotDrawnWithOrigin
+          - SvgFlattener_Execute_ShownDiagramInNestedSvg_NotReported
 
       - id: CanvasNetViewer-Imaging-SvgFlattener-Limits
         title: >-
@@ -111,6 +114,7 @@ sections:
           - SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle
           - SvgFlattener_Execute_MoreThan64Images_ExtraLinksStayAndAreReported
           - SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing
+          - SvgFlattener_Execute_NonAsciiHrefAtOutputLimit_CountsUtf8Bytes
 
       - id: CanvasNetViewer-Imaging-SvgFlattener-Strict
         title: >-

@@ -949,6 +949,7 @@ reviews:
       - "docs/verification/canvas-net/image-sources/folder-image-resolver.md"  # unit verification
       - "docs/sysml2/model/canvas-net/image-sources/folder-image-resolver.sysml"  # unit model
       - "src/DemaConsulting.CanvasNet/ImageSources/FolderImageResolver*.cs"  # unit source (resolver, options)
+      - "src/DemaConsulting.CanvasNet/ImageSources/RequestedImage.cs"  # unit source (requested link)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverHrefTests.cs"    # unit tests (links)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)

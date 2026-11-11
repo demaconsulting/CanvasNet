@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Svg;
@@ -255,6 +256,7 @@ public static partial class SvgFlattener
         var links = SourceLoader.Read(info.Path, SourceKind.Svg, () => FindImageLinks(document.Bytes, document.Text));
         var diagnostics = images.Notes();
         diagnostics.AddRange(NotDrawn(info.Path, links, recorder.Requested));
+        diagnostics.AddRange(NotDrawnNested(info.Path, images.Resolver.Requested));
         var echo = images.Resolver.Echo.ToList();
 
         // Rewrite the link values; nothing is written when nothing was replaced
@@ -406,7 +408,84 @@ public static partial class SvgFlattener
     /// <returns>One <see cref="ImageNotDrawnCode"/> warning for each such link, with its line and column.</returns>
     private static IEnumerable<ImageDiagnostic> NotDrawn(string path, IReadOnlyList<ImageLink> links, IReadOnlySet<string> requested)
     {
-        var file = Path.GetFileName(path);
+        return NotShown(links, requested, Path.GetFileName(path), [], "the drawing", "it was left as a link");
+    }
+
+    /// <summary>
+    ///     Reports the links to files only CanvasNet draws that an SVG file the drawing shows (at any depth) never asked
+    ///     for.
+    /// </summary>
+    /// <param name="path">The path of the drawing; its folder is the folder of the resolver.</param>
+    /// <param name="requested">Every link the resolver was asked for, at every level (<see cref="FolderImageResolver.Requested"/>).</param>
+    /// <returns>
+    ///     One <see cref="ImageNotDrawnCode"/> warning for each such link, with the folder-relative name of the file, the
+    ///     line and column, and the files that contain the link as its <see cref="ImageDiagnostic.Origin"/>; each nested
+    ///     file is checked once for each chain of files it is shown through.
+    /// </returns>
+    /// <remarks>
+    ///     A nested file is read again only to find its links; one that cannot be read or is not well-formed (which the
+    ///     SVG library, having drawn it, already accepted) is skipped.
+    /// </remarks>
+    private static List<ImageDiagnostic> NotDrawnNested(string path, IReadOnlyList<RequestedImage> requested)
+    {
+        var folder = FolderOf(path);
+        var checkedFiles = new List<IReadOnlyList<string>>();
+        var diagnostics = new List<ImageDiagnostic>();
+        foreach (var shown in requested)
+        {
+            // Only an SVG file that was drawn, by a file link, has links of its own to check
+            if (shown.Name is not { } name || HasScheme(name) || SourceLoader.SvgImages.KindOfName(name) != SourceKind.Svg)
+            {
+                continue;
+            }
+
+            IReadOnlyList<string> origin = [.. shown.Origin, name];
+            if (checkedFiles.Exists(o => o.SequenceEqual(origin)))
+            {
+                continue;
+            }
+
+            checkedFiles.Add(origin);
+            List<ImageLink> links;
+            try
+            {
+                var document = ReadDocument(Path.Combine(folder, name));
+                links = FindImageLinks(document.Bytes, document.Text);
+            }
+            catch (Exception ex) when (ex is ViewerException or XmlException)
+            {
+                continue;
+            }
+
+            var asked = requested
+                .Where(r => r.Origin.SequenceEqual(origin))
+                .Select(r => r.Href)
+                .ToHashSet(StringComparer.Ordinal);
+            diagnostics.AddRange(NotShown(links, asked, name, origin, $"'{name}'", "it was not drawn"));
+        }
+
+        return diagnostics;
+    }
+
+    /// <summary>
+    ///     Makes one <see cref="ImageNotDrawnCode"/> warning for each link of a file to a file only CanvasNet draws that was
+    ///     never asked for.
+    /// </summary>
+    /// <param name="links">The links of the file.</param>
+    /// <param name="requested">The links the file asked the resolver for.</param>
+    /// <param name="file">The name of the file for the location.</param>
+    /// <param name="origin">The files that contain the links, outermost first; empty for the drawing itself.</param>
+    /// <param name="shownBy">What does not show the link, for the message.</param>
+    /// <param name="outcome">What became of the link, for the message.</param>
+    /// <returns>The warnings, in document order.</returns>
+    private static IEnumerable<ImageDiagnostic> NotShown(
+        IReadOnlyList<ImageLink> links,
+        IReadOnlySet<string> requested,
+        string file,
+        IReadOnlyList<string> origin,
+        string shownBy,
+        string outcome)
+    {
         return links
             .Where(link => !requested.Contains(link.Href)
                            && !link.Href.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
@@ -415,9 +494,10 @@ public static partial class SvgFlattener
                 "svg",
                 "warning",
                 ImageNotDrawnCode,
-                $"image '{link.Href}' is not shown by the drawing (hidden, unused, outside the canvas, or over a limit), so it was left as a link")
+                $"image '{link.Href}' is not shown by {shownBy} (hidden, unused, outside the canvas, or over a limit), so {outcome}")
             {
-                Location = new ImageDiagnosticLocation(file, link.Line, link.Column, null)
+                Location = new ImageDiagnosticLocation(file, link.Line, link.Column, null),
+                Origin = origin
             });
     }
 

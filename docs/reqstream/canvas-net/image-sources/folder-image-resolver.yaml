@@ -338,6 +338,21 @@ sections:
                   - FolderImageResolver_Resolve_SchemeLinkNote_OriginIsTheLinkAsWritten
                   - ImageSourceDiagnostic_Origin_DefaultsToEmptyAndIsComparedByEntries
 
+              - id: CanvasNet-ImageSources-FolderImageResolver-Requested
+                title: >-
+                  The FolderImageResolver class shall list, in the order asked, every link a document asked for at any
+                  level, whether or not it was drawn, with the files that contain it (the origin of a note about the
+                  link) and, when it was drawn, the name it adds to the origin of its own links, and shall treat two
+                  entries with the same link, name and origin entries as equal.
+                justification: |
+                  A link a document never shows is never asked for, so a caller that knows the links of an embedded
+                  file (the SVG flattener) can report the ones the file did not show only if it can tell which links
+                  each file asked for.
+                tests:
+                  - FolderImageResolver_Resolve_LinksAtEveryLevel_ListedInRequestedWithOriginAndName
+                  - RequestedImage_Equals_ComparesOriginByEntries
+                  - FolderImageResolver_Collections_AreReadOnly
+
               - id: CanvasNet-ImageSources-FolderImageResolver-Failures
                 title: >-
                   The FolderImageResolver class shall report a file that is found but cannot be drawn as an
