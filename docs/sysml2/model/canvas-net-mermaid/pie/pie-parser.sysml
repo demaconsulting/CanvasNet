@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def PieParser {
+        doc /* The internal sealed PieParser (a partial class in two files) with the PieToken, PieSection, and PieDiagram types: Parse reads the preprocessed text of a pie chart into a new PieDiagram. The lexer tries the token types in the order Langium gives chevrotain (the keywords pie and showData, which must be followed by white space or a comment, then the pie number, the accessibility, title, string, and newline terminals, then the hidden white space, YAML, directives, and comments), first match wins, with hand-written linear matchers in place of the regular expressions; a recursive-descent parser with one token of lookahead accepts the pie grammar. Values are converted as the Mermaid value converters and Langium's convertString convert them, and the database rules of Mermaid's pie database apply: the sections in order, a repeated label keeping its first value, a negative value refused with Mermaid's message, and the title and accessibility texts sanitized. A lexical error comes before any grammar error; both are MermaidSyntaxException values with code mermaid-syntax-error located in the original text, a grammar error with chevrotain's expected tokens. Every section counts against MaxNodes, and every kept, converted, sanitized, or legend text against MaxLabelLength (mermaid-limit-exceeded). PieDiagram is the IMermaidDiagram of the document: the sections as nodes and the title, and Layout draws it with PieRenderer. An instance parses one text on one thread. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Mermaid/Pie/PieParser.cs, src/DemaConsulting.CanvasNet.Mermaid/Pie/PieParser.Lexer.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieParserTests.cs, test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieVectorTests.cs (with the upstream vectors test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/pie-parser.json) */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/pie/pie-parser.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/pie/pie-parser.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/pie/pie-parser.yaml */
+    }
+}

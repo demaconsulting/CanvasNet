@@ -144,6 +144,14 @@ package CanvasNet {
         expose MermaidEr;
     }
 
+    view MermaidPieView {
+        expose MermaidPie;
+    }
+
+    view MermaidGanttView {
+        expose MermaidGantt;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }
