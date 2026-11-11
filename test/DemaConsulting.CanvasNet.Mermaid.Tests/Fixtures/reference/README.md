@@ -504,3 +504,4 @@ none is excluded.
 | `12-today-marker-style` | A `todayMarker` style, the today line at the fixed clock |
 | `13-config-theme-br-sections` | The dark theme, bar and font sizes, `useWidth`, a section name with `<br>` |
 | `14-text-outside` | Task texts beside short bars (left and right), a title wider than the chart |
+| `15-excludes-second-pass` | `excludes weekends` on a Friday task when a forward `after` needs a second pass |

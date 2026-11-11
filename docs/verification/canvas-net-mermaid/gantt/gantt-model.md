@@ -140,13 +140,17 @@ among them, give Mermaid's dates (`AFTER a` in capitals is no reference and fail
 ##### CanvasNetMermaid-Gantt-GanttModel-Excludes: Excluded And Included Days
 
 **Tests**: `GanttModelTests.GanttModel_Compile_ExcludesAndIncludes_MoveEnds`,
+`GanttModelTests.GanttModel_Compile_ExcludesWithSecondPass_MoveEndsOnce`,
 `GanttVectorTests.GanttParser_Parse_UpstreamVector_MatchesMermaid`
 
 Asserts that with `excludes weekends` the task `2024-01-05, 2d` (from a Friday) ends at 2024-01-09 with its drawn bar
 ending at 2024-01-09, while the task `2024-01-05, 2024-01-08` keeps its manual end 2024-01-08 with no drawn end of its
 own; that with `includes 2024-01-06` the Saturday is a working day and the same task ends at 2024-01-08; that with
-`weekend friday` the task `2024-01-04, 2d` (from a Thursday) ends at 2024-01-08; and that the excluded weekdays, dates,
-and weekends of the upstream vectors give Mermaid's ends and drawn ends.
+`weekend friday` the task `2024-01-04, 2d` (from a Thursday) ends at 2024-01-08; that when a forward `after` reference
+needs a second pass, the Friday task `2024-05-10, 2d` still ends once at 2024-05-14 (each pass computes the dates from
+the raw data before it moves the end, as Mermaid does), and the tasks after it keep Mermaid's dates; and that the
+excluded weekdays, dates, and weekends of the upstream vectors (among them the fixture `15-excludes-second-pass`) give
+Mermaid's ends and drawn ends.
 
 ##### CanvasNetMermaid-Gantt-GanttModel-InclusiveEnd: Inclusive End Dates
 

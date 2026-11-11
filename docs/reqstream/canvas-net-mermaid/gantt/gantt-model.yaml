@@ -137,6 +137,7 @@ sections:
                   be Mermaid's.
                 tests:
                   - GanttModel_Compile_ExcludesAndIncludes_MoveEnds
+                  - GanttModel_Compile_ExcludesWithSecondPass_MoveEndsOnce
                   - GanttParser_Parse_UpstreamVector_MatchesMermaid
 
               - id: CanvasNetMermaid-Gantt-GanttModel-InclusiveEnd

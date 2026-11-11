@@ -84,6 +84,28 @@ public sealed class GanttModelTests
     }
 
     /// <summary>
+    ///     Validates that a later pass does not move an end past excluded days again: each pass computes a task's dates
+    ///     from its raw data before it moves the end, as mermaid's <c>compileTask</c> does, so a Friday task of two days
+    ///     ends on the Tuesday, not the Thursday, when a forward <c>after</c> reference needs a second pass.
+    /// </summary>
+    [Fact]
+    public void GanttModel_Compile_ExcludesWithSecondPass_MoveEndsOnce()
+    {
+        // Arrange
+        var model = GanttParserTests.Parse(
+            "gantt\ndateFormat YYYY-MM-DD\nexcludes weekends\nF :f, 2024-05-10, 2d\nE :e, after l, 1d\nG :3d\nL :l, 2024-05-13, 1d\n");
+
+        // Act
+        var tasks = Compile(model);
+
+        // Assert
+        Assert.Equal((Date(2024, 5, 14), Date(2024, 5, 14)), (tasks[0].EndTime!.Value.Time, tasks[0].RenderEndTime!.Value.Time));
+        Assert.Equal((Date(2024, 5, 14), Date(2024, 5, 15)), (tasks[1].StartTime!.Value.Time, tasks[1].EndTime!.Value.Time));
+        Assert.Equal((Date(2024, 5, 15), Date(2024, 5, 20), Date(2024, 5, 18)), (tasks[2].StartTime!.Value.Time, tasks[2].EndTime!.Value.Time, tasks[2].RenderEndTime!.Value.Time));
+        Assert.Equal(Date(2024, 5, 14), tasks[3].EndTime!.Value.Time);
+    }
+
+    /// <summary>
     ///     Validates inclusive end dates: a date end is a day later, a duration is not.
     /// </summary>
     [Fact]

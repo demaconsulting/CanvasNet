@@ -514,7 +514,7 @@ states), and there is no diagnostic.
 `--strict` and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner and
 more than 1,000 pixels of the default node fill (the entities), and there is no diagnostic.
 
-**RenderCommand_Run_MermaidPie_DrawsTheSlices**: a pie chart titled `Pets` with three sections, rendered with`n--strict`
+**RenderCommand_Run_MermaidPie_DrawsTheSlices**: a pie chart titled `Pets` with three sections, rendered with `--strict`
 and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner, more than a
 tenth of its pixels not white, and exactly the pixels the library draws for the text over white, and there is no
 diagnostic.
