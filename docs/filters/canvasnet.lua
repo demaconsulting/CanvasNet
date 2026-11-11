@@ -51,7 +51,8 @@ SVG drawings. An SVG reader such as WeasyPrint draws nothing for an <image href=
 .pdf, .pptx, or .vsdx link, or a nested .svg file that links one). For an .svg picture the filter reads the drawing
 and the .svg files it links (as the tool does: the href of every image element, or its xlink:href (an href in the
 XLink namespace, under any prefix bound to it) when it has no href,
-entities decoded, a fragment and a query dropped, remote and data: links skipped; comments, CDATA sections, processing
+entities decoded, a query and a fragment cut off and then the rest percent-decoded, as the tool reads a link, remote and
+data: links skipped; comments, CDATA sections, processing
 instructions and a DOCTYPE hold no links, and a ">" in a quoted attribute does not end a tag); when none of them links
 such a file, the picture is left alone and the tool is not started, so a plain SVG drawing stays a vector picture
 exactly as before. A link to such a file that does not exist counts too, so the tool reports it (svg-image-unresolved)
@@ -1011,30 +1012,19 @@ function add_svg_sources(path, root, parts, seen, depth)
   local missing = {}
   local unique = {}
   for link in pairs(links) do
-    -- A link is taken as written and percent-decoded; a link to a file only the tool draws that is missing in both
-    -- spellings still makes the drawing one to flatten, so the tool reports the link instead of leaving it broken
-    local found = false
-    local absent = {}
-    for _, name in ipairs({ link, decode_percent(link) }) do
-      local resolved = local_image_file(folder, name)
-      if resolved then
-        if file_exists(resolved) then
-          found = true
-          if not unique[resolved] then
-            unique[resolved] = true
-            table.insert(files, resolved)
-          end
-        elseif kind_of(resolved) ~= nil then
-          table.insert(absent, resolved)
-        end
-      end
-    end
-    if not found then
-      for _, resolved in ipairs(absent) do
-        if not unique[resolved] then
-          unique[resolved] = true
-          table.insert(missing, resolved)
-        end
+    -- The file a link names is read as the tool's resolver reads it: the query and the fragment are cut off first, then
+    -- what is left is percent-decoded (so "flow%2Emmd" is flow.mmd and "a%23b.mmd" is the file a#b.mmd); a remote or
+    -- data: link is skipped. A link to a file only the tool draws that is missing still makes the drawing one to
+    -- flatten, so the tool reports the link instead of leaving it broken
+    local reference = link:gsub("[#?].*$", "")
+    local resolved = local_data_file(folder, reference) and local_data_file(folder, decode_percent(reference))
+    if resolved and not unique[resolved] then
+      if file_exists(resolved) then
+        unique[resolved] = true
+        table.insert(files, resolved)
+      elseif kind_of(resolved) ~= nil then
+        unique[resolved] = true
+        table.insert(missing, resolved)
       end
     end
   end

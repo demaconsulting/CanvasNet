@@ -434,7 +434,7 @@ public static partial class SvgFlattener
         foreach (var shown in requested)
         {
             // Only an SVG file that was drawn, by a file link, has links of its own to check
-            if (shown.Name is not { } name || HasScheme(name) || SourceLoader.SvgImages.KindOfName(name) != SourceKind.Svg)
+            if (shown.Name is not { } name || HasScheme(name) || SourceLoader.SvgImages.KindOfFile(name) != SourceKind.Svg)
             {
                 continue;
             }

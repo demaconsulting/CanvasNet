@@ -77,7 +77,9 @@ inside the folder becomes a path relative to the folder (a `file:` URI with a ho
 other link percent-encoding is decoded, so an encoded `%23` or `%3F` is a literal `#` or `?` of the file name and the
 text that was cut off is never used for the path (the query is never used; the fragment goes to the source, below);
 absolute, drive, and UNC paths are left in the text so that the sandbox
-refuses them. Pick the source by the longest extension of the path (none: unresolved, listing the claimed extensions)
+refuses them. `DecodeReference` (internal, granted to the viewer) is the same cut and decoding as one helper, so a host
+that must classify a link exactly as the resolver does (the SVG flattener) shares it instead of repeating it. Pick the
+source by the longest extension of the path (none: unresolved, listing the claimed extensions)
 and apply the depth and image-count limits (`CheckDepthAndCount`), both **before any file is read**, so an image that is
 over a limit is never opened. Parse the fragment (below). Resolve the path with the sandbox, relative to the folder of
 the current file for an

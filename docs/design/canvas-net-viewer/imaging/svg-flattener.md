@@ -1,3 +1,5 @@
+<!-- cspell:ignore Emmd -->
+
 ### SvgFlattener
 
 ![Imaging Structure](ImagingView.svg)
@@ -63,9 +65,12 @@ notes about links of an embedded file carry it.
 **Recorder.Resolve(href, width, height)**: the SVG library calls it for every link it shows (never for a `data:` URI or
 a `#` link), with the device size of the placement through the `viewBox` and every transform (the edge lengths of a
 rotated placement). It records the link and draws nothing; a link whose kind (`SourceLoader.SvgImages.KindOfName`, the
-rule of the render error mapping) is a raster or unknown is not drawn at all. For a link of a CanvasNet-only kind, or an
-SVG file, it keeps the largest placement (the most pixels, the first of equal ones) times the enlargement, and the order
-in which the links were first shown. It always returns `null`: the drawing itself is not needed.
+rule of the render error mapping, which takes the extension of `FolderImageResolver.DecodeReference`: the path the
+resolver chooses its source by, the query and the fragment cut off and then percent-decoded, so `flow%2Emmd` is a
+Mermaid diagram for both) is a raster or unknown is not drawn at all. The not-drawn checks classify the links the same
+way; a nested file is classified by its file name (`KindOfFile`), which is not a link. For a link of a CanvasNet-only
+kind, or an SVG file, it keeps the largest placement (the most pixels, the first of equal ones) times the enlargement,
+and the order in which the links were first shown. It always returns `null`: the drawing itself is not needed.
 
 **Recorder.DrawRecorded()**: called once the SVG library has drawn the drawing, it draws each recorded link exactly once,
 in the order first shown, with the resolver of render at its largest placement, so the image count and the pixel budget

@@ -1,4 +1,4 @@
-<!-- cspell:ignore embedder -->
+<!-- cspell:ignore embedder Emmd emmd -->
 
 ### FolderImageResolver Unit Verification Design
 
@@ -103,7 +103,9 @@ absolute, drive, and UNC paths, an encoded NUL, an alternate data stream) that s
 claimed scheme link with a query and a fragment reaches its source untouched while a path whose query contains a colon
 is still a path; that an unclaimed scheme with a query is a warning; and that a link inside an embedded file is
 stripped and resolved from the folder of that file; and that a `?` after the first `#` belongs to the fragment, while a
-path given to a direct `Render` with a `#` in it is used as given.
+path given to a direct `Render` with a `#` in it is used as given. `FolderImageResolver_DecodeReference_CutsThenDecodes`
+asserts that the shared helper a host classifies links with cuts before it decodes: `flow%2Emmd#theme=dark` is
+`flow.mmd`, `a%23b.mmd?v=1#x` is `a#b.mmd`, `%20` is a space, and an invalid escape `%zz` is kept as written.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Fragment: The Fragment Reaches The Source
 

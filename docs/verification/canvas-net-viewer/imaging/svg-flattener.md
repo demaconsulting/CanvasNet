@@ -1,3 +1,5 @@
+<!-- cspell:ignore Emmd emmd -->
+
 ### SvgFlattener
 
 #### Verification Approach
@@ -50,6 +52,10 @@ another SVG file, is replaced as a whole.
 **SvgFlattener_Execute_XlinkHrefWithFragment_FragmentApplied** and
 **SvgFlattener_Execute_HrefAndXlinkHref_OnlyEffectiveAttributeRewritten**: `xlink:href="doc.pdf#page=1"` is replaced and
 reported as written; when an element has both attributes only `href` is rewritten.
+
+**SvgFlattener_Execute_PercentEncodedExtension_ClassifiedAsResolverReadsIt**: `flow%2Emmd` is classified from the path
+the resolver reads (cut, then percent-decoded), so it is replaced as a Mermaid diagram of its placement size, and a
+hidden `flow%2emmd#theme=dark` is the warning `svg-flatten-image-not-drawn`.
 
 **SvgFlattener_Execute_SameHrefTwice_BothReplacedAtLargestSize**: one link in two placements gives one entry with two
 elements and the larger size in both.

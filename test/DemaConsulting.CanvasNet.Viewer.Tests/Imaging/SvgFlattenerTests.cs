@@ -1,3 +1,4 @@
+// cspell:ignore Emmd emmd
 using System.Text;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
@@ -108,6 +109,34 @@ public class SvgFlattenerTests
         Assert.DoesNotContain("flow.mmd", text, StringComparison.Ordinal);
         Assert.Equal(new FileInfo(output).Length, result.Bytes);
         Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a link is classified as the resolver reads it, percent-decoded: <c>flow%2Emmd</c> is the Mermaid
+    ///     diagram flow.mmd, so it is replaced; hidden, it is reported as not drawn.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_PercentEncodedExtension_ClassifiedAsResolverReadsIt()
+    {
+        // Arrange: one shown and one hidden link whose dot is percent-encoded
+        using var directory = new TempDirectory();
+        CopyDiagram(directory);
+        var input = WriteSvg(
+            directory,
+            "a.svg",
+            "<image href='flow%2Emmd' width='60' height='40'/><defs><image id='h' href='flow%2emmd#theme=dark' width='9' height='9'/></defs>");
+        var output = directory.Combine("b.svg");
+
+        // Act
+        var result = Flatten(input, output);
+
+        // Assert
+        var replaced = Assert.Single(result.Replaced);
+        Assert.Equal(("flow%2Emmd", "mermaid", 60, 40), (replaced.Href, replaced.Format, replaced.Width, replaced.Height));
+        Assert.DoesNotContain("href='flow%2Emmd'", File.ReadAllText(output), StringComparison.Ordinal);
+        var note = Assert.Single(result.Diagnostics);
+        Assert.Equal(SvgFlattener.ImageNotDrawnCode, note.Code);
+        Assert.Contains("flow%2emmd#theme=dark", note.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

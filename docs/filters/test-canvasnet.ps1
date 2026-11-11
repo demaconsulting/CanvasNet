@@ -610,6 +610,14 @@ pie title Pets
     Set-Content (Join-Path $svgDir 'other-prefix.svg') -Value (
         '<svg xmlns="http://www.w3.org/2000/svg" xmlns:l="http://www.w3.org/1999/xlink" width="200" height="100">' +
         '<image l:href="flow.mmd" width="100" height="50"/></svg>')
+    # A link is read as the tool reads it: cut at "?" or "#", then percent-decoded, so flow%2Emmd is the diagram
+    Set-Content (Join-Path $svgDir 'encoded.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="flow%2Emmd" width="100" height="50"/></svg>')
+    $encoded = Invoke-Filter 'svg-encoded' '![e](svg/encoded.svg)'
+    $encodedSrc = [regex]::Match($encoded.Html, 'src="(\.\./\.\./generated/canvasnet/encoded-[0-9a-f]+\.svg)"').Groups[1].Value
+    $encodedCopy = if ($encodedSrc) { Get-Content -LiteralPath (Join-Path (Split-Path $encoded.HtmlPath) $encodedSrc) -Raw } else { '' }
+    Write-Result ($encoded.ExitCode -eq 0 -and $encodedCopy -match 'href="data:image/png;base64,' -and $encodedCopy -notmatch 'flow%2Emmd') `
+        'a percent-encoded link to a diagram (flow%2Emmd) is flattened' "$($encoded.Log)`n$($encoded.Html)"
     $otherPrefix = Invoke-Filter 'svg-other-prefix' '![o](svg/other-prefix.svg)'
     Write-Result ($otherPrefix.ExitCode -eq 0 -and $otherPrefix.Html -match 'generated/canvasnet/other-prefix-[0-9a-f]+\.svg') `
         'an href under another prefix bound to the XLink namespace is found and flattened' "$($otherPrefix.Log)`n$($otherPrefix.Html)"

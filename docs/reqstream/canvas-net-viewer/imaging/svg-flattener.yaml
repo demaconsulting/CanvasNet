@@ -15,7 +15,9 @@ sections:
           The SvgFlattener class shall replace the link of every image element that the drawing shows and that names a
           Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document (with or
           without a fragment), or an SVG file that links such a file at any depth, reading the href attribute, or the
-          xlink:href attribute when there is no href, as the SVG library does; and shall leave raster pictures, SVG
+          xlink:href attribute when there is no href, as the SVG library does, and telling the kind of the linked file
+          from its path as the resolver reads it (the query and the fragment cut off, then percent-decoded); and shall
+          leave raster pictures, SVG
           files that link only rasters and SVG files, data URIs, same-document links, and network links as they are.
         justification: |
           An SVG reader other than CanvasNet (a browser, WeasyPrint) shows nothing for a link to a file that only
@@ -29,6 +31,7 @@ sections:
           - SvgFlattener_Execute_DeeplyNestedComposite_ReplacedAtTopLevel
           - SvgFlattener_Execute_XlinkHrefWithFragment_FragmentApplied
           - SvgFlattener_Execute_HrefAndXlinkHref_OnlyEffectiveAttributeRewritten
+          - SvgFlattener_Execute_PercentEncodedExtension_ClassifiedAsResolverReadsIt
 
       - id: CanvasNetViewer-Imaging-SvgFlattener-PlacementSize
         title: >-

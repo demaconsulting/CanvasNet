@@ -72,6 +72,7 @@ sections:
                   - FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile
                   - FolderImageResolver_Resolve_QuestionMarkAfterHash_BelongsToFragment
                   - FolderImageResolver_Render_PathWithHash_IsNotInterpretedAsFragment
+                  - FolderImageResolver_DecodeReference_CutsThenDecodes
 
               - id: CanvasNet-ImageSources-FolderImageResolver-Fragment
                 title: >-
