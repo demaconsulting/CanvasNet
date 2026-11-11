@@ -1072,6 +1072,12 @@ words:
   - significand
   - Machin
   - exponentiate
+  # The mindmap grammar's terminal names (mindmap.jison)
+  - SPACELINE
+  - SPACELIST
+  - DSTART
+  - DEND
+  - NSTR
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
@@ -1137,3 +1143,9 @@ overrides:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"
     ignoreRegExpList:
       - "/ﬂ°°?|¶ß/g"
+  # The mindmap vectors: Mermaid's entity-encoding markers, and the escaped line feeds of the JSON texts
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/mindmap-parser.json"
+    ignoreRegExpList:
+      - "/ﬂ°°?|¶ß/g"
+      - "/\\\\n/g"

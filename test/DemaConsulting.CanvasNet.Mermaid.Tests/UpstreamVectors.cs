@@ -33,6 +33,9 @@ internal static class UpstreamVectors
     /// <summary>The gantt parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> GanttVectors = new(() => Load("gantt-parser.json"));
 
+    /// <summary>The mindmap parser vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> MindmapVectors = new(() => Load("mindmap-parser.json"));
+
     /// <summary>The time axis vectors, read once.</summary>
     private static readonly Lazy<JsonObject> TimeVectors = new(() => Load("time-axis.json"));
 
@@ -76,6 +79,11 @@ internal static class UpstreamVectors
     ///     Gets the gantt parser cases of <c>gantt-parser.json</c>.
     /// </summary>
     public static JsonArray Gantts => GanttVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the mindmap parser cases of <c>mindmap-parser.json</c>.
+    /// </summary>
+    public static JsonArray Mindmaps => MindmapVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the time axis cases of <c>time-axis.json</c>.

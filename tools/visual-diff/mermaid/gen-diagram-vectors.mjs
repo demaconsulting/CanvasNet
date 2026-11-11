@@ -4,8 +4,8 @@
 //
 // Developer tooling of tools/visual-diff; see the README there. Usage:
 //
-//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt [--modules <folder>] [--out <file>]
-//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt [--modules <folder>] --probe <file>
+//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap [--modules <folder>] [--out <file>]
+//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap [--modules <folder>] --probe <file>
 //
 // <type> selects the cases (<type>-vector-cases.mjs next to this script) and the facts recorded: for class, the ClassDB
 // classes, relations, notes and namespaces; for state, the StateDB statement tree (after the translation of start, end and
@@ -13,7 +13,7 @@
 // subgraphs; and for each of those, the reduced getData() nodes and edges; for pie, the PieDB sections (each value as
 // String() writes it), showData, title and accessibility texts; for gantt, the GanttDB statements (date and axis formats, tick
 // interval, today marker, includes, excludes, weekday, inclusive end dates, top axis, display mode, sections, links,
-// title and accessibility texts) and the tasks of getTasks() (their dates in milliseconds), or the error getTasks throws. <modules> is a folder that holds node_modules/mermaid
+// title and accessibility texts) and the tasks of getTasks() (their dates in milliseconds), or the error getTasks throws; for mindmap, the MindmapDB nodes in the order they were added (with the sections getData assigns) and the getData() nodes and edges. <modules> is a folder that holds node_modules/mermaid
 // and node_modules/puppeteer (default: the repository root). <out> is the vector file (default:
 // test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/<type>-parser.json). --probe runs the texts of a
 // JSON file (an array of strings) and prints the results instead (a development aid).
@@ -38,8 +38,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..', '..');
 
 // Read the arguments
-const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie|gantt [--modules <folder>] [--out <file> | --probe <file>]';
-const types = ['class', 'state', 'er', 'pie', 'gantt'];
+const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap [--modules <folder>] [--out <file> | --probe <file>]';
+const types = ['class', 'state', 'er', 'pie', 'gantt', 'mindmap'];
 const args = process.argv.slice(2);
 let type = null;
 let modules = root;
@@ -246,10 +246,31 @@ function ganttFacts(diagram, pick) {
   return facts;
 }
 
-const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts, gantt: ganttFacts };
+// Runs in the page: the facts of a mindmap (the MindmapDB nodes in the order addNode added them, after getData() has
+// assigned their sections, and the getData() nodes and edges); the diagram id of getData() holds a random uuid and is
+// left out
+function mindmapFacts(diagram, pick) {
+  const db = diagram.db;
+  const data = db.getData();
+  return {
+    type: diagram.type,
+    nodes: db.nodes.map((n) => ({
+      ...pick(n, ['id', 'nodeId', 'level', 'descr', 'type', 'icon', 'class', 'section', 'isRoot', 'padding', 'width']),
+      children: n.children.map((c) => c.id)
+    })),
+    data: {
+      nodes: data.nodes.map((n) => pick(n, ['id', 'domId', 'label', 'labelType', 'shape', 'width', 'height', 'padding',
+        'cssClasses', 'icon', 'level', 'nodeId', 'type', 'section', 'look'])),
+      edges: data.edges.map((e) => pick(e, ['id', 'start', 'end', 'type', 'curve', 'thickness', 'classes', 'depth',
+        'section', 'look']))
+    }
+  };
+}
+
+const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts, gantt: ganttFacts, mindmap: mindmapFacts };
 // The diagram ids (diagram.type) whose facts each type records: the legacy ids draw (class) or parse (state) the same
 // way
-const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'], gantt: ['gantt'] };
+const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'], gantt: ['gantt'], mindmap: ['mindmap'] };
 
 // The fixed clock of every page (mermaid's gantt chart reads the time for "today"): a Date whose constructor without
 // arguments and now() give this instant; the pages also run in the UTC time zone, the zone of the CanvasNet port

@@ -204,6 +204,12 @@ is their vector file.
   time zone with its clock fixed at 2024-06-12T10:30:00Z, so "today" is that day. The inputs are those of mermaid's
   gantt parser and database specs (MIT; the database calls written as gantt texts), original texts and the gantt
   fixtures.
+- `gen-diagram-vectors.mjs --type mindmap` writes `mindmap-parser.json`: the MindmapDB nodes in the order `addNode`
+  added them (id, node id, level, description, type, icon, class, section, padding, width and children) and the nodes
+  and edges of `getData()` (shapes, classes, paddings, widths, edge ids, classes and depths) of the cases in
+  `mindmap-vector-cases.mjs`, or the error (jison's lexer and parse errors, the database's "only one root" error, or the
+  TypeError of a decoration before any node). The inputs are those of mermaid's mindmap parser and `getData` specs
+  (MIT; the database calls written as mindmap texts), original texts and the mindmap fixtures.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).
