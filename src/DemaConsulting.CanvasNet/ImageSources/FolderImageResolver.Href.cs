@@ -44,8 +44,32 @@ public sealed partial class FolderImageResolver
         }
 
         // An absolute path, a drive letter and a UNC path are left in the text on purpose: the sandbox refuses all of them
-        var path = reference.Contains('%') ? Uri.UnescapeDataString(reference) : reference;
-        return (path, true, null);
+        return (Unescape(reference), true, null);
+    }
+
+    /// <summary>
+    ///     Gets the path a link names as the resolver reads it to choose a source by its extension: the reference (the
+    ///     query and the fragment cut off, <see cref="SplitHref(string)"/>) percent-decoded.
+    /// </summary>
+    /// <param name="href">The link as written.</param>
+    /// <returns>The decoded path; for a <c>file:</c> URI the decoded URI, whose extension is that of its local path.</returns>
+    /// <remarks>
+    ///     A host that must tell links apart by kind exactly as the resolver does (the SVG flattener of the viewer) uses
+    ///     this, so <c>flow%2Emmd</c> is a Mermaid diagram for both and <c>a%23b.mmd</c> is the file <c>a#b.mmd</c>.
+    /// </remarks>
+    internal static string DecodeReference(string href)
+    {
+        return Unescape(SplitHref(href).Reference);
+    }
+
+    /// <summary>
+    ///     Percent-decodes a reference whose query and fragment are already cut off.
+    /// </summary>
+    /// <param name="reference">The reference.</param>
+    /// <returns>The decoded text; an invalid escape is kept as written.</returns>
+    private static string Unescape(string reference)
+    {
+        return reference.Contains('%') ? Uri.UnescapeDataString(reference) : reference;
     }
 
     /// <summary>

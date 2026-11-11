@@ -164,6 +164,17 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     private readonly List<EmbeddedImage> _embedded = [];
 
     /// <summary>
+    ///     The links that were asked for, at every level.
+    /// </summary>
+    private readonly List<RequestedImage> _requested = [];
+
+    /// <summary>
+    ///     The name of the picture the last successful call of a source drew (the entry it adds to the origin), read by
+    ///     <see cref="ResolveIn(Scope, string, int, int)"/> right after the call; the resolver is not thread-safe.
+    /// </summary>
+    private string? _lastDrawnName;
+
+    /// <summary>
     ///     The scope of the top-level document: no current file and an empty chain.
     /// </summary>
     private readonly Scope _rootScope;
@@ -278,6 +289,15 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     ///     is listed before the image that embeds it; <see cref="EmbeddedImage.Depth"/> tells them apart).
     /// </summary>
     public IReadOnlyList<EmbeddedImage> Embedded => _embedded.AsReadOnly();
+
+    /// <summary>
+    ///     Gets one entry for every link a document of the render asked for, at any level, in the order asked, whether or
+    ///     not it was drawn: the link, the files that contain it (<see cref="RequestedImage.Origin"/>), and the name of the
+    ///     picture when it was drawn. A link a document never shows (hidden, an unused definition, outside the canvas) is
+    ///     never asked for, so it is not listed. A direct render (<see cref="Render(string, int?, int?)"/>) is not a link
+    ///     and is not listed either; the links of the file it draws are.
+    /// </summary>
+    public IReadOnlyList<RequestedImage> Requested => _requested.AsReadOnly();
 
     /// <summary>
     ///     Gets the part of the pixel budget (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>) that is free
@@ -507,11 +527,23 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         ArgumentNullException.ThrowIfNull(href);
         _options.CancellationToken.ThrowIfCancellationRequested();
 
+        // Every link that is asked for is listed; the name of the picture is added once it is drawn. The name is set by
+        // the call of the source that drew this picture (the last one, after the pictures it embeds)
+        var index = _requested.Count;
+        _requested.Add(new RequestedImage(href, scope.Origin));
+        _lastDrawnName = null;
+
         // A scheme (other than file:) is handed to the source that claims it, as written; everything else is a path
         var scheme = ImageSourceSet.GetScheme(href);
-        return scheme is not null && scheme != "file"
+        var surface = scheme is not null && scheme != "file"
             ? ResolveScheme(scope, href, scheme, pixelWidth, pixelHeight)
             : ResolveFile(scope, href, pixelWidth, pixelHeight);
+        if (surface is not null && _lastDrawnName is { } name)
+        {
+            _requested[index] = _requested[index] with { Name = name };
+        }
+
+        return surface;
     }
 
     /// <summary>
@@ -798,6 +830,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         {
             Depth = scope.Depth
         });
+        _lastDrawnName = request.Resolver is Scope drawn ? drawn.Name : request.Href;
         return result.Surface;
     }
 

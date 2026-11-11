@@ -14,6 +14,7 @@ using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -500,6 +501,28 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
+    ///     Test that the <c>flatten</c> section of the <c>svg</c> topic says, word for word and in order, what the
+    ///     flatten reference table of the tool's user guide says (backticks are dropped, and the first letter of a text is
+    ///     compared ignoring case).
+    /// </summary>
+    [Fact]
+    public void HelpTopics_SvgTopic_FlattenItems_MatchUserGuide()
+    {
+        // Arrange: the guide and the topic
+        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"));
+        var items = HelpTopics.Find("svg")!.Sections.Single(s => s.Id == "flatten").Items.Select(i => Canonical(i.Term, i.Text)).ToList();
+
+        // Act: the items the rows of the guide's table promise
+        var rows = GuideTableRows(guide, "#### Flatten Reference").ToList();
+        var expected = rows.Select(row => Canonical(row.Cells[0], row.Cells[1])).ToList();
+
+        // Assert: the table has the documented header and the same items in the same order
+        Assert.All(rows, row => Assert.Equal(["Term", "Meaning"], row.Header));
+        Assert.True(rows.Count >= 7, $"Only {rows.Count} rows were found in the flatten reference table of the guide.");
+        Assert.Equal(expected, items);
+    }
+
+    /// <summary>
     ///     Test that the <c>svg</c> topic documents the page fragment: the grammar, the parameter of each format, the
     ///     four diagnostic codes with their severity, the <c>--strict</c> behavior, the <c>&amp;amp;</c> note, the
     ///     example, and that the limits quoted are the live ones.
@@ -670,13 +693,14 @@ public partial class HelpTopicsTests
     /// <summary>
     ///     Test that every diagnostic identifier a topic cites exists: it is covered by the trigger table (which
     ///     the trigger test proves), is an error code, is a warning code that a render test triggers
-    ///     (<c>svg-image-unresolved</c> and <c>svg-image-too-large</c> by <c>RenderCommandSvgEmbedTests</c>), or is a literal in one of the libraries.
+    ///     (<c>svg-image-unresolved</c> and <c>svg-image-too-large</c> by <c>RenderCommandSvgEmbedTests</c>, and
+    ///     <c>svg-flatten-image-not-drawn</c> of the Viewer library by <c>FlattenCommandTests</c>), or is a literal in one of the libraries.
     /// </summary>
     [Fact]
     public void HelpTopics_CitedDiagnosticIds_ExistInTheLibraries()
     {
         // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
-        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
+        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, SvgFlattener.ImageNotDrawnCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
         var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
         var cited = HelpTopics.All.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
 

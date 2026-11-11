@@ -197,3 +197,17 @@ sections:
           one and not the other would tell one of them something untrue.
         tests:
           - HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide
+
+      - id: CanvasNetTool-Commands-HelpTopics-FlattenGuideParity
+        title: >-
+          The HelpTopics class shall give in the flatten section of the svg topic, item by item and in order, the same
+          terms and meanings as the flatten reference table of the tool user guide, worded the same apart from
+          formatting, and shall document the flatten command in the json and limits topics and the warning
+          svg-flatten-image-not-drawn in the diagnostics of the svg topic.
+        justification: |
+          People read the guide and agents read the help; both must describe what flatten replaces, keeps, and refuses
+          in the same words, and a row added to one and not the other would tell one of them something untrue.
+        tests:
+          - HelpTopics_SvgTopic_FlattenItems_MatchUserGuide
+          - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
+          - HelpTopics_CommandExamples_UseKnownCommandsAndOptions

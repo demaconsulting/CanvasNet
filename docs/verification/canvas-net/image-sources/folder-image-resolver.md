@@ -103,7 +103,9 @@ absolute, drive, and UNC paths, an encoded NUL, an alternate data stream) that s
 claimed scheme link with a query and a fragment reaches its source untouched while a path whose query contains a colon
 is still a path; that an unclaimed scheme with a query is a warning; and that a link inside an embedded file is
 stripped and resolved from the folder of that file; and that a `?` after the first `#` belongs to the fragment, while a
-path given to a direct `Render` with a `#` in it is used as given.
+path given to a direct `Render` with a `#` in it is used as given. `FolderImageResolver_DecodeReference_CutsThenDecodes`
+asserts that the shared helper a host classifies links with cuts before it decodes: `flow%2Emmd#theme=dark` is
+`flow.mmd`, `a%23b.mmd?v=1#x` is `a#b.mmd`, `%20` is a space, and an invalid escape `%zz` is kept as written.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Fragment: The Fragment Reaches The Source
 
@@ -339,6 +341,16 @@ as before; that a link that is not drawn, and a link whose picture does not fit 
 embedded file, name that file as the origin; that a note for a scheme link names the link as written; and that the
 origin takes part in value equality, compared entry by entry, and is empty by default.
 
+##### CanvasNet-ImageSources-FolderImageResolver-Requested: The Links That Were Asked For
+
+**Tests**: `FolderImageResolver_Resolve_LinksAtEveryLevel_ListedInRequestedWithOriginAndName`,
+`RequestedImage_Equals_ComparesOriginByEntries`, `FolderImageResolver_Collections_AreReadOnly`
+
+Asserts that a chain of a file in a subfolder that links a file beside it, which links a missing file, lists the three
+links in the order asked, each with the files that contain it (empty at the top level), the two drawn ones with their
+folder-relative names and the missing one with none; that two entries with equal origin entries are equal with equal
+hash codes and differ when the name differs; and that the list is read-only.
+
 ##### CanvasNet-ImageSources-FolderImageResolver-Failures: Failed Files
 
 **Tests**: `FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException`,
@@ -381,8 +393,8 @@ name, the folder (none without a folder), the size, an unknown extension, and a 
 `FolderImageResolver_Constructor_InvalidArguments_Throw`,
 `FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero`
 
-Asserts the sorted union of extensions and schemes, that the `Extensions`, `Schemes`, `Diagnostics`, `Echo`, and
-`Embedded` lists are read-only (not an array or `List<T>`; `Add` through `IList<T>` throws `NotSupportedException`),
+Asserts the sorted union of extensions and schemes, that the `Extensions`, `Schemes`, `Diagnostics`, `Echo`,
+`Embedded`, and `Requested` lists are read-only (not an array or `List<T>`; `Add` through `IList<T>` throws `NotSupportedException`),
 and the rejection of a null sequence, negative limits, an empty or white-space
 folder (a null folder stays allowed), an
 invalid claim, and a null link.

@@ -18,9 +18,10 @@ format package yourself:
 - it **renders any file** of those formats as a picture in one call (`Render`), and
 - it does **everything the `canvasnet` command-line tool does** with images, from code (`ImageRenderer`,
   `ImageInspector`,
-  `ImageComparer`, `MontageBuilder`, and `SourceLoader` of the `DemaConsulting.CanvasNet.Viewer.Imaging` namespace):
-  probe a file, render it through an ordered pipeline of transformations, inspect colors and pixels, compare two images,
-  and compose a contact sheet - see *Doing what the canvasnet commands do, from code* below.
+  `ImageComparer`, `MontageBuilder`, `SvgFlattener`, and `SourceLoader` of the
+  `DemaConsulting.CanvasNet.Viewer.Imaging` namespace): probe a file, render it through an ordered pipeline of
+  transformations, inspect colors and pixels, compare two images, compose a contact sheet, and flatten an SVG drawing -
+  see *Doing what the canvasnet commands do, from code* below.
 
 Every example in this guide is a complete program (top-level statements, then any types): copy it into a console
 project that references the `DemaConsulting.CanvasNet.Viewer` package and has implicit usings enabled (the .NET
@@ -32,7 +33,8 @@ can see where each type lives:
 - `DemaConsulting.CanvasNet.Viewer` holds `CanvasNetViewer`, `ViewerRenderOptions`, `ViewerImage`, and the exception
   `ViewerException` with its `ErrorCodes`;
 - `DemaConsulting.CanvasNet.Viewer.Imaging` holds the operations (`SourceLoader`, `ImageRenderer`, `ImageInspector`,
-  `ImageComparer`, `MontageBuilder`), their requests and results, and the image operations (`CropOperation`, ...);
+  `ImageComparer`, `MontageBuilder`, `SvgFlattener`), their requests and results, and the image operations
+  (`CropOperation`, ...);
 - `DemaConsulting.CanvasNet.Canvas` holds `Surface`, `Rgba32`, `FitMode`, and `ResamplingMode`;
 - `DemaConsulting.CanvasNet.Codecs` reads and writes the image files (`PngCodec`), and `DemaConsulting.CanvasNet.Svg`
   holds `SvgCodec` and `SvgLoadOptions`.
@@ -751,6 +753,50 @@ catch (ViewerException ex)
 }
 ```
 
+**`flatten` - an SVG drawing for other SVG readers.** A browser or WeasyPrint shows nothing for an
+`<image href="flow.mmd">` (or a model, a chart, a page of a document, or a nested SVG file that links one).
+`SvgFlattener.Execute` writes a copy of the drawing in which each such link is a PNG picture of its placement size
+times `Scale`, as a `data:` URI, drawn with the resolver of `render` (the folder of the drawing is the sandbox, with the
+same limits); only those attribute values change. When the drawing links no such picture nothing is written and
+`Flattened` is false, so the original can be used as it is. A link to such a file that the drawing, or an SVG file it shows,
+never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`):
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+try
+{
+    var info = SourceLoader.Probe("dashboard.svg");
+    var result = SvgFlattener.Execute(info, new FlattenRequest("print/dashboard.svg") { Scale = 2 });
+    if (!result.Flattened)
+    {
+        Console.WriteLine("nothing to flatten; use dashboard.svg as it is");
+    }
+
+    foreach (var image in result.Replaced)
+    {
+        Console.WriteLine($"{image.Href}: {image.Width}x{image.Height} {image.Format}");
+    }
+
+    foreach (var link in result.Rebased)                       // relative links rewritten for the folder of the copy
+    {
+        Console.WriteLine($"{link.Href} -> {link.NewHref}");
+    }
+
+    foreach (var note in result.Diagnostics)
+    {
+        Console.WriteLine($"{note.Severity} {note.Code}: {note.Message}");
+    }
+}
+catch (ViewerException ex)
+{
+    Console.Error.WriteLine($"{ex.Code}: {ex.Message}");
+}
+```
+
 **Inputs with a fragment - `part.scad#def.width=20`, `report.pdf#page=3`.** The command line accepts the syntax of a
 link of an SVG image after the file name, and so does the library: `InputReference.Parse(text)` splits the text (a `#`
 starts a fragment only when no file has the name as written; the longest existing file before a `#` is the path), and
@@ -870,8 +916,8 @@ is `["a.svg"]`. A file link is shown as its folder-relative file name and a sche
   is a record and is **not** `IDisposable`, so it cannot be in a `using`.
 - **Nothing to dispose**: a `FolderImageResolver` (not `IDisposable`; it holds no open files, so no `using`), the
   results
-  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`, a `WriteResult`, and a `SourceInfo`
-  (plain
+  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`, a `WriteResult`, and a
+  `SourceInfo` (plain
   values, no pixels).
 - `ImagePipeline.Apply` returns a **new** surface that you dispose; its input is neither changed nor disposed.
 

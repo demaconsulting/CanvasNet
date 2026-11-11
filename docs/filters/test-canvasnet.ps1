@@ -12,7 +12,13 @@
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, and ER diagrams are drawn by the filter itself, a diagram type the tool does not
     draw yet is left as written for another filter, and the defaults-file filters run before a command-line filter (as
-    the CI's mermaid-filter is run).
+    the CI's mermaid-filter is run). An SVG picture that links no file only the tool draws is left alone without
+    starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
+    diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
+    and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF. The scan
+    of an SVG drawing ignores image tags in comments, CDATA sections and processing instructions, reads past a ">" in a
+    quoted attribute, takes a prefixed href only in the XLink namespace (under any prefix bound to it), and starts the tool for a link to a missing diagram (directly or in a nested SVG file), whose
+    warning is shown on every build until creating the file flattens the drawing.
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -479,12 +485,186 @@ pie title Pets
         ([regex]::Matches($orderHtml, 'generated/canvasnet/mermaid-')).Count -eq 2) `
         'defaults-file filters run before a command-line filter, which sees only the unsupported blocks' "$orderLog`n$orderHtml"
 
+    # --- SVG pictures: plain ones are left alone, composite ones are flattened ------------------------------
+    $svgDir = Join-Path $guide 'svg'
+    New-Item -ItemType Directory -Force -Path $svgDir | Out-Null
+    Copy-Item (Join-Path $guide 'x.png') (Join-Path $svgDir 'logo.png')
+    Set-Content (Join-Path $svgDir 'flow.mmd') -Value "flowchart LR`n    A[Start] --> B[Done]`n    style A fill:#000000,color:#ffffff`n    style B fill:#000000,color:#ffffff"
+    Set-Content (Join-Path $svgDir 'plain.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#cccccc"/>' +
+        '<image href="logo.png" width="50" height="50"/></svg>')
+    $composite = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="400" height="200" viewBox="0 0 400 200">' +
+        "`n  <!-- a frame drawn as vectors -->`n" +
+        '  <rect x="2" y="2" width="396" height="196" fill="none" stroke="#000000" stroke-width="4"/>' + "`n" +
+        '  <text x="10" y="190" font-size="14">Composite</text>' + "`n" +
+        '  <image href="flow.mmd" x="10" y="10" width="280" height="160"/>' + "`n" +
+        '  <image xlink:href="logo.png" x="300" y="10" width="80" height="80"/>' + "`n</svg>"
+    Set-Content (Join-Path $svgDir 'comp.svg') -Value $composite
+    Set-Content (Join-Path $svgDir 'outer.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><image href="comp.svg" width="400" height="200"/></svg>')
+    Set-Content (Join-Path $svgDir 'hidden.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><defs><image id="h" href="flow.mmd" width="50" height="50"/></defs></svg>')
+    function Get-Copies {
+        if (Test-Path -LiteralPath $cache) {
+            @(Get-ChildItem -LiteralPath $cache -Filter '*.svg' | Where-Object { $_.Name -notmatch '\.partial\.svg$' })
+        }
+        else {
+            @()
+        }
+    }
+
+    $plainSvg = Invoke-Filter 'svg-plain' '![p](svg/plain.svg){width=50%}'
+    Write-Result ($plainSvg.ExitCode -eq 0 -and $plainSvg.Html -match 'src="svg/plain\.svg"' -and @(Get-Copies).Count -eq 0) `
+        'a plain SVG picture is left alone' "$($plainSvg.Log)`n$($plainSvg.Html)"
+
+    $compDoc = '![c](svg/comp.svg){width=80%}'
+    $comp = Invoke-Filter 'svg-comp' $compDoc
+    $compSrc = [regex]::Match($comp.Html, 'src="(\.\./\.\./generated/canvasnet/comp-[0-9a-f]+\.svg)"').Groups[1].Value
+    Write-Result ($comp.ExitCode -eq 0 -and $compSrc) 'a composite SVG picture points at a flattened copy' "$($comp.Log)`n$($comp.Html)"
+    $copyPath = if ($compSrc) { Join-Path (Split-Path $comp.HtmlPath) $compSrc } else { '' }
+    $copy = if ($copyPath -and (Test-Path -LiteralPath $copyPath)) { Get-Content -LiteralPath $copyPath -Raw } else { '' }
+    Write-Result ($copy -match 'href="data:image/png;base64,' -and $copy -notmatch 'href="flow\.mmd"' -and
+        $copy -match '<!-- a frame drawn as vectors -->' -and $copy -match '<text x="10" y="190"') `
+        'the copy has the diagram as a PNG and keeps everything else' $copy
+    $logoLink = [regex]::Match($copy, 'xlink:href="([^"]+logo\.png)"').Groups[1].Value
+    Write-Result ($logoLink -and (Test-Path -LiteralPath (Join-Path (Split-Path $copyPath) $logoLink))) `
+        'the raster link of the copy is rebased so it finds its file from the cache folder' $logoLink
+
+    $svgStamp = (Get-Copies | Sort-Object Name | ForEach-Object { "$($_.Name):$($_.LastWriteTimeUtc.Ticks)" }) -join '|'
+    $compAgain = Invoke-Filter 'svg-comp' $compDoc
+    $svgStampAgain = (Get-Copies | Sort-Object Name | ForEach-Object { "$($_.Name):$($_.LastWriteTimeUtc.Ticks)" }) -join '|'
+    Write-Result ($compAgain.ExitCode -eq 0 -and $svgStampAgain -eq $svgStamp) 'a second run flattens nothing again' $compAgain.Log
+    $copies = @(Get-Copies).Count
+    $scaled = Invoke-Filter 'svg-scale' '![c](svg/comp.svg){scale=2}'
+    Write-Result ($scaled.ExitCode -eq 0 -and @(Get-Copies).Count -eq $copies + 1 -and $scaled.Html -notmatch 'scale=') `
+        'scale draws a new copy and is consumed, not kept' "$($scaled.Log)`n$($scaled.Html)"
+    Add-Content (Join-Path $svgDir 'flow.mmd') -Value '    B --> C[Again]'
+    $changed = Invoke-Filter 'svg-comp' $compDoc
+    Write-Result ($changed.ExitCode -eq 0 -and @(Get-Copies).Count -eq $copies + 2) `
+        'a changed linked diagram flattens the drawing again' $changed.Log
+
+    # The same drawing in another folder gets its own copy: the links the tool rebases lead to that folder
+    $movedDir = Join-Path $guide 'svg-moved'
+    New-Item -ItemType Directory -Force -Path $movedDir | Out-Null
+    foreach ($file in 'comp.svg', 'flow.mmd', 'logo.png') {
+        Copy-Item (Join-Path $svgDir $file) (Join-Path $movedDir $file)
+    }
+    $moved = Invoke-Filter 'svg-moved' '![c](svg-moved/comp.svg){width=80%}'
+    $movedSrc = [regex]::Match($moved.Html, 'src="(\.\./\.\./generated/canvasnet/comp-[0-9a-f]+\.svg)"').Groups[1].Value
+    $movedPath = if ($movedSrc) { Join-Path (Split-Path $moved.HtmlPath) $movedSrc } else { '' }
+    $movedCopy = if ($movedPath -and (Test-Path -LiteralPath $movedPath)) { Get-Content -LiteralPath $movedPath -Raw } else { '' }
+    $movedLogo = [regex]::Match($movedCopy, 'xlink:href="([^"]+logo\.png)"').Groups[1].Value
+    Write-Result ($moved.ExitCode -eq 0 -and @(Get-Copies).Count -eq $copies + 3 -and $movedLogo -match 'svg-moved/logo\.png$' -and
+        (Test-Path -LiteralPath (Join-Path (Split-Path $movedPath) $movedLogo))) `
+        'the same drawing in another folder gets its own copy, whose links find the files of that folder' "$($moved.Log)`n$movedLogo"
+    $nested = Invoke-Filter 'svg-nested' '![o](svg/outer.svg)'
+    Write-Result ($nested.ExitCode -eq 0 -and $nested.Html -match 'generated/canvasnet/outer-[0-9a-f]+\.svg') `
+        'an SVG picture that links a composite SVG file is flattened' "$($nested.Log)`n$($nested.Html)"
+    $hidden = Invoke-Filter 'svg-hidden' '![h](svg/hidden.svg)'
+    Write-Result ($hidden.ExitCode -eq 0 -and $hidden.Html -match 'src="svg/hidden\.svg"' -and
+        $hidden.Log -match 'is not shown by the drawing' -and @(Get-ChildItem -LiteralPath $cache -Filter '*.plain').Count -eq 1) `
+        'a drawing whose diagram is never shown is left alone with a warning and a marker' "$($hidden.Log)`n$($hidden.Html)"
+
+    # The pre-scan reads the markup as the tool does: a ">" in a quoted attribute does not end the tag
+    Set-Content (Join-Path $svgDir 'quoted.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' +
+        '<image aria-label="a > b" data-note=''x > y'' href="flow.mmd" width="100" height="50"/></svg>')
+    $quoted = Invoke-Filter 'svg-quoted' '![q](svg/quoted.svg)'
+    Write-Result ($quoted.ExitCode -eq 0 -and $quoted.Html -match 'generated/canvasnet/quoted-[0-9a-f]+\.svg') `
+        'a link after a quoted ">" in an image tag is found and flattened' "$($quoted.Log)`n$($quoted.Html)"
+
+    # A link to a diagram that does not exist (directly, or in a nested SVG file) starts the tool, which reports it; the
+    # warning is shown again from the marker, and creating the file flattens the drawing
+    Set-Content (Join-Path $svgDir 'gone.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="gone.mmd" width="100" height="50"/></svg>')
+    Set-Content (Join-Path $svgDir 'gone-outer.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="gone-inner.svg" width="200" height="100"/></svg>')
+    Set-Content (Join-Path $svgDir 'gone-inner.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="gone-too.mmd" width="100" height="50"/></svg>')
+    $gone = Invoke-Filter 'svg-gone' '![g](svg/gone.svg)'
+    Write-Result ($gone.ExitCode -eq 0 -and $gone.Html -match 'src="svg/gone\.svg"' -and $gone.Log -match 'canvasnet\.lua: svg/gone\.svg: .*gone\.mmd') `
+        'a link to a missing diagram starts the tool, which reports it as a warning' "$($gone.Log)`n$($gone.Html)"
+    $goneAgain = Invoke-Filter 'svg-gone' '![g](svg/gone.svg)'
+    Write-Result ($goneAgain.ExitCode -eq 0 -and $goneAgain.Log -match 'canvasnet\.lua: svg/gone\.svg: .*gone\.mmd') `
+        'the warning about a missing diagram is shown again from the marker' $goneAgain.Log
+    $goneNested = Invoke-Filter 'svg-gone-nested' '![g](svg/gone-outer.svg)'
+    Write-Result ($goneNested.ExitCode -eq 0 -and $goneNested.Log -match 'gone-too\.mmd') `
+        'a missing diagram linked by a nested SVG file is reported' "$($goneNested.Log)`n$($goneNested.Html)"
+    Copy-Item (Join-Path $svgDir 'flow.mmd') (Join-Path $svgDir 'gone.mmd')
+    $goneMade = Invoke-Filter 'svg-gone' '![g](svg/gone.svg)'
+    Write-Result ($goneMade.ExitCode -eq 0 -and $goneMade.Html -match 'generated/canvasnet/gone-[0-9a-f]+\.svg') `
+        'creating the missing diagram flattens the drawing (the cache noted it as missing)' "$($goneMade.Log)`n$($goneMade.Html)"
+
+    # Image tags in a comment or a CDATA section are not markup: this drawing is plain (checked below, without the tool)
+    Set-Content (Join-Path $svgDir 'commented.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' +
+        '<!-- <image href="flow.mmd" width="50" height="50"/> -->' +
+        '<style><![CDATA[ /* <image href="flow.mmd"/> */ rect { fill: #cccccc; } ]]></style>' +
+        '<?note <image href="flow.mmd"/> ?><rect width="200" height="100"/><image href="logo.png" width="50" height="50"/></svg>')
+    # A prefixed href outside the XLink namespace is not a link (checked below, without the tool), but any prefix bound to
+    # the XLink namespace is
+    Set-Content (Join-Path $svgDir 'foreign-href.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:foo="urn:example:foo" width="200" height="100">' +
+        '<image foo:href="part.scad" width="50" height="50"/>' +
+        '<g xmlns:xlink="urn:example:not-xlink"><image xlink:href="flow.mmd" width="50" height="50"/></g></svg>')
+    Set-Content (Join-Path $svgDir 'other-prefix.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:l="http://www.w3.org/1999/xlink" width="200" height="100">' +
+        '<image l:href="flow.mmd" width="100" height="50"/></svg>')
+    # A link is read as the tool reads it: cut at "?" or "#", then percent-decoded, so flow%2Emmd is the diagram
+    Set-Content (Join-Path $svgDir 'encoded.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="flow%2Emmd" width="100" height="50"/></svg>')
+    $encoded = Invoke-Filter 'svg-encoded' '![e](svg/encoded.svg)'
+    $encodedSrc = [regex]::Match($encoded.Html, 'src="(\.\./\.\./generated/canvasnet/encoded-[0-9a-f]+\.svg)"').Groups[1].Value
+    $encodedCopy = if ($encodedSrc) { Get-Content -LiteralPath (Join-Path (Split-Path $encoded.HtmlPath) $encodedSrc) -Raw } else { '' }
+    Write-Result ($encoded.ExitCode -eq 0 -and $encodedCopy -match 'href="data:image/png;base64,' -and $encodedCopy -notmatch 'flow%2Emmd') `
+        'a percent-encoded link to a diagram (flow%2Emmd) is flattened' "$($encoded.Log)`n$($encoded.Html)"
+    $otherPrefix = Invoke-Filter 'svg-other-prefix' '![o](svg/other-prefix.svg)'
+    Write-Result ($otherPrefix.ExitCode -eq 0 -and $otherPrefix.Html -match 'generated/canvasnet/other-prefix-[0-9a-f]+\.svg') `
+        'an href under another prefix bound to the XLink namespace is found and flattened' "$($otherPrefix.Log)`n$($otherPrefix.Html)"
+
+    # WeasyPrint, which draws the HTML into the PDF, shows the flattened copy: its page is darker than the page of a
+    # control document that shows the original drawing (whose diagram WeasyPrint cannot draw), and the control page
+    # still shows the frame and the text that both have.
+    $controlHtml = Join-Path $guide 'generated/svg-control.html'
+    Set-Content -LiteralPath $controlHtml -Value '<p><img src="../svg/comp.svg" style="width: 80%" alt="c"></p>'
+    $toolParts = if ($env:CANVASNET_TOOL) {
+        @([regex]::Matches($env:CANVASNET_TOOL, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
+    }
+    else {
+        @('dotnet', 'canvasnet')
+    }
+    $means = @{}
+    Push-Location $tree
+    try {
+        foreach ($html in @{ flat = $comp.HtmlPath; control = $controlHtml }.GetEnumerator()) {
+            $pdf = Join-Path $root "$($html.Key).pdf"
+            $png = Join-Path $root "$($html.Key).png"
+            & dotnet weasyprint $html.Value $pdf 2>&1 | Out-Null
+            & $toolParts[0] @($toolParts | Select-Object -Skip 1) render $pdf --dpi 48 -o $png 2>&1 | Out-Null
+            $colors = & $toolParts[0] @($toolParts | Select-Object -Skip 1) inspect colors $png --json 2>$null | Out-String
+            $means[$html.Key] = if ($colors) { ($colors | ConvertFrom-Json).luma.mean } else { $null }
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    Write-Result ($null -ne $means.flat -and $null -ne $means.control -and $means.flat -lt $means.control - 1 -and $means.control -lt 255) `
+        'WeasyPrint draws the flattened diagram in the PDF, and the frame of the original' "flat $($means.flat), control $($means.control)"
+
     # --- Pictures the filter ignores never start the tool -----------------------------------------------
     $saved = $env:CANVASNET_TOOL
     $env:CANVASNET_TOOL = 'no-such-program-canvasnet'
     try {
-        $plain = Invoke-Filter 'plain' "![plain](x.png)`n`n![web](https://example.com/a.scad)"
-        Write-Result ($plain.ExitCode -eq 0) 'PNG and remote pictures never start the tool' $plain.Log
+        $plain = Invoke-Filter 'plain' "![plain](x.png)`n`n![web](https://example.com/a.scad)`n`n![drawing](svg/plain.svg)"
+        Write-Result ($plain.ExitCode -eq 0) 'PNG, plain SVG, and remote pictures never start the tool' $plain.Log
+        $commented = Invoke-Filter 'svg-commented' '![c](svg/commented.svg)'
+        Write-Result ($commented.ExitCode -eq 0 -and $commented.Html -match 'src="svg/commented\.svg"') `
+            'an SVG whose diagram links are only in a comment, CDATA, or a processing instruction never starts the tool' `
+            "$($commented.Log)`n$($commented.Html)"
+        $foreign = Invoke-Filter 'svg-foreign-href' '![f](svg/foreign-href.svg)'
+        Write-Result ($foreign.ExitCode -eq 0 -and $foreign.Html -match 'src="svg/foreign-href\.svg"') `
+            'an SVG whose only prefixed hrefs are outside the XLink namespace never starts the tool' `
+            "$($foreign.Log)`n$($foreign.Html)"
         $missing = Invoke-Filter 'missing-tool' '![model](bad.scad)'
         Write-Result ($missing.ExitCode -ne 0 -and $missing.Log -match 'cannot run the canvasnet tool') `
             'a tool that cannot start is a clear error' $missing.Log

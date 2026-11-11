@@ -9,12 +9,13 @@
 The `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`, folder
 `src/DemaConsulting.CanvasNet.Viewer/Imaging/`) turns files into pixels, transforms pixels, and turns pixels into
 files, and chains those steps into the operations that the `canvasnet` command-line tool offers: render, inspect,
-compare, and montage. It is the library form of the tool. It is free of command-line concerns: it knows nothing of
+compare, montage, and flatten. It is the library form of the tool. It is free of command-line concerns: it knows
+nothing of
 the tool's `Context`, its commands, or its option text, and the dependency runs one way (the commands of the
 `CanvasNetTool` system use `Imaging`). The tool parses the text of its options into the operation records and
 request records of this subsystem (the `ImagePipelineParser` type of the `RenderCommand` unit of the tool) and prints
 the result records. It is a subsystem rather than a single unit because loading, transforming, and writing are
-separate responsibilities with distinct requirements and tests. It contains ten units: `SourceLoader`, which
+separate responsibilities with distinct requirements and tests. It contains eleven units: `SourceLoader`, which
 recognizes a file, reads its header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, a view of an OpenSCAD model, a Vega-Lite chart,
 and a Mermaid diagram), `ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone
@@ -22,9 +23,10 @@ of, deskews, trims, and draws a grid on pixels in the order the operations are g
 JPEG, BMP, and TIFF files, and `ImageComparison`, which checks a comparison of two images against thresholds and holds
 the defaults of the comparison options, `ContactSheet`, which composes a grid of images, each fitted into a cell, with
 optional labels drawn in the bundled font, and `GridOverlay`, which draws a labeled coordinate grid over pixels in
-place. Four operation units chain those units: `ImageRenderer` (load, transform, and write the pages of a source),
+place. Five operation units chain those units: `ImageRenderer` (load, transform, and write the pages of a source),
 `ImageInspector` (load, transform, and analyze), `ImageComparer` (load two inputs, measure, check thresholds, write
-pictures), and `MontageBuilder` (load several sources into one contact sheet). The failures of every unit are
+pictures), `MontageBuilder` (load several sources into one contact sheet), and `SvgFlattener` (draw the links of an
+SVG drawing that only CanvasNet draws, and write a copy in which they are PNG pictures). The failures of every unit are
 `ViewerException` values with the stable `ErrorCodes` (the `ViewerException` unit of the `CanvasNetViewer` system). The
 pixel arithmetic that is not specific to the tool is part of the core `Surface` class and its units of the `Canvas`
 subsystem: flip, pad, trim, fit, flatten, and the EXIF orientation (_SurfaceTransforms Unit Design_), the tone
@@ -38,7 +40,8 @@ documented in the design of the unit that owns them; the operation records of th
 result records of an operation with the operation unit.
 
 **Record style.** One rule applies to every request and option record of the subsystem (`RenderRequest`,
-`InspectRequest`, `CompareRequest`, `CompareInput`, `MontageRequest`, `SheetOptions`, and `WriteOptions`, like the
+`InspectRequest`, `CompareRequest`, `CompareInput`, `MontageRequest`, `FlattenRequest`, `SheetOptions`, and
+`WriteOptions`, like the
 existing `SourceOptions` and `ViewerRenderOptions`): the positional members are exactly the required data, and every
 optional member is an `init` property whose default is the default of the corresponding `canvasnet` command-line
 option, with the numeric defaults published as constants (`ImageInspector.DefaultColors`, `ContactSheet.DefaultCellSize`,
@@ -81,8 +84,8 @@ an output (or all the outputs of an operation against all its inputs) before any
 publishing of several outputs are used inside the subsystem.
 
 **ImageRenderer.Execute(info, request)**, **ImageInspector.Execute(info, request)**, **ImageComparer.Execute(request)**,
-and **MontageBuilder.Execute(infos, request)** (provided to library users and to the commands of the tool): the four
-operations, each taking plain request records and returning plain result records.
+**MontageBuilder.Execute(infos, request)**, and **SvgFlattener.Execute(info, request)** (provided to library users and to
+the commands of the tool): the five operations, each taking plain request records and returning plain result records.
 
 **ContactSheet.CalculateLayout(count, options)**, **new ContactSheet(count, options)**, **ContactSheet.Add(image, label)**,
 and **ContactSheet.Detach()** (provided to `MontageBuilder`, and to the tool for its early layout check): calculate the
@@ -142,7 +145,7 @@ rendered at the target size and a raster source is resized once, by the loader (
 first operation of the pipeline runs, so a vector source is never scaled twice. The pipeline's own resize and
 fit operations work on the pixels as they are at that point.
 
-The four operation units chain the others and own the order of the steps, which the commands of the tool rely on:
+The five operation units chain the others and own the order of the steps, which the commands of the tool rely on:
 the checks that need only the request (the page, the output format, the outputs against the inputs, the size of a
 sheet) come first, so that nothing is decoded for a request that is bound to fail; then the loading, the pipeline,
 and the staging of every output; and last the publishing of all the outputs together, so that a failure leaves no

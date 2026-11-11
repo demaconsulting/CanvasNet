@@ -5,11 +5,13 @@
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
-`ImageComparison`, `ContactSheet`, `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, and
-`MontageBuilder` (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter
+`ImageComparison`, `ContactSheet`, `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`,
+`MontageBuilder`, and `SvgFlattener` (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification
+Design_, _ImageWriter
 Unit Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
 _GridOverlay Unit Verification Design_, _ImageRenderer Unit Verification Design_, _ImageInspector Unit Verification
-Design_, _ImageComparer Unit Verification Design_, and _MontageBuilder Unit Verification Design_
+Design_, _ImageComparer Unit Verification Design_, _MontageBuilder Unit Verification Design_, and _SvgFlattener Unit
+Verification Design_
 under `imaging/`) verify the units in isolation; the rotation, the skew estimation, the comparison metrics and pictures,
 and the analysis of colors are core `Surface` operations verified in the `Canvas` subsystem (see _SurfaceGeometry_,
 _SurfaceComparison_, and _SurfaceAnalysis Unit Verification Design_). The subsystem tests in `ImagingSubsystemTests.cs`
@@ -121,6 +123,10 @@ present, and the one difference picture that was asked for is written.
 **Imaging_Montage_BuilderComposesSeveralKinds_AndWritesOneSheet**: `MontageBuilder` composes an SVG, the PDF, and a PNG
 into a labeled sheet of two columns: the layout has three cells in two rows, and the file decodes to the size of the
 layout.
+
+**Imaging_Flatten_ComposedSvg_ReplacesOnlyCanvasNetImages**: `SvgFlattener` flattens a drawing that links a Mermaid
+diagram, an OpenSCAD model, and a PNG: the diagram and the model (formats `mermaid` and `scad`) become the two PNG data
+URIs of the copy, the PNG link stays, and the copy is an SVG file the loader probes at the size of the drawing.
 
 **Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults**: a `CompareRequest` built from its two
 inputs alone has no resize, the contain fit, the automatic filter, an opaque white background, the default tolerance,

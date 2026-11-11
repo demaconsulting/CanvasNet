@@ -126,8 +126,9 @@ sections:
           any supported format, render it (a chosen page or every page of a document) through an ordered pipeline of
           crop, resize, fit, rotate, flip, pad, tone, deskew, trim, and grid operations into image files, report the
           dominant colors and the pixels of an image, compare two images with measures and thresholds and write the
-          comparison pictures, and compose a contact sheet, each as one call that takes plain request values and returns
-          plain result values, without a command line.
+          comparison pictures, compose a contact sheet, and write a copy of an SVG drawing that other SVG readers can
+          show, each as one call that takes plain request values and returns plain result values, without a command
+          line.
         tags: [system]
         justification: |
           What an agent can do through the command line, an application should be able to do through the library
@@ -143,8 +144,10 @@ sections:
           - CanvasNetViewer-Imaging-RequestDefaults
           - CanvasNetViewer-Imaging-DiagnosticOrigin
           - CanvasNetViewer-Imaging-ChartImages
+          - CanvasNetViewer-Imaging-Flatten
         tests:
           - CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage
+          - CanvasNetViewer_SystemIntegration_Flatten_ComposedSvgBecomesPlainSvg
 
       - id: CanvasNetViewer-UserGuideExamples
         title: >-

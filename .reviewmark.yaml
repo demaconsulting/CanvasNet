@@ -949,6 +949,7 @@ reviews:
       - "docs/verification/canvas-net/image-sources/folder-image-resolver.md"  # unit verification
       - "docs/sysml2/model/canvas-net/image-sources/folder-image-resolver.sysml"  # unit model
       - "src/DemaConsulting.CanvasNet/ImageSources/FolderImageResolver*.cs"  # unit source (resolver, options)
+      - "src/DemaConsulting.CanvasNet/ImageSources/RequestedImage.cs"  # unit source (requested link)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverHrefTests.cs"    # unit tests (links)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)
@@ -1792,6 +1793,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/MontageBuilder.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/MontageBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
+
+  # CanvasNetViewer-Imaging-SvgFlattener Review (one per unit)
+  - id: CanvasNetViewer-Imaging-SvgFlattener
+    title: Review that CanvasNetViewer Imaging SvgFlattener Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/svg-flattener.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/svg-flattener.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/svg-flattener.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/svg-flattener.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SvgFlattener*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SvgFlattener*Tests.cs"  # unit tests
 
   # CanvasNetRender3D-Architecture Review (one per system)
   - id: CanvasNetRender3D-Architecture
@@ -4974,6 +4991,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
+
+  # CanvasNetTool-Commands-FlattenCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-FlattenCommand
+    title: Review that CanvasNetTool Commands FlattenCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/flatten-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/flatten-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/flatten-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/flatten-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/FlattenCommand.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/FlattenCommandTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

@@ -334,6 +334,17 @@ Vega-Lite assemblies bundled next to the tool work together); exit code 0, one `
 JSON result, an image of 240 by 120, red at the corner of the diagram, white inside the chart placement (a chart keeps its
 own background), and red where the outside reference would have been drawn.
 
+**CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy**: a drawing that links the model fixture and a PNG is
+flattened as a real process with `--json`; exit code 0, `flattened` true with one replaced link of format `scad`, and a
+copy whose model link is a PNG data URI while the PNG link is kept.
+
+**CanvasNetTool_Flatten_PlainSvg_ExitsZeroWithoutOutput**: a drawing without links is flattened as a real process; exit
+code 0, the text starts with `nothing to flatten`, and no file is written.
+
+**CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors**: a drawing that links a missing model, flattened with
+`--strict --json`, and the same drawing without an output, each exit with code 1 and the failure document carries
+`unsupported-feature` and `usage-error`.
+
 **CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract**: in-process, a chart saved as `.json` is
 described as `vega-lite` (found by its `$schema`); a chart with an unsupported mark (a `geoshape` with a `longitude`
 channel) renders with exit code 0 and the `vl-mark-geoshape` diagnostic in the JSON result, and with `--strict`

@@ -664,6 +664,9 @@ extending the list, and none was found for any format. Size problems are `size-l
 
 - **ImageRenderer**, **ImageInspector**, **ImageComparer**, and **MontageBuilder** - probe (or take the probed facts),
   load, and report the operations.
+- **SvgFlattener** - draws the links of an SVG drawing with `SvgImages` (the resolver of render, its notes, the
+  `--strict` policy, the error mapping, and `KindOfName`, which is `internal` for this use), and validates the scale
+  with `FindOptionProblem`.
 - **DiscoveryCommands** (of the tool) - the `info` command probes.
 - **Library users** - call `Probe`, `Load`, and `OpenPages` directly.
 - **ImageWriter** - uses the core `Surface.FlattenOver` and `Surface.HasTransparency` for JPEG output.

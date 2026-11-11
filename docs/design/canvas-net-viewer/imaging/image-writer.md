@@ -105,4 +105,6 @@ check while `NoClobber` is set and the target now exists (another process create
 - **ImageRenderer** - checks every target, stages each page's result, and publishes them all with
   `PublishAll` once every page has succeeded; **ImageComparer** does the same for its pictures, and **MontageBuilder**
   for its sheet.
+- **SvgFlattener** - checks its target with `CheckTarget` before reading anything, and publishes the flattened copy,
+  staged in a `StagedOutput` beside the target, with `PublishAll`.
 - **Library users** - call `ResolveFormat` and `Write` to write a surface of their own.

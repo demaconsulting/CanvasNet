@@ -129,6 +129,16 @@ Writes the SVG fixture, probes it, renders it twice with `ImageRenderer` (once f
 Asserts that every operation produced its result, that the two renders have the same size and are not identical, and
 that the sheet has two cells and exists.
 
+### Integration: Flatten Composed SVG Becomes Plain SVG
+
+**Test**: `CanvasNetViewer_SystemIntegration_Flatten_ComposedSvgBecomesPlainSvg`
+
+Writes a drawing that links the first page of the PDF of the fixture factory and a nested SVG file that links the
+Mermaid diagram of the fixtures, flattens it with `SvgFlattener`, and draws the original with the loader (which follows
+the links) and both files with the SVG library without a resolver (an SVG reader that follows no links). Asserts that
+both links were replaced, in order, and that the flattened copy, drawn without a resolver, is at least four times closer
+to the drawing of CanvasNet than the original drawn without a resolver.
+
 ### Integration: Failed Operation Is ViewerException With Stable Code
 
 **Test**: `CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode`
