@@ -1078,6 +1078,10 @@ words:
   - DSTART
   - DEND
   - NSTR
+  # The mindmap harness (cose-base's findPlaceforPrunedNode) and fixture names
+  - Placefor
+  - htmllabels
+  - maxwidth
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs

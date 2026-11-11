@@ -38,6 +38,10 @@
 // A gantt chart (aria-roledescription="gantt") gets the gantt layout (extractGantt): the excluded days, each axis with its
 // ticks, the section rows, the tasks and their texts, the section titles, the today line and the title, with the computed
 // paint and fonts. Every page runs in the UTC time zone with the clock fixed at FIXED_NOW (2024-06-12T10:30:00Z).
+// A mindmap (aria-roledescription="mindmap") gets the extended layout plus, at full precision, each node's size (the
+// getBBox of its group, which the cose-bilkent layout was given) and center (from its transform), the computed paint of
+// its shapes and label, and each edge's data-points (cytoscape's three points) and computed paint (extractMindmap). A
+// mindmap is drawn twice and the run fails when the layouts differ, or when cose-base calls Math.random (RANDOM_GUARD).
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -132,13 +136,35 @@ const fixClock = (now) => {
   window.Date = FixedDate;
 };
 
+// The mindmap layout (cose-bilkent) is deterministic because a mindmap is one tree: cose-base reaches Math.random only in
+// findPlaceforPrunedNode, which places the nodes it pruned from a graph that is not a tree. Every page wraps Math.random
+// and reports a call from there on the console, and the run fails if one occurs: the goldens would then not be
+// reproducible (and the port, which has no random source, would no longer be faithful).
+const RANDOM_GUARD = 'render-mermaid: Math.random called by findPlaceforPrunedNode';
+const guardRandom = (message) => {
+  const random = Math.random;
+  Math.random = function () {
+    if ((new Error().stack ?? '').includes('findPlaceforPrunedNode')) {
+      console.error(message);
+    }
+    return random.call(Math);
+  };
+};
+const randomCalls = [];
+
 const browser = await puppeteer.launch({ headless: true });
 const host = {
   newPage: async () => {
     const page = await browser.newPage();
+    page.on('console', (message) => {
+      if (message.text() === RANDOM_GUARD) {
+        randomCalls.push(message.text());
+      }
+    });
     await page.emulateTimezone('UTC');
     await page.evaluateOnNewDocument(fixClock, Date.parse(FIXED_NOW));
     await page.evaluateOnNewDocument(addStyleSheet, css);
+    await page.evaluateOnNewDocument(guardRandom, RANDOM_GUARD);
     return page;
   },
 };
@@ -151,8 +177,22 @@ try {
   for (const file of files) {
     const name = basename(file).replace(/\.mmd$|\.mermaid$/i, '');
     const definition = readFileSync(file, 'utf8');
-    const { data } = await renderMermaid(host, definition, 'svg', options);
-    const { layout, png } = await readBack(new TextDecoder().decode(data), definition, !!pngDir);
+    const draw = async (picture) => {
+      const { data } = await renderMermaid(host, definition, 'svg', options);
+      return readBack(new TextDecoder().decode(data), definition, picture);
+    };
+    const { layout, png } = await draw(!!pngDir);
+    if (layout.diagram === 'mindmap') {
+      // A mindmap is drawn a second time: its layout must be the same (no random source, see RANDOM_GUARD)
+      const again = await draw(false);
+      if (JSON.stringify(again.layout) !== JSON.stringify(layout)) {
+        throw new Error(`${file}: two renders of the mindmap gave different layouts`);
+      }
+    }
+    if (randomCalls.length > 0) {
+      throw new Error(`${file}: ${randomCalls.length} call(s) of Math.random from findPlaceforPrunedNode`);
+    }
+
     if (pngDir) {
       mkdirSync(pngDir, { recursive: true });
       writeFileSync(join(pngDir, `${name}.png`), png);
@@ -273,6 +313,9 @@ async function readBack(svgText, definition, picture) {
       layout = await page.evaluate(extractGantt, svgId);
     } else {
       layout = await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
+      if (role === 'mindmap') {
+        addMindmap(layout, await page.evaluate(extractMindmap, svgId));
+      }
     }
     if (viewBoxText) {
       await page.$eval(`#${svgId}`, (element, text) => {
@@ -840,6 +883,64 @@ function extractGantt(id) {
       : null,
     title: title ? text(title) : null
   };
+}
+
+// Runs in the page: the mindmap facts the generic layout does not have, keyed by the node and edge ids (see addMindmap).
+// The numbers the layout was given and gave are kept at full precision: each node's size is the getBBox of its group
+// (what cose-bilkent's render.ts measured, in Chrome's single precision), its center is read from its transform (which
+// holds cose's position as JavaScript writes the number, so it parses back to the same double), and each edge's
+// data-points attribute holds cytoscape's start, middle and end points as JSON (null for a coordinate that is not a
+// number).
+function extractMindmap(id) {
+  const svg = document.getElementById(id);
+  const withoutPrefix = (text) => (text && text.startsWith(`${id}-`) ? text.slice(id.length + 1) : text);
+  // The computed paint (Mermaid's mindmap style sheet sets it by class)
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    return { fill: s.fill, stroke: s.stroke, strokeWidth: parseFloat(s.strokeWidth) };
+  };
+
+  const nodes = {};
+  for (const node of svg.querySelectorAll('g.node')) {
+    const match = /translate\(\s*([^,\s)]+)[\s,]+([^\s)]+)\s*\)/.exec(node.getAttribute('transform') ?? '');
+    const b = node.getBBox();
+    const shapes = Array.from(node.querySelectorAll('rect, path, line, circle, ellipse, polygon'))
+      .filter((element) => !element.closest('g.label'))
+      .map((element) => ({ tag: element.tagName, class: element.getAttribute('class'), ...paint(element) }));
+    const span = node.querySelector('g.label span');
+    const text = node.querySelector('g.label text');
+    nodes[withoutPrefix(node.id)] = {
+      center: match ? [Number(match[1]), Number(match[2])] : null,
+      size: [b.width, b.height],
+      paint: shapes,
+      labelColor: span ? getComputedStyle(span).color : text ? getComputedStyle(text).fill : null,
+    };
+  }
+
+  const edges = {};
+  for (const path of svg.querySelectorAll('g.edgePaths path')) {
+    const edgeId = withoutPrefix(path.id || path.getAttribute('data-id'));
+    const points = JSON.parse(atob(path.getAttribute('data-points') ?? 'W10='));
+    const s = getComputedStyle(path);
+    edges[edgeId] = {
+      dataPoints: points.map((p) => [p.x ?? null, p.y ?? null]),
+      fill: s.fill,
+      stroke: s.stroke,
+      strokeWidth: parseFloat(s.strokeWidth),
+    };
+  }
+
+  return { nodes, edges };
+}
+
+// Adds the mindmap facts of extractMindmap to the nodes and edges of the generic layout.
+function addMindmap(layout, facts) {
+  for (const node of layout.nodes) {
+    Object.assign(node, facts.nodes[node.id] ?? {});
+  }
+  for (const edge of layout.edges) {
+    Object.assign(edge, facts.edges[edge.id] ?? {});
+  }
 }
 
 // Runs in the page: the layout of a pie chart (pieRenderer.ts). The svg holds a group at the pie's center, which holds

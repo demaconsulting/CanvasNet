@@ -80,6 +80,12 @@ internal sealed class MindmapRenderer
     }
 
     /// <summary>
+    ///     Gets the node sizes the last <see cref="Draw"/> gave the layout, in node order (empty before a draw and for an
+    ///     empty mindmap); the reference tests compare them with the sizes Chrome measured.
+    /// </summary>
+    internal IReadOnlyList<CoseSize> Sizes { get; private set; } = [];
+
+    /// <summary>
     ///     Gets the data <c>getData</c> gives a node (<c>flattenNodes</c>, with the padding and width of <c>addNode</c>),
     ///     before <c>draw</c> changes it per shape.
     /// </summary>
@@ -195,6 +201,7 @@ internal sealed class MindmapRenderer
         }
 
         // The cose-bilkent layout of the tree
+        Sizes = sizes;
         var links = edges.Select(edge => new CoseLink(edge.Start.Id, edge.End.Id)).ToList();
         var layout = CoseLayout.Run(sizes, links, _meter);
 

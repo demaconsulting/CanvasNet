@@ -44,14 +44,14 @@ public class MermaidHardeningTests
     ];
 
     /// <summary>
-    ///     Gets a small corpus of mindmaps (every shape, wrapped and markdown labels, SVG labels, a wide and a deep tree).
+    ///     Gets the texts of the mindmap fixtures (every shape, wrapped, markdown and SVG labels, icons and classes,
+    ///     themes and settings, a single node, a wide and a deep tree), in name order.
     /// </summary>
-    public static string[] MindmapCorpus =>
+    public static string[] MindmapFixtures =>
     [
-        "mindmap\n  root((mindmap))\n    Origins\n      Long history\n      ::icon(fa fa-book)\n      Popularization\n    Research\n      On effectiveness<br/>and features\n    Tools\n      Pen and paper\n      Mermaid\n",
-        "mindmap\nRoot\n  A[Square]\n    A1\n  B(Rounded)\n  C{{Hexagon}}\n    C1\n  D((Circle))\n  E))Bang((\n  F)Cloud(\n  :::urgent\n",
-        "---\nconfig:\n  htmlLabels: false\n  mindmap:\n    padding: 7\n    maxNodeWidth: 90\n---\nmindmap\n  root\n    a long label that wraps at ninety\n    b[\"`**bold** and *italic*`\"]\n    c{{hex}}\n      c1\n",
-        "mindmap\nr\n" + string.Concat(Enumerable.Range(0, 14).Select(i => $"  n{i}\n")) + string.Concat(Enumerable.Range(1, 10).Select(i => new string(' ', i + 2) + "d\n")),
+        .. Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mindmap"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText),
     ];
 
     /// <summary>
@@ -1855,14 +1855,13 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
-    ///     Validates that every mindmap of a small corpus (every shape, wrapped and markdown labels, SVG labels, a wide
-    ///     and a deep tree) renders the same pixels twice, and the same pixels on parallel threads.
+    ///     Validates that every mindmap fixture renders the same pixels twice, and the same pixels on parallel threads.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Hardening_Mindmaps_RenderDeterministically()
+    public void CanvasNetMermaid_Hardening_MindmapFixtures_RenderDeterministically()
     {
         // Arrange
-        var documents = MindmapCorpus.Select(text => MermaidDocument.Parse(text)).ToList();
+        var documents = MindmapFixtures.Select(text => MermaidDocument.Parse(text)).ToList();
 
         // Act
         var differing = documents.AsParallel().Where(document =>
@@ -2011,11 +2010,11 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
-    ///     Validates with a seeded mutation fuzzer over the mindmap corpus that opening and measuring only ever throw the
+    ///     Validates with a seeded mutation fuzzer over the mindmap fixtures that opening and measuring only ever throw the
     ///     documented exceptions.
     /// </summary>
     [Fact]
-    public void CanvasNetMermaid_Hardening_MutatedMindmaps_ThrowOnlyDocumentedExceptions()
+    public void CanvasNetMermaid_Hardening_MutatedMindmapFixtures_ThrowOnlyDocumentedExceptions()
     {
         // Arrange
         string[] tokens =
@@ -2027,7 +2026,7 @@ public class MermaidHardeningTests
         var unexpected = new List<string>();
 
         // Act
-        foreach (var seed in MindmapCorpus)
+        foreach (var seed in MindmapFixtures)
         {
             for (var round = 0; round < 12; round++)
             {

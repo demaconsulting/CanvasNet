@@ -9,7 +9,9 @@ state and ER fixtures of `../state/` and `../er/`; their format is described in 
 [ER Goldens](#er-goldens). The `pie/` folder holds the goldens of the pie fixtures of `../pie/`, which
 `MermaidChartReferenceLayoutTests` compares; their format is described in [Pie Goldens](#pie-goldens). The `gantt/`
 folder holds the goldens of the gantt fixtures of `../gantt/`, which the same test compares; their format is
-described in [Gantt Goldens](#gantt-goldens).
+described in [Gantt Goldens](#gantt-goldens). The `mindmap/` folder holds the goldens of the mindmap fixtures of
+`../mindmap/`, which `MermaidMindmapReferenceLayoutTests` compares; their format is described in
+[Mindmap Goldens](#mindmap-goldens).
 
 ## Provenance
 
@@ -66,9 +68,11 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram class         # the c
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the state and ER goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram pie           # the pie goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram gantt         # the gantt goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram mindmap       # the mindmap goldens only
 ```
 
-A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/`, `../pie/` or `../gantt/` needs a
+A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/`, `../pie/`, `../gantt/` or
+`../mindmap/` needs a
 golden, or an entry in the exclusions of the script, the test and this file. A golden change in a pull request is
 reviewed like code: the diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the
 browser's geometry is single precision, and a value near a rounding boundary can round either way.
@@ -508,3 +512,73 @@ none is excluded.
 | `16-end-dates-strict` | End dates read strictly: an ISO end that `DD-MM-YYYY` does not read ends at the start |
 | `17-dateformat-unix-seconds` | `dateFormat X`: a numeric start is milliseconds, a numeric end is seconds |
 | `18-number-section-styles-zero` | `gantt.numberSectionStyles: 0`: the `NaN` section classes that no style rule names |
+
+## Mindmap Goldens
+
+The files in `mindmap/` hold the layout that the reference gives each fixture of `../mindmap/`. They have the
+provenance, fonts, one-line arrays and objects, and the read-back at a scale of exactly 1 of the class goldens, and are
+written by `extract` and `extractMindmap` of `render-mermaid.mjs`. Each fixture is drawn twice, and the generator fails
+when the two layouts differ or when cose-base calls `Math.random` (from `findPlaceforPrunedNode`, which only a graph
+that is not a tree reaches). So the goldens are reproducible, and Mermaid's mindmap layout uses no random number.
+
+### Mindmap Layout Content
+
+- `diagram`: `mindmap`, and the `viewBox` Mermaid sets (the drawing's box grown by `mindmap.padding`).
+- `nodes`: each `g.node` in order (`node_<k>` is the k-th node of the text), with the class diagram's fields (`shape`
+  from the diagram's data, the rounded `x`, `y` and `box`, the `class` and the drawn `parts`), and:
+  - `center`: the node's position, parsed from its `transform` at full precision (the layout's position as JavaScript
+    writes the number, so it parses back to the same double);
+  - `size`: the width and height of the `getBBox` of the node's group at full precision: the size Mermaid gave the
+    cose-bilkent layout, in Chrome's single precision;
+  - `paint`: the computed `fill`, `stroke` and `strokeWidth` of each shape of the node (the body, and the line under a
+    default node);
+  - `labelColor`: the computed color of the label (an HTML label's `span`, or the fill of SVG text).
+- `edges`: each edge path with its `class`, its rounded `length` and 21 sampled `points`, and:
+  - `dataPoints`: cytoscape's start, middle and end points, decoded from the path's `data-points` (null for a
+    coordinate that is not a number);
+  - `fill`, `stroke` and `strokeWidth`: the computed paint.
+
+### Mindmap Tolerances
+
+`MermaidMindmapReferenceLayoutTests` compares each golden in three tiers, because the cose-bilkent layout is chaotic:
+a node size that differs in its last bit can move every node by hundreds of pixels.
+
+1. **Sizes**: the size CanvasNet gives the layout for each node (its box in single precision) against `size`, at
+   **0.02 px**. All 14 fixtures pass; the largest difference is 0.000015 px. All but 3 of the 155 nodes are equal
+   bit for bit. The 3 that are not:
+   - the two cloud nodes of `02-shapes` and `03-root-shapes`, whose arc bounds Chrome computes in single precision;
+   - the node with the three-line SVG label in `09-htmllabels-false`: Chrome gives the label's height of 52.2 px as the
+     single-precision number just below it.
+2. **Seeded layout**: CanvasNet's cose-bilkent layout given the golden's own sizes and edges, against `center` and
+   `dataPoints`, **bit for bit**. All 14 fixtures pass.
+3. **Whole drawing**: the view box, each node's center, box and paint (the body's fill and stroke, the line's stroke
+   and width, and every label run's color), and each edge's 21 samples, length and paint, at **0.01 px**, with the
+   colors exact. The largest difference is 0.001 px (the goldens' rounding). The node centers are equal bit for bit
+   wherever the sizes are. A fixture whose sizes differ in their last bit can lay out differently, so it is listed with
+   its reason in the test and only tiers 1 and 2 apply to it:
+   - `02-shapes`: the cloud node is 8e-6 px taller in Chrome, and every node moves (by up to 292 px).
+
+   `03-root-shapes` and `09-htmllabels-false` also have a size that differs in its last bit, but their layouts stay
+   within 0.0004 px of Mermaid's, so the whole drawing is compared.
+
+### Mindmap Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded. None sets `layout`, because mermaid-cli can load other layouts.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic` | A default root with children and grandchildren |
+| `02-shapes` | Every node shape: default, square, rounded, circle, bang, cloud and hexagon |
+| `03-root-shapes` | A bang root, with square, hexagon, cloud and circle children |
+| `04-indentation` | Odd, tab and mixed indentation, comments around the keyword and between nodes, a blank line |
+| `05-sections-wrap` | Thirteen children of the root (the section colors wrap after eleven), inherited sections |
+| `06-depth-widths` | An eight-level chain (the edge widths by depth) and an indentation jump |
+| `07-markdown` | Bold, italic, backtick and quoted strings, `<br/>`, wrapping at `maxNodeWidth` and `wrappingWidth` |
+| `08-config-padding-maxwidth` | Frontmatter `mindmap.padding: 13`, `maxNodeWidth: 120`, `flowchart.wrappingWidth: 90` |
+| `09-htmllabels-false` | SVG text labels, a node with an icon (its label background), a three-line label |
+| `10-forest-theme` | The forest theme (its gradient rules hide the line under a default node) |
+| `11-dark-themevariables` | The dark theme with `fontSize` and `primaryColor` theme variables |
+| `12-single-node` | A root alone |
+| `13-large` | 56 nodes in three levels |
+| `14-classes-icons` | `:::` classes and `::icon(...)` decorations on several nodes |

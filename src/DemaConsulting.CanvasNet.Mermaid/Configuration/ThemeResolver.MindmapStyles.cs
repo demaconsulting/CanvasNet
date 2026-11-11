@@ -20,9 +20,12 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 ///         stroke <c>cScaleInv&lt;i&gt;</c> 3 pixels wide of the <c>line</c> under <c>.section-k</c>; then the root's fill
 ///         <c>git0</c> and label color <c>gitBranchLabel0</c> under <c>.section-root</c>, and <c>.edge</c>'s fill of none.
 ///         A stroke width below zero (<c>.edge-depth-5</c> onward) is not valid CSS, so it is left out as a browser drops
-///         it, and such an edge keeps <c>.edge</c>'s 3. No rule strokes a node's shape. The <c>neo</c> look's rules, the
-///         gradient rules, the <c>redux</c> themes' values and the <c>disabled</c> rules are left out (the look is drawn
-///         classic, those themes are not built in, and no node is disabled).
+///         it, and such an edge keeps <c>.edge</c>'s 3. No rule strokes a node's shape. When the theme variable
+///         <c>useGradient</c> and <c>mainBkg</c> are truthy (the base, dark, forest and neutral themes), the gradient
+///         rules come last, and of them only the stroke width of zero of the <c>line</c> under each <c>.section-k</c>
+///         applies to the classic look: those themes draw no line under a default node. The <c>neo</c> look's rules,
+///         the <c>redux</c> themes' values and the <c>disabled</c> rules are left out (the look is drawn classic, those
+///         themes are not built in, and no node is disabled).
 ///     </para>
 ///     <para>
 ///         <b>Cascade.</b> A node's group has the classes <c>mindmap-node</c> and <c>section-k</c> (the root
@@ -55,7 +58,7 @@ internal sealed class MindmapStyles : UnifiedStyles
     }
 
     /// <summary>Gets the selectors of the mindmap's style sheet, which <c>themeCSS</c> may use.</summary>
-    public static FrozenSet<string> KnownSelectors { get; } = BuildRules(new Dictionary<string, string?>(), [])
+    public static FrozenSet<string> KnownSelectors { get; } = BuildRules(new Dictionary<string, string?>(), [], gradient: false)
         .Select(rule => rule.Selector)
         .ToFrozenSet(StringComparer.Ordinal);
 
@@ -83,7 +86,9 @@ internal sealed class MindmapStyles : UnifiedStyles
     public static MindmapStyles Create(MermaidConfig config, MermaidReportSink? sink)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return new MindmapStyles(BuildRules(VariablesOf(config), UserRules(config, KnownSelectors, sink)));
+        var gradient = MermaidConfigResolver.IsTruthy(config.ThemeVariables["useGradient"]) &&
+            MermaidConfigResolver.IsTruthy(config.ThemeVariables["mainBkg"]);
+        return new MindmapStyles(BuildRules(VariablesOf(config), UserRules(config, KnownSelectors, sink), gradient));
     }
 
     /// <summary>
@@ -145,8 +150,9 @@ internal sealed class MindmapStyles : UnifiedStyles
     /// </summary>
     /// <param name="v">The theme variables as text.</param>
     /// <param name="user">The user rules.</param>
+    /// <param name="gradient">Whether the gradient rules are written (<c>useGradient</c> and <c>mainBkg</c> are truthy).</param>
     /// <returns>The rules.</returns>
-    private static List<StyleRule> BuildRules(IReadOnlyDictionary<string, string?> v, IReadOnlyList<StyleRule> user)
+    private static List<StyleRule> BuildRules(IReadOnlyDictionary<string, string?> v, IReadOnlyList<StyleRule> user, bool gradient)
     {
         var builder = new RuleBuilder(v);
         string? Var(string name) => builder.Var(name);
@@ -174,6 +180,12 @@ internal sealed class MindmapStyles : UnifiedStyles
         Add(".section-root text", ("fill", Var("gitBranchLabel0")));
         Add(".section-root span", ("color", Var("gitBranchLabel0")));
         Add(".edge", ("fill", "none"));
+
+        // The gradient rules (genGradient): in the classic look only the lines' stroke width of zero applies
+        for (var i = 0; gradient && i < sections; i++)
+        {
+            Add($".section-{(i - 1).ToString(CultureInfo.InvariantCulture)} line", ("stroke-width", "0"));
+        }
 
         // The user styles come last
         builder.Rules.AddRange(user);

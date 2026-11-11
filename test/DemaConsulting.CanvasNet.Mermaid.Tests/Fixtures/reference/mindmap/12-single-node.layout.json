@@ -1,0 +1,40 @@
+{
+  "source": "12-single-node.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "mindmap",
+  "viewBox": [5, 5, 151.609, 54],
+  "title": null,
+  "nodes": [
+    {
+      "id": "node_0",
+      "shape": "defaultMindmapNode",
+      "x": 80.805,
+      "y": 32,
+      "box": [15, 15, 131.609, 34],
+      "class": "node mindmap-node section-root section--1",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [15, 15, 131.609, 34] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [15, 49, 131.609, 0] },
+        { "tag": "g", "class": "label", "group": null, "box": [35, 20, 91.609, 24], "text": "Only the root" }
+      ],
+      "center": [80.8046875, 32],
+      "size": [131.609375, 34],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(0, 0, 236)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(255, 255, 185)",
+          "strokeWidth": 3
+        }
+      ],
+      "labelColor": "rgb(255, 255, 255)"
+    }
+  ],
+  "clusters": [],
+  "edges": [],
+  "edgeLabels": [],
+  "terminals": []
+}

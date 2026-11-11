@@ -850,6 +850,40 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the gradient rules of the mindmap sheet, as Chrome computes them: the themes whose
+    ///     <c>useGradient</c> is true (base, dark, forest and neutral) give the line under a default node a stroke width
+    ///     of zero, the default theme keeps 3, and a theme variable <c>useGradient: false</c> keeps 3 in any theme.
+    /// </summary>
+    /// <param name="theme">The theme.</param>
+    /// <param name="useGradient">The <c>useGradient</c> theme variable, or null to keep the theme's.</param>
+    /// <param name="expected">The expected stroke width of the line.</param>
+    [Theory]
+    [InlineData("default", null, 3)]
+    [InlineData("base", null, 0)]
+    [InlineData("dark", null, 0)]
+    [InlineData("forest", null, 0)]
+    [InlineData("neutral", null, 0)]
+    [InlineData("forest", false, 3)]
+    public void MindmapStyles_Create_GradientThemes_HideTheSectionLines(string theme, bool? useGradient, double expected)
+    {
+        // Arrange
+        var site = new JsonObject { ["theme"] = theme };
+        if (useGradient is { } flag)
+        {
+            site["themeVariables"] = new JsonObject { ["useGradient"] = flag };
+        }
+
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site, MindmapText);
+
+        // Act
+        var styles = MindmapStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(expected, styles.NodePaintFor("mindmap-node section-2", "line").StrokeWidth);
+        Assert.Equal(expected, styles.NodePaintFor("mindmap-node section-root section--1", "line").StrokeWidth);
+    }
+
+    /// <summary>
     ///     Validates that a <c>themeCSS</c> rule for a mindmap selector overrides the theme's, after the root rules (a
     ///     later <c>.section--1</c> rule wins over <c>.section-root</c>), and that an unknown selector is reported.
     /// </summary>

@@ -1,0 +1,351 @@
+{
+  "source": "11-dark-themevariables.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "mindmap",
+  "viewBox": [5, 5, 524.77, 333.712],
+  "title": null,
+  "nodes": [
+    {
+      "id": "node_0",
+      "shape": "defaultMindmapNode",
+      "x": 245.784,
+      "y": 200.979,
+      "box": [177.925, 182.479, 135.719, 37],
+      "class": "node mindmap-node section-root section--1",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [177.925, 182.479, 135.719, 37] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [177.925, 219.479, 135.719, 0] },
+        { "tag": "g", "class": "label", "group": null, "box": [197.925, 187.479, 95.719, 27], "text": "Home office" }
+      ],
+      "center": [245.7840377328331, 200.979396139987],
+      "size": [135.71875, 37],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(121, 125, 125)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(204, 204, 204)",
+          "stroke": "rgb(204, 153, 102)",
+          "strokeWidth": 0
+        }
+      ],
+      "labelColor": "rgb(44, 44, 44)"
+    },
+    {
+      "id": "node_1",
+      "shape": "rect",
+      "x": 442.723,
+      "y": 245.828,
+      "box": [365.676, 222.328, 154.094, 47],
+      "class": "node mindmap-node section-0",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [365.676, 222.328, 154.094, 47] },
+        { "tag": "g", "class": "label", "group": null, "box": [385.676, 232.328, 114.094, 27], "text": "Standing desk" }
+      ],
+      "center": [442.7232302584981, 245.82847324960142],
+      "size": [154.09375, 47],
+      "paint": [
+        { "tag": "rect", "class": "basic label-container", "fill": "rgb(11, 0, 0)", "stroke": "none", "strokeWidth": 1 }
+      ],
+      "labelColor": "rgb(211, 211, 211)"
+    },
+    {
+      "id": "node_2",
+      "shape": "rounded",
+      "x": 223.731,
+      "y": 300.212,
+      "box": [187.223, 271.712, 73.016, 57],
+      "class": "node mindmap-node section-1",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [187.223, 271.712, 73.016, 57] },
+        { "tag": "g", "class": "label", "group": null, "box": [202.223, 286.712, 43.016, 27], "text": "Chair" }
+      ],
+      "center": [223.7313115958499, 300.2116013603386],
+      "size": [73.015625, 57],
+      "paint": [
+        {
+          "tag": "rect",
+          "class": "basic label-container",
+          "fill": "rgb(77, 16, 55)",
+          "stroke": "none",
+          "strokeWidth": 1
+        }
+      ],
+      "labelColor": "rgb(211, 211, 211)"
+    },
+    {
+      "id": "node_3",
+      "shape": "defaultMindmapNode",
+      "x": 204.38,
+      "y": 115.664,
+      "box": [152.849, 97.164, 103.063, 37],
+      "class": "node mindmap-node section-2",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [152.849, 97.164, 103.063, 37] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [152.849, 134.164, 103.063, 0] },
+        { "tag": "g", "class": "label", "group": null, "box": [172.849, 102.164, 63.063, 27], "text": "Lighting" }
+      ],
+      "center": [204.37978559444343, 115.66366064811189],
+      "size": [103.0625, 37],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(63, 82, 88)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(204, 204, 204)",
+          "stroke": "rgb(192, 173, 167)",
+          "strokeWidth": 0
+        }
+      ],
+      "labelColor": "rgb(211, 211, 211)"
+    },
+    {
+      "id": "node_4",
+      "shape": "defaultMindmapNode",
+      "x": 57.516,
+      "y": 87.914,
+      "box": [15, 69.414, 85.031, 37],
+      "class": "node mindmap-node section-2",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [15, 69.414, 85.031, 37] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [15, 106.414, 85.031, 0] },
+        { "tag": "g", "class": "label", "group": null, "box": [35, 74.414, 45.031, 27], "text": "Lamp" }
+      ],
+      "center": [57.515625, 87.91365420632269],
+      "size": [85.03125, 37],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(63, 82, 88)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(204, 204, 204)",
+          "stroke": "rgb(192, 173, 167)",
+          "strokeWidth": 0
+        }
+      ],
+      "labelColor": "rgb(211, 211, 211)"
+    },
+    {
+      "id": "node_5",
+      "shape": "defaultMindmapNode",
+      "x": 256.856,
+      "y": 33.5,
+      "box": [204.84, 15, 104.031, 37],
+      "class": "node mindmap-node section-2",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [204.84, 15, 104.031, 37] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [204.84, 52, 104.031, 0] },
+        { "tag": "g", "class": "label", "group": null, "box": [224.84, 20, 64.031, 27], "text": "Window" }
+      ],
+      "center": [256.855823237912, 33.5],
+      "size": [104.03125, 37],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(63, 82, 88)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(204, 204, 204)",
+          "stroke": "rgb(192, 173, 167)",
+          "strokeWidth": 0
+        }
+      ],
+      "labelColor": "rgb(211, 211, 211)"
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "edge_0_1",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-0 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 171.981,
+      "points": [
+        [260.41, 204.31],
+        [268.794, 206.219],
+        [277.179, 208.128],
+        [285.563, 210.038],
+        [293.948, 211.947],
+        [302.332, 213.857],
+        [310.716, 215.766],
+        [319.101, 217.676],
+        [327.485, 219.585],
+        [335.87, 221.495],
+        [344.254, 223.404],
+        [352.638, 225.313],
+        [361.023, 227.223],
+        [369.407, 229.132],
+        [377.792, 231.042],
+        [386.176, 232.951],
+        [394.56, 234.86],
+        [402.945, 236.769],
+        [411.329, 238.679],
+        [419.714, 240.588],
+        [428.098, 242.498]
+      ],
+      "dataPoints": [
+        [260.40958202725506, 204.31007986737725],
+        [344.2536339956656, 223.4039346947942],
+        [428.09768596407616, 242.49778952221115]
+      ],
+      "fill": "none",
+      "stroke": "rgb(11, 0, 0)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_0_2",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-1 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 71.654,
+      "points": [
+        [242.53, 215.622],
+        [241.753, 219.119],
+        [240.976, 222.617],
+        [240.199, 226.114],
+        [239.421, 229.611],
+        [238.644, 233.109],
+        [237.867, 236.606],
+        [237.09, 240.104],
+        [236.312, 243.601],
+        [235.535, 247.098],
+        [234.758, 250.596],
+        [233.981, 254.093],
+        [233.203, 257.59],
+        [232.426, 261.088],
+        [231.649, 264.585],
+        [230.872, 268.082],
+        [230.094, 271.58],
+        [229.317, 275.077],
+        [228.54, 278.574],
+        [227.763, 282.072],
+        [226.985, 285.569]
+      ],
+      "dataPoints": [
+        [242.52992267527173, 215.6221668884537],
+        [234.7576746643415, 250.5954987501628],
+        [226.98542665341125, 285.5688306118719]
+      ],
+      "fill": "none",
+      "stroke": "rgb(77, 16, 55)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_0_3",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-2 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 64.833,
+      "points": [
+        [239.235, 187.485],
+        [237.82, 184.569],
+        [236.404, 181.652],
+        [234.989, 178.736],
+        [233.574, 175.82],
+        [232.158, 172.903],
+        [230.743, 169.987],
+        [229.328, 167.071],
+        [227.912, 164.154],
+        [226.497, 161.238],
+        [225.082, 158.322],
+        [223.667, 155.405],
+        [222.251, 152.489],
+        [220.836, 149.573],
+        [219.421, 146.656],
+        [218.005, 143.74],
+        [216.59, 140.823],
+        [215.175, 137.907],
+        [213.76, 134.991],
+        [212.344, 132.074],
+        [210.929, 129.158]
+      ],
+      "dataPoints": [
+        [239.2349348852943, 187.48461003970516],
+        [225.08191166363827, 158.32152839404944],
+        [210.92888844198222, 129.15844674839371]
+      ],
+      "fill": "none",
+      "stroke": "rgb(63, 82, 88)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_3_4",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-2 edge-depth-3",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 119.463,
+      "points": [
+        [189.641, 112.879],
+        [183.772, 111.77],
+        [177.902, 110.661],
+        [172.033, 109.552],
+        [166.164, 108.443],
+        [160.295, 107.334],
+        [154.425, 106.225],
+        [148.556, 105.116],
+        [142.687, 104.007],
+        [136.817, 102.898],
+        [130.948, 101.789],
+        [125.079, 100.68],
+        [119.209, 99.571],
+        [113.34, 98.462],
+        [107.471, 97.353],
+        [101.602, 96.244],
+        [95.732, 95.135],
+        [89.863, 94.026],
+        [83.994, 92.917],
+        [78.124, 91.808],
+        [72.255, 90.699]
+      ],
+      "dataPoints": [
+        [189.64058879818097, 112.87868707533843],
+        [130.94770529722172, 101.78865742721729],
+        [72.25482179626246, 90.69862777909614]
+      ],
+      "fill": "none",
+      "stroke": "rgb(63, 82, 88)",
+      "strokeWidth": 5
+    },
+    {
+      "id": "edge_3_5",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-2 edge-depth-3",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 67.491,
+      "points": [
+        [212.454, 103.022],
+        [214.27, 100.178],
+        [216.087, 97.334],
+        [217.903, 94.49],
+        [219.719, 91.646],
+        [221.536, 88.802],
+        [223.352, 85.958],
+        [225.169, 83.114],
+        [226.985, 80.27],
+        [228.802, 77.426],
+        [230.618, 74.582],
+        [232.434, 71.738],
+        [234.251, 68.894],
+        [236.067, 66.05],
+        [237.884, 63.206],
+        [239.7, 60.362],
+        [241.517, 57.518],
+        [243.333, 54.674],
+        [245.149, 51.83],
+        [246.966, 48.986],
+        [248.782, 46.142]
+      ],
+      "dataPoints": [
+        [212.45372217795645, 103.02200141977441],
+        [230.6178044161777, 74.58183032405594],
+        [248.78188665439896, 46.141659228337474]
+      ],
+      "fill": "none",
+      "stroke": "rgb(63, 82, 88)",
+      "strokeWidth": 5
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}
