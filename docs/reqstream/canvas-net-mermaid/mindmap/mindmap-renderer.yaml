@@ -1,0 +1,107 @@
+---
+# Software Unit Requirements for MindmapRenderer
+#
+# These requirements describe the design-level behavior of the MindmapRenderer unit of the Mindmap subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Mindmap): the drawing of Mermaid's mindmap renderer of the pinned Mermaid
+# release - the node data and the changes Mermaid makes per shape, the node sizes given to the layout, the paint of the
+# sections, the edges, the reports of what is not drawn, the view box, and the limits and work of a render. See
+# docs/verification/canvas-net-mermaid/mindmap/mindmap-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Mindmap Requirements
+        sections:
+          - title: MindmapRenderer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-NodeData
+                title: >-
+                  The MindmapRenderer unit shall draw each node with the shape of its brackets and the padding and
+                  wrapping width that Mermaid's mindmap renderer gives it - mindmap.padding, doubled for a rectangle, a
+                  rounded rectangle, and a hexagon, then 10 for a rectangle and 15 for a rounded rectangle - and
+                  mindmap.maxNodeWidth, except that a rectangle, a rounded rectangle, and a hexagon wrap at
+                  flowchart.wrappingWidth - so that every shape grows around its label as in Mermaid.
+                justification: |
+                  The size of each node drives the layout and the look of the mindmap; Mermaid changes the padding and
+                  the width per shape before it draws, and the same changes give the same sizes.
+                tests:
+                  - MindmapRenderer_DataOf_UpstreamVector_MatchesMermaidPaddingAndWidth
+                  - MindmapRenderer_Prepared_PerShapeChanges_MatchDraw
+                  - MindmapRenderer_Draw_Padding_SizesEachShapeAsMermaid
+                  - MindmapRenderer_Draw_LongLabels_WrapAtTheShapesWidth
+
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-LayoutSizes
+                title: >-
+                  The MindmapRenderer unit shall give the layout the box of each drawn node as the browser's getBBox
+                  gives it - each side rounded to single precision and the size subtracted in single precision - and
+                  shall place each node where the layout puts its center.
+                justification: |
+                  The cose-bilkent layout is chaotic, so the last bit of a node size can move the whole mindmap; only
+                  the sizes the browser gives Mermaid's layout give Mermaid's positions.
+                tests:
+                  - MindmapRenderer_Box32_RoundsSidesToSinglePrecision
+                  - MindmapRenderer_Draw_ViewBox_IsTheDrawingGrownByThePadding
+
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-SectionPaint
+                title: >-
+                  The MindmapRenderer unit shall paint each node through the mindmap style sheet by its section - the
+                  root in its own color, each section in the theme's color of that section, a node class that names
+                  another section taking that section's color as the order of the sheet decides - with the line under a
+                  default node in the section's inverse color and no stroke on the body.
+                justification: |
+                  The colors of the sections show the branches of a mindmap; they must be the colors Mermaid's style
+                  sheet gives each node.
+                tests:
+                  - MindmapRenderer_Draw_Sections_PaintNodesBySection
+
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-Edges
+                title: >-
+                  The MindmapRenderer unit shall draw each edge from a node to its child through the start, middle, and
+                  end points that the layout gives it, without cutting it at the outlines of the nodes, in the color of
+                  its section and with the width of its depth (17 less 3 for each level, and 3 where that is not
+                  positive), and shall leave out an edge whose points are not numbers.
+                justification: |
+                  The edges show the structure of a mindmap; Mermaid draws them between the layout's points, not to the
+                  outlines, and their colors and widths follow the sections and the depth.
+                tests:
+                  - MindmapRenderer_Draw_Edges_FollowDepthAndAreNotCut
+
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-Reports
+                title: >-
+                  The MindmapRenderer unit shall report, in this order, a look other than classic, a layout other than
+                  cose-bilkent, and then for each node its icon (located at the icon) and a Font Awesome icon in its
+                  label, as unsupported features, shall report nothing for a mindmap without them, and shall still draw
+                  the mindmap in the classic look with the cose-bilkent layout.
+                justification: |
+                  What is not drawn must be reported once, in a predictable order, where it is written; a plain mindmap
+                  must not be noisy.
+                tests:
+                  - MindmapRenderer_Draw_UnsupportedFeatures_AreReportedInOrder
+                  - MindmapRenderer_Draw_PlainMindmap_ReportsNothing
+
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-ViewBox
+                title: >-
+                  The MindmapRenderer unit shall give the drawing the view box of its nodes and edges grown by
+                  mindmap.padding on every side, and a mindmap without nodes the empty box grown by the padding with
+                  nothing drawn.
+                justification: |
+                  The size of the picture must be Mermaid's so that a host lays it out as Mermaid's; an empty mindmap
+                  must still give a small, predictable picture.
+                tests:
+                  - MindmapRenderer_Draw_ViewBox_IsTheDrawingGrownByThePadding
+                  - MindmapRenderer_Draw_EmptyMindmap_GivesThePaddedEmptyBox
+
+              - id: CanvasNetMermaid-Mindmap-MindmapRenderer-Limits
+                title: >-
+                  The MindmapRenderer unit shall refuse, with a MermaidRenderException of code mermaid-limit-exceeded
+                  located at the node, a label longer than the MaxLabelLength of the render as the label is built for
+                  drawing; shall charge its work and the work of the layout, deterministically, to MaxLayoutWork,
+                  stopping with a located mermaid-limit-exceeded failure when the work passes it; and shall stop a
+                  canceled render with an OperationCanceledException.
+                justification: |
+                  A document opened under larger limits can be rendered under smaller ones, and decoding a label can
+                  make it longer; the work of a render must stay bounded and stoppable whatever the text.
+                tests:
+                  - MindmapRenderer_Draw_LabelOverTheRenderLimit_IsALocatedLimit
+                  - MindmapRenderer_Draw_SmallMindmap_ChargesPinnedWork
+                  - MindmapRenderer_Draw_Canceled_Throws

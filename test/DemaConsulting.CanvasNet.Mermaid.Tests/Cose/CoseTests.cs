@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.Cose;
 
 /// <summary>
 ///     Subsystem tests of the Cose subsystem: whole layouts of representative trees, their determinism, the edge points
-///     that come with them, and the failures and limits of hostile sizes.
+///     that come with them, the failures and limits of hostile sizes, the work budget, and cancellation.
 /// </summary>
 public class CoseTests
 {
@@ -128,6 +128,26 @@ public class CoseTests
         // Assert
         Assert.Equal(400, result.Centers.Count);
         Assert.True(meter.Used < MermaidLimits.Default.MaxLayoutWork);
+    }
+
+    /// <summary>
+    ///     Validates that a layout stops with a limit failure when its work passes the budget of the call, and with
+    ///     <see cref="OperationCanceledException"/> when the call is canceled.
+    /// </summary>
+    [Fact]
+    public void Cose_Layout_SmallBudgetOrCanceled_Stops()
+    {
+        // Arrange
+        var (sizes, links) = MindmapLike(40);
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        // Act
+        var limit = Assert.Throws<MermaidRenderException>(() => CoseLayout.Run(sizes, links, new LayoutWorkMeter(1_000, default, CancellationToken.None)));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, limit.Code);
+        Assert.Throws<OperationCanceledException>(() => CoseLayout.Run(sizes, links, new LayoutWorkMeter(long.MaxValue, default, source.Token)));
     }
 
     /// <summary>

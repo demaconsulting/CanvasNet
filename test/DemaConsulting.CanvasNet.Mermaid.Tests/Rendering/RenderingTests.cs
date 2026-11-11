@@ -276,6 +276,51 @@ public sealed class RenderingTests
     }
 
     /// <summary>
+    ///     Checks the mindmap shapes drawn through the shared shapes: the bang, the rectangle, the default node with the
+    ///     line under it, the hexagon, and the circle are the size Mermaid gives them and stand where Mermaid puts them,
+    ///     and the view box is Mermaid's.
+    /// </summary>
+    [Fact]
+    public void Rendering_Mindmap_Shapes_MatchMermaid()
+    {
+        // Act
+        var scene = SceneQuery.Layout(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mindmap", "03-root-shapes.mmd")));
+
+        // Assert
+        AssertBox(new SceneRect(5, 5, 656.514, 378.522), scene.ViewBox);
+        var nodes = SceneQuery.Nodes(scene);
+        AssertBox(new SceneRect(317.406, 170.899, 165.918, 80), nodes["node_0"].Box);
+        AssertBox(new SceneRect(144.391, 158.435, 116.469, 44), nodes["node_1"].Box);
+        AssertBox(new SceneRect(15, 230.483, 156.531, 34), nodes["node_2"].Box);
+        AssertBox(new SceneRect(525.378, 101.554, 87.391, 44), nodes["node_3"].Box);
+        AssertBox(new SceneRect(519.168, 261.341, 56.453, 56.453), nodes["node_6"].Box);
+        Assert.Equal(6, SceneQuery.Edges(scene).Count);
+    }
+
+    /// <summary>
+    ///     Checks that a label holding a Font Awesome icon is reported as an icon that is not drawn, located at its node,
+    ///     in a flowchart and in a mindmap alike, and that the node is still drawn.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    /// <param name="line">The line of the node with the icon.</param>
+    [Theory]
+    [InlineData("flowchart LR\n  a[Start]\n  b[fa:fa-car Car]\n", 3)]
+    [InlineData("mindmap\n  Start\n    fa:fa-car Car\n", 3)]
+    public void Rendering_FontAwesomeLabel_IsReportedAsAnIcon(string text, int line)
+    {
+        // Arrange
+        var (options, _, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var scene = SceneQuery.Layout(text, options);
+
+        // Assert
+        Assert.Equal(2, SceneQuery.Nodes(scene).Count);
+        var report = Assert.Single(unsupported);
+        Assert.Equal((MermaidDiagnosticCodes.IconUnsupported, line), (report.Feature, report.Location.Line));
+    }
+
+    /// <summary>
     ///     Reads a flowchart fixture.
     /// </summary>
     /// <param name="name">The fixture name without extension.</param>

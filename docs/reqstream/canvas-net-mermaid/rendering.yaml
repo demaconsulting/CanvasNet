@@ -1,10 +1,10 @@
 ---
 # Software Subsystem Requirements for Rendering
 #
-# These requirements decompose the CanvasNetMermaid system's flowchart, class, state, and entity relationship diagram,
-# layout-fidelity, picture, and unsupported-feature responsibilities into the Rendering subsystem (internal namespace
-# DemaConsulting.CanvasNet.Mermaid.Rendering): the diagram-independent geometry of Mermaid's unified renderer that
-# lays out and draws the layout data of a diagram (ClusterLayout), the node shapes and their registry
+# These requirements decompose the CanvasNetMermaid system's flowchart, class, state, entity relationship diagram, and
+# mindmap, layout-fidelity, picture, and unsupported-feature responsibilities into the Rendering subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the diagram-independent geometry of Mermaid's unified renderer
+# that lays out and draws the layout data of a diagram (ClusterLayout), the node shapes and their registry
 # (ShapeLibrary), the edges with their curves, markers, and labels (EdgeBuilder), the label text (LabelBuilder), and
 # the pictures that are loaded through the caller's resolver (NodeImages). Each requirement here links down to the
 # unit requirements that implement it. See docs/verification/canvas-net-mermaid/rendering.md for the test-evidence
@@ -54,10 +54,11 @@ sections:
               with their aliases, the bracket shapes, and the undocumented shapes a flowchart accepts - the class box
               of a class diagram with its annotation, name, members, methods, and dividers, the state, start, end,
               fork, join, choice, and note shapes and the composite state, concurrent region, and note group clusters
-              of a state diagram, and the entity box of an entity relationship diagram with its table, sized from
-              its label and padding, painted by the style sheet and the node's own styles, with the outline that
-              edges end on, and with the picture of an image node loaded only through the caller's image resolver,
-              so that every node has the size and the look Mermaid gives it.
+              of a state diagram, the entity box of an entity relationship diagram with its table, and the default node
+              and the circle of a mindmap, sized from its label, its padding, and its own wrapping width, painted by the
+              style sheet through the node's classes and the element of the shape and by the node's own styles, with
+              the outline that edges end on, and with the picture of an image node loaded only through the caller's
+              image resolver, so that every node has the size and the look Mermaid gives it.
             justification: |
               The size of each node drives the whole layout, and its outline decides where the edges end; a picture
               must never be read except through the resolver that the caller chose.
@@ -76,6 +77,10 @@ sections:
               - CanvasNetMermaid-Rendering-ShapeLibrary-StateClusters
               - CanvasNetMermaid-Rendering-ShapeLibrary-ErBox
               - CanvasNetMermaid-Rendering-ShapeLibrary-SvgTextAnchor
+              - CanvasNetMermaid-Rendering-ShapeLibrary-MindmapShapes
+              - CanvasNetMermaid-Rendering-ShapeLibrary-ClassPaint
+              - CanvasNetMermaid-Rendering-ShapeLibrary-WrapWidth
+              - CanvasNetMermaid-Rendering-ShapeLibrary-LabelBackground
               - CanvasNetMermaid-Rendering-NodeImages-Resolver
               - CanvasNetMermaid-Rendering-NodeImages-NaturalSize
               - CanvasNetMermaid-Rendering-NodeImages-DeviceSize
@@ -88,6 +93,7 @@ sections:
               - Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid
               - Rendering_StateDiagram_CompositeWithRegions_MatchesMermaid
               - Rendering_ErDiagram_EntityTablesAndMarkers_MatchMermaid
+              - Rendering_Mindmap_Shapes_MatchMermaid
 
           - id: CanvasNetMermaid-Rendering-Edges
             title: >-
@@ -127,10 +133,11 @@ sections:
               The Rendering subsystem shall lay out and measure the text of node, subgraph, and edge labels as
               Mermaid does with the bundled fonts - plain and markdown strings, HTML labels with Mermaid's supported
               elements, and SVG labels, wrapped at the wrapping width - and shall report each HTML element it does
-              not support and each character that no bundled font can draw; shall draw an SVG label in the font
-              weight it inherits, as the bold name of a class box, with each of its runs advanced on the browser's
-              grid and its background measured in the size it inherits; and shall wrap and measure the texts of
-              sequence diagrams as Mermaid's text utilities do.
+              not support and each character that no bundled font can draw, and shall find for the diagrams that
+              report them the labels that hold a Font Awesome icon; shall draw an SVG label in the font weight it
+              inherits, as the bold name of a class box, with each of its runs advanced on the browser's grid and its
+              background measured in the size it inherits; and shall wrap and measure the texts of sequence diagrams as
+              Mermaid's text utilities do.
             justification: |
               The measured label decides the size of every node and the spacing that edge labels add between ranks;
               a construct that is not drawn as Mermaid draws it must be reported rather than silently changed. The
@@ -148,10 +155,12 @@ sections:
               - CanvasNetMermaid-Rendering-LabelBuilder-InheritedWeight
               - CanvasNetMermaid-Rendering-LabelBuilder-SvgRunGrid
               - CanvasNetMermaid-Rendering-LabelBuilder-SvgBackgroundSize
+              - CanvasNetMermaid-Rendering-LabelBuilder-FontAwesome
             tests:
               - Rendering_Flowchart_LinkedSubgraphs_MatchMermaid
               - Rendering_Flowchart_EdgeLabels_MatchMermaid
               - Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes
+              - Rendering_FontAwesomeLabel_IsReportedAsAnIcon
               - Rendering_TextUtilities_WrapAtWordsAndMeasurePerLine
               - Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid
               - Rendering_StateDiagram_CompositeWithRegions_MatchesMermaid

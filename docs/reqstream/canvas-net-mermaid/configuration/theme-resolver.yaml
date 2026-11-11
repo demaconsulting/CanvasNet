@@ -4,9 +4,9 @@
 # These requirements describe the design-level behavior of the ThemeResolver unit of the Configuration subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's five built-in themes
 # (with the JavaScript object model their derivations rely on, ThemeObject) and of the style sheet Mermaid writes for
-# a flowchart (FlowchartStyles), with the style sheets of the other diagrams and of pie and gantt charts (PieStyles,
-# GanttStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for the
-# test-evidence mapping.
+# a flowchart (FlowchartStyles), with the style sheets of the other diagrams, of pie and gantt charts, and of mindmaps
+# (PieStyles, GanttStyles, MindmapStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for
+# the test-evidence mapping.
 
 sections:
   - title: CanvasNetMermaid Requirements
@@ -206,6 +206,40 @@ sections:
                 tests:
                   - GanttStyles_Create_DefaultTheme_CascadesClassSets
                   - GanttStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-MindmapStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a mindmap - the same global
+                  rules as for a flowchart and the mindmap rules, one set for each section up to the theme's
+                  THEME_COLOR_LIMIT, the root's rules, and, for a theme that uses gradients, the rules that hide the
+                  line under a default node - from the theme variables of a configuration, leave out a declaration that
+                  CSS drops (a negative stroke width), apply the themeCSS rules of the mindmap's own selectors after
+                  them and report every other themeCSS rule as mermaid-theme-css-unsupported, and resolve from them the
+                  fill of each section and of the root, the line under a default node, the label colors, the edge
+                  color of each section, and the edge width of each depth.
+                justification: |
+                  Mermaid paints a mindmap through these rules in every theme; resolving them the same way, the rules
+                  the browser drops included, gives the same paint.
+                tests:
+                  - MindmapStyles_Create_DefaultTheme_ResolvesSectionRules
+                  - MindmapStyles_Create_EdgeRules_DropNegativeWidths
+                  - MindmapStyles_Create_EachTheme_UsesThemeVariables
+                  - MindmapStyles_Create_GradientThemes_HideTheSectionLines
+                  - MindmapStyles_Create_ThemeCss_OverridesKnownSelectors
+                  - MindmapStyles_Create_ColorLimit_BoundsTheSections
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses
+                title: >-
+                  The ThemeResolver unit shall give the paint of a node's part from the node's classes and the element
+                  that draws it (a path, a rectangle, a circle, a polygon, or a line) and the paint of its label from
+                  the node's classes, the mindmap sheet through the cascade of its rules and every other sheet with its
+                  node and node label rules, leaving a line unpainted.
+                justification: |
+                  Mindmap nodes take their colors from their section classes and the element that draws them, while the
+                  nodes of the other diagrams keep the paint they had.
+                tests:
+                  - UnifiedStyles_NodePaintFor_OtherSheets_UseTheNodeRule
+                  - MindmapStyles_Create_DefaultTheme_ResolvesSectionRules
 
               - id: CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
                 title: >-

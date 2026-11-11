@@ -6,7 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests.Mindmap;
 /// <summary>
 ///     Subsystem tests of the Mindmap subsystem (<c>MindmapParser</c> and <c>MindmapRenderer</c> together): a whole text
 ///     gives the diagram and the scene, with one drawn node per parsed node and one edge per parent link, laid out the
-///     same way every time, and a text that does not follow the grammar fails closed, located.
+///     same way every time, what is not drawn is reported, and a text that does not follow the grammar fails closed,
+///     located.
 /// </summary>
 public sealed class MindmapTests
 {
@@ -68,6 +69,29 @@ public sealed class MindmapTests
         var bold = scene.Walk().Select(entry => entry.Item).OfType<SceneText>().First(text => text.Runs.Any(run => run.Text.Contains("Bold", StringComparison.Ordinal)));
         Assert.True(bold.Runs[0].Font.Bold);
         Assert.Equal(["edge_0_1", "edge_0_2", "edge_2_3"], SceneQuery.Edges(scene).Keys);
+    }
+
+    /// <summary>
+    ///     Validates that what a mindmap asks for but is not drawn (a layout other than cose-bilkent and a node's icon) is
+    ///     reported in order, located, and that the whole mindmap is still drawn.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Mindmap_UnsupportedFeatures_AreReportedAndDrawn()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  layout: elk\n---\nmindmap\n  Root\n    Books\n    ::icon(fa fa-book)\n";
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var scene = SceneQuery.Layout(Text, options);
+
+        // Assert
+        Assert.Equal(2, SceneQuery.Nodes(scene).Count);
+        Assert.Single(SceneQuery.Edges(scene));
+        Assert.Empty(warnings);
+        Assert.Equal(
+            [(MermaidDiagnosticCodes.LayoutUnsupported, 3), (MermaidDiagnosticCodes.IconUnsupported, 8)],
+            unsupported.Select(report => (report.Feature, report.Location.Line)));
     }
 
     /// <summary>

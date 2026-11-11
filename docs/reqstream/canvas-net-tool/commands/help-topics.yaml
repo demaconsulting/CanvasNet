@@ -162,12 +162,12 @@ sections:
           their shapes, links, subgraphs, labels, styles, configuration, themes, pictures, and titles, sequence
           diagrams, their statements, arrows, participant types, and settings, class diagrams, their syntax,
           relations, and settings, state diagrams, their syntax and settings, entity relationship diagrams, their
-          syntax, cardinalities, and settings, pie charts, their syntax and settings, and gantt charts, their syntax,
-          tags, and settings), each diagram type and construct that
+          syntax, cardinalities, and settings, pie charts, their syntax and settings, gantt charts, their syntax,
+          tags, and settings, and mindmaps, their syntax and settings), each diagram type and construct that
           is not drawn with the identifier of its diagnostic, the options that apply (--theme, --scale, --background,
           and --strict), the diagnostics and errors with their codes, and the known differences from Mermaid, source
           examples of a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship
-          diagram, a pie chart, and a gantt chart that render with the strict option without a diagnostic, a
+          diagram, a pie chart, a gantt chart, and a mindmap that render with the strict option without a diagnostic, a
           snippet whose nodes show a model and a chart (the examples of the scad and vega-lite topics) that renders the
           same way once those files exist and lists one embed operation for each, and command examples for render, the
           theme, and info; shall quote the limits of the Mermaid library (text size, nodes, edges, and pictures) from
@@ -192,8 +192,8 @@ sections:
           The HelpTopics class shall give in the mermaid topic, item by item and in order, the same class diagram
           syntax, relation, and setting rows, the same state diagram syntax and setting rows, the same entity
           relationship diagram syntax, cardinality, and setting rows, the same pie chart syntax and setting rows, the
-          same gantt chart syntax, tag, and setting rows, and the same unsupported-feature and warning
-          codes as the Mermaid user guide, worded the same apart from formatting.
+          same gantt chart syntax, tag, and setting rows, the same mindmap syntax and setting rows, and the same
+          unsupported-feature and warning codes as the Mermaid user guide, worded the same apart from formatting.
         justification: |
           People read the guide and agents read the help; both must describe the same version, and a row added to
           one and not the other would tell one of them something untrue.

@@ -801,8 +801,8 @@ sections:
         justification: |
           Agents and documentation describe processes and structures as Mermaid text; drawing it without a browser
           or a Node.js installation, the same on every machine, lets agents check what they wrote and lets documents
-          embed the result. An agent learns before it renders whether the type of a diagram is drawn yet, every gap
-          of the renderer is reported rather than silently skipped, and every mistake of a diagram is a concise,
+          embed the result. An agent learns before it renders whether this version draws the type of a diagram, every
+          gap of the renderer is reported rather than silently skipped, and every mistake of a diagram is a concise,
           coded error with a suggestion rather than a crash.
         children:
           - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
@@ -817,6 +817,7 @@ sections:
         tests:
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn
+          - CanvasNetTool_Mermaid_MindmapAsProcess_IsDrawn
           - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
 
       - id: CanvasNetTool-System-SvgEmbed

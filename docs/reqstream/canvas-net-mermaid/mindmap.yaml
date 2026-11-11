@@ -1,0 +1,104 @@
+---
+# Software Subsystem Requirements for Mindmap
+#
+# These requirements decompose the CanvasNetMermaid system's mindmap responsibility into the Mindmap subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Mindmap): reading the mindmap language exactly as the pinned
+# Mermaid release reads it and keeping the tree it declares as Mermaid's mindmap database keeps it (MindmapParser), and
+# drawing the mindmap - its node shapes, sections, labels, and edges, laid out by the Cose subsystem - as Mermaid's
+# mindmap renderer draws it (MindmapRenderer). Each requirement here links down to the unit requirements that implement
+# it. See docs/verification/canvas-net-mermaid/mindmap.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Mindmap Requirements
+        requirements:
+          - id: CanvasNetMermaid-Mindmap-Language
+            title: >-
+              The Mindmap subsystem shall open every mindmap text (the mindmap keyword) that the mindmap grammar of the
+              pinned Mermaid release accepts - one node per line with its id, its bracket shape, and its plain, quoted,
+              or markdown text, the indentation that makes the tree, the icon and class decorations, blank lines, and
+              comments - into the same tree of nodes, shapes, texts, icons, classes, and sections that Mermaid's
+              mindmap database records for it.
+            justification: |
+              A mindmap can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's jison grammar and mindmap database, quirks included, not by
+              a description of them.
+            children:
+              - CanvasNetMermaid-Mindmap-MindmapParser-Tokens
+              - CanvasNetMermaid-Mindmap-MindmapParser-Shapes
+              - CanvasNetMermaid-Mindmap-MindmapParser-Tree
+              - CanvasNetMermaid-Mindmap-MindmapParser-Texts
+              - CanvasNetMermaid-Mindmap-MindmapParser-Decorations
+              - CanvasNetMermaid-Mindmap-MindmapParser-Sections
+            tests:
+              - CanvasNetMermaid_Mindmap_Text_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Mindmap_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Mindmap-Metadata
+            title: >-
+              The Mindmap subsystem shall give the number of nodes of an opened mindmap, one edge for each node but the
+              root, and no subgraphs, without rendering it.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of a mindmap must keep the meaning of the document's node, edge, and subgraph counts.
+            children:
+              - CanvasNetMermaid-Mindmap-MindmapParser-Metadata
+            tests:
+              - CanvasNetMermaid_Mindmap_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Mindmap-FailClosed
+            title: >-
+              The Mindmap subsystem shall refuse, when the document is opened, a mindmap text that its grammar or its
+              lexer does not accept, that has a second root or a node that no node can take as its parent, that
+              decorates no node, or that exceeds the node, nesting depth, or label length limits of the open call, and
+              shall refuse, when it is rendered, a label longer than the label length limit of the render, each with a
+              coded exception located in the original text, with a hint, and for a grammar error with the tokens that
+              Mermaid lists as expected.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it, also where Mermaid itself
+              fails with a JavaScript error.
+            children:
+              - CanvasNetMermaid-Mindmap-MindmapParser-Tree
+              - CanvasNetMermaid-Mindmap-MindmapParser-Decorations
+              - CanvasNetMermaid-Mindmap-MindmapParser-Errors
+              - CanvasNetMermaid-Mindmap-MindmapParser-Limits
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-Limits
+            tests:
+              - CanvasNetMermaid_Mindmap_InvalidText_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-Mindmap-Drawing
+            title: >-
+              The Mindmap subsystem shall draw a mindmap as Mermaid's mindmap renderer draws it under the effective
+              configuration and theme of the render - every node in its shape, sized from its label, the padding, and
+              the wrapping width of its shape, and painted in the color of its section; an edge from each node to each
+              of its children in the color of the section and the width of its depth; the nodes placed by the
+              cose-bilkent layout from the sizes the browser would give it; and the view box of the drawing grown by
+              the padding - the same way on every render.
+            justification: |
+              The pixels and the size of a mindmap must be Mermaid's for the same text, configuration, and theme.
+            children:
+              - CanvasNetMermaid-Mindmap-MindmapParser-Sections
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-NodeData
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-LayoutSizes
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-SectionPaint
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-Edges
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-ViewBox
+            tests:
+              - CanvasNetMermaid_Mindmap_Text_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Mindmap_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Mindmap-UnsupportedFeatures
+            title: >-
+              The Mindmap subsystem shall report, located and in order, a look other than classic, a layout other than
+              cose-bilkent, the icon of a node, and a Font Awesome icon in a label as unsupported features, and shall
+              still draw the whole mindmap in the classic look with the cose-bilkent layout and every node with its
+              shape and label.
+            justification: |
+              A partial picture must never be mistaken for a complete one; what a mindmap asks for but is not drawn
+              must be named where it is written, and the rest must still be drawn.
+            children:
+              - CanvasNetMermaid-Mindmap-MindmapRenderer-Reports
+            tests:
+              - CanvasNetMermaid_Mindmap_UnsupportedFeatures_AreReportedAndDrawn
