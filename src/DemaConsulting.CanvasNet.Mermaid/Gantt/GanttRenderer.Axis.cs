@@ -70,6 +70,9 @@ internal sealed partial class GanttRenderer
             var min = _scale.Domain0;
             var max = _scale.Domain1;
             var intervalMs = every * unitMs;
+
+            // Mermaid's getEstimatedTickCount counts intervals, not ticks: a span of exactly 10,000 intervals passes and
+            // draws 10,001 ticks (both ends), as mermaid-cli does
             var estimate = min > max || !(intervalMs > 0) ? double.PositiveInfinity : Math.Ceiling((max - min) / intervalMs);
             if (estimate > MaxTickCount)
             {

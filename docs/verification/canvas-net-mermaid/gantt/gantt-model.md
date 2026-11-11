@@ -7,9 +7,9 @@ the compilation of the task dates, in three partial files) with `GanttStartKind`
 
 #### Verification Approach
 
-The unit is verified in two ways. `GanttVectorTests` parses the 291 cases of
+The unit is verified in two ways. `GanttVectorTests` parses the 295 cases of
 `Fixtures/upstream-vectors/gantt-parser.json` (see the GanttParser unit verification design for their sources) and,
-for each of the 269 texts that Mermaid parses, compares the facts of the model with the facts of Mermaid's gantt
+for each of the 273 texts that Mermaid parses, compares the facts of the model with the facts of Mermaid's gantt
 database and then compiles the task dates with the clock of the vectors, 2024-06-12T10:30:00Z, and compares them with
 the tasks that Mermaid's `getTasks` gave in a browser with the UTC time zone and the same clock. For each of the 22
 texts on which Mermaid's compilation throws, the compilation must fail with a located `mermaid-render-failed` whose
@@ -175,6 +175,8 @@ Mermaid's dates for the clock of the vectors.
 ##### CanvasNetMermaid-Gantt-GanttModel-DateFallback: ECMAScript Date Texts Only
 
 **Tests**: `GanttModelTests.GanttModel_Compile_DateFallback_ReadsEcmaScriptFormsOnly`,
+`GanttModelTests.GanttModel_Compile_UnixDateFormats_ReadAsMermaid`,
+`GanttModelTests.GanttModel_Compile_EndDates_HaveNoIsoFallback`,
 `GanttModelTests.Dayjs_NumberAndDateStrings_FollowJavaScript`,
 `GanttVectorTests.GanttParser_Parse_UpstreamVector_MatchesMermaid`
 
@@ -184,7 +186,15 @@ spaces, fails with `mermaid-render-failed`, the message `Invalid date:2024-1-5`,
 `ParseDateString` reads `2024` as 2024-01-01 and `2024-01-05T24:00` as 2024-01-06, and refuses `2024-01-05T10` and the
 year `-000000`; that the 27 date texts of the upstream vectors read as `new Date` reads them give Mermaid's dates or
 fail where Mermaid fails, except the legacy forms; and that the 11 vectors with legacy date forms, among them some of
-those 27, fail with Mermaid's `Invalid date:` message.
+those 27, fail with Mermaid's `Invalid date:` message. Asserts that with `dateFormat X` the start `1717372800` is
+1,717,372,800 milliseconds (Mermaid's numeric fast path) while the end `1717459200` is 2024-06-04 (dayjs reads `X` as
+seconds), and a `1d` end is a day after that start; and that with `dateFormat x` both `1717372800000` and
+`1717459200000` are milliseconds (2024-06-03 and 2024-06-04). Asserts that without a date format (the model's
+`DateFormat` is empty, Mermaid's default) the task `2024-01-05, 2024-01-06` ends at its start with a manual end, and
+that with `dateFormat DD-MM-YYYY` the end `2024-01-08` (an ISO form that the format does not read) ends the task at its
+start while `08-01-2024` ends it at 2024-01-08 and the ISO start `2024-01-06` is read by the fallback. The fixtures
+`16-end-dates-strict` and `17-dateformat-unix-seconds` pin the same dates in the upstream vectors and their drawing in
+the mermaid-cli goldens.
 
 ##### CanvasNetMermaid-Gantt-GanttModel-Dayjs: The Dayjs That Mermaid Bundles
 

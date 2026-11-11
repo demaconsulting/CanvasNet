@@ -166,17 +166,23 @@ sections:
 
               - id: CanvasNetMermaid-Gantt-GanttModel-DateFallback
                 title: >-
-                  The GanttModel unit shall read a start or end date as Mermaid's database reads it - a timestamp in
-                  milliseconds or seconds for the date format x or X, a date that the date format reads strictly, and
-                  otherwise, for a start, a date text of the ECMAScript date time string format as JavaScript's Date
-                  reads it, a date alone in UTC, a time without an offset in UTC, a day up to 31 carried past the end of
-                  a shorter month, and 24:00 as the next midnight - and shall take any other text, the legacy forms of
-                  browsers included, and a year before -10,000 or after 10,000 as an invalid date.
+                  The GanttModel unit shall read a start or end date as Mermaid's database reads it - for a start only,
+                  a text of digits alone as a timestamp in milliseconds when the date format is x or X (Mermaid's
+                  getStartDate fast path); a date that the date format reads strictly (with X in seconds and x in
+                  milliseconds); and otherwise, for a start only, a date text of the ECMAScript date time string format
+                  as JavaScript's Date reads it, a date alone in UTC, a time without an offset in UTC, a day up to 31
+                  carried past the end of a shorter month, and 24:00 as the next midnight - and shall take any other
+                  start text, the legacy forms of browsers included, and a year before -10,000 or after 10,000 as an
+                  invalid date, while an end that the date format does not read is a duration or else the start, as
+                  Mermaid's getEndDate has no ECMAScript fallback.
                 justification: |
                   Without a date format Mermaid reads the start dates with the browser's date parser; the ECMAScript
-                  forms are the ones whose meaning is specified and the same in every browser.
+                  forms are the ones whose meaning is specified and the same in every browser. Mermaid reads end dates
+                  and the numeric starts of x and X differently, and the bars must stand where Mermaid draws them.
                 tests:
                   - GanttModel_Compile_DateFallback_ReadsEcmaScriptFormsOnly
+                  - GanttModel_Compile_UnixDateFormats_ReadAsMermaid
+                  - GanttModel_Compile_EndDates_HaveNoIsoFallback
                   - Dayjs_NumberAndDateStrings_FollowJavaScript
                   - GanttParser_Parse_UpstreamVector_MatchesMermaid
 

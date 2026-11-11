@@ -6,14 +6,14 @@ two partial files) and the token kinds `GanttTokens`.
 
 #### Verification Approach
 
-The unit is verified in two ways. `GanttVectorTests` parses the 291 cases of
+The unit is verified in two ways. `GanttVectorTests` parses the 295 cases of
 `Fixtures/upstream-vectors/gantt-parser.json`, recorded from the pinned Mermaid release in headless Chrome, with the
 UTC time zone and the clock fixed at 2024-06-12T10:30:00Z, by `tools/visual-diff/mermaid/gen-diagram-vectors.mjs
 --type gantt` from the texts of `gantt-vector-cases.mjs`: the inputs of Mermaid's gantt parser spec
 (`diagrams/gantt/parser/gantt.spec.js`, 34 cases) and of its gantt database spec (`diagrams/gantt/ganttDb.spec.ts`, 33
 cases), 210 original texts that cover the lexer's rule order and quirks, the statements, the tasks and their tags,
-the click forms, the date formats, the date texts, the references, the excluded days, and the errors, and the 14 gantt
-fixtures. Each text goes through Mermaid's preprocessing and detection, as a diagram does. For each of the 269 texts
+the click forms, the date formats, the date texts, the references, the excluded days, and the errors, and the 18 gantt
+fixtures. Each text goes through Mermaid's preprocessing and detection, as a diagram does. For each of the 273 texts
 that Mermaid parses the facts of Mermaid's gantt database (the title, the accessibility texts, the date and axis
 formats, the tick interval, the today marker, the includes and excludes, the weekday, the inclusive end dates, the
 sections, and the links) must equal the facts of the parsed model, and the compiled tasks are compared as the GanttModel

@@ -640,7 +640,7 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
     fails with a located `mermaid-render-failed`; where Mermaid's parser throws (the `topAxis` statement, a task of
     tags only), the open fails with a located syntax error. dayjs format tokens of plugins that Mermaid does not
     load fail as in Mermaid.
-45. **Gantt reports.** A `tickInterval` that would give more than 10,000 ticks and excluded days over more than five
+45. **Gantt reports.** A `tickInterval` whose span is more than 10,000 intervals and excluded days over more than five
     years are reported (`mermaid-gantt-ticks-skipped`, `mermaid-gantt-excludes-skipped`) where Mermaid only writes to
     the browser console; the picture is Mermaid's (the default ticks, no shading).
 46. **Gantt links and callbacks.** The `click` statements of a gantt chart are kept as data: a link is checked as

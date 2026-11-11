@@ -128,12 +128,12 @@ a `todayMarker` style.
 for each task that is not a vertical marker (or the rows of the compact mode); the time scale from the earliest start
 to the latest end, rounded to whole pixels; the excluded days, the axes with their grid and tick labels, the section
 rows, the bars with their texts, the section titles, the today line, and the title, in Mermaid's order, with the paint
-of the gantt style sheet (`GanttStyles`). Mermaid leaves out the ticks of a `tickInterval` that would make more than
-10,000 ticks and the shading of the excluded days of a chart that spans more than five years, writing a warning to its
-console; the renderer leaves them out too and reports them as `mermaid-gantt-ticks-skipped` and
+of the gantt style sheet (`GanttStyles`). Mermaid leaves out the ticks of a `tickInterval` whose span is more than
+10,000 intervals and the shading of the excluded days of a chart that spans more than five years, writing a warning to
+its console; the renderer leaves them out too and reports them as `mermaid-gantt-ticks-skipped` and
 `mermaid-gantt-excludes-skipped`. See _GanttRenderer Unit Design_ and _TimeAxis Unit Design_.
 
-**Fidelity is proven against Mermaid itself.** The upstream vectors (`gantt-parser.json`, 291 cases recorded from the
+**Fidelity is proven against Mermaid itself.** The upstream vectors (`gantt-parser.json`, 295 cases recorded from the
 pinned Mermaid release in headless Chrome with the UTC time zone and the clock fixed at 2024-06-12T10:30:00Z) give,
 for each valid text, the facts of Mermaid's gantt database and the dates of every compiled task, and for each invalid
 text the error Mermaid reports, with its unexpected token and, for a grammar error, the tokens jison expects; the unit

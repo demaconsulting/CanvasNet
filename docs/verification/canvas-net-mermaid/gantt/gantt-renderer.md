@@ -69,11 +69,16 @@ start is compiled from the end of `A`, the bounds (392, 74, 317, 20).
 
 ##### CanvasNetMermaid-Gantt-GanttRenderer-Paint: The Classes And The Paint Of The Tasks
 
-**Tests**: `GanttRendererTests.GanttRenderer_Draw_TaskStates_PaintFromTheStyleSheet`
+**Tests**: `GanttRendererTests.GanttRenderer_Draw_TaskStates_PaintFromTheStyleSheet`,
+`GanttRendererTests.GanttRenderer_Draw_NumberSectionStylesZero_PaintsNaNClassesAsMermaid`
 
 Asserts, with the default theme, that a plain task is filled `#8a90dd` and stroked `#534fbc` at a width of 2, a `done`
 task is filled `lightgrey` and stroked `grey`, and an `active` and `crit` task is filled `#bfc7ff` and stroked
-`#ff8888`, and that the text of a task with a `click` link is bold and colored `#003163`.
+`#ff8888`, and that the text of a task with a `click` link is bold and colored `#003163`. Asserts that with
+`gantt.numberSectionStyles: 0` the chart renders without a warning or failure and its plain and `done` bars are both
+filled `#333`: the section number is JavaScript's `i % 0`, NaN, so the classes (`taskNaN`, `doneNaN`, `sectionNaN`) match
+no rule of the style sheet, as mermaid-cli draws them (the fixture `18-number-section-styles-zero` pins the whole
+picture in its golden).
 
 ##### CanvasNetMermaid-Gantt-GanttRenderer-Milestones: The Milestone Diamond
 
@@ -146,12 +151,15 @@ axes `bottom` and `top`, the bottom one at (75, 74), 50 above the height of 124;
 ##### CanvasNetMermaid-Gantt-GanttRenderer-TickInterval: The Tick Interval
 
 **Tests**: `GanttRendererTests.GanttRenderer_ParseTickInterval_AcceptsMermaidsForm`,
-`GanttRendererTests.GanttRenderer_Draw_Axes_TicksAndLabels`
+`GanttRendererTests.GanttRenderer_Draw_Axes_TicksAndLabels`,
+`GanttRendererTests.GanttRenderer_Draw_TickCapBoundary_EstimatesAsMermaid`
 
 Asserts that `3week` parses as the step 3 of weeks of 604,800,000 milliseconds and `1month` as the step 1 of months of
 2,628,000,000 milliseconds (365/12 days), and that `0day`, `1 day`, `1year`, and no text are no interval; that the
-interval `2day` places the ticks two days apart; and that `tickInterval 1millisecond` over 8 days gives a
-`mermaid-gantt-ticks-skipped` warning and still draws the default ticks.
+interval `2day` places the ticks two days apart; that `tickInterval 1millisecond` over 8 days gives a
+`mermaid-gantt-ticks-skipped` warning and still draws the default ticks; and, at the cap, that `tickInterval 1day` over
+exactly 10,000 days (Mermaid's estimate 10,000) draws 10,001 ticks without a warning, both ends included, as
+mermaid-cli does, while over 10,001 days it warns and draws d3's 14 default ticks.
 
 ##### CanvasNetMermaid-Gantt-GanttRenderer-Title: The Title
 

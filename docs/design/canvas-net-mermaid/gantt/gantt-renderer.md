@@ -197,7 +197,8 @@ items carry the location of their task, of the `todayMarker` statement, of the t
 - **The axis offset.** The ticks are half a pixel past their whole pixels at every render scale, as d3-axis places them
   at a device pixel ratio of 1.
 - **Reports in place of console warnings.** The excluded days skipped for a span of more than five years and a tick
-  interval that would make more than 10,000 ticks are reported as `mermaid-gantt-excludes-skipped` and
+  interval whose span is more than 10,000 intervals (Mermaid's `getEstimatedTickCount`, the span over the interval
+  rounded up, so exactly 10,000 intervals draw 10,001 ticks) are reported as `mermaid-gantt-excludes-skipped` and
   `mermaid-gantt-ticks-skipped`, where Mermaid writes a warning to the console.
 - **Limits.** The work of the drawing is bounded by `MaxLayoutWork` and each tick label by `MaxLabelLength`; Mermaid has
   no such limits.

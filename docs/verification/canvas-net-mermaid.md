@@ -11,7 +11,7 @@ This document describes the system-level verification strategy for CanvasNetMerm
 - **System tests** (described here) use only the public API, as a consumer would: they open original-work diagrams
   from in-memory text, streams, temporary files, the 42 flowchart fixtures in `Fixtures/flowchart/`, the 24
   sequence fixtures in `Fixtures/sequence/`, the 16 class fixtures in `Fixtures/class/`, the 14 state fixtures in
-  `Fixtures/state/`, the 12 ER fixtures in `Fixtures/er/`, the 8 pie fixtures in `Fixtures/pie/`, and the 14 gantt
+  `Fixtures/state/`, the 12 ER fixtures in `Fixtures/er/`, the 8 pie fixtures in `Fixtures/pie/`, and the 18 gantt
   fixtures in `Fixtures/gantt/` with `MermaidDocument.Parse` and
   `MermaidDocument.Open`, supply `MermaidOpenOptions`, `MermaidRenderOptions`, and
   `MermaidLimits`, and assert on observable outputs: the metadata properties, the sizes, sampled pixels of the
@@ -164,7 +164,7 @@ raise only `MermaidSyntaxException`, `MermaidRenderException`, `InvalidDataExcep
 `ArgumentOutOfRangeException`. For an ER diagram, the seeded fuzzer (seed 20261111) does the same over the 12 ER
 fixtures with the tokens of the ER language (the cardinalities in symbols and words, roles, attribute blocks with
 keys, comments, generic types and backticks, aliases, subgraphs, directions, `classDef`, `class`, `style`, and
-accessibility texts). Seeded fuzzers do the same over the 8 pie and the 14 gantt fixtures with the tokens of the pie
+accessibility texts). Seeded fuzzers do the same over the 8 pie and the 18 gantt fixtures with the tokens of the pie
 and gantt languages, rendering the gantt texts with the reference clock, and assert the same documented exception
 types. A pie section with the value `-2` in `chart.mmd` fails at open with `mermaid-syntax-error` at line 3, column 3,
 with Mermaid's message that negative values are not allowed in pie charts.
@@ -354,10 +354,11 @@ for each file), `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_Defaul
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
 `MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
 
-Opens each of the 14 gantt fixtures by its path (the date fallback without a `dateFormat`, durations and inclusive end
+Opens each of the 18 gantt fixtures by its path (the date fallback without a `dateFormat`, durations and inclusive end
 dates, `after` and `until` references, task states, milestones and vertical markers, excludes and includes, a Friday
 weekend, an axis format and a weekly tick interval, the top axis with the compact mode, times of day, click links, a
-today marker style, configuration with a theme and line breaks in sections, and texts beside their bars) and renders it
+today marker style, configuration with a theme and line breaks in sections, texts beside their bars, excluded days over
+a second pass, end dates read strictly, `dateFormat X`, and `numberSectionStyles: 0`) and renders it
 in strict mode with the clock `Now` at 2024-06-12T10:30:00Z, and asserts the type `gantt`, that the surface has the
 measured size, is not fully transparent, and that no report or warning is given. For a chart with
 `todayMarker
@@ -406,7 +407,7 @@ slice arc boxes, and asserts that the 8 pie fixtures and the pie goldens are the
 gantt fixture, laid out with `Now` at the harness's fixed clock of 2024-06-12T10:30:00Z, with its golden (the view box,
 the excluded days, each axis's ticks and labels, the section rows, the bars (their corners after a milestone's
 transform) and texts, the section titles, the today line, and the title, with the computed paint compared exactly) at
-0.01 pixel, 0.02 pixel for text boxes, and asserts that the 14 gantt fixtures and the gantt goldens are the same set.
+0.01 pixel, 0.02 pixel for text boxes, and asserts that the 18 gantt fixtures and the gantt goldens are the same set.
 
 ### CanvasNetMermaid-MeasureRender: Natural Size, Scale, Exact Size, And Background
 

@@ -286,6 +286,10 @@ internal sealed partial class GanttRenderer
     ///     Gets the section index of a task's class (the last section of <c>categories</c> that is the task's, as the loops
     ///     without a break in Mermaid's class functions find it).
     /// </summary>
+    /// <remarks>
+    ///     The modulo is in doubles, as in JavaScript: <c>numberSectionStyles: 0</c> gives NaN (the class <c>taskNaN</c>,
+    ///     which no style rule names), as Mermaid draws it, and never a division by zero.
+    /// </remarks>
     /// <param name="section">The section.</param>
     /// <returns>The index modulo the number of section styles, as JavaScript writes it.</returns>
     private string SectionNumber(string section)

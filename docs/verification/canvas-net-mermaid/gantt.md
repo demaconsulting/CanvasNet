@@ -11,7 +11,7 @@ the d3 time intervals, ticks, scale, and format).
 ### Verification Approach
 
 The `Gantt` subsystem is verified at two tiers. The unit tests (see the unit verification designs under `gantt/`)
-verify each unit, including the 291 upstream vectors recorded from the pinned Mermaid release, which compare both the
+verify each unit, including the 295 upstream vectors recorded from the pinned Mermaid release, which compare both the
 parser and the model (the database facts and the compiled task dates) with Mermaid. The subsystem-level scenarios in
 `GanttTests` verify the four units working together through the document: a whole text is opened as a
 `MermaidDocument` (preprocessed, detected, and parsed into the model), and then asked for its metadata, its located

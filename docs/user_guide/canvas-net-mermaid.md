@@ -542,7 +542,7 @@ of d3, so the bars, the texts, the section rows, and the ticks land where Mermai
 | Tags | `done`, `active`, `crit`, `milestone`, and `vert` before the fields, in any combination; they are listed below |
 | Starts | A date, or `after id1 id2` (the latest end of the named tasks, which may come later in the text) |
 | Ends | A date, a duration (a number, with a fraction if needed, and one of the units `ms`, `s`, `m`, `h`, `d`, `w`, `M`, and `y`, such as `1.5d`), or `until id1 id2` (the earliest start of the named tasks) |
-| Dates | `dateFormat` with the dayjs tokens Mermaid loads (`YYYY`, `MM`, `DD`, `HH`, `mm`, `X`, `x`, and so on), read strictly; without a `dateFormat`, or for a date that does not match it, the ISO forms (`2024-06-03`, `2024-06-03T09:30`); `inclusiveEndDates` makes an end date part of its task |
+| Dates | `dateFormat` with the dayjs tokens Mermaid loads (`YYYY`, `MM`, `DD`, `HH`, `mm`, `X`, `x`, and so on), read strictly; a start that does not match it, or any start without a `dateFormat` (Mermaid's default is empty), is read in the ISO forms (`2024-06-03`, `2024-06-03T09:30`), and with `dateFormat x` or `X` a start of digits only is milliseconds; an end that does not match the `dateFormat` and is no duration ends the task at its start, as in Mermaid (ends have no ISO forms), and an end in `X` is seconds; `inclusiveEndDates` makes an end date part of its task |
 | Sections | `section Name` groups the tasks that follow it; the sections take the theme's section colors in turn, and `<br>` breaks a section name into lines |
 | Excluded days | `excludes` with `weekends`, day names (`monday`), and dates; `includes` with dates that are worked anyway; `weekend friday` or `weekend saturday` (the default) for the first day of the weekend; a task whose end is a duration grows over the excluded days, which are shaded |
 | Axis | `axisFormat` with the d3 time format directives (`%b %e`, `%H:%M`, and so on), `tickInterval` (a number and one of `millisecond`, `second`, `minute`, `hour`, `day`, `week`, and `month`, such as `1week`), and `weekday` (the first day of the week for weekly ticks); `gantt.topAxis` draws a second axis at the top (the `topAxis` statement fails in Mermaid, and is a `mermaid-syntax-error` here) |
@@ -625,7 +625,7 @@ fail on a warning.
 | `mermaid-image-unresolved` | Warning | A picture the resolver did not give; the node keeps its frame |
 | `mermaid-text-missing-glyph` | Warning | A character that no bundled font has (for example CJK); it is drawn as the missing-glyph box |
 | `mermaid-gantt-today-unavailable` | Warning | A gantt chart needs today (a `todayMarker` style, an `after` or `until` id that no task has, or a date without a year, month, or day) and `MermaidRenderOptions.Now` is not set; the today line is not drawn and 1970-01-01 is taken as today |
-| `mermaid-gantt-ticks-skipped` | Warning | The `tickInterval` of a gantt chart would make more than 10,000 ticks; the default ticks are drawn, as in Mermaid |
+| `mermaid-gantt-ticks-skipped` | Warning | The `tickInterval` of a gantt chart spans more than 10,000 of its intervals (Mermaid's estimate of the ticks; exactly 10,000 draws 10,001 ticks, both ends included); the default ticks are drawn, as in Mermaid |
 | `mermaid-gantt-excludes-skipped` | Warning | The tasks of a gantt chart with excluded days span more than five years; the excluded days are not shaded, as in Mermaid |
 | `mermaid-diagnostics-suppressed` | Warning | More reports than `MaxDiagnostics`; the rest are dropped |
 <!-- markdownlint-enable MD013 -->
@@ -747,10 +747,12 @@ reference renderer, `tools/visual-diff/`). The known differences from Mermaid ar
   full to keep the warning away.
 - **Gantt charts: dates.** Every date is in UTC, the same as Mermaid in a browser whose time zone is UTC, where
   Mermaid uses the time zone of the browser (with its daylight saving time), so a chart never changes with the
-  machine. A date that matches neither the `dateFormat` nor an ISO form (`2024-1-5` or `Jan 5 2024`, which browsers
-  read in their own ways) is a located `mermaid-render-failed` "Invalid date", with a hint to write it as the
-  `dateFormat` says. A `dateFormat` with the week (`w`, `ww`, `wo`, `gggg`) or zone name (`z`, `zzz`) tokens, whose
-  dayjs plugins Mermaid does not load, fails as it does in Mermaid, as a located `mermaid-render-failed`.
+  machine. A start date that matches neither the `dateFormat` nor an ISO form (`2024-1-5` or `Jan 5 2024`, which
+  browsers read in their own ways) is a located `mermaid-render-failed` "Invalid date", with a hint to write it as the
+  `dateFormat` says; an end date that does not match the `dateFormat` is read as a duration, or else ends the task at
+  its start, as in Mermaid, whose `getEndDate` has no ISO fallback. A `dateFormat` with the week (`w`, `ww`, `wo`,
+  `gggg`) or zone name (`z`, `zzz`) tokens, whose dayjs plugins Mermaid does not load, fails as it does in Mermaid, as
+  a located `mermaid-render-failed`.
 - **Gantt charts: errors.** Mermaid fails, or draws a broken chart, for the `topAxis` statement, a task whose data
   holds only tags, a first task without a start, a task with more than three fields, `after` or `until` references
   that go in a circle (Mermaid draws its bars at no place), excluded days that never end (more than 10,000 in a row),
@@ -760,7 +762,8 @@ reference renderer, `tools/visual-diff/`). The known differences from Mermaid ar
   `gantt.useWidth` is set; in a browser Mermaid takes the width of the page. The ticks keep d3's half-pixel offset at
   every scale. The opacity of the section rows and of the grid is folded into their colors, the turn of a milestone is
   applied to its outline, and the crisp edges of the grid are drawn antialiased. Mermaid's console warnings for a
-  `tickInterval` that would make more than 10,000 ticks (the default ticks are drawn) and for excluded days over more
+  `tickInterval` that spans more than 10,000 of its intervals (the default ticks are drawn; exactly 10,000 draws
+  10,001 ticks) and for excluded days over more
   than five years (they are not shaded) are reported as `mermaid-gantt-ticks-skipped` and
   `mermaid-gantt-excludes-skipped`. A character that no bundled font has is drawn as the missing-glyph box without the
   warning `mermaid-text-missing-glyph`.

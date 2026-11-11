@@ -318,6 +318,9 @@ internal sealed partial class GanttModel
         {
             var text = Preprocessor.TrimJs(data);
             var format = Preprocessor.TrimJs(model.DateFormat);
+
+            // Mermaid's fast path: digits alone are milliseconds for x and for X alike (new Date(Number(str))), while an
+            // end in X goes through dayjs, which reads seconds; the two units differ in Mermaid too
             if (format is "x" or "X" && text.Length > 0 && text.All(char.IsAsciiDigit))
             {
                 meter.Charge(text.Length);

@@ -68,6 +68,24 @@ public sealed class GanttRendererTests
     }
 
     /// <summary>
+    ///     Validates <c>gantt.numberSectionStyles: 0</c> as Mermaid draws it: the section number is JavaScript's
+    ///     <c>i % 0</c>, NaN, so the classes are <c>taskNaN</c>, <c>sectionNaN</c> and the like, which no rule of the style
+    ///     sheet names, and the bars and rows take the fill <c>#333</c> that mermaid-cli computes for them (no failure).
+    /// </summary>
+    [Fact]
+    public void GanttRenderer_Draw_NumberSectionStylesZero_PaintsNaNClassesAsMermaid()
+    {
+        // Act
+        var (scene, warnings) = LayoutWithWarnings("---\nconfig:\n  gantt:\n    numberSectionStyles: 0\n---\ngantt\nsection One\nA :a, 2024-01-01, 2d\nsection Two\nB :done, b, after a, 2d\n");
+
+        // Assert
+        var bars = Of(scene, "gantt-task").Cast<ScenePath>().ToList();
+        Assert.Equal([Color("#333"), Color("#333")], bars.Select(b => b.Fill));
+        Assert.Equal(2, Of(scene, "gantt-section").Count);
+        Assert.Empty(warnings);
+    }
+
+    /// <summary>
     ///     Validates a milestone: a square of the bar height at the middle of its dates, turned 45 degrees and scaled by
     ///     0.8 around its center, with its stroke scaled, and an italic text to its right.
     /// </summary>
@@ -218,6 +236,26 @@ public sealed class GanttRendererTests
         Assert.Equal((0.5, 0.0, -(124 - 85.0)), (firstTick.Segments[0].X, firstTick.Segments[0].Y, firstTick.Segments[1].Y));
         Assert.Contains(warnings, w => w.Code == MermaidDiagnosticCodes.GanttTicksSkipped);
         Assert.NotEmpty(Of(skipped, "gantt-tick"));
+    }
+
+    /// <summary>
+    ///     Validates the tick cap at its boundary, with Mermaid's estimate (<c>Math.ceil</c> of the span over the interval,
+    ///     <c>getEstimatedTickCount</c>): a span of exactly 10,000 days at <c>1day</c> estimates 10,000 and draws the
+    ///     custom ticks, both ends included (10,001, as mermaid-cli draws), while 10,001 days estimates 10,001, warns and
+    ///     draws d3's default ticks.
+    /// </summary>
+    [Fact]
+    public void GanttRenderer_Draw_TickCapBoundary_EstimatesAsMermaid()
+    {
+        // Act
+        var (atCap, atCapWarnings) = LayoutWithWarnings("gantt\ndateFormat YYYY-MM-DD\ntickInterval 1day\nA :a, 2024-01-01, 10000d\n");
+        var (overCap, overCapWarnings) = LayoutWithWarnings("gantt\ndateFormat YYYY-MM-DD\ntickInterval 1day\nA :a, 2024-01-01, 10001d\n");
+
+        // Assert
+        Assert.Equal(10_001, Of(atCap, "gantt-tick").Count);
+        Assert.DoesNotContain(atCapWarnings, w => w.Code == MermaidDiagnosticCodes.GanttTicksSkipped);
+        Assert.Equal(14, Of(overCap, "gantt-tick").Count);
+        Assert.Contains(overCapWarnings, w => w.Code == MermaidDiagnosticCodes.GanttTicksSkipped);
     }
 
     /// <summary>

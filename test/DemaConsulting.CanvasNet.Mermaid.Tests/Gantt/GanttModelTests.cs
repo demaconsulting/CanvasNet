@@ -84,6 +84,52 @@ public sealed class GanttModelTests
     }
 
     /// <summary>
+    ///     Validates the Unix date formats as Mermaid reads them: <c>getStartDate</c> takes an all-digit start as
+    ///     milliseconds for both <c>x</c> and <c>X</c> (its fast path, <c>new Date(Number(str))</c>), while
+    ///     <c>getEndDate</c> parses an end with dayjs, where <c>X</c> is seconds and <c>x</c> milliseconds.
+    /// </summary>
+    [Fact]
+    public void GanttModel_Compile_UnixDateFormats_ReadAsMermaid()
+    {
+        // Arrange
+        var seconds = GanttParserTests.Parse("gantt\ndateFormat X\nA :a, 1717372800, 1717459200\nB :b, 1717372800, 1d\n");
+        var milliseconds = GanttParserTests.Parse("gantt\ndateFormat x\nA :a, 1717372800000, 1717459200000\n");
+
+        // Act
+        var x = Compile(seconds);
+        var m = Compile(milliseconds);
+
+        // Assert
+        Assert.Equal((1_717_372_800.0, Date(2024, 6, 4)), (x[0].StartTime!.Value.Time, x[0].EndTime!.Value.Time));
+        Assert.Equal((1_717_372_800.0, 1_717_372_800.0 + Day), (x[1].StartTime!.Value.Time, x[1].EndTime!.Value.Time));
+        Assert.Equal((Date(2024, 6, 3), Date(2024, 6, 4)), (m[0].StartTime!.Value.Time, m[0].EndTime!.Value.Time));
+    }
+
+    /// <summary>
+    ///     Validates that an end date has no ECMAScript fallback, as in Mermaid's <c>getEndDate</c>: an end that does not
+    ///     match the <c>dateFormat</c> (Mermaid's default is empty, which no date matches) and is no duration ends the task
+    ///     at its start, while a start in an ISO form is read by the fallback.
+    /// </summary>
+    [Fact]
+    public void GanttModel_Compile_EndDates_HaveNoIsoFallback()
+    {
+        // Arrange
+        var noFormat = GanttParserTests.Parse("gantt\nA :a, 2024-01-05, 2024-01-06\n");
+        var otherFormat = GanttParserTests.Parse("gantt\ndateFormat DD-MM-YYYY\nA :a, 05-01-2024, 2024-01-08\nB :b, 05-01-2024, 08-01-2024\nC :c, 2024-01-06, 2d\n");
+
+        // Act
+        var a = Compile(noFormat);
+        var b = Compile(otherFormat);
+
+        // Assert
+        Assert.Equal(string.Empty, noFormat.DateFormat);
+        Assert.Equal((Date(2024, 1, 5), Date(2024, 1, 5), true), (a[0].StartTime!.Value.Time, a[0].EndTime!.Value.Time, a[0].ManualEndTime));
+        Assert.Equal((Date(2024, 1, 5), Date(2024, 1, 5)), (b[0].StartTime!.Value.Time, b[0].EndTime!.Value.Time));
+        Assert.Equal(Date(2024, 1, 8), b[1].EndTime!.Value.Time);
+        Assert.Equal((Date(2024, 1, 6), Date(2024, 1, 8)), (b[2].StartTime!.Value.Time, b[2].EndTime!.Value.Time));
+    }
+
+    /// <summary>
     ///     Validates that a later pass does not move an end past excluded days again: each pass computes a task's dates
     ///     from its raw data before it moves the end, as mermaid's <c>compileTask</c> does, so a Friday task of two days
     ///     ends on the Tuesday, not the Thursday, when a forward <c>after</c> reference needs a second pass.

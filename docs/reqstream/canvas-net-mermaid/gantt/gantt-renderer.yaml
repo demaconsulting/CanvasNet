@@ -63,6 +63,7 @@ sections:
                   The colors show the state of each task; they must be Mermaid's for the same theme.
                 tests:
                   - GanttRenderer_Draw_TaskStates_PaintFromTheStyleSheet
+                  - GanttRenderer_Draw_NumberSectionStylesZero_PaintsNaNClassesAsMermaid
 
               - id: CanvasNetMermaid-Gantt-GanttRenderer-Milestones
                 title: >-
@@ -158,14 +159,16 @@ sections:
                 title: >-
                   The GanttRenderer unit shall place the ticks at the tick interval of the chart or the configuration
                   when it is a positive integer followed by millisecond, second, minute, hour, day, week, or month, and
-                  otherwise at d3's default ten ticks, also when the interval would make more than 10,000 ticks, which
-                  it reports as mermaid-gantt-ticks-skipped.
+                  otherwise at d3's default ten ticks, also when the span of the chart is more than 10,000 of its
+                  intervals (Mermaid's estimate, the span over the interval rounded up, so exactly 10,000 intervals
+                  still draw their 10,001 ticks), which it reports as mermaid-gantt-ticks-skipped.
                 justification: |
                   The author chooses the spacing of the ticks as in Mermaid; Mermaid falls back to the default ticks
                   for an interval that would make too many, which the host must learn of.
                 tests:
                   - GanttRenderer_ParseTickInterval_AcceptsMermaidsForm
                   - GanttRenderer_Draw_Axes_TicksAndLabels
+                  - GanttRenderer_Draw_TickCapBoundary_EstimatesAsMermaid
 
               - id: CanvasNetMermaid-Gantt-GanttRenderer-Title
                 title: >-

@@ -505,3 +505,6 @@ none is excluded.
 | `13-config-theme-br-sections` | The dark theme, bar and font sizes, `useWidth`, a section name with `<br>` |
 | `14-text-outside` | Task texts beside short bars (left and right), a title wider than the chart |
 | `15-excludes-second-pass` | `excludes weekends` on a Friday task when a forward `after` needs a second pass |
+| `16-end-dates-strict` | End dates read strictly: an ISO end that `DD-MM-YYYY` does not read ends at the start |
+| `17-dateformat-unix-seconds` | `dateFormat X`: a numeric start is milliseconds, a numeric end is seconds |
+| `18-number-section-styles-zero` | `gantt.numberSectionStyles: 0`: the `NaN` section classes that no style rule names |
