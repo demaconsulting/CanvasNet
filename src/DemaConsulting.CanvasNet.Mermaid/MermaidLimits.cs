@@ -156,8 +156,8 @@ public sealed class MermaidLimits
     ///     The layout stages charge their iterative work (network-simplex pivots, ordering sweeps, coordinate passes, a
     ///     gantt chart's date passes, excluded days and ticks, and every step of a mindmap's cose-bilkent layout) to this
     ///     budget, so a pathological graph fails with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> instead of
-    ///     running for minutes; a mindmap of about 2,000 nodes can need more than the default. <see cref="MermaidDocument.Measure"/>
-    ///     lays the diagram out too and is bounded the same way.
+    ///     running for minutes; a mindmap of about 1,000 nodes or more can reach the default.
+    ///     <see cref="MermaidDocument.Measure"/> lays the diagram out too and is bounded the same way.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public long MaxLayoutWork
