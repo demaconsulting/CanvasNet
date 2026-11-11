@@ -313,7 +313,7 @@ public class SourceLoaderMermaidTests
         Assert.Equal((16, 16), (loaded.Surface.Width, loaded.Surface.Height));
         Assert.Equal(White, loaded.Surface[8, 8]);
 
-        // Assert: one note, located at the keyword, that says the type is not drawn yet and which types are
+        // Assert: one note, located at the keyword, that says the type is not drawn and which types are
         var note = Assert.Single(loaded.Diagnostics);
         Assert.Equal(("mermaid", "unsupported", MermaidDiagnosticCodes.DiagramUnsupported), (note.Source, note.Severity, note.Code));
         Assert.Contains("not drawn by this version", note.Message, StringComparison.Ordinal);

@@ -152,6 +152,14 @@ package CanvasNet {
         expose MermaidGantt;
     }
 
+    view MermaidMindmapView {
+        expose MermaidMindmap;
+    }
+
+    view MermaidCoseView {
+        expose MermaidCose;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

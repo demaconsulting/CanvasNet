@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def MindmapRenderer {
+        doc /* The internal sealed MindmapRenderer: Draw turns a MindmapDiagram into a scene for one render as the draw of Mermaid's mindmap renderer and its cose-bilkent renderer do. It first reports, in order, a look other than classic, a layout other than cose-bilkent, each node icon, and each Font Awesome label as unsupported features (the mindmap is still drawn in the classic look with the cose-bilkent layout); an empty mindmap gives an empty scene with the empty box grown by the padding as its view box. Every node gets the LayoutNode of getData (the markdown label, the shape, the width mindmap.maxNodeWidth that its label wraps at, the padding mindmap.padding doubled for a rectangle, a rounded rectangle, and a hexagon, the classes, and the icon) and the changes draw makes per shape, and is drawn by the shared ShapeLibrary with a LabelBuilder and a ShapeContext that holds the MindmapStyles of the render. The box of each drawn node is given to the Cose layout in single precision, as the browser's getBBox gives it; CoseLayout.Run places the nodes and gives each edge cytoscape's start, middle, and end points, through which the shared EdgeBuilder draws the edge with the basis curve and ends without an intersect function, so the route is not cut at the node outlines (an edge without points is dropped). The scene has the edgePaths, edgeLabels (empty), and nodes groups, and its view box is the box of the drawing grown by mindmap.padding. The layout work meter of the render is charged for the node data, every label, and every drawn edge, is passed to the layout, and checks cancellation. An instance draws one render on one thread. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Mermaid/Mindmap/MindmapRenderer.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Mindmap/MindmapRendererTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/mindmap/mindmap-renderer.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/mindmap/mindmap-renderer.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/mindmap/mindmap-renderer.yaml */
+    }
+}

@@ -1,0 +1,14 @@
+package CanvasNet {
+    part def MermaidMindmap {
+        doc /* The internal subsystem in the DemaConsulting.CanvasNet.Mermaid.Mindmap namespace that reads and draws mindmaps (the mindmap keyword): a port of the mindmap of the pinned Mermaid release. A mindmap is a tree laid out by the cose-bilkent force-directed layout, not by dagre. The MindmapParser unit reads the preprocessed text with a port of the lexer and grammar of Mermaid's mindmap.jison (37 lexer rules, five start conditions, and the expected tokens of the LALR state) and of Mermaid's mindmap database (addNode with the tree of the indentation, the node types, the icon and class decorations, and the sections, classes, and edges of getData), refusing a second root and a decoration before the first node as located syntax errors, with the MaxNodes, MaxNestingDepth, and MaxLabelLength limits, into the immutable MindmapDiagram that gives the document its metadata (the nodes, one fewer edges, no subgraphs, title, or direction). The MindmapRenderer unit draws the mindmap as Mermaid's mindmap renderer and its cose-bilkent renderer do: each node with the shared ShapeLibrary (the defaultMindmapNode, rect, rounded, mindmapCircle, cloud, bang, and hexagon shapes) with the padding and wrap width of the mindmap configuration and the paint of the mindmap style sheet, the node sizes in single precision for the Cose layout, the edges through the layout's points with the shared EdgeBuilder and the basis curve, and the view box grown by the padding; a look other than classic, a layout other than cose-bilkent, a node icon, and a Font Awesome label are reported and the mindmap is still drawn. A parsed diagram is immutable and safe for concurrent renders. As of this release, its constituent units are MindmapParser and MindmapRenderer. */
+
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Mindmap/MindmapTests.cs (with the original fixtures test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/mindmap/) */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/mindmap.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/mindmap.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/mindmap.yaml */
+        comment /* Within the CanvasNetMermaid system the Mindmap subsystem depends on the Syntax subsystem (preprocessed and mapped text, the detected diagram, the jison lexer infrastructure, and HTML sanitizing), the Configuration subsystem (effective configuration with its mindmap section, look, and layout, and the mindmap style sheet), the Rendering subsystem (ShapeLibrary, EdgeBuilder, and LabelBuilder), the Cose subsystem (the layout), the Dagre subsystem (layout work meter), and the Scenegraph subsystem (scene types); it is called by the document pipeline of the system. */
+
+        part mindmapParser : MindmapParser;
+        part mindmapRenderer : MindmapRenderer;
+    }
+}

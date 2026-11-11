@@ -238,7 +238,7 @@ commands too, and `inspect` accepts them as well.
 | Visio | `.vsdx` | Multi-page (drawing pages) |
 | OpenSCAD | `.scad` | A model, drawn from one viewpoint |
 | Vega-Lite | `.vl.json`, `.vl` | A chart, drawn at its laid-out size (also a `.json` file with a Vega-Lite `$schema`) |
-| Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, ER, pie, or gantt diagram at its laid-out size |
+| Mermaid | `.mmd`, `.mermaid` | A flowchart, sequence, class, state, ER, pie, gantt, or mindmap diagram, laid out |
 
 | Output | Extensions | Notes |
 | --- | --- | --- |
@@ -335,8 +335,8 @@ result has a `fragment` member (see *Fragments on Input Paths*).
   subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class
   diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an
   entity relationship diagram; the slices of a pie chart as nodes; the tasks and sections of a gantt chart as nodes and
-  subgraphs). The diagram is laid out without the pictures of its nodes, so no other file is read (see
-  *Mermaid Diagrams* below).
+  subgraphs; the nodes of a mindmap and its edges, one fewer). The diagram is laid out without the pictures of its
+  nodes, so no other file is read (see *Mermaid Diagrams* below).
 
 <!-- markdownlint-disable MD013 -->
 ```text
@@ -1607,7 +1607,7 @@ every command. A subject is matched in any letter case, and a topic may be named
 | --- | --- | --- |
 | `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
 | `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
-| `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, and gantt diagrams like Mermaid 11, themes |
+| `mermaid` | `mmd` | Mermaid flowchart, sequence, class, state, ER, pie, gantt, and mindmap diagrams, themes |
 | `svg` | | SVG drawings: the supported subset, drawn sharply at the target size |
 | `pdf` | | PDF documents: a page is drawn as an image |
 | `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
@@ -1701,8 +1701,8 @@ objects:
   when the diagram has them, and `nodes`, `edges`, and `subgraphs` (the counts; the participants, messages, and boxes
   of a sequence diagram; the classes, relations, and namespaces of a class diagram; the states, transitions, and
   composite states of a state diagram; the entities, relationships, and subgraphs of an entity relationship diagram;
-  the slices of a pie chart as nodes; the tasks and sections of a gantt chart as nodes and subgraphs; zero for a type
-  that is not drawn):
+  the slices of a pie chart as nodes; the tasks and sections of a gantt chart as nodes and subgraphs; the nodes and
+  edges of a mindmap; zero for a type that is not drawn):
 
 ```json
 {"schemaVersion":1,"ok":true,"command":"info","input":{"path":"flow.mmd","format":"mermaid","bytes":313},"image":{"width":674,"height":286,"channels":4,"hasAlpha":true,"canDecode":true,"frameCount":1},"diagram":{"type":"flowchart","supported":true,"direction":"LR","title":"Order flow","nodes":5,"edges":5,"subgraphs":1}}
