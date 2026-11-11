@@ -1,0 +1,156 @@
+---
+# Software Subsystem Requirements for Gantt
+#
+# These requirements decompose the CanvasNetMermaid system's gantt chart responsibility into the Gantt subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Gantt): reading the gantt chart language exactly as the pinned
+# Mermaid release reads it (GanttParser); keeping what it declares as Mermaid's gantt database keeps it and compiling
+# the task dates of each render as that database compiles them, with the dayjs functions Mermaid bundles and the clock
+# of the render options (GanttModel); drawing the chart as Mermaid's gantt renderer draws it (GanttRenderer); and the
+# JavaScript date arithmetic and d3 time scale, intervals, ticks, and formats the chart is built on (TimeAxis). Each
+# requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/gantt.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Gantt Requirements
+        requirements:
+          - id: CanvasNetMermaid-Gantt-Language
+            title: >-
+              The Gantt subsystem shall open every gantt chart text (the gantt keyword) that the gantt grammar of the
+              pinned Mermaid release accepts - the dateFormat, axisFormat, tickInterval, excludes, includes,
+              todayMarker, weekday, weekend, and inclusiveEndDates statements, the title and the accessibility
+              statements, the sections, the tasks with their tags, ids, starts, and ends, and the click statements
+              with their links and callbacks - into the same statements, sections, tasks, and links that Mermaid's
+              gantt database records for it.
+            justification: |
+              A gantt chart can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's jison grammar and gantt database, quirks included, not by
+              a description of them.
+            children:
+              - CanvasNetMermaid-Gantt-GanttParser-Tokens
+              - CanvasNetMermaid-Gantt-GanttParser-Grammar
+              - CanvasNetMermaid-Gantt-GanttParser-Statements
+              - CanvasNetMermaid-Gantt-GanttParser-Clicks
+              - CanvasNetMermaid-Gantt-GanttModel-Database
+              - CanvasNetMermaid-Gantt-GanttModel-Tasks
+              - CanvasNetMermaid-Gantt-GanttModel-Links
+              - CanvasNetMermaid-Gantt-GanttModel-ObjectKeys
+            tests:
+              - CanvasNetMermaid_Gantt_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Gantt_Text_GivesTheModelAndTheScene
+
+          - id: CanvasNetMermaid-Gantt-Metadata
+            title: >-
+              The Gantt subsystem shall give the title, the accessible title, the number of tasks (as nodes, vertical
+              markers included), and the number of drawn sections (as subgraphs) of an opened gantt chart, with no
+              edges and no direction, without rendering it.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of a gantt chart must keep the meaning of the document's node, edge, and subgraph counts.
+            children:
+              - CanvasNetMermaid-Gantt-GanttModel-Metadata
+            tests:
+              - CanvasNetMermaid_Gantt_Text_GivesTheModelAndTheScene
+
+          - id: CanvasNetMermaid-Gantt-FailClosed
+            title: >-
+              The Gantt subsystem shall refuse, when the document is opened, a gantt chart text that its grammar does
+              not accept, on which Mermaid's own parser fails, or that exceeds the node or label length limits of the
+              open call, with a coded MermaidSyntaxException located in the original text, with a hint, and for a
+              grammar error with the tokens that Mermaid lists as expected, every task and section statement counting
+              as a node; and shall fail a render, with a coded MermaidRenderException located at the task and with a
+              hint, where Mermaid's compilation of the task dates fails or gives a task no dates - an invalid date
+              among them - and where compiling the dates exceeds the layout work limit of the render.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it. Mermaid compiles the task
+              dates when it draws, so a date it cannot read is found only when a render starts, and it must still be
+              reported at its task.
+            children:
+              - CanvasNetMermaid-Gantt-GanttParser-Errors
+              - CanvasNetMermaid-Gantt-GanttParser-MermaidFailures
+              - CanvasNetMermaid-Gantt-GanttParser-Limits
+              - CanvasNetMermaid-Gantt-GanttModel-RenderFailures
+              - CanvasNetMermaid-Gantt-GanttModel-WorkCharges
+              - CanvasNetMermaid-Gantt-GanttModel-Limits
+              - CanvasNetMermaid-Gantt-GanttRenderer-Failures
+            tests:
+              - CanvasNetMermaid_Gantt_InvalidText_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-Gantt-Dates
+            title: >-
+              The Gantt subsystem shall compile the dates of the tasks for each render as Mermaid's gantt database
+              compiles them, in UTC - starts and ends from dates in the dateFormat, timestamps, and ECMAScript date
+              texts; durations added as the dayjs that Mermaid bundles adds them; after and until references to tasks
+              written before or after them; a task without a start following the task before it; ends moved past the
+              excluded weekends, weekdays, and dates that are not included; and a day added to the end dates when
+              inclusiveEndDates is set.
+            justification: |
+              The bars of a gantt chart are placed by their dates; they must start and end where Mermaid's do for the
+              same text, and dates in UTC make a render the same on every machine.
+            children:
+              - CanvasNetMermaid-Gantt-GanttModel-Compile
+              - CanvasNetMermaid-Gantt-GanttModel-Durations
+              - CanvasNetMermaid-Gantt-GanttModel-References
+              - CanvasNetMermaid-Gantt-GanttModel-Excludes
+              - CanvasNetMermaid-Gantt-GanttModel-InclusiveEnd
+              - CanvasNetMermaid-Gantt-GanttModel-DateFallback
+              - CanvasNetMermaid-Gantt-GanttModel-Dayjs
+              - CanvasNetMermaid-Gantt-TimeAxis-Dates
+              - CanvasNetMermaid-Gantt-TimeAxis-Intervals
+            tests:
+              - CanvasNetMermaid_Gantt_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Gantt_Text_GivesTheModelAndTheScene
+
+          - id: CanvasNetMermaid-Gantt-Clock
+            title: >-
+              The Gantt subsystem shall take today only from MermaidRenderOptions.Now, in UTC - for the today line and
+              for the dates that Mermaid takes from today - and, when Now is not set, shall draw no today line, take
+              1970-01-01 as today, and report what needs today with mermaid-gantt-today-unavailable warnings located
+              where it is needed, while still drawing the chart.
+            justification: |
+              The library never reads the system clock, so that a render is the same every time; a host that wants the
+              today line passes the time it draws for, and a chart that silently depended on a missing clock would be
+              wrong without notice.
+            children:
+              - CanvasNetMermaid-Gantt-GanttModel-Today
+              - CanvasNetMermaid-Gantt-GanttRenderer-Today
+            tests:
+              - CanvasNetMermaid_Gantt_Clock_DrawsTheTodayLineOrReports
+
+          - id: CanvasNetMermaid-Gantt-Drawing
+            title: >-
+              The Gantt subsystem shall draw a gantt chart as Mermaid's gantt renderer draws it under the effective
+              configuration and theme of the render, with the gantt style sheet of the theme - the background rows of
+              the sections, the bars, milestones, and vertical markers on the time scale of the chart, the task texts
+              inside or beside their bars, the section titles, the shaded excluded days, the axes with their grid, the
+              today line, and the title - and shall report, as mermaid-gantt-ticks-skipped and
+              mermaid-gantt-excludes-skipped warnings, a tickInterval whose ticks Mermaid skips because there would be
+              more than 10,000 and excluded days that Mermaid does not shade because the chart spans more than five
+              years.
+            justification: |
+              The pixels and the size of a gantt chart must be Mermaid's for the same text, configuration, theme, and
+              clock, and the host must know when Mermaid leaves out a part that the text asks for.
+            children:
+              - CanvasNetMermaid-Gantt-GanttRenderer-Size
+              - CanvasNetMermaid-Gantt-GanttRenderer-Rows
+              - CanvasNetMermaid-Gantt-GanttRenderer-Bars
+              - CanvasNetMermaid-Gantt-GanttRenderer-Paint
+              - CanvasNetMermaid-Gantt-GanttRenderer-Milestones
+              - CanvasNetMermaid-Gantt-GanttRenderer-VerticalMarkers
+              - CanvasNetMermaid-Gantt-GanttRenderer-TaskTexts
+              - CanvasNetMermaid-Gantt-GanttRenderer-Compact
+              - CanvasNetMermaid-Gantt-GanttRenderer-SectionTitles
+              - CanvasNetMermaid-Gantt-GanttRenderer-Excludes
+              - CanvasNetMermaid-Gantt-GanttRenderer-Axes
+              - CanvasNetMermaid-Gantt-GanttRenderer-TickInterval
+              - CanvasNetMermaid-Gantt-GanttRenderer-Title
+              - CanvasNetMermaid-Gantt-TimeAxis-Intervals
+              - CanvasNetMermaid-Gantt-TimeAxis-Ticks
+              - CanvasNetMermaid-Gantt-TimeAxis-Scale
+              - CanvasNetMermaid-Gantt-TimeAxis-Format
+            tests:
+              - CanvasNetMermaid_Gantt_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Gantt_Text_GivesTheModelAndTheScene
+              - CanvasNetMermaid_Gantt_SkippedTicksAndExcludes_AreReported

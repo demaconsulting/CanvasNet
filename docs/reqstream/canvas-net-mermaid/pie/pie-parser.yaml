@@ -1,0 +1,124 @@
+---
+# Software Unit Requirements for PieParser
+#
+# These requirements describe the design-level behavior of the PieParser unit of the Pie subsystem (internal namespace
+# DemaConsulting.CanvasNet.Mermaid.Pie): the lexer and the grammar of the pie chart language of the pinned Mermaid
+# release, the value converters, the pie database with its title and accessibility texts, the metadata of the diagram,
+# the located errors with Mermaid's expected tokens, and the limits checked while the text is read. See
+# docs/verification/canvas-net-mermaid/pie/pie-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Pie Requirements
+        sections:
+          - title: PieParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Pie-PieParser-Tokens
+                title: >-
+                  The PieParser unit shall split a pie chart text into the tokens that Mermaid's pie lexer produces,
+                  the first token type that matches at a position winning in Mermaid's order - the keywords pie and
+                  showData only as written and followed by white space, a comment, or the end, a title that stops
+                  before a comment on its line, and numbers as the pie number terminals match them, without an
+                  exponent, a leading dot, or a leading zero before other digits - while keeping every token located
+                  in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in the corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - PieParser_Parse_UpstreamVector_MatchesMermaid
+                  - PieParser_Parse_ShowDataAndTitle_AreRead
+                  - PieParser_Parse_Numbers_FollowTheTerminals
+
+              - id: CanvasNetMermaid-Pie-PieParser-Grammar
+                title: >-
+                  The PieParser unit shall accept exactly the texts that the pie grammar of the pinned Mermaid release
+                  accepts - optional line breaks, the pie keyword, an optional showData, and then, in any order and
+                  number, title, accessible title, and accessible description statements, sections of a quoted label,
+                  a colon, and a number, and blank lines, each statement ended by a line break or the end of the text -
+                  and shall keep the sections in the order they are written.
+                justification: |
+                  The sections, their order, and the texts of a pie chart depend on the statements of its text, and
+                  the drawing depends on all of them.
+                tests:
+                  - PieParser_Parse_UpstreamVector_MatchesMermaid
+                  - PieParser_Vectors_FileHasEnoughCases_AtLeast120
+                  - PieParser_Parse_Sections_KeepsOrderLabelsAndValues
+                  - PieParser_Parse_ShowDataAndTitle_AreRead
+
+              - id: CanvasNetMermaid-Pie-PieParser-Values
+                title: >-
+                  The PieParser unit shall convert the values of the statements as Mermaid's value converters do - a
+                  title, an accessible title, and a one-line accessible description trimmed with their runs of spaces
+                  and tabs made one space; an accessible description in braces with its lines trimmed and its blank
+                  lines removed; a quoted label without its quotes and with Langium's escapes; and a number as
+                  JavaScript reads it, a negative zero included - the last statement of each kind winning and an empty
+                  text setting nothing.
+                justification: |
+                  The labels, the titles, and the values decide what the chart shows; they must be the texts and
+                  numbers Mermaid shows for the same statements.
+                tests:
+                  - PieParser_Parse_UpstreamVector_MatchesMermaid
+                  - PieParser_Parse_ShowDataAndTitle_AreRead
+                  - PieParser_Parse_AccessibilityTexts_AreConverted
+                  - PieParser_ConvertString_Escapes_FollowLangium
+                  - PieParser_ConvertMultiLine_Lines_AreTrimmedAndJoined
+                  - PieParser_Parse_Numbers_FollowTheTerminals
+
+              - id: CanvasNetMermaid-Pie-PieParser-Database
+                title: >-
+                  The PieParser unit shall keep the sections as Mermaid's pie database keeps them - each label once,
+                  with the value of its first section, in the order of first mention - and shall refuse a section with
+                  a negative value, a repeated label included, with a MermaidSyntaxException of code
+                  mermaid-syntax-error located at the section, with Mermaid's message and a hint; the title and the
+                  accessibility texts are sanitized as Mermaid's common database sanitizes them.
+                justification: |
+                  The legend lists the sections of the database and the slices are cut from their values; a negative
+                  value is an error in Mermaid and must not be drawn.
+                tests:
+                  - PieParser_Parse_UpstreamVector_MatchesMermaid
+                  - PieParser_Parse_Sections_KeepsOrderLabelsAndValues
+                  - PieParser_Parse_RepeatedLabel_FirstValueWins
+                  - PieParser_Parse_NegativeValue_FailsLocatedWithMermaidsMessage
+
+              - id: CanvasNetMermaid-Pie-PieParser-Metadata
+                title: >-
+                  The PieParser unit shall give, for the parsed chart, the title of its title statement or none, the
+                  accessible title or none, the number of its sections (each label once) as nodes, no edges, no
+                  subgraphs, no direction, and whether showData is set.
+                justification: |
+                  The counts must keep the meaning of the document's node, edge, and subgraph counts and describe the
+                  chart that is drawn; the document falls back to the frontmatter title only when the chart has none.
+                tests:
+                  - PieParser_Parse_Sections_KeepsOrderLabelsAndValues
+                  - PieParser_Parse_ShowDataAndTitle_AreRead
+                  - PieParser_Parse_AccessibilityTexts_AreConverted
+
+              - id: CanvasNetMermaid-Pie-PieParser-Errors
+                title: >-
+                  The PieParser unit shall refuse the first token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's parser lists, with a hint;
+                  and shall refuse text that no token matches, before any grammar error, with a located error of the
+                  same code at the first character that is not matched.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to
+                  write and where, and Mermaid reports the errors of its lexer first.
+                tests:
+                  - PieParser_Parse_GrammarError_IsLocatedWithTheExpectedTokens
+                  - PieParser_Parse_LexicalError_IsLocatedAtTheFirstUnmatchedCharacter
+                  - PieParser_Parse_Numbers_FollowTheTerminals
+                  - PieParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Pie-PieParser-Limits
+                title: >-
+                  The PieParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded located
+                  at the element that breaches it, more section statements than MaxNodes, repeated labels included, and
+                  every token text, converted value, sanitized text, or legend text with its value that is longer than
+                  MaxLabelLength.
+                justification: |
+                  The size of the chart, and so the cost of every later stage, must be bounded while untrusted text is
+                  read; the sanitizer can make a text longer than it is written.
+                tests:
+                  - PieParser_Parse_TooManySections_IsALocatedLimit
+                  - PieParser_Parse_SanitizedTitleTooLong_IsALocatedLimit

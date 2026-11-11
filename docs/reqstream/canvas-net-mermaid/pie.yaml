@@ -1,0 +1,86 @@
+---
+# Software Subsystem Requirements for Pie
+#
+# These requirements decompose the CanvasNetMermaid system's pie chart responsibility into the Pie subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Pie): reading the pie chart language exactly as the pinned
+# Mermaid release reads it and keeping what it declares as Mermaid's pie database keeps it (PieParser), and drawing the
+# chart - its slices, percentage labels, title, and legend - as Mermaid's pie renderer draws it (PieRenderer). Each
+# requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/pie.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Pie Requirements
+        requirements:
+          - id: CanvasNetMermaid-Pie-Language
+            title: >-
+              The Pie subsystem shall open every pie chart text (the pie keyword) that the pie grammar of the pinned
+              Mermaid release accepts - the showData flag, the title, the accessible title and description in one line
+              or in braces, the sections of a quoted label and a number, blank lines, comments, and directives - into
+              the same sections, flag, and texts that Mermaid's pie database records for it.
+            justification: |
+              A pie chart can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's grammar, value converters, and database, not by a
+              description of them.
+            children:
+              - CanvasNetMermaid-Pie-PieParser-Tokens
+              - CanvasNetMermaid-Pie-PieParser-Grammar
+              - CanvasNetMermaid-Pie-PieParser-Values
+              - CanvasNetMermaid-Pie-PieParser-Database
+            tests:
+              - CanvasNetMermaid_Pie_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Pie_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Pie-Metadata
+            title: >-
+              The Pie subsystem shall give the title, the accessible title, and the number of sections (as nodes) of an
+              opened pie chart, with no edges, no subgraphs, and no direction, without rendering it.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of a pie chart must keep the meaning of the document's node, edge, and subgraph counts.
+            children:
+              - CanvasNetMermaid-Pie-PieParser-Metadata
+            tests:
+              - CanvasNetMermaid_Pie_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Pie-FailClosed
+            title: >-
+              The Pie subsystem shall refuse, when the document is opened, a pie chart text that its grammar or its
+              lexer does not accept, that gives a section a negative value, or that exceeds the node or label length
+              limits of the open call, with a coded MermaidSyntaxException located in the original text, with a hint,
+              and for a grammar error with the tokens that Mermaid lists as expected; every section statement counts as
+              a node.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it.
+            children:
+              - CanvasNetMermaid-Pie-PieParser-Errors
+              - CanvasNetMermaid-Pie-PieParser-Database
+              - CanvasNetMermaid-Pie-PieParser-Limits
+            tests:
+              - CanvasNetMermaid_Pie_InvalidText_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-Pie-Drawing
+            title: >-
+              The Pie subsystem shall draw a pie chart as Mermaid's pie renderer draws it under the effective
+              configuration and theme of the render - a slice for each section of at least one percent of the sum,
+              in order and sized by its share, labeled with its rounded percentage, in the theme's pie colors; the
+              title; a legend entry for every section, with its value when showData is set, in the configured legend
+              position; the donut hole and the highlighted slice of the configuration; and the view box of Mermaid's
+              pie renderer.
+            justification: |
+              The pixels and the size of a pie chart must be Mermaid's for the same text, configuration, and theme.
+            children:
+              - CanvasNetMermaid-Pie-PieRenderer-Angles
+              - CanvasNetMermaid-Pie-PieRenderer-Arcs
+              - CanvasNetMermaid-Pie-PieRenderer-Labels
+              - CanvasNetMermaid-Pie-PieRenderer-Colors
+              - CanvasNetMermaid-Pie-PieRenderer-Legend
+              - CanvasNetMermaid-Pie-PieRenderer-Title
+              - CanvasNetMermaid-Pie-PieRenderer-ViewBox
+              - CanvasNetMermaid-Pie-PieRenderer-Donut
+              - CanvasNetMermaid-Pie-PieRenderer-Highlight
+            tests:
+              - CanvasNetMermaid_Pie_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Pie_Text_GivesTheDiagramAndTheScene

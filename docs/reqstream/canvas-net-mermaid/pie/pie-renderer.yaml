@@ -1,0 +1,126 @@
+---
+# Software Unit Requirements for PieRenderer
+#
+# These requirements describe the design-level behavior of the PieRenderer unit of the Pie subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Pie): the drawing of Mermaid's pie renderer of the pinned Mermaid release
+# - the angles and outlines of the slices, the percentage labels, the colors and paint of the theme, the legend in its
+# position, the title, the donut hole, the highlighted slice, and the view box. See
+# docs/verification/canvas-net-mermaid/pie/pie-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Pie Requirements
+        sections:
+          - title: PieRenderer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Pie-PieRenderer-Angles
+                title: >-
+                  The PieRenderer unit shall give a slice to each section whose value is at least one percent of the
+                  sum of the values and whose rounded percentage is not 0, in the order of the sections, starting at
+                  twelve o'clock and running clockwise, each slice taking the share of a full turn that its value has
+                  of the sum of the values of the slices, and shall draw no slice when the sum is zero.
+                justification: |
+                  The angles of the slices carry the meaning of a pie chart; Mermaid leaves out the slices too small to
+                  see, and the slices must be where Mermaid puts them.
+                tests:
+                  - PieRenderer_Pie_Values_GiveSharesOfATurnInOrder
+                  - PieRenderer_Draw_RightLegend_ListsEverySectionAndWidensTheViewBox
+                  - PieRenderer_Draw_ZeroSum_DrawsTheLegendOnly
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Arcs
+                title: >-
+                  The PieRenderer unit shall draw the pie centered at (225, 225) with a radius of 185 inside an outer
+                  circle that lies half its stroke width further out, and shall draw each slice with the outline that
+                  Mermaid's arc generator writes for it, its numbers rounded to 3 digits - a sector, a whole circle, or
+                  an annular sector.
+                justification: |
+                  The outlines of the slices decide the pixels that every slice covers; they must be the paths that
+                  Mermaid writes into its picture.
+                tests:
+                  - PieRenderer_ArcPath_Sectors_MatchD3
+                  - PieRenderer_Draw_RightLegend_ListsEverySectionAndWidensTheViewBox
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Labels
+                title: >-
+                  The PieRenderer unit shall label each slice with its percentage of the sum, rounded as JavaScript's
+                  toFixed(0) rounds it and followed by a percent sign, at the middle angle of the slice on the circle of
+                  textPosition times the radius, and shall draw every text as the browser shows it, Mermaid's entity
+                  placeholders decoded and its white space collapsed.
+                justification: |
+                  The labels must read as in Mermaid's picture and stand where Mermaid puts them; a text with an entity
+                  must show the character, as the browser shows it.
+                tests:
+                  - PieRenderer_Centroid_IsAtTheMiddleRadiusAndAngle
+                  - PieRenderer_ToFixed0_RoundsAsJavaScript
+                  - PieRenderer_DisplayText_DecodesOnlyThePlaceholders
+                  - PieRenderer_Draw_RightLegend_ListsEverySectionAndWidensTheViewBox
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Colors
+                title: >-
+                  The PieRenderer unit shall color each section, its slice and its legend square, with the theme's pie1
+                  to pie12 by the index of the section, the thirteenth section taking pie1 again, and shall paint the
+                  slices with the opacity, the stroke, and the texts with the fonts and colors of the pie style sheet of
+                  the theme.
+                justification: |
+                  The colors tie each slice to its legend entry, and the paint of the chart must be Mermaid's for the
+                  same theme.
+                tests:
+                  - PieRenderer_Draw_Colors_WrapAfterTwelve
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Legend
+                title: >-
+                  The PieRenderer unit shall draw a legend entry for every section, in order and whatever its value,
+                  of a colored square and the label, followed by the value in brackets when showData is set, the
+                  entries 22 pixels apart, at the right of the pie by default or at the left, top, bottom, or center as
+                  the legend position of the configuration says, a top legend moving the pie down and a left legend
+                  moving it right.
+                justification: |
+                  The legend names the slices, also those too small to be drawn, and its place and size must be
+                  Mermaid's.
+                tests:
+                  - PieRenderer_Draw_RightLegend_ListsEverySectionAndWidensTheViewBox
+                  - PieRenderer_Draw_LegendPosition_PlacesTheLegendAndThePie
+                  - PieRenderer_Draw_ZeroSum_DrawsTheLegendOnly
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Title
+                title: >-
+                  The PieRenderer unit shall draw the title of the chart, or the frontmatter title when the chart has
+                  none, centered 200 pixels above the center of the pie.
+                justification: |
+                  The title names the chart in its picture and must stand where Mermaid puts it.
+                tests:
+                  - PieRenderer_Draw_LongTitle_WidensTheViewBoxToTheLeft
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-ViewBox
+                title: >-
+                  The PieRenderer unit shall give the drawing the view box of Mermaid's pie renderer - 450 pixels high,
+                  grown by the legend for a top or bottom legend, and 490 pixels wide, grown by the legend for a right
+                  or left legend - widened evenly on both sides for a title wider than the chart, and the left half of
+                  the chart for a chart without sections.
+                justification: |
+                  The size of the picture must be Mermaid's so that a host lays the picture out as Mermaid's.
+                tests:
+                  - PieRenderer_Draw_RightLegend_ListsEverySectionAndWidensTheViewBox
+                  - PieRenderer_Draw_LegendPosition_PlacesTheLegendAndThePie
+                  - PieRenderer_Draw_EmptyChart_ViewBoxIsTheLeftHalf
+                  - PieRenderer_Draw_LongTitle_WidensTheViewBoxToTheLeft
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Donut
+                title: >-
+                  The PieRenderer unit shall cut from every slice a hole of donutHole times the radius when the
+                  configured donutHole is above 0 and at most 0.9, and no hole otherwise.
+                justification: |
+                  Mermaid draws a donut chart only for a hole in that range; any other value draws a full pie.
+                tests:
+                  - PieRenderer_Draw_DonutHole_CutsTheInnerArcInRange
+
+              - id: CanvasNetMermaid-Pie-PieRenderer-Highlight
+                title: >-
+                  The PieRenderer unit shall draw the slice whose label is the configured highlightSlice with the paint
+                  of the highlighted slice of the style sheet, by default 1.05 times larger around the center of the
+                  pie and opaque, while the other slices keep the paint of a slice.
+                justification: |
+                  A highlighted slice stands out in Mermaid's picture and must stand out the same way.
+                tests:
+                  - PieRenderer_Draw_HighlightSlice_EnlargesTheSlice

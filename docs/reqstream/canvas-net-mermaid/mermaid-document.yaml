@@ -100,13 +100,15 @@ sections:
               The MermaidDocument unit shall validate its options when they are set: a scale that is finite and
               positive, a theme that is one of default, base, dark, forest, and neutral, a site configuration that
               is a JSON object, non-null limits, and a source name that is not white space, with documented
-              defaults (scale 1, transparent background, no configuration, no theme, no resolver, the default
-              limits, lenient mode).
+              defaults (scale 1, transparent background, no configuration, no theme, no resolver, no clock, the
+              default limits, lenient mode), and shall accept as the clock of a render (Now) any time with any offset.
             justification: |
               Invalid options must fail where the caller sets them, not deep inside a render, and the defaults
-              must reproduce what Mermaid draws.
+              must reproduce what Mermaid draws; the library never reads the system clock, so a host that wants a
+              gantt chart's today line passes the time itself.
             tests:
               - MermaidRenderOptions_Defaults_AreDocumented
+              - MermaidRenderOptions_Now_CanBeSet
               - MermaidRenderOptions_Scale_Invalid_Throws
               - MermaidRenderOptions_Theme_OnlyMermaidThemes_AreAccepted
               - MermaidRenderOptions_Config_NotJsonObject_Throws

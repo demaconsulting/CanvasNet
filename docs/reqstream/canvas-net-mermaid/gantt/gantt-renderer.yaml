@@ -1,0 +1,188 @@
+---
+# Software Unit Requirements for GanttRenderer
+#
+# These requirements describe the design-level behavior of the GanttRenderer unit of the Gantt subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Gantt): the drawing of Mermaid's gantt renderer of the pinned Mermaid
+# release - the size of the chart, the rows and the compact rows, the time scale and the bars, their classes and
+# paint, the milestones, the vertical markers, the task texts, the section titles, the excluded days, the today line
+# of the render's clock, the axes and their tick interval, the title, and the located failures of the drawing. See
+# docs/verification/canvas-net-mermaid/gantt/gantt-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Gantt Requirements
+        sections:
+          - title: GanttRenderer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Size
+                title: >-
+                  The GanttRenderer unit shall give the chart a view box at the origin as wide as mermaid-cli's page
+                  container, 784 pixels, or the configured gantt useWidth when it is set, and as high as two top
+                  paddings plus one row of the bar height and the bar gap for each task that is not a vertical marker,
+                  or for each row of the compact display mode.
+                justification: |
+                  Mermaid takes the width of a gantt chart from the page it is drawn in; the size of the picture must
+                  be that of mermaid-cli's page so that a host lays the picture out as Mermaid's.
+                tests:
+                  - GanttRenderer_Draw_Size_IsPageWidthAndRows
+                  - GanttRenderer_Draw_Compact_SharesRows
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Rows
+                title: >-
+                  The GanttRenderer unit shall give each task that is not a vertical marker its own row, in the order
+                  of the text, the rows one bar height and bar gap apart from the top padding down, and shall draw
+                  behind each row a background row of its section's style.
+                justification: |
+                  The rows decide where every task stands; the background rows group the tasks of a section, as in
+                  Mermaid's picture.
+                tests:
+                  - GanttRenderer_Draw_Bars_FollowTheTimeScale
+                  - GanttRenderer_Draw_VerticalMarker_SpansTheRows
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Bars
+                title: >-
+                  The GanttRenderer unit shall map the time from the earliest start to the latest end of the task
+                  dates compiled for the render onto the width between the left and the right padding, rounded to
+                  whole pixels as Mermaid's time scale rounds them and without widening the dates to nice ones, and
+                  shall draw each task as a bar with rounded corners, the bar height high, on its row from its start
+                  to its end.
+                justification: |
+                  The bars carry the meaning of a gantt chart; they must cover the pixels of Mermaid's bars for the
+                  same dates.
+                tests:
+                  - GanttRenderer_Draw_Bars_FollowTheTimeScale
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Paint
+                title: >-
+                  The GanttRenderer unit shall paint each bar and each task text with the paint that the gantt style
+                  sheet of the theme gives the classes of Mermaid's renderer - the state of the task (done, active,
+                  critical), the style number of its section, and the clickable class of a task with a link, whose
+                  text is then bold in the clickable color.
+                justification: |
+                  The colors show the state of each task; they must be Mermaid's for the same theme.
+                tests:
+                  - GanttRenderer_Draw_TaskStates_PaintFromTheStyleSheet
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Milestones
+                title: >-
+                  The GanttRenderer unit shall draw a milestone as a square of the bar height centered at the middle
+                  of its dates on its row, turned 45 degrees and scaled by 0.8 around its center with its stroke
+                  width, and its text in italics.
+                justification: |
+                  A milestone is a diamond in Mermaid's picture and must be the same diamond.
+                tests:
+                  - GanttRenderer_Draw_Milestone_IsATurnedSquare
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-VerticalMarkers
+                title: >-
+                  The GanttRenderer unit shall draw a vertical marker as a bar 0.08 bar heights wide at its start, from
+                  the grid line start padding over all rows and two bar heights more, taking no row, with its text 60
+                  pixels below the rows in a font of 15 pixels.
+                justification: |
+                  A vertical marker marks a date across the whole chart, as in Mermaid's picture.
+                tests:
+                  - GanttRenderer_Draw_VerticalMarker_SpansTheRows
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-TaskTexts
+                title: >-
+                  The GanttRenderer unit shall draw the text of each task centered in its bar when the text, as the
+                  browser measures it, fits the bar, else anchored at its start 5 pixels right of the bar, or anchored
+                  at its end 5 pixels left of the bar when the text and one and a half left paddings would pass the
+                  width of the chart.
+                justification: |
+                  The task names must stand where Mermaid puts them, inside the bar or beside it.
+                tests:
+                  - GanttRenderer_Draw_TaskTexts_InsideRightOrLeft
+                  - GanttRenderer_Draw_Milestone_IsATurnedSquare
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Compact
+                title: >-
+                  The GanttRenderer unit shall, in the compact display mode, put each task of a section, in the order
+                  of the starts, in the first of the section's rows whose last task ends at or before its start, the
+                  sections one after the other, and grow the chart by the rows each section uses.
+                justification: |
+                  The compact mode shares rows between tasks that do not overlap; the rows and the height must be
+                  Mermaid's.
+                tests:
+                  - GanttRenderer_Draw_Compact_SharesRows
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-SectionTitles
+                title: >-
+                  The GanttRenderer unit shall draw the title of each section with tasks, in the order of a JavaScript
+                  object's keys (integer names first), at the middle of the section's rows, its lines split at br tags
+                  and centered on that middle.
+                justification: |
+                  The section titles name the groups of rows; their order and lines must be those of Mermaid's
+                  picture, quirks included.
+                tests:
+                  - GanttRenderer_Draw_SectionTitles_KeyOrderAndBreaks
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Excludes
+                title: >-
+                  The GanttRenderer unit shall shade each run of excluded days between the earliest start and the
+                  latest end from the start of its first day to the end of its last day, and shall shade no day and
+                  report mermaid-gantt-excludes-skipped when the tasks span more than five years.
+                justification: |
+                  The shading shows the days the tasks skip, as in Mermaid's picture; Mermaid leaves it out for long
+                  charts, which the host must learn of.
+                tests:
+                  - GanttRenderer_Draw_ExcludedDays_ShadedOrSkipped
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Today
+                title: >-
+                  The GanttRenderer unit shall draw the today line at the Now of the render options from the title top
+                  margin to as far above the bottom, with the chart's todayMarker style over the style sheet's, and
+                  shall draw no today line for todayMarker off or when Now is not set, a todayMarker style then being
+                  reported as mermaid-gantt-today-unavailable.
+                justification: |
+                  Today comes only from the clock that the host gives, so that a render is reproducible; a style the
+                  author wrote for a line that is not drawn must be reported.
+                tests:
+                  - GanttRenderer_Draw_TodayLine_FollowsTheClock
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Axes
+                title: >-
+                  The GanttRenderer unit shall draw a bottom axis 50 pixels above the bottom of the chart and, with the
+                  gantt topAxis setting, a top axis at the top padding, both from the left padding, with a grid line up
+                  to the grid line start padding at each tick, half a pixel past its whole pixel, and a label in the
+                  axis format of the chart, else %d for the date format D, else the configured axis format, by default
+                  %Y-%m-%d.
+                justification: |
+                  The axes give the dates of the chart; their ticks, grid lines, and labels must be those of
+                  Mermaid's picture.
+                tests:
+                  - GanttRenderer_Draw_Axes_TicksAndLabels
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-TickInterval
+                title: >-
+                  The GanttRenderer unit shall place the ticks at the tick interval of the chart or the configuration
+                  when it is a positive integer followed by millisecond, second, minute, hour, day, week, or month, and
+                  otherwise at d3's default ten ticks, also when the interval would make more than 10,000 ticks, which
+                  it reports as mermaid-gantt-ticks-skipped.
+                justification: |
+                  The author chooses the spacing of the ticks as in Mermaid; Mermaid falls back to the default ticks
+                  for an interval that would make too many, which the host must learn of.
+                tests:
+                  - GanttRenderer_ParseTickInterval_AcceptsMermaidsForm
+                  - GanttRenderer_Draw_Axes_TicksAndLabels
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Title
+                title: >-
+                  The GanttRenderer unit shall draw the title of the chart, or the frontmatter title when the chart
+                  has none, centered at half the width of the chart at the title top margin.
+                justification: |
+                  The title names the chart in its picture and must stand where Mermaid puts it.
+                tests:
+                  - GanttRenderer_Draw_Title_FromTheTextOrTheFrontmatter
+
+              - id: CanvasNetMermaid-Gantt-GanttRenderer-Failures
+                title: >-
+                  The GanttRenderer unit shall refuse, with a located MermaidRenderException, a section named like a
+                  member that every JavaScript object inherits in the compact display mode (mermaid-render-failed,
+                  located at its task) and a tick label longer than MaxLabelLength (mermaid-limit-exceeded).
+                justification: |
+                  Mermaid's own render fails on such a section, so the host must learn where; the size of each tick
+                  label must be bounded for untrusted text, as an axis format can make long labels from a short text.
+                tests:
+                  - GanttRenderer_Draw_Failures_AreLocated

@@ -199,3 +199,29 @@ sections:
                   - MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid
                   - MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers
                   - MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-PieSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the pie section with Mermaid's effective defaults (the
+                  whole section of the schema), give typed access to the text position, the donut hole, the legend
+                  position, and the highlighted slice that the pie renderer reads, and report as
+                  mermaid-config-invalid, and leave without effect, a pie value of the wrong type.
+                justification: |
+                  The labels, the legend, and the shape of a pie chart follow these settings; a value Mermaid would not
+                  use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_PieSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-GanttSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the gantt section with Mermaid's effective defaults (the
+                  whole section of the schema, with no tick interval and no width), give typed access to the title
+                  margin, the bar height and gap, the paddings, the grid line start, the font sizes, the number of
+                  section styles, the axis format, the tick interval, the top axis, the display mode (also from the
+                  frontmatter displayMode), and the width that the gantt renderer reads, and report as
+                  mermaid-config-invalid, and leave without effect, a gantt value of the wrong type.
+                justification: |
+                  The size, the rows, and the axes of a gantt chart follow these settings; a value Mermaid would not
+                  use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_GanttSection_DefaultsValuesAndInvalidValues

@@ -217,7 +217,9 @@ sections:
           the background, and the theme when one is set) in the render operation and the natural size and the mermaid
           format in the input of the result; shall report the warnings of the diagram (mermaid-warning with the
           specific code in detail and the line and column in location) and the constructs it does not draw (a diagram
-          type that is not drawn yet is the diagnostic mermaid-diagram-unsupported with an empty picture) in the
+          type that is not drawn yet is the diagnostic mermaid-diagram-unsupported with an empty picture, and a gantt
+          chart, drawn without a today line because the command sets no clock, reports what needs today as the warning
+          mermaid-gantt-today-unavailable) in the
           diagnostics of the result (and, without the JSON option, on standard error) and, with the strict switch, fail
           with unsupported-feature and write no output; shall report invalid text as mermaid-error with the hint of the
           library; and shall name Mermaid diagrams in its usage text.
@@ -232,6 +234,9 @@ sections:
           - RenderCommand_Run_MermaidClass_DrawsTheClassBoxes
           - RenderCommand_Run_MermaidState_DrawsTheStates
           - RenderCommand_Run_MermaidEr_DrawsTheEntities
+          - RenderCommand_Run_MermaidPie_DrawsTheSlices
+          - RenderCommand_Run_MermaidGantt_DrawsTheTasksWithoutATodayLine
+          - RenderCommand_Run_MermaidGanttTodayAndInvalidDate_AreWarningThenError
           - RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract
           - RenderCommand_Metadata_DescribesCommandAndOptions
 
