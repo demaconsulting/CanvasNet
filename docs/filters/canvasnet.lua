@@ -84,11 +84,11 @@ stateDiagram (and stateDiagram-v2), erDiagram, pie, gantt, and mindmap diagrams 
 line: the tool sets no clock). For any other type (journey, timeline, and so on) the tool reports
 mermaid-diagram-unsupported, and the filter leaves the code block (or the .mmd picture) exactly as written, so the
 document shows the code, and warns with the tool's message ("...; it is left as written and not drawn"). No other
-filter is expected to draw it: the CanvasNet build fails when a generated document still holds such a block. A
-filter given on the command line after "--defaults" still runs after this one (Pandoc runs the filters in the order
-of its command line, a defaults file's filters taking the place of its --defaults option), so it sees only the
-blocks left as written. A marker in the cache folder (<hash>.unsupported, holding the message) saves later builds
-from starting the tool again for that diagram; the warning is shown on every build.
+filter is expected to draw it: the CanvasNet build fails when a generated document still holds such a block or
+picture. A filter given on the command line after "--defaults" still runs after this one (Pandoc runs the filters in
+the order of its command line, a defaults file's filters taking the place of its --defaults option), so it sees only
+the blocks left as written. A marker in the cache folder (<hash>.unsupported, holding the message) saves later
+builds from starting the tool again for that diagram; the warning is shown on every build.
 A flowchart that only embeds a picture of such a type (A@{ img: "pets.mmd" }) is drawn as usual; the tool's report
 about the embedded picture, which names it in its origin, is shown as a warning.
 

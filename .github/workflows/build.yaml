@@ -1091,9 +1091,10 @@ jobs:
           requirements
 
       # === CHECK THAT EVERY MERMAID DIAGRAM IS DRAWN ===
-      # canvasnet.lua draws every Mermaid diagram type the tool supports and leaves any other type as a code
-      # block, with a warning; no other filter draws it. A document that still holds such a block fails the build.
-      # Pandoc writes the block with the class mermaid (class="sourceCode mermaid" when it is highlighted).
+      # canvasnet.lua draws every Mermaid diagram type the tool supports and leaves any other type as written, with a
+      # warning; no other filter draws it. A document that still holds such a diagram fails the build. Pandoc writes
+      # a code block with the class mermaid (class="sourceCode mermaid" when it is highlighted), and a .mmd or
+      # .mermaid picture as an image whose src is still that file (<img src="diagram.mmd">).
       # Downstream projects: Remove this section if the documents hold no Mermaid diagrams.
 
       - name: Check every Mermaid diagram is drawn
@@ -1103,7 +1104,11 @@ jobs:
             echo "✗ The documents above hold a Mermaid block that was not drawn (see the canvasnet.lua warnings)"
             exit 1
           fi
-          echo "✓ Every Mermaid diagram in the documents is drawn"
+          if grep -l -E 'src="[^"]*\.(mmd|mermaid)(#[^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a Mermaid picture that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          echo "✓ Every Mermaid diagram (code block or picture) in the documents is drawn"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.

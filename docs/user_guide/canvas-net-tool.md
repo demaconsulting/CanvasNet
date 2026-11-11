@@ -1941,7 +1941,7 @@ a `.mmd` file of its own, used as a picture. A block or a `.mmd` picture of a di
 the document shows its code, with the tool's message as a Pandoc warning (`...; it is left as written and not drawn`).
 Pandoc runs the filters in the order of its command line, and the filters of a defaults file take the place of its
 `--defaults` option, so a filter given after `--defaults` runs after this one and sees only the blocks left as written.
-The CanvasNet build fails when a generated document still holds such a block.
+The CanvasNet build fails when a generated document still holds such a block or picture.
 
 **SVG drawings.** WeasyPrint, which turns the HTML into the PDF, draws nothing for an `<image href="flow.mmd">` (or a
 model, a chart, or a page of a document) inside an SVG picture. For an `.svg` picture the filter reads the drawing and
