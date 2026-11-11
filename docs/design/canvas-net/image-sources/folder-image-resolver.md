@@ -13,6 +13,8 @@ It comprises these source files in the namespace `DemaConsulting.CanvasNet.Image
 - `FolderImageResolver.Href.cs` - the parsing of links: the cutting off of a query and a fragment (`SplitHref`),
   `file:` URIs, percent-encoding, and the description of a refusal of the sandbox
 - `FolderImageResolverOptions.cs` - `FolderImageResolverOptions` (sealed record): the limits and switches
+- `RequestedImage.cs` - `RequestedImage` (sealed record): one link a document asked for, with the files that contain
+  it and, when it was drawn, the name of the picture
 
 #### Purpose
 
@@ -24,8 +26,8 @@ the core package, instead of in each host. Everything format-specific is in the 
 
 The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResolver-*` requirements (`Confinement`,
 `FileUri`, `UriReference`, `Dispatch`, `Precedence`, `Schemes`, `NestedScope`, `Limits`, `PixelBudget`, `Cancellation`,
-`Diagnostics`, `Failures`, `NoCaching`, `DirectRender`, `Configuration`, `Fragment`, `FragmentDiagnostics`, and
-`PageRefusal`) in
+`Diagnostics`, `DiagnosticOrigin`, `Requested`, `Failures`, `NoCaching`, `DirectRender`, `Configuration`, `Fragment`,
+`FragmentDiagnostics`, and `PageRefusal`) in
 `docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml`.
 
 #### Data Model
@@ -33,7 +35,7 @@ The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResol
 **State of one resolver** (not thread-safe; one resolver serves one top-level render): the `ImageSourceSet` of the
 sources; the `FolderImageResolverOptions`; the full path of the folder (`null` when the resolver has no folder) and the
 `SandboxedFileResolver` over it, created at first use (never when there is no folder); the lists of notes, printed text,
-and embedded images; the count of images that reached a source; the live `ImageBudget` (created from
+embedded images, and requested links; the count of images that reached a source; the live `ImageBudget` (created from
 `MaxDecodedPixels` and handed to every request); and the root scope. The sandbox may read `MaxImages` distinct files,
 plus one more when the render is by path, because `Render(path)` also reads the top-level file and a render of a stream
 does not; the limit is fixed when the sandbox is created, so a render by path is the first call of a resolver.
@@ -75,7 +77,9 @@ inside the folder becomes a path relative to the folder (a `file:` URI with a ho
 other link percent-encoding is decoded, so an encoded `%23` or `%3F` is a literal `#` or `?` of the file name and the
 text that was cut off is never used for the path (the query is never used; the fragment goes to the source, below);
 absolute, drive, and UNC paths are left in the text so that the sandbox
-refuses them. Pick the source by the longest extension of the path (none: unresolved, listing the claimed extensions)
+refuses them. `DecodeReference` (internal, granted to the viewer) is the same cut and decoding as one helper, so a host
+that must classify a link exactly as the resolver does (the SVG flattener) shares it instead of repeating it. Pick the
+source by the longest extension of the path (none: unresolved, listing the claimed extensions)
 and apply the depth and image-count limits (`CheckDepthAndCount`), both **before any file is read**, so an image that is
 over a limit is never opened. Parse the fragment (below). Resolve the path with the sandbox, relative to the folder of
 the current file for an
@@ -158,8 +162,15 @@ with the link, the embedder, and the original exception inside; settle the pixel
 the message `"{href}: {message}"` (the origin of the note becomes the origin of the child scope followed by the origin
 the
 source set on the note); add the printed text; add an `EmbeddedImage` with the format the source reported (or
-its name), the size of the returned surface, and the depth; return the surface, which the caller now owns. Nothing is
-cached.
+its name), the size of the returned surface, and the depth; note the name of the picture (the name of the child scope)
+for `ResolveIn`; return the surface, which the caller now owns. Nothing is cached.
+
+**Requested links** (`ResolveIn`): every link a scope is asked for is added to `Requested` before it is checked, as a
+`RequestedImage` with the link as written and the origin of the scope (the files that contain the link); when the
+call returns a surface, the entry gets the name of the picture that `Draw` noted last (it runs after the pictures the
+picture embeds), the entry the picture adds to the origin of its own links. A link a document never shows is never
+asked for, so a caller that knows the links of a file (the SVG flattener) finds the ones it did not show by comparing
+them with the entries of that origin. `RequestedImage` compares its origin by entries, as `ImageSourceDiagnostic` does.
 
 **`Render(path, w, h)`**: strict version for a top-level file: no folder is `InvalidOperationException`; the extension
 picks

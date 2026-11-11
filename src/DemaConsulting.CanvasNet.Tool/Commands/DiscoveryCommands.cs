@@ -559,7 +559,8 @@ internal static class DiscoveryCommands
         /// </summary>
         internal const string HelpFooter =
             "Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite')."
-            + " An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'.";
+            + " An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'."
+            + " 'canvasnet flatten' writes a copy of such a drawing that any SVG reader can show.";
 
         /// <summary>The smallest JPEG quality setting.</summary>
         internal const int MinQuality = ImageWriter.MinQuality;

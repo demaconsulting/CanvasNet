@@ -330,6 +330,20 @@ public class FolderImageResolverHrefTests
     }
 
     /// <summary>
+    ///     Test that the path a host classifies a link by is cut before it is decoded, as the resolver reads it.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_DecodeReference_CutsThenDecodes()
+    {
+        // Act / Assert: an encoded dot is decoded; an encoded # or ? stays part of the name; the real ones are cut off
+        Assert.Equal("flow.mmd", FolderImageResolver.DecodeReference("flow%2Emmd#theme=dark"));
+        Assert.Equal("a#b.mmd", FolderImageResolver.DecodeReference("a%23b.mmd?v=1#x"));
+        Assert.Equal("sub/a b.png", FolderImageResolver.DecodeReference("sub/a%20b.png"));
+        Assert.Equal("plain.svg", FolderImageResolver.DecodeReference("plain.svg"));
+        Assert.Equal("bad%zz.mmd", FolderImageResolver.DecodeReference("bad%zz.mmd"));
+    }
+
+    /// <summary>
     ///     Writes a file whose name may be illegal on the current file system.
     /// </summary>
     /// <param name="path">The full path.</param>

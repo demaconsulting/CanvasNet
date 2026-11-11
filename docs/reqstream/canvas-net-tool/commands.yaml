@@ -8,7 +8,7 @@
 #   input formats, the result documents, errors, and limits, with their verified examples), and the
 #   command units DiscoveryCommands (formats and info), RenderCommand (render and convert, and the
 #   verbs crop, resize, rotate, flip, and pad), CompareCommand (compare), MontageCommand (montage),
-#   and InspectCommand (inspect)
+#   InspectCommand (inspect), and FlattenCommand (flatten)
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:
@@ -228,3 +228,20 @@ sections:
           - CanvasNetTool-Commands-InspectCommand-InputFragments
         tests:
           - CommandsSubsystem_Inspect_DefaultRegistry_RunsInspectAndIsListedInHelp
+
+      - id: CanvasNetTool-Commands-Flatten
+        title: >-
+          The Commands subsystem shall provide the flatten command, which writes a copy of an SVG drawing in which every
+          image link that only CanvasNet can draw is a PNG picture, reports it as text or as one JSON document when the
+          JSON option is given, and is listed in the help.
+        justification: |
+          A drawing that embeds models, charts, diagrams, and document pages must reach readers that cannot draw them
+          (a browser, WeasyPrint in a documentation build); one command makes such a copy from the command line.
+        children:
+          - CanvasNetTool-Commands-FlattenCommand-Options
+          - CanvasNetTool-Commands-FlattenCommand-Result
+          - CanvasNetTool-Commands-FlattenCommand-NothingToFlatten
+          - CanvasNetTool-Commands-FlattenCommand-Errors
+          - CanvasNetTool-Commands-HelpTopics-FlattenGuideParity
+        tests:
+          - CommandsSubsystem_Flatten_DefaultRegistry_RunsFlattenAndListsItInHelp

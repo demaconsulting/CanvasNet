@@ -71,6 +71,7 @@ internal sealed partial class CommandRegistry
         registry.Register(new CompareCommand());
         registry.Register(new MontageCommand());
         registry.Register(new InspectCommand());
+        registry.Register(new FlattenCommand());
 
         return registry;
     }

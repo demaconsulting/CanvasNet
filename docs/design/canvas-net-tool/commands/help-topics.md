@@ -77,6 +77,14 @@ a snippet is visible as one in `--examples` and in the JSON). A `command` exampl
 line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`,
 `mermaid`, or `shell`.
 
+The `svg` topic has a further section, `flatten` (after `image-links`), that documents the `flatten` command: what is
+replaced, what is kept, the size, the rebasing of links for another folder, nothing to flatten, the limits, and
+`--strict`; a unit test compares its items, one for one and in order, with the rows of the table under
+`#### Flatten Reference` of the tool user guide (`Term | Meaning`). The `diagnostics` section documents
+`svg-flatten-image-not-drawn`, which the identifier drift test allows as a code of the Viewer library, the `flatten`
+command example is checked like every command example, and the `json` and `limits` topics describe the JSON document
+and the limits of `flatten`.
+
 The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
 from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
 the size rule, the folder rule (a query after the file name is ignored; a fragment is read as parameters), the page

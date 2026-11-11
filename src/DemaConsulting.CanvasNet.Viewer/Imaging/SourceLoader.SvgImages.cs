@@ -201,15 +201,28 @@ public static partial class SourceLoader
         }
 
         /// <summary>
-        ///     Gets the kind of file a link names, for the wording of a message.
+        ///     Gets the kind of file a link names, as the resolver reads the link.
         /// </summary>
         /// <param name="href">The link as written.</param>
         /// <returns>The kind, or <see langword="null"/> when the name is not one of a known kind.</returns>
-        private static SourceKind? KindOfName(string href)
+        /// <remarks>
+        ///     The name is the path the resolver chooses its source by (<see cref="FolderImageResolver.DecodeReference"/>:
+        ///     the query and the fragment cut off, then percent-decoded), so <c>flow%2Emmd</c> is a Mermaid diagram.
+        ///     <see cref="SvgFlattener"/> uses the same rule to tell the links only CanvasNet can draw from the plain
+        ///     pictures, so both agree on what a link is.
+        /// </remarks>
+        internal static SourceKind? KindOfName(string href)
         {
-            // A query or fragment is not part of the file name (the resolver cuts it off too)
-            var cut = href.AsSpan().IndexOfAny('?', '#');
-            var name = cut < 0 ? href : href[..cut];
+            return KindOfFile(FolderImageResolver.DecodeReference(href));
+        }
+
+        /// <summary>
+        ///     Gets the kind of a file by its name, which is not a link: nothing is cut off or decoded.
+        /// </summary>
+        /// <param name="name">The file name or path.</param>
+        /// <returns>The kind, or <see langword="null"/> when the name is not one of a known kind.</returns>
+        internal static SourceKind? KindOfFile(string name)
+        {
             if (name.EndsWith(VegaLiteJsonSuffix, StringComparison.OrdinalIgnoreCase))
             {
                 return SourceKind.VegaLite;

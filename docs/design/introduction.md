@@ -375,7 +375,8 @@ software items, specifically:
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
   `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
   the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
-  with the `montage` command, and the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands).
+  with the `montage` command, the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands, and
+  the `FlattenCommand` unit with the `flatten` command).
   It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
@@ -394,9 +395,10 @@ software items, specifically:
   operations are given, the `GridOverlay` unit, which does the grid work for it (the flip, pad, trim, tone, rotation,
   skew, and analysis arithmetic is the core library's `Surface`), the `ImageWriter` unit, which writes PNG, JPEG, BMP,
   and TIFF files, the `ImageComparison` unit, which checks how two images compare (measured by the core library's
-  `Surface`) against thresholds, the `ContactSheet` unit, which composes images into a labeled sheet, and the four
+  `Surface`) against thresholds, the `ContactSheet` unit, which composes images into a labeled sheet, and the five
   operation units that chain them: `ImageRenderer` (render the pages of a source), `ImageInspector` (colors and pixels),
-  `ImageComparer` (compare two images), and `MontageBuilder` (a contact sheet). It references the core package and the
+  `ImageComparer` (compare two images), `MontageBuilder` (a contact sheet), and `SvgFlattener` (a copy of an SVG drawing
+  that other SVG readers can show). It references the core package and the
   Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, and Mermaid packages, is referenced only by the tool, and has no
   plug-in mechanism of its own — see _CanvasNetViewer System Design_ (`canvas-net-viewer.md`)
 
@@ -623,8 +625,9 @@ and its `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`
 `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels,
 transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew
 operations), turn pixels into files, check the comparison of two images against thresholds, and compose a contact sheet,
-and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder` units that chain them into the render,
-inspect, compare, and montage operations. It references the core package and the `CanvasNetSvg`, `CanvasNetPdf`,
+and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them
+into the render, inspect, compare, montage, and flatten operations. It references the core package and the
+`CanvasNetSvg`, `CanvasNetPdf`,
 `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, and `CanvasNetMermaid`
 packages; the tool references it. See the Folder Layout section below and _CanvasNetViewer System Design_
 (`canvas-net-viewer.md`).
@@ -636,9 +639,10 @@ direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
 grammar, the JSON result documents, the self-validation, and the safe path helper, and its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`, and
-`RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units (the `formats`, `info`, `render`,
+`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand` units (the `formats`,
+`info`, `render`,
 `convert`, `crop`,
-`resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, and `inspect`
+`resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, `inspect`, and `flatten`
 commands). It is a thin shell: the commands call the operations of the `Imaging` subsystem of the `CanvasNetViewer`
 system with request records built from the command line, and print the results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
@@ -1650,7 +1654,10 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── ImageRenderer.cs           — ImageRenderer: the render operation (load, transform, and write the pages of a source)
     ├── ImageInspector.cs          — ImageInspector: the inspect operation (colors and pixels after the pipeline)
     ├── ImageComparer.cs           — ImageComparer: the compare operation (sizes, measures, thresholds, and pictures)
-    └── MontageBuilder.cs          — MontageBuilder: the montage operation (a contact sheet of many sources)
+    ├── MontageBuilder.cs          — MontageBuilder: the montage operation (a contact sheet of many sources)
+    ├── SvgFlattener.cs            — SvgFlattener: the flatten operation (records and orchestration)
+    ├── SvgFlattener.Links.cs      — SvgFlattener: the link scanner, the rewrite, and the rebasing of links
+    └── SvgFlattener.Recorder.cs   — SvgFlattener: the recording resolver that draws the links to replace
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
@@ -1693,7 +1700,8 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
     ├── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
     ├── InspectCommand.cs          — InspectCommand: the inspect colors and inspect pixel commands, run and result
-    └── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
+    ├── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
+    └── FlattenCommand.cs          — FlattenCommand: the flatten command, options, run, and result
 ```
 
 The top-level `tools/` folder is a separate tree of support tools that are not software items: unlike

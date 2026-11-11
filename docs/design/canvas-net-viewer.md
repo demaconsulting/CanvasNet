@@ -28,8 +28,8 @@ of two units and one subsystem:
   (`canvas-net-viewer/viewer-exception.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Viewer.Imaging`, folder `Imaging/`): `SourceLoader`,
   `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay`, and the operation units
-  `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`. See _Imaging Subsystem Design_
-  (`canvas-net-viewer/imaging.md`).
+  `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`. See _Imaging Subsystem
+  Design_ (`canvas-net-viewer/imaging.md`).
 
 `CanvasNetViewer` is modeled as its own top-level software system because it is distributed as its own NuGet package,
 per `software-items.md`'s rule that a software package contains exactly one software system. The `CanvasNetViewer` unit
@@ -69,7 +69,8 @@ The system exposes the following public API:
 - **The `Imaging` operations** (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`): `SourceLoader.Probe` /
   `Load` / `OpenPages` (the facts of a file, and its pixels, with pages, resolution, and options),
   `ImageRenderer.Execute` (load, transform, and write), `ImageInspector.Execute` (colors and pixels),
-  `ImageComparer.Execute` (measures, thresholds, and pictures), `MontageBuilder.Execute` (a contact sheet), and the
+  `ImageComparer.Execute` (measures, thresholds, and pictures), `MontageBuilder.Execute` (a contact sheet),
+  `SvgFlattener.Execute` (a copy of an SVG drawing that other SVG readers can show), and the
   lower-level `ImagePipeline.Apply`, `ImageWriter.Write`, `ContactSheet`, and `GridOverlay.Draw`. Each takes plain
   request values and returns plain result values; see _Imaging Subsystem Design_ for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.

@@ -122,12 +122,13 @@ constituent software items, specifically:
   them, renders any file as a picture, and is the library form of the `canvasnet` tool, containing two direct units,
   `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) and `ViewerException` (with `ErrorCodes`), and an
   `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
-  `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder` units — see _CanvasNetViewer
-  System Verification_ (`canvas-net-viewer.md`)
+  `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units — see
+  _CanvasNetViewer System Verification_ (`canvas-net-viewer.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry`, `HelpTopics`,
-  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units; the tool is a
+  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand`
+  units; the tool is a
   thin shell over the `Imaging` subsystem of the Viewer — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 

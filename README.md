@@ -64,7 +64,7 @@ specification and is rendered, in strict mode, by a test.*
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
-  (see User Guide)
+  and SVG drawings that link them, which are flattened so WeasyPrint shows them (see User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -80,7 +80,7 @@ specification and is rendered, in strict mode, by a test.*
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
-  a transformation pipeline, inspect, compare, and make a contact sheet) as library calls
+  a transformation pipeline, inspect, compare, make a contact sheet, and flatten an SVG drawing) as library calls
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
@@ -157,6 +157,7 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `compare`                  | Measure how much two images differ (MAE, RMSE, PSNR, SSIM, grid)                 |
 | `montage`                  | Compose images and document pages into one labeled contact sheet                 |
 | `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
+| `flatten`                  | Copy an SVG drawing with its linked models, charts, and diagrams as PNG pictures |
 
 `render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts
 (`.vl.json`, `.vl`), and Mermaid diagrams (`.mmd`, `.mermaid`), and applies `--crop`, `--resize`,
@@ -224,6 +225,9 @@ directly at that size. `--diff`, `--side-by-side`, and `--overlay` write picture
 the error code `threshold-failed` after writing the result and the pictures; with `--json` that failure document
 carries the metrics too. `montage <inputs...> -o sheet.png` composes images and, with `--all-pages`, every page of
 documents into one contact sheet (`--columns`, `--cell`, `--labels` with the bundled font).
+`flatten <in.svg> -o out.svg` writes a copy of a drawing whose `<image>` links to models, charts, diagrams, and
+document pages are PNG pictures of their placement size (`--scale` for print), so a browser or WeasyPrint shows it; a
+drawing with nothing to flatten is left alone and nothing is written.
 
 ### Quick start for AI agents
 

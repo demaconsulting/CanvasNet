@@ -852,6 +852,25 @@ sections:
           - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
           - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
 
+      - id: CanvasNetTool-System-Flatten
+        title: >-
+          The tool shall write, with the flatten command, a copy of an SVG file in which every image link to an OpenSCAD
+          model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document (and to a nested SVG
+          file that links one) is a PNG picture of its placement size, keeping every other byte, following the links
+          with the sandbox and limits of render, writing nothing and exiting with code 0 when there is nothing to
+          flatten, and reporting its failures as expected errors.
+        tags: [system]
+        justification: |
+          A documentation build that turns HTML into a PDF with an SVG reader that cannot draw models, charts, or
+          diagrams (WeasyPrint) needs a copy of a composite drawing it can show; a plain drawing must stay as it is.
+        children:
+          - CanvasNetTool-Commands-Flatten
+          - CanvasNetViewer-Imaging-Flatten
+        tests:
+          - CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy
+          - CanvasNetTool_Flatten_PlainSvg_ExitsZeroWithoutOutput
+          - CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors
+
       - id: CanvasNetTool-System-Diagnostics
         title: >-
           The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries

@@ -101,6 +101,10 @@
          (not duplicated) by SvgCodec.Image.cs and SvgCodec.Patterns.cs for smooth raster
          image and pattern-tile resampling. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Svg" />
+    <!-- Grants DemaConsulting.CanvasNet.Viewer access to FolderImageResolver.DecodeReference, reused
+         (not duplicated) by SourceLoader.SvgImages.KindOfName so that the SVG flattener classifies a
+         link from the same cut and percent-decoded path the resolver chooses its source by. -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Viewer" />
   </ItemGroup>
 
   <ItemGroup>

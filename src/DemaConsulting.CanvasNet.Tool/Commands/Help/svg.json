@@ -42,6 +42,19 @@
       ]
     },
     {
+      "id": "flatten",
+      "title": "Flattening for other SVG readers (canvasnet flatten)",
+      "items": [
+        { "term": "replaced", "text": "An image whose link names a file only CanvasNet draws: a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document, with or without a fragment (#page=2, #def.width=20, #param.t=5, #theme=dark), and an SVG file that links such a file directly or through further SVG files. Its href (or its xlink:href when it has no href) becomes a data:image/png;base64 URI of the picture." },
+        { "term": "kept", "text": "Everything else, byte for byte: comments, formatting, line endings, a byte order mark, raster pictures, SVG files that link only rasters and SVG files, data: URIs (never followed), same-document # links, and network links." },
+        { "term": "size", "text": "Each picture is drawn at the size of its placement in the drawing at its natural size (through the viewBox and every transform, as render draws it), times --scale; the SVG reader still fits it with preserveAspectRatio. A link used twice is drawn once, at the larger placement." },
+        { "term": "other folder", "text": "When the copy is written to another folder, the relative links that are left are rewritten so they find their files from there. Links of other elements (an external use, a CSS url()) are not rewritten." },
+        { "term": "nothing to flatten", "text": "When the drawing links no such picture, or shows none, nothing is written and the exit code is 0: the text says nothing to flatten and flattened is false in the JSON document." },
+        { "term": "limits", "text": "The links are drawn by the resolver of render, with its folder rule and limits (at most 64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (size-limit), and the drawing must be UTF-8 (unsupported-feature for another declared encoding unless the file is plain ASCII)." },
+        { "term": "--strict", "text": "A link that is not drawn (svg-image-unresolved, svg-image-too-large, image-fragment-invalid, or image-page-out-of-range) is an unsupported-feature error, as for render; svg-flatten-image-not-drawn stays a warning." }
+      ]
+    },
+    {
       "id": "unsupported",
       "title": "Unsupported",
       "items": [
@@ -76,6 +89,7 @@
         { "term": "vl-param-unknown", "text": "Warning: a param.<name> of the fragment names a param the chart does not declare (a typo, or a chart without params). The chart is drawn without it. --strict does not fail on it." },
         { "term": "image-fragment-invalid", "text": "Unsupported: a value that is not allowed (page=0, page=abc, page=2.5, an empty value, an unknown view name, a def. value that is not valid JSON when it starts with [ or a name that is not an identifier, a param. value that is not valid JSON) or a fragment over its limit. The image is not drawn; with --strict it is an unsupported-feature error. For an input path of the command line the same mistake is an error with this code." },
         { "term": "image-page-out-of-range", "text": "Unsupported: the page or slide does not exist (page=9 of a 2-page document). The image is not drawn and the message tells how many pages there are; with --strict it is an unsupported-feature error." },
+        { "term": "svg-flatten-image-not-drawn", "text": "Warning of canvasnet flatten: an image links a file only CanvasNet draws, but the drawing, or an SVG file it shows, never shows it (hidden, an unused definition, outside the canvas, or over a limit of the drawing), so it was left as a link. The location gives its file, line and column; for a link of a nested SVG file the origin lists the files that contain it. --strict does not fail on it." },
         { "text": "With --json each of these reports carries the embedding file in origin (see 'canvasnet help json'); the message starts with the href as written." },
         { "text": "The notes of an embedded model, chart, or SVG file are reported too, each starting with the href of the file, and the lines an embedded model prints with echo are kept." },
         { "text": "An embedded file that is found but is broken (a corrupt picture, a model with a syntax error, a chart with a bad specification) is an error with its own code, and the message names both files." },
@@ -105,6 +119,7 @@
     { "name": "embed-pages", "kind": "snippet", "language": "xml", "fileName": "pages.svg", "description": "A diagram that places pages of a PDF, PPTX, and VSDX document side by side, chosen with #page=N and #slide=N (a snippet: it needs those files, so it is not rendered alone)." },
     { "name": "render-embed-pages", "kind": "command", "language": "shell", "description": "Draw that diagram and fail if a page does not exist.", "content": "canvasnet render pages.svg --strict -o pages.png" },
     { "name": "transparent", "kind": "command", "language": "shell", "description": "Keep the transparency of the drawing.", "content": "canvasnet render shapes.svg --background transparent -o shapes-alpha.png" },
-    { "name": "info", "kind": "command", "language": "shell", "description": "Report the intrinsic size without drawing.", "content": "canvasnet info shapes.svg --json" }
+    { "name": "info", "kind": "command", "language": "shell", "description": "Report the intrinsic size without drawing.", "content": "canvasnet info shapes.svg --json" },
+    { "name": "flatten", "kind": "command", "language": "shell", "description": "Write a copy of a drawing whose linked diagrams, models, charts, and document pages are PNG pictures twice their placement size, for an SVG reader that cannot draw them.", "content": "canvasnet flatten dashboard.svg -o dashboard-flat.svg --scale 2 --json" }
   ]
 }

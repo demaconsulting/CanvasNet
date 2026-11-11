@@ -372,6 +372,69 @@ public class CanvasNetViewerSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that a flattened drawing shows, in an SVG reader that follows no links (the SVG library without a
+    ///     resolver), what CanvasNet draws for the original: the nested SVG file with its diagram and the page of a
+    ///     document become pictures, and the original shows neither in such a reader.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_Flatten_ComposedSvgBecomesPlainSvg()
+    {
+        // Arrange: a drawing that links a PDF page and a nested SVG file that links a Mermaid diagram
+        using var folder = new ViewerTestFolder();
+        File.Copy(FixtureFactory.FixturePath("mermaid/flow.mmd"), folder.Combine("flow.mmd"));
+        File.WriteAllBytes(folder.Combine("doc.pdf"), FixtureFactory.CreatePdf());
+        folder.WriteText("inner.svg", "<svg xmlns='http://www.w3.org/2000/svg' width='80' height='60'><image href='flow.mmd' width='80' height='60'/></svg>");
+        var input = folder.WriteText(
+            "dashboard.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='200' height='100'>"
+            + "<rect width='200' height='100' fill='#ffffff'/><image xlink:href='inner.svg' width='120' height='90'/>"
+            + "<image href='doc.pdf#page=1' x='130' width='60' height='90'/></svg>");
+        var output = folder.Combine("flat.svg");
+
+        // Act: flatten, then draw the original with CanvasNet and both files with a reader that follows no links
+        var result = SvgFlattener.Execute(SourceLoader.Probe(input), new FlattenRequest(output));
+        using var canvasNet = SourceLoader.Load(input, new SourceOptions());
+        using var flattened = Svg.SvgCodec.LoadWithFontFaces(output, 200, 100, null);
+        using var plain = Svg.SvgCodec.LoadWithFontFaces(input, 200, 100, null);
+
+        // Assert: both links were replaced, the flattened copy looks like CanvasNet's drawing, and the original does not
+        Assert.Equal(["inner.svg", "doc.pdf#page=1"], result.Replaced.Select(r => r.Href));
+        Assert.True(Difference(canvasNet.Surface, flattened) < Difference(canvasNet.Surface, plain) / 4);
+    }
+
+    /// <summary>
+    ///     Measures how much two pictures of one size differ.
+    /// </summary>
+    /// <param name="a">The first picture.</param>
+    /// <param name="b">The second picture, flattened over white first.</param>
+    /// <returns>The mean absolute difference of the color channels, from 0 to 255.</returns>
+    private static double Difference(Surface a, Surface b)
+    {
+        var total = 0L;
+        for (var y = 0; y < a.Height; y++)
+        {
+            for (var x = 0; x < a.Width; x++)
+            {
+                var (p, q) = (a[x, y], Over(b[x, y]));
+                total += Math.Abs(p.R - q.R) + Math.Abs(p.G - q.G) + Math.Abs(p.B - q.B);
+            }
+        }
+
+        return total / (3.0 * a.Width * a.Height);
+    }
+
+    /// <summary>
+    ///     Puts a pixel over white.
+    /// </summary>
+    /// <param name="pixel">The pixel.</param>
+    /// <returns>The opaque pixel.</returns>
+    private static Rgba32 Over(Rgba32 pixel)
+    {
+        int Mix(byte channel) => ((channel * pixel.A) + (255 * (255 - pixel.A))) / 255;
+        return new Rgba32((byte)Mix(pixel.R), (byte)Mix(pixel.G), (byte)Mix(pixel.B), 255);
+    }
+
+    /// <summary>
     ///     Proves that an operation that cannot be done fails with the one exception type of the library and a stable code
     ///     that a program can act on, naming nothing of the command line it came from in the type.
     /// </summary>

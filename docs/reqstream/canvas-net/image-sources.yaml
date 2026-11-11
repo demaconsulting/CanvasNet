@@ -126,6 +126,7 @@ sections:
             title: >-
               The ImageSources subsystem shall report what happened: forward the notes and printed text of every
               source with the embedding link in front, list every embedded image with its format, size and depth,
+              list every link a document asked for with the files that contain it,
               report a link that was not drawn as a warning with a stable code, wrap the failure of a source that
               found a file in an exception that names the link and the embedding file and keeps the original failure
               (but never wrap cancellation), never cache a drawn picture so that every call asks the source again, and
@@ -136,6 +137,7 @@ sections:
             children:
               - CanvasNet-ImageSources-FolderImageResolver-Diagnostics
               - CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin
+              - CanvasNet-ImageSources-FolderImageResolver-Requested
               - CanvasNet-ImageSources-FolderImageResolver-Failures
               - CanvasNet-ImageSources-FolderImageResolver-NoCaching
               - CanvasNet-ImageSources-FolderImageResolver-DirectRender

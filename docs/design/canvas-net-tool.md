@@ -57,10 +57,13 @@ consists of six direct units and one subsystem:
   command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`),
   `CompareCommand` (the `compare` command: exact metrics, a grid of per-cell errors, difference pictures, and
   threshold gating), `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
-  pages), and `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands). Each of the
-  four image commands (`RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand`) reads its options,
-  probes its inputs, checks the options against the kind of each input, calls the matching operation of the Viewer
-  library (`ImageRenderer`, `ImageComparer`, `MontageBuilder`, or `ImageInspector`), and prints the result;
+  pages), `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands), and `FlattenCommand` (the
+  `flatten` command: a copy of an SVG drawing whose links to models, charts, diagrams, and document pages are PNG
+  pictures). Each of the
+  five image commands (`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand`)
+  reads its options, probes its inputs, checks the options against the kind of each input, calls the matching operation
+  of the Viewer library (`ImageRenderer`, `ImageComparer`, `MontageBuilder`, `ImageInspector`, or `SvgFlattener`), and
+  prints the result;
   the `ImagePipelineParser` type (in `RenderCommand`'s unit) reads the pipeline operations from the command line.
   See _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
 

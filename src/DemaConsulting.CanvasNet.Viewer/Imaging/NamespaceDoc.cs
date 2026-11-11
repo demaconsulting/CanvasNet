@@ -7,8 +7,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     <see cref="ImageRenderer"/> loads, transforms (<see cref="ImagePipeline"/> and its
 ///     <see cref="IImageOperation"/> records), and writes it (<c>render</c> and the verb commands);
 ///     <see cref="ImageInspector"/> reports its colors or one pixel (<c>inspect</c>); <see cref="ImageComparer"/>
-///     measures how two images differ (<c>compare</c>); and <see cref="MontageBuilder"/> composes a contact sheet
-///     (<c>montage</c>). The building blocks (<see cref="SourceLoader"/>, <see cref="ImageWriter"/>,
+///     measures how two images differ (<c>compare</c>); <see cref="MontageBuilder"/> composes a contact sheet
+///     (<c>montage</c>); and <see cref="SvgFlattener"/> writes a copy of an SVG drawing whose links that only CanvasNet
+///     can draw are PNG pictures (<c>flatten</c>). The building blocks (<see cref="SourceLoader"/>, <see cref="ImageWriter"/>,
 ///     <see cref="ContactSheet"/>, <see cref="GridOverlay"/>, <see cref="ImageComparison"/>) are public too. Every
 ///     expected failure is a <see cref="ViewerException"/> whose <see cref="ViewerException.Code"/> is one of the stable
 ///     <see cref="ErrorCodes"/>.
@@ -28,8 +29,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <see cref="IImageOperation"/> for the operations that transform the image (<see cref="CropOperation"/>,
 ///         <see cref="ResizeOperation"/>, <see cref="FitOperation"/>, and the others of this namespace),
 ///         <see cref="ImageComparer"/> with <see cref="CompareRequest"/> and <see cref="CompareResult"/> to measure a
-///         difference, <see cref="ImageInspector"/> with <see cref="InspectRequest"/>, and
-///         <see cref="MontageBuilder"/> with <see cref="MontageRequest"/>. To render a file in one call without any of
+///         difference, <see cref="ImageInspector"/> with <see cref="InspectRequest"/>,
+///         <see cref="MontageBuilder"/> with <see cref="MontageRequest"/>, and <see cref="SvgFlattener"/> with
+///         <see cref="FlattenRequest"/> and <see cref="FlattenResult"/>. To render a file in one call without any of
 ///         this, or to add image sources of your own, see <see cref="DemaConsulting.CanvasNet.Viewer"/> and
 ///         <see cref="DemaConsulting.CanvasNet.ImageSources"/>. Pages are numbered from 1 here (the format packages count
 ///         from 0), and anchors of an OpenSCAD model are reported only by <see cref="ImageRenderer"/> and
@@ -37,10 +39,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     </para>
 ///     <para>
 ///         <b>Ownership.</b> The <see cref="ImageRenderer"/>, <see cref="ImageInspector"/>,
-///         <see cref="ImageComparer"/>, and <see cref="MontageBuilder"/> operations return plain values and need no
-///         disposal; <see cref="ImageRenderer"/>,
-///         <see cref="MontageBuilder"/>, and <see cref="ImageComparer"/> write files (<see cref="WriteOptions"/> decides
-///         the format and the JPEG quality) and return where. What you dispose: a <see cref="LoadedSource"/>, a
+///         <see cref="ImageComparer"/>, <see cref="MontageBuilder"/>, and <see cref="SvgFlattener"/> operations return
+///         plain values and need no disposal; <see cref="ImageRenderer"/>, <see cref="MontageBuilder"/>, and
+///         <see cref="ImageComparer"/> write image files (<see cref="WriteOptions"/> decides the format and the JPEG
+///         quality) and return where, and <see cref="SvgFlattener"/> writes an SVG file and returns where
+///         (<see cref="FlattenResult.Output"/>, <see langword="null"/> when nothing was written). What you dispose: a <see cref="LoadedSource"/>, a
 ///         <see cref="SourceLoader.PageSource"/>, a <see cref="ContactSheet"/>, and the surface that
 ///         <see cref="ImagePipeline"/> returns from <c>Apply</c>. In the root namespace dispose a <c>ViewerImage</c>; a
 ///         <c>FolderImageResolver</c> is not disposable.

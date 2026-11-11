@@ -43,7 +43,9 @@ fails the build. The content is checked against the things it describes, so that
   Mermaid user guide (`docs/user_guide/canvas-net-mermaid.md`), and every
   row of the guide's table of unsupported features and warnings must be an item of the `unsupported` or `diagnostics`
   section (the **guide parity test**), so the help that agents read and the guide that people read describe the same
-  version.
+  version;
+- the **`flatten` section** of the `svg` topic is compared, item by item and in order, with the rows of the
+  `#### Flatten Reference` table of the tool user guide (`docs/user_guide/canvas-net-tool.md`).
 
 The text and JSON renderings are checked for every topic with theory tests. The interaction with the registry
 (`help` and its options) is verified by `CommandRegistryTests.cs` and at the subsystem level by
@@ -78,6 +80,8 @@ delete.
   setting rows, the pie syntax and setting rows, and the gantt syntax, tag, and setting rows of the Mermaid user guide,
   in order and worded the same apart from formatting, and every code of the guide's table of unsupported features and
   warnings is an item of the topic.
+- The `flatten` section of the `svg` topic has exactly the rows of the flatten reference table of the tool user guide,
+  in order and worded the same apart from formatting.
 - The file types the `svg` topic lists for `<image href>` are exactly the extensions of `CanvasNetViewer` and of the
   `formats` table; the `image-links` section states the size rule, the folder rule, `svg-image-unresolved`,
   `svg-image-too-large`, and the
@@ -167,6 +171,11 @@ the `unsupported` section (kind `Unsupported`, the text of the row) or of the `d
 and the text), with the code as its term. Items are compared in a canonical form: backticks dropped, `\|` read as `|`, a
 final period added to a guide row, and the first letter of a text (after an `Area:` prefix and its space) compared
 ignoring case. Every difference is listed in the failure message, guide row beside help item.
+
+**HelpTopics_SvgTopic_FlattenItems_MatchUserGuide**: the rows of the table under the guide heading
+`#### Flatten Reference` (at least 7, each with the header `Term | Meaning`) are, one for one and in order, the items of
+the `flatten` section of the `svg` topic: the term is the first cell and the text the second, compared without
+backticks and with the first letter of the text ignoring case.
 
 **HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` item names the grammar
 (`name=value`), `page=N`, `slide=N`, `view=`, the counting from 1, and the live limits; the `page example` item shows
