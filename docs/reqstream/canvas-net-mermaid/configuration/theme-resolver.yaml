@@ -213,8 +213,9 @@ sections:
                   rules as for a flowchart and the mindmap rules, one set for each section up to the theme's
                   THEME_COLOR_LIMIT, the root's rules, and, for a theme that uses gradients, the rules that hide the
                   line under a default node - from the theme variables of a configuration, leave out a declaration that
-                  CSS drops (a negative stroke width), apply the themeCSS rules of the mindmap's own selectors after
-                  them and report every other themeCSS rule as mermaid-theme-css-unsupported, and resolve from them the
+                  CSS drops (a negative stroke width), apply after them, in sheet order, the themeCSS rules of the
+                  mindmap's own selectors and of a class of the diagram's nodes with an element a node draws, report
+                  every other themeCSS rule as mermaid-theme-css-unsupported, and resolve from them the
                   fill of each section and of the root, the line under a default node, the label colors, the edge
                   color of each section, and the edge width of each depth.
                 justification: |
@@ -226,6 +227,8 @@ sections:
                   - MindmapStyles_Create_EachTheme_UsesThemeVariables
                   - MindmapStyles_Create_GradientThemes_HideTheSectionLines
                   - MindmapStyles_Create_ThemeCss_OverridesKnownSelectors
+                  - MindmapStyles_Create_ThemeCssNodeClass_CascadesInSheetOrder
+                  - MindmapStyles_Create_ThemeCssOtherClass_IsReported
                   - MindmapStyles_Create_ColorLimit_BoundsTheSections
 
               - id: CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses

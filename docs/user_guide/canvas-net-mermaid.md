@@ -616,7 +616,7 @@ puts them.
 | Shapes | `id[text]` a rectangle, `id(text)` a rounded rectangle, `id((text))` a circle, `id)text(` a cloud, `id))text((` a bang, the text between two braces on each side a hexagon, and a node without brackets the default shape, a box with a line under it |
 | Texts | A node's text is its id when it has no brackets; in brackets it can be quoted (`id["text"]`), also as a Markdown string (a backtick inside each quote); every text is Markdown (`**bold**`, `*italic*`) and wraps at `mindmap.maxNodeWidth` |
 | Icons | `::icon(fa fa-book)` on the line after a node is read and reported (`mermaid-icon-unsupported`), and the node keeps its shape and text; Mermaid 11 does not draw it either |
-| Classes | `:::urgent large` on the line after a node gives it classes, which only `themeCSS` can style |
+| Classes | `:::urgent large` on the line after a node gives it classes, which only `themeCSS` can style, with a rule for one of them and an element the node draws (`rect`, `path`, `circle`, or `polygon` for its shape, `line` for the line under a default node, `text` or `span` for its text), such as `.urgent rect` |
 | Sections | Each child of the root starts a section that its whole branch shares; the sections take the theme's section colors in turn, eleven before they repeat, and the root has a color of its own |
 | Edges | A curve from each node to each of its children, in the color of the section, thinner the further its node is indented, as in Mermaid |
 | Layout | cose-bilkent, Mermaid's default for a mindmap: the root's children around it, and each branch pushed away from the others; a `layout` other than `cose-bilkent` is reported (`mermaid-layout-unsupported`), and the mindmap is laid out with cose-bilkent |

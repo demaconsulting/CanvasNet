@@ -69,12 +69,18 @@ have the leftmost and topmost box sides at 15, the layout's margin.
 
 ##### CanvasNetMermaid-Mindmap-MindmapRenderer-SectionPaint: Nodes Painted By Their Sections
 
-**Tests**: `MindmapRendererTests.MindmapRenderer_Draw_Sections_PaintNodesBySection`
+**Tests**: `MindmapRendererTests.MindmapRenderer_Draw_Sections_PaintNodesBySection`,
+`MindmapRendererTests.MindmapRenderer_Draw_ThemeCssNodeClass_PaintsTheClassedNodes`
 
 Asserts that the root's body is filled with the theme's `git0`; that the child `a`, whose own class is `section-9`,
 takes `cScale10` (the later rule wins); that its child `a1` takes its section's `cScale1`, and the children `b` and `c`
 `cScale2` and `cScale3`; that the line under `a1` (a default node) is stroked with `cScaleInv1` 3 pixels wide; and that
-the body of `a1` has no stroke.
+the body of `a1` has no stroke. With the `themeCSS` of a reference render by mmdc, it asserts the paint mmdc computes:
+after `.section-0 rect { fill: blue }`, the rules for the class `urgent` fill the rectangle of a `:::urgent` node red,
+stroked `#00ff00` 4 pixels wide, the body of a classed default node `#008000` with its line `#800080`, and a classed
+circle `#ffa500`, while the rectangle of section 1, which has no class, keeps `cScale2` and the rule `.nope rect`,
+whose class no node has, is the one report; and that a `.urgent rect` rule before `.section-0 rect` loses to it, so the
+classed rectangle is blue.
 
 ##### CanvasNetMermaid-Mindmap-MindmapRenderer-Edges: Edges By Depth, Through The Layout's Points
 

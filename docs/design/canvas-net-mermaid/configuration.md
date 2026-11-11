@@ -83,8 +83,9 @@ model names the subsystem `MermaidConfiguration` (see _CanvasNetMermaid System D
   `OuterCircle`, `TitleText`, `SliceText`, and `LegendText`;
 - `GanttStyles.Create(MermaidConfig, MermaidReportSink?)` with `Compute(path)`, the style of an element from the classes
   and attributes of the element and its ancestors (`GanttElement`) through a class-set cascade;
-- `MindmapStyles.Create(MermaidConfig, MermaidReportSink?)`, a `UnifiedStyles` whose `NodePaintFor` and `NodeLabelFor`
-  cascade the `.class element` rules of a node's classes in sheet order, with its `KnownSelectors` for `themeCSS`;
+- `MindmapStyles.Create(MermaidConfig, MermaidReportSink?, IEnumerable<string>?)`, a `UnifiedStyles` whose
+  `NodePaintFor` and `NodeLabelFor` cascade the `.class element` rules of a node's classes in sheet order, with its
+  `KnownSelectors` and the `.class element` selectors of the diagram's node classes for `themeCSS`;
 - `ColorMath` (`Adjust`, `Darken`, `Lighten`, `Invert`, `Mix`, `Rgba`, `Channel`, `Luminance`, `IsDark`, `IsColor`);
 - `StyleDeclarations.ParseItems`, `ParseBlock`, `ParseSheet`, `NormalizeSelector`, and the value parsers
   `TryParsePaint`, `TryParseLength`, `TryParseDashArray`, `TryParseOpacity`, `TryParseBold`, and `TryParseItalic`,

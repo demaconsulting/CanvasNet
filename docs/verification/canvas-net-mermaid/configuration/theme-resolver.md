@@ -231,6 +231,8 @@ sheet is 16 pixels.
 `ThemeResolverTests.MindmapStyles_Create_EachTheme_UsesThemeVariables`,
 `ThemeResolverTests.MindmapStyles_Create_GradientThemes_HideTheSectionLines`,
 `ThemeResolverTests.MindmapStyles_Create_ThemeCss_OverridesKnownSelectors`,
+`ThemeResolverTests.MindmapStyles_Create_ThemeCssNodeClass_CascadesInSheetOrder`,
+`ThemeResolverTests.MindmapStyles_Create_ThemeCssOtherClass_IsReported`,
 `ThemeResolverTests.MindmapStyles_Create_ColorLimit_BoundsTheSections`
 
 Asserts, with the values Chrome computes for Mermaid's mindmap, that the mindmap sheet starts with the same global
@@ -247,8 +249,13 @@ that `.section-edge-0` strokes `#ffff78`; that in each of the five themes (a the
 theme variable `useGradient: false` (a theory with six cases); that a directive's `themeCSS` rules
 `.section-0 rect { fill: #ff0000 }` and `.section--1 span { color: #0000ff }` fill a section 0 rectangle red (not its
 path) and color the root's HTML label blue, a later `.section--1` rule winning over `.section-root`, while
-`.bogus { fill: red }` is reported once; and that a `THEME_COLOR_LIMIT` of 3 styles sections 0 and 1 and leaves section
-2 without a fill.
+`.bogus { fill: red }` is reported once; that, with the node classes of a root, a `:::urgent` node of section 0, and a
+node of section 1, the `themeCSS` rules `.urgent rect` (red, stroked `#00ff00` 4 pixels wide), a later
+`.section-0 rect { fill: #0000ff }`, `.urgent circle`, and `.urgent span` fill the classed rectangle blue (the later
+rule wins, as mmdc draws it) with the class's stroke, fill its circle `#ffa500`, and color its HTML label white,
+leave the node of section 1 unchanged, and report `.urgent p` once; that a rule for a class no node has (`.urgent`)
+and for a node class that is not a plain CSS identifier (`a.b`) are both reported and not applied; and that a
+`THEME_COLOR_LIMIT` of 3 styles sections 0 and 1 and leaves section 2 without a fill.
 
 ##### CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses: A Node's Paint By Its Classes And Element
 

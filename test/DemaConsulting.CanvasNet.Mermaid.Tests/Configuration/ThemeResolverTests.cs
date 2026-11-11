@@ -909,6 +909,63 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a class of the diagram's nodes and an element a node draws is
+    ///     applied in sheet order with the section rules (as mmdc draws it, a later <c>.section-0 rect</c> wins over an
+    ///     earlier <c>.urgent rect</c>), while a selector of another element is reported.
+    /// </summary>
+    [Fact]
+    public void MindmapStyles_Create_ThemeCssNodeClass_CascadesInSheetOrder()
+    {
+        // Arrange: the classes of a root, a classed node of section 0, and a node of section 1
+        const string Text = "%%{init: {\"themeCSS\": \".urgent rect { fill: #ff0000; stroke: #00ff00; stroke-width: 4px } .section-0 rect { fill: #0000ff } .urgent circle { fill: #ffa500 } .urgent span { color: #ffffff } .urgent p { color: #000000 }\"}}%%\nmindmap\n  root\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "mindmap", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+        string[] nodeClasses = ["mindmap-node section-root section--1", "mindmap-node section-0 urgent", "mindmap-node section-1"];
+
+        // Act
+        var styles = MindmapStyles.Create(config, sink, nodeClasses);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        var report = Assert.Single(reports);
+        Assert.Contains("'.urgent p'", report.Message, StringComparison.Ordinal);
+        var rect = styles.NodePaintFor(nodeClasses[1], "rect");
+        Assert.Equal(Color("#0000ff"), rect.Fill);
+        Assert.Equal(Color("#00ff00"), rect.Stroke);
+        Assert.Equal(4.0, rect.StrokeWidth);
+        Assert.Equal(Color("#ffa500"), styles.NodePaintFor(nodeClasses[1], "circle").Fill);
+        Assert.Equal(Color("#ffffff"), styles.NodeLabelFor(nodeClasses[1], html: true).Color);
+        Assert.NotEqual(Color("#ffa500"), styles.NodePaintFor(nodeClasses[2], "circle").Fill);
+        Assert.NotEqual(Color("#ffffff"), styles.NodeLabelFor(nodeClasses[2], html: true).Color);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a class no node has, or for a class that is not a plain CSS
+    ///     identifier (it would read as another selector), is reported and not applied.
+    /// </summary>
+    [Fact]
+    public void MindmapStyles_Create_ThemeCssOtherClass_IsReported()
+    {
+        // Arrange: the node class a.b, which CSS would read as the two classes a and b
+        const string Text = "%%{init: {\"themeCSS\": \".urgent rect { fill: #ff0000 } .a.b rect { fill: #ff0000 }\"}}%%\nmindmap\n  root\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "mindmap", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = MindmapStyles.Create(config, sink, ["mindmap-node section-0 a.b"]);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Equal(2, reports.Count);
+        Assert.NotEqual(Color("#ff0000"), styles.NodePaintFor("mindmap-node section-0 urgent", "rect").Fill);
+        Assert.NotEqual(Color("#ff0000"), styles.NodePaintFor("mindmap-node section-0 a.b", "rect").Fill);
+    }
+
+    /// <summary>
     ///     Validates that the number of styled sections follows the theme's <c>THEME_COLOR_LIMIT</c>, as Mermaid's loop
     ///     does.
     /// </summary>

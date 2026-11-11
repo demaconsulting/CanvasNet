@@ -182,7 +182,7 @@ internal sealed class MindmapRenderer
         var shapes = new ShapeContext
         {
             Config = config,
-            Styles = MindmapStyles.Create(config, sink),
+            Styles = MindmapStyles.Create(config, sink, nodes.Select(node => node.CssClasses)),
             MeasureLabel = labels.Build,
             Sink = sink,
         };

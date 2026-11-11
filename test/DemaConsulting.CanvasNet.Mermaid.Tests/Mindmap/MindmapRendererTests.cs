@@ -186,6 +186,41 @@ public sealed class MindmapRendererTests
     }
 
     /// <summary>
+    ///     Validates that the <c>themeCSS</c> rules of a node class paint the classed nodes as mmdc does (the reference
+    ///     render of this text): the rectangle's fill and stroke, the default node's body and line, and the circle, in
+    ///     sheet order with the section rules, while a node without a class keeps its section color and a rule for a
+    ///     class no node has is reported; with the class rule before <c>.section-0 rect</c>, the section's later rule
+    ///     wins.
+    /// </summary>
+    [Fact]
+    public void MindmapRenderer_Draw_ThemeCssNodeClass_PaintsTheClassedNodes()
+    {
+        // Arrange
+        const string Css = ".urgent rect { fill: red; stroke: #00ff00; stroke-width: 4px; } .urgent path { fill: #008000; } .urgent line { stroke: #800080; } .urgent circle { fill: #ffa500; } .nope rect { fill: black; }";
+        const string Text = "%%{init: {\"themeCSS\": \".section-0 rect { fill: blue; } " + Css + "\"}}%%\nmindmap\n  root\n    a[A]\n    :::urgent\n    b[B]\n    c\n    :::urgent\n    d((D))\n    :::urgent\n";
+        const string Earlier = "%%{init: {\"themeCSS\": \".urgent rect { fill: red; } .section-0 rect { fill: blue; }\"}}%%\nmindmap\n  root\n    a[A]\n    :::urgent\n    b[B]\n";
+        var config = MermaidConfigResolver.Resolve(Preprocessor.Run(Text, null, MermaidLimits.Default), "mindmap", null, null);
+        Rgba32? Variable(string name) => StyleDeclarations.TryParsePaint(config.ThemeVariable(name)!, out var color) ? color : null;
+        var (options, _, unsupported) = MermaidTestHelpers.Collecting();
+
+        // Act
+        var scene = MermaidDocument.Parse(Text).LayoutScene(options, TestContext.Current.CancellationToken);
+        var earlier = SceneQuery.Layout(Earlier);
+
+        // Assert
+        var rect = Body(scene, "node_1");
+        Assert.Equal(CssColor.Parse("#ff0000"), rect.Fill);
+        Assert.Equal((CssColor.Parse("#00ff00"), 4.0), (rect.Stroke!.Color, rect.Stroke.Width));
+        Assert.Equal(Variable("cScale2"), Body(scene, "node_2").Fill);
+        Assert.Equal(CssColor.Parse("#008000"), Body(scene, "node_3").Fill);
+        Assert.Equal(CssColor.Parse("#800080"), Part(scene, "node_3", "node-line").Stroke?.Color);
+        Assert.Equal(CssColor.Parse("#ffa500"), Body(scene, "node_4").Fill);
+        Assert.Contains(unsupported, u => u.Feature == MermaidDiagnosticCodes.ThemeCssUnsupported && u.Message.Contains("'.nope rect'", StringComparison.Ordinal));
+        Assert.Single(unsupported);
+        Assert.Equal(CssColor.Parse("#0000ff"), Body(earlier, "node_1").Fill);
+    }
+
+    /// <summary>
     ///     Validates the edges: the section color, the width of each indentation depth (17 less 3 per level, and the
     ///     sheet's 3 where that would be negative), and the route through cytoscape's points, which starts 15 pixels from
     ///     the parent's center and is not cut at the node's outline.

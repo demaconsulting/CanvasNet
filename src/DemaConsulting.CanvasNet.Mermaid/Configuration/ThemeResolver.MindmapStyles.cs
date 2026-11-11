@@ -30,7 +30,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 ///     <para>
 ///         <b>Cascade.</b> A node's group has the classes <c>mindmap-node</c> and <c>section-k</c> (the root
 ///         <c>section-root section--1</c>) and any class of its own, so the rules for an element of its shape or label
-///         are the <c>.class element</c> rules of its classes, which all weigh the same and apply in sheet order: the
+///         are the <c>.class element</c> rules of its classes, which all weigh the same and apply in sheet order (the
+///         <c>themeCSS</c> rules for a node's own class, such as <c>.urgent rect</c>, among them): the
 ///         root's <c>.section-root</c> rules come after <c>.section--1</c>'s, so the root takes <c>git0</c>. An edge's
 ///         paint comes from the single-class rules of its classes (<c>edge</c>, <c>section-edge-k</c> and
 ///         <c>edge-depth-n</c>), which the edge builder cascades. Node labels are not centered by any rule, so SVG text
@@ -47,6 +48,12 @@ internal sealed class MindmapStyles : UnifiedStyles
 
     /// <summary>The elements of a node's shape that the section rules fill.</summary>
     private static readonly string[] FilledElements = ["rect", "path", "circle", "polygon"];
+
+    /// <summary>
+    ///     The elements a node draws whose paint a <c>.class element</c> rule sets: the bodies of the shapes, the line
+    ///     under a default node, and the label (SVG text or an HTML span).
+    /// </summary>
+    private static readonly string[] NodeElements = [.. FilledElements, "line", "text", "span"];
 
     /// <summary>
     ///     Initializes the styles from their rules.
@@ -78,17 +85,25 @@ internal sealed class MindmapStyles : UnifiedStyles
     ///     Builds the styles of a configuration: the mindmap's rules from its theme variables, then the known rules of
     ///     its <c>themeCSS</c>.
     /// </summary>
+    /// <remarks>
+    ///     The known <c>themeCSS</c> selectors are those of the mindmap's sheet and, for each class of the diagram's
+    ///     nodes, <c>.class element</c> for an element a node draws (<c>rect</c>, <c>path</c>, <c>circle</c>,
+    ///     <c>polygon</c>, <c>line</c>, <c>text</c> or <c>span</c>), because those rules are all a node's paint
+    ///     cascades: a <c>:::urgent</c> class is styled by <c>.urgent rect</c> as in Mermaid.
+    /// </remarks>
     /// <param name="config">The configuration.</param>
     /// <param name="sink">The report sink for <c>themeCSS</c> problems, or null.</param>
+    /// <param name="nodeClasses">The classes of each node of the diagram, separated by spaces, or null for none.</param>
     /// <returns>The styles.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
     /// <exception cref="MermaidUnsupportedFeatureException">Thrown in strict mode at the first unsupported <c>themeCSS</c> rule.</exception>
-    public static MindmapStyles Create(MermaidConfig config, MermaidReportSink? sink)
+    public static MindmapStyles Create(MermaidConfig config, MermaidReportSink? sink, IEnumerable<string>? nodeClasses = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         var gradient = MermaidConfigResolver.IsTruthy(config.ThemeVariables["useGradient"]) &&
             MermaidConfigResolver.IsTruthy(config.ThemeVariables["mainBkg"]);
-        return new MindmapStyles(BuildRules(VariablesOf(config), UserRules(config, KnownSelectors, sink), gradient));
+        var selectors = SelectorsFor(nodeClasses ?? []);
+        return new MindmapStyles(BuildRules(VariablesOf(config), UserRules(config, selectors, sink), gradient));
     }
 
     /// <summary>
@@ -117,6 +132,50 @@ internal sealed class MindmapStyles : UnifiedStyles
     {
         ArgumentNullException.ThrowIfNull(cssClasses);
         return html ? Text(ClassRules(cssClasses, "span"), "color") : Text(ClassRules(cssClasses, "text"), "fill");
+    }
+
+    /// <summary>
+    ///     Gets the selectors <c>themeCSS</c> may use in a diagram: the sheet's, and <c>.class element</c> for each
+    ///     class of the nodes that is a plain CSS identifier and each element a node draws.
+    /// </summary>
+    /// <param name="nodeClasses">The classes of each node, separated by spaces.</param>
+    /// <returns>The normalized selectors.</returns>
+    private static IReadOnlySet<string> SelectorsFor(IEnumerable<string> nodeClasses)
+    {
+        // A class that is not a plain identifier (a dot, a bracket) would read as another selector in CSS, so it is
+        // left out
+        var classes = nodeClasses
+            .SelectMany(text => text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Where(IsIdentifier)
+            .ToHashSet(StringComparer.Ordinal);
+        if (classes.Count == 0)
+        {
+            return KnownSelectors;
+        }
+
+        var selectors = new HashSet<string>(KnownSelectors, StringComparer.Ordinal);
+        foreach (var name in classes)
+        {
+            foreach (var element in NodeElements)
+            {
+                selectors.Add($".{name} {element}");
+            }
+        }
+
+        return selectors;
+    }
+
+    /// <summary>
+    ///     Determines whether a class name is a plain CSS identifier: letters, digits, hyphens, underscores and
+    ///     non-ASCII characters, not starting with a digit or a hyphen and a digit.
+    /// </summary>
+    /// <param name="name">The class name.</param>
+    /// <returns>Whether the name can follow a dot in a selector as it is.</returns>
+    private static bool IsIdentifier(string name)
+    {
+        var start = name.StartsWith('-') ? 1 : 0;
+        return start < name.Length && !char.IsAsciiDigit(name[start]) &&
+            name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' || c > '\u007f');
     }
 
     /// <summary>

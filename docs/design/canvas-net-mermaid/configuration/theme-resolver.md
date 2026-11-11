@@ -185,7 +185,12 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `NodePaintFor` and `NodeLabelFor` cascade, in sheet order, the `.class element` rules whose class is one of the
   node's classes (`mindmap-node`, `section-k` or `section-root section--1`, and the node's own class): the root's
   `.section-root` rules come after `.section--1`'s, so the root takes `git0`, and a node class that names a later
-  section takes that section's color. The label is the root font with the `span` rules (an HTML label's color) or the
+  section takes that section's color. A node's own class can be styled only by `themeCSS`, so `Create` also accepts a
+  `themeCSS` rule `.class element` for each class of the diagram's nodes that is a plain CSS identifier and each
+  element a node draws (`rect`, `path`, `circle`, `polygon`, `line`, `text`, and `span`): `.urgent rect` paints a
+  `:::urgent` node's rectangle in its place in the sheet, as Mermaid does, while a class no node has, or one that CSS
+  would read as another selector (`a.b`), stays reported. The label is the root font with the `span` rules (an HTML
+  label's color) or the
   `text` rules (SVG text's fill); `NodeLabel` is the root font and fill, the title selector is the root (a mindmap has
   no title), and `CentersNodeSvgText` is false. An edge's paint comes from the single-class rules of its classes,
   which the edge builder cascades. An instance is immutable.
@@ -241,9 +246,10 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `themeCSS` rules of the pie or gantt selectors as `FlowchartStyles.Create` does.
 - `GanttStyles.Compute(IReadOnlyList<GanttElement> chain)` - the computed style of the last element of the chain by the
   cascade above; the matched rules of a chain are cached.
-- `MindmapStyles.Create(MermaidConfig config, MermaidReportSink? sink)` - builds the same global rules and then the
-  rules of the mindmap's `styles.ts` from the theme variables, in their order, with the gradient rules last when
-  `useGradient` and `mainBkg` are truthy, and appends the `themeCSS` rules of the mindmap selectors as
+- `MindmapStyles.Create(MermaidConfig config, MermaidReportSink? sink, IEnumerable<string>? nodeClasses = null)` -
+  builds the same global rules and then the rules of the mindmap's `styles.ts` from the theme variables, in their
+  order, with the gradient rules last when `useGradient` and `mainBkg` are truthy, and appends the `themeCSS` rules of
+  the mindmap selectors and of the node classes (`nodeClasses`, each node's classes separated by spaces) as
   `FlowchartStyles.Create` does.
 - `MindmapStyles.NodePaintFor(string cssClasses, string element)` and `NodeLabelFor(string cssClasses, bool html)` -
   the cascades above: a body's fill, stroke, and stroke width, and a label's font and color.

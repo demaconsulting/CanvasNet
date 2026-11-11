@@ -42,7 +42,8 @@ the drawing, in single precision, grown by `mindmap.padding` on every side.
   - It reports the unsupported features (`ReportUnsupported`). An empty mindmap then returns a scene with nothing drawn
     and the view box of the empty box grown by the padding (20 by 20 at the default padding).
   - It charges the meter for the node data (nodes, edges, and 1), creates a `LabelBuilder` over the fonts of the render
-    that charges the meter, and a `ShapeContext` with the configuration and the `MindmapStyles` of the configuration.
+    that charges the meter, and a `ShapeContext` with the configuration and the `MindmapStyles` of the configuration
+    and of the classes of the nodes (so that a `themeCSS` rule for a node class, `.urgent rect`, applies).
   - For each node in order, it takes the node data (`DataOf`) with the changes per shape (`Prepared`), checks the label
     (`CheckLabel`), draws the node with `ShapeLibrary.Draw`, and keeps the box of the drawn node in single precision
     (`Box32`) as the size the layout is given.

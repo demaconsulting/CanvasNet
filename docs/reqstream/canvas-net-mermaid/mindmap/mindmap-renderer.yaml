@@ -47,12 +47,15 @@ sections:
                   The MindmapRenderer unit shall paint each node through the mindmap style sheet by its section - the
                   root in its own color, each section in the theme's color of that section, a node class that names
                   another section taking that section's color as the order of the sheet decides - with the line under a
-                  default node in the section's inverse color and no stroke on the body.
+                  default node in the section's inverse color and no stroke on the body, and by the themeCSS rules for
+                  the classes of the diagram's nodes in the same order.
                 justification: |
                   The colors of the sections show the branches of a mindmap; they must be the colors Mermaid's style
-                  sheet gives each node.
+                  sheet gives each node. A node's own classes can be styled only by themeCSS, so its rules for them
+                  must paint the nodes that have them.
                 tests:
                   - MindmapRenderer_Draw_Sections_PaintNodesBySection
+                  - MindmapRenderer_Draw_ThemeCssNodeClass_PaintsTheClassedNodes
 
               - id: CanvasNetMermaid-Mindmap-MindmapRenderer-Edges
                 title: >-
