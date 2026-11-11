@@ -38,10 +38,11 @@ expected, constitutes a failure.
 **Tests**: `DiagramDetectorTests.DiagramDetector_Detect_KnownKeyword_GivesTypeAndSupport`,
 `DiagramDetectorTests.DiagramDetector_DetectorIds_FollowMermaidRegistrationOrder`
 
-Asserts the detector id, public type, and support of 39 keywords (from `flowchart` and `graph` to `cynefin-beta:`
-and `Error`), including `classDiagram` and `classDiagram-v2` as the supported `class` type, `stateDiagram` and
-`stateDiagram-v2` as the supported `state` type (Mermaid's `stateDiagram` detector), and `erDiagram` as the supported
-`er` type, while `gantt`, `pie`, and `mindmap` stay planned, and that the detector table has all 40 detectors.
+Asserts the detector id, public type, and support of 39 keywords (from `flowchart` and `graph` to `cynefin-beta:` and
+`Error`), including `classDiagram` and `classDiagram-v2` as the supported `class` type, `stateDiagram` and
+`stateDiagram-v2` as the supported `state` type (Mermaid's `stateDiagram` detector), `erDiagram` as the supported `er`
+type, and `gantt` and `pie showData` as the supported `gantt` and `pie` types, while `mindmap` stays planned, and that
+the detector table has all 40 detectors.
 
 ##### CanvasNetMermaid-Syntax-DiagramDetector-MermaidOrder: Detection Follows Mermaid's Order And Quirks
 
@@ -86,7 +87,7 @@ column 1, and that a text that starts with `---` is `mermaid-syntax-error` with 
 
 **Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords`
 
-Asserts the exact hints for a planned type (`mindmap`: "mindmap diagrams are planned; supported in this version: flowchart,
-graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram") and a type that is not planned (`gitGraph`: "gitGraph
-diagrams are not supported; ..." with the same list), and that the supported keywords are exactly `flowchart`,
-`graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, and `erDiagram`, in that order.
+Asserts the exact hints for a planned type (`mindmap`: "mindmap diagrams are planned; supported in this version:
+flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt") and a type that is not planned
+(`gitGraph`: "gitGraph diagrams are not supported; ..." with the same list), and that the supported keywords are exactly
+`flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, and `gantt`, in that order.

@@ -12,16 +12,18 @@ rendering units draw with, the flowchart style sheet `FlowchartStyles`, and its 
 `TextPaint`, `ThemeResolver.DiagramStyles.cs`, which holds the class, state, and entity relationship style sheets
 `ClassStyles`, `StateStyles`, and `ErStyles`, and
 `ThemeResolver.SequenceStyles.cs`, which holds the sequence style sheet `SequenceStyles` and its typed paints
-`StrokePaint` and `ShadowPaint`.
+`StrokePaint` and `ShadowPaint`, and `ThemeResolver.ChartStyles.cs`, which holds the chart style sheets `PieStyles` with
+its typed paint `SlicePaint` and `GanttStyles` with the element description `GanttElement`, the computed style
+`GanttComputedStyle`, and the selector `GanttSelector` of its cascade.
 
 #### Purpose
 
-`ThemeResolver` reproduces Mermaid's five built-in themes - `default`, `base`, `dark`, `forest`, and `neutral` - and
-the style sheets that Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, and an
-entity relationship diagram from them. Given a theme name and the user's theme variable overrides, it computes every
-theme variable of every diagram type with the same text as Mermaid's `getThemeVariables`, and `FlowchartStyles`,
-`SequenceStyles`, `ClassStyles`, `StateStyles`, and `ErStyles` turn the theme variables and the `themeCSS` of a
-configuration into the paint and fonts the diagram is drawn with.
+`ThemeResolver` reproduces Mermaid's five built-in themes - `default`, `base`, `dark`, `forest`, and `neutral` - and the
+style sheets that Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity
+relationship diagram, a pie chart, and a gantt chart from them. Given a theme name and the user's theme variable
+overrides, it computes every theme variable of every diagram type with the same text as Mermaid's `getThemeVariables`,
+and `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`, and `GanttStyles` turn
+the theme variables and the `themeCSS` of a configuration into the paint and fonts the diagram is drawn with.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeResolver-*` requirements in
 `docs/reqstream/canvas-net-mermaid/configuration/theme-resolver.yaml`.
@@ -140,6 +142,25 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `MessageLine` (`.messageLine0` or `.messageLine1`, over the `line` rule for a straight message). The typed
   properties `Lifeline`, `LoopLine`, `LabelBox`, `BoxShadow`, `MenuPanelShadow`, `ArrowheadColor`, `CrossheadColor`,
   and `SequenceNumberMarkerColor` resolve the rules the sequence renderer draws with. An instance is immutable.
+- **`PieStyles`** - the rules of the pie chart's style sheet (`pieStyles.ts`) after the global rules, with its own
+  `KnownSelectors`. `Slice(color, highlighted)` gives the `SlicePaint` of a slice: the fill of `.pieCircle` over the
+  section's own color (a `themeCSS` fill wins over it), the `pieStrokeColor` stroke at `pieStrokeWidth`, and the
+  `pieOpacity` folded into both colors, or for `.pieCircle.highlighted` the opaque colors and the `scale` of 1.05.
+  `OuterCircle` is `.pieOuterCircle` (no fill, `pieOuterStrokeColor` at `pieOuterStrokeWidth`); `TitleText`,
+  `SliceText`, and `LegendText` are the fonts and colors of `.pieTitleText`, `.slice`, and `.legend text`. An instance
+  is immutable.
+- **`GanttStyles`** - the rules of the gantt chart's style sheet (`gantt/styles.js`) after the global rules, with its
+  own `KnownSelectors`, and a small CSS cascade over them. Every rule of Mermaid is scoped by the diagram's id, so the
+  rules that match an element are ordered by the number of their classes and tags, then by their place in the sheet,
+  and an `!important` declaration beats every normal one; a rule beats a presentation attribute of the element (the
+  `fill` of an axis label), and an inline style beats the normal declarations of the rules. The selectors are classes
+  (one or several on one element, such as `.task.clickable` and `.doneText0.taskTextOutsideLeft`) and the
+  descendant selectors `.grid .tick`, `.grid .tick text`, and `.grid path` (`GanttSelector`); fill, stroke, stroke
+  width and dashes, the font, and the text anchor are inherited, `currentColor` is the inherited `color`, and the
+  opacities of an element and its ancestors multiply. `Compute` takes the chain of `GanttElement` values from the svg
+  root to the element (tag, classes, attributes, inline style) and gives a `GanttComputedStyle` (fill, stroke, stroke
+  width and dashes, opacity, font, weight, style, text anchor, and transform); `Faded` folds the opacity into a
+  color. An instance is used by one render on one thread, because it caches the rules that match a chain.
 
 #### Key Methods
 
@@ -186,6 +207,12 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
 - `SequenceStyles.TryParseFilter(string value, out ShadowPaint? shadow)` - reads the CSS `filter` values that are
   drawn: `none`, or one `drop-shadow()` with an optional color first or last and two or three lengths (a missing blur
   is 0, a missing color is black); any other filter is not drawn.
+- `PieStyles.Create(MermaidConfig config, MermaidReportSink? sink)` and `GanttStyles.Create(MermaidConfig config,
+  MermaidReportSink? sink)` - build the same global rules and then the rules of `pieStyles.ts` or of the gantt
+  `styles.js` from the theme variables, in their order (`titleColor || textColor` for the gantt title), and append the
+  `themeCSS` rules of the pie or gantt selectors as `FlowchartStyles.Create` does.
+- `GanttStyles.Compute(IReadOnlyList<GanttElement> chain)` - the computed style of the last element of the chain by the
+  cascade above; the matched rules of a chain are cached.
 
 **Preconditions and postconditions**: `GetThemeVariables` requires a supported theme name; it returns a new JSON object
 of string, number, and Boolean values. The methods are pure functions of their arguments and safe for concurrent use.
@@ -197,7 +224,7 @@ of string, number, and Boolean values. The methods are pure functions of their a
 is not a color; the exception carries the offending value, so that `MermaidConfigResolver` can drop the variable and
 compute the theme again. A hostile `THEME_COLOR_LIMIT` cannot make the loops unbounded; khroma then fails on the
 missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`,
-`ErStyles.Create`, and `SequenceStyles.Create`
+`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, and `SequenceStyles.Create`
 report each `themeCSS` rule of another selector, at-rule, or nested rule as `mermaid-theme-css-unsupported` at the
 location of `themeCSS` and do not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException` at the
 first one.
@@ -216,6 +243,11 @@ first one.
 - The `neo` look rules of the state and entity relationship sheets and the per-color sections that the
   `redux-color` themes add to the entity relationship sheet are not built, because that look is drawn classic and
   those themes are not ported.
+- The opacity of a pie slice, a gantt section row, and the grid ticks is folded into the fill and stroke colors, so
+  overlapping parts are not composited as a group; `shape-rendering: crispEdges` is not modeled; the CSS `transform` of
+  a milestone and the `scale` of a highlighted slice are given to the renderers, which apply them to the geometry.
+- The gantt cascade knows only the selectors of Mermaid's gantt sheet (classes, compound classes, and the three
+  descendant selectors); a `themeCSS` rule with any other selector is reported.
 
 #### Dependencies
 
@@ -224,20 +256,22 @@ first one.
 - **`StyleDeclarations`** (this subsystem) - `ParseSheet`, `ParseBlock`, `NormalizeSelector`, the value parsers, and
   `StyleDeclarationSet`
 - **`MermaidConfigResolver`** (this subsystem) - the `MermaidConfig` that `FlowchartStyles.Create`,
-  `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, and `SequenceStyles.Create` read
+  `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, and
+  `SequenceStyles.Create` read
 - **System root** - `MermaidReportSink` and `MermaidLocation`
 - **Core `CanvasNet`** - `Rgba32` and `CssColor` (the `Canvas` subsystem), through the public API
 - **.NET base class library** - `System.Text.Json` and `System.Collections.Frozen`
 
 #### Callers
 
-`MermaidConfigResolver` computes the theme variables of the site theme and of a theme named by the text; the
-`Flowchart` subsystem (`FlowchartModel`) builds the `FlowchartStyles` of a call, the `Class` subsystem
-(`ClassModel`) the `ClassStyles`, the `State` subsystem (`StateModel`) the `StateStyles`, and the `Er` subsystem
-(`ErModel`) the `ErStyles` of a call; the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through them
-and for the diagram title `ClusterLayout`) draws with the resolved paints, the rules, and `DiagramStyles.Root` of
+`MermaidConfigResolver` computes the theme variables of the site theme and of a theme named by the text; the `Flowchart`
+subsystem (`FlowchartModel`) builds the `FlowchartStyles` of a call, the `Class` subsystem (`ClassModel`) the
+`ClassStyles`, the `State` subsystem (`StateModel`) the `StateStyles`, and the `Er` subsystem (`ErModel`) the `ErStyles`
+of a call, the `Pie` subsystem (`PieRenderer`) the `PieStyles`, and the `Gantt` subsystem (`GanttRenderer`) the
+`GanttStyles` of a render, which they draw with; the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through
+them and for the diagram title `ClusterLayout`) draws with the resolved paints, the rules, and `DiagramStyles.Root` of
 any of these sheets through `UnifiedStyles` (`ShapeLibrary` reads `ClusterTitle(html)` and `CentersNodeSvgText`,
-`EdgeBuilder` the font size of `RootText`); and in the `Sequence` subsystem `SequenceLayout` builds the
-`SequenceStyles` of a render and `SequenceRenderer` draws with its resolvers. The tests in
+`EdgeBuilder` the font size of `RootText`); and in the `Sequence` subsystem `SequenceLayout` builds the `SequenceStyles`
+of a render and `SequenceRenderer` draws with its resolvers. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/ThemeResolverTests.cs` call the unit directly through
 `InternalsVisibleTo`, against the vectors of `Fixtures/upstream-vectors/themes.json`.

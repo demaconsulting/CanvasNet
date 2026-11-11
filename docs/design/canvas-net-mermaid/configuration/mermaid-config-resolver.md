@@ -2,14 +2,15 @@
 
 ![Configuration Structure](MermaidConfigurationView.svg)
 
-The `MermaidConfigResolver` unit is the first software unit in the `Configuration` subsystem. It is the internal
-static partial class `MermaidConfigResolver` in four source files of the `DemaConsulting.CanvasNet.Mermaid.Configuration`
+The `MermaidConfigResolver` unit is the first software unit in the `Configuration` subsystem. It is the internal static
+partial class `MermaidConfigResolver` in four source files of the `DemaConsulting.CanvasNet.Mermaid.Configuration`
 namespace - `MermaidConfigResolver.cs` (the pipeline of `Resolve`, the frontmatter and directive layers, and the theme
 computation with recovery), `MermaidConfigResolver.Defaults.cs` (the defaults, the configuration keys, and the default
 secure keys), `MermaidConfigResolver.Merge.cs` (the JSON operations: `assignWithDepth`, lodash's `merge`, the
 sanitizers, and the directive JSON parser), and `MermaidConfigResolver.Validation.cs` (the validation and the reports of
 one layer) - and the grouped typed view of its result in `MermaidConfig.cs`: the sealed class `MermaidConfig`, the
-records `FlowchartConfig`, `SequenceConfig`, `ClassConfig`, `StateConfig`, and `ErConfig`, the font record
+records `FlowchartConfig`, `SequenceConfig`, `ClassConfig`, `StateConfig`, `ErConfig`, `PieConfig`, and `GanttConfig`,
+the font record
 `MermaidFontConfig`, and the value `ConfigScalar` (a number or a string, kept as JavaScript holds it).
 
 #### Purpose
@@ -33,7 +34,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   `assignWithDepth`) are kept. A new object is built for every call because a JSON object is not safe for concurrent
   reads.
 - **Defaults** (`CreateDefaults`): the global keys, the `flowchart` section, the `sequence` section (the defaults
-  of Mermaid's `SequenceDiagramConfig`), the `class` section, the `state` section, and the `er` section of Mermaid's
+  of Mermaid's `SequenceDiagramConfig`), the `class` section, the `state` section, the `er` section, the `pie` section,
+  and the `gantt` section of Mermaid's
   `config.schema.yaml` and `defaultConfig.ts`, with the variables of the `default` theme. The class section is the one
   `defaultConfig.ts` writes in place of the schema's: `defaultRenderer` (`dagre-wrapper`), `hideEmptyMembersBox`
   (false), and `hierarchicalNamespaces` (true), with `padding` deliberately left undefined so that each use keeps its
@@ -45,7 +47,15 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   have no default in the schema and are absent. The `er` section (`CreateErDefaults`) is the whole of the schema's
   `ErDiagramConfig`, 12 keys: `useMaxWidth` (true), `titleTopMargin` (25), `diagramPadding` (20), `layoutDirection`
   (`TB`), `minEntityWidth` (100), `minEntityHeight` (75), `entityPadding` (15), `nodeSpacing` (140), `rankSpacing`
-  (80), `stroke` (`gray`), `fill` (`honeydew`), and `fontSize` (12). `DefaultFontFamily` is Mermaid's font family list.
+  (80), `stroke` (`gray`), `fill` (`honeydew`), and `fontSize` (12). The `pie` section (`CreatePieDefaults`) is the
+  whole of the schema's `PieDiagramConfig`, 5 keys: `useMaxWidth` (true), `textPosition` (0.75), `donutHole` (0),
+  `legendPosition` (`right`), and `highlightSlice` (empty). The `gantt` section (`CreateGanttDefaults`) is the whole
+  of the schema's `GanttDiagramConfig`, 15 keys: `useMaxWidth` (true), `titleTopMargin` (25), `barHeight` (20),
+  `barGap` (4), `topPadding` (50), `rightPadding` (75), `leftPadding` (75), `gridLineStartPadding` (35), `fontSize`
+  (11), `sectionFontSize` (11), `numberSectionStyles` (4), `axisFormat` (`%Y-%m-%d`), `topAxis` (false),
+  `displayMode` (empty), and `weekday` (`sunday`); `tickInterval` and `useWidth` have no default and are absent. A
+  frontmatter `displayMode` moves to `gantt.displayMode`, as in Mermaid. `DefaultFontFamily` is Mermaid's font family
+  list.
 - **Configuration keys** (`ConfigKeys`, a frozen set of 705 names): every key that Mermaid's `sanitizeDirective`
   accepts (the keys of every diagram section and of the default theme variables); a key of the text outside the set is
   deleted by Mermaid and reported here as unknown.
@@ -56,49 +66,56 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
   dropped. The typed keys include the class keys (`class` as an object, `class.defaultRenderer` as text,
   `class.hideEmptyMembersBox` and `class.hierarchicalNamespaces` as Booleans, and `class.padding` as a number), the
   state keys (`state` as an object, `state.defaultRenderer` as text, `state.nodeSpacing`, `state.rankSpacing`, and
-  `state.titleTopMargin` as numbers, and `state.useMaxWidth` as a Boolean), which the class renderer, the detectors,
-  and the state renderer read, and the `er` keys (`er` as an object, `er.diagramPadding`, `er.entityPadding`,
-  `er.minEntityWidth`, `er.nodeSpacing`, `er.rankSpacing`, and `er.titleTopMargin` as numbers, and `er.useMaxWidth` as
-  a Boolean). The sequence alignments (`sequence.messageAlign` and `sequence.noteAlign`) must
-  also be one of the values that Mermaid's `drawText` honors (`ChoiceKeys`: `left`, `center`, `right`, `start`,
-  `middle`, and `end`).
+  `state.titleTopMargin` as numbers, and `state.useMaxWidth` as a Boolean), which the class renderer, the detectors, and
+  the state renderer read, the `pie` keys (`textPosition` and `donutHole` as numbers, `legendPosition` and
+  `highlightSlice` as text, `useMaxWidth` as a Boolean, and `useWidth` as a number), the `gantt` keys (the margins,
+  sizes, paddings, font sizes, and `numberSectionStyles` as numbers, `axisFormat`, `tickInterval`, `displayMode`, and
+  `weekday` as text, `topAxis` and `useMaxWidth` as Booleans, and `useWidth` as a number), and the `er` keys (`er` as an
+  object, `er.diagramPadding`, `er.entityPadding`, `er.minEntityWidth`, `er.nodeSpacing`, `er.rankSpacing`, and
+  `er.titleTopMargin` as numbers, and `er.useMaxWidth` as a Boolean). The sequence alignments (`sequence.messageAlign`
+  and `sequence.noteAlign`) must also be one of the values that Mermaid's `drawText` honors (`ChoiceKeys`: `left`,
+  `center`, `right`, `start`, `middle`, and `end`).
 - **Locations**: a dictionary from each top-level key to the location of the layer that set it last (the frontmatter
   key, or the `%%{` of the directive); keys of the defaults and of the site configuration have no location.
 - **`MermaidConfig`**: `Raw` (the whole effective configuration, including the keys of other diagram types),
-  `ThemeVariables`, and typed properties with Mermaid's defaults - `Theme`, `FontFamily`, `AltFontFamily`,
-  `FontSize`, `Look`, `Layout`, `ThemeCss`, `HtmlLabels` (the global key, else the deprecated `flowchart.htmlLabels`,
-  else true), `MarkdownAutoWrap`, `Wrap`, `SecurityLevel`, `MaxTextSize`, `MaxEdges`, `DeterministicIds`,
-  `Flowchart`, `Sequence`, `Class`, `State`, `Er`, and `DetectorSettings` (the `defaultRenderer` of the flowchart,
-  class, and state sections, the class one read through `Class` and the state one through `State`).
-  `FlowchartConfig` holds the flowchart keys the drawing reads: `UseMaxWidth`, `TitleTopMargin`,
-  `SubGraphTitleMarginTop`, `SubGraphTitleMarginBottom`, `DiagramPadding`, `HtmlLabels`, `NodeSpacing`, `RankSpacing`,
-  `Curve`, `Padding`, `DefaultRenderer`, `WrappingWidth`, `InheritDir`, and `ArrowMarkerAbsolute`. `SequenceConfig`
-  holds the sequence keys as the sequence renderer reads them: the sizes and margins (`Width`, `Height`,
-  `ActorMargin`, `BoxMargin`, `BoxTextMargin`, `NoteMargin`, `MessageMargin`, `ActivationWidth`, `DiagramMarginX`,
-  `DiagramMarginY`, `BottomMarginAdj`, `WrapPadding`, `LabelBoxWidth`, and `LabelBoxHeight`), the switches
-  (`MirrorActors`, `HideUnusedParticipants`, `ForceMenus`, `RightAngles`, `ShowSequenceNumbers`, `UseMaxWidth`, and
-  `ArrowMarkerAbsolute`), the alignments (`MessageAlign` and `NoteAlign`), `TextPlacement`, the effective `Wrap`, and
-  the fonts `ActorFont`, `NoteFont`, and `MessageFont` (`MermaidFontConfig`: family, size, and weight, the size and
-  weight as `ConfigScalar` values, because Mermaid's `parseFontSize` treats a number and a string differently).
-  `ClassConfig` holds the class keys as the class database and renderer read them: `DefaultRenderer`,
-  `HideEmptyMembersBox`, `HierarchicalNamespaces`, `Padding` (null when it is not set, so the class box, namespace,
-  and note paddings keep their fallbacks of 12, 16, and 6), and, from the state section as Mermaid's class renderer
-  reads them (it takes `const { state: conf } = getConfig()`), `NodeSpacing` and `RankSpacing`
+  `ThemeVariables`, and typed properties with Mermaid's defaults - `Theme`, `FontFamily`, `AltFontFamily`, `FontSize`,
+  `Look`, `Layout`, `ThemeCss`, `HtmlLabels` (the global key, else the deprecated `flowchart.htmlLabels`, else true),
+  `MarkdownAutoWrap`, `Wrap`, `SecurityLevel`, `MaxTextSize`, `MaxEdges`, `DeterministicIds`, `Flowchart`, `Sequence`,
+  `Class`, `State`, `Er`, and `DetectorSettings` (the `defaultRenderer` of the flowchart, class, and state sections, the
+  class one read through `Class` and the state one through `State`). `FlowchartConfig` holds the flowchart keys the
+  drawing reads: `UseMaxWidth`, `TitleTopMargin`, `SubGraphTitleMarginTop`, `SubGraphTitleMarginBottom`,
+  `DiagramPadding`, `HtmlLabels`, `NodeSpacing`, `RankSpacing`, `Curve`, `Padding`, `DefaultRenderer`, `WrappingWidth`,
+  `InheritDir`, and `ArrowMarkerAbsolute`. `SequenceConfig` holds the sequence keys as the sequence renderer reads them:
+  the sizes and margins (`Width`, `Height`, `ActorMargin`, `BoxMargin`, `BoxTextMargin`, `NoteMargin`, `MessageMargin`,
+  `ActivationWidth`, `DiagramMarginX`, `DiagramMarginY`, `BottomMarginAdj`, `WrapPadding`, `LabelBoxWidth`, and
+  `LabelBoxHeight`), the switches (`MirrorActors`, `HideUnusedParticipants`, `ForceMenus`, `RightAngles`,
+  `ShowSequenceNumbers`, `UseMaxWidth`, and `ArrowMarkerAbsolute`), the alignments (`MessageAlign` and `NoteAlign`),
+  `TextPlacement`, the effective `Wrap`, and the fonts `ActorFont`, `NoteFont`, and `MessageFont` (`MermaidFontConfig`:
+  family, size, and weight, the size and weight as `ConfigScalar` values, because Mermaid's `parseFontSize` treats a
+  number and a string differently). `ClassConfig` holds the class keys as the class database and renderer read them:
+  `DefaultRenderer`, `HideEmptyMembersBox`, `HierarchicalNamespaces`, `Padding` (null when it is not set, so the class
+  box, namespace, and note paddings keep their fallbacks of 12, 16, and 6), and, from the state section as Mermaid's
+  class renderer reads them (it takes `const { state: conf } = getConfig()`), `NodeSpacing` and `RankSpacing`
   (`state.nodeSpacing || 50` and `state.rankSpacing || 50`, so a zero falls back to 50) and `TitleTopMargin`
-  (`state.titleTopMargin ?? 25`, so a zero is kept). `StateConfig` holds the state keys as the detectors and
-  Mermaid's `stateRenderer-v3-unified.ts` read them: `DefaultRenderer` (`dagre-wrapper` by default; another value
-  selects the legacy `state` detector for a `stateDiagram` text), `NodeSpacing` and `RankSpacing`
-  (`conf.nodeSpacing || 50` and `conf.rankSpacing || 50`: the schema has no default for either, and a missing or zero
-  spacing falls back to 50), and `TitleTopMargin` (`conf.titleTopMargin ?? 25`, so a zero is kept). `ErConfig` holds
-  the `er` keys as Mermaid's `erRenderer-unified.ts` and its `erBox` shape read them: `DiagramPadding` (20) and
-  `EntityPadding` (15), the paddings of an entity box, and `MinEntityWidth` (100), the smallest width of an entity
-  without attributes, all taken as given; `NodeSpacing` and `RankSpacing` (`er.nodeSpacing || 140` and
-  `er.rankSpacing || 80`, so a zero falls back); and `TitleTopMargin` (`er.titleTopMargin ?? 25`, so a zero is kept).
-  The schema's `minEntityHeight`, `layoutDirection`, `stroke`, `fill`, and `fontSize` are kept in `Raw` but not read,
-  as in Mermaid. The `||` and `??` reads are the renderers' own: `||` (`OrDefault`) replaces a zero, `??` does not.
-  The ER spacing is the one the ER renderer writes into the flowchart spacing of its render; a top-level `nodeSpacing`
-  still wins over it in the dagre layout, as in Mermaid. Because every layer is validated before the merge, a typed
-  property always has a value of its type.
+  (`state.titleTopMargin ?? 25`, so a zero is kept). `StateConfig` holds the state keys as the detectors and Mermaid's
+  `stateRenderer-v3-unified.ts` read them: `DefaultRenderer` (`dagre-wrapper` by default; another value selects the
+  legacy `state` detector for a `stateDiagram` text), `NodeSpacing` and `RankSpacing` (`conf.nodeSpacing || 50` and
+  `conf.rankSpacing || 50`: the schema has no default for either, and a missing or zero spacing falls back to 50), and
+  `TitleTopMargin` (`conf.titleTopMargin ?? 25`, so a zero is kept). `ErConfig` holds the `er` keys as Mermaid's
+  `erRenderer-unified.ts` and its `erBox` shape read them: `DiagramPadding` (20) and `EntityPadding` (15), the paddings
+  of an entity box, and `MinEntityWidth` (100), the smallest width of an entity without attributes, all taken as given;
+  `NodeSpacing` and `RankSpacing` (`er.nodeSpacing || 140` and `er.rankSpacing || 80`, so a zero falls back); and
+  `TitleTopMargin` (`er.titleTopMargin ?? 25`, so a zero is kept). The schema's `minEntityHeight`, `layoutDirection`,
+  `stroke`, `fill`, and `fontSize` are kept in `Raw` but not read, as in Mermaid. The `||` and `??` reads are the
+  renderers' own: `||` (`OrDefault`) replaces a zero, `??` does not. The ER spacing is the one the ER renderer writes
+  into the flowchart spacing of its render; a top-level `nodeSpacing` still wins over it in the dagre layout, as in
+  Mermaid. `PieConfig` holds the `pie` keys as Mermaid's pie renderer reads them: `TextPosition` (0.75), `DonutHole` (0,
+  applied by the renderer only above 0 and up to 0.9), `LegendPosition` (`right`; the renderer knows `right`, `left`,
+  `top`, `bottom`, and `center`), and `HighlightSlice` (empty, no slice). `GanttConfig` holds the `gantt` keys as
+  Mermaid's gantt renderer reads them: `TitleTopMargin`, `BarHeight`, `BarGap`, `TopPadding`, `RightPadding`,
+  `LeftPadding`, `GridLineStartPadding`, `FontSize`, `SectionFontSize`, `NumberSectionStyles`, `AxisFormat`,
+  `TickInterval` (null by default), `TopAxis`, `DisplayMode`, and `UseWidth` (null by default; when set it replaces the
+  page width). Because every layer is validated before the merge, a typed property always has a value of its type.
 
 #### Key Methods
 
@@ -136,6 +153,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-MermaidC
 - `MermaidConfig.Er` (built with the configuration, `ReadEr`) - reads the `er` section over the defaults of
   `ErConfig`: the two paddings, the minimum entity width, and the title margin as given, and the spacing through
   `OrDefault`.
+- `MermaidConfig.Pie` and `MermaidConfig.Gantt` (built with the configuration) - read the `pie` and `gantt` sections
+  over the defaults of `PieConfig` and `GanttConfig`, every value as given.
 - `OrDefault(value, fallback)` (private) - JavaScript's `value || fallback` for a number: a zero gives the fallback;
   shared by the class, state, and `er` readers.
 - `ComputeTheme` (private) - calls `ThemeResolver.GetThemeVariables`; when it fails with a `ColorFormatException`,
@@ -215,15 +234,16 @@ handled locally as described above; no other exception is expected.
 
 `MermaidDocument` resolves the configuration without a sink when a text is opened (its `DetectorSettings` choose the
 detector, and its class section gives the class parser `hierarchicalNamespaces`) and with the call's sink in every
-measure or render call, and hands the `MermaidConfig` to the diagram through
-the render context; `FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, and
-`SequenceStyles.Create` (the `ThemeResolver` unit) read its theme variables and `themeCSS`; the `Flowchart` subsystem
-(`FlowchartModel`), the `Sequence` subsystem
-(`SequenceModel`, `SequenceLayout`, and `SequenceRenderer`, through `MermaidConfig.Sequence`), the `Class` subsystem
-(`ClassModel`, through `MermaidConfig.Class`, and `ClassParser`, which `MermaidDocument` gives the text's own
-`hierarchicalNamespaces`), the `State` subsystem (`StateModel`, through `MermaidConfig.State`), the `Er` subsystem
-(`ErModel`, through `MermaidConfig.Er`), and the `Rendering` subsystem (through `LayoutData`, `ShapeLibrary`, which
-reads `MermaidConfig.Class` for a class box and `MermaidConfig.Er` for an entity box, and `LabelBuilder`, which
-measures with `MermaidFontConfig`) read the typed settings.
-The tests in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/MermaidConfigResolverTests.cs` and
+measure or render call, and hands the `MermaidConfig` to the diagram through the render context;
+`FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`,
+`GanttStyles.Create`, and `SequenceStyles.Create` (the `ThemeResolver` unit) read its theme variables and `themeCSS`;
+the `Flowchart` subsystem (`FlowchartModel`), the `Sequence` subsystem (`SequenceModel`, `SequenceLayout`, and
+`SequenceRenderer`, through `MermaidConfig.Sequence`), the `Class` subsystem (`ClassModel`, through
+`MermaidConfig.Class`, and `ClassParser`, which `MermaidDocument` gives the text's own `hierarchicalNamespaces`), the
+`State` subsystem (`StateModel`, through `MermaidConfig.State`), the `Er` subsystem (`ErModel`, through
+`MermaidConfig.Er`), the `Pie` subsystem (`PieRenderer`, through `MermaidConfig.Pie`), the `Gantt` subsystem
+(`GanttRenderer`, through `MermaidConfig.Gantt`), and the `Rendering` subsystem (through `LayoutData`, `ShapeLibrary`,
+which reads `MermaidConfig.Class` for a class box and `MermaidConfig.Er` for an entity box, and `LabelBuilder`, which
+measures with `MermaidFontConfig`) read the typed settings. The tests in
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/MermaidConfigResolverTests.cs` and
 `MermaidConfigResolverVectorTests.cs` call the unit directly through `InternalsVisibleTo`.

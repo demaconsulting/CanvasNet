@@ -297,6 +297,16 @@ direction `TB`, no titles, two nodes (the classes), one edge (the relation), and
 is drawn at the probed size with a white corner, more than 2,000 pixels of the default node fill (the class boxes), and
 no note.
 
+**SourceLoader_Load_MermaidPie_ProbesAndDraws**: a pie chart titled `Pets` with three sections is probed with the
+facts `pie`, supported, no direction, the title `Pets`, no accessible title, three nodes (the slices), no edge, and no
+subgraph; loaded in strict mode it is drawn at the probed size with a white corner, exactly the pixels the library draws
+over white, more than a tenth of its pixels not white, and no note.
+
+**SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock**: a gantt chart of two sections with a dated task and a
+critical task `after` it is probed with the facts `gantt`, supported, no direction, no titles, two nodes (the tasks),
+no edge, and two subgraphs (the sections), 784 pixels wide; loaded in strict mode it is drawn with exactly the pixels
+the library draws without a clock (no today line), and no note.
+
 **SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
 the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the
 fitted diagram, and a background with zero alpha leaves the corner transparent while the nodes keep the default fill.

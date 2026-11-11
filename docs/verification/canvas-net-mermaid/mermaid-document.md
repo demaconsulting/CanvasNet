@@ -97,14 +97,16 @@ form of the two report records and the value equality of the size record.
 #### CanvasNetMermaid-MermaidDocument-Options: Validated Options With Documented Defaults
 
 **Tests**: `MermaidRenderOptionsTests.MermaidRenderOptions_Defaults_AreDocumented`,
+`MermaidRenderOptionsTests.MermaidRenderOptions_Now_CanBeSet`,
 `MermaidRenderOptionsTests.MermaidRenderOptions_Scale_Invalid_Throws`,
 `MermaidRenderOptionsTests.MermaidRenderOptions_Theme_OnlyMermaidThemes_AreAccepted`,
 `MermaidRenderOptionsTests.MermaidRenderOptions_Config_NotJsonObject_Throws`,
 `MermaidRenderOptionsTests.MermaidRenderOptions_Limits_Null_Throws`,
 `MermaidRenderOptionsTests.MermaidOpenOptions_SourceName_Whitespace_Throws`
 
-Asserts the defaults, and that zero, negative, infinite, and not-a-number scales, unknown themes, configuration text
-that is not a JSON object, null limits, and a white-space source name are refused when set.
+Asserts the defaults (no clock among them: `Now` is null), that the clock can be set to a time with an offset of four
+hours west and reads back unchanged, and that zero, negative, infinite, and not-a-number scales, unknown themes,
+configuration text that is not a JSON object, null limits, and a white-space source name are refused when set.
 
 #### CanvasNetMermaid-MermaidDocument-Limits: Default And Validated Limits
 

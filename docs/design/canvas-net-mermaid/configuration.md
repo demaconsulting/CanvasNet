@@ -7,15 +7,16 @@
 The `Configuration` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Configuration`, folder
 `src/DemaConsulting.CanvasNet.Mermaid/Configuration/`) turns the site configuration of the caller, the frontmatter, and
 the directives of a diagram text into the effective configuration of one measure or render call, and the theme of that
-configuration into the paint and fonts every flowchart, sequence diagram, class diagram, state diagram, and entity
-relationship diagram element class is drawn with, as the pinned Mermaid release computes them. It is **internal**: its
-types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly.
-It contains four units:
+configuration into the paint and fonts every flowchart, sequence diagram, class diagram, state diagram, entity
+relationship diagram, pie chart, and gantt chart element class is drawn with, as the pinned Mermaid release computes
+them. It is **internal**: its types are visible only to the other subsystems of the system and, through
+`InternalsVisibleTo`, to the test assembly. It contains four units:
 
 - **MermaidConfigResolver** - the internal static `MermaidConfigResolver` (a partial class in
   `MermaidConfigResolver.cs`, `MermaidConfigResolver.Defaults.cs`, `MermaidConfigResolver.Merge.cs`, and
   `MermaidConfigResolver.Validation.cs`) and the typed view of its result, `MermaidConfig` with `FlowchartConfig`,
-  `SequenceConfig`, `ClassConfig`, `StateConfig`, `ErConfig`, `MermaidFontConfig`, and `ConfigScalar`
+  `SequenceConfig`, `ClassConfig`, `StateConfig`, `ErConfig`, `PieConfig`, `GanttConfig`, `MermaidFontConfig`, and
+  `ConfigScalar`
   (`MermaidConfig.cs`): the layers of the configuration in Mermaid's order with Mermaid's merge rules, sanitizers,
   secure keys, and theme recomputation, and the located reports of the keys and values that have no effect; see
   _MermaidConfigResolver Unit Design_ (`configuration/mermaid-config-resolver.md`)
@@ -25,8 +26,10 @@ It contains four units:
   shared rendering units draw, and the flowchart style sheet `FlowchartStyles` with `ShapePaint` and `TextPaint`
   (`ThemeResolver.Styles.cs`), the class, state, and entity relationship style sheets `ClassStyles`, `StateStyles`,
   and `ErStyles` (`ThemeResolver.DiagramStyles.cs`), and the sequence style sheet `SequenceStyles` with `StrokePaint`
-  and `ShadowPaint` (`ThemeResolver.SequenceStyles.cs`): the five built-in themes and the style rules Mermaid writes
-  for a flowchart, a sequence diagram, a class diagram, a state diagram, and an entity relationship diagram; see
+  and `ShadowPaint` (`ThemeResolver.SequenceStyles.cs`), and the chart style sheets `PieStyles` with `SlicePaint` and
+  `GanttStyles` with `GanttElement` (`ThemeResolver.ChartStyles.cs`): the five built-in themes and the style rules
+  Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship
+  diagram, a pie chart, and a gantt chart; see
   _ThemeResolver Unit Design_ (`configuration/theme-resolver.md`)
 - **ColorMath** - the internal static `ColorMath` (`ColorMath.cs` and `ColorMath.Parsers.cs`, with the channel model
   `Channels` and the exception `ColorFormatException`): the subset of the khroma color library that the themes derive
@@ -51,7 +54,10 @@ model names the subsystem `MermaidConfiguration` (see _CanvasNetMermaid System D
   `SequenceConfig` with the fonts of the sequence renderer as `MermaidFontConfig` values), `Class` (a `ClassConfig`
   with the class section and the spacing the class renderer reads from the state section), `State` (a `StateConfig`
   with the default renderer, the spacing, and the title margin of the state section), `Er` (an `ErConfig` with the
-  entity box paddings, the minimum entity width, the spacing, and the title margin of the `er` section),
+  entity box paddings, the minimum entity width, the spacing, and the title margin of the `er` section), `Pie` (a
+  `PieConfig` with the text position, the donut hole, the legend position, and the highlighted slice), `Gantt` (a
+  `GanttConfig` with the margins, bar sizes, paddings, font sizes, section styles, axis format, tick interval, top
+  axis, display mode, and width of the `gantt` section),
   `DetectorSettings`, and `LocationOf(key)`;
 - `ThemeResolver.GetThemeVariables(theme, overrides)`, `ThemeResolver.IsTheme`, and
   `ThemeResolver.UnsupportedMermaidThemes`;
@@ -68,6 +74,10 @@ model names the subsystem `MermaidConfiguration` (see _CanvasNetMermaid System D
 - `SequenceStyles.Create(MermaidConfig, MermaidReportSink?)` with the resolvers `Shape`, `Line`, `TextColor`,
   `Shadow`, `Box`, and `MessageLine`, the typed paints `Lifeline`, `LoopLine`, `LabelBox`, `BoxShadow`,
   `MenuPanelShadow`, `ArrowheadColor`, `CrossheadColor`, and `SequenceNumberMarkerColor`, and `TryParseFilter`;
+- `PieStyles.Create(MermaidConfig, MermaidReportSink?)` with `Slice(color, highlighted)` (a `SlicePaint`),
+  `OuterCircle`, `TitleText`, `SliceText`, and `LegendText`;
+- `GanttStyles.Create(MermaidConfig, MermaidReportSink?)` with `Compute(path)`, the style of an element from the classes
+  and attributes of the element and its ancestors (`GanttElement`) through a class-set cascade;
 - `ColorMath` (`Adjust`, `Darken`, `Lighten`, `Invert`, `Mix`, `Rgba`, `Channel`, `Luminance`, `IsDark`, `IsColor`);
 - `StyleDeclarations.ParseItems`, `ParseBlock`, `ParseSheet`, `NormalizeSelector`, and the value parsers
   `TryParsePaint`, `TryParseLength`, `TryParseDashArray`, `TryParseOpacity`, `TryParseBold`, and `TryParseItalic`,
@@ -90,7 +100,9 @@ namespace and note paddings, `hierarchicalNamespaces`, the spacing, and the titl
 or layout at `LocationOf`, and builds the `ClassStyles` of the call; the `State` subsystem (`StateModel`) reads the
 state section (the spacing, the title margin, and the default renderer it names when it reports the legacy renderer)
 and builds the `StateStyles` of the call; the `Er` subsystem (`ErModel`) reads the `er` section (the spacing and the
-title margin) and builds the `ErStyles` of the call; the `Rendering` subsystem reads the configuration
+title margin) and builds the `ErStyles` of the call; the `Pie` subsystem (`PieRenderer`) reads the `pie` section and
+builds the `PieStyles` of the call; the `Gantt` subsystem (`GanttRenderer`) reads the `gantt` section and builds the
+`GanttStyles` of the call; the `Rendering` subsystem reads the configuration
 through its `LayoutData` (`ClusterLayout` the subgraph margins), `ShapeLibrary` reads the class section for a class box
 (its padding and `hideEmptyMembersBox`) and the `er` section for an entity box (its two paddings and the minimum
 entity width), and `ShapeLibrary`, `EdgeBuilder`, and `LabelBuilder` parse the `style`,
@@ -128,7 +140,12 @@ and whether it centers the SVG text of a node's label on its anchor (`CentersNod
 sheets do, the state and entity relationship sheets have no such rule); `RootText` gives the root font and fill that a
 text inherits where no rule of its own applies. The class and entity relationship diagrams' titles have a CSS class
 that no rule of the sheet styles, so they take the root font and fill, as in Mermaid; the state diagram's title takes
-the 18 pixels of `.statediagramTitleText`.
+the 18 pixels of `.statediagramTitleText`. `PieStyles` and `GanttStyles` are not unified sheets, because pie and gantt
+charts have their own renderers: `PieStyles` resolves the few pie rules into typed paints, and `GanttStyles`, whose
+rules select by compound classes (`.doneText0.taskTextOutsideRight`), descendants (`.grid .tick text`), and
+`!important` fills, computes the style of each element from its own classes and those of its ancestors as a browser's
+cascade does (important declarations, then specificity, then the order of the rules, over the element's presentation
+attributes), with the `themeCSS` rules of the known gantt selectors after them.
 
 **Checked against upstream vectors.** The fixture `Fixtures/upstream-vectors/themes.json`, generated from the pinned
 Mermaid and khroma by `tools/visual-diff/mermaid/gen-theme-vectors.mjs`, records 622 khroma calls, 53
@@ -139,18 +156,22 @@ defaults and style rules are checked by the unit tests against Mermaid's schema 
 of every element, by the sequence reference layout goldens; the class section and the class style rules are checked in
 the same way against Mermaid's default configuration, its class style sheet, and the class reference layout goldens,
 and the state and `er` sections and the state and entity relationship style rules against Mermaid's schema, its state
-and entity relationship style sheets, and the state and entity relationship reference layout goldens.
+and entity relationship style sheets, and the state and entity relationship reference layout goldens; the `pie` and
+`gantt` sections and the pie and gantt rules likewise against Mermaid's schema, its `pieStyles.ts` and gantt
+`styles.js`, and the computed paint recorded in the pie and gantt reference layout goldens.
 
 **Attribution.** `MermaidConfigResolver` ports `config.ts`, `mermaidAPI.ts` (`initialize`), `assignWithDepth.ts`,
 `utils.ts` (`detectInit`, `cleanAndMerge`), `preprocess.ts` (`processFrontmatter`), `utils/sanitizeDirective.ts`,
 `defaultConfig.ts`, the defaults of `config.schema.yaml`, the flowchart's `init` of `flowDiagram.ts`, the sequence
 diagram's `init` of `sequenceDiagram.ts` and `setConf` of `sequenceRenderer.ts`, and the class section of
 `defaultConfig.ts` with the state section's spacing that `classRenderer-v3-unified.ts` reads, and the state and `er`
-sections of `config.schema.yaml` with the reads of `stateRenderer-v3-unified.ts` and `erRenderer-unified.ts`.
+sections of `config.schema.yaml` with the reads of `stateRenderer-v3-unified.ts` and `erRenderer-unified.ts`, and the
+`pie` and `gantt` sections of `config.schema.yaml`.
 `ThemeResolver` ports `themes/theme-default.js`, `theme-base.js`, `theme-dark.js`, `theme-forest.js`,
 `theme-neutral.js`, `theme-helpers.js`, `erDiagram-oldHardcodedValues.ts`, the global `styles.ts`, the flowchart's
 `styles.ts`, the sequence diagram's `styles.js`, the class diagram's `styles.js`, the state diagram's `styles.js`,
-and the entity relationship diagram's `styles.ts`. `ColorMath` ports the parsers, channel model, and functions of
+the entity relationship diagram's `styles.ts`, the pie chart's `pieStyles.ts`, and the gantt chart's `styles.js`.
+`ColorMath` ports the parsers, channel model, and functions of
 khroma. `StyleDeclarations` is original work of this repository. The source files that contain ported code carry a
 `Portions derived from` header, and the provenance is recorded in `third-party/README.md` of the package.
 

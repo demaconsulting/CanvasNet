@@ -86,8 +86,8 @@ wrap, and the width of an entity box text and of a narrow entity name. The unit'
   measured in that weight, so an inherited bold weight widens the line.
 - `MarkdownToHtml`, `MarkdownToLines`, `NonMarkdownToHtml`, `NonMarkdownToLines`, and `Dedent` - the functions of
   `handle-markdown-text.ts` over the markdown lexer: paragraphs, `**strong**` and `__strong__`, `*em*` and `_em_` with
-  CommonMark's delimiter rules, backslash escapes, code spans, inline HTML, the common indentation removed as `ts-dedent`
-  does, and no-break spaces when `markdownAutoWrap` is off; any other block is kept as written.
+  CommonMark's delimiter rules, backslash escapes, code spans, inline HTML, the common indentation removed as
+  `ts-dedent` does, and no-break spaces when `markdownAutoWrap` is off; any other block is kept as written.
 - `DecodeEntities(text)` and `DecodeHtmlEntities(text)` - Mermaid's entity placeholders and the character references
   (through the sanitizer's table).
 - `Face`, `Advance`, and `VerticalMetrics` - the face of a family list, the advance of a text with the core
@@ -154,17 +154,21 @@ function of the request and the bundled fonts.
 #### Callers
 
 `ShapeLibrary` measures node labels, subgraph titles, the texts of a class box, the titles and descriptions of a state,
-and the texts of an entity box through `ShapeContext.MeasureLabel`, which `FlowchartModel` (the `Flowchart`
-subsystem), `ClassModel` (the `Class` subsystem), `StateModel` (the `State` subsystem), and `ErModel` (the `Er`
-subsystem) set to `Build`; `ClassModel` and `ErModel` also set `ShapeContext.TextWidth` to `CalculateTextWidth` in the
-configured font, at whose width plus 50 pixels the class box texts wrap (plus 100 pixels for the entity box texts) and
-with which an entity without attributes is tested against its minimum width, and charge the builder's measuring to the
-render's work meter. `ClusterLayout.RenderDiagram` uses `SvgLineExtent` and `VerticalMetrics` for the box of the
-diagram title. `EdgeBuilder` measures edge and terminal labels through the same delegate (an edge label with the
-sheet's root font size as its `RootFontSize`) and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem, `SequenceLayout`
-creates a builder for each render (charged to the render's work meter) and measures and wraps with the text utilities,
-and `SequenceRenderer` boxes and places its text lines with them. The tests in `LabelBuilderTests.cs` call the unit
-directly through `InternalsVisibleTo`.
+and the texts of an entity box through `ShapeContext.MeasureLabel`, which `FlowchartModel` (the `Flowchart` subsystem),
+`ClassModel` (the `Class` subsystem), `StateModel` (the `State` subsystem), and `ErModel` (the `Er` subsystem) set to
+`Build`; `ClassModel` and `ErModel` also set `ShapeContext.TextWidth` to `CalculateTextWidth` in the configured font, at
+whose width plus 50 pixels the class box texts wrap (plus 100 pixels for the entity box texts) and with which an entity
+without attributes is tested against its minimum width, and charge the builder's measuring to the render's work meter.
+`ClusterLayout.RenderDiagram` uses `SvgLineExtent` and `VerticalMetrics` for the box of the diagram title. `EdgeBuilder`
+measures edge and terminal labels through the same delegate (an edge label with the sheet's root font size as its
+`RootFontSize`) and draws them with `LabelLayout.ToScene`. In the `Sequence` subsystem, `SequenceLayout` creates a
+builder for each render (charged to the render's work meter) and measures and wraps with the text utilities, and
+`SequenceRenderer` boxes and places its text lines with them. `PieRenderer` of the `Pie` subsystem and `GanttRenderer`
+of the `Gantt` subsystem create a builder for each render (charged to the render's work meter) and measure their SVG
+texts with `SvgLineExtent` and `VerticalMetrics` (the title, the percentage labels, and the legend texts of a pie chart;
+the task texts, section titles, tick labels, and title of a gantt chart) and `ParseFontSize`, split texts at `<br>` with
+`SplitBreaks`, and decode the texts they draw with `DecodeEntities` and `CollapseSvgWhiteSpace`. The tests in
+`LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
 

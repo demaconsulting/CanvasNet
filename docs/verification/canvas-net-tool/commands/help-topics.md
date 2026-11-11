@@ -37,8 +37,9 @@ fails the build. The content is checked against the things it describes, so that
 - the **`pictures` snippet** of the `mermaid` topic is a diagram whose nodes show a model and a chart, so it is a
   snippet too; a dedicated test writes it with the `plate` example of the `scad` topic as `part.scad` and the `bar`
   example of the `vega-lite` topic as `chart.vl.json` and renders it with `--strict`;
-- the **`class`, `state`, and `er` sections** of the `mermaid` topic are compared, item by item and in order, with the
-  rows of the class, state, and entity relationship syntax, relation or cardinality, and settings tables of the
+- the **`class`, `state`, `er`, `pie`, and `gantt` sections** of the `mermaid` topic are compared, item by item and in
+  order, with the rows of the class, state, entity relationship, pie, and gantt syntax, relation, cardinality, or tag,
+  and settings tables of the
   Mermaid user guide (`docs/user_guide/canvas-net-mermaid.md`), and every
   row of the guide's table of unsupported features and warnings must be an item of the `unsupported` or `diagnostics`
   section (the **guide parity test**), so the help that agents read and the guide that people read describe the same
@@ -72,10 +73,11 @@ delete.
   trigger produces its identifier, and `--strict` turns a report into `unsupported-feature`.
 - Every source example renders with `--strict` and no diagnostic; each snippet (of the `svg` and `mermaid` topics)
   renders with `--strict` and no diagnostic once its sibling files exist.
-- The `class`, `state`, and `er` sections of the `mermaid` topic have exactly the class syntax, relation, and setting
-  rows, the state syntax and setting rows, and the entity relationship syntax, cardinality, and setting rows of the
-  Mermaid user guide, in order and worded the same apart from formatting, and every code of the guide's table of
-  unsupported features and warnings is an item of the topic.
+- The `class`, `state`, `er`, `pie`, and `gantt` sections of the `mermaid` topic have exactly the class syntax,
+  relation, and setting rows, the state syntax and setting rows, the entity relationship syntax, cardinality, and
+  setting rows, the pie syntax and setting rows, and the gantt syntax, tag, and setting rows of the Mermaid user guide,
+  in order and worded the same apart from formatting, and every code of the guide's table of unsupported features and
+  warnings is an item of the topic.
 - The file types the `svg` topic lists for `<image href>` are exactly the extensions of `CanvasNetViewer` and of the
   `formats` table; the `image-links` section states the size rule, the folder rule, `svg-image-unresolved`,
   `svg-image-too-large`, and the
@@ -116,10 +118,10 @@ and has no file name; a source example or snippet has a file name with the exten
 `.vl.json`, `.mmd`, or `.svg`); and the `scad`, `vega-lite`, `mermaid`, and `svg` topics each have a source example.
 
 **HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics**: a theory over every text example (the OpenSCAD models, the
-Vega-Lite charts, the Mermaid diagrams - the `flowchart`, `sequence`, `class`, `state`, and `er` examples of the
-`mermaid` topic - and the SVG drawings; not the snippets): the example is saved under its file
-name and rendered with `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0,
-`ok` is true, there is no diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid
+Vega-Lite charts, the Mermaid diagrams - the `flowchart`, `sequence`, `class`, `state`, `er`, `pie`, and `gantt`
+examples of the `mermaid` topic - and the SVG drawings; not the snippets): the example is saved under its file name and
+rendered with `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0, `ok` is
+true, there is no diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid
 anchors, one inside a `translate` and a `rotate`) is covered by this theory, so an anchor example that warned would fail
 it; the `scad-anchor-invalid` identifier the topic cites is a string literal of the Scad library, so the
 cited-identifier drift test finds it without a trigger entry.
@@ -151,19 +153,20 @@ no diagnostic, one `embed` operation per link, and the picture written.
 exits with 0 with no diagnostic, exactly the two `embed` operations `part.scad` and `chart.vl.json` in that order, and
 the picture written.
 
-**HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide**: the rows of the tables under each of the guide's
-headings `### Supported Class Syntax` (at least 30 rows), `### Supported State Syntax` (at least 18), and
-`### Supported Entity Relationship Syntax` (at least 24) are, one for one and in order, the items of the `class`,
-`state`, and `er` sections of the `mermaid` topic, with nothing missing or extra at the end: a row of an
-`Area | Supported` table is the item text `<area>: <supported>.`, a row of a `Relation | Drawn as` table (the class
-relations, and the entity relationship cardinalities and lines) the item whose term is the relation and whose text is
-the drawing, and a row of a `Key | Default | Meaning` table the item whose term is the key and whose text is
-`<meaning> (default <default>).`; a table with any other header fails the test; and each row of the table under
-`### Mermaid Unsupported Features and Strict Mode` (at least 15, with the header `Code`, `Kind`, and `Reported when`)
-is an item of the `unsupported` section (kind `Unsupported`, the text of the row) or of the `diagnostics` section (the
-kind, a colon, and the text), with the code as its term. Items are compared in a canonical form: backticks dropped,
-`\|` read as `|`, a final period added to a guide row, and the first letter of a text (after an `Area:` prefix and its
-space) compared ignoring case. Every difference is listed in the failure message, guide row beside help item.
+**HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide**: the rows of the tables under each of the guide's headings
+`### Supported Class Syntax` (at least 30 rows), `### Supported State Syntax` (at least 18), and `### Supported Entity
+Relationship Syntax` (at least 24), `### Supported Pie Syntax` (at least 12), and `### Supported Gantt Syntax` (at least
+35) are, one for one and in order, the items of the `class`, `state`, `er`, `pie`, and `gantt` sections of the `mermaid`
+topic, with nothing missing or extra at the end: a row of an `Area | Supported` table is the item text `<area>:
+<supported>.`, a row of a `Relation | Drawn as` table (the class relations, the entity relationship cardinalities and
+lines, and the gantt tags in a `Tag | Drawn as` table) the item whose term is the relation and whose text is the
+drawing, and a row of a `Key | Default | Meaning` table the item whose term is the key and whose text is `<meaning>
+(default <default>).`; a table with any other header fails the test; and each row of the table under `### Mermaid
+Unsupported Features and Strict Mode` (at least 18, with the header `Code`, `Kind`, and `Reported when`) is an item of
+the `unsupported` section (kind `Unsupported`, the text of the row) or of the `diagnostics` section (the kind, a colon,
+and the text), with the code as its term. Items are compared in a canonical form: backticks dropped, `\|` read as `|`, a
+final period added to a guide row, and the first letter of a text (after an `Area:` prefix and its space) compared
+ignoring case. Every difference is listed in the failure message, guide row beside help item.
 
 **HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` item names the grammar
 (`name=value`), `page=N`, `slide=N`, `view=`, the counting from 1, and the live limits; the `page example` item shows

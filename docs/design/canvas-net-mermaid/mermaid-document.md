@@ -37,14 +37,17 @@ lays out the diagram.
   (not the concurrency regions or note groups); for an entity relationship diagram `NodeCount` is the entities drawn
   (an entity named after a subgraph is not drawn), `EdgeCount` the relationships, and `SubgraphCount` the subgraphs.
   The `Direction` of a state or entity relationship diagram is the last top-level `direction` statement (the direction
-  the diagram is laid out in), else `TB`. A site-level setting in `MermaidRenderOptions.Config` is not known when the
+  the diagram is laid out in), else `TB`. For a pie chart `NodeCount` is the sections (each label once), and for a
+  gantt chart the tasks (vertical markers included) with `SubgraphCount` the sections whose titles are drawn; both
+  have no edges and a null `Direction`. A site-level setting in `MermaidRenderOptions.Config` is not known when the
   text is opened, so it changes the drawing but not the counts, as for every other descriptive property.
 - **`MermaidOpenOptions`**: `SourceName` (not white space) and `Limits`.
 - **`MermaidRenderOptions`**: `Scale` (finite, above zero, 1 by default), `Background` (`Rgba32?`, null for
   transparent), `Config` (a JSON object text of at most a fixed length and depth, validated when set), `Theme` (one of
-  the static `ThemeNames`: `default`, `base`, `dark`, `forest`, `neutral`, compared exactly; hosts canonicalize a
-  user's spelling first), `ImageResolver`, `Limits` (non-null, `MermaidLimits.Default` by default), `WarningHandler`,
-  `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`.
+  the static `ThemeNames`: `default`, `base`, `dark`, `forest`, `neutral`, compared exactly; hosts canonicalize a user's
+  spelling first), `ImageResolver`, `Now` (`DateTimeOffset?`, null by default: the only clock of the library, which a
+  gantt chart reads for its today line and the dates Mermaid takes from today), `Limits` (non-null,
+  `MermaidLimits.Default` by default), `WarningHandler`, `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`.
 - **`MermaidLimits`**: the ten limits of the system design (_Untrusted Input and Limits_), each validated to be at
   least 1, the two depth limits at most 256; `Default` is a shared instance.
 - **Records**: `MermaidLocation(File, Line, Column)` (`IsKnown` when the line is positive; `ToString` gives
@@ -72,7 +75,8 @@ lays out the diagram.
   passes the text configuration's `class.hierarchicalNamespaces` so that the namespace count follows what is drawn,
   `state` (from the `stateDiagram` and legacy `state` detectors, so `stateDiagram` and `stateDiagram-v2` texts alike,
   whichever state renderer the configuration names) to `StateParser` and `StateModel`, and `er` (from the `er`
-  detector, an `erDiagram` text) to `ErParser` and `ErModel`. A
+  detector, an `erDiagram` text) to `ErParser` and `ErModel`, `pie` to `PieParser` (whose `PieDiagram` implements
+  `IMermaidDiagram`), and `gantt` to `GanttParser` and `GanttModel`. A
   known type that is not drawn is not parsed (the document's diagram is null). Postcondition: an immutable document,
   or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
@@ -140,6 +144,9 @@ lays out the diagram.
 - **Class**: through `DiagramRegistry` (`ClassParser`, `ClassModel`, which implements `IMermaidDiagram`).
 - **State**: through `DiagramRegistry` (`StateParser`, `StateModel`, which implements `IMermaidDiagram`).
 - **Er**: through `DiagramRegistry` (`ErParser`, `ErModel`, which implements `IMermaidDiagram`).
+- **Pie**: through `DiagramRegistry` (`PieParser`, whose `PieDiagram` implements `IMermaidDiagram`).
+- **Gantt**: through `DiagramRegistry` (`GanttParser`, `GanttModel`, which implements `IMermaidDiagram`); a render
+  passes `Now` to the model in the render context.
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

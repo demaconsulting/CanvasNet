@@ -359,6 +359,12 @@ format and has the `diagram` object with the type `flowchart`, `supported` true,
 `#ECECFF` of the default theme at (14, h/2) inside the first node; and `help mmd` (the alias) prints the topic that
 starts with `Topic: Mermaid diagrams`; every process exits with 0.
 
+**CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn**: a pie chart (`Pets` with two sections) and a gantt chart (one
+section with a dated task and a task `after` it, so no date needs today) are each described and rendered by real
+processes: `info --json` gives the `diagram` object with the type `pie` or `gantt`, `supported` true, and two `nodes`;
+`render --strict --json` exits with 0 without a diagnostic and writes a PNG of exactly the size `info` reported with a
+white corner.
+
 **CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract**: in-process through the entry point, a diagram whose
 first keyword is not a Mermaid keyword (`drawing LR`) returns exit code 1 with an `Error: mermaid-error:` line that
 names `mermaid-unknown-diagram` and a `Hint:` line; a pie chart renders with exit code 0 and an
