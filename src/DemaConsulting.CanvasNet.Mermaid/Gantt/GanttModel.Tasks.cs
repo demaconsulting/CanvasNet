@@ -438,7 +438,7 @@ internal sealed partial class GanttModel
                     end = Dayjs.Add(end, 1, "d");
                     if (end.Time > maxEnd.Time)
                     {
-                        throw Failure(task, "Failed to find a valid date that was not excluded by `excludes` after 10,000 iterations.", "leave at least one day of the week out of excludes");
+                        throw Failure(task, "Failed to find a valid date that was not excluded by `excludes` after 10,000 iterations.", "leave at least one day of the week out of excludes, or shorten the task: its excluded days may move its end by at most 10,000 days");
                     }
                 }
 

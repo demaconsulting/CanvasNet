@@ -163,8 +163,9 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
   - a task without a start whose task before it does not exist (the first task), with the message of Mermaid's
     JavaScript error (`reading 'endTime'`);
   - a task with more than three data fields (`reading 'type'`);
-  - excluded days that leave no valid day within 10,000 days, with Mermaid's message ``Failed to find a valid date
-    that was not excluded by `excludes` after 10,000 iterations.``;
+  - excluded days that would move a task's end by more than 10,000 days, with Mermaid's message ``Failed to find a
+    valid date that was not excluded by `excludes` after 10,000 iterations.`` and the hint to leave a day of the week
+    out of `excludes` or to shorten the task;
   - a date format whose formatting of a valid date needs a plugin that Mermaid does not load (the week tokens `w`,
     `ww`, `wo`, and `gggg`, and the zone names `z` and `zzz`), with the hint to remove those tokens;
   - and, where Mermaid would draw a task without valid dates, a task still unresolved after the passes (a circular

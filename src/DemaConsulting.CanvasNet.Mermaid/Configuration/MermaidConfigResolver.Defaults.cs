@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
-///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, and the set of
-///     configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
+///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, the pie and gantt
+///     charts, and the set of configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {

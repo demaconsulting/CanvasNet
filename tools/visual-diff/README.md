@@ -149,7 +149,8 @@ fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fix
 11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
 class, state, ER, pie or gantt fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's flowchart
 layout with the goldens, and `MermaidChartReferenceLayoutTests` its pie and gantt layouts. The tolerance is 0.01 px,
-or 0.1 px for the two fixtures with rough.js circles. A golden change is reviewed like code.
+or 0.1 px for the two flowchart fixtures with rough.js circles; text boxes, and the slice boxes of a pie, are compared
+at 0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A golden change is reviewed like code.
 
 ### Upstream Vector Generators
 

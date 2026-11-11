@@ -39,7 +39,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Dagre-LayoutWorkMeter-
 diagram (each extracted cluster is laid out separately) and by the cluster code of the `Rendering` subsystem. The
 charges of the stages are deterministic, so the same graph always uses the same work: the complete acyclic graph on 30
 nodes takes 2,955,593 steps and a four-node cyclic graph with a cluster and a label 1,369, both pinned by the subsystem
-tests.
+tests. The meter bounds the date and tick work of a chart as well as the work of a graph layout.
 
 #### Error Handling
 
@@ -58,10 +58,23 @@ The unit has no dependency on another unit of the subsystem.
 
 #### Callers
 
-The flowchart renderer of the `Flowchart` subsystem creates the meter of a diagram from `MermaidLimits.MaxLayoutWork`,
-the location of the diagram keyword, and the cancellation token. `ClusterLayout` of the `Rendering` subsystem passes it
-to every `DagreLayout.Run` and charges its own stages to it. Every stage of the `Dagre` subsystem charges it, and
-`DagreLayout.AddDummyNode` and `DagreAcyclic.Run` name nodes and edges with `UniqueId`. The tests in
+Every caller creates the meter of a diagram from `MermaidLimits.MaxLayoutWork`, the location of the diagram keyword,
+and the cancellation token.
+
+- The flowchart, class, state, and ER models create a meter for their layout (`FlowchartModel.Render`, and the
+  `LayoutData` of `ClassModel`, `StateModel`, and `ErModel`). `ClusterLayout` of the `Rendering` subsystem passes it to
+  every `DagreLayout.Run` and charges its own stages to it. Every stage of the `Dagre` subsystem charges it, and
+  `DagreLayout.AddDummyNode` and `DagreAcyclic.Run` name nodes and edges with `UniqueId`.
+- `SequenceLayout` creates a meter in its constructor and charges the message loops and the scans of
+  `SequenceBounds`.
+- `PieRenderer` creates a meter and charges the sections and every text it measures.
+- `GanttRenderer` creates a meter and passes it to `GanttModel.Compile`, which charges each pass and task, each date
+  text, the `Dayjs.Format` and `Dayjs.ParseStrict` work (by the lengths of the text and the format), and `DayCost()`
+  for every day of the excluded-days loop (one unit, the date format, and the `excludes` and `includes` tokens). The
+  renderer itself charges every tick step of `TimeAxis`, each axis label, `DayCost()` for every day of the excluded-day
+  shading, the task lists, and its text measuring.
+
+The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/LayoutWorkMeterTests.cs` call the unit directly through
 `InternalsVisibleTo`.
 

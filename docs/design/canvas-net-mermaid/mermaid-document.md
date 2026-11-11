@@ -123,7 +123,7 @@ lays out the diagram.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
 - Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart,
-  Sequence, Class, State, and Er subsystems; the unit adds nothing but the source name.
+  Sequence, Class, State, Er, Pie, and Gantt subsystems; the unit adds nothing but the source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
   subsystems; a size outside the surface range throws `ArgumentOutOfRangeException` naming the scale and the size.
 - Strict mode throws `MermaidUnsupportedFeatureException` from the sink. Cancellation throws
