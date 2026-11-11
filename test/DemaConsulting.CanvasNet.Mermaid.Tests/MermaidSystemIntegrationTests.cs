@@ -226,6 +226,7 @@ public class MermaidSystemIntegrationTests
         var sanitizeUrl = File.ReadAllText(Path.Combine(folder, "LICENSE-sanitize-url.txt"));
         var mermaidParser = File.ReadAllText(Path.Combine(folder, "LICENSE-mermaid-parser.txt"));
         var langium = File.ReadAllText(Path.Combine(folder, "LICENSE-langium.txt"));
+        var dayjs = File.ReadAllText(Path.Combine(folder, "LICENSE-dayjs.txt"));
         var provenance = File.ReadAllText(Path.Combine(folder, "third-party-provenance.txt"));
 
         // Assert
@@ -240,6 +241,7 @@ public class MermaidSystemIntegrationTests
         Assert.Contains("Copyright (c) 2017 Braintree", sanitizeUrl, StringComparison.Ordinal);
         Assert.Contains("Copyright (c) 2023 Yokozuna59", mermaidParser, StringComparison.Ordinal);
         Assert.Contains("Copyright 2021 TypeFox GmbH", langium, StringComparison.Ordinal);
+        Assert.Contains("Copyright (c) 2018-present, iamkun", dayjs, StringComparison.Ordinal);
         Assert.Contains("not affiliated", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-mermaid.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-js-yaml.txt", provenance, StringComparison.Ordinal);
@@ -251,6 +253,7 @@ public class MermaidSystemIntegrationTests
         Assert.Contains("LICENSE-sanitize-url.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-mermaid-parser.txt", provenance, StringComparison.Ordinal);
         Assert.Contains("LICENSE-langium.txt", provenance, StringComparison.Ordinal);
+        Assert.Contains("LICENSE-dayjs.txt", provenance, StringComparison.Ordinal);
     }
 
     /// <summary>

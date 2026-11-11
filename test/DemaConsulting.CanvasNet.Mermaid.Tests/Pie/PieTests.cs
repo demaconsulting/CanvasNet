@@ -76,4 +76,28 @@ public sealed class PieTests
         Assert.Equal(["Dogs [3]", "Cats [1]"], texts.Where(pair => pair.Key.Role == "pie-legend-text").Select(pair => pair.Value));
         Assert.Equal(["Pets"], texts.Where(pair => pair.Key.Role == "title").Select(pair => pair.Value));
     }
+
+    /// <summary>
+    ///     Validates that a whole text the grammar does not accept, and one with a negative value, are refused when the
+    ///     document is opened, located in the original text (frontmatter lines included) with a hint.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Pie_InvalidText_FailsClosedWithLocation()
+    {
+        // Arrange
+        var options = new MermaidOpenOptions { SourceName = "p.mmd" };
+
+        // Act
+        var grammar = Assert.Throws<MermaidSyntaxException>(() =>
+            MermaidDocument.Parse("---\ntitle: T\n---\npie\n    \"Dogs\" : 3\n    \"Cats\" 1\n", options));
+        var negative = Assert.Throws<MermaidSyntaxException>(() =>
+            MermaidDocument.Parse("pie\n    \"Dogs\" : 3\n    \"Cats\" : -1\n", options));
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.SyntaxError, "p.mmd", 6), (grammar.Code, grammar.Location.File, grammar.Location.Line));
+        Assert.NotEmpty(grammar.Expected);
+        Assert.NotNull(grammar.Hint);
+        Assert.Equal((MermaidDiagnosticCodes.SyntaxError, 3, 5), (negative.Code, negative.Location.Line, negative.Location.Column));
+        Assert.NotNull(negative.Hint);
+    }
 }

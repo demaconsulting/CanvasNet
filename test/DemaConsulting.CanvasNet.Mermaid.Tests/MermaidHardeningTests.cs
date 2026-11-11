@@ -653,7 +653,8 @@ public class MermaidHardeningTests
 
     /// <summary>
     ///     Gets diagrams of every type that has links (class <c>link</c> and <c>click ... href</c>, flowchart <c>click</c>
-    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>, state <c>click</c> and <c>click ... href</c>), each with
+    ///     and <c>href</c>, sequence <c>link</c> and <c>links</c>, state <c>click</c> and <c>click ... href</c>, gantt
+    ///     <c>click ... href</c>), each with
     ///     encoded forms of unsafe links that a partial check lets through: a tab inside the scheme, a percent-encoded
     ///     letter, an escaped white space, a character reference, and mixed case.
     /// </summary>
@@ -665,6 +666,8 @@ public class MermaidHardeningTests
         "sequenceDiagram\nparticipant A\nlink A: Docs @ %6Aavascript:alert(1)\nlinks A: {\"Run\": \"javascrip\\\\%74t:alert(2)\", \"Go\": \"JaVaScRiPt:alert(3)\"}\nA->>A: hi\n",
         "stateDiagram-v2\nA --> B\nB --> C\nC --> D\nclick A \"java\tscript:alert(1)\" \"tip\"\nclick B href \"%6Aavascript:alert(2)\"\n" +
         "click C href \"JaVa&Tab;ScRiPt&colon;alert(3)\"\nclick D \"&#106;avascript:alert(4)\" \"tip\"\n",
+        "gantt\ndateFormat YYYY-MM-DD\nA :a, 2024-01-01, 1d\nB :b, 2024-01-02, 1d\nC :c, 2024-01-03, 1d\nclick a href \"java\tscript:alert(1)\"\n" +
+        "click b href \"%6Aavascript:alert(2)\"\nclick c href \"JaVa&Tab;ScRiPt&colon;alert(3)\"\n",
     ];
 
     /// <summary>
@@ -698,8 +701,8 @@ public class MermaidHardeningTests
 
     /// <summary>
     ///     Gets the links a parsed diagram keeps: the links of the classes of a class diagram, the link texts of the
-    ///     participants of a sequence diagram, and the URLs of the links and click statements of a state diagram (a
-    ///     flowchart keeps none).
+    ///     participants of a sequence diagram, the URLs of the links and click statements of a state diagram, and the links
+    ///     of the tasks of a gantt chart (a flowchart keeps none).
     /// </summary>
     /// <param name="document">The document.</param>
     /// <returns>The kept links.</returns>
@@ -709,6 +712,7 @@ public class MermaidHardeningTests
         global::DemaConsulting.CanvasNet.Mermaid.Sequence.SequenceModel model => [.. model.Actors.SelectMany(a => a.Links.Keys.Select(key => a.Links.TryGetValue(key, out var value) ? (string?)value : null))],
         global::DemaConsulting.CanvasNet.Mermaid.State.StateModel model =>
             [.. model.Links.Select(l => l.Url), .. model.RootDocument.Where(s => s.Stmt == "click").Select(s => s.Url)],
+        global::DemaConsulting.CanvasNet.Mermaid.Gantt.GanttModel model => [.. model.Links.Select(l => (string?)l.Value)],
         _ => [],
     };
 
