@@ -18,7 +18,7 @@ sections:
                   The DiagramDetector unit shall recognize every diagram type that the pinned Mermaid release
                   registers, giving Mermaid's detector id, the public type name (with the variants of flowcharts,
                   class diagrams, and state diagrams under one name each), the keyword as written, and whether the
-                  type is drawn, planned, or not planned.
+                  type is drawn.
                 justification: |
                   A text that Mermaid draws must never be an unknown diagram, and the document reports the type and
                   whether it is supported without rendering.
@@ -75,9 +75,9 @@ sections:
 
               - id: CanvasNetMermaid-Syntax-DiagramDetector-UnsupportedHint
                 title: >-
-                  The DiagramDetector unit shall give, for a type that is not drawn, a hint that says whether the
-                  type is planned or not supported and names the keywords of the supported types.
+                  The DiagramDetector unit shall give, for a type that is not drawn, a hint that says the type is not
+                  supported and names the keywords of the supported types.
                 justification: |
                   The report of an unsupported diagram type must tell the author what can be drawn instead.
                 tests:
-                  - DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords
+                  - DiagramDetector_UnsupportedHint_NamesSupportedKeywords

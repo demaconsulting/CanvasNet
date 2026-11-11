@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Er;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Gantt;
+using DemaConsulting.CanvasNet.Mermaid.Mindmap;
 using DemaConsulting.CanvasNet.Mermaid.Pie;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Sequence;
@@ -107,8 +108,9 @@ internal sealed record DiagramRenderContext(
 ///         <see cref="ClassModel"/>, the state diagram (<c>stateDiagram</c>, <c>stateDiagram-v2</c> and the legacy id) by
 ///         <see cref="StateParser"/> into a <see cref="StateModel"/>, the entity relationship diagram
 ///         (<c>erDiagram</c>) by <see cref="ErParser"/> into an <see cref="ErModel"/>, the pie chart (<c>pie</c>) by
-///         <see cref="PieParser"/> into a <see cref="PieDiagram"/>, and the gantt chart (<c>gantt</c>) by <see cref="GanttParser"/>
-///         into a <see cref="GanttModel"/>.
+///         <see cref="PieParser"/> into a <see cref="PieDiagram"/>, the gantt chart (<c>gantt</c>) by <see cref="GanttParser"/>
+///         into a <see cref="GanttModel"/>, and the mindmap (<c>mindmap</c>) by <see cref="MindmapParser"/> into a
+///         <see cref="MindmapDiagram"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -144,6 +146,7 @@ internal static class DiagramRegistry
             (true, "er") => ErParser.Parse(source, detected, limits),
             (true, "pie") => PieParser.Parse(source, detected, limits),
             (true, "gantt") => GanttParser.Parse(source, detected, limits),
+            (true, "mindmap") => MindmapParser.Parse(source, detected, limits),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

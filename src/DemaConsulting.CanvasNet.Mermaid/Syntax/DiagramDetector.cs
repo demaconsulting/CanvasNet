@@ -9,11 +9,8 @@ internal enum DiagramSupport
     /// <summary>The type is drawn.</summary>
     Supported,
 
-    /// <summary>The type is not drawn yet but is planned for a later version.</summary>
-    Planned,
-
-    /// <summary>The type is not drawn and not planned.</summary>
-    NotPlanned,
+    /// <summary>The type is recognized but not drawn.</summary>
+    Unsupported,
 }
 
 /// <summary>
@@ -65,8 +62,9 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 ///         <c>graph</c>), <c>sequenceDiagram</c>, <c>classDiagram</c> (written <c>classDiagram</c> or
 ///         <c>classDiagram-v2</c>, under Mermaid's <c>classDiagram</c> id or its legacy <c>class</c> id) and
 ///         <c>stateDiagram</c> (written <c>stateDiagram</c> or <c>stateDiagram-v2</c>, under Mermaid's
-///         <c>stateDiagram</c> id or its legacy <c>state</c> id), <c>erDiagram</c>, <c>pie</c> and <c>gantt</c> are drawn; the types of the
-///         following phases are planned; the rest is not planned. A type that is not drawn is reported by the document as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
+///         <c>stateDiagram</c> id or its legacy <c>state</c> id), <c>erDiagram</c>, <c>pie</c>, <c>gantt</c> and
+///         <c>mindmap</c> are drawn; the rest is recognized but not drawn. A type that is not drawn is reported by the
+///         document as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         <see cref="UnsupportedHint(DetectedDiagram)"/>.
 ///     </para>
 ///     <para>
@@ -81,7 +79,7 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 internal static class DiagramDetector
 {
     /// <summary>The keywords of the supported diagram types, for hints.</summary>
-    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt"];
+    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt", "mindmap"];
 
     /// <summary>
     ///     The known diagram types in Mermaid's detection order: the detector id, the public type name, the support and
@@ -89,60 +87,60 @@ internal static class DiagramDetector
     /// </summary>
     private static readonly KnownDiagram[] Known =
     [
-        new("error", "error", DiagramSupport.NotPlanned, (text, _) => Preprocessor.TrimJs(text).ToLowerInvariant() == "error"),
-        new("---", "---", DiagramSupport.NotPlanned, (text, _) => TrimStartJs(text).StartsWith("---", StringComparison.Ordinal)),
+        new("error", "error", DiagramSupport.Unsupported, (text, _) => Preprocessor.TrimJs(text).ToLowerInvariant() == "error"),
+        new("---", "---", DiagramSupport.Unsupported, (text, _) => TrimStartJs(text).StartsWith("---", StringComparison.Ordinal)),
         new("flowchart-elk", "flowchart", DiagramSupport.Supported, (text, settings) =>
             StartsWithKeyword(text, "flowchart-elk") ||
             ((StartsWithKeyword(text, "flowchart") || StartsWithKeyword(text, "graph")) && settings.FlowchartRenderer == "elk")),
-        new("mindmap", "mindmap", DiagramSupport.Planned, (text, _) => StartsWithKeyword(text, "mindmap")),
-        new("architecture", "architecture", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "architecture")),
-        new("c4", "c4", DiagramSupport.NotPlanned, (text, _) =>
+        new("mindmap", "mindmap", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "mindmap")),
+        new("architecture", "architecture", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "architecture")),
+        new("c4", "c4", DiagramSupport.Unsupported, (text, _) =>
             StartsWithKeyword(text, "C4Context") ||
             text.Contains("C4Container", StringComparison.Ordinal) ||
             text.Contains("C4Component", StringComparison.Ordinal) ||
             text.Contains("C4Dynamic", StringComparison.Ordinal) ||
             text.Contains("C4Deployment", StringComparison.Ordinal)),
-        new("kanban", "kanban", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "kanban")),
+        new("kanban", "kanban", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "kanban")),
         new("classDiagram", "class", DiagramSupport.Supported, (text, settings) =>
             (StartsWithKeyword(text, "classDiagram") && settings.ClassRenderer == "dagre-wrapper") || StartsWithKeyword(text, "classDiagram-v2")),
         new("class", "class", DiagramSupport.Supported, (text, settings) =>
             settings.ClassRenderer != "dagre-wrapper" && StartsWithKeyword(text, "classDiagram")),
         new("er", "er", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "erDiagram")),
         new("gantt", "gantt", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "gantt")),
-        new("info", "info", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "info")),
+        new("info", "info", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "info")),
         new("pie", "pie", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "pie")),
-        new("requirement", "requirement", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "requirement")),
+        new("requirement", "requirement", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "requirement")),
         new("sequence", "sequence", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "sequenceDiagram")),
-        new("swimlane", "swimlane", DiagramSupport.NotPlanned, (text, _) => StartsWithWord(text, "swimlane-beta", false)),
+        new("swimlane", "swimlane", DiagramSupport.Unsupported, (text, _) => StartsWithWord(text, "swimlane-beta", false)),
         new("flowchart-v2", "flowchart", DiagramSupport.Supported, (text, settings) =>
             settings.FlowchartRenderer != "dagre-d3" &&
             ((StartsWithKeyword(text, "graph") && settings.FlowchartRenderer == "dagre-wrapper") || StartsWithKeyword(text, "flowchart"))),
         new("flowchart", "flowchart", DiagramSupport.Supported, (text, settings) =>
             settings.FlowchartRenderer is not "dagre-wrapper" and not "elk" && StartsWithKeyword(text, "graph")),
-        new("timeline", "timeline", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "timeline")),
-        new("gitGraph", "gitGraph", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "gitGraph")),
+        new("timeline", "timeline", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "timeline")),
+        new("gitGraph", "gitGraph", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "gitGraph")),
         new("stateDiagram", "state", DiagramSupport.Supported, (text, settings) =>
             StartsWithKeyword(text, "stateDiagram-v2") || (StartsWithKeyword(text, "stateDiagram") && settings.StateRenderer == "dagre-wrapper")),
         new("state", "state", DiagramSupport.Supported, (text, settings) =>
             settings.StateRenderer != "dagre-wrapper" && StartsWithKeyword(text, "stateDiagram")),
-        new("journey", "journey", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "journey")),
-        new("quadrantChart", "quadrantChart", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "quadrantChart")),
-        new("sankey", "sankey", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "sankey")),
-        new("packet", "packet", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "packet")),
-        new("xychart", "xychart", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "xychart")),
-        new("block", "block", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "block")),
-        new("eventmodeling", "eventmodeling", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "eventmodeling")),
-        new("treeView", "treeView", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "treeView-beta")),
-        new("radar", "radar", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "radar-beta")),
-        new("ishikawa", "ishikawa", DiagramSupport.NotPlanned, (text, _) => StartsWithWord(text, "ishikawa", true)),
-        new("treemap", "treemap", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "treemap")),
-        new("railroad", "railroad", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "railroad-beta", true)),
-        new("railroadEbnf", "railroadEbnf", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "railroad-ebnf-beta", true)),
-        new("railroadAbnf", "railroadAbnf", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "railroad-abnf-beta", true)),
-        new("railroadPeg", "railroadPeg", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "railroad-peg-beta", true)),
-        new("venn", "venn", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "venn-beta")),
-        new("wardley", "wardley", DiagramSupport.NotPlanned, (text, _) => StartsWithKeyword(text, "wardley-beta", true)),
-        new("cynefin", "cynefin", DiagramSupport.NotPlanned, (text, _) => StartsWithCynefin(text)),
+        new("journey", "journey", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "journey")),
+        new("quadrantChart", "quadrantChart", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "quadrantChart")),
+        new("sankey", "sankey", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "sankey")),
+        new("packet", "packet", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "packet")),
+        new("xychart", "xychart", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "xychart")),
+        new("block", "block", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "block")),
+        new("eventmodeling", "eventmodeling", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "eventmodeling")),
+        new("treeView", "treeView", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "treeView-beta")),
+        new("radar", "radar", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "radar-beta")),
+        new("ishikawa", "ishikawa", DiagramSupport.Unsupported, (text, _) => StartsWithWord(text, "ishikawa", true)),
+        new("treemap", "treemap", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "treemap")),
+        new("railroad", "railroad", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "railroad-beta", true)),
+        new("railroadEbnf", "railroadEbnf", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "railroad-ebnf-beta", true)),
+        new("railroadAbnf", "railroadAbnf", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "railroad-abnf-beta", true)),
+        new("railroadPeg", "railroadPeg", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "railroad-peg-beta", true)),
+        new("venn", "venn", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "venn-beta")),
+        new("wardley", "wardley", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "wardley-beta", true)),
+        new("cynefin", "cynefin", DiagramSupport.Unsupported, (text, _) => StartsWithCynefin(text)),
     ];
 
     /// <summary>
@@ -156,7 +154,7 @@ internal static class DiagramDetector
     ];
 
     /// <summary>
-    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c>, <c>classDiagram</c>, <c>stateDiagram</c>, <c>erDiagram</c>, <c>pie</c> and <c>gantt</c>).
+    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c>, <c>classDiagram</c>, <c>stateDiagram</c>, <c>erDiagram</c>, <c>pie</c>, <c>gantt</c> and <c>mindmap</c>).
     /// </summary>
     public static IReadOnlyList<string> SupportedDiagramKeywords => SupportedKeywords;
 
@@ -235,14 +233,11 @@ internal static class DiagramDetector
     ///     Gets the hint of the report for a type that is not drawn.
     /// </summary>
     /// <param name="diagram">The detected type.</param>
-    /// <returns>The hint: whether the type is planned, and which keywords are supported.</returns>
+    /// <returns>The hint: the type is not supported, and which keywords are.</returns>
     public static string UnsupportedHint(DetectedDiagram diagram)
     {
         ArgumentNullException.ThrowIfNull(diagram);
-        var supported = $"supported in this version: {string.Join(", ", SupportedKeywords)}";
-        return diagram.Support == DiagramSupport.Planned
-            ? $"{diagram.DiagramType} diagrams are planned; {supported}"
-            : $"{diagram.DiagramType} diagrams are not supported; {supported}";
+        return $"{diagram.DiagramType} diagrams are not supported; supported in this version: {string.Join(", ", SupportedKeywords)}";
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Globalization;
+using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 using static DemaConsulting.CanvasNet.Mermaid.Mindmap.MindmapTokens;
 
@@ -627,12 +628,21 @@ internal sealed record MindmapEdge(string Id, MindmapNode Start, MindmapNode End
 ///     classes, shapes and edges) and the metadata of the document.
 /// </summary>
 /// <remarks>
-///     The nodes are in the order they were added, which is the pre-order of the tree that Mermaid's <c>flattenNodes</c>
-///     walks (a new node's parent is always on the path from the root to the node before it), and the edges are in the
-///     order of <c>generateEdges</c>: the edge to each node but the root, in the same order. The diagram is never changed
-///     after parsing and is safe for concurrent use.
+///     <para>
+///         The nodes are in the order they were added, which is the pre-order of the tree that Mermaid's
+///         <c>flattenNodes</c> walks (a new node's parent is always on the path from the root to the node before it), and
+///         the edges are in the order of <c>generateEdges</c>: the edge to each node but the root, in the same order.
+///     </para>
+///     <para>
+///         <b>Metadata.</b> The nodes are the nodes and the edges are the edges (one fewer than the nodes); a mindmap has
+///         no subgraphs and no direction, and draws no title (the frontmatter title is the document's fallback).
+///         <see cref="Layout"/> draws it with <see cref="MindmapRenderer"/>.
+///     </para>
+///     <para>
+///         The diagram is never changed after parsing and is safe for concurrent use.
+///     </para>
 /// </remarks>
-internal sealed partial class MindmapDiagram
+internal sealed partial class MindmapDiagram : IMermaidDiagram
 {
     /// <summary>The number of sections the children of the root cycle through (Mermaid's <c>MAX_SECTIONS - 1</c>).</summary>
     internal const int SectionCount = 11;
@@ -703,6 +713,25 @@ internal sealed partial class MindmapDiagram
 
     /// <summary>Gets the number of edges (one to each node but the root).</summary>
     public int EdgeCount => Edges.Count;
+
+    /// <summary>Gets the title the diagram declares: a mindmap has no title statement.</summary>
+    public string? Title => null;
+
+    /// <summary>Gets the accessible title: a mindmap has none.</summary>
+    public string? AccTitle => null;
+
+    /// <summary>Gets the direction: a mindmap has none.</summary>
+    public string? Direction => null;
+
+    /// <summary>Gets the number of subgraphs: a mindmap has none.</summary>
+    public int SubgraphCount => 0;
+
+    /// <inheritdoc />
+    public Scene Layout(DiagramRenderContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new MindmapRenderer(this, context).Draw();
+    }
 
     /// <summary>
     ///     Sanitizes a text as Mermaid's <c>sanitizeText</c> does (an empty text is kept).

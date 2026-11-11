@@ -22,7 +22,7 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         the internals can evolve. Every diagram type Mermaid knows is recognized; this version draws flowcharts
 ///         (<c>flowchart</c> and <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>), class diagrams
 ///         (<c>classDiagram</c>), state diagrams (<c>stateDiagram</c>), entity relationship diagrams (<c>erDiagram</c>),
-///         pie charts (<c>pie</c>) and gantt charts (<c>gantt</c>), and reports any other type as
+///         pie charts (<c>pie</c>), gantt charts (<c>gantt</c>) and mindmaps (<c>mindmap</c>), and reports any other type as
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         an empty picture.
 ///     </para>
@@ -37,7 +37,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///     <para>
 ///         Third-party provenance and attribution: this package implements the Mermaid text language and is not affiliated
 ///         with or endorsed by the Mermaid project. Its preprocessing, detection, parsers, configuration defaults, themes and
-///         layout are ports of mermaid, js-yaml, dagre and sanitize-url (all MIT) with attribution in the
+///         layouts are ports of mermaid, js-yaml, dagre, layout-base, cose-base, cytoscape-cose-bilkent, cytoscape and
+///         sanitize-url (all MIT) with attribution in the
 ///         <c>third-party</c> folder, whose license texts ship in the package under <c>licenses\</c>.
 ///     </para>
 ///     <para>

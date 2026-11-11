@@ -34,34 +34,34 @@ public class DiagramDetectorTests
     [InlineData("erDiagram", "er", "er", "Supported")]
     [InlineData("gantt", "gantt", "gantt", "Supported")]
     [InlineData("pie showData", "pie", "pie", "Supported")]
-    [InlineData("mindmap", "mindmap", "mindmap", "Planned")]
-    [InlineData("architecture-beta", "architecture", "architecture", "NotPlanned")]
-    [InlineData("C4Context", "c4", "c4", "NotPlanned")]
-    [InlineData("kanban", "kanban", "kanban", "NotPlanned")]
-    [InlineData("info", "info", "info", "NotPlanned")]
-    [InlineData("requirementDiagram", "requirement", "requirement", "NotPlanned")]
-    [InlineData("swimlane-beta", "swimlane", "swimlane", "NotPlanned")]
-    [InlineData("timeline", "timeline", "timeline", "NotPlanned")]
-    [InlineData("gitGraph", "gitGraph", "gitGraph", "NotPlanned")]
-    [InlineData("journey", "journey", "journey", "NotPlanned")]
-    [InlineData("quadrantChart", "quadrantChart", "quadrantChart", "NotPlanned")]
-    [InlineData("sankey-beta", "sankey", "sankey", "NotPlanned")]
-    [InlineData("packet-beta", "packet", "packet", "NotPlanned")]
-    [InlineData("xychart-beta", "xychart", "xychart", "NotPlanned")]
-    [InlineData("block-beta", "block", "block", "NotPlanned")]
-    [InlineData("eventmodeling", "eventmodeling", "eventmodeling", "NotPlanned")]
-    [InlineData("treeView-beta", "treeView", "treeView", "NotPlanned")]
-    [InlineData("radar-beta", "radar", "radar", "NotPlanned")]
-    [InlineData("Ishikawa-Beta", "ishikawa", "ishikawa", "NotPlanned")]
-    [InlineData("treemap", "treemap", "treemap", "NotPlanned")]
-    [InlineData("RAILROAD-BETA", "railroad", "railroad", "NotPlanned")]
-    [InlineData("railroad-ebnf-beta", "railroadEbnf", "railroadEbnf", "NotPlanned")]
-    [InlineData("railroad-abnf-beta", "railroadAbnf", "railroadAbnf", "NotPlanned")]
-    [InlineData("railroad-peg-beta", "railroadPeg", "railroadPeg", "NotPlanned")]
-    [InlineData("venn-beta", "venn", "venn", "NotPlanned")]
-    [InlineData("wardley-beta", "wardley", "wardley", "NotPlanned")]
-    [InlineData("cynefin-beta:", "cynefin", "cynefin", "NotPlanned")]
-    [InlineData("Error", "error", "error", "NotPlanned")]
+    [InlineData("mindmap", "mindmap", "mindmap", "Supported")]
+    [InlineData("architecture-beta", "architecture", "architecture", "Unsupported")]
+    [InlineData("C4Context", "c4", "c4", "Unsupported")]
+    [InlineData("kanban", "kanban", "kanban", "Unsupported")]
+    [InlineData("info", "info", "info", "Unsupported")]
+    [InlineData("requirementDiagram", "requirement", "requirement", "Unsupported")]
+    [InlineData("swimlane-beta", "swimlane", "swimlane", "Unsupported")]
+    [InlineData("timeline", "timeline", "timeline", "Unsupported")]
+    [InlineData("gitGraph", "gitGraph", "gitGraph", "Unsupported")]
+    [InlineData("journey", "journey", "journey", "Unsupported")]
+    [InlineData("quadrantChart", "quadrantChart", "quadrantChart", "Unsupported")]
+    [InlineData("sankey-beta", "sankey", "sankey", "Unsupported")]
+    [InlineData("packet-beta", "packet", "packet", "Unsupported")]
+    [InlineData("xychart-beta", "xychart", "xychart", "Unsupported")]
+    [InlineData("block-beta", "block", "block", "Unsupported")]
+    [InlineData("eventmodeling", "eventmodeling", "eventmodeling", "Unsupported")]
+    [InlineData("treeView-beta", "treeView", "treeView", "Unsupported")]
+    [InlineData("radar-beta", "radar", "radar", "Unsupported")]
+    [InlineData("Ishikawa-Beta", "ishikawa", "ishikawa", "Unsupported")]
+    [InlineData("treemap", "treemap", "treemap", "Unsupported")]
+    [InlineData("RAILROAD-BETA", "railroad", "railroad", "Unsupported")]
+    [InlineData("railroad-ebnf-beta", "railroadEbnf", "railroadEbnf", "Unsupported")]
+    [InlineData("railroad-abnf-beta", "railroadAbnf", "railroadAbnf", "Unsupported")]
+    [InlineData("railroad-peg-beta", "railroadPeg", "railroadPeg", "Unsupported")]
+    [InlineData("venn-beta", "venn", "venn", "Unsupported")]
+    [InlineData("wardley-beta", "wardley", "wardley", "Unsupported")]
+    [InlineData("cynefin-beta:", "cynefin", "cynefin", "Unsupported")]
+    [InlineData("Error", "error", "error", "Unsupported")]
     public void DiagramDetector_Detect_KnownKeyword_GivesTypeAndSupport(string text, string id, string type, string support)
     {
         // Arrange / Act
@@ -187,15 +187,16 @@ public class DiagramDetectorTests
     }
 
     /// <summary>
-    ///     Validates the hints of the unsupported-type report.
+    ///     Validates the hints of the unsupported-type report: the type is not supported, and the supported keywords
+    ///     (mindmap included) are listed.
     /// </summary>
     [Fact]
-    public void DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords()
+    public void DiagramDetector_UnsupportedHint_NamesSupportedKeywords()
     {
         // Arrange / Act / Assert
-        Assert.Equal("mindmap diagrams are planned; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt", DiagramDetector.UnsupportedHint(Detect("mindmap")));
-        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
-        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt"], DiagramDetector.SupportedDiagramKeywords);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap", DiagramDetector.UnsupportedHint(Detect("journey")));
+        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
+        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt", "mindmap"], DiagramDetector.SupportedDiagramKeywords);
     }
 
     /// <summary>

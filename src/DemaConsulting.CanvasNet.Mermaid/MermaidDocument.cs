@@ -22,8 +22,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         <b>Diagram types.</b> Every diagram type that Mermaid knows is recognized (<see cref="DiagramType"/>), but only the
 ///         supported ones are drawn (<see cref="IsSupported"/>): in this version flowcharts (<c>flowchart</c> and
 ///         <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>), class diagrams (<c>classDiagram</c>), state diagrams
-///         (<c>stateDiagram</c>), entity relationship diagrams (<c>erDiagram</c>), pie charts (<c>pie</c>) and gantt charts
-///         (<c>gantt</c>). Any other known type (<c>mindmap</c>, <c>journey</c>, ...) opens without
+///         (<c>stateDiagram</c>), entity relationship diagrams (<c>erDiagram</c>), pie charts (<c>pie</c>), gantt charts
+///         (<c>gantt</c>) and mindmaps (<c>mindmap</c>). Any other known type (<c>journey</c>, <c>timeline</c>, ...) opens without
 ///         error; measuring or rendering it reports the unsupported feature
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> and gives an empty, transparent picture of 16 by 16 pixels
 ///         (twice Mermaid's diagram padding), or throws <see cref="MermaidUnsupportedFeatureException"/> in strict mode.
