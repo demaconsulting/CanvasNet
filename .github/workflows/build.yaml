@@ -727,7 +727,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/build_notes/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/build_notes/generated/build_notes.html
@@ -810,7 +809,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/code_quality/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/code_quality/generated/quality.html
@@ -872,7 +870,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/code_review_plan/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/code_review_plan/generated/plan.html
@@ -889,7 +886,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/code_review_report/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/code_review_report/generated/report.html
@@ -935,7 +931,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/design/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/design/generated/design.html
@@ -967,7 +962,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/verification/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/verification/generated/verification.html
@@ -999,7 +993,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/user_guide/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/user_guide/generated/user_guide.html
@@ -1064,7 +1057,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/requirements_doc/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/requirements_doc/generated/requirements.html
@@ -1081,7 +1073,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/requirements_report/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/requirements_report/generated/trace_matrix.html
@@ -1098,6 +1089,21 @@ jobs:
           dotnet fileassert
           --results artifacts/fileassert-requirements.trx
           requirements
+
+      # === CHECK THAT EVERY MERMAID DIAGRAM IS DRAWN ===
+      # canvasnet.lua draws every Mermaid diagram type the tool supports and leaves any other type as a code
+      # block, with a warning; no other filter draws it. A document that still holds such a block fails the build.
+      # Pandoc writes the block with the class mermaid (class="sourceCode mermaid" when it is highlighted).
+      # Downstream projects: Remove this section if the documents hold no Mermaid diagrams.
+
+      - name: Check every Mermaid diagram is drawn
+        shell: bash
+        run: |
+          if grep -l -E 'class="([^"]* )?mermaid( [^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a Mermaid block that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          echo "✓ Every Mermaid diagram in the documents is drawn"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.

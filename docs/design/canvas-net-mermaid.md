@@ -531,10 +531,9 @@ gantt fixture agrees to within 0.0005 pixel, and no pie or gantt fixture is excl
     circle's ring is not clipped to its marker box, at most 0.55 pixel), the five class markers, the `barb` of a state
     transition, the four cardinality markers, and the terminal labels of class relations.
 17. **Diagram types.** Only `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, and `classDiagram-v2` (with the
-    legacy `class` id), `stateDiagram` and `stateDiagram-v2` (with the legacy `state` id), `erDiagram`, `pie`, and
-    `gantt` are drawn in this version; every other type is
-    `mermaid-diagram-unsupported` with a 16 by 16 transparent picture, and the documentation filter leaves such blocks
-    to another filter.
+    legacy `class` id), `stateDiagram` and `stateDiagram-v2` (with the legacy `state` id), `erDiagram`, `pie`,
+    `gantt`, and `mindmap` are drawn in this version; every other type is `mermaid-diagram-unsupported` with a 16 by 16
+    transparent picture, and the documentation filter leaves such a block as written, with a warning.
 18. **Size and background.** The background is transparent by default (as Mermaid's SVG); the natural size is the SVG
     view box rounded up at scale 1; `useMaxWidth` has no meaning for a raster and is ignored. Very large diagrams can
     exceed `Surface.MaxDimension` at scale 1 and need a smaller scale.

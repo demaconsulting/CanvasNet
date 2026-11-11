@@ -1065,8 +1065,8 @@ flowchart LR
 
 A plain ` ```mermaid ` block works the same way, without a caption. The text of a block is written to the filter's
 cache folder and drawn from there, so a diagram that shows pictures must be a `.mmd` file of its own (as in Example
-55). A block or a `.mmd` picture of a type that this version does not draw (`mindmap`, `journey`, ...) is
-left as written, with the tool's message as a warning, so that another filter, such as `mermaid-filter`, can draw it.
+55). A block or a `.mmd` picture of a type that this version does not draw (`journey`, `timeline`, ...) is
+left as written, so the document shows its code, and the tool's message is a Pandoc warning; no other filter draws it.
 
 ### Example 58: The Mermaid Gallery
 

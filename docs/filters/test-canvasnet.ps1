@@ -10,9 +10,9 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence, class, state, ER, pie, and gantt diagrams are drawn by the filter itself, a diagram type the
-    tool does not draw yet is left as written for another filter, and the defaults-file filters run before a
-    command-line filter (as the CI's mermaid-filter is run). An SVG picture that links no file only the tool draws is left alone without
+    hashed), sequence, class, state, ER, pie, gantt, and mindmap diagrams are drawn by the filter itself, a diagram
+    type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
+    before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left alone without
     starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
     diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
     and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF. The scan
@@ -296,7 +296,7 @@ try {
     Invoke-Filter 'img-frag' '![c](img-frag.vl.json)' | Out-Null
     Write-Result (@(Get-Pictures).Count -eq $fragFileAfter + 1) 'a changed #def. fragment draws the chart again'
 
-    # --- Mermaid diagrams: code blocks, .mmd pictures and the types the tool does not draw yet ----------------
+    # --- Mermaid diagrams: code blocks, .mmd pictures and the types the tool does not draw --------------------
     # A mermaid code block becomes the picture (a figure with a caption attribute); its attributes are read or kept.
     $blocks = @'
 ```{.mermaid #order caption="Order flow" theme=forest width=80%}
@@ -340,7 +340,7 @@ flowchart TD
     Copy-Item (Join-Path $repo 'Icon.png') (Join-Path $guide 'pic.png') -Force
 
     # A sequence diagram is drawn by the filter itself, as a code block and as a .mmd picture: it is not left as
-    # written for another filter, and no marker is left in the cache.
+    # written, and no marker is left in the cache.
     Set-Content (Join-Path $guide 'talk.mmd') -Value "sequenceDiagram`n    Alice->>Bob: Hello`n    Bob-->>Alice: Hi"
     $sequences = @'
 ```mermaid
@@ -477,8 +477,8 @@ mindmap
         $mindmap.Log -notmatch 'left as written') `
         'a mindmap block is drawn' "$($mindmap.Log)`n$($mindmap.Html)"
 
-    # A diagram type the tool does not draw yet is left as written (for mermaid-filter), with a warning, and a
-    # marker in the cache remembers it: the next run warns from the marker and does not draw it.
+    # A diagram type the tool does not draw is left as written (the document shows its code), with a warning that
+    # names it, and a marker in the cache remembers it: the next run warns from the marker and does not draw it.
     Set-Content (Join-Path $guide 'zoo.mmd') -Value "journey`n    title Ducks"
     $journeys = @'
 ```mermaid
@@ -494,8 +494,10 @@ journey
         $unsupported.Html -match 'Pets' -and
         $unsupported.Html -match 'src="zoo\.mmd"' -and @(Get-Pictures).Count -eq $journeysBefore) `
         'an unsupported diagram type is left as written, as a code block and as a picture' "$($unsupported.Log)`n$($unsupported.Html)"
-    Write-Result ($unsupported.Log -match 'are not drawn by this version' -and $unsupported.Log -match 'left as written') `
-        'an unsupported diagram type is a warning with the tool message' $unsupported.Log
+    Write-Result (([regex]::Matches($unsupported.Log, 'it is left as written and not drawn')).Count -eq 2 -and
+        $unsupported.Log -match '\[WARNING\]' -and $unsupported.Log -match 'are not drawn by this version' -and
+        $unsupported.Log.Contains('canvasnet.lua: mermaid block (journey): ') -and $unsupported.Log.Contains('canvasnet.lua: zoo.mmd: ')) `
+        'an unsupported diagram type is a warning that names it, with the tool message' $unsupported.Log
     $markers = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported')
     Write-Result ($markers.Count -eq 2) 'an unsupported diagram leaves a marker in the cache' "$($markers.Count) markers"
     foreach ($marker in $markers) {
@@ -517,9 +519,9 @@ journey
         $embedded.Log -match 'are not drawn by this version' -and $embedded.Log -notmatch 'left as written') `
         'a flowchart embedding an unsupported diagram is drawn, with the embedded report as a warning' "$($embedded.Log)`n$($embedded.Html)"
 
-    # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: the
-    # CI runs "--defaults ... --filter mermaid-filter", so canvasnet.lua sees the mermaid blocks first, and a later
-    # filter sees only the blocks left as written. A small Lua filter stands in for mermaid-filter here.
+    # Pandoc runs the filters in command-line order, a defaults file's filters where its --defaults option is: with
+    # "--defaults ... --lua-filter later.lua", canvasnet.lua sees the mermaid blocks first, and the later filter sees
+    # only the blocks left as written. A small Lua filter that marks every code block it sees is the later filter here.
     Set-Content (Join-Path $root 'defaults.yaml') -Value "filters:`n  - docs/filters/canvasnet.lua"
     Set-Content (Join-Path $root 'observe.lua') -Value (
         'function CodeBlock(b) return pandoc.Para{ pandoc.Str("OBSERVED-" .. (b.text:match("^(%S+)") or "")) } end')

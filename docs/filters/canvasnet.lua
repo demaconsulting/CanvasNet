@@ -79,15 +79,16 @@ picture in a node (A@{ img: "part.png" }, <img src="part.png">) is found from th
 not from the document's folder, so a diagram that draws pictures must be a .mmd file of its own, used as
 ![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
 
-Diagram types the tool does not draw yet. The tool draws flowchart (and graph), sequenceDiagram, classDiagram,
-stateDiagram (and stateDiagram-v2), erDiagram, pie, and gantt diagrams (a gantt chart without a today line: the
-tool sets no clock). For any other type (mindmap, journey, and so on) the tool reports mermaid-diagram-unsupported,
-and the filter leaves
-the code block (or the .mmd picture) exactly as written, with the tool's message as a warning, so another
-filter can draw it: the CanvasNet build runs mermaid-filter after this filter for that reason. Pandoc runs the
-filters in the order of its command line, a defaults file's filters taking the place of its --defaults option,
-so "--defaults ... --filter mermaid-filter" runs this filter first. A marker in the cache folder
-(<hash>.unsupported, holding the message) saves later builds from starting the tool again for that diagram.
+Diagram types the tool does not draw. The tool draws flowchart (and graph), sequenceDiagram, classDiagram,
+stateDiagram (and stateDiagram-v2), erDiagram, pie, gantt, and mindmap diagrams (a gantt chart without a today
+line: the tool sets no clock). For any other type (journey, timeline, and so on) the tool reports
+mermaid-diagram-unsupported, and the filter leaves the code block (or the .mmd picture) exactly as written, so the
+document shows the code, and warns with the tool's message ("...; it is left as written and not drawn"). No other
+filter is expected to draw it: the CanvasNet build fails when a generated document still holds such a block. A
+filter given on the command line after "--defaults" still runs after this one (Pandoc runs the filters in the order
+of its command line, a defaults file's filters taking the place of its --defaults option), so it sees only the
+blocks left as written. A marker in the cache folder (<hash>.unsupported, holding the message) saves later builds
+from starting the tool again for that diagram; the warning is shown on every build.
 A flowchart that only embeds a picture of such a type (A@{ img: "pets.mmd" }) is drawn as usual; the tool's report
 about the embedded picture, which names it in its origin, is shown as a warning.
 
@@ -174,7 +175,9 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "11"
+-- Part of every picture's hash, so a change to what the filter draws or how it treats a diagram draws the pictures
+-- again. 12: a diagram type the tool does not draw is left as written with a warning, no longer for another filter.
+local FILTER_VERSION = "12"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -195,8 +198,8 @@ local SUFFIXES = {
   { ".mermaid", "mermaid" },
 }
 
--- The code a diagram the tool does not draw yet gets in its --json diagnostics (a 16x16 empty picture is
--- written): the filter leaves such a diagram alone, so another filter (mermaid-filter) can draw it.
+-- The code a diagram the tool does not draw gets in its --json diagnostics (a 16x16 empty picture is written):
+-- the filter leaves such a diagram as written and warns, so the document shows its code.
 local UNSUPPORTED_DIAGRAM = "mermaid-diagram-unsupported"
 
 local SCAD = { scad = true }
@@ -1285,8 +1288,8 @@ local function write_atomically(path, content)
 end
 
 -- Draws a source file into the cache folder, unless it is there already, and returns the picture's file and the
--- attributes that stay on the picture. A diagram of a type the tool does not draw yet returns nil (it is left as
--- written, for another filter): the tool's message is a warning, and a marker in the cache that holds it saves
+-- attributes that stay on the picture. A diagram of a type the tool does not draw returns nil (it is left as
+-- written): the tool's message is a warning, and a marker in the cache that holds it saves
 -- later builds from starting the tool for it again.
 local function draw(name, source, kind, attributes, stem)
   local options, keep = build_options(name, kind, attributes)
@@ -1319,7 +1322,7 @@ local function draw(name, source, kind, attributes, stem)
   pandoc.system.make_directory(out_dir, true)
   local out_file = pandoc.path.join({ out_dir, stem .. "-" .. key .. ".png" })
   local marker = pandoc.path.join({ out_dir, key .. ".unsupported" })
-  local left_alone = "; it is left as written, for another filter such as mermaid-filter"
+  local left_alone = "; it is left as written and not drawn"
 
   if file_exists(out_file) then
     return out_file, keep
@@ -1529,7 +1532,7 @@ end
 
 -- A fenced code block of class mermaid: the text is written to the cache folder as <hash>.mmd and drawn like a
 -- .mmd picture, and the block becomes the picture (a figure when it has a caption attribute). A diagram type the
--- tool does not draw yet leaves the block as it is, for mermaid-filter.
+-- tool does not draw leaves the block as it is, with a warning.
 function CodeBlock(block)
   if not block.classes:includes("mermaid") then
     return nil
