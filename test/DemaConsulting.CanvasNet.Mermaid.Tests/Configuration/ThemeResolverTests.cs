@@ -17,6 +17,9 @@ public class ThemeResolverTests
     /// <summary>A sequence diagram whose configuration the style tests resolve.</summary>
     private const string SequenceText = "sequenceDiagram\n  Alice->>Bob: Hi\n";
 
+    /// <summary>A mindmap whose configuration the style tests resolve.</summary>
+    private const string MindmapText = "mindmap\n  root\n    child\n";
+
     /// <summary>
     ///     Gets the theme cases: every theme without overrides, with <c>themeVariables</c>, and in dark mode.
     /// </summary>
@@ -755,6 +758,160 @@ public class ThemeResolverTests
         Assert.Equal(
             new ShadowPaint(double.Parse(parts[0], CultureInfo.InvariantCulture), double.Parse(parts[1], CultureInfo.InvariantCulture), double.Parse(parts[2], CultureInfo.InvariantCulture), Color(parts[3])),
             shadow);
+    }
+
+    /// <summary>
+    ///     Validates the mindmap's style rules of the default theme, as Chrome computes them for Mermaid's mindmap: the
+    ///     global rules first; a section's shapes filled with its <c>cScale</c> color and not stroked, whatever the
+    ///     element; the root's <c>git0</c> fill and <c>gitBranchLabel0</c> label over <c>.section--1</c>; the default
+    ///     node's line in the section's inverse color, 3 pixels wide; labels colored as a span or as SVG text; and SVG text
+    ///     not centered on its anchor.
+    /// </summary>
+    [Fact]
+    public void MindmapStyles_Create_DefaultTheme_ResolvesSectionRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), MindmapText);
+        const string Root = "mindmap-node section-root section--1";
+        const string Section0 = "mindmap-node section-0";
+
+        // Act
+        var styles = MindmapStyles.Create(config, null);
+
+        // Assert: the colors of Chrome's computed styles of Mermaid's mindmap in the default theme
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new ShapePaint(Color("#0000ec"), null, 1), styles.NodePaintFor(Root, "path"));
+        Assert.Equal(new ShapePaint(Color("#ffff78"), null, 1), styles.NodePaintFor(Section0, "path"));
+        Assert.All(
+            (string[])["rect", "circle", "polygon"],
+            element => Assert.Equal(Color("#ffff78"), styles.NodePaintFor(Section0, element).Fill));
+        Assert.Equal(new ShapePaint(null, Color("#ffffb9"), 3), styles.NodePaintFor(Root, "line"));
+        Assert.Equal(new ShapePaint(null, Color("#ababff"), 3), styles.NodePaintFor(Section0, "line"));
+        Assert.Equal(Color("#ffffff"), styles.NodeLabelFor(Root, html: true).Color);
+        Assert.Equal(Color("#000000"), styles.NodeLabelFor(Section0, html: true).Color);
+        Assert.Equal(Color(config.ThemeVariable("cScaleLabel1")!), styles.NodeLabelFor(Section0, html: false).Color);
+        Assert.Equal(16, styles.NodeLabelFor(Section0, html: true).FontSize);
+        Assert.False(styles.CentersNodeSvgText);
+    }
+
+    /// <summary>
+    ///     Validates the mindmap's edge rules: <c>.edge</c> gives a width of 3 and no fill, a section's edge its
+    ///     <c>cScale</c> stroke, and <c>.edge-depth-k</c> the widths <c>17 - 3(k + 1)</c> while they are not negative
+    ///     (CSS drops a negative width, so from depth 5 the edge keeps <c>.edge</c>'s 3, as Chrome computes it).
+    /// </summary>
+    [Fact]
+    public void MindmapStyles_Create_EdgeRules_DropNegativeWidths()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), MindmapText);
+
+        // Act
+        var styles = MindmapStyles.Create(config, null);
+        var widths = Enumerable.Range(-1, 12)
+            .Select(k => styles.Resolve($".edge-depth-{k}")["stroke-width"])
+            .ToList();
+
+        // Assert
+        Assert.Equal(new string?[] { "17", "14", "11", "8", "5", "2", null, null, null, null, null, null }, widths);
+        Assert.Equal(("3", "none"), (styles.Resolve(".edge")["stroke-width"], styles.Resolve(".edge")["fill"]));
+        Assert.Equal(Color("#ffff78"), styles.Resolve(".section-edge-0").Paint("stroke"));
+    }
+
+    /// <summary>
+    ///     Validates that every theme's mindmap sheet takes its colors from the theme's variables: a section's fill
+    ///     <c>cScale</c>, its label <c>cScaleLabel</c>, its line <c>cScaleInv</c>, and the root's <c>git0</c> and
+    ///     <c>gitBranchLabel0</c>.
+    /// </summary>
+    /// <param name="theme">The theme.</param>
+    [Theory]
+    [InlineData("default")]
+    [InlineData("base")]
+    [InlineData("dark")]
+    [InlineData("forest")]
+    [InlineData("neutral")]
+    public void MindmapStyles_Create_EachTheme_UsesThemeVariables(string theme)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject { ["theme"] = theme }, MindmapText);
+        Rgba32 Var(string name) => Color(config.ThemeVariable(name)!);
+
+        // Act
+        var styles = MindmapStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(Var("cScale4"), styles.NodePaintFor("mindmap-node section-3", "rect").Fill);
+        Assert.Equal(Var("cScaleLabel4"), styles.NodeLabelFor("mindmap-node section-3", html: true).Color);
+        Assert.Equal(Var("cScaleInv4"), styles.NodePaintFor("mindmap-node section-3", "line").Stroke);
+        Assert.Equal(Var("cScale11"), styles.NodePaintFor("mindmap-node section-10", "path").Fill);
+        Assert.Equal(Var("git0"), styles.NodePaintFor("mindmap-node section-root section--1", "circle").Fill);
+        Assert.Equal(Var("gitBranchLabel0"), styles.NodeLabelFor("mindmap-node section-root section--1", html: false).Color);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a mindmap selector overrides the theme's, after the root rules (a
+    ///     later <c>.section--1</c> rule wins over <c>.section-root</c>), and that an unknown selector is reported.
+    /// </summary>
+    [Fact]
+    public void MindmapStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".section-0 rect { fill: #ff0000 } .section--1 span { color: #0000ff } .bogus { fill: red }\"}}%%\nmindmap\n  root\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "mindmap", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = MindmapStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Single(reports);
+        Assert.Equal(Color("#ff0000"), styles.NodePaintFor("mindmap-node section-0", "rect").Fill);
+        Assert.NotEqual(Color("#ff0000"), styles.NodePaintFor("mindmap-node section-0", "path").Fill);
+        Assert.Equal(Color("#0000ff"), styles.NodeLabelFor("mindmap-node section-root section--1", html: true).Color);
+    }
+
+    /// <summary>
+    ///     Validates that the number of styled sections follows the theme's <c>THEME_COLOR_LIMIT</c>, as Mermaid's loop
+    ///     does.
+    /// </summary>
+    [Fact]
+    public void MindmapStyles_Create_ColorLimit_BoundsTheSections()
+    {
+        // Arrange
+        var site = new JsonObject { ["themeVariables"] = new JsonObject { ["THEME_COLOR_LIMIT"] = 3 } };
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site, MindmapText);
+
+        // Act
+        var styles = MindmapStyles.Create(config, null);
+
+        // Assert
+        Assert.NotNull(styles.NodePaintFor("mindmap-node section-1", "rect").Fill);
+        Assert.Null(styles.NodePaintFor("mindmap-node section-2", "rect").Fill);
+    }
+
+    /// <summary>
+    ///     Validates that the sheets of the other unified diagrams paint every element of a node's body with the node
+    ///     rule and leave a line unpainted, whatever the node's classes, and color labels with the node label rule.
+    /// </summary>
+    [Fact]
+    public void UnifiedStyles_NodePaintFor_OtherSheets_UseTheNodeRule()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), "flowchart TD\n  A\n");
+
+        // Act
+        var styles = FlowchartStyles.Create(config, null);
+
+        // Assert
+        Assert.All(
+            (string[])["rect", "circle", "polygon", "path"],
+            element => Assert.Equal(styles.Node, styles.NodePaintFor("default section-0", element)));
+        Assert.Equal(new ShapePaint(null, null, 1), styles.NodePaintFor("default", "line"));
+        Assert.Equal(styles.NodeLabel, styles.NodeLabelFor("default section-0", html: false));
     }
 
     /// <summary>

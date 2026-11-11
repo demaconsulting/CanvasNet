@@ -136,6 +136,11 @@ internal static partial class MermaidConfigResolver
         ["gantt.weekday"] = ValueKind.Text,
         ["gantt.useMaxWidth"] = ValueKind.Boolean,
         ["gantt.useWidth"] = ValueKind.Number,
+        ["mindmap"] = ValueKind.Object,
+        ["mindmap.useMaxWidth"] = ValueKind.Boolean,
+        ["mindmap.padding"] = ValueKind.Number,
+        ["mindmap.maxNodeWidth"] = ValueKind.Number,
+        ["mindmap.layoutAlgorithm"] = ValueKind.Text,
     };
 
     /// <summary>

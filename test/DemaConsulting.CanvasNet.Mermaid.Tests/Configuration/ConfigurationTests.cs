@@ -190,6 +190,40 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a mindmap text that configures its section, its layout and its style at once: the section's settings
+    ///     take effect, the layout is <c>cose-bilkent</c> unless the text sets one, a <c>themeCSS</c> rule of a section
+    ///     selector overrides the theme without a report, the theme's colors reach the sections and the root, and a
+    ///     section value of the wrong type is reported at its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolveMindmapSectionAndStyles_FullText()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  theme: forest\n  mindmap:\n    padding: 6\n    maxNodeWidth: narrow\n---\n" +
+                            "%%{init: {'themeCSS': '.section-1 circle { fill: #ff0000 }'}}%%\n" +
+                            "mindmap\n  root\n";
+        const string LayoutText = "---\nconfig:\n  layout: elk\n---\nmindmap\n  root\n";
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var config = MermaidConfigResolver.Resolve(Preprocessor.Run(Text, "mindmap.mmd", MermaidLimits.Default), "mindmap", null, sink);
+        var styles = MindmapStyles.Create(config, sink);
+        var layout = MermaidConfigResolver.Resolve(Preprocessor.Run(LayoutText, "layout.mmd", MermaidLimits.Default), "mindmap", null, null);
+        var warnings = new List<MermaidDiagnostic>();
+        var unsupported = new List<MermaidUnsupportedFeature>();
+        sink.Deliver(warnings.Add, unsupported.Add);
+
+        // Assert
+        Assert.Equal((6.0, 200.0), (config.Mindmap.Padding, config.Mindmap.MaxNodeWidth));
+        Assert.Equal(("cose-bilkent", "elk"), (config.Layout, layout.Layout));
+        Assert.Equal(CssColor.Parse("#ff0000"), styles.NodePaintFor("mindmap-node section-1", "circle").Fill);
+        Assert.Equal(CssColor.Parse(config.ThemeVariable("cScale2")!), styles.NodePaintFor("mindmap-node section-1", "rect").Fill);
+        Assert.Equal(CssColor.Parse(config.ThemeVariable("git0")!), styles.NodePaintFor("mindmap-node section-root section--1", "path").Fill);
+        Assert.Empty(unsupported);
+        Assert.Equal((MermaidDiagnosticCodes.ConfigInvalid, 6), (Assert.Single(warnings).Code, warnings[0].Location.Line));
+    }
+
+    /// <summary>
     ///     Validates that each of the five themes gives the flowchart its node fill (the theme's <c>mainBkg</c>) through
     ///     the site theme option.
     /// </summary>

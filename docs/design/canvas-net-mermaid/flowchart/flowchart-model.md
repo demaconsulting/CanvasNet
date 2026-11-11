@@ -87,8 +87,9 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
   subgraphs and vertices inside it, an edge into or out of it ends at it, and an edge inside it is dropped.
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, a look other than `classic`, a layout
   other than `dagre` (the `flowchart-elk` keyword sets `elk`), every node icon, and every label of a vertex, edge, or
-  subgraph in which `ContainsFontAwesome` finds a Font Awesome icon as Mermaid's expression does (`fa`, `fab`, `fak`,
-  `fal`, `far`, or `fas`, then `:fa-` and a name of word characters and dashes), each located and with a hint.
+  subgraph in which `LabelBuilder.ContainsFontAwesome` (the Rendering subsystem's shared test) finds a Font Awesome
+  icon as Mermaid's expression does (`fa`, `fab`, `fak`, `fal`, `far`, or `fas`, then `:fa-` and a name of word
+  characters and dashes), each located and with a hint.
 - **`Layout(DiagramRenderContext)`** draws the diagram (Mermaid's `draw`): it reports first, gets the layout input,
   creates the picture loader (`NodeImages`, bounded by `MaxImages`), the label builder, the shape context with the
   flowchart style sheet, and the layout work meter of the render, and hands the input, the frontmatter title,
@@ -137,8 +138,7 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
 
 - **FlowchartParser** - creates the model and calls the database operations as it reads the text.
 - The document pipeline of the system - reads the metadata and calls `Layout` for every measure and render.
-- The unit and subsystem tests call `GetData`, `ReportUnsupported`, `ContainsFontAwesome`, and the database operations
-  directly.
+- The unit and subsystem tests call `GetData`, `ReportUnsupported`, and the database operations directly.
 
 #### Known Differences From Mermaid
 

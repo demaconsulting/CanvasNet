@@ -21,7 +21,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 ///         <b>Fidelity.</b> The steps are ports of Mermaid's <c>initialize</c>, <c>setSiteConfig</c>,
 ///         <c>preprocessDiagram</c> (<c>processFrontmatter</c>, <c>processDirectives</c>, <c>detectInit</c>,
 ///         <c>cleanAndMerge</c>), <c>addDirective</c> and <c>updateCurrentConfig</c>, with <c>assignWithDepth</c>, lodash's
-///         <c>merge</c>, <c>sanitizeDirective</c> and <c>sanitize</c>, and the flowchart's <c>init</c>. So a directive's
+///         <c>merge</c>, <c>sanitizeDirective</c> and <c>sanitize</c>, the flowchart's <c>init</c> and the layout step of the
+///         mindmap's <c>getData</c>. So a directive's
 ///         <c>config</c> key moves to the section of the diagram type, a directive that sets <c>themeVariables</c> without
 ///         a <c>theme</c> overrides variables without deriving the others again, a JSON error in one init directive
 ///         makes Mermaid ignore all of them, and a <c>null</c> in a directive cancels the frontmatter's value.
@@ -47,7 +48,7 @@ internal static partial class MermaidConfigResolver
     ///     Resolves the effective configuration of a call.
     /// </summary>
     /// <param name="source">The preprocessed text (frontmatter and directives).</param>
-    /// <param name="diagramId">The Mermaid id of the detected diagram (for the flowchart's initialization), or null before detection.</param>
+    /// <param name="diagramId">The Mermaid id of the detected diagram (for the flowchart's and the mindmap's initialization), or null before detection.</param>
     /// <param name="options">The options of the call (the site configuration), or null for none.</param>
     /// <param name="sink">The sink the problems are reported to, or null to resolve silently.</param>
     /// <returns>The effective configuration.</returns>
@@ -85,6 +86,12 @@ internal static partial class MermaidConfigResolver
         if (diagramId is "flowchart-v2" or "flowchart" or "flowchart-elk")
         {
             InitializeFlowchart(config, configFromInitialize, merged, diagramId);
+        }
+
+        // The mindmap database's getData
+        if (diagramId == "mindmap")
+        {
+            InitializeMindmap(config, configFromInitialize, merged);
         }
 
         return new MermaidConfig(config, locations);
@@ -206,6 +213,23 @@ internal static partial class MermaidConfigResolver
         }
 
         config["flowchart"]!["arrowMarkerAbsolute"] = config["arrowMarkerAbsolute"]?.DeepClone();
+    }
+
+    /// <summary>
+    ///     The layout step of the mindmap database's <c>getData</c>: the layout becomes <c>cose-bilkent</c> unless the user
+    ///     configuration (<c>getUserDefinedConfig</c>: the site configuration, the frontmatter and the directives, not the
+    ///     defaults) sets one.
+    /// </summary>
+    /// <param name="config">The current configuration, changed in place.</param>
+    /// <param name="configFromInitialize">The options kept by <c>saveConfigFromInitialize</c>.</param>
+    /// <param name="directive">The sanitized directive of the text.</param>
+    private static void InitializeMindmap(JsonObject config, JsonObject configFromInitialize, JsonObject directive)
+    {
+        var userDefined = (JsonObject)AssignWithDepth(AssignWithDepth(new JsonObject(), configFromInitialize), directive)!;
+        if (userDefined["layout"] is null)
+        {
+            config["layout"] = "cose-bilkent";
+        }
     }
 
     /// <summary>

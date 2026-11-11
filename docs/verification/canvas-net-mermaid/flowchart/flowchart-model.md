@@ -2,9 +2,8 @@
 
 This document describes the unit-level verification strategy for the `FlowchartModel` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Flowchart` namespace: the internal sealed `FlowchartModel` (the database operations,
-the metadata, `GetData`, `ReportUnsupported`, `ContainsFontAwesome`, and `Layout`, in three partial files) and its
-element types (`FlowVertex`, `FlowEdge`, `FlowSubgraph`, `FlowClass`, `FlowText`, `FlowLink`, `ShapeDataText`, and
-`DocumentItem`).
+the metadata, `GetData`, `ReportUnsupported`, and `Layout`, in three partial files) and its element types
+(`FlowVertex`, `FlowEdge`, `FlowSubgraph`, `FlowClass`, `FlowText`, `FlowLink`, `ShapeDataText`, and `DocumentItem`).
 
 #### Verification Approach
 
@@ -98,13 +97,12 @@ direction `LR` when `flowchart.inheritDir` is set.
 
 ##### CanvasNetMermaid-Flowchart-FlowchartModel-Unsupported: Reports In Order
 
-**Tests**: `FlowchartModelTests.FlowchartModel_ReportUnsupported_LookLayoutAndIcons_AreReportedInOrder`,
-`FlowchartModelTests.FlowchartModel_ContainsFontAwesome_Label_FindsIcons`
+**Tests**: `FlowchartModelTests.FlowchartModel_ReportUnsupported_LookLayoutAndIcons_AreReportedInOrder`
 
 Asserts that the `handDrawn` look, the `elk` layout, a node icon, and a Font Awesome label are reported as
 `mermaid-look-unsupported`, `mermaid-layout-unsupported`, and two `mermaid-icon-unsupported`, at the lines 3, 4, 7,
-and 7, each with a hint; and that `fa:fa-car`, `fab:fa-github`, and `fas:fa-x-y` inside text are icons while `fa:fa-`,
-`fax:fa-car`, `fa:car`, plain text, and no text are not.
+and 7, each with a hint. The detection of Font Awesome icons in a label is the shared
+`LabelBuilder.ContainsFontAwesome`, verified with the LabelBuilder unit.
 
 ##### CanvasNetMermaid-Flowchart-FlowchartModel-Drawing: Reports, Then The Drawing
 

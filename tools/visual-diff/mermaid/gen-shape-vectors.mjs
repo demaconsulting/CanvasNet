@@ -16,8 +16,9 @@
 // (src/DemaConsulting.CanvasNet/Fonts/BundledFonts), registered with @font-face under the names of Mermaid's default
 // font stack, so the vectors do not depend on the fonts of the machine. A layout algorithm named "probe" is registered
 // with mermaid.registerLayoutLoaders: mermaid hands it the LayoutData of the flowchart, and it inserts every node with
-// mermaid's own insertNode (the step insertMeasuredNode of the dagre layout does), then records the facts. Nothing is
-// downloaded; the inputs are original.
+// mermaid's own insertNode (the step insertMeasuredNode of the dagre layout does), then records the facts. A case may
+// carry node fields that the probe assigns to mermaid's node before it is drawn (the mindmap shapes, which a flowchart
+// cannot name, with a mindmap's padding and width). Nothing is downloaded; the inputs are original.
 
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -230,6 +231,18 @@ cases.push({ name: 'icon-size', config: html, text: img('icon: "fa:car", label: 
 cases.push({ name: 'label-img-only', config: html, text: 'flowchart TD\n  n0["<img src=\'img-40x30.png\'>"]' });
 cases.push({ name: 'label-img-size', config: html, text: 'flowchart TD\n  n0["<img src=\'img-40x30.png\' width=\'60\' height=\'20\'>"]' });
 
+// The mindmap shapes, which a flowchart cannot name (its shape names are lower case): a flowchart node whose shape is
+// replaced before it is drawn (the case's "node" fields are assigned to mermaid's node), with the flowchart's padding,
+// and with the padding and width a mindmap gives it (the label then wraps at the node's width)
+for (const shape of ['defaultMindmapNode', 'mindmapCircle']) {
+  const plain = (label) => `flowchart TD\n  n0[${JSON.stringify(label)}]`;
+  cases.push({ name: `shape-${shape}-short`, config: html, text: plain(short), node: { shape } });
+  cases.push({ name: `shape-${shape}-long`, config: html, text: plain(long), node: { shape } });
+  cases.push({ name: `shape-${shape}-svg`, config: svg, text: plain(short), node: { shape } });
+  cases.push({ name: `mindmap-${shape}-width`, config: html, text: plain(long), node: { shape, padding: 10, width: 100 } });
+  cases.push({ name: `mindmap-${shape}-width-svg`, config: svg, text: plain(long), node: { shape, padding: 10, width: 100 } });
+}
+
 // ------------------------------------------------------------------------------------------------------------ probe
 
 // The page-side recorder: registered once, it records the nodes of the next render into window.__probe
@@ -263,6 +276,7 @@ const installProbe = async (page) =>
               if (node.isGroup) {
                 continue;
               }
+              Object.assign(node, window.__node ?? {});
               const el = await helpers.insertNode(group, node, { config: helpers.getConfig(), dir: node.dir });
               const g = el.node();
               const bbox = g.getBBox();
@@ -362,10 +376,11 @@ const installProbe = async (page) =>
     ]);
   });
 
-// Runs one text in the page and returns the recorded nodes, or the error
-const runCase = async (page, text, config) =>
+// Runs one text in the page and returns the recorded nodes, or the error; the node fields, if any, are assigned to
+// each node before it is drawn
+const runCase = async (page, text, config, node) =>
   page.evaluate(
-    async ({ text, config, images }) => {
+    async ({ text, config, images, node }) => {
       // The images are loaded by href: the vectors name them, the browser gets their data
       let source = text;
       for (const [name, data] of Object.entries(images)) {
@@ -373,6 +388,7 @@ const runCase = async (page, text, config) =>
       }
       const front = `---\nconfig: ${JSON.stringify({ ...config, layout: 'probe' })}\n---\n`;
       window.__probe = null;
+      window.__node = node;
       try {
         window.mermaid.initialize({ startOnLoad: false });
         await window.mermaid.render('probe' + Math.floor(Math.random() * 1e9), front + source);
@@ -389,7 +405,7 @@ const runCase = async (page, text, config) =>
       }
       return JSON.parse(named);
     },
-    { text, config: config ?? {}, images }
+    { text, config: config ?? {}, images, node: node ?? null }
   );
 
 const browser = await puppeteer.launch({ headless: true });
@@ -422,8 +438,8 @@ try {
         throw new Error(`duplicate case name ${c.name}`);
       }
       names.add(c.name);
-      const result = await runCase(page, c.text, c.config);
-      results.push({ name: c.name, config: c.config, text: c.text, expected: result });
+      const result = await runCase(page, c.text, c.config, c.node);
+      results.push(c.node ? { name: c.name, config: c.config, text: c.text, node: c.node, expected: result } : { name: c.name, config: c.config, text: c.text, expected: result });
     }
 
     // One case per line keeps the file reviewable and its diffs small

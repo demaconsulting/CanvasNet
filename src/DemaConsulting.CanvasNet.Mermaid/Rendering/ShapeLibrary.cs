@@ -130,9 +130,10 @@ internal sealed record ShapeResult(
 }
 
 /// <summary>
-///     Mermaid's node shapes: the 53 documented shapes with their aliases, the legacy bracket shapes and the undocumented
-///     shapes a flowchart accepts, each sized from its label and padding, drawn in the classic look and given its
-///     intersect function, as the shapes of <c>rendering-elements/shapes/</c> do.
+///     Mermaid's node shapes: the 53 documented shapes with their aliases, the legacy bracket shapes, the undocumented
+///     shapes a flowchart accepts and the two shapes of a mindmap (<c>defaultMindmapNode</c> and <c>mindmapCircle</c>),
+///     each sized from its label and padding, drawn in the classic look and given its intersect function, as the shapes
+///     of <c>rendering-elements/shapes/</c> do.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -148,8 +149,10 @@ internal sealed record ShapeResult(
 ///     </para>
 ///     <para>
 ///         <b>Paint.</b> The parts that Mermaid styles with the node rule and the node's own styles get
-///         <see cref="NodePaint"/>'s cascade; the parts with their own paint (accents, glyphs, indicators) get it as
-///         Mermaid's inline styles and style sheet give it.
+///         <see cref="NodePaint"/>'s cascade, the node rule being the sheet's rule for the element the shape draws and
+///         the node's classes (<see cref="UnifiedStyles.NodePaintFor"/>; only a mindmap's sheet tells them apart); the
+///         parts with their own paint (accents, glyphs, indicators) get it as Mermaid's inline styles and style sheet
+///         give it.
 ///     </para>
 ///     <para>
 ///         <b>Icons and images.</b> Icons are not drawn (the model reports them); an icon shape keeps its frame and its
@@ -259,6 +262,8 @@ internal static partial class ShapeLibrary
             "iconSquare" => IconSquare(input),
             "iconCircle" => IconCircle(input),
             "iconRounded" => IconRounded(input),
+            "defaultMindmapNode" => DefaultMindmapNode(input),
+            "mindmapCircle" => MindmapCircle(input),
             _ => throw new MermaidRenderException(
                 MermaidDiagnosticCodes.RenderFailed,
                 $"the shape '{node.Shape}' is not drawn by this version",
@@ -386,7 +391,7 @@ internal static partial class ShapeLibrary
                 User = StyleDeclarations.ParseItems(nodeStyles, node.Location, context.Sink);
             }
 
-            Paint = new NodePaint(context.Styles.Node, User, context.Theme);
+            Paint = PaintFor(BodyElementOf(handler));
         }
 
         /// <summary>Gets the node.</summary>
@@ -414,23 +419,50 @@ internal static partial class ShapeLibrary
         public bool HtmlLabels => Context.Config.HtmlLabels;
 
         /// <summary>
-        ///     Measures the node's label as <c>labelHelper</c> does.
+        ///     Gets the paint of an element of the node's shape: the sheet's rule for the element of a node with the node's
+        ///     classes, the node's own styles and the theme colors.
         /// </summary>
-        /// <param name="width">The width the label wraps at (<c>node.width</c> when the shape set it), or null for the wrapping width.</param>
-        /// <param name="assetShape">Whether the shape is an icon or image shape (the label gets a background and padding).</param>
+        /// <param name="element">The SVG element: <c>rect</c>, <c>circle</c>, <c>polygon</c>, <c>path</c> or <c>line</c>.</param>
+        /// <returns>The paint.</returns>
+        public NodePaint PaintFor(string element) =>
+            new(Context.Styles.NodePaintFor(Node.CssClasses, element), User, Context.Theme);
+
+        /// <summary>
+        ///     Gets the SVG element a shape draws its body with in the classic look, which a sheet whose rules depend on
+        ///     the element (a mindmap's) paints: a <c>circle</c> for the circles, a <c>rect</c> for <c>drawRect</c>'s
+        ///     rectangles, a <c>polygon</c> for the hexagon, and a <c>path</c> for the rest. Only the shapes a mindmap draws
+        ///     are told apart; every other sheet paints the bodies of all shapes alike.
+        /// </summary>
+        /// <param name="handler">The drawing function.</param>
+        /// <returns>The element.</returns>
+        private static string BodyElementOf(string handler) => handler switch
+        {
+            "circle" or "mindmapCircle" => "circle",
+            "squareRect" or "roundedRect" => "rect",
+            "hexagon" => "polygon",
+            _ => "path",
+        };
+
+        /// <summary>
+        ///     Measures the node's label as <c>labelHelper</c> does: wrapped at <c>node.width || flowchart.wrappingWidth</c>,
+        ///     with the background of an SVG label when the node has an icon or an image.
+        /// </summary>
+        /// <param name="width">The width the label wraps at (<c>node.width</c> when the shape set it), or null for the node's <see cref="LayoutNode.Width"/> or the wrapping width.</param>
+        /// <param name="assetShape">Whether the shape is an icon or image shape (the label gets a paragraph padding).</param>
         /// <param name="label">The label text, or null for the node's.</param>
         /// <param name="css">The text rule of the label, or null for the node label's.</param>
         /// <returns>The measured label.</returns>
         public LabelLayout MeasureLabel(double? width = null, bool assetShape = false, string? label = null, TextPaint? css = null)
         {
-            css ??= Context.Styles.NodeLabel;
-            var wrap = width is > 0 ? width.Value : Context.Config.Flowchart.WrappingWidth;
+            css ??= Context.Styles.NodeLabelFor(Node.CssClasses, HtmlLabels);
+            var defaultWidth = IsTruthy(Node.Width) ? Node.Width!.Value : Context.Config.Flowchart.WrappingWidth;
+            var wrap = width is > 0 ? width.Value : defaultWidth;
             var request = new LabelRequest(label ?? Node.Label ?? string.Empty, LabelFontOf(_labelStyles, css))
             {
                 Markdown = Node.LabelType == "markdown",
                 HtmlLabels = HtmlLabels,
                 Width = wrap > 0 ? wrap : 200,
-                AddBackground = assetShape && (Node.Icon is not null || Node.Img is not null),
+                AddBackground = !string.IsNullOrEmpty(Node.Icon) || !string.IsNullOrEmpty(Node.Img),
                 ParagraphPadding = assetShape ? 2 : 0,
                 MarkdownAutoWrap = Context.Config.MarkdownAutoWrap,
                 RootFontSize = css.FontSize,

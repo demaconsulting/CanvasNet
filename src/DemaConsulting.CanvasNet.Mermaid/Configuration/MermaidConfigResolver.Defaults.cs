@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
 ///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, the pie and gantt
-///     charts, and the set of configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
+///     charts and the mindmap, and the set of configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {
@@ -204,6 +204,7 @@ internal static partial class MermaidConfigResolver
             ["er"] = CreateErDefaults(),
             ["pie"] = CreatePieDefaults(),
             ["gantt"] = CreateGanttDefaults(),
+            ["mindmap"] = CreateMindmapDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -350,5 +351,17 @@ internal static partial class MermaidConfigResolver
         ["topAxis"] = false,
         ["displayMode"] = string.Empty,
         ["weekday"] = "sunday",
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default mindmap section (the defaults of <c>MindmapDiagramConfig</c>).
+    /// </summary>
+    /// <returns>The default mindmap section.</returns>
+    private static JsonObject CreateMindmapDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["padding"] = 10.0,
+        ["maxNodeWidth"] = 200.0,
+        ["layoutAlgorithm"] = "cose-bilkent",
     };
 }

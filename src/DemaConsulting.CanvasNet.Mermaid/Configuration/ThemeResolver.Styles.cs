@@ -34,8 +34,9 @@ internal sealed record TextPaint(string FontFamily, double FontSize, Rgba32 Colo
 ///     </para>
 ///     <para>
 ///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="ClassStyles"/>, <see cref="StateStyles"/>,
-///         <see cref="ErStyles"/>, <see cref="SequenceStyles"/>, <see cref="PieStyles"/>, <see cref="GanttStyles"/>) share the rule building, the global rules and the
-///         cascade here. An instance is immutable.
+///         <see cref="ErStyles"/>, <see cref="SequenceStyles"/>, <see cref="PieStyles"/>, <see cref="GanttStyles"/>,
+///         <see cref="MindmapStyles"/>) share the rule building, the global rules and the cascade here. An instance is
+///         immutable.
 ///     </para>
 /// </remarks>
 internal abstract class DiagramStyles
@@ -144,10 +145,18 @@ internal abstract class DiagramStyles
     /// <param name="selector">The selector.</param>
     /// <param name="colorProperty">The property that holds the text color.</param>
     /// <returns>The text paint.</returns>
-    protected TextPaint Text(string selector, string colorProperty)
+    protected TextPaint Text(string selector, string colorProperty) => Text(Resolve(selector), colorProperty);
+
+    /// <summary>
+    ///     Resolves the declarations of the rules that match a text over the root font.
+    /// </summary>
+    /// <param name="rules">The cascaded declarations of the rules that match the text.</param>
+    /// <param name="colorProperty">The property that holds the text color.</param>
+    /// <returns>The text paint.</returns>
+    protected TextPaint Text(StyleDeclarationSet rules, string colorProperty)
     {
         var root = Resolve(Root);
-        var set = root.Cascade(Resolve(selector));
+        var set = root.Cascade(rules);
         var fontSize = root.Length("font-size", 16);
         var size = set["font-size"] is { } value && StyleDeclarations.TryParseFontSize(value, fontSize, out var length) ? length : fontSize;
         return new TextPaint(
@@ -256,7 +265,8 @@ internal abstract class DiagramStyles
 ///     <para>
 ///         The rendering units (the shape library, the edge builder, the cluster layout) are shared by every unified
 ///         diagram, so they read a diagram's sheet only through these members. Each diagram's sheet (the flowchart's,
-///         the class, state and entity relationship diagrams') supplies its own rules, its title selector and the rule its label colors come from.
+///         the class, state and entity relationship diagrams', the mindmap's) supplies its own rules, its title selector and the rule its label colors come from;
+///         a mindmap's sheet also paints each node by its classes.
 ///     </para>
 ///     <para>
 ///         An instance is immutable.
@@ -275,6 +285,25 @@ internal abstract class UnifiedStyles : DiagramStyles
 
     /// <summary>Gets the paint of node shapes (<c>.node rect</c>).</summary>
     public ShapePaint Node => Shape(".node rect", 1);
+
+    /// <summary>
+    ///     Gets the paint of an element of a node's shape: <see cref="Node"/> for its body (the sheets whose node rules do
+    ///     not depend on the node's classes or the element), and the <c>.node line</c> rule for a <c>line</c>, which no
+    ///     such sheet has (a line the shape draws is then not painted).
+    /// </summary>
+    /// <param name="cssClasses">The node's classes, separated by spaces.</param>
+    /// <param name="element">The SVG element the shape draws: <c>rect</c>, <c>circle</c>, <c>polygon</c>, <c>path</c> or <c>line</c>.</param>
+    /// <returns>The paint.</returns>
+    public virtual ShapePaint NodePaintFor(string cssClasses, string element) => element == "line" ? Shape(".node line", 1) : Node;
+
+    /// <summary>
+    ///     Gets the font and color of a node's label; <see cref="NodeLabel"/> unless the diagram's sheet colors labels by
+    ///     the node's classes.
+    /// </summary>
+    /// <param name="cssClasses">The node's classes, separated by spaces.</param>
+    /// <param name="html">Whether the label is an HTML label (a <c>span</c>) rather than SVG text.</param>
+    /// <returns>The text paint.</returns>
+    public virtual TextPaint NodeLabelFor(string cssClasses, bool html) => NodeLabel;
 
     /// <summary>Gets the paint of subgraph rectangles (<c>.cluster rect</c>).</summary>
     public ShapePaint Cluster => Shape(".cluster rect", 1);
