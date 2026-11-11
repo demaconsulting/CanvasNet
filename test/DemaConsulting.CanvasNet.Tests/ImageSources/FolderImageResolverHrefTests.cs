@@ -1,4 +1,4 @@
-// cspell:ignore href hrefs fsecret Emmd
+// cspell:ignore href hrefs fsecret
 using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.Tests.ImageSources;

@@ -1,4 +1,3 @@
-// cspell:ignore Emmd emmd
 using System.Text;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;

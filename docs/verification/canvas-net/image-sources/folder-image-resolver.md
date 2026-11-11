@@ -1,4 +1,4 @@
-<!-- cspell:ignore embedder Emmd emmd -->
+<!-- cspell:ignore embedder -->
 
 ### FolderImageResolver Unit Verification Design
 

@@ -1,4 +1,3 @@
-<!-- cspell:ignore Emmd emmd -->
 
 ### SvgFlattener
 

@@ -1,4 +1,4 @@
-// cspell:ignore svg scad href vsdx pptx embedder Emmd
+// cspell:ignore svg scad href vsdx pptx embedder
 using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.ImageSources;

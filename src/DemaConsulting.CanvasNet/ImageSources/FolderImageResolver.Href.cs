@@ -1,4 +1,4 @@
-// cspell:ignore href hrefs Emmd
+// cspell:ignore href hrefs
 using System.Globalization;
 using DemaConsulting.CanvasNet.Files;
 

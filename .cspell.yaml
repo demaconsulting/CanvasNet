@@ -1055,6 +1055,10 @@ words:
   - longhands
   - FFFD
   - xlink
+# Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
+# glued to it are not words
+ignoreRegExpList:
+  - "/%[0-9A-Fa-f]{2}[A-Za-z]*/g"
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
