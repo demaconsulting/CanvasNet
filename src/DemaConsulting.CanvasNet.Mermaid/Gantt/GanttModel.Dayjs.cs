@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using DemaConsulting.CanvasNet.Mermaid.Dagre;
 using DemaConsulting.CanvasNet.Mermaid.Syntax;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Gantt;
@@ -32,7 +33,16 @@ namespace DemaConsulting.CanvasNet.Mermaid.Gantt;
 ///         with today for what is missing, and finally makes the date invalid unless formatting it gives the text back.
 ///     </para>
 ///     <para>
-///         The class is stateless and safe for concurrent use. Every function is linear in its texts.
+///         <b>Cost.</b> Formatting is linear in the format: the search for the end of a text in brackets resumes at the
+///         closing bracket it found last (in a parse format it stops at the next opening bracket), so no part of the format
+///         is searched twice. The strict parse reads the text and the format a few times each, and the rest of the text
+///         twice for each token with a value (the search with the token's expression, which passes a run of digits whole,
+///         and the removal of the value, found in linear time), so its work is at most the product of the two lengths.
+///         With a work meter, <see cref="Format"/> and <see cref="ParseStrict"/> charge that work to it before they do
+///         it, so a render bounds the parse of long texts with long formats.
+///     </para>
+///     <para>
+///         The class is stateless and safe for concurrent use.
 ///     </para>
 /// </remarks>
 internal static class Dayjs
@@ -124,16 +134,24 @@ internal static class Dayjs
     /// <param name="date">The date.</param>
     /// <param name="format">The format; an empty format is the default <c>YYYY-MM-DDTHH:mm:ssZ</c>.</param>
     /// <param name="now">The time of <c>dayjs()</c>, which the ISO week number reads.</param>
+    /// <param name="meter">The work meter charged for the scans of the format, or null.</param>
     /// <returns>The text, or <c>Invalid Date</c> for an invalid date.</returns>
     /// <exception cref="NotSupportedException">Thrown when the format needs a plugin Mermaid does not load.</exception>
-    public static string Format(JsDate date, string format, JsDate now)
+    /// <exception cref="MermaidRenderException">Thrown when the work exceeds the limit of the meter.</exception>
+    public static string Format(JsDate date, string format, JsDate now, LayoutWorkMeter? meter = null)
     {
+        meter?.Charge(1);
         if (!date.IsValid)
         {
             return "Invalid Date";
         }
 
-        return CoreFormat(date, AdvancedFormat(date, format.Length == 0 ? DefaultFormat : format, now));
+        // Each pass is linear in what it scans; the advanced pass gives at most a short number for each token
+        var used = format.Length == 0 ? DefaultFormat : format;
+        meter?.Charge(used.Length);
+        var advanced = AdvancedFormat(date, used, now);
+        meter?.Charge(advanced.Length);
+        return CoreFormat(date, advanced);
     }
 
     /// <summary>
@@ -143,10 +161,14 @@ internal static class Dayjs
     /// <param name="format">The format.</param>
     /// <param name="now">The time of <c>new Date()</c>, which fills what the format does not give.</param>
     /// <param name="usedNow">Set when the date took a part of <paramref name="now"/>.</param>
+    /// <param name="meter">The work meter charged for the scans of the text and the format, or null.</param>
     /// <returns>The date, or the invalid date when the text does not match the format.</returns>
     /// <exception cref="NotSupportedException">Thrown when the strict check formats with a plugin Mermaid does not load.</exception>
-    public static JsDate ParseStrict(string text, string format, JsDate now, ref bool usedNow)
+    /// <exception cref="MermaidRenderException">Thrown when the work exceeds the limit of the meter.</exception>
+    public static JsDate ParseStrict(string text, string format, JsDate now, ref bool usedNow, LayoutWorkMeter? meter = null)
     {
+        // The two splits of the format, the number of a timestamp and the final comparison each read the texts once
+        meter?.Charge(1 + text.Length + (2L * format.Length));
         JsDate date;
         var tookNow = false;
         try
@@ -154,7 +176,7 @@ internal static class Dayjs
             var unit = format == "X" ? 1000 : 1;
             date = format is "x" or "X"
                 ? JsDate.FromTime(unit * ToNumber(text))
-                : ParseFormatted(text, format, now, ref tookNow);
+                : ParseFormatted(text, format, now, ref tookNow, meter);
         }
         catch (FormatException)
         {
@@ -162,7 +184,7 @@ internal static class Dayjs
         }
 
         // The strict check: the date must format back to the text
-        if (text != Format(date, format, now))
+        if (text != Format(date, format, now, meter))
         {
             return JsDate.Invalid;
         }
@@ -196,19 +218,33 @@ internal static class Dayjs
         if (s.Length > 2 && s[0] == '0' && (s[1] | 0x20) is 'x' or 'o' or 'b')
         {
             var radix = (s[1] | 0x20) switch { 'x' => 16, 'o' => 8, _ => 2 };
-            var value = BigInteger.Zero;
-            foreach (var c in s.AsSpan(2))
+            var digits = s.AsSpan(2);
+            foreach (var c in digits)
             {
-                var digit = DigitValue(c);
-                if (digit >= radix)
+                if (DigitValue(c) >= radix)
                 {
                     return double.NaN;
                 }
-
-                value = (value * radix) + digit;
             }
 
-            return (double)value;
+            // Leading zeros add nothing, and a value of 2^1024 or more is infinite as a double, so the big integer
+            // never grows past 1,024 bits (each step is then bounded, and the conversion linear in the text)
+            digits = digits.TrimStart('0');
+            var bitsPerDigit = radix switch { 16 => 4, 8 => 3, _ => 1 };
+            if ((long)(digits.Length - 1) * bitsPerDigit >= 1024)
+            {
+                return double.PositiveInfinity;
+            }
+
+            var value = BigInteger.Zero;
+            foreach (var c in digits)
+            {
+                value = (value * radix) + DigitValue(c);
+            }
+
+            // The decimal text rounds to the nearest double, as JavaScript does (the explicit conversion of a big
+            // integer can round down near the largest double)
+            return double.Parse(value.ToString(CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture);
         }
 
         return IsDecimalLiteral(s) ? double.Parse(s, NumberStyles.Float, CultureInfo.InvariantCulture) : double.NaN;
@@ -422,10 +458,11 @@ internal static class Dayjs
     private static string AdvancedFormat(JsDate date, string format, JsDate now)
     {
         var builder = new StringBuilder(format.Length);
+        var close = 0;
         var i = 0;
         while (i < format.Length)
         {
-            var bracket = BracketEnd(format, i);
+            var bracket = BracketEnd(format, i, ref close);
             if (bracket > 0)
             {
                 builder.Append(format, i, bracket - i);
@@ -471,10 +508,11 @@ internal static class Dayjs
     private static string CoreFormat(JsDate date, string format)
     {
         var builder = new StringBuilder(format.Length);
+        var close = 0;
         var i = 0;
         while (i < format.Length)
         {
-            var bracket = BracketEnd(format, i);
+            var bracket = BracketEnd(format, i, ref close);
             if (bracket > 0)
             {
                 builder.Append(format, i + 1, bracket - i - 2);
@@ -533,9 +571,10 @@ internal static class Dayjs
     /// <param name="format">The format.</param>
     /// <param name="now">The time of <c>new Date()</c>.</param>
     /// <param name="usedNow">Set when the date took a part of <paramref name="now"/>.</param>
+    /// <param name="meter">The work meter, or null.</param>
     /// <returns>The date (invalid when it is out of range).</returns>
     /// <exception cref="FormatException">Thrown where the plugin fails (a JavaScript error it catches).</exception>
-    private static JsDate ParseFormatted(string text, string format, JsDate now, ref bool usedNow)
+    private static JsDate ParseFormatted(string text, string format, JsDate now, ref bool usedNow, LayoutWorkMeter? meter)
     {
         var parsed = new ParsedDate();
         var input = text;
@@ -551,10 +590,12 @@ internal static class Dayjs
                 continue;
             }
 
+            // The search of the rest of the text and the removal of the value each read the text once
+            meter?.Charge(1 + (2 * (long)input.Length));
             var rest = position < input.Length ? input[position..] : string.Empty;
             var value = Exec(token, rest) ?? throw new FormatException(token);
             Apply(parsed, token, value);
-            var at = input.IndexOf(value, StringComparison.Ordinal);
+            var at = FirstIndexOf(input, value);
             input = at < 0 ? input : input.Remove(at, value.Length);
         }
 
@@ -611,10 +652,11 @@ internal static class Dayjs
     private static List<string> ParseTokensOf(string format)
     {
         // An L or l token outside brackets reads the locale's missing formats
+        var search = 0;
         var i = 0;
         while (i < format.Length)
         {
-            var bracket = BracketEnd(format, i);
+            var bracket = BracketEnd(format, i, ref search);
             if (bracket > 0)
             {
                 i = bracket;
@@ -633,11 +675,13 @@ internal static class Dayjs
         var p = 0;
         while (p < format.Length)
         {
-            // A text in brackets: up to the last ']' before the next '['
+            // A text in brackets: up to the last ']' before the next '[' (both scans stop at the next '[', so no part of
+            // the format is scanned twice)
             if (format[p] == '[')
             {
                 var next = format.IndexOf('[', p + 1);
-                var close = format.LastIndexOf(']', (next < 0 ? format.Length : next) - 1);
+                var limit = next < 0 ? format.Length : next;
+                var close = format.LastIndexOf(']', limit - 1, limit - 1 - p);
                 if (close > p)
                 {
                     tokens.Add(format[p..(close + 1)]);
@@ -701,22 +745,7 @@ internal static class Dayjs
             var run = DigitRun(s, start, 1, int.MaxValue);
             return run < 0 ? -1 : start - p + run;
         }),
-        "A" or "a" or "Do" or "MMM" or "MMMM" => Search(text, (s, p) =>
-        {
-            var q = p;
-            while (q < s.Length && char.IsAsciiDigit(s[q]))
-            {
-                q++;
-            }
-
-            var end = q;
-            while (end < s.Length && !char.IsAsciiDigit(s[end]) && !IsWordSeparator(s[end]))
-            {
-                end++;
-            }
-
-            return end > q ? end - p : -1;
-        }),
+        "A" or "a" or "Do" or "MMM" or "MMMM" => SearchWord(text),
         "Z" or "ZZ" => Search(text, (s, p) =>
         {
             if (p < s.Length && s[p] == 'Z')
@@ -882,7 +911,8 @@ internal static class Dayjs
     }
 
     /// <summary>
-    ///     Finds the leftmost match of an anchored matcher in a text.
+    ///     Finds the leftmost match of an anchored matcher in a text; the matcher must look at a bounded number of
+    ///     characters when it fails, so the search is linear.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="match">The matcher: the length of a match at a position, or -1.</param>
@@ -899,6 +929,83 @@ internal static class Dayjs
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Finds the leftmost match of the plugin's word expression <c>\d*[^-_:/,()\s\d]+</c> in a text, in one pass.
+    /// </summary>
+    /// <remarks>
+    ///     A start in a run of digits fails only when the character after the run is no word character (the digits
+    ///     cannot be given back to the word), and then every start in the run fails at that same character, as does a
+    ///     start at it; so the search goes on after it instead of trying each start, with the same result.
+    /// </remarks>
+    /// <param name="text">The text.</param>
+    /// <returns>The match, or null.</returns>
+    private static string? SearchWord(string text)
+    {
+        var p = 0;
+        while (p < text.Length)
+        {
+            var q = p;
+            while (q < text.Length && char.IsAsciiDigit(text[q]))
+            {
+                q++;
+            }
+
+            var end = q;
+            while (end < text.Length && !char.IsAsciiDigit(text[end]) && !IsWordSeparator(text[end]))
+            {
+                end++;
+            }
+
+            if (end > q)
+            {
+                return text[p..end];
+            }
+
+            p = q + 1;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Finds the first occurrence of a value in a text (JavaScript's <c>indexOf</c>) in time linear in both
+    ///     (Knuth-Morris-Pratt), however the value repeats its own beginning.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="value">The value; not empty.</param>
+    /// <returns>The index, or -1.</returns>
+    private static int FirstIndexOf(string text, string value)
+    {
+        // The length of the longest proper prefix of each prefix of the value that is also its suffix
+        var border = new int[value.Length];
+        for (int i = 1, k = 0; i < value.Length; i++)
+        {
+            while (k > 0 && value[i] != value[k])
+            {
+                k = border[k - 1];
+            }
+
+            k += value[i] == value[k] ? 1 : 0;
+            border[i] = k;
+        }
+
+        for (int i = 0, k = 0; i < text.Length; i++)
+        {
+            while (k > 0 && text[i] != value[k])
+            {
+                k = border[k - 1];
+            }
+
+            k += text[i] == value[k] ? 1 : 0;
+            if (k == value.Length)
+            {
+                return i - k + 1;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -921,19 +1028,28 @@ internal static class Dayjs
     }
 
     /// <summary>
-    ///     Gets the end of a text in brackets at a position (<c>\[([^\]]+)]</c>).
+    ///     Gets the end of a text in brackets at a position (<c>\[([^\]]+)]</c>), for positions that only grow: the first
+    ///     <c>]</c> after the previous search is kept, so the format is searched once whatever the number of brackets.
     /// </summary>
     /// <param name="s">The text.</param>
-    /// <param name="p">The position.</param>
+    /// <param name="p">The position; not less than at the previous call with the same state.</param>
+    /// <param name="close">
+    ///     The state of the search: zero at first, then the first <c>]</c> found, or -1 when none is left.
+    /// </param>
     /// <returns>The position after the closing bracket, or -1.</returns>
-    private static int BracketEnd(string s, int p)
+    private static int BracketEnd(string s, int p, ref int close)
     {
         if (s[p] != '[')
         {
             return -1;
         }
 
-        var close = s.IndexOf(']', p + 1);
+        // A ']' found after an earlier position is the first one after this one too when it lies past it
+        if (close >= 0 && close <= p)
+        {
+            close = s.IndexOf(']', p + 1);
+        }
+
         return close > p + 1 ? close + 1 : -1;
     }
 
@@ -946,9 +1062,16 @@ internal static class Dayjs
     /// <returns>The token, or null.</returns>
     private static string? MatchToken(string s, int p, string[] tokens)
     {
+        // Every token starts with an ASCII letter, and the first character rules out most tokens without a comparison
+        var c = s[p];
+        if (!char.IsAsciiLetter(c))
+        {
+            return null;
+        }
+
         foreach (var token in tokens)
         {
-            if (string.CompareOrdinal(s, p, token, 0, token.Length) == 0 && p + token.Length <= s.Length)
+            if (token[0] == c && p + token.Length <= s.Length && string.CompareOrdinal(s, p, token, 0, token.Length) == 0)
             {
                 return token;
             }

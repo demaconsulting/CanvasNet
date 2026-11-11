@@ -70,7 +70,7 @@ internal sealed partial class GanttRenderer
             bool excluded;
             try
             {
-                excluded = _model.IsInvalidDate(d, _clock);
+                excluded = _model.IsInvalidDate(d, _clock, _meter);
             }
             catch (NotSupportedException ex)
             {

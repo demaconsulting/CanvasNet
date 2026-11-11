@@ -117,12 +117,14 @@ internal sealed partial class GanttModel
     /// </summary>
     /// <param name="date">The date.</param>
     /// <param name="clock">The clock of the render.</param>
+    /// <param name="meter">The work meter of the render, charged for the formatting of the date.</param>
     /// <returns>Whether it is excluded.</returns>
     /// <exception cref="NotSupportedException">Thrown when the date format needs a plugin Mermaid does not load.</exception>
-    internal bool IsInvalidDate(JsDate date, GanttClock clock)
+    /// <exception cref="MermaidRenderException">Thrown when the work limit is exceeded.</exception>
+    internal bool IsInvalidDate(JsDate date, GanttClock clock, LayoutWorkMeter meter)
     {
-        var formatted = Dayjs.Format(date, Preprocessor.TrimJs(DateFormat), clock.Today);
-        var dateOnly = Dayjs.Format(date, "YYYY-MM-DD", clock.Today);
+        var formatted = Dayjs.Format(date, Preprocessor.TrimJs(DateFormat), clock.Today, meter);
+        var dateOnly = Dayjs.Format(date, "YYYY-MM-DD", clock.Today, meter);
         if (_includes.Contains(formatted) || _includes.Contains(dateOnly))
         {
             return false;
@@ -135,17 +137,19 @@ internal sealed partial class GanttModel
             return true;
         }
 
-        return _excludes.Contains(Dayjs.Format(date, "dddd", clock.Today).ToLowerInvariant())
+        return _excludes.Contains(Dayjs.Format(date, "dddd", clock.Today, meter).ToLowerInvariant())
             || _excludes.Contains(formatted)
             || _excludes.Contains(dateOnly);
     }
 
     /// <summary>
-    ///     Gets the work of one day of the excluded-days loops: the formatting and the list searches of
-    ///     <see cref="IsInvalidDate"/>.
+    ///     Gets the work of one day of the excluded-days loops besides the formatting, which <see cref="IsInvalidDate"/>
+    ///     charges itself: one unit, the trim of the date format, and the searches of the excludes and includes lists,
+    ///     each of which compares a text with every token of the list at most up to the token's length.
     /// </summary>
     /// <returns>The work units.</returns>
-    internal long DayCost() => 1 + DateFormat.Length + _excludes.Count + _includes.Count;
+    internal long DayCost() =>
+        1 + DateFormat.Length + _excludes.Sum(token => 1L + token.Length) + _includes.Sum(token => 1L + token.Length);
 
     /// <summary>
     ///     Parses a duration (Mermaid's <c>parseDuration</c>: <c>/^(\d+(?:\.\d+)?)([Mdhmswy]|ms)$/</c> on the trimmed text).
@@ -236,6 +240,9 @@ internal sealed partial class GanttModel
     /// <param name="meter">The work meter of the render.</param>
     private sealed class Compiler(GanttModel model, List<GanttTask> tasks, GanttClock clock, LayoutWorkMeter meter)
     {
+        /// <summary>The work of one day of the excluded-days loop besides its formatting, the same for every task.</summary>
+        private readonly long _dayCost = model.DayCost();
+
         /// <summary>
         ///     Runs one pass over the tasks (<c>compileTasks</c>).
         /// </summary>
@@ -313,6 +320,7 @@ internal sealed partial class GanttModel
             var format = Preprocessor.TrimJs(model.DateFormat);
             if (format is "x" or "X" && text.Length > 0 && text.All(char.IsAsciiDigit))
             {
+                meter.Charge(text.Length);
                 return JsDate.FromTime(Dayjs.ToNumber(text));
             }
 
@@ -416,10 +424,9 @@ internal sealed partial class GanttModel
             var maxEnd = Dayjs.Add(end, 10000, "d");
             var invalid = false;
             JsDate? renderEnd = null;
-            var dayCost = model.DayCost();
             while (start.Time <= end.Time)
             {
-                meter.Charge(dayCost);
+                meter.Charge(_dayCost);
                 if (!invalid)
                 {
                     renderEnd = end;
@@ -452,7 +459,7 @@ internal sealed partial class GanttModel
         {
             try
             {
-                return model.IsInvalidDate(date, clock);
+                return model.IsInvalidDate(date, clock, meter);
             }
             catch (NotSupportedException ex)
             {
@@ -461,7 +468,8 @@ internal sealed partial class GanttModel
         }
 
         /// <summary>
-        ///     Parses a date strictly, failing at the task where the date format needs a missing plugin.
+        ///     Parses a date strictly, charging the parse to the meter, and failing at the task where the date format needs
+        ///     a missing plugin.
         /// </summary>
         /// <param name="task">The task.</param>
         /// <param name="text">The text.</param>
@@ -472,7 +480,7 @@ internal sealed partial class GanttModel
         {
             try
             {
-                return Dayjs.ParseStrict(text, format, clock.Today, ref usedNow);
+                return Dayjs.ParseStrict(text, format, clock.Today, ref usedNow, meter);
             }
             catch (NotSupportedException ex)
             {

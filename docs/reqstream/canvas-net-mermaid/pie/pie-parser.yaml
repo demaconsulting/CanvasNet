@@ -108,6 +108,7 @@ sections:
                   - PieParser_Parse_GrammarError_IsLocatedWithTheExpectedTokens
                   - PieParser_Parse_LexicalError_IsLocatedAtTheFirstUnmatchedCharacter
                   - PieParser_Parse_Numbers_FollowTheTerminals
+                  - PieParser_Parse_Directives_EndAtTheFirstClosingOrAreComments
                   - PieParser_Parse_UpstreamVector_MatchesMermaid
 
               - id: CanvasNetMermaid-Pie-PieParser-Limits

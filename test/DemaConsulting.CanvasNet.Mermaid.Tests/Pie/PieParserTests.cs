@@ -175,6 +175,25 @@ public sealed class PieParserTests
     }
 
     /// <summary>
+    ///     Validates the hidden directives: a directive ends at the first closing followed by a line end or white space,
+    ///     across lines, and an opening that no closing ends is a comment, however many such openings come before the
+    ///     closings that cannot end them; the first of those closings is then a located lexical error.
+    /// </summary>
+    [Fact]
+    public void PieParser_Parse_Directives_EndAtTheFirstClosingOrAreComments()
+    {
+        // Act
+        var closed = Parse("pie\n%%{\n}%%x }%%\n\"a\" : 1\n");
+        var unclosed = Assert.Throws<MermaidSyntaxException>(() =>
+            Parse("pie\n" + string.Concat(Enumerable.Repeat("%%{\n", 6000)) + string.Concat(Enumerable.Repeat("}%%x", 6000)) + "\n"));
+
+        // Assert
+        Assert.Equal(["a"], closed.Sections.Select(s => s.Label));
+        Assert.Equal((6002, 1), (unclosed.Location.Line, unclosed.Location.Column));
+        Assert.Contains("unrecognized text", unclosed.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the number terminals: a decimal, a zero, a leading-zero number split in two, and a lexer that does
     ///     not take a trailing dot.
     /// </summary>

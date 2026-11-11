@@ -192,7 +192,9 @@ sections:
                   must accept, refuse, and format exactly as Mermaid's dayjs does.
                 tests:
                   - Dayjs_Format_TokensAsTheBundledDayjs
+                  - Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce
                   - Dayjs_ParseStrict_MatchesTheCustomParseFormatPlugin
+                  - Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken
                   - Dayjs_NumberAndDateStrings_FollowJavaScript
                   - GanttModel_Compile_Durations_AddAsDayjsDoes
 
@@ -216,13 +218,21 @@ sections:
               - id: CanvasNetMermaid-Gantt-GanttModel-WorkCharges
                 title: >-
                   The GanttModel unit shall charge the work meter of the render one unit for each task in each pass,
-                  one unit for each id of an after or until reference, and, for each day of the excluded-days loop, one
-                  unit plus the length of the date format plus the numbers of excludes and includes tokens.
+                  one unit for each id of an after or until reference, for each strict parse of a date one unit plus
+                  the length of the text and twice the length of the format, one unit plus twice the length of the rest
+                  of the text for each token with a value, and the formatting of the strict check, for each formatting
+                  of a date one unit plus the length of the format and of the text its advanced tokens give, and, for
+                  each day of the excluded-days loop, one unit plus the length of the date format plus one unit and the
+                  length of each excludes and includes token, besides the formatting of the day.
                 justification: |
-                  The work of compiling the dates grows with the passes, the references, and the days that excluded
-                  days walk through; charging it deterministically bounds a render without measuring time.
+                  The work of compiling the dates grows with the passes, the references, the lengths of the date texts
+                  and the date format, and the days that excluded days walk through; charging it deterministically, in
+                  proportion to the scans of the texts, bounds a render without measuring time.
                 tests:
                   - GanttModel_Compile_WorkCharges_ArePinned
+                  - Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce
+                  - Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken
+                  - GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded
 
               - id: CanvasNetMermaid-Gantt-GanttModel-Limits
                 title: >-
@@ -233,8 +243,11 @@ sections:
                   with a MermaidRenderException of code mermaid-limit-exceeded.
                 justification: |
                   Repeated click statements and the sanitizer can make texts grow faster than the text, so they are
-                  checked where they are made; a long span of excluded days can walk through millions of days, so the
-                  work of a render must be bounded.
+                  checked where they are made; a long span of excluded days can walk through millions of days, and the
+                  strict parse of a long date text with a long date format reads the text for every token of the format
+                  in every pass, so the work of a render must be bounded.
                 tests:
                   - GanttParser_Parse_ManyClicks_ClassListExceedsMaxLabelLength
                   - GanttModel_Compile_LongExcludedSpan_ExceedsWorkLimit
+                  - GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded
+                  - GanttModel_Compile_BracketHeavyFormat_EndsWithWorkLimit

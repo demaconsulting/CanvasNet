@@ -204,8 +204,11 @@ public sealed class GanttModelTests
     }
 
     /// <summary>
-    ///     Validates the pinned work charges: one unit per task per pass, one per <c>after</c> or <c>until</c> id, and one day
-    ///     cost (1 + the date format's length + the excludes and includes) per day of the excluded-days loop.
+    ///     Validates the pinned work charges: one unit per task per pass, one per <c>after</c> or <c>until</c> id, each
+    ///     strict parse (one unit plus the length of the text and twice that of the format, one unit plus twice the length
+    ///     of the rest of the text for each token with a value, and the formatting of the strict check), and for each day
+    ///     of the excluded-days loop its day cost (one unit plus the date format's length plus one unit and the length of
+    ///     each excludes and includes token) and the formatting of the day.
     /// </summary>
     [Fact]
     public void GanttModel_Compile_WorkCharges_ArePinned()
@@ -220,9 +223,11 @@ public sealed class GanttModelTests
         plain.Compile(new GanttClock(null, null), plainMeter);
         excluded.Compile(new GanttClock(null, null), excludedMeter);
 
-        // Assert
-        Assert.Equal(3, plainMeter.Used);
-        Assert.Equal(87, excludedMeter.Used);
+        // Assert: A's start parses (95) and its end and the manual-end check do not (29 each); B has its id and two
+        // failed parses; with excludes, each of the 7 days walked costs 1 + 10 + 9 and its formats, 21 for each of its
+        // two YYYY-MM-DD texts and 9 for its weekday name, which the 2 weekend days do not need
+        Assert.Equal(214, plainMeter.Used);
+        Assert.Equal(214 + (7 * (20 + 42)) + (5 * 9), excludedMeter.Used);
     }
 
     /// <summary>
@@ -244,6 +249,58 @@ public sealed class GanttModelTests
     }
 
     /// <summary>
+    ///     Validates that the strict parse of a long text with a date format of many word tokens (<c>A</c>) is charged the
+    ///     text for every token: one such task compiles within the default limit, charged at least twice the text per
+    ///     token, and two such tasks with a circular pair, which forces every pass, end with the work limit.
+    /// </summary>
+    [Fact]
+    public void GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded()
+    {
+        // Arrange: digits the word expression must skip, then a word for each of the 600 tokens
+        var format = "dateFormat " + new string('A', 600) + "\n";
+        var end = new string('1', 2600) + string.Concat(Enumerable.Repeat(" x", 600));
+        var single = GanttParserTests.Parse("gantt\n" + format + "T :t1, 2024-01-01, " + end + "\n");
+        var circular = GanttParserTests.Parse(
+            "gantt\n" + format + "T :t1, 2024-01-01, " + end + "\nU :t2, 2024-01-01, " + end + "\nc :a, after b, 1d\nd :b, after a, 1d\n");
+        var meter = Meter(single);
+
+        // Act
+        var tasks = single.Compile(new GanttClock(GanttVectorTests.VectorNow, null), meter);
+        var exception = Assert.Throws<MermaidRenderException>(() =>
+            circular.Compile(new GanttClock(GanttVectorTests.VectorNow, null), Meter(circular)));
+
+        // Assert: the end is no date and no duration, so it is the start
+        Assert.Equal(tasks[0].StartTime, tasks[0].EndTime);
+        Assert.InRange(meter.Used, 600L * 2 * 3200, MermaidLimits.Default.MaxLayoutWork);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+    }
+
+    /// <summary>
+    ///     Validates that a date format of 4,000 opening brackets is scanned once for each parse and format and charged
+    ///     for its length: the parses of 1,990 tasks over the passes of a circular pair, and the excluded days of a task
+    ///     of 100,000 days, each end with the work limit.
+    /// </summary>
+    [Fact]
+    public void GanttModel_Compile_BracketHeavyFormat_EndsWithWorkLimit()
+    {
+        // Arrange
+        var format = "dateFormat " + new string('[', 4000) + "\n";
+        var many = GanttParserTests.Parse(
+            "gantt\n" + format + string.Concat(Enumerable.Repeat("T:2024-01-01,1d\n", 1990)) + "c:a,after b,1d\nd:b,after a,1d\n");
+        var excluded = GanttParserTests.Parse("gantt\n" + format + "excludes monday\nT :t, 2024-01-01, 100000d\n");
+
+        // Act
+        var parses = Assert.Throws<MermaidRenderException>(() =>
+            many.Compile(new GanttClock(GanttVectorTests.VectorNow, null), Meter(many)));
+        var days = Assert.Throws<MermaidRenderException>(() =>
+            excluded.Compile(new GanttClock(GanttVectorTests.VectorNow, null), Meter(excluded)));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, parses.Code);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, days.Code);
+    }
+
+    /// <summary>
     ///     Validates dayjs formatting: core and advanced tokens, brackets, padding, ordinals and ISO weeks, and the tokens
     ///     whose plugins Mermaid does not load.
     /// </summary>
@@ -262,6 +319,32 @@ public sealed class GanttModelTests
         Assert.Equal("2024-01-05T09:07:03+00:00", empty);
         Assert.Throws<NotSupportedException>(() => Dayjs.Format(date, "w", date));
         Assert.Equal("Invalid Date", Dayjs.Format(JsDate.Invalid, "w", date));
+    }
+
+    /// <summary>
+    ///     Validates dayjs's brackets in a format, as the bundled dayjs gives them (a text in brackets ends at the first
+    ///     closing bracket, and an opening bracket without one is kept), and the work a format charges: one unit, the
+    ///     format, and the text the advanced tokens give, once each however many brackets the format has.
+    /// </summary>
+    [Fact]
+    public void Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce()
+    {
+        // Arrange
+        var date = JsDate.FromComponents(2024, 0, 5, 9, 7, 3, 45);
+        var small = new LayoutWorkMeter(1_000_000, default, CancellationToken.None);
+        var large = new LayoutWorkMeter(1_000_000, default, CancellationToken.None);
+
+        // Act
+        var texts = new[] { "[a[b]c] [YYYY] [[ YYYY", "[[[[]", "[[[[ YYYY", "YYYY []] [", "[[x]YYYY-MM-DD" }
+            .Select(format => Dayjs.Format(date, format, date)).ToList();
+        _ = Dayjs.Format(date, "YYYY", date, small);
+        var brackets = Dayjs.Format(date, new string('[', 4000), date, large);
+
+        // Assert
+        Assert.Equal(["a[bc] YYYY [[ 2024", "[[[", "[[[[ 2024", "2024 []] [", "[x2024-01-05"], texts);
+        Assert.Equal(1 + 4 + 4, small.Used);
+        Assert.Equal(new string('[', 4000), brackets);
+        Assert.Equal(1 + 4000 + 4000, large.Used);
     }
 
     /// <summary>
@@ -292,6 +375,41 @@ public sealed class GanttModelTests
     }
 
     /// <summary>
+    ///     Validates the strict parse of words and brackets as the bundled dayjs gives it (a word after digit runs, an
+    ///     ordinal and a month name, a text in brackets up to the last closing bracket before the next opening one), and
+    ///     the work it charges: the text once and the format twice, the rest of the text twice for each token with a value,
+    ///     and the formatting of the strict check.
+    /// </summary>
+    [Fact]
+    public void Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken()
+    {
+        // Arrange
+        var now = JsDate.FromComponents(2024, 5, 12, 10, 30);
+        var usedNow = false;
+        var small = new LayoutWorkMeter(1_000_000, default, CancellationToken.None);
+        var large = new LayoutWorkMeter(MermaidLimits.Default.MaxLayoutWork, default, CancellationToken.None);
+        var text = new string('1', 2600) + string.Concat(Enumerable.Repeat(" x", 600));
+
+        // Act
+        var skipped = Dayjs.ParseStrict("123 45-May 2024", "MMM YYYY", now, ref usedNow);
+        var month = Dayjs.ParseStrict("May 2024", "MMM YYYY", now, ref usedNow, small);
+        var ordinal = Dayjs.ParseStrict("5th January 2024", "Do MMMM YYYY", now, ref usedNow);
+        var bracket = Dayjs.ParseStrict("[x2024-01-05", "[[x]YYYY-MM-DD", now, ref usedNow);
+        var unbracketed = Dayjs.ParseStrict("x2024-01-05", "[[x]YYYY-MM-DD", now, ref usedNow);
+        var words = Dayjs.ParseStrict(text, new string('A', 600), now, ref usedNow, large);
+
+        // Assert
+        Assert.False(skipped.IsValid);
+        Assert.Equal(Date(2024, 5, 1), month.Time);
+        Assert.Equal(25 + 17 + 11 + 17, small.Used);
+        Assert.Equal(Date(2024, 1, 5), ordinal.Time);
+        Assert.Equal(Date(2024, 1, 5), bracket.Time);
+        Assert.False(unbracketed.IsValid);
+        Assert.False(words.IsValid);
+        Assert.InRange(large.Used, 600L * 2 * 3200, 600L * 2 * text.Length * 2);
+    }
+
+    /// <summary>
     ///     Validates JavaScript's <c>Number(text)</c> and the ECMAScript date strings.
     /// </summary>
     [Fact]
@@ -302,6 +420,12 @@ public sealed class GanttModelTests
         Assert.Equal(16, Dayjs.ToNumber("0x10"));
         Assert.Equal(1000, Dayjs.ToNumber(" 1e3 "));
         Assert.True(double.IsNaN(Dayjs.ToNumber("12px")));
+        Assert.Equal(double.PositiveInfinity, Dayjs.ToNumber("0x" + new string('F', 256)));
+        Assert.Equal(1.1235582092889474e+307, Dayjs.ToNumber("0x" + new string('F', 255)));
+        Assert.Equal(8.98846567431158e+307, Dayjs.ToNumber("0b1" + new string('0', 1023)));
+        Assert.Equal(double.PositiveInfinity, Dayjs.ToNumber("0o1" + new string('0', 342)));
+        Assert.Equal(15, Dayjs.ToNumber("0x" + new string('0', 5000) + "F"));
+        Assert.True(double.IsNaN(Dayjs.ToNumber("0x" + new string('F', 5000) + "G")));
         Assert.Equal(Date(2024, 1, 1), Dayjs.ParseDateString("2024").Time);
         Assert.Equal(Date(2024, 1, 6), Dayjs.ParseDateString("2024-01-05T24:00").Time);
         Assert.False(Dayjs.ParseDateString("2024-01-05T10").IsValid);

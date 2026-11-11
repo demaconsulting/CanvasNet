@@ -47,8 +47,11 @@ internal sealed partial class PieParser
     /// <summary>The end of the tokens (chevrotain's <c>EOF</c>).</summary>
     internal const string Eof = "EOF";
 
-    /// <summary>The token matchers in chevrotain's order; a null kind is a hidden token, which the parser never sees.</summary>
-    private static readonly (string? Kind, Func<string, int, int> Match)[] Rules =
+    /// <summary>
+    ///     The token matchers in chevrotain's order; a null kind is a hidden token, which the parser never sees, and the null
+    ///     matcher is the directive's (<see cref="MatchDirective"/>), which also reads the last closing of the text.
+    /// </summary>
+    private static readonly (string? Kind, Func<string, int, int>? Match)[] Rules =
     [
         // The keywords, longest first, each followed by %% or not by a non-space (the mermaid token builder's suffix)
         (ShowData, (text, p) => MatchKeyword(text, p, ShowData)),
@@ -66,7 +69,7 @@ internal sealed partial class PieParser
         // The hidden terminals: white space (skipped), YAML, directives and comments
         (null, (text, p) => SkipSpaces(text, p) is var e && e > p ? e : -1),
         (null, MatchYaml),
-        (null, MatchDirective),
+        (null, null),
         (null, MatchComment),
     ];
 
@@ -79,13 +82,14 @@ internal sealed partial class PieParser
     private List<PieToken> Tokenize(string text)
     {
         var tokens = new List<PieToken>();
+        var lastClose = LastDirectiveClose(text);
         var position = 0;
         while (position < text.Length)
         {
             var matched = false;
             foreach (var (kind, match) in Rules)
             {
-                var end = match(text, position);
+                var end = match is null ? MatchDirective(text, position, lastClose) : match(text, position);
                 if (end <= position)
                 {
                     continue;
@@ -361,11 +365,14 @@ internal sealed partial class PieParser
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="p">The position.</param>
+    /// <param name="lastClose">The last closing <c>}%%</c> of the text that can end a directive, or -1.</param>
     /// <returns>The end of the match, or -1.</returns>
-    private static int MatchDirective(string text, int p)
+    private static int MatchDirective(string text, int p, int lastClose)
     {
+        // A directive that opens after the last closing never closes, so the text after it is not searched again for
+        // each such opening
         var k = SkipSpaces(text, p);
-        if (!IsAt(text, k, "%%{"))
+        if (!IsAt(text, k, "%%{") || lastClose < k + 3)
         {
             return -1;
         }
@@ -373,20 +380,47 @@ internal sealed partial class PieParser
         // The shortest body whose closing }%% is followed by a line break or by no character other than white space
         for (var close = text.IndexOf("}%%", k + 3, StringComparison.Ordinal); close >= 0; close = text.IndexOf("}%%", close + 1, StringComparison.Ordinal))
         {
-            var after = close + 3;
-            var line = MatchNewline(text, after);
-            if (line >= 0)
+            if (ClosesDirective(text, close) is var end && end >= 0)
             {
-                return line;
-            }
-
-            if (after >= text.Length || ScanPatterns.IsJsWhitespace(text[after]))
-            {
-                return after;
+                return end;
             }
         }
 
         return -1;
+    }
+
+    /// <summary>
+    ///     Finds the last closing <c>}%%</c> of a text that can end a directive, in one pass.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The position of the closing, or -1.</returns>
+    private static int LastDirectiveClose(string text)
+    {
+        var last = -1;
+        for (var close = text.IndexOf("}%%", StringComparison.Ordinal); close >= 0; close = text.IndexOf("}%%", close + 1, StringComparison.Ordinal))
+        {
+            last = ClosesDirective(text, close) >= 0 ? close : last;
+        }
+
+        return last;
+    }
+
+    /// <summary>
+    ///     Matches the end of a directive at a <c>}%%</c>: <c>}%%(?:\r?\n|(?!\S))</c>.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="close">The position of the <c>}%%</c>.</param>
+    /// <returns>The end of the match, or -1.</returns>
+    private static int ClosesDirective(string text, int close)
+    {
+        var after = close + 3;
+        var line = MatchNewline(text, after);
+        if (line >= 0)
+        {
+            return line;
+        }
+
+        return after >= text.Length || ScanPatterns.IsJsWhitespace(text[after]) ? after : -1;
     }
 
     /// <summary>

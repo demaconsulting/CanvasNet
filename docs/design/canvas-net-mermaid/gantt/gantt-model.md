@@ -95,25 +95,28 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
   `GetEndDate`; and when it has an end, it is processed, its end is manual when the end data is a strict `YYYY-MM-DD`
   date, and `CheckTaskDates` moves its end past the excluded days. After the passes every task must be processed with
   a valid start and end.
-- **`GetStartDate`**: for the date format `x` or `X` and data of digits only, the timestamp; for `after` and ids
-  (`ReferenceIds`, the lower-case word, white space, and ids of letters, digits, `_`, `-`, and spaces, split on single
-  spaces, as Mermaid's regular expression reads them), the latest end of the tasks the ids name, one unit of work for
-  each id, or today at midnight when no id names a task (`GanttClock.TodayAtMidnight`); else the date the date format
-  reads strictly (`Dayjs.ParseStrict`); else the date text as JavaScript's `Date` reads it in the ECMAScript format
-  (`Dayjs.ParseDateString`), which must be valid with a year from -10,000 to 10,000.
+- **`GetStartDate`**: for the date format `x` or `X` and data of digits only, the timestamp, one unit of work for each
+  digit; for `after` and ids (`ReferenceIds`, the lower-case word, white space, and ids of letters, digits, `_`, `-`,
+  and spaces, split on single spaces, as Mermaid's regular expression reads them), the latest end of the tasks the ids
+  name, one unit of work for each id, or today at midnight when no id names a task (`GanttClock.TodayAtMidnight`); else
+  the date the date format reads strictly (`Dayjs.ParseStrict`, which charges its work to the meter of the render);
+  else the date text as JavaScript's `Date` reads it in the ECMAScript format (`Dayjs.ParseDateString`), which must be
+  valid with a year from -10,000 to 10,000.
 - **`GetEndDate`**: for `until` and ids, the earliest start of the tasks the ids name, or today at midnight; else the
-  date the date format reads strictly, a day later with inclusive end dates; else the start plus the duration that
-  `ParseDuration` reads (Mermaid's `parseDuration`: `/^(\d+(?:\.\d+)?)([Mdhmswy]|ms)$/` on the trimmed text), added with
-  `Dayjs.Add`; else the start.
+  date the date format reads strictly (charged as for the start), a day later with inclusive end dates; else the start
+  plus the duration that `ParseDuration` reads (Mermaid's `parseDuration`: `/^(\d+(?:\.\d+)?)([Mdhmswy]|ms)$/` on the
+  trimmed text), added with `Dayjs.Add`; else the start.
 - **`CheckTaskDates`** is Mermaid's `checkTaskDates` with `fixTaskDates`: when excludes are set and the end is not
   manual, it walks the days from the day after the start to the end, each day charged `DayCost` (1 plus the length of
-  the date format plus the numbers of excludes and includes tokens); each excluded day moves the end a day later, the
+  the date format plus, for each excludes and includes token, 1 and its length, which bounds the searches of the
+  lists) and the formatting of the day, which `IsInvalidDate` charges; each excluded day moves the end a day later, the
   end of the drawn bar is the last end before an excluded day, and an end more than 10,000 days past its first value
   fails as Mermaid fails.
 - **`IsInvalidDate`** is Mermaid's `isInvalidDate`: a date is excluded unless its text in the date format or as
   `YYYY-MM-DD` is included, when weekends are excluded and its ISO weekday is the first or second day of the weekend
   (`WEEKEND_START_DAY`: Friday 5, Saturday 6), or when its weekday name (`dddd`, in lower case), its text in the date
-  format, or its `YYYY-MM-DD` text is excluded.
+  format, or its `YYYY-MM-DD` text is excluded. It formats the date with the work meter of the render, so each
+  formatting is charged.
 - **`GanttClock.TodayAtMidnight`** gives today at midnight and **`NoteTodayUsed`** notes a strict date that took a
   field from today; both report, when today is not known, one `mermaid-gantt-today-unavailable` warning for the clock
   (`Warn`), so one for each compilation, located at the first task that needs today.
@@ -126,10 +129,20 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
   format split into its tokens, each value taken with its token's expression, the date built with today for the fields
   the format does not give, and the date made invalid unless formatting it gives the text back; `x` and `X` read as
   timestamps); `ToNumber` (JavaScript's `Number`: white space ignored, an empty text 0, and the decimal, hexadecimal,
-  octal, binary, and infinite literals); and `ParseDateString` (the ECMAScript date time string format: a four-digit
-  or signed six-digit year, an optional month and day, an optional time with seconds and a fraction, and with a time
-  an optional `Z` or offset; a date alone in UTC, a time without an offset local, which is UTC; a day up to 31 carried
-  into the next month and `24:00` as the next midnight, as V8 reads them).
+  octal, binary, and infinite literals, a radix literal rounded to the nearest double as JavaScript rounds it and taken
+  as infinite without building a number past 1,024 bits); and `ParseDateString` (the ECMAScript date time string
+  format: a four-digit or signed six-digit year, an optional month and day, an optional time with seconds and a
+  fraction, and with a time an optional `Z` or offset; a date alone in UTC, a time without an offset local, which is
+  UTC; a day up to 31 carried into the next month and `24:00` as the next midnight, as V8 reads them).
+- **Cost of `Dayjs`.** `Format` is linear in its format: the search for the end of a text in brackets resumes at the
+  closing bracket it found last, so a format of many opening brackets is searched once. `ParseStrict` splits the
+  format in one pass (a text in brackets is searched only up to the next opening bracket), searches the rest of the
+  text once for each token with a value (the word expression of `A`, `a`, `Do`, `MMM`, and `MMMM` passes a run of
+  digits whole instead of trying each start in it), and removes the value from the text with a linear search (Knuth,
+  Morris, and Pratt), so its work is at most the product of the lengths of the text and the format. Given a work
+  meter, `Format` charges 1 plus the length of the format and of the text its advanced tokens give, and `ParseStrict`
+  charges 1 plus the length of the text and twice that of the format, 1 plus twice the length of the rest of the text
+  for each token with a value before it is searched, and the formatting of the strict check.
 - **`CheckLength`** checks a text's length against `MaxLabelLength`; the parser uses it for the tokens it keeps, and the
   model for the texts it derives (`Checked`).
 

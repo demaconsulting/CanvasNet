@@ -185,7 +185,9 @@ those 27, fail with Mermaid's `Invalid date:` message.
 ##### CanvasNetMermaid-Gantt-GanttModel-Dayjs: The Dayjs That Mermaid Bundles
 
 **Tests**: `GanttModelTests.Dayjs_Format_TokensAsTheBundledDayjs`,
+`GanttModelTests.Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce`,
 `GanttModelTests.Dayjs_ParseStrict_MatchesTheCustomParseFormatPlugin`,
+`GanttModelTests.Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken`,
 `GanttModelTests.Dayjs_NumberAndDateStrings_FollowJavaScript`,
 `GanttModelTests.GanttModel_Compile_Durations_AddAsDayjsDoes`
 
@@ -193,12 +195,23 @@ Asserts that 2024-01-05T09:07:03.045Z formatted with
 `YYYY-MM-DD HH:mm:ss.SSS [at] dddd ddd dd MMMM MMM Do Q W kk h a A Z ZZ X` is exactly
 `2024-01-05 09:07:03.045 at Friday Fri Fr January Jan 5th 1 1 09 9 am AM +00:00 +0000 1704445623`, and with an empty
 format `2024-01-05T09:07:03+00:00`; that the format `w` throws `NotSupportedException` for a valid date and gives
-`Invalid Date` for an invalid one; that with today at 2024-06-12T10:30Z the strict parse reads `05-01-2024` as
+`Invalid Date` for an invalid one; that the same date formatted with the bracket formats `[a[b]c] [YYYY] [[ YYYY`,
+`[[[[]`, `[[[[ YYYY`, `YYYY []] [`, and `[[x]YYYY-MM-DD` gives exactly what the bundled dayjs gives
+(`a[bc] YYYY [[ 2024`, `[[[`, `[[[[ 2024`, `2024 []] [`, and `[x2024-01-05`), and that formatting charges a meter
+exactly 9 units for `YYYY` and 8,001 for 4,000 opening brackets, which it gives back unchanged; that with today at
+2024-06-12T10:30Z the strict parse reads `05-01-2024` as
 `DD-MM-YYYY` to 2024-01-05, `69-01-08` as `YY-MM-DD` to 1969-01-08, and `04:30 pm` as `hh:mm a` to
 2024-06-12T16:30Z (taking the date from today and noting it), and refuses `2024-1-5` as `YYYY-MM-DD` (it does not
-format back) and `01/05/2024` as `L` (no long-date format in the locale); that `Number` gives 0 for spaces, 16 for
-`0x10`, 1000 for ` 1e3 `, and NaN for `12px`; that the year difference from 2024-06-01 to 2023-01-01 is -1 (truncated);
-and that the month and day arithmetic of the durations above is dayjs's.
+format back) and `01/05/2024` as `L` (no long-date format in the locale); that it reads `May 2024` as `MMM YYYY` to
+2024-05-01, charging exactly 70 units, `5th January 2024` as `Do MMMM YYYY` and `[x2024-01-05` as `[[x]YYYY-MM-DD` to
+2024-01-05, and refuses `123 45-May 2024` as `MMM YYYY` (the word found after the digit runs does not format back) and
+`x2024-01-05` as `[[x]YYYY-MM-DD`, as the bundled dayjs does; that 2,600 digits followed by 600 words parsed with 600
+`A` tokens charge at least twice 3,200 characters for each token; that `Number` gives 0 for spaces, 16 for
+`0x10`, 1000 for ` 1e3 `, and NaN for `12px`, rounds the hexadecimal, binary, and octal literals near the largest
+double as JavaScript does (256 hexadecimal `F` digits and an octal 1 followed by 342 zeros are infinite, 255 `F` digits
+are 1.1235582092889474e+307, and a binary 1 followed by 1,023 zeros is 8.98846567431158e+307), reads 5,000 leading
+zeros, and gives NaN for an invalid digit after 5,000 valid ones; that the year difference from 2024-06-01 to
+2023-01-01 is -1 (truncated); and that the month and day arithmetic of the durations above is dayjs's.
 
 ##### CanvasNetMermaid-Gantt-GanttModel-RenderFailures: Located Compilation Failures
 
@@ -216,20 +229,36 @@ as the Verification Approach describes.
 
 ##### CanvasNetMermaid-Gantt-GanttModel-WorkCharges: Pinned Work Charges
 
-**Tests**: `GanttModelTests.GanttModel_Compile_WorkCharges_ArePinned`
+**Tests**: `GanttModelTests.GanttModel_Compile_WorkCharges_ArePinned`,
+`GanttModelTests.Dayjs_Format_BracketsAsTheBundledDayjs_ChargedOnce`,
+`GanttModelTests.Dayjs_ParseStrict_WordsAndBrackets_AsTheBundledDayjs_ChargedPerToken`,
+`GanttModelTests.GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded`
 
 Asserts that compiling the tasks `A :a, 2024-01-01, 3d` and `B :b, after a, 2d` under `dateFormat YYYY-MM-DD` charges
-exactly 3 work units (one for each task in the one pass and one for the `after` id), and that with `excludes weekends`
-the same tasks charge exactly 87 (the same 3 plus 7 days of the excluded-days loops at a day cost of 12: 1, the 10
-characters of the date format, and the 1 excludes token).
+exactly 214 work units: one for each task in the one pass and one for the `after` id; 95 for the strict parse of
+`2024-01-01` (31 for the text and twice the format, 21, 13, and 9 for its three tokens as the rest of the text
+shrinks, and 21 for formatting it back); and 29 for each of the four failed strict parses of `3d` and `2d` as an end
+and as a manual end (23 for the text and twice the format, 5 for the first token, whose search fails, and one for
+formatting the invalid date). Asserts that with `excludes weekends` the same tasks charge
+exactly 693: the same 214, plus 7 days of the excluded-days loops at a day cost of 20 (1, the 10 characters of the
+date format, and 1 and the 8 characters of the excludes token), each with two `YYYY-MM-DD` formats of 21 units, and the
+`dddd` format of 9 units on the 5 days that are not on the weekend. Asserts the charges of formatting and of the strict
+parse described with the Dayjs scenario, and that the strict parse of the 3,800-character text of 600 words with 600
+`A` tokens charges a task's compilation at least twice 3,200 characters for each token, within the default limit.
 
 ##### CanvasNetMermaid-Gantt-GanttModel-Limits: Derived Texts And Work
 
 **Tests**: `GanttParserTests.GanttParser_Parse_ManyClicks_ClassListExceedsMaxLabelLength`,
-`GanttModelTests.GanttModel_Compile_LongExcludedSpan_ExceedsWorkLimit`
+`GanttModelTests.GanttModel_Compile_LongExcludedSpan_ExceedsWorkLimit`,
+`GanttModelTests.GanttModel_Compile_WordTokensOnLongText_ChargedPerTokenAndBounded`,
+`GanttModelTests.GanttModel_Compile_BracketHeavyFormat_EndsWithWorkLimit`
 
 Asserts that with `MaxLabelLength` of 50 six statements `click a call f()` make the class list of the task `a` (six
 times `clickable` joined with spaces, 59 characters) too long, refused with `mermaid-limit-exceeded` at line 8, the
 sixth click statement, after five were accepted; and that the task `2024-01-01, 2000y` under `excludes weekends`,
 compiled with a work meter of 100,000 units, fails with a `MermaidRenderException` of code `mermaid-limit-exceeded`
-whose message names `MaxLayoutWork`.
+whose message names `MaxLayoutWork`. Asserts, with the default work limit, that one task whose end is 2,600 digits and
+600 words under a date format of 600 `A` tokens compiles (its end, no date and no duration, is its start), while two
+such tasks with a circular `after` pair, which forces every pass, fail with `mermaid-limit-exceeded`; and that a date
+format of 4,000 opening brackets fails with `mermaid-limit-exceeded` both for 1,990 tasks with a circular `after` pair
+and for one task of 100,000 days under `excludes monday`. These outcomes are asserted, never the time taken.

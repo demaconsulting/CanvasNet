@@ -122,6 +122,7 @@ chart without an `accTitle` statement has none.
 **Tests**: `PieParserTests.PieParser_Parse_GrammarError_IsLocatedWithTheExpectedTokens`,
 `PieParserTests.PieParser_Parse_LexicalError_IsLocatedAtTheFirstUnmatchedCharacter`,
 `PieParserTests.PieParser_Parse_Numbers_FollowTheTerminals`,
+`PieParserTests.PieParser_Parse_Directives_EndAtTheFirstClosingOrAreComments`,
 `PieVectorTests.PieParser_Parse_UpstreamVector_MatchesMermaid`
 
 Asserts that five grammar errors (a theory) are `mermaid-syntax-error` at the refused token with exactly the expected
@@ -131,8 +132,11 @@ tokens chevrotain lists and a hint: `"a" 1` at line 2, column 5 with `:`; `"a" :
 first character no token matches, with the message `unrecognized text` and no expected tokens: the exponent of
 `1e3` at line 2, column 8; the leading dot of `.5` at line 2, column 7; `showdata`, which is no keyword, at line 1,
 column 5; and the unquoted label `label` at line 2, column 1. Asserts that `007` fails with `NEWLINE` and `EOF`
-expected, and that the 34 lexical and grammar errors among the upstream vectors are located at Mermaid's first error,
-the grammar errors with Mermaid's expected tokens.
+expected; that a directive `%%{` ends at the first closing `}%%` followed by a line end or white space, past a
+closing followed by another character on the next line, so the section after it is read; that 6,000 lines of `%%{`
+that no closing ends are comments, and the 6,000 closings `}%%x` after them fail with `unrecognized text` at line
+6,002, column 1; and that the 34 lexical and grammar errors among the upstream vectors are located at Mermaid's first
+error, the grammar errors with Mermaid's expected tokens.
 
 ##### CanvasNetMermaid-Pie-PieParser-Limits: Section And Label Limits
 

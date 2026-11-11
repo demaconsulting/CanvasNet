@@ -72,10 +72,10 @@ items carry the location of their task, of the `todayMarker` statement, of the t
   tasks span more than five years (dayjs's `diff` in years, `Dayjs.DiffYears`) it reports
   `mermaid-gantt-excludes-skipped` at the diagram keyword and shades nothing, as Mermaid only warns. Otherwise it walks
   the days from the earliest start to the latest end, charging the meter the day cost of the model for each, asks the
-  model whether the day is excluded (`IsInvalidDate`), and draws a rectangle for each run of excluded days that a
-  day that is not excluded ends (a run still open at the end is not drawn, as in Mermaid): from the start of its first
-  day to the end of its last day, from the grid line start padding to the top padding above the bottom, with the paint
-  of `.exclude-range`.
+  model whether the day is excluded (`IsInvalidDate`, which charges the meter for formatting the day), and draws a
+  rectangle for each run of excluded days that a day that is not excluded ends (a run still open at the end is not
+  drawn, as in Mermaid): from the start of its first day to the end of its last day, from the grid line start padding
+  to the top padding above the bottom, with the paint of `.exclude-range`.
 - **`DrawRects`** (Mermaid's `drawRects`) puts the vertical markers after the other tasks and draws, for each row, a
   background row with the first task of the row at x 0, the row's y less 2, the width less half the right padding, and
   one row high, with the classes `section section<n>`, where `n` is the index of the section among the sections modulo

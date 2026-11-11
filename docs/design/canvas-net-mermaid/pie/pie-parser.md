@@ -69,7 +69,9 @@ order they were added, each label once (`Sections`, Mermaid's `getSections`).
 - **`Tokenize`** splits the parser text into tokens, trying the rules in order at each position, keeping the tokens of
   the kinds the grammar reads and skipping the hidden ones, and ending the list with one `EOF` token. A position where
   no rule matches is a lexical error. Every matcher looks at most to the end of its line, its closing brace, or the end
-  of its YAML block or directive, so the tokens are found in time linear in the text.
+  of its YAML block or directive; the last closing that can end a directive is found once, before the tokens, so an
+  opening after it fails at once instead of searching the rest of the text again, and the tokens are found in time
+  linear in the text.
 - **`Run`** reads the grammar `NEWLINE* "pie" showData? (TitleAndAccessibilities | PieSection | NEWLINE)* EOF` with
   one token of lookahead (the grammar is LL(1)), in a loop: line breaks; a section (`STRING`, `:`, `NUMBER_PIE`, and a
   line end), counted against `MaxNodes` before it is read; or one or more title, accessible title, and accessible
