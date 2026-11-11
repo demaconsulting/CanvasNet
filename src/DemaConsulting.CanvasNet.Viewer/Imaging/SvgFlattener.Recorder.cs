@@ -29,9 +29,10 @@ public static partial class SvgFlattener
     internal sealed record Capture(string Format, int Width, int Height, long PngBytes, string DataUri);
 
     /// <summary>
-    ///     The resolver the drawing is drawn with once: it records every link the SVG library asks for, and draws the
-    ///     links to replace through the resolver of <c>canvasnet render</c>, keeping them as PNG pictures. It returns
-    ///     nothing to the SVG library, because the drawing itself is not needed.
+    ///     The resolver the drawing is drawn with once: it records every link the SVG library asks for with its largest
+    ///     placement, and afterwards (<see cref="DrawRecorded"/>) draws the links to replace through the resolver of
+    ///     <c>canvasnet render</c>, keeping them as PNG pictures. It returns nothing to the SVG library, because the
+    ///     drawing itself is not needed.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -42,9 +43,11 @@ public static partial class SvgFlattener
     ///         A raster or an unknown link is not drawn at all.
     ///     </para>
     ///     <para>
-    ///         A link that is shown more than once is kept at its largest size. The resolver applies its sandbox, its
-    ///         limits (64 pictures, 4 levels, cycles, the pixel budget), and reports what it could not draw; the sum of
-    ///         the kept pictures is limited to the output limit as they are drawn. Not thread-safe: one per flatten.
+    ///         A link that is shown more than once is drawn once, at its largest placement (the most pixels; the first of
+    ///         equal ones), so the image count and the pixel budget are charged once for it. The links are drawn in the
+    ///         order the drawing first shows them. The resolver applies its sandbox, its limits (64 pictures, 4 levels,
+    ///         cycles, the pixel budget), and reports what it could not draw; the sum of the kept pictures is limited to
+    ///         the output limit as they are drawn. Not thread-safe: one per flatten.
     ///     </para>
     /// </remarks>
     private sealed class Recorder : IImageResolver
@@ -70,9 +73,14 @@ public static partial class SvgFlattener
         private readonly Dictionary<string, Capture> _captures = new(StringComparer.Ordinal);
 
         /// <summary>
-        ///     The links to SVG files that were drawn and link no file only CanvasNet draws.
+        ///     The links to draw, in the order the drawing first shows them, with the kind of the linked file.
         /// </summary>
-        private readonly HashSet<string> _plain = new(StringComparer.Ordinal);
+        private readonly List<(string Href, SourceKind Kind)> _order = [];
+
+        /// <summary>
+        ///     The largest placement of each link to draw, as the size to draw.
+        /// </summary>
+        private readonly Dictionary<string, (int Width, int Height)> _largest = new(StringComparer.Ordinal);
 
         /// <summary>
         ///     Every link the SVG library asked for.
@@ -108,14 +116,13 @@ public static partial class SvgFlattener
         public IReadOnlyDictionary<string, Capture> Captures => _captures;
 
         /// <summary>
-        ///     Records a link the drawing shows and draws it when it is one to replace.
+        ///     Records a link the drawing shows, and the size of its placement when it is one to replace; nothing is drawn
+        ///     yet (see <see cref="DrawRecorded"/>).
         /// </summary>
         /// <param name="href">The link, trimmed.</param>
         /// <param name="pixelWidth">The width of the placement on the canvas.</param>
         /// <param name="pixelHeight">The height of the placement on the canvas.</param>
         /// <returns>Always <see langword="null"/>: the drawing is not needed.</returns>
-        /// <exception cref="ImageSourceException">Thrown when a linked file is found but broken.</exception>
-        /// <exception cref="ViewerException">Thrown with code <c>size-limit</c> when the kept pictures exceed the output limit.</exception>
         public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
         {
             ArgumentNullException.ThrowIfNull(href);
@@ -128,32 +135,51 @@ public static partial class SvgFlattener
                 return null;
             }
 
-            // A link already kept at least this large, or an SVG file known to be plain, is not drawn again
+            // Only the largest placement of a link is kept (the first of equal ones)
             var width = Enlarge(pixelWidth);
             var height = Enlarge(pixelHeight);
-            if (_plain.Contains(href)
-                || (_captures.TryGetValue(href, out var kept) && (long)kept.Width * kept.Height >= (long)width * height))
+            if (!_largest.TryGetValue(href, out var largest))
             {
-                return null;
+                _order.Add((href, known));
+                _largest[href] = (width, height);
+            }
+            else if ((long)width * height > (long)largest.Width * largest.Height)
+            {
+                _largest[href] = (width, height);
             }
 
-            // The resolver lists what it drew, nested pictures before the one that embeds them
-            var before = _resolver.Embedded.Count;
-            using var surface = _resolver.Resolve(href, width, height);
-            if (surface is null)
-            {
-                return null;
-            }
-
-            var composite = _resolver.Embedded.Skip(before).Any(e => e.Depth > 0 && !PlainFormats.Contains(e.Format));
-            if (known == SourceKind.Svg && !composite)
-            {
-                _plain.Add(href);
-                return null;
-            }
-
-            Keep(href, known, surface);
             return null;
+        }
+
+        /// <summary>
+        ///     Draws each recorded link once, at its largest placement, in the order the drawing first showed them, and
+        ///     keeps the pictures to replace.
+        /// </summary>
+        /// <exception cref="ImageSourceException">Thrown when a linked file is found but broken.</exception>
+        /// <exception cref="ViewerException">Thrown with code <c>size-limit</c> when the kept pictures exceed the output limit.</exception>
+        public void DrawRecorded()
+        {
+            foreach (var (href, kind) in _order)
+            {
+                var (width, height) = _largest[href];
+
+                // The resolver lists what it drew, nested pictures before the one that embeds them
+                var before = _resolver.Embedded.Count;
+                using var surface = _resolver.Resolve(href, width, height);
+                if (surface is null)
+                {
+                    continue;
+                }
+
+                // An SVG file is kept only when it links a file only CanvasNet draws at any depth
+                var composite = _resolver.Embedded.Skip(before).Any(e => e.Depth > 0 && !PlainFormats.Contains(e.Format));
+                if (kind == SourceKind.Svg && !composite)
+                {
+                    continue;
+                }
+
+                Keep(href, kind, surface);
+            }
         }
 
         /// <summary>
@@ -168,7 +194,7 @@ public static partial class SvgFlattener
         }
 
         /// <summary>
-        ///     Keeps a picture as a PNG data URI, replacing a smaller one of the same link.
+        ///     Keeps a picture as a PNG data URI.
         /// </summary>
         /// <param name="href">The link.</param>
         /// <param name="kind">The kind of the linked file.</param>
@@ -181,9 +207,8 @@ public static partial class SvgFlattener
 
             // The size is checked before the text of the URI is made
             var length = DataUriPrefix.Length + (4 * ((png.Length + 2) / 3));
-            var previous = _captures.TryGetValue(href, out var old) ? old.DataUri.Length : 0;
-            CheckSize(_dataBytes + length - previous, _maxOutputBytes);
-            _dataBytes += length - previous;
+            CheckSize(_dataBytes + length, _maxOutputBytes);
+            _dataBytes += length;
 
             var dataUri = DataUriPrefix + Convert.ToBase64String(png.GetBuffer(), 0, (int)png.Length);
             _captures[href] = new Capture(kind.ToFormatName(), surface.Width, surface.Height, png.Length, dataUri);

@@ -52,13 +52,17 @@ the caller, a scale out of range with `usage-error` (the validator of `SourceLoa
 
 **Recorder.Resolve(href, width, height)**: the SVG library calls it for every link it shows (never for a `data:` URI or
 a `#` link), with the device size of the placement through the `viewBox` and every transform (the edge lengths of a
-rotated placement). It records the link; a link whose kind (`SourceLoader.SvgImages.KindOfName`, the rule of the render
-error mapping) is a raster or unknown is not drawn. A link of a CanvasNet-only kind, or an SVG file, is drawn by the
-resolver of render at the placement size times the enlargement; an SVG file is kept only when the pictures the resolver
-drew for it (`FolderImageResolver.Embedded`, nested before outer) include one of another format than a raster or SVG at
-depth 1 or more. A kept picture is encoded as PNG; a link already kept at least as large, or an SVG file known to be
-plain, is not drawn again, so a link shown twice is kept at its largest placement. The sum of the data URIs is checked
-against `MaxOutputBytes` as they are kept. It always returns `null`: the drawing itself is not needed.
+rotated placement). It records the link and draws nothing; a link whose kind (`SourceLoader.SvgImages.KindOfName`, the
+rule of the render error mapping) is a raster or unknown is not drawn at all. For a link of a CanvasNet-only kind, or an
+SVG file, it keeps the largest placement (the most pixels, the first of equal ones) times the enlargement, and the order
+in which the links were first shown. It always returns `null`: the drawing itself is not needed.
+
+**Recorder.DrawRecorded()**: called once the SVG library has drawn the drawing, it draws each recorded link exactly once,
+in the order first shown, with the resolver of render at its largest placement, so the image count and the pixel budget
+of the resolver are charged once per link (a smaller placement drawn first can never use up what the larger one needs).
+An SVG file is kept only when the pictures the resolver drew for it (`FolderImageResolver.Embedded`, nested before outer)
+include one of another format than a raster or SVG at depth 1 or more. A kept picture is encoded as PNG, and the sum of
+the data URIs is checked against `MaxOutputBytes` as they are kept.
 
 **FindImageLinks(bytes, text)**: reads the bytes with the hardened XML reader of the SVG library (`SafeXml.CreateReader`,
 no DTD, at most 5,000,000 characters) and, for each element whose local name is `image`, takes the unprefixed `href`,

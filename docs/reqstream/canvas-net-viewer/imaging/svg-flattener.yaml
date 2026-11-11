@@ -43,6 +43,8 @@ sections:
           - SvgFlattener_Execute_RotatedPlacement_UsesEdgeLengths
           - SvgFlattener_Execute_LargeDrawing_PictureKeepsFullPlacementSize
           - SvgFlattener_Execute_SameHrefTwice_BothReplacedAtLargestSize
+          - SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesImageCountOnce
+          - SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesPixelBudgetOnce
 
       - id: CanvasNetViewer-Imaging-SvgFlattener-Rewrite
         title: >-

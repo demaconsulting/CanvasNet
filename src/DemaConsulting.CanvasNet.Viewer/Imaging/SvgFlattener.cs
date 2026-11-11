@@ -346,7 +346,8 @@ public static partial class SvgFlattener
     }
 
     /// <summary>
-    ///     Draws the drawing once with the recording resolver, which draws and keeps each picture to replace.
+    ///     Draws the drawing once with the recording resolver, which records the largest placement of each link, and then
+    ///     draws and keeps each picture to replace once, at that placement.
     /// </summary>
     /// <param name="info">The facts about the drawing.</param>
     /// <param name="request">The request.</param>
@@ -364,6 +365,7 @@ public static partial class SvgFlattener
             {
                 using var stream = new MemoryStream(document.Bytes, false);
                 using var surface = SvgCodec.LoadWithFontFaces(stream, width, height, null, new SvgLoadOptions { ImageResolver = recorder });
+                recorder.DrawRecorded();
                 return surface.Width;
             });
         }

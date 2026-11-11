@@ -1928,14 +1928,19 @@ the order of its command line, and the filters of a defaults file take the place
 
 **SVG drawings.** WeasyPrint, which turns the HTML into the PDF, draws nothing for an `<image href="flow.mmd">` (or a
 model, a chart, or a page of a document) inside an SVG picture. For an `.svg` picture the filter reads the drawing and
-the `.svg` files it links (`href` and `xlink:href` of each `image` element); when none of them links such a file the
-picture is left alone and the tool is not started, so a plain SVG stays a vector picture. Otherwise the filter runs
+the `.svg` files it links the way the tool does (the `href` of each `image` element, or its `xlink:href` when it has no
+`href`; comments, CDATA sections, processing instructions, and a DOCTYPE hold no links, and a `>` inside a quoted
+attribute value does not end a tag); when none of them links such a file the picture is left alone and the tool is not
+started, so a plain SVG stays a vector picture. A link to such a file that does not exist counts too: the tool reports it
+(`svg-image-unresolved`) as a warning instead of the link being left silently broken. Otherwise the filter runs
 `canvasnet flatten ... --json` and the picture points at the flattened copy in `docs/generated/canvasnet/`, in which
 each such link is a PNG picture of its placement size (`scale=2` for sharper pictures in print; every other attribute
 stays on the picture) and the relative links that are left are rewritten to find their files from there. The copy is
-cached like the PNG pictures, by a hash of the drawing, of its folder (which the rewritten links lead to), and of every
-file it links. A drawing that the tool finds nothing to flatten in (a diagram the drawing never shows, reported as a
-warning) is left alone, with a marker in the cache so that the tool is not started again for it.
+cached like the PNG pictures, by a hash of the drawing, of its folder (which the rewritten links lead to), of every
+file it links, and of each such file that is missing (so creating it flattens the drawing). A drawing that the tool
+finds nothing to flatten in (a diagram the drawing never shows, or a missing file, reported as a warning) is left alone,
+with a marker in the cache so that the tool is not started again for it; the marker keeps the warnings, which every
+later build shows again.
 
 Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
 found stops the build with a message that names the picture. All other attributes

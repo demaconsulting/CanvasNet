@@ -393,6 +393,66 @@ public class SvgFlattenerTests
     }
 
     /// <summary>
+    ///     Test that a link shown small first and large later counts once against the limit of 64 pictures: with 63
+    ///     other diagrams between its two placements, every link is replaced and it is drawn at the larger size.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesImageCountOnce()
+    {
+        // Arrange: the repeated diagram small, 63 other diagrams, then the repeated diagram large: 64 different links
+        using var directory = new TempDirectory();
+        CopyDiagram(directory);
+        var body = new StringBuilder("<image href='flow.mmd' width='10' height='10'/>");
+        for (var i = 0; i < 63; i++)
+        {
+            FixtureFactory.WriteText(directory.Path, $"d{i}.mmd", "flowchart LR\n  a --> b\n");
+            body.Append($"<image href='d{i}.mmd' width='8' height='8'/>");
+        }
+
+        body.Append("<image href='flow.mmd' width='60' height='60'/>");
+        var input = WriteSvg(directory, "a.svg", body.ToString());
+        var output = directory.Combine("b.svg");
+
+        // Act
+        var result = Flatten(input, output);
+
+        // Assert: nothing is over the limit, and the repeated link is drawn once at its larger placement
+        Assert.Equal(64, result.Replaced.Count);
+        Assert.Empty(result.Diagnostics);
+        var repeated = Assert.Single(result.Replaced, r => r.Href == "flow.mmd");
+        Assert.Equal((2, 60, 60), (repeated.Elements, repeated.Width, repeated.Height));
+        Assert.DoesNotContain(".mmd'", File.ReadAllText(output), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a link shown small first and large later is drawn only at its larger size, so a pixel budget that
+    ///     holds the large picture but not the small and the large one together still draws it at the larger size.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesPixelBudgetOnce()
+    {
+        // Arrange: a 2048-unit drawing at scale 4, so the placements are 5700 and 5800 pixels square; 5800 squared fits
+        // the budget of 64,000,000 pixels, but 5700 squared plus 5800 squared does not
+        using var directory = new TempDirectory();
+        CopyDiagram(directory);
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "a.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2048 2048' width='2048' height='2048'>"
+            + "<image href='flow.mmd' width='1425' height='1425'/>"
+            + "<image href='flow.mmd' y='100' width='1450' height='1450'/></svg>");
+        var output = directory.Combine("b.svg");
+
+        // Act
+        var result = Flatten(input, output, scale: 4);
+
+        // Assert: one picture at the larger placement, and nothing refused for the budget
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == FolderImageResolver.TooLargeCode);
+        var replaced = Assert.Single(result.Replaced);
+        Assert.Equal((2, 5800, 5800), (replaced.Elements, replaced.Width, replaced.Height));
+    }
+
+    /// <summary>
     ///     Test that a diagram the drawing never shows is reported with its position and left as a link.
     /// </summary>
     [Fact]

@@ -49,14 +49,18 @@ scale; every other attribute of it stays on the picture.
 
 SVG drawings. An SVG reader such as WeasyPrint draws nothing for an <image href="flow.mmd"> (or a .scad, .vl.json,
 .pdf, .pptx, or .vsdx link, or a nested .svg file that links one). For an .svg picture the filter reads the drawing
-and the .svg files it links (href and xlink:href of every image element, entities decoded, a fragment and a query
-dropped, remote and data: links skipped); when none of them links such a file, the picture is left alone and the
-tool is not started, so a plain SVG drawing stays a vector picture exactly as before. Otherwise the tool writes a
+and the .svg files it links (as the tool does: the href of every image element, or its xlink:href when it has no href,
+entities decoded, a fragment and a query dropped, remote and data: links skipped; comments, CDATA sections, processing
+instructions and a DOCTYPE hold no links, and a ">" in a quoted attribute does not end a tag); when none of them links
+such a file, the picture is left alone and the tool is not started, so a plain SVG drawing stays a vector picture
+exactly as before. A link to such a file that does not exist counts too, so the tool reports it (svg-image-unresolved)
+instead of the link being left silently broken. Otherwise the tool writes a
 copy ("canvasnet flatten ... --json") in which each such link is a PNG picture of its placement size (times scale)
 as a data: URI, and the picture points at the copy, docs/generated/canvasnet/<name>-<hash>.svg; the tool rewrites the
 relative links that are left (rasters, plain .svg files) so they still find their files from there. When the tool
-finds nothing to flatten (a diagram that the drawing never shows, which it reports as a warning), the picture is
-left alone and a marker (<hash>.plain) saves later builds from starting the tool again.
+finds nothing to flatten (a diagram that the drawing never shows, or a missing file, which it reports as a warning),
+the picture is left alone and a marker (<hash>.plain, holding the tool's warnings, which later builds show again) saves
+later builds from starting the tool again.
 
 A Mermaid diagram can also be written in the document, as a fenced code block of class mermaid:
 
@@ -118,8 +122,8 @@ that decides the picture:
     or a model that with its includes is more than 512 files, stops the build, since a file left out of the
     hash could change without the picture being drawn again; for an SVG drawing every local file its image
     elements link (an .svg file with its own links, a model, chart or diagram with its own files, any other
-    file as it is; a link in a comment, or in a tag with a ">" inside an attribute before the link, may be
-    over- or under-counted, which can only add a file to the hash or miss a change in an unusual file);
+    file as it is), and each missing model, chart, diagram or document it links as a "missing" entry, so creating
+    the file later flattens the drawing again;
   - for an SVG drawing, its folder as seen from docs/generated/canvasnet/, since the links the tool rewrites in the
     copy lead from there to it;
   - the drawing attributes, with the defaults this filter adds;
@@ -167,7 +171,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "10"
+local FILTER_VERSION = "11"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -825,18 +829,117 @@ local function decode_entities(text)
   end))
 end
 
--- Collects the links of the image elements of an SVG text (with or without a namespace prefix): the value of every
--- href and xlink:href attribute, in double or single quotes, entities decoded and white space trimmed. A tag in a
--- comment, or one with a ">" inside an attribute before the link, can only add a file to the hash or leave one out.
+-- Reads the attributes of a start tag from "pos" (just after the element name) up to its closing ">", a ">" inside a
+-- quoted value (single or double quotes) being part of the value. Returns the attributes as a list of { name, value }
+-- (an unquoted value, which is not XML, is read up to white space or ">") and the position after the tag.
+local function read_attributes(content, pos)
+  local attributes = {}
+  local length = #content
+  while pos <= length do
+    pos = content:find("[^%s]", pos) or (length + 1)
+    local char = content:sub(pos, pos)
+    if char == ">" then
+      return attributes, pos + 1
+    elseif char == "/" then
+      pos = pos + 1
+    else
+      local name = content:match("^[^%s=/>]+", pos)
+      if not name then
+        pos = pos + 1 -- a stray "=", which is not XML
+      else
+        pos = content:find("[^%s]", pos + #name) or (length + 1)
+        local value = ""
+        if content:sub(pos, pos) == "=" then
+          pos = content:find("[^%s]", pos + 1) or (length + 1)
+          local quote = content:sub(pos, pos)
+          if quote == '"' or quote == "'" then
+            local close = content:find(quote, pos + 1, true) or (length + 1)
+            value = content:sub(pos + 1, close - 1)
+            pos = close + 1
+          else
+            value = content:match("^[^%s>]*", pos)
+            pos = pos + #value
+          end
+        end
+        table.insert(attributes, { name, value })
+      end
+    end
+  end
+  return attributes, pos
+end
+
+-- The text that ends each kind of markup that holds no elements, by the text that starts it.
+local SKIPPED_MARKUP = { { "<!--", "-->" }, { "<![CDATA[", "]]>" }, { "<?", "?>" } }
+
+-- Collects the links of the image elements of an SVG text, as the tool finds them: for each element whose name is image
+-- (with or without a namespace prefix), the unprefixed href, or a prefixed href (xlink:href) when there is none; the
+-- value with entities decoded and white space trimmed. Comments, character data, processing instructions, a DOCTYPE
+-- (with its internal subset) and end tags hold no links, and a ">" inside a quoted attribute value does not end a tag.
 local function collect_svg_links(content, links)
-  for name, attributes in content:gmatch("<([%w_%.%-:]+)([^>]*)>") do
-    if name == "image" or name:match(":image$") then
-      for _, quote in ipairs({ '"', "'" }) do
-        local pattern = "%s([%w_%.%-]*:?)href%s*=%s*" .. quote .. "([^" .. quote .. "]*)" .. quote
-        for prefix, link in (" " .. attributes):gmatch(pattern) do
-          if prefix == "" or prefix:match(":$") then
-            local value = decode_entities(link):gsub("^%s+", ""):gsub("%s+$", "")
-            links[value] = true
+  local pos = 1
+  local length = #content
+  while true do
+    local open = content:find("<", pos, true)
+    if not open then
+      return
+    end
+    local skipped = false
+    for _, markup in ipairs(SKIPPED_MARKUP) do
+      if content:sub(open, open + #markup[1] - 1) == markup[1] then
+        local close = content:find(markup[2], open + #markup[1], true)
+        if not close then
+          return
+        end
+        pos = close + #markup[2]
+        skipped = true
+        break
+      end
+    end
+    if not skipped then
+      local next_char = content:sub(open + 1, open + 1)
+      if next_char == "!" then
+        -- A DOCTYPE or another declaration: up to the ">" outside quotes and outside its internal subset "[...]"
+        local depth, quote, i = 0, nil, open + 2
+        while i <= length do
+          local char = content:sub(i, i)
+          if quote then
+            if char == quote then
+              quote = nil
+            end
+          elseif char == '"' or char == "'" then
+            quote = char
+          elseif char == "[" then
+            depth = depth + 1
+          elseif char == "]" then
+            depth = depth - 1
+          elseif char == ">" and depth <= 0 then
+            break
+          end
+          i = i + 1
+        end
+        pos = i + 1
+      elseif next_char == "/" then
+        pos = (content:find(">", open + 2, true) or length) + 1
+      else
+        local name = content:match("^[%w_%.%-:]+", open + 1)
+        if not name then
+          pos = open + 1
+        else
+          local attributes
+          attributes, pos = read_attributes(content, open + 1 + #name)
+          if name == "image" or name:match(":image$") then
+            local plain, legacy = nil, nil
+            for _, attribute in ipairs(attributes) do
+              if attribute[1] == "href" then
+                plain = attribute[2]
+              elseif legacy == nil and attribute[1]:match("^[^:]+:href$") then
+                legacy = attribute[2]
+              end
+            end
+            local link = plain or legacy
+            if link then
+              links[(decode_entities(link):gsub("^%s+", ""):gsub("%s+$", ""))] = true
+            end
           end
         end
       end
@@ -848,8 +951,10 @@ end
 -- file that only the tool draws (a model, chart, diagram, or document page), directly or through a nested .svg file.
 -- A link is taken from the drawing's folder without its fragment or query, a remote, data: or absolute link (which
 -- the tool never reads) is skipped, a nested .svg file is followed with its own links, and a linked model, chart or
--- diagram adds its own files. While a drawing is being read its entry in "seen" is true, and afterwards "composite" or
--- "plain", so a drawing linked twice is read once and a cycle ends. More than MAX_DEPENDENCIES files stops the build.
+-- diagram adds its own files. A link to such a file that is missing makes the drawing composite too (the tool reports
+-- it) and adds a "missing" entry to the hash. While a drawing is being read its entry in "seen" is true, and afterwards
+-- "composite" or "plain", so a drawing linked twice is read once and a cycle ends. More than MAX_DEPENDENCIES files
+-- stops the build.
 function add_svg_sources(path, root, parts, seen, depth)
   if depth > MAX_DEPTH then
     fail("SVG drawings are linked inside each other more than " .. MAX_DEPTH .. " levels deep")
@@ -869,23 +974,48 @@ function add_svg_sources(path, root, parts, seen, depth)
   collect_svg_links(content, links)
   local folder = pandoc.path.directory(path)
   local files = {}
+  local missing = {}
   local unique = {}
   for link in pairs(links) do
+    -- A link is taken as written and percent-decoded; a link to a file only the tool draws that is missing in both
+    -- spellings still makes the drawing one to flatten, so the tool reports the link instead of leaving it broken
+    local found = false
+    local absent = {}
     for _, name in ipairs({ link, decode_percent(link) }) do
       local resolved = local_image_file(folder, name)
-      if resolved and not unique[resolved] and file_exists(resolved) then
-        unique[resolved] = true
-        table.insert(files, resolved)
+      if resolved then
+        if file_exists(resolved) then
+          found = true
+          if not unique[resolved] then
+            unique[resolved] = true
+            table.insert(files, resolved)
+          end
+        elseif kind_of(resolved) ~= nil then
+          table.insert(absent, resolved)
+        end
+      end
+    end
+    if not found then
+      for _, resolved in ipairs(absent) do
+        if not unique[resolved] then
+          unique[resolved] = true
+          table.insert(missing, resolved)
+        end
       end
     end
   end
   -- Sorted, so the order the links are met in cannot change the picture's name.
   table.sort(files)
-  if #files > MAX_DEPENDENCIES then
-    fail("'" .. pandoc.path.filename(path) .. "' links " .. #files .. " files; the limit is "
+  table.sort(missing)
+  if #files + #missing > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' links " .. (#files + #missing) .. " files; the limit is "
       .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
   end
-  local composite = false
+  -- A missing file cannot be hashed, so the hash notes it as missing: creating it later changes the hash
+  for _, file in ipairs(missing) do
+    table.insert(parts, "missing " .. label(root, file))
+  end
+  local composite = #missing > 0
   for _, file in ipairs(files) do
     if file:lower():match("%.svg$") then
       if not seen[file] then
@@ -1282,7 +1412,12 @@ local function flatten_svg(img)
   pandoc.system.make_directory(out_dir, true)
   local out_file = pandoc.path.join({ out_dir, stem_of(source) .. "-" .. key .. ".svg" })
   local marker = pandoc.path.join({ out_dir, key .. ".plain" })
-  if file_exists(marker) then
+  local known = read_file(marker)
+  if known then
+    -- The tool's warnings are kept in the marker, so a broken link is reported on every build, not only the first
+    for line in known:gmatch("[^\n]+") do
+      warn("canvasnet.lua: " .. name .. ": " .. line)
+    end
     return nil
   end
   if not file_exists(out_file) then
@@ -1306,15 +1441,18 @@ local function flatten_svg(img)
     end
 
     local doc = decode(result) or {}
+    local warnings = {}
     for _, diagnostic in ipairs(doc.diagnostics or {}) do
-      warn("canvasnet.lua: " .. name .. ": " .. tostring(diagnostic.message))
+      local message = tostring(diagnostic.message):gsub("[\r\n]+", " ")
+      table.insert(warnings, message)
+      warn("canvasnet.lua: " .. name .. ": " .. message)
     end
     for _, line in ipairs(doc.echo or {}) do
       warn("canvasnet.lua: " .. name .. ": " .. tostring(line))
     end
     if doc.flattened ~= true then
       os.remove(partial)
-      write_atomically(marker, "nothing to flatten")
+      write_atomically(marker, table.concat(warnings, "\n") .. "\n")
       return nil
     end
     if not os.rename(partial, out_file) then

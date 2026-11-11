@@ -15,7 +15,10 @@
     the CI's mermaid-filter is run). An SVG picture that links no file only the tool draws is left alone without
     starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
     diagram is a PNG picture, cached like the other pictures (the same drawing in another folder gets its own copy),
-    and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF.
+    and WeasyPrint ("dotnet weasyprint") is run over both to check that the flattened diagram reaches the PDF. The scan
+    of an SVG drawing ignores image tags in comments, CDATA sections and processing instructions, reads past a ">" in a
+    quoted attribute, and starts the tool for a link to a missing diagram (directly or in a nested SVG file), whose
+    warning is shown on every build until creating the file flattens the drawing.
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -562,6 +565,43 @@ pie title Pets
         $hidden.Log -match 'is not shown by the drawing' -and @(Get-ChildItem -LiteralPath $cache -Filter '*.plain').Count -eq 1) `
         'a drawing whose diagram is never shown is left alone with a warning and a marker' "$($hidden.Log)`n$($hidden.Html)"
 
+    # The pre-scan reads the markup as the tool does: a ">" in a quoted attribute does not end the tag
+    Set-Content (Join-Path $svgDir 'quoted.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' +
+        '<image aria-label="a > b" data-note=''x > y'' href="flow.mmd" width="100" height="50"/></svg>')
+    $quoted = Invoke-Filter 'svg-quoted' '![q](svg/quoted.svg)'
+    Write-Result ($quoted.ExitCode -eq 0 -and $quoted.Html -match 'generated/canvasnet/quoted-[0-9a-f]+\.svg') `
+        'a link after a quoted ">" in an image tag is found and flattened' "$($quoted.Log)`n$($quoted.Html)"
+
+    # A link to a diagram that does not exist (directly, or in a nested SVG file) starts the tool, which reports it; the
+    # warning is shown again from the marker, and creating the file flattens the drawing
+    Set-Content (Join-Path $svgDir 'gone.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="gone.mmd" width="100" height="50"/></svg>')
+    Set-Content (Join-Path $svgDir 'gone-outer.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="gone-inner.svg" width="200" height="100"/></svg>')
+    Set-Content (Join-Path $svgDir 'gone-inner.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><image href="gone-too.mmd" width="100" height="50"/></svg>')
+    $gone = Invoke-Filter 'svg-gone' '![g](svg/gone.svg)'
+    Write-Result ($gone.ExitCode -eq 0 -and $gone.Html -match 'src="svg/gone\.svg"' -and $gone.Log -match 'canvasnet\.lua: svg/gone\.svg: .*gone\.mmd') `
+        'a link to a missing diagram starts the tool, which reports it as a warning' "$($gone.Log)`n$($gone.Html)"
+    $goneAgain = Invoke-Filter 'svg-gone' '![g](svg/gone.svg)'
+    Write-Result ($goneAgain.ExitCode -eq 0 -and $goneAgain.Log -match 'canvasnet\.lua: svg/gone\.svg: .*gone\.mmd') `
+        'the warning about a missing diagram is shown again from the marker' $goneAgain.Log
+    $goneNested = Invoke-Filter 'svg-gone-nested' '![g](svg/gone-outer.svg)'
+    Write-Result ($goneNested.ExitCode -eq 0 -and $goneNested.Log -match 'gone-too\.mmd') `
+        'a missing diagram linked by a nested SVG file is reported' "$($goneNested.Log)`n$($goneNested.Html)"
+    Copy-Item (Join-Path $svgDir 'flow.mmd') (Join-Path $svgDir 'gone.mmd')
+    $goneMade = Invoke-Filter 'svg-gone' '![g](svg/gone.svg)'
+    Write-Result ($goneMade.ExitCode -eq 0 -and $goneMade.Html -match 'generated/canvasnet/gone-[0-9a-f]+\.svg') `
+        'creating the missing diagram flattens the drawing (the cache noted it as missing)' "$($goneMade.Log)`n$($goneMade.Html)"
+
+    # Image tags in a comment or a CDATA section are not markup: this drawing is plain (checked below, without the tool)
+    Set-Content (Join-Path $svgDir 'commented.svg') -Value (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">' +
+        '<!-- <image href="flow.mmd" width="50" height="50"/> -->' +
+        '<style><![CDATA[ /* <image href="flow.mmd"/> */ rect { fill: #cccccc; } ]]></style>' +
+        '<?note <image href="flow.mmd"/> ?><rect width="200" height="100"/><image href="logo.png" width="50" height="50"/></svg>')
+
     # WeasyPrint, which draws the HTML into the PDF, shows the flattened copy: its page is darker than the page of a
     # control document that shows the original drawing (whose diagram WeasyPrint cannot draw), and the control page
     # still shows the frame and the text that both have.
@@ -597,6 +637,10 @@ pie title Pets
     try {
         $plain = Invoke-Filter 'plain' "![plain](x.png)`n`n![web](https://example.com/a.scad)`n`n![drawing](svg/plain.svg)"
         Write-Result ($plain.ExitCode -eq 0) 'PNG, plain SVG, and remote pictures never start the tool' $plain.Log
+        $commented = Invoke-Filter 'svg-commented' '![c](svg/commented.svg)'
+        Write-Result ($commented.ExitCode -eq 0 -and $commented.Html -match 'src="svg/commented\.svg"') `
+            'an SVG whose diagram links are only in a comment, CDATA, or a processing instruction never starts the tool' `
+            "$($commented.Log)`n$($commented.Html)"
         $missing = Invoke-Filter 'missing-tool' '![model](bad.scad)'
         Write-Result ($missing.ExitCode -ne 0 -and $missing.Log -match 'cannot run the canvasnet tool') `
             'a tool that cannot start is a clear error' $missing.Log

@@ -54,6 +54,14 @@ reported as written; when an element has both attributes only `href` is rewritte
 **SvgFlattener_Execute_SameHrefTwice_BothReplacedAtLargestSize**: one link in two placements gives one entry with two
 elements and the larger size in both.
 
+**SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesImageCountOnce**: one link shown small, then 63 other diagrams, then
+the same link large (64 different links) replaces all 64 with no diagnostic, the repeated one at the larger size, so a
+repeated link counts once against the limit of 64 pictures.
+
+**SvgFlattener_Execute_SameHrefSmallThenLarge_ChargesPixelBudgetOnce**: one link shown at 5700 and then at 5800 pixels
+square (whose sum, but not the larger alone, exceeds the budget of 64,000,000 pixels) is drawn once at 5800 by 5800
+pixels with no `svg-image-too-large` warning, so the smaller placement is never drawn.
+
 **SvgFlattener_Execute_HiddenDiagram_ReportsNotDrawnAndWritesNothing**: a diagram in an unused definition is the warning
 `svg-flatten-image-not-drawn` with the file and line, and nothing is written.
 
