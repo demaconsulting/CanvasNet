@@ -342,7 +342,7 @@ internal sealed partial class MindmapParser
                     "flatten the mindmap, or raise MermaidLimits.MaxNestingDepth when the source is trusted");
             }
 
-            parent.Children.Add(node);
+            parent.AddChild(node);
         }
         else if (!isRoot)
         {
@@ -543,6 +543,9 @@ internal enum MindmapNodeType
 /// <param name="location">The location of the node.</param>
 internal sealed class MindmapNode(int id, string nodeId, int level, string description, MindmapNodeType type, MermaidLocation location)
 {
+    /// <summary>The children in the order they were added.</summary>
+    private readonly List<MindmapNode> _children = [];
+
     /// <summary>Gets the number of the node, in the order the nodes were added (Mermaid's <c>id</c>).</summary>
     public int Id { get; } = id;
 
@@ -577,7 +580,7 @@ internal sealed class MindmapNode(int id, string nodeId, int level, string descr
     public int Depth { get; internal set; }
 
     /// <summary>Gets the children in the order they were added.</summary>
-    public List<MindmapNode> Children { get; } = [];
+    public IReadOnlyList<MindmapNode> Children => _children;
 
     /// <summary>Gets a value indicating whether the node is the root.</summary>
     public bool IsRoot => Parent is null;
@@ -602,6 +605,12 @@ internal sealed class MindmapNode(int id, string nodeId, int level, string descr
 
     /// <summary>Gets the classes Mermaid's <c>getData</c> gives the node (<c>flattenNodes</c>), joined with spaces.</summary>
     public string CssClasses { get; internal set; } = string.Empty;
+
+    /// <summary>
+    ///     Adds a child; only the parser calls it, while it reads the text.
+    /// </summary>
+    /// <param name="child">The child.</param>
+    internal void AddChild(MindmapNode child) => _children.Add(child);
 }
 
 /// <summary>
@@ -642,12 +651,15 @@ internal sealed partial class MindmapDiagram
         KeywordLocation = keywordLocation;
         Nodes = nodes;
         var edges = new List<MindmapEdge>(Math.Max(0, nodes.Count - 1));
+
+        // The children of the root come in the order they were added, so counting them gives each its position
+        var rootChildren = 0;
         foreach (var node in nodes)
         {
             // assignSections: the root has none, its children cycle through the sections, deeper nodes inherit
             if (node.Parent is { } parent)
             {
-                node.Section = parent.IsRoot ? parent.Children.IndexOf(node) % SectionCount : parent.Section;
+                node.Section = parent.IsRoot ? rootChildren++ % SectionCount : parent.Section;
             }
 
             // flattenNodes: the classes
@@ -686,13 +698,11 @@ internal sealed partial class MindmapDiagram
     /// <summary>Gets the root, or null for an empty mindmap.</summary>
     public MindmapNode? Root => Nodes.Count > 0 ? Nodes[0] : null;
 
-
     /// <summary>Gets the number of nodes.</summary>
     public int NodeCount => Nodes.Count;
 
     /// <summary>Gets the number of edges (one to each node but the root).</summary>
     public int EdgeCount => Edges.Count;
-
 
     /// <summary>
     ///     Sanitizes a text as Mermaid's <c>sanitizeText</c> does (an empty text is kept).
