@@ -232,6 +232,67 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates the regression that subgraphs nested through their ids, without any nesting in the text, are held to
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/> as nested <c>subgraph</c> blocks are: a chain of subgraphs that each
+    ///     lists the next (<c>subgraph S0 / S1 / end</c>, then <c>subgraph S1 / S2 / end</c>, ...), and the same chain
+    ///     declared in reverse order (a subgraph re-used inside one declared after it), fail when the diagram is measured,
+    ///     located at the subgraph statement of the first subgraph one level too deep; at the limit they render.
+    /// </summary>
+    /// <param name="reversed">Whether the subgraphs are declared innermost first.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CanvasNetMermaid_Hardening_FlowchartNestedThroughIds_IsALocatedNestingLimit(bool reversed)
+    {
+        // Arrange: subgraph Si lists S(i+1); declared in order, Si is on lines 2 + 3i to 4 + 3i
+        static string Chain(int count, bool reversed)
+        {
+            var order = Enumerable.Range(0, count);
+            return "flowchart TB\n" + string.Concat((reversed ? order.Reverse() : order).Select(i => $"subgraph S{i}\nS{i + 1}\nend\n"));
+        }
+
+        var accepted = MermaidDocument.Parse(Chain(32, reversed));
+        var refused = MermaidDocument.Parse(Chain(40, reversed));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: S33 is the first id inside 33 subgraphs; the report is at its subgraph statement, line 2 + 3 x 33 (in order) or 2 + 3 x 6 (reversed)
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(reversed ? 20 : 101, exception.Location.Line);
+        Assert.Contains("subgraphs are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the regression that subgraphs hidden under a collapsed subgraph are held to
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/> too: with the root <c>S0</c> of a chain of subgraphs nested through
+    ///     their ids collapsed (<c>S0@{ view: collapsed }</c>), so that the layout draws none of its descendants, a chain of
+    ///     40 fails when measured with a located <c>mermaid-limit-exceeded</c> at the subgraph statement of <c>S33</c>, the
+    ///     first subgraph one level too deep, and a chain at the limit (32) still renders.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_FlowchartNestedUnderCollapsedSubgraph_IsALocatedNestingLimit()
+    {
+        // Arrange: subgraph Si lists S(i+1) on lines 2 + 3i to 4 + 3i; the collapsed root's statement comes last
+        static string Chain(int count) =>
+            "flowchart TB\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"subgraph S{i}\nS{i + 1}\nend\n")) + "S0@{ view: collapsed }\n";
+        var accepted = MermaidDocument.Parse(Chain(32));
+        var refused = MermaidDocument.Parse(Chain(40));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: S33 is the first id inside 33 subgraphs, on line 2 + 3 x 33
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(101, exception.Location.Line);
+        Assert.Contains("subgraphs are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a YAML alias bomb in the frontmatter is refused (anchors and aliases are not supported).
     /// </summary>
     [Fact]

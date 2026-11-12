@@ -46,7 +46,9 @@ requirements in `docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
   diagram model calls it from its `GetData` with `MaxNestingDepth`, because a cluster can be nested by naming it
   inside another cluster declared elsewhere, which chains clusters that the parser never sees nested. The depth of
   each id is computed once, so the check is linear; a chain that runs into a cycle is left to the layout, which fails
-  on it, located, as before.
+  on it, located, as before. `CheckNestingDepthOf(nodes, maxDepth, clusters)` is the same check over a list of
+  `NestingEntry` values (id, parent, location) that is not layout data: the flowchart model runs it on every subgraph
+  and vertex before a collapsed subgraph hides its descendants from the layout data, so hidden nesting is bounded too.
 - `LayoutNode` - a node or a subgraph (`IsGroup`): `Id`, `Label`, `LabelType` (`text`, `string`, or `markdown`),
   `ParentId`, `Padding`, `CssStyles`, `TrustedStyles` (the styles are the diagram's own and are applied without
   reports), `CssCompiledStyles`, `CssClasses`, `Dir`, `DomId` (`flowchart-A-0`, `classId-A-0`, `state-A-0`,

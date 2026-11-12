@@ -63,13 +63,14 @@ sections:
               - id: CanvasNetMermaid-Rendering-LabelBuilder-HtmlSubset
                 title: >-
                   The LabelBuilder unit shall style the text of an HTML label by its bold, strong, italic, emphasis,
-                  and styled span elements, drop any element it does not support with its text kept and report it
-                  once, and remove icon names without a report.
+                  underline, inserted-text, and styled span elements, drop any element it does not support with its
+                  text kept and report it once, and remove icon names without a report.
                 justification: |
                   Labels may carry HTML; what is not drawn as Mermaid draws it must be reported, and icons are
                   reported once by the diagram model.
                 tests:
                   - LabelBuilder_Build_StyledElements_StyleTheRuns
+                  - LabelBuilder_Build_UnderlineElements_UnderlineTheRuns
                   - LabelBuilder_Build_UnsupportedElement_ReportsAndKeepsText
                   - LabelBuilder_Build_HtmlIcon_IsRemovedSilently
 

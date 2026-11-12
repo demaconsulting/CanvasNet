@@ -234,6 +234,7 @@ sections:
                 tests:
                   - SpecParser_Parse_AggregateTransformShapesArePinned
                   - SpecParser_Parse_WindowTransformShapesArePinned
+                  - SpecParser_Parse_WindowLagAndLeadAcceptNegativeAndZeroOffsets
                   - SpecParser_Parse_BinParamsAndBinTransformShapesArePinned
                   - SpecParser_Parse_StackAndImputeTransformShapesArePinned
                   - SpecParser_Parse_ValidAggregatingTransformsAreAccepted

@@ -209,6 +209,50 @@ public class MermaidFlowchartIntegrationTests
     }
 
     /// <summary>
+    ///     Validates the regression that a label's <c>&lt;u&gt;</c> and <c>&lt;ins&gt;</c> are underlined as Chrome
+    ///     underlines them: the diagram keeps its size and the only pixels that change are a dark bar inside the node, below
+    ///     the text, with no report.
+    /// </summary>
+    /// <param name="tag">The element.</param>
+    [Theory]
+    [InlineData("u")]
+    [InlineData("ins")]
+    public void CanvasNetMermaid_Flowchart_UnderlineElement_DrawsAnUnderline(string tag)
+    {
+        // Arrange
+        var underlined = $"flowchart LR\n  a[\"<{tag}>under</{tag}>\"]\n";
+        const string Plain = "flowchart LR\n  a[\"under\"]\n";
+        var node = SceneQuery.Nodes(SceneQuery.Layout(underlined))["flowchart-a-0"];
+        var (options, warnings, unsupported) = MermaidTestHelpers.Collecting(strict: true);
+
+        // Act
+        using var withLine = MermaidDocument.Parse(underlined).Render(options, TestContext.Current.CancellationToken);
+        using var without = MermaidDocument.Parse(Plain).Render(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert: some pixels darken, all of them in the lower half of the node
+        Assert.Equal((without.Width, without.Height), (withLine.Width, withLine.Height));
+        var changed = new List<(int X, int Y)>();
+        for (var y = 0; y < withLine.Height; y++)
+        {
+            var a = withLine.GetRowSpan(y);
+            var b = without.GetRowSpan(y);
+            for (var x = 0; x < withLine.Width; x++)
+            {
+                if (a[x] != b[x])
+                {
+                    changed.Add((x, y));
+                    Assert.True(a[x].R + a[x].G + a[x].B < b[x].R + b[x].G + b[x].B, $"pixel ({x}, {y}) did not darken");
+                }
+            }
+        }
+
+        Assert.NotEmpty(changed);
+        Assert.All(changed, p => Assert.True(p.X >= node.Box.X && p.X <= node.Box.Right && p.Y > node.Y && p.Y <= node.Box.Bottom, $"pixel {p} is outside the node's lower half"));
+        Assert.Empty(warnings);
+        Assert.Empty(unsupported);
+    }
+
+    /// <summary>
     ///     Validates that a canceled token stops a flowchart render.
     /// </summary>
     [Fact]

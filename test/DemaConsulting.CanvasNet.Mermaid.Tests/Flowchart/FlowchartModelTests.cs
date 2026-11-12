@@ -234,6 +234,40 @@ public class FlowchartModelTests
     }
 
     /// <summary>
+    ///     Validates the regression that subgraphs nested through their ids (a subgraph listed in another one that is
+    ///     declared elsewhere, before or after it) count against <see cref="MermaidLimits.MaxNestingDepth"/>: a chain of
+    ///     four with X inside all of them fails a limit of 3, located at X, also when the root S0 is collapsed and hides
+    ///     the whole chain from the layout, and a chain of three passes with the parents the ids give.
+    /// </summary>
+    [Fact]
+    public void FlowchartModel_GetData_SubgraphsNestedThroughIds_ThrowsLimitExceeded()
+    {
+        // Arrange: subgraph Si lists S(i+1) on lines 2 + 3i to 4 + 3i; the last lists X; the reused chain declares S1 first
+        static string Chain(int count) =>
+            "flowchart TB\n" + string.Concat(Enumerable.Range(0, count).Select(i => $"subgraph S{i}\n{(i == count - 1 ? "X" : $"S{i + 1}")}\nend\n"));
+        const string Reused = "flowchart TB\nsubgraph S1\nX\nend\nsubgraph S0\nS1\nend\n";
+        var options = new MermaidOpenOptions { Limits = new MermaidLimits { MaxNestingDepth = 3 } };
+        var refused = Assert.IsType<FlowchartModel>(MermaidDocument.Parse(Chain(4), options).Diagram);
+        var accepted = Assert.IsType<FlowchartModel>(MermaidDocument.Parse(Chain(3), options).Diagram);
+        var reused = Assert.IsType<FlowchartModel>(MermaidDocument.Parse(Reused, options).Diagram);
+        var collapsed = Assert.IsType<FlowchartModel>(MermaidDocument.Parse(Chain(4) + "S0@{ view: collapsed }\n", options).Diagram);
+
+        // Act
+        var ex = Assert.Throws<MermaidRenderException>(() => refused.GetData(Config(Chain(4)), "flowchart-v2"));
+        var hiddenEx = Assert.Throws<MermaidRenderException>(() => collapsed.GetData(Config(Chain(4)), "flowchart-v2"));
+        var data = accepted.GetData(Config(Chain(3)), "flowchart-v2");
+        var reusedData = reused.GetData(Config(Reused), "flowchart-v2");
+
+        // Assert: X is inside S3, S2, S1 and S0
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Equal(12, ex.Location.Line);
+        Assert.Contains("subgraphs are nested deeper than 3 levels (MermaidLimits.MaxNestingDepth)", ex.Message, StringComparison.Ordinal);
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, 12), (hiddenEx.Code, hiddenEx.Location.Line));
+        Assert.Equal(("S2", "S1", "S0"), (data.Nodes.Single(n => n.Id == "X").ParentId, data.Nodes.Single(n => n.Id == "S2").ParentId, data.Nodes.Single(n => n.Id == "S1").ParentId));
+        Assert.Equal(("S1", "S0"), (reusedData.Nodes.Single(n => n.Id == "X").ParentId, reusedData.Nodes.Single(n => n.Id == "S1").ParentId));
+    }
+
+    /// <summary>
     ///     Validates that <c>flowchart.inheritDir</c> gives subgraphs without a direction statement the diagram's.
     /// </summary>
     [Fact]

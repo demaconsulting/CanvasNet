@@ -303,11 +303,11 @@ public sealed class LabelBuilderTests
         var warnings = new List<MermaidDiagnostic>();
 
         // Act
-        var label = builder.Build(new LabelRequest("<u>under</u> and <u>again</u>", Font) { Location = new MermaidLocation("f.mmd", 2, 3) });
+        var label = builder.Build(new LabelRequest("<s>struck</s> and <s>again</s>", Font) { Location = new MermaidLocation("f.mmd", 2, 3) });
         sink.Deliver(warnings.Add, null);
 
         // Assert
-        Assert.Equal("under and again", string.Concat(label.Lines[0].Runs.Select(run => run.Text)));
+        Assert.Equal("struck and again", string.Concat(label.Lines[0].Runs.Select(run => run.Text)));
         var warning = Assert.Single(warnings);
         Assert.Equal(MermaidDiagnosticCodes.HtmlTagIgnored, warning.Code);
         Assert.Equal(new MermaidLocation("f.mmd", 2, 3), warning.Location);
@@ -332,6 +332,35 @@ public sealed class LabelBuilderTests
         Assert.Equal(new Rgba32(255, 0, 0, 255), runs[2].Color);
         Assert.Equal(20, runs[2].Font.Size);
         Assert.Equal(30, label.Height);
+    }
+
+    /// <summary>
+    ///     Checks the regression that <c>&lt;u&gt;</c> and <c>&lt;ins&gt;</c>, which Chrome underlines and DOMPurify keeps,
+    ///     underline their runs without a report, on one line and after wrapping, and that the scene text keeps the underline.
+    /// </summary>
+    [Fact]
+    public void LabelBuilder_Build_UnderlineElements_UnderlineTheRuns()
+    {
+        // Arrange
+        var builder = NewBuilder(out var sink);
+        const string Wrapped = "<u>The quick brown fox jumps over</u> the lazy dog and keeps on running <ins>far away</ins>";
+
+        // Act
+        var label = builder.Build(new LabelRequest("<u>under</u> plain <ins>inserted</ins>", Font));
+        var wrapped = builder.Build(new LabelRequest(Wrapped, Font));
+        var items = label.ToScene(0, 0, "label", "n0", default);
+
+        // Assert: the underlined runs are those of the two elements, and nothing is reported
+        Assert.Equal(["under|True", " plain |False", "inserted|True"], label.Lines[0].Runs.Select(run => $"{run.Text}|{run.Underline}"));
+        Assert.True(wrapped.Lines.Count > 1);
+        var wrappedRuns = wrapped.Lines.SelectMany(line => line.Runs).ToList();
+        Assert.StartsWith("The quick brown fox", wrappedRuns[0].Text, StringComparison.Ordinal);
+        Assert.True(wrappedRuns[0].Underline);
+        Assert.Contains(wrappedRuns, run => run.Text.Contains("lazy dog", StringComparison.Ordinal) && !run.Underline);
+        Assert.Contains(wrappedRuns, run => run.Text.Contains("far away", StringComparison.Ordinal) && run.Underline);
+        var text = Assert.IsType<SceneText>(Assert.Single(items));
+        Assert.Equal([true, false, true], text.Runs.Select(run => run.Underline));
+        Assert.Equal(0, sink.Count);
     }
 
     /// <summary>

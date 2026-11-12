@@ -222,6 +222,7 @@ unresolved parameter, and is empty for no parameters, with a null list refused.
 
 **Tests**: `SpecParserAggregatesTests.SpecParser_Parse_AggregateTransformShapesArePinned`,
 `SpecParserAggregatesTests.SpecParser_Parse_WindowTransformShapesArePinned`,
+`SpecParserAggregatesTests.SpecParser_Parse_WindowLagAndLeadAcceptNegativeAndZeroOffsets`,
 `SpecParserAggregatesTests.SpecParser_Parse_BinParamsAndBinTransformShapesArePinned`,
 `SpecParserAggregatesTests.SpecParser_Parse_StackAndImputeTransformShapesArePinned`,
 `SpecParserAggregatesTests.SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned`,
@@ -235,8 +236,11 @@ and a message that starts with the file name: for example, an `aggregate` that i
 (`/transform/0/aggregate`), an entry that is not an object or has no `op` or no `field` where one is required, an `op`
 that is not text or not an aggregate operation (`nope`, the upper-case `SUM`, and the window-only `rank`), an `as` that
 is empty or not text, an unparsable `field` or `groupby` path, an exponential `param` of 0, 1.5, or text, and a
-`groupby` that is not an array of paths; a window `ntile` without a `param` or with 0, 1.5, or `"4"`; and, in the same
-way, the wrong shapes of the other transforms and of the encoding properties. Asserts that every valid form, including
+`groupby` that is not an array of paths; a window `ntile` without a `param` or with 0, -2, 1.5, or `"4"`, an
+`nth_value` with 0 or -1, and a `lag` or `lead` with 1.5, -0.5, or `"1"`; and, in the same way, the wrong shapes of the
+other transforms and of the encoding properties. Asserts that a `lag` or `lead` with a negative or zero `param` (-1,
+-3, 0, `-4294967296`, `-1e300`) is accepted, as Vega accepts it (a negative offset reads the other way and zero is 1).
+Asserts that every valid form, including
 every operation name, a `sort` of a channel shorthand, and the secondary channels, is accepted without a warning; that
 the sort shorthand helper accepts a channel with an optional minus sign and nothing else; that `IsSupportedSort` accepts
 only the values the renderer applies and refuses null arguments; and that `IsSupportedTransform` accepts the six

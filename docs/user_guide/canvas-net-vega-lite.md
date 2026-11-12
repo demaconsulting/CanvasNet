@@ -1094,7 +1094,7 @@ operations only exist as window operations. The default name is the operation, a
 | `percent_rank` | | `(rank - 1) / (rows - 1)`; `NaN` for a group of one row, as in Vega |
 | `cume_dist` | | The share of the group up to and including the last peer of the row |
 | `ntile` | `param` | The number of the bucket, from 1 to `param`, that the row falls in |
-| `lag`, `lead` | `field`; `param` (the offset, 1 by default) | The value of the row `param` rows before or after, or `null` beyond the group |
+| `lag`, `lead` | `field`; `param` (the offset, 1 by default) | The value of the row `param` rows before or after, or `null` beyond the group; a negative offset reads the other way |
 | `first_value`, `last_value` | `field` | The value in the first or last row of the frame; `null` for an empty frame |
 | `nth_value` | `field`, `param` | The value in row `param` (from 1) of the frame; `null` if the frame is shorter |
 | `prev_value`, `next_value` | `field` | The value of the row when it is not `null`, else the closest earlier or later value that is not `null` |
@@ -1107,7 +1107,8 @@ predecessor, and its successor. An offset is clamped to the group, and a frame t
 the operation (`count` 0, `sum` `null`). When a `sort` is given and `ignorePeers` is not `true`, the ends of the frame
 are widened to include the **peers** of the rows they land on (rows with the same sort values), so a running `sum` over
 rows with equal sort values gives the same total to all of them; with `ignorePeers` set to `true` it does not. The
-parameters of `ntile`, `lag`, `lead`, and `nth_value` are integers from 1 up (`ntile` and `nth_value` need one). A frame
+parameters of `ntile` and `nth_value` are integers from 1 up, and each needs one. The offset of `lag` and `lead` is any
+integer: a negative one reads the other way (a `lag` of `-1` is a `lead` of `1`), and `0` is `1`, as in Vega. A frame
 offset or a parameter of any size is valid, also one beyond the range of an `int` or of a `long` (`[-1e18, 1e18]`, a `lag`
 of `4294967296`): an offset beyond the group clamps to it, a frame wholly outside the group is empty, and a `lag`,
 `lead`, or `nth_value` beyond the group or the frame gives `null`, on every .NET version. The

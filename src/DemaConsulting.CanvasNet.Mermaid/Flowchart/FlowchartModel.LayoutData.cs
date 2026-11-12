@@ -21,15 +21,27 @@ internal sealed partial class FlowchartModel
     /// <remarks>
     ///     The clusters come first, last declared first; then the vertices in declaration order, except those hidden in
     ///     a collapsed subgraph; a vertex with the id of a subgraph updates the subgraph's node instead. Edges keep their
-    ///     order; an edge into or out of a collapsed subgraph is redirected to it, and one inside it is dropped.
+    ///     order; an edge into or out of a collapsed subgraph is redirected to it, and one inside it is dropped. A subgraph
+    ///     listed in another subgraph is nested in it wherever the subgraph itself is declared, so chained subgraphs nest
+    ///     without any nesting in the text; the nesting the parents make is checked against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/> on every subgraph and vertex, before a collapsed subgraph hides its
+    ///     descendants (<see cref="CheckNestingDepth"/>), as the parser checks the nested <c>subgraph</c> blocks.
     /// </remarks>
     /// <param name="config">The effective configuration of the render.</param>
     /// <param name="diagramType">The diagram type as Mermaid names it (<c>flowchart-v2</c> or <c>flowchart-elk</c>).</param>
     /// <returns>The layout data.</returns>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown, located, with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the subgraphs nest deeper than
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </exception>
     public LayoutData GetData(MermaidConfig config, string diagramType)
     {
         ArgumentNullException.ThrowIfNull(config);
         var look = config.Look;
+
+        // The nesting is checked on every subgraph and vertex before a collapsed subgraph hides its descendants, so a
+        // chain of subgraphs hidden under a collapsed one is bounded too, and before CollapsedSubgraphs walks it
+        CheckNestingDepth();
         var (hidden, collapsedAncestor) = CollapsedSubgraphs();
 
         // Which cluster each id is in, and which subgraphs have members (later subgraphs first, so earlier ones win)
@@ -138,6 +150,53 @@ internal sealed partial class FlowchartModel
             RankSpacing = config.Flowchart.RankSpacing is not 0 and not double.NaN ? config.Flowchart.RankSpacing : 50,
             Markers = ["point", "circle", "cross"],
         };
+    }
+
+    /// <summary>
+    ///     Checks the nesting of the complete subgraph graph, collapsed subgraphs and their hidden descendants included,
+    ///     against <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </summary>
+    /// <remarks>
+    ///     The parents are those <see cref="GetData"/> gives (the earliest declared subgraph that lists an id wins) and the
+    ///     nodes are in the order of the layout data (the subgraphs last declared first, then the vertices that are not
+    ///     subgraph ids, in declaration order), so a diagram without a collapsed subgraph is reported where the layout data
+    ///     would be. A visible node has the same ancestors here as in the layout data, because every member of a hidden
+    ///     subgraph is hidden too, so this one check bounds both. The check is iterative and linear in the nodes.
+    /// </remarks>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown, located, with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the subgraphs nest deeper than
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </exception>
+    private void CheckNestingDepth()
+    {
+        // Which subgraph each id is in (later subgraphs first, so earlier ones win), with nothing hidden
+        var parents = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var i = _subgraphs.Count - 1; i >= 0; i--)
+        {
+            foreach (var id in _subgraphs[i].Nodes)
+            {
+                parents[id] = _subgraphs[i].Id;
+            }
+        }
+
+        // The subgraphs last declared first (a repeated id once, at its first place), then the other vertices
+        var entries = new List<NestingEntry>();
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = _subgraphs.Count - 1; i >= 0; i--)
+        {
+            var subgraph = _subgraphs[i];
+            if (listed.Add(subgraph.Id))
+            {
+                entries.Add(new NestingEntry(subgraph.Id, parents.GetValueOrDefault(subgraph.Id), subgraph.Location));
+            }
+        }
+
+        foreach (var vertex in _vertices.Where(vertex => listed.Add(vertex.Id)))
+        {
+            entries.Add(new NestingEntry(vertex.Id, parents.GetValueOrDefault(vertex.Id), vertex.Location));
+        }
+
+        LayoutData.CheckNestingDepthOf(entries, _limits.MaxNestingDepth, "subgraphs");
     }
 
     /// <summary>

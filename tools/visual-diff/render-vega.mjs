@@ -35,7 +35,5 @@ const view = new vega.View(vega.parse(compiled), { renderer: 'none', loader });
 await view.runAsync();
 const svg = await view.toSVG();
 
-// canvasnet's SVG reader takes plain numbers for lengths: vega writes font-size="10px", so the unit is dropped (user units
-// are pixels in a standalone SVG, so the picture does not change).
-writeFileSync(outPath, svg.replace(/font-size="([0-9.]+)px"/g, 'font-size="$1"'));
+writeFileSync(outPath, svg);
 console.log(`vega ${vega.version}, vega-lite ${vegaLite.version}: wrote ${outPath}`);

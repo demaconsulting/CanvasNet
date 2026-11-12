@@ -111,4 +111,8 @@ prefixed `s:image` with `x:href` is found.
 **SvgFlattener_RebaseLink_\*** (`SvgFlattenerLinkTests.cs`): sibling and parent folders give relative paths with `/`,
 the query and the fragment are kept and escaped for the quote, a space is percent-encoded, and a data URI, a network URL,
 a `#` link, a rooted path, and an empty link are left alone; a path with a null character is left alone, and a path too
-long for the file system does not throw.
+long for the file system does not throw. **SvgFlattener_IsWindowsRootedPath_\*** and
+**SvgFlattener_RebaseLink_WindowsDriveOrUncLink_UntouchedOnEveryPlatform** (regressions, on every platform): a drive
+path (`C:\x.png`, `C:/x.png`, `c:x.png`, `Z:`), a UNC path, and a backslash-rooted path are Windows rooted paths, while
+relative paths, POSIX rooted paths, `//server/share/x.png`, `1:x.png`, a lone letter, and the empty path are not; and
+such a link, plain or percent-encoded and with a fragment, is left as written when the copy goes to another folder.

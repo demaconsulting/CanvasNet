@@ -74,11 +74,32 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
     ///     node that gave its parent to the first node (in node order) that is one level too deep, where the limit is
     ///     passed.
     /// </exception>
-    public void CheckNestingDepth(int maxDepth, string clusters)
+    public void CheckNestingDepth(int maxDepth, string clusters) =>
+        CheckNestingDepthOf([.. Nodes.Select(node => new NestingEntry(node.Id, node.ParentId, node.Location))], maxDepth, clusters);
+
+    /// <summary>
+    ///     Checks how deeply clusters nest through the parents of a list of nodes that is not (yet) layout data, with the
+    ///     rules of <see cref="CheckNestingDepth(int, string)"/>.
+    /// </summary>
+    /// <remarks>
+    ///     A diagram model calls this before it filters its nodes (a collapsed subgraph of a flowchart hides its
+    ///     descendants from the layout data), so that hidden nesting is bounded too, and before any walk over the
+    ///     descendants. The walk here is iterative and computes each depth once, so it is linear in the nodes.
+    /// </remarks>
+    /// <param name="nodes">The nodes in node order: each id, its parent (null or empty for none), and its location.</param>
+    /// <param name="maxDepth">The largest number of clusters a node may be inside.</param>
+    /// <param name="clusters">What the diagram's clusters are called, for the message (<c>namespaces</c>, <c>subgraphs</c>, ...).</param>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the clusters nest too deeply, located at the
+    ///     first node (in node order) that is one level too deep.
+    /// </exception>
+    public static void CheckNestingDepthOf(IReadOnlyList<NestingEntry> nodes, int maxDepth, string clusters)
     {
+        ArgumentNullException.ThrowIfNull(nodes);
+
         // The parent of each id as the layout sets it (the last one given), and where it was given
         var parents = new Dictionary<string, (string Id, MermaidLocation Location)>(StringComparer.Ordinal);
-        foreach (var node in Nodes.Where(node => !string.IsNullOrEmpty(node.ParentId)))
+        foreach (var node in nodes.Where(node => !string.IsNullOrEmpty(node.ParentId)))
         {
             parents[node.Id] = (node.ParentId!, node.Location);
         }
@@ -88,7 +109,7 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
         var depths = new Dictionary<string, int>(StringComparer.Ordinal);
         var chain = new List<string>();
         var onChain = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var id in Nodes.Select(node => node.Id))
+        foreach (var id in nodes.Select(node => node.Id))
         {
             chain.Clear();
             onChain.Clear();
@@ -126,7 +147,7 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
         }
 
         // The limit is passed where a node is first one level too deep: every deeper chain goes through such a node
-        var tooDeep = Nodes.Select(node => node.Id).FirstOrDefault(id => depths[id] == maxDepth + 1);
+        var tooDeep = nodes.Select(node => node.Id).FirstOrDefault(id => depths[id] == maxDepth + 1);
         if (tooDeep is not null)
         {
             throw new MermaidRenderException(
@@ -137,6 +158,14 @@ internal sealed record LayoutData(IReadOnlyList<LayoutNode> Nodes, IReadOnlyList
         }
     }
 }
+
+/// <summary>
+///     A node as the nesting check reads it: its id, the id of the cluster it is in, and where it was given.
+/// </summary>
+/// <param name="Id">The node id.</param>
+/// <param name="ParentId">The id of the cluster the node is in, or null (or empty) for none.</param>
+/// <param name="Location">The location that gave the node its parent, for the report.</param>
+internal readonly record struct NestingEntry(string Id, string? ParentId, MermaidLocation Location);
 
 /// <summary>
 ///     A node or a cluster of <see cref="LayoutData"/> (Mermaid's <c>Node</c>).

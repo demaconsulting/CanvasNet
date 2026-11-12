@@ -86,7 +86,7 @@ the canonical operation name, and `count` for a count of rows):
 **Window operations** (`WindowOp`): `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `ntile`,
 `lag`, `lead`, `first_value`, `last_value`, `nth_value`, `prev_value`, and `next_value`, plus every aggregate
 operation over the frame. `ntile` and `nth_value` need a `param` (an integer of at least 1) and `lag` and `lead`
-default it to 1.
+default it to 1 (any integer: a negative offset reads the other way, as in Vega).
 
 **Frames and peers.** A frame is two row offsets from the current row (null is unbounded; **default
 `[null, 0]`**), clamped to the partition. An offset is any integer: `ReadFrame` keeps it as a `long` (a larger one
@@ -94,10 +94,11 @@ saturates), and the frame positions and the positions of `lag`, `lead`, and `nth
 `NumericConversions.AddSaturating`, so an offset of any size lands outside the partition and is clamped (a frame) or
 has no row (a position) and never wraps into an index, as the frame bounds and offsets of Vega, which are numbers of
 any size (`vega-transforms` `WindowOps.js`: `lag` and `lead` read `data[index -/+ offset]` of `+offset || 1`, and
-`nth_value` reads `data[i0 + (nth - 1)]` when it is below `i1`). The parser accepts any integer for a frame bound and
-any integer of at least 1 for the `param` of `ntile`, `lag`, `lead`, and `nth_value`; the engine, which callers other
-than the parser can reach, also defines a zero offset as 1 (Vega's `|| 1`) and gives no value for an offset or an nth
-that points outside the partition or the frame (Vega would read an undefined row there). With a `sort` and without
+`nth_value` reads `data[i0 + (nth - 1)]` when it is below `i1`). The parser accepts any integer for a frame bound,
+any integer of at least 1 for the `param` of `ntile` and `nth_value` (Vega fails below 1), and any integer for the
+`param` of `lag` and `lead` (a negative offset reads the other way and zero is 1, as in Vega); the engine, which callers
+other than the parser can reach, also defines a zero offset as 1 (Vega's `|| 1`) and gives no value for an offset or an
+nth that points outside the partition or the frame (Vega would read an undefined row there). With a `sort` and without
 `ignorePeers`, each end of the frame is widened to include the peers (the rows with equal sort values) of the row at
 that end. The rows keep their **input order** in the output.
 
