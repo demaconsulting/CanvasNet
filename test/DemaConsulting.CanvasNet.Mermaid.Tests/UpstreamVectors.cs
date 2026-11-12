@@ -39,6 +39,9 @@ internal static class UpstreamVectors
     /// <summary>The packet parser vectors, read once.</summary>
     private static readonly Lazy<JsonObject> PacketVectors = new(() => Load("packet-parser.json"));
 
+    /// <summary>The git graph parser vectors, read once.</summary>
+    private static readonly Lazy<JsonObject> GitGraphVectors = new(() => Load("gitgraph-parser.json"));
+
     /// <summary>The time axis vectors, read once.</summary>
     private static readonly Lazy<JsonObject> TimeVectors = new(() => Load("time-axis.json"));
 
@@ -92,6 +95,11 @@ internal static class UpstreamVectors
     ///     Gets the packet parser cases of <c>packet-parser.json</c>.
     /// </summary>
     public static JsonArray Packets => PacketVectors.Value["cases"]!.AsArray();
+
+    /// <summary>
+    ///     Gets the git graph parser cases of <c>gitgraph-parser.json</c>.
+    /// </summary>
+    public static JsonArray GitGraphs => GitGraphVectors.Value["cases"]!.AsArray();
 
     /// <summary>
     ///     Gets the time axis cases of <c>time-axis.json</c>.

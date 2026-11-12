@@ -367,6 +367,42 @@ public class RenderCommandMermaidTests
     }
 
     /// <summary>
+    ///     Test that a git graph is drawn strictly at its natural size, pixel for pixel as the library draws it over white,
+    ///     with the main branch in the default theme's first git color, and that <c>--theme dark</c> draws the dark theme's
+    ///     colors, as the library does, with no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidGitGraph_DrawsTheCommitsInTheTheme()
+    {
+        // Arrange
+        const string Text = "gitGraph\n    commit id: \"A\"\n    branch dev\n    commit id: \"B\"\n    checkout main\n    merge dev tag: \"v1\"\n";
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "history.mmd", Text);
+        var light = directory.Combine("light.png");
+        var dark = directory.Combine("dark.png");
+
+        // Act
+        using var lightDocument = RunJson(input, "-o", light, "--strict");
+        using var darkDocument = RunJson(input, "--theme", "dark", "-o", dark, "--strict");
+        var diagram = MermaidDocument.Parse(Text);
+        using var expectedLight = diagram.Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+        using var expectedDark = diagram.Render(new MermaidRenderOptions { Background = White, Theme = "dark" }, TestContext.Current.CancellationToken);
+
+        // Assert: the natural size, the library's pixels, the main branch color of each theme, and no diagnostic
+        var natural = lightDocument.RootElement.GetProperty("input").GetProperty("natural");
+        using var lightImage = PngCodec.Load(light);
+        using var darkImage = PngCodec.Load(dark);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (lightImage.Width, lightImage.Height));
+        Assert.Equal(White, lightImage[0, 0]);
+        Assert.True(SamePixels(expectedLight, lightImage), "The tool's git graph differs from the library's.");
+        Assert.True(SamePixels(expectedDark, darkImage), "The tool's dark git graph differs from the library's.");
+        Assert.True(Count(lightImage, new Rgba32(0, 0, 236, 255)) > 500);
+        Assert.Equal(0, Count(darkImage, new Rgba32(0, 0, 236, 255)));
+        Assert.Empty(lightDocument.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Empty(darkDocument.RootElement.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
     ///     Test that the icon of a mindmap node is the diagnostic <c>mermaid-icon-unsupported</c>, located at the icon, while
     ///     the mindmap is still drawn, and that <c>--strict</c> makes it an <c>unsupported-feature</c> error without a picture.
     /// </summary>

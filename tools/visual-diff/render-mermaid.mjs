@@ -5,7 +5,7 @@
 // Developer tooling of tools/visual-diff; see the README there. Usage (from anywhere, after "npm install" in the
 // repository root):
 //
-//     node render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] <diagram.mmd>...
+//     node render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] [--seed-random] <diagram.mmd>...
 //
 // For each <name>.mmd it writes <name>.png into --png-dir and <name>.layout.json into --layout-dir (either may be left
 // out; at least one is needed). mermaid-cli's renderMermaid draws the SVG (what "mmdc -o x.svg" writes); the SVG is
@@ -46,12 +46,20 @@
 // rectangles (their x, y, width and height attributes and computed paint) and its texts (the labels and the bit numbers,
 // with their class, the point of their anchor, the computed anchor, dominant baseline, font size and fill, and their box),
 // and the title text.
+// A git graph (aria-roledescription="gitGraph") gets the git graph layout (extractGitGraph): each branch's line, label
+// rectangle and label (its rows, transform and box), each arrow's path data and class, each commit's bullet shapes, the
+// commit labels (wrapper transform, rectangle and text) and tags (polygon, hole and text) in the order Mermaid drew them,
+// and the title, with their attributes as written, the computed paint and fonts and the text boxes. --seed-random gives
+// the calls of mermaid's id function (makeRandomHex) the fixed sequence of mermaid/seeded-random.mjs in every page, so
+// that the ids Mermaid generates for commits without one are the same in every run; update-mermaid-goldens.ps1 passes it
+// for the git graph fixtures.
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { GIT_ID_SEED, ID_CALLER, installSeededRandom } from './mermaid/seeded-random.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
@@ -68,6 +76,7 @@ const files = [];
 let scale = 1;
 let pngDir;
 let layoutDir;
+let seedRandom = false;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   if (arg === '--scale') {
@@ -76,6 +85,8 @@ for (let i = 0; i < args.length; i++) {
     pngDir = args[++i];
   } else if (arg === '--layout-dir') {
     layoutDir = args[++i];
+  } else if (arg === '--seed-random') {
+    seedRandom = true;
   } else if (arg.startsWith('--')) {
     usage(`unknown option ${arg}`);
   } else {
@@ -89,7 +100,7 @@ if (files.length === 0 || (!pngDir && !layoutDir) || !(scale > 0)) {
 
 function usage(message) {
   console.error(`render-mermaid.mjs: ${message}`);
-  console.error('usage: node render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] <diagram.mmd>...');
+  console.error('usage: node render-mermaid.mjs [--scale N] [--png-dir DIR] [--layout-dir DIR] [--seed-random] <diagram.mmd>...');
   process.exit(2);
 }
 
@@ -168,6 +179,11 @@ const host = {
     await page.emulateTimezone('UTC');
     await page.evaluateOnNewDocument(fixClock, Date.parse(FIXED_NOW));
     await page.evaluateOnNewDocument(addStyleSheet, css);
+    if (seedRandom) {
+      // Before mermaid loads (for the id function's calls only, see ID_CALLER) and before the guard, which wraps whatever
+      // Math.random is
+      await page.evaluateOnNewDocument(installSeededRandom, GIT_ID_SEED, ID_CALLER);
+    }
     await page.evaluateOnNewDocument(guardRandom, RANDOM_GUARD);
     return page;
   },
@@ -270,7 +286,10 @@ async function readBack(svgText, definition, picture) {
       await Promise.all(Array.from(document.fonts, (font) => font.load()));
       await document.fonts.ready;
     });
-    const { shapes, groupShapes, actors, terminalTexts } = await page.evaluate(async (text, randomId) => {
+    // A git graph needs none of the diagram's data (and getDiagramFromText, which does not apply the frontmatter
+    // configuration, may fail on it: a renamed main branch)
+    const role = await page.$eval(`#${svgId}`, (element) => element.getAttribute('aria-roledescription') ?? '');
+    const { shapes, groupShapes, actors, terminalTexts } = role === 'gitGraph' ? { actors: null } : await page.evaluate(async (text, randomId) => {
       window.mermaid.initialize({ startOnLoad: false });
       const diagram = await window.mermaid.mermaidAPI.getDiagramFromText(text);
       const data = diagram.db.getData?.();
@@ -307,7 +326,6 @@ async function readBack(svgText, definition, picture) {
       element.style.height = `${Math.ceil(h)}px`;
       return text;
     });
-    const role = await page.$eval(`#${svgId}`, (element) => element.getAttribute('aria-roledescription') ?? '');
     let layout;
     if (actors) {
       layout = await page.evaluate(extractSequence, svgId, samples, actors);
@@ -317,6 +335,8 @@ async function readBack(svgText, definition, picture) {
       layout = await page.evaluate(extractGantt, svgId);
     } else if (role === 'packet') {
       layout = await page.evaluate(extractPacket, svgId);
+    } else if (role === 'gitGraph') {
+      layout = await page.evaluate(extractGitGraph, svgId);
     } else {
       layout = await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
       if (role === 'mindmap') {
@@ -1072,6 +1092,131 @@ function extractPacket(id) {
       })),
       texts: Array.from(g.querySelectorAll(':scope > text'), text)
     })),
+    title: title ? text(title) : null
+  };
+}
+
+// Runs in the page: the layout of a git graph (git/gitGraphRenderer.ts). The svg holds the two empty groups of the first
+// drawCommits pass, the group of the branches (each branch's line.branch, its rect.branchLabelBkg and its g.branchLabel
+// with the g.label that holds the text of drawText; left out when showBranches is false), g.commit-arrows (a path per
+// parent link), the g.commit-bullets and g.commit-labels of the second pass (each commit label is a g with its
+// rect.commit-label-bkg and text.commit-label; each tag a polygon.tag-label-bkg, a circle.tag-hole and a text.tag-label),
+// then the text.gitTitleText of a title. Attributes are given as written (full precision); boxes (getBBox, in the
+// element's own coordinates, before its transform) are rounded to 0.001.
+function extractGitGraph(id) {
+  const svg = document.getElementById(id);
+  const round = (v) => Math.round(v * 1000) / 1000 + 0;
+  const box = (element) => {
+    const b = element.getBBox();
+    return [b.x, b.y, b.width, b.height].map(round);
+  };
+  // The numeric attributes of an element that has them, as written
+  const numbers = (element, names) => Object.fromEntries(names.filter((n) => element.hasAttribute(n))
+    .map((n) => [n, Number(element.getAttribute(n))]));
+  // The attributes of an element that has them, as text
+  const texts = (element, names) => Object.fromEntries(names.filter((n) => element.hasAttribute(n))
+    .map((n) => [n, element.getAttribute(n)]));
+  // The computed paint of a shape (the git graph style sheet sets it by class)
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      fill: s.fill,
+      stroke: s.stroke,
+      strokeWidth: round(parseFloat(s.strokeWidth)),
+      dasharray: s.strokeDasharray,
+      lineCap: s.strokeLinecap,
+      opacity: round(parseFloat(s.opacity)),
+      filter: s.filter
+    };
+  };
+  // A text: its class, content, anchor point and transform as written, its computed anchor, font and fill, and its box
+  const text = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      class: element.getAttribute('class'),
+      text: element.textContent,
+      ...numbers(element, ['x', 'y']),
+      ...texts(element, ['transform']),
+      anchor: s.textAnchor,
+      fontFamily: s.fontFamily,
+      fontSize: round(parseFloat(s.fontSize)),
+      fill: s.fill,
+      opacity: round(parseFloat(s.opacity)),
+      box: box(element)
+    };
+  };
+  // A shape: its tag, class, geometry and paint attributes as written, and its computed paint
+  const shape = (element) => ({
+    tag: element.tagName,
+    class: element.getAttribute('class'),
+    ...numbers(element, ['x', 'y', 'width', 'height', 'rx', 'ry', 'cx', 'cy', 'r', 'x1', 'y1', 'x2', 'y2']),
+    ...texts(element, ['d', 'transform', 'fill', 'stroke', 'style', 'data-look']),
+    ...(element.tagName === 'polygon'
+      ? { points: element.getAttribute('points').trim().split(/\s+/).map((p) => p.split(',').map(Number)) }
+      : {}),
+    paint: paint(element)
+  });
+
+  const groups = Array.from(svg.children).filter((c) => c.tagName === 'g');
+  const branchGroup = groups.find((g) => g.querySelector(':scope > line.branch'));
+  const branches = [];
+  if (branchGroup) {
+    const children = Array.from(branchGroup.children);
+    for (let i = 0; i + 2 < children.length && children[i].tagName === 'line'; i += 3) {
+      const label = children[i + 2].querySelector(':scope > g');
+      const labelText = label.querySelector(':scope > text');
+      branches.push({
+        line: shape(children[i]),
+        rect: shape(children[i + 1]),
+        label: {
+          class: label.getAttribute('class'),
+          transform: label.getAttribute('transform'),
+          // The rows, not the text of the whole element (which runs the rows together)
+          text: {
+            ...text(labelText),
+            text: undefined,
+            rows: Array.from(labelText.children, (row) => ({
+              text: row.textContent,
+              ...texts(row, ['x', 'dy']),
+              box: row.textContent.length > 0 ? box(row) : null
+            }))
+          }
+        }
+      });
+    }
+  }
+  const arrows = Array.from(svg.querySelectorAll(':scope > g.commit-arrows > path'), (path) => ({
+    class: path.getAttribute('class'),
+    d: path.getAttribute('d'),
+    paint: paint(path)
+  }));
+  // The second pass draws the bullets and labels (the groups of the first pass are empty)
+  const bulletGroups = svg.querySelectorAll(':scope > g.commit-bullets');
+  const labelGroups = svg.querySelectorAll(':scope > g.commit-labels');
+  const bullets = bulletGroups.length > 0 ? Array.from(bulletGroups[bulletGroups.length - 1].children, shape) : [];
+  const labels = [];
+  const labelItems = labelGroups.length > 0 ? Array.from(labelGroups[labelGroups.length - 1].children) : [];
+  for (let i = 0; i < labelItems.length; i++) {
+    const item = labelItems[i];
+    if (item.tagName === 'g') {
+      const rect = item.querySelector(':scope > rect');
+      const label = item.querySelector(':scope > text');
+      labels.push({ kind: 'commit', transform: item.getAttribute('transform'), rect: shape(rect), text: text(label) });
+    } else {
+      // A tag: its polygon, hole and text, in that order
+      labels.push({ kind: 'tag', polygon: shape(item), hole: shape(labelItems[i + 1]), text: text(labelItems[i + 2]) });
+      i += 2;
+    }
+  }
+  const title = svg.querySelector(':scope > text.gitTitleText');
+  const viewBox = svg.getAttribute('data-layout-view-box') ?? svg.dataset.layoutViewBox ?? svg.getAttribute('viewBox');
+  return {
+    diagram: 'gitGraph',
+    viewBox: viewBox.trim().split(/[\s,]+/).map(Number),
+    branches,
+    arrows,
+    bullets,
+    labels,
     title: title ? text(title) : null
   };
 }

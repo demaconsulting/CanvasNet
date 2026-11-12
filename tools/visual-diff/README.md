@@ -142,7 +142,12 @@ differ. Every page also wraps `Math.random`: the script fails when it is called 
 is not a tree, which a mindmap never is). A packet diagram (`aria-roledescription="packet"`) gets the packet layout
 (`extractPacket`): each row group with its block rectangles (their attributes and computed paint) and texts (the labels
 and bit numbers with their class, anchor point, computed anchor, dominant baseline, font size, fill and box), and the
-title. The format is described in
+title. A git graph (`aria-roledescription="gitGraph"`) gets the git graph layout (`extractGitGraph`): each branch's
+line, label rectangle and label rows, each arrow's path data, each commit's bullet shapes, the commit labels and tags
+in the order Mermaid drew them, and the title, with their attributes as written, the computed paint and fonts and the
+text boxes. With `--seed-random`, the calls of Mermaid's id function (`makeRandomHex`) get the fixed sequence of
+`mermaid/seeded-random.mjs` (installed in every page before mermaid loads), so that a commit without an id gets the
+same label in every run, the label CanvasNet gives it (`0-eb28011`, `1-cc99105`, ...). The format is described in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
@@ -153,18 +158,20 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 [-Diagram <type>...] [-Fixture
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`, and the class, state, ER, pie, gantt, mindmap and packet fixtures (`Fixtures/class`,
-`Fixtures/state`, `Fixtures/er`, `Fixtures/pie`, `Fixtures/gantt`, `Fixtures/mindmap` and `Fixtures/packet`) give
-`reference/class`, `reference/state`, `reference/er`, `reference/pie`, `reference/gantt`, `reference/mindmap` and
-`reference/packet`. `-Diagram` picks the types (`flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt`,
-`mindmap` and `packet`; default: all). The script refuses to run unless the installed mermaid is the pinned 11.17.2.
+`reference/sequence/*.layout.json`, and the class, state, ER, pie, gantt, mindmap, packet and git graph fixtures
+(`Fixtures/class`, `Fixtures/state`, `Fixtures/er`, `Fixtures/pie`, `Fixtures/gantt`, `Fixtures/mindmap`,
+`Fixtures/packet` and `Fixtures/gitgraph`) give `reference/class`, `reference/state`, `reference/er`, `reference/pie`,
+`reference/gantt`, `reference/mindmap`, `reference/packet` and `reference/gitgraph` (drawn with `--seed-random`).
+`-Diagram` picks the types (`flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, `packet`
+and `gitgraph`; default: all). The script refuses to run unless the installed mermaid is the pinned 11.17.2.
 Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence, class,
-state, ER, pie, gantt, mindmap or packet fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
-flowchart layout with the goldens, `MermaidChartReferenceLayoutTests` its pie, gantt and packet layouts, and
-`MermaidMindmapReferenceLayoutTests` its mindmap layouts (the node sizes, the layout given the golden's sizes bit for
-bit, and the whole drawing). The tolerance is 0.01 px, or 0.1 px for the two flowchart
-fixtures with rough.js circles; text boxes, the slice boxes of a pie and the node sizes of a mindmap are compared at
-0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A golden change is reviewed like code.
+state, ER, pie, gantt, mindmap, packet or git graph fixture is excluded. `MermaidReferenceLayoutTests` compares
+CanvasNet's flowchart layout with the goldens, `MermaidChartReferenceLayoutTests` its pie, gantt and packet layouts,
+`MermaidGitGraphReferenceLayoutTests` its git graph layouts, and `MermaidMindmapReferenceLayoutTests` its mindmap
+layouts (the node sizes, the layout given the golden's sizes bit for bit, and the whole drawing). The tolerance is
+0.01 px, or 0.1 px for the two flowchart fixtures with rough.js circles; text boxes, the slice boxes of a pie and the
+node sizes of a mindmap are compared at 0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A
+golden change is reviewed like code.
 
 ### Upstream Vector Generators
 
@@ -231,6 +238,16 @@ is their vector file.
   zero-bit errors, or the row split's error for a fractional `bitsPerRow`). The inputs are those of mermaid's packet
   spec and of the packet tests of `@mermaid-js/parser` (MIT), original texts (the row split for several `bitsPerRow`
   values, given as a site configuration, the only configuration `getDiagramFromText` applies) and the packet fixtures.
+- `gen-diagram-vectors.mjs --type gitgraph` writes `gitgraph-parser.json`: the git graph database facts (the direction,
+  the title and accessibility texts, the effective gitGraph configuration of `getConfig()`, the commits in the order of
+  the commit map with all their fields, the head commit of each branch, the branch order of `getBranchesAsObjArray()`,
+  the current branch and the head commit) of the cases in `gitgraph-vector-cases.mjs`, or the error (Langium's lexer
+  and parser errors, or the database's errors of `branch`, `checkout`, `merge` and `cherry-pick`). Each page replaces
+  `Math.random` by the fixed sequence of `seeded-random.mjs` after mermaid has loaded, so the ids mermaid generates for
+  commits without one are those CanvasNet generates. The inputs are those of mermaid's git graph spec and of the git
+  graph tests of `@mermaid-js/parser` (MIT), original texts (the main branch name and order given as a site
+  configuration) and the git graph fixtures (their frontmatter left out, its `gitGraph` settings given as the site
+  configuration).
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

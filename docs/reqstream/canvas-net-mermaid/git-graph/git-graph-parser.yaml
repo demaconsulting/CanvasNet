@@ -1,0 +1,136 @@
+---
+# Software Unit Requirements for GitGraphParser
+#
+# These requirements describe the design-level behavior of the GitGraphParser unit of the GitGraph subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.GitGraph): the lexer and the grammar of the git graph language of the
+# pinned Mermaid release, the value converters and the sanitizing of the texts, the commit, branch, checkout, merge, and
+# cherry-pick operations of Mermaid's git graph database with their messages, the generated commit ids, the metadata of
+# the diagram, the located errors with Mermaid's expected tokens, the limits checked while the text is read and run, and
+# the run of the statements for the main branch of a render's configuration. See
+# docs/verification/canvas-net-mermaid/git-graph/git-graph-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: GitGraph Requirements
+        sections:
+          - title: GitGraphParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Tokens
+                title: >-
+                  The GitGraphParser unit shall split a git graph text into the tokens that Mermaid's git graph lexer
+                  produces, the first token type that matches at a position winning in Mermaid's order - the keyword
+                  gitGraph only when followed by white space, a comment, or the end, a keyword followed by more name
+                  characters read as a name only when the name is strictly longer, and the title and integer terminals
+                  before the name terminal - while keeping every token located in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in the corner cases that authors rely on, such as a branch
+                  named commits or a branch named titles; locations must still point into the file as written.
+                tests:
+                  - GitGraphParser_Parse_KeywordPrefixes_AreReferences
+                  - GitGraphParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Grammar
+                title: >-
+                  The GitGraphParser unit shall accept exactly the texts that the gitGraph grammar of the pinned
+                  Mermaid release accepts - the header as gitGraph alone, gitGraph with a colon, or gitGraph with the
+                  LR, TB, or BT direction and a colon, followed by the commit, branch, merge, checkout and switch,
+                  cherry-pick, title, and accessibility statements in the order written - and shall give the direction
+                  of the header, LR when it gives none.
+                justification: |
+                  A text Mermaid draws must be drawn, and a text Mermaid refuses must be refused; the statements run in
+                  the order written, so their order is part of the meaning.
+                tests:
+                  - GitGraphParser_Parse_HeaderForms_GiveTheDirection
+                  - GitGraphParser_Parse_UpstreamVector_MatchesMermaid
+                  - GitGraphParser_Vectors_FileHasEnoughCases_AtLeast220
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Values
+                title: >-
+                  The GitGraphParser unit shall convert the values as Mermaid's value converters do, keep the last
+                  value of a repeated option and add up repeated tags, and sanitize the ids, messages, branch names,
+                  and tags as Mermaid's git graph database sanitizes them (the escape path of its sanitizer, with the
+                  tags of a merge kept as written).
+                justification: |
+                  The values decide the ids, labels, and tags that are drawn and whether two statements name the same
+                  commit or branch; they must be Mermaid's to the character.
+                tests:
+                  - GitGraphParser_Parse_CommitOptions_LastWinsAndTagsAddUp
+                  - GitGraphParser_Parse_Sanitizing_EscapesAsMermaid
+                  - GitGraphParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Database
+                title: >-
+                  The GitGraphParser unit shall run the commit, branch, checkout, merge, and cherry-pick statements as
+                  Mermaid's git graph database runs them - a commit whose id is already used replacing the earlier one
+                  in its place, the repeats that Mermaid accepts accepted, the messages and default tags of merges and
+                  cherry-picks composed as Mermaid composes them, and the branches sorted stably by their order, 0 when
+                  the statement gives none.
+                justification: |
+                  The database decides the commits, their parents, and the branches that are drawn; Mermaid's
+                  behavior, including its silent cases, is the reference.
+                tests:
+                  - GitGraphParser_Parse_AcceptedRepeats_FollowMermaid
+                  - GitGraphParser_Parse_ComposedTexts_FollowMermaid
+                  - GitGraphParser_Parse_BranchOrder_SortsStably
+                  - GitGraphParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-GeneratedIds
+                title: >-
+                  The GitGraphParser unit shall give a commit without an id, and every cherry-pick, the id that Mermaid
+                  generates - the sequence number, a dash, and seven hex digits taken from a fixed pseudo-random
+                  sequence that starts again for each run of the statements.
+                justification: |
+                  Generated ids are drawn as commit labels and decide the paint of the commits; a fixed sequence makes
+                  them the same in every render and in the reference renders.
+                tests:
+                  - GitGraphParser_Parse_GeneratedIds_FollowTheFixedSequence
+                  - GitGraphParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Metadata
+                title: >-
+                  The GitGraphParser unit shall give the number of commits as the node count, the number of links of
+                  the commits to their parents as the edge count, no subgraphs, the direction of the header, and the
+                  title of a title statement with a value in place of the frontmatter title.
+                justification: |
+                  The metadata must describe the diagram as written without a render.
+                tests:
+                  - GitGraphParser_Parse_Metadata_CountsCommitsAndParentLinks
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Errors
+                title: >-
+                  The GitGraphParser unit shall report a lexical error before a parse error, a parse error with the
+                  tokens that Mermaid's parser lists as expected, and an operation that Mermaid's git graph database
+                  rejects with Mermaid's message at the statement, each as a coded, located MermaidSyntaxException with
+                  a hint.
+                justification: |
+                  The author must see the same diagnosis Mermaid gives, at the place in the file as written, and a way
+                  to fix it.
+                tests:
+                  - GitGraphParser_Parse_GrammarErrors_AreLocatedWithTheExpectedTokens
+                  - GitGraphParser_Parse_RejectedOperations_FailWithMermaidsMessage
+                  - GitGraphParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-Limits
+                title: >-
+                  The GitGraphParser unit shall count the main branch, each branch, and each commit against MaxNodes
+                  and check every token, sanitized text, composed message, and tag against MaxLabelLength, failing with
+                  a located mermaid-limit-exceeded error.
+                justification: |
+                  Untrusted text must not make unbounded commits, branches, or texts; a cherry-pick message grows with
+                  each pick of a pick, so the composed texts must be checked too.
+                tests:
+                  - GitGraphParser_Parse_NodeLimit_CountsBranchesAndCommits
+                  - GitGraphParser_Parse_LabelLimit_CoversEveryText
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphParser-RenderDatabase
+                title: >-
+                  The GitGraphParser unit shall give a render the database of the opened text when the render's
+                  configuration names the same main branch name and order as the text's own configuration, and
+                  otherwise run the statements again for the render's main branch, a rejection of that run failing the
+                  render, located, with mermaid-render-failed.
+                justification: |
+                  A site configuration may name another main branch, which changes what the statements mean; the
+                  common case must not pay for a second run.
+                tests:
+                  - GitGraphDiagram_Database_OtherMainBranch_RunsTheStatementsAgain

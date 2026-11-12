@@ -321,6 +321,36 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
+    ///     Test that a git graph is probed as a supported diagram with its direction, its title, its commits as nodes, and
+    ///     the links to their parents as edges, and drawn strictly at its natural size over white, as the library draws it,
+    ///     with no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidGitGraph_ProbesAndDraws()
+    {
+        // Arrange: three commits from bottom to top, the cherry-pick with two parents
+        const string Text = "gitGraph BT:\n    title History\n    commit id: \"A\"\n    branch dev\n    commit id: \"B\"\n    checkout main\n    cherry-pick id: \"B\"\n";
+        using var directory = new TempDirectory();
+        var path = directory.Combine("history.mmd");
+        File.WriteAllText(path, Text);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the facts, the size, the white corner, the library's pixels, and no note
+        Assert.Equal(new DiagramFacts("gitGraph", true, "BT", "History", null, 3, 3, 0), info.Diagram);
+        Assert.Equal((174, 258), (info.Width, info.Height));
+        Assert.Equal((info.Width, info.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(White, loaded.Surface[0, 0]);
+        Assert.Equal((expected.Width, expected.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(0, CountDifferences(expected, loaded.Surface));
+        Assert.True(CountNot(loaded.Surface, White) > loaded.Surface.Width * loaded.Surface.Height / 20);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw (a user journey) is probed with <c>Supported</c> false and
     ///     drawn as an empty picture with one unsupported note that says it is not supported, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.

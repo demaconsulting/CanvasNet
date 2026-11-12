@@ -1,0 +1,540 @@
+{
+  "source": "10-rotate-false.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "gitGraph",
+  "viewBox": [-81.9140625, -36.70000076293945, 339.9140625, 121.19999694824219],
+  "branches": [
+    {
+      "line": {
+        "tag": "line",
+        "class": "branch branch0",
+        "x1": 0,
+        "y1": -2,
+        "x2": 250,
+        "y2": -2,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(51, 51, 51)",
+          "strokeWidth": 1,
+          "dasharray": "2px",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "rect": {
+        "tag": "rect",
+        "class": "branchLabelBkg label0",
+        "x": -38.78125,
+        "y": 1.5,
+        "width": 52.78125,
+        "height": 21,
+        "rx": 4,
+        "ry": 4,
+        "transform": "translate(-19, -14)",
+        "style": "",
+        "paint": {
+          "fill": "rgb(0, 0, 236)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "label": {
+        "class": "label branch-label0",
+        "transform": "translate(-48.78125, -12.5)",
+        "text": {
+          "class": null,
+          "anchor": "start",
+          "fontFamily": "\"Liberation Sans\"",
+          "fontSize": 16,
+          "fill": "rgb(255, 255, 255)",
+          "opacity": 1,
+          "box": [0, 2, 34.781, 17],
+          "rows": [{ "text": "main", "x": "0", "dy": "1em", "box": [0, 2, 34.781, 17] }]
+        }
+      }
+    },
+    {
+      "line": {
+        "tag": "line",
+        "class": "branch branch1",
+        "x1": 0,
+        "y1": 48,
+        "x2": 250,
+        "y2": 48,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(51, 51, 51)",
+          "strokeWidth": 1,
+          "dasharray": "2px",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "rect": {
+        "tag": "rect",
+        "class": "branchLabelBkg label1",
+        "x": -54.9140625,
+        "y": 1.5,
+        "width": 68.9140625,
+        "height": 21,
+        "rx": 4,
+        "ry": 4,
+        "transform": "translate(-19, 36)",
+        "style": "",
+        "paint": {
+          "fill": "rgb(222, 222, 0)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "label": {
+        "class": "label branch-label1",
+        "transform": "translate(-64.9140625, 37.5)",
+        "text": {
+          "class": null,
+          "anchor": "start",
+          "fontFamily": "\"Liberation Sans\"",
+          "fontSize": 16,
+          "fill": "rgb(0, 0, 0)",
+          "opacity": 1,
+          "box": [-1, 2, 50.914, 17],
+          "rows": [{ "text": "feature", "x": "0", "dy": "1em", "box": [-1, 2, 50.914, 17] }]
+        }
+      }
+    }
+  ],
+  "arrows": [
+    {
+      "class": "arrow arrow0",
+      "d": "M 10 -2 L 60 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 60 -2 L 60 28 A 20 20, 0, 0, 0, 80 48 L 110 48",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 60 -2 L 160 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 110 48 L 140 48 A 20 20, 0, 0, 0, 160 28 L 160 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 160 -2 L 210 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    }
+  ],
+  "bullets": [
+    {
+      "tag": "circle",
+      "class": "commit first commit commit0",
+      "cx": 10,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit Short commit0",
+      "cx": 60,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit a much longer commit label commit1",
+      "cx": 110,
+      "cy": 48,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit Merge commit0",
+      "cx": 160,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit commit-merge Merge commit0",
+      "cx": 160,
+      "cy": -2,
+      "r": 6,
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(236, 236, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 4-eb28011 commit0",
+      "cx": 210,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "kind": "commit",
+      "transform": null,
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": -18.1650390625,
+        "y": 11.5,
+        "width": 56.330078125,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "first commit",
+        "x": -16.1650390625,
+        "y": 23,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [-17.165, 14, 52.33, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": null,
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 45.9384765625,
+        "y": 11.5,
+        "width": 28.123046875,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "Short",
+        "x": 47.9384765625,
+        "y": 23,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [47.938, 14, 24.123, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [[42, -19.2], [42, -23.2], [50, -28.7], [70, -28.7], [70, -13.7], [50, -13.7]],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 46,
+        "cy": -21.2,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "v2",
+        "x": 54,
+        "y": -18,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [53, -27, 12, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": null,
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 46.859375,
+        "y": 61.5,
+        "width": 126.28125,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "a much longer commit label",
+        "x": 48.859375,
+        "y": 73,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [48.859, 64, 122.281, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": null,
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 143.6083984375,
+        "y": 11.5,
+        "width": 32.783203125,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "Merge",
+        "x": 145.6083984375,
+        "y": 23,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [145.608, 14, 28.783, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [[142, -19.2], [142, -23.2], [150, -28.7], [170, -28.7], [170, -13.7], [150, -13.7]],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 146,
+        "cy": -21.2,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "v3",
+        "x": 154,
+        "y": -18,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [153, -27, 12, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": null,
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 183.74072265625,
+        "y": 11.5,
+        "width": 52.5185546875,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "4-eb28011",
+        "x": 185.74072265625,
+        "y": 23,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [184.741, 14, 48.519, 11]
+      }
+    }
+  ],
+  "title": null
+}

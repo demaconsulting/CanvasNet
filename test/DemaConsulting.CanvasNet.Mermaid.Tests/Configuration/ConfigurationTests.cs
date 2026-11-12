@@ -190,6 +190,43 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a git graph text that configures its section and its style at once: the section's settings take
+    ///     effect, the frontmatter theme and theme variables color the sheet, a <c>themeCSS</c> rule of a git graph
+    ///     selector overrides the theme without a report, the <c>neo</c> look gives the branch labels the theme's shadow,
+    ///     and a section value of the wrong type is reported at its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolveGitGraphSectionAndStyles_FullText()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  theme: base\n  look: neo\n  gitGraph:\n    mainBranchName: trunk\n    showBranches: maybe\n" +
+                            "  themeVariables:\n    git0: '#ff0000'\n---\n" +
+                            "%%{init: {'themeCSS': '.arrow0 { stroke: #0000ff }'}}%%\n" +
+                            "gitGraph\n  commit\n";
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var config = MermaidConfigResolver.Resolve(Preprocessor.Run(Text, "gitgraph.mmd", MermaidLimits.Default), "gitGraph", null, sink);
+        var styles = GitGraphStyles.Create(config, sink);
+        var svg = GitGraphElement.Of("svg", string.Empty);
+        var bullet = styles.Compute([svg, GitGraphElement.Of("g", "commit-bullets"), GitGraphElement.Of("circle", "commit 0-eb28011 commit0")]);
+        var arrow = styles.Compute([svg, GitGraphElement.Of("g", "commit-arrows"), GitGraphElement.Of("path", "arrow arrow0")]);
+        var label = styles.Compute([svg, GitGraphElement.Of("g", string.Empty), GitGraphElement.Of("rect", "branchLabelBkg label0") with { Inline = styles.BranchLabelStyle }]);
+        var warnings = new List<MermaidDiagnostic>();
+        var unsupported = new List<MermaidUnsupportedFeature>();
+        sink.Deliver(warnings.Add, unsupported.Add);
+
+        // Assert
+        Assert.Equal(("trunk", true), (config.GitGraph.MainBranchName, config.GitGraph.ShowBranches));
+        Assert.Equal(CssColor.Parse("#ff0000"), bullet.Fill);
+        Assert.Equal(CssColor.Parse("#0000ff"), arrow.Stroke);
+        Assert.Equal(CssColor.Parse("#ff0000"), label.Fill);
+        Assert.NotNull(label.Shadow);
+        Assert.Empty(unsupported);
+        Assert.Contains(warnings, warning => (warning.Code, warning.Location.Line) == (MermaidDiagnosticCodes.ConfigInvalid, 7));
+    }
+
+    /// <summary>
     ///     Validates a packet text that configures its section and its style at once: the section's settings take effect,
     ///     a frontmatter <c>themeVariables.packet</c> keeps the keys Mermaid's sanitizer keeps (a label color) and loses
     ///     the others (a block fill, reported as unknown), a <c>themeCSS</c> rule of a packet selector overrides the theme

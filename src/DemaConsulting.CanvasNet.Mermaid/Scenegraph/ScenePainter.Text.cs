@@ -8,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 
 /// <content>
 ///     Text: the runs of a line are drawn one after the other with their resolved faces, an underlined run with a bar
-///     under it.
+///     under it; a rotated line is drawn as without its rotation, then turned about its pivot.
 /// </content>
 internal sealed partial class ScenePainter
 {
@@ -70,21 +70,46 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        // The line box is charged once, then each run is drawn after the previous one, its outline stroked over its fill;
-        // a stroke width that rounds to zero in single precision (a tiny fit scale) draws no stroke
+        // A rotated line turns about its device pivot; a pivot or angle that cannot be drawn ends the line
+        Matrix3x2? rotation = null;
+        if (item.Rotation is { } turn)
+        {
+            var pivotX = (turn.CenterX * placement.Scale) + placement.OffsetX;
+            var pivotY = (turn.CenterY * placement.Scale) + placement.OffsetY;
+            if (!IsBounded(pivotX, pivotY) || !double.IsFinite(turn.Angle))
+            {
+                return;
+            }
+
+            rotation = Matrix3x2.CreateRotation((float)(turn.Angle % 360 * Math.PI / 180), new Vector2((float)pivotX, (float)pivotY));
+        }
+
+        // The line box is charged once (the box of its turned corners for a rotated line), then each run is drawn after
+        // the previous one, its outline stroked over its fill; a stroke width that rounds to zero in single precision (a
+        // tiny fit scale) draws no stroke
         var strokeWidth = DeviceStrokeWidth(item.Stroke, placement.Scale);
         var stroke = strokeWidth > 0 ? item.Stroke : null;
         var half = stroke is null ? 0 : strokeWidth / 2.0;
-        Charge(surface, x - half, baseline - ascent - half, x + total + half, baseline + descent + half, item);
+        var (left, top, right, bottom) = (x - half, baseline - ascent - half, x + total + half, baseline + descent + half);
+        if (rotation is { } matrix)
+        {
+            (left, top, right, bottom) = Turned(matrix, left, top, right, bottom);
+            if (!IsBounded(left, top, right, bottom))
+            {
+                return;
+            }
+        }
+
+        Charge(surface, left, top, right, bottom, item);
         foreach (var (run, face, size, width) in runs)
         {
-            var path = TextRenderer.CreateTextPath(run.Text, face.Font, size, (float)x, (float)baseline);
+            var path = Turn(TextRenderer.CreateTextPath(run.Text, face.Font, size, (float)x, (float)baseline), rotation);
             if (run.Color.A > 0)
             {
                 PathFiller.Fill(surface, path, run.Color, FillRule.NonZero, FlattenTolerance);
                 if (run.Underline)
                 {
-                    PathFiller.Fill(surface, UnderlineBar(face, size, x, baseline, width), run.Color, FillRule.NonZero, FlattenTolerance);
+                    PathFiller.Fill(surface, Turn(UnderlineBar(face, size, x, baseline, width), rotation), run.Color, FillRule.NonZero, FlattenTolerance);
                 }
             }
 
@@ -96,6 +121,36 @@ internal sealed partial class ScenePainter
 
             x += width;
         }
+    }
+
+    /// <summary>
+    ///     Turns a device path by a rotation, or keeps it when there is none.
+    /// </summary>
+    /// <param name="path">The path in device space.</param>
+    /// <param name="rotation">The rotation about the device pivot, or null.</param>
+    /// <returns>The path.</returns>
+    private static Geometry.Path Turn(Geometry.Path path, Matrix3x2? rotation) =>
+        rotation is { } matrix ? path.Transform(matrix) : path;
+
+    /// <summary>
+    ///     Gets the axis-aligned box of a device box turned by a rotation (the box of its four turned corners).
+    /// </summary>
+    /// <param name="matrix">The rotation.</param>
+    /// <param name="left">The left of the box.</param>
+    /// <param name="top">The top of the box.</param>
+    /// <param name="right">The right of the box.</param>
+    /// <param name="bottom">The bottom of the box.</param>
+    /// <returns>The turned box.</returns>
+    internal static (double Left, double Top, double Right, double Bottom) Turned(Matrix3x2 matrix, double left, double top, double right, double bottom)
+    {
+        var corners = new[]
+        {
+            Vector2.Transform(new Vector2((float)left, (float)top), matrix),
+            Vector2.Transform(new Vector2((float)right, (float)top), matrix),
+            Vector2.Transform(new Vector2((float)right, (float)bottom), matrix),
+            Vector2.Transform(new Vector2((float)left, (float)bottom), matrix),
+        };
+        return (corners.Min(c => (double)c.X), corners.Min(c => (double)c.Y), corners.Max(c => (double)c.X), corners.Max(c => (double)c.Y));
     }
 
     /// <summary>

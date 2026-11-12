@@ -63,8 +63,8 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 ///         <c>classDiagram-v2</c>, under Mermaid's <c>classDiagram</c> id or its legacy <c>class</c> id) and
 ///         <c>stateDiagram</c> (written <c>stateDiagram</c> or <c>stateDiagram-v2</c>, under Mermaid's
 ///         <c>stateDiagram</c> id or its legacy <c>state</c> id), <c>erDiagram</c>, <c>pie</c>, <c>gantt</c>,
-///         <c>mindmap</c> and <c>packet</c> (written <c>packet</c> or <c>packet-beta</c>) are drawn; the rest is recognized
-///         but not drawn. A type that is not drawn is reported by the
+///         <c>mindmap</c>, <c>packet</c> (written <c>packet</c> or <c>packet-beta</c>) and <c>gitGraph</c> are drawn; the
+///         rest is recognized but not drawn. A type that is not drawn is reported by the
 ///         document as <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         <see cref="UnsupportedHint(DetectedDiagram)"/>.
 ///     </para>
@@ -80,7 +80,7 @@ internal sealed record DetectedDiagram(string MermaidId, string DiagramType, str
 internal static class DiagramDetector
 {
     /// <summary>The keywords of the supported diagram types, for hints.</summary>
-    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt", "mindmap", "packet"];
+    private static readonly string[] SupportedKeywords = ["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt", "mindmap", "packet", "gitGraph"];
 
     /// <summary>
     ///     The known diagram types in Mermaid's detection order: the detector id, the public type name, the support and
@@ -119,7 +119,7 @@ internal static class DiagramDetector
         new("flowchart", "flowchart", DiagramSupport.Supported, (text, settings) =>
             settings.FlowchartRenderer is not "dagre-wrapper" and not "elk" && StartsWithKeyword(text, "graph")),
         new("timeline", "timeline", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "timeline")),
-        new("gitGraph", "gitGraph", DiagramSupport.Unsupported, (text, _) => StartsWithKeyword(text, "gitGraph")),
+        new("gitGraph", "gitGraph", DiagramSupport.Supported, (text, _) => StartsWithKeyword(text, "gitGraph")),
         new("stateDiagram", "state", DiagramSupport.Supported, (text, settings) =>
             StartsWithKeyword(text, "stateDiagram-v2") || (StartsWithKeyword(text, "stateDiagram") && settings.StateRenderer == "dagre-wrapper")),
         new("state", "state", DiagramSupport.Supported, (text, settings) =>
@@ -155,7 +155,7 @@ internal static class DiagramDetector
     ];
 
     /// <summary>
-    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c>, <c>classDiagram</c>, <c>stateDiagram</c>, <c>erDiagram</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c> and <c>packet</c>).
+    ///     Gets the keywords of the supported diagram types (<c>flowchart</c>, <c>graph</c>, <c>sequenceDiagram</c>, <c>classDiagram</c>, <c>stateDiagram</c>, <c>erDiagram</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, <c>packet</c> and <c>gitGraph</c>).
     /// </summary>
     public static IReadOnlyList<string> SupportedDiagramKeywords => SupportedKeywords;
 

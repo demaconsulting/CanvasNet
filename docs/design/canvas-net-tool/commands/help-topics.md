@@ -113,16 +113,19 @@ diagnostics (as does `svg`; the drift test accepts the identifier because it is 
 `scad` topic shows
 `#def.` in its link item. A unit test checks the three topics, the usage text, and that the documented command runs.
 
-The `mermaid` topic (alias `mmd`) has the five sections of a format topic and seven more, `class`, `state`, `er`,
-`pie`, `gantt`, `mindmap`, and `packet` (after `supported`, in that order): `supported` (flowcharts and their shapes,
-links, subgraphs, labels, styles, configuration and themes, picture nodes, and titles, sequence diagrams and their
-statements, arrows, participant types, and settings, an overview item each for class, state, and entity relationship
-diagrams, pie charts, gantt charts, mindmaps, and packet diagrams, and what `info` reports), `class` (the class diagram
+The `mermaid` topic (alias `mmd`) has the five sections of a format topic and eight more, `class`, `state`, `er`,
+`pie`, `gantt`, `mindmap`, `packet`, and `gitgraph` (after `supported`, in that order): `supported` (flowcharts and
+their shapes, links, subgraphs, labels, styles, configuration and themes, picture nodes, and titles, sequence diagrams
+and their statements, arrows, participant types, and settings, an overview item each for class, state, and entity
+relationship diagrams, pie charts, gantt charts, mindmaps, packet diagrams, and git graphs, and what `info` reports),
+`class` (the class diagram
 syntax, relation, and setting rows), `state` (the state diagram syntax and setting rows), and `er` (the entity
 relationship diagram syntax, cardinality and line, and setting rows), `pie` (the pie chart syntax and setting rows),
 `gantt` (the gantt chart syntax, tag, and setting rows), `mindmap` (the mindmap syntax, shape, section, layout, and
-color rows and the `mindmap.*` setting rows), and `packet` (the packet diagram syntax, row, bit number, and color rows
-and the `packet.*` setting rows), each item by item and in the order of the tables of the Mermaid user guide, which a
+color rows and the `mindmap.*` setting rows), `packet` (the packet diagram syntax, row, bit number, and color rows
+and the `packet.*` setting rows), and `gitgraph` (the git graph syntax rows, from the header, commits, branches,
+checkouts, merges, and cherry-picks to the errors, titles, texts, comments, colors, and configuration, and the
+`gitGraph.*` setting rows), each item by item and in the order of the tables of the Mermaid user guide, which a
 unit test compares with the guide's rows, `unsupported` (one term per identifier the renderer reports instead of
 drawing: `mermaid-diagram-unsupported` for every other diagram type, which `render` draws as an empty picture and `info`
 reports with `supported` false, and the icon (also a mindmap node's `::icon(...)`), math, look, layout (also a mindmap
@@ -132,19 +135,23 @@ errors and of the warnings of the library, and the text limit), and `differences
 the layout without the pictures that `info` reports, the white background, the located errors where Mermaid would crash,
 a gantt chart drawn without a today line because the tool sets no clock, and the mindmap differences: the exactness of
 the chaotic layout, the icons, other layouts, the empty mindmap, a decoration before the first node, and the depth and
-work limits, and the packet differences: the limit on the parts of the rows and the settings and errors). The same unit
+work limits, and the packet differences: the limit on the parts of the rows and the settings and errors, and the git
+graph differences: the generated commit ids, the limits, the settings and errors, and the text widths and duplicate
+ids). The same unit
 test checks that every code of the guide's table of unsupported features and warnings is an item of the `unsupported` or
 `diagnostics` section with the same text. Its examples are `flowchart` (a source example: a decision, a subgraph, link
-labels, and a class), `sequence`, `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, and `packet` (source examples of a
+labels, and a class), `sequence`, `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, `packet`, and `gitgraph` (source
+examples of a
 sequence diagram, a class diagram, a state diagram with start
 and end states, labeled transitions, a composite state, and a note, and an entity relationship diagram with attribute
 tables, keys, comments, and three relationships with their cardinalities, a pie chart, a gantt chart without a
 `todayMarker` statement or an unknown reference, so it renders without a warning, and a mindmap with three sections and
 every node shape and a Markdown string, without an icon or a layout, and a packet diagram of three rows with ranges,
-single bits, `+N` blocks, a block split across two rows, and a title, embedded as
+single bits, `+N` blocks, a block split across two rows, and a title, and a git graph with three branches, a branch
+order, a highlighted and a reversed commit, a merge, a cherry-pick with its default tag, a tag, and a title, embedded as
 `Examples/mermaid-sequence.mmd`, `mermaid-class.mmd`, `mermaid-state.mmd`, `mermaid-er.mmd`, `mermaid-pie.mmd`,
-`mermaid-gantt.mmd`, `mermaid-mindmap.mmd`, and `mermaid-packet.mmd`), all nine rendered with `--strict` by the drift
-test and the self-test, `pictures` (a snippet
+`mermaid-gantt.mmd`, `mermaid-mindmap.mmd`, `mermaid-packet.mmd`, and `mermaid-gitgraph.mmd`), all ten rendered with
+`--strict` by the drift test and the self-test, `pictures` (a snippet
 whose nodes show `part.scad` and `chart.vl.json`, rendered by its own test with the `plate` example of `scad` and the
 `bar` example of `vega-lite` as its siblings, which requires one `embed` operation per picture and no diagnostic), and
 the commands `render`, `theme`, and `info`. The `svg` topic lists `.mmd` and `.mermaid` among the `href file types` and

@@ -290,6 +290,39 @@ public class DiscoveryCommandsDiagramTests
     }
 
     /// <summary>
+    ///     Test that a git graph is described as supported, with the direction of its header, its title and accessible
+    ///     title, its commits (the merge included) as nodes, the links to their parents as edges, and no subgraphs.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_GitGraph_ReportsCommitsAndParentLinks()
+    {
+        // Arrange: three commits from top to bottom, the merge with two parents
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "history.mmd",
+            "gitGraph TB:\n    title History\n    accTitle: A history\n    commit\n    branch dev\n    commit\n    checkout main\n    merge dev tag: \"v1\"\n");
+        var info = SourceLoader.Probe(path);
+
+        // Act
+        var json = RunInfo(true, path);
+        var text = RunInfo(false, path).TrimEnd();
+
+        // Assert
+        using var document = JsonDocument.Parse(json);
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal("gitGraph", diagram.GetProperty("type").GetString());
+        Assert.True(diagram.GetProperty("supported").GetBoolean());
+        Assert.Equal("TB", diagram.GetProperty("direction").GetString());
+        Assert.Equal(("History", "A history"), (diagram.GetProperty("title").GetString(), diagram.GetProperty("accTitle").GetString()));
+        Assert.Equal((3, 3, 0), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Equal((202, 237), (info.Width, info.Height));
+        Assert.Equal(
+            $"{path}: mermaid, {info.Width}x{info.Height} px (laid out), gitGraph TB, 3 nodes, 3 edges, 0 subgraphs, title \"History\", accTitle \"A history\", {info.Bytes} bytes",
+            text);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
     ///     titles, so an agent learns before rendering that it would get an empty picture.
     /// </summary>

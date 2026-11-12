@@ -153,3 +153,17 @@ sections:
                 tests:
                   - ScenePainter_Paint_UnderlinedRun_DrawsABarUnderTheBaseline
                   - ScenePainter_UnderlineBar_BundledFaces_FollowThePostTable
+
+              - id: CanvasNetMermaid-Scenegraph-ScenePainter-RotatedText
+                title: >-
+                  The ScenePainter unit shall paint a rotated text line as the line turned about its point in device
+                  space, its glyphs and underlines included, charge the device box of the turned line to the
+                  painted-pixel limit, and paint nothing for a line whose angle is not a finite number or whose point in
+                  device space is not a finite coordinate within the painter's range.
+                justification: |
+                  The rotated commit labels of a git graph must stand as in Mermaid's picture, and a turned line must
+                  still be bounded by the painted-pixel limit.
+                tests:
+                  - ScenePainter_Paint_RotatedText_IsTheLineTurnedAboutItsPivot
+                  - ScenePainter_Paint_RotatedText_ChargesItsTurnedBox
+                  - ScenePainter_Paint_RotatedTextWithoutAUsablePivotOrAngle_IsSkipped

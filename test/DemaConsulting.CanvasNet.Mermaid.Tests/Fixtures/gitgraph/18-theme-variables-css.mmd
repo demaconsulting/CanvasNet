@@ -1,0 +1,22 @@
+---
+config:
+  theme: base
+  themeVariables:
+    git0: "#ff0000"
+    gitInv1: "#00ff00"
+    gitBranchLabel2: "#0000ff"
+    commitLabelFontSize: 12px
+    tagLabelFontSize: 12px
+    fontSize: 18px
+  themeCSS: ".commit-label { fill: #8b4513; } .arrow2 { stroke-width: 4px; }"
+---
+gitGraph
+    commit id: "commit-merge"
+    branch one
+    commit id: "X" type: HIGHLIGHT tag: "t"
+    branch two
+    commit id: "Y"
+    checkout main
+    merge two id: "Z"
+    checkout one
+    merge main

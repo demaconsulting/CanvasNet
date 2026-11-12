@@ -39,8 +39,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Dagre-LayoutWorkMeter-
 diagram (each extracted cluster is laid out separately) and by the cluster code of the `Rendering` subsystem. The
 charges of the stages are deterministic, so the same graph always uses the same work: the complete acyclic graph on 30
 nodes takes 2,955,593 steps and a four-node cyclic graph with a cluster and a label 1,369, both pinned by the subsystem
-tests. The meter bounds the date and tick work of a chart, the force-directed layout of a mindmap, and the row split and
-texts of a packet diagram as well as the work of a graph layout.
+tests. The meter bounds the date and tick work of a chart, the force-directed layout of a mindmap, the row split and
+texts of a packet diagram, and the placing, arrows, lanes, and texts of a git graph as well as the work of a graph
+layout.
 
 #### Error Handling
 
@@ -71,6 +72,10 @@ and the cancellation token.
 - `PieRenderer` creates a meter and charges the sections and every text it measures.
 - `PacketRenderer` creates a meter for each render; `PacketDiagram.Rows` charges 1 for each block and 1 for each part of
   the row split, and the renderer charges 1 plus the length of each text it measures.
+- `GitGraphRenderer` creates a meter for each render and charges 1 for each branch, for each commit of each placing
+  pass, for each parent it looks at, and for each visit of the bottom-to-top loops of `parallelCommits`; 1 plus the
+  number of commits for each arrow (its rerouting test); 1 plus the number of lanes for each lane try; and 1 plus the
+  length of each text it measures or draws.
 - `MindmapRenderer` creates a meter for each render and charges the node data (nodes plus edges plus 1), each label
   (its length plus 1, before it is checked against `MaxLabelLength`), the measuring of every label through its
   `LabelBuilder`, and 4 for each drawn edge; it passes the meter to `CoseLayout.Run`. A mindmap of three nodes takes

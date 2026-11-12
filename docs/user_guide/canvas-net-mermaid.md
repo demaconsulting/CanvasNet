@@ -11,13 +11,14 @@ language and draws them as **static pictures** with Mermaid's own layout: a flow
 diagram, and an entity relationship diagram are laid out by a port of the dagre layout that Mermaid uses, a sequence
 diagram by a port of Mermaid's sequence renderer, a pie chart and a gantt chart by ports of Mermaid's pie and gantt
 renderers, a mindmap by a port of Mermaid's mindmap renderer and of the cose-bilkent layout it uses, and a packet
-diagram by a port of Mermaid's packet renderer, so the nodes, edges, classes, states, entities, participants, messages,
-slices, tasks, blocks, and labels land where Mermaid 11 puts them.
+diagram and a git graph by ports of Mermaid's packet and git graph renderers, so the nodes, edges, classes, states,
+entities, participants, messages, slices, tasks, blocks, commits, and labels land where Mermaid 11 puts them.
 This version draws **flowcharts** (the `flowchart` and `graph` keywords), **sequence diagrams** (the `sequenceDiagram`
 keyword), **class diagrams** (the `classDiagram` keyword), **state diagrams** (the `stateDiagram-v2` and `stateDiagram`
 keywords), **entity relationship diagrams** (the `erDiagram` keyword), **pie charts** (the `pie` keyword), **gantt
-charts** (the `gantt` keyword), **mindmaps** (the `mindmap` keyword), and **packet diagrams** (the `packet` and
-`packet-beta` keywords). Every other diagram type that Mermaid knows is recognized and reported, never drawn wrongly. The
+charts** (the `gantt` keyword), **mindmaps** (the `mindmap` keyword), **packet diagrams** (the `packet` and
+`packet-beta` keywords), and **git graphs** (the `gitGraph` keyword). Every other diagram type that Mermaid knows is
+recognized and reported, never drawn wrongly. The
 package is derived with attribution from the Mermaid project and the libraries it uses,
 and it is **not affiliated with or endorsed by** the Mermaid project (see *Mermaid Third-Party Attribution*). A document
 is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
@@ -31,13 +32,13 @@ public sealed partial class MermaidDocument
     public static MermaidDocument Open(Stream stream, MermaidOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "flowchart" (also graph), "sequence", "er", "pie", "packet", ...
+    public string DiagramType { get; }      // "flowchart" (also graph), "sequence", "pie", "packet", "gitGraph", ...
     public bool IsSupported { get; }        // true when this version draws the type
     public string? Title { get; }           // the title statement, else the frontmatter title
     public string? AccTitle { get; }        // accTitle, metadata only
     public string? Direction { get; }       // TB, TD, BT, LR, or RL; null for a sequence, chart, or mindmap
-    public int NodeCount { get; }           // the participants, classes, states, entities, slices, tasks, or blocks
-    public int EdgeCount { get; }           // the messages, relations, transitions, or relationships
+    public int NodeCount { get; }           // participants, classes, states, entities, slices, tasks, blocks, or commits
+    public int EdgeCount { get; }           // the messages, relations, transitions, relationships, or parent links
     public int SubgraphCount { get; }       // the boxes, namespaces, composite states, subgraphs, or gantt sections
 
     public MermaidSize Measure(
@@ -77,9 +78,11 @@ public sealed partial class MermaidDocument
   drawn (a section without tasks is not drawn), and `EdgeCount` is zero. For a mindmap, `NodeCount` is the number of
   nodes, `EdgeCount` one fewer (zero for a mindmap without nodes), and `SubgraphCount` zero. For a packet diagram,
   `NodeCount` is the number of blocks as written (a block split across two rows counts once), and `EdgeCount` and
-  `SubgraphCount` are zero. A pie chart, a gantt chart, a mindmap, or a packet diagram has no `Direction`. For a type
-  that is not drawn, `IsSupported` is `false`, the counts are zero,
-  and `Direction` and `AccTitle` are `null`.
+  `SubgraphCount` are zero. A pie chart, a gantt chart, a mindmap, or a packet diagram has no `Direction`. For a git
+  graph, `NodeCount` is the number of commits (merges and cherry-picks included), `EdgeCount` the number of links from a
+  commit to its parents, `SubgraphCount` zero, and `Direction` the direction of the header (`LR`, `TB`, or `BT`; `LR`
+  when the header has none). For a type that is not drawn, `IsSupported` is `false`, the counts are zero, and
+  `Direction` and `AccTitle` are `null`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
 - `Render()` draws the diagram onto a new `Surface` at its **natural size** (the view box of Mermaid's SVG, rounded up
@@ -158,11 +161,11 @@ wall-clock bound.
 | -------- | ------- | -------------- | ------------------- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
 | `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), the relations of a class diagram, the transitions of a state diagram, or the relationships of an entity relationship diagram | `MermaidSyntaxException` |
-| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram, the slices of a pie chart (every slice statement), the task and section statements of a gantt chart, or the block statements of a packet diagram and, when it is drawn, the parts its rows split them into | `MermaidSyntaxException` (`MermaidRenderException` for the parts of a packet diagram) |
-| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, the descriptions of a state joined with line breaks, the legend text of a pie slice with its value, every text of a gantt chart, and every label, title, and accessibility text of a packet diagram included; an axis label of a gantt chart, which is only known when it is laid out, is checked then) | `MermaidSyntaxException` (`MermaidRenderException` for a gantt axis label) |
+| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram, the slices of a pie chart (every slice statement), the task and section statements of a gantt chart, the block statements of a packet diagram and, when it is drawn, the parts its rows split them into, or the main branch, the branches, and the commits of a git graph | `MermaidSyntaxException` (`MermaidRenderException` for the parts of a packet diagram) |
+| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, the descriptions of a state joined with line breaks, the legend text of a pie slice with its value, every text of a gantt chart, every label, title, and accessibility text of a packet diagram, and every text of a git graph, with the messages and tags that Mermaid composes for its merges and cherry-picks, included; an axis label of a gantt chart, which is only known when it is laid out, is checked then) | `MermaidSyntaxException` (`MermaidRenderException` for a gantt axis label) |
 | `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), composite states inside composite states (a concurrent region counts as a level too), subgraphs of an entity relationship diagram, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` (`MermaidRenderException` for namespaces, composite states, or entity relationship subgraphs nested through their names, found when laid out) |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
-| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram and a pie chart; the date passes, the days of the excluded-day loops, and the ticks of a gantt chart; the blocks, the parts of the rows, and the texts of a packet diagram) | `MermaidRenderException` |
+| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram and a pie chart; the date passes, the days of the excluded-day loops, and the ticks of a gantt chart; the blocks, the parts of the rows, and the texts of a packet diagram; the branches, the commits of both passes, the arrows with their search for a free lane, and the texts of a git graph) | `MermaidRenderException` |
 | `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |
 | `MaxPaintedPixels` | 250,000,000 | The device pixels one render paints (after `Scale`) | `MermaidRenderException` |
 | `MaxDiagnostics` | 1,000 | The reports kept per call; the rest become one `mermaid-diagnostics-suppressed` warning | (rendering continues) |
@@ -214,7 +217,8 @@ The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`b
 *Supported Sequence Syntax*, the class settings under *Supported Class Syntax*, the state settings under *Supported
 State Syntax*, the entity relationship settings under *Supported Entity Relationship Syntax*, the pie settings under
 *Supported Pie Syntax*, the gantt settings under *Supported Gantt Syntax*, the mindmap settings under *Supported
-Mindmap Syntax*, and the packet settings under *Supported Packet Syntax*.
+Mindmap Syntax*, the packet settings under *Supported Packet Syntax*, and the git graph settings under *Supported Git
+Graph Syntax*.
 
 ### Supported Flowchart Syntax
 
@@ -687,6 +691,55 @@ Other behaviors that follow Mermaid:
   pixels at the default settings.
 - A block that is not wider than `paddingX` (its bits times `bitWidth`) draws its texts without a rectangle.
 
+### Supported Git Graph Syntax
+
+A git graph starts with `gitGraph`. It is drawn by a port of Mermaid's git graph renderer, so the commits, the branch
+lines and labels, the arrows, the commit ids, the tags, and the title land where Mermaid 11 puts them.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `gitGraph`, `gitGraph:`, or `gitGraph` with a direction and a colon (`gitGraph LR:`, `gitGraph TB:`, or `gitGraph BT:`), left to right when no direction is given; the first statement can follow on the same line, and a direction without its colon is a `mermaid-syntax-error` |
+| Commits | `commit`, with the options `id: "..."`, `msg: "..."` (or the message alone, in quotes), `tag: "..."`, and `type: NORMAL`, `REVERSE`, or `HIGHLIGHT`, in any order; a repeated option keeps its last value and the tags add up; a commit without an `id` is given one such as `0-eb28011` |
+| Branches | `branch name`, the name written with letters, digits, `_`, `-`, `.`, and `/`, or in quotes, with an optional `order: 2`; the branch starts at the current commit and is checked out; the branches are drawn sorted by their order (0 when it is not given), in the order they were made where it is the same |
+| Checkouts | `checkout name` or `switch name` |
+| Merges | `merge name`, with the options `id: "..."`, `tag: "..."`, and `type: ...`; a merge commit shows its id only when it is given |
+| Cherry-picks | `cherry-pick id: "..."`, with the options `tag: "..."` (by default the tag is `cherry-pick:` and the id; an empty tag draws none) and `parent: "..."` (the parent to take, which a merge commit needs) |
+| Errors | An operation that Mermaid's git database rejects (a merge of a branch into itself, of a branch that does not exist or has no commits, a `checkout` of a branch that does not exist, a second `branch` of the same name, a `cherry-pick` of a commit that does not exist or is on the current branch, and so on) is a `mermaid-syntax-error` with Mermaid's message, located at the statement |
+| Titles | `title`, else the frontmatter `title`, is drawn centered above the graph; `accTitle` and `accDescr` (on one line, or in braces over several lines) are read as metadata |
+| Texts | The commit ids, the tags, and the branch names are SVG text, cleaned as Mermaid cleans them, so entity codes (`#35;`) are drawn as their characters and `<`, `>`, and `=` as written; a branch name is split into rows at `<br>` and `\n` and keeps its spaces; the message of a commit is not drawn |
+| Comments | `%%` comments, on their own line or after a statement |
+| Colors | The theme variables `git0` to `git7` (the commits, branch lines, and arrows), `gitInv0` to `gitInv7` (highlighted commits), `gitBranchLabel0` to `gitBranchLabel7`, `commitLabelColor`, `commitLabelBackground`, `commitLabelFontSize`, `tagLabelColor`, `tagLabelBackground`, `tagLabelBorder`, and `tagLabelFontSize`; the ninth branch takes the colors of the first again |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, `themeCSS` (the git graph's own classes, such as `.commit0`, `.branch-label0`, `.arrow0`, `.commit-label`, and `.tag-label`), `look: neo` (a shadow under the branch labels), and the git graph settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+The git graph settings follow Mermaid (`config.gitGraph` in the frontmatter, a directive, or
+`MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `gitGraph.showBranches` | `true` | `false` draws neither the branch lines nor their labels |
+| `gitGraph.showCommitLabel` | `true` | `false` draws no commit ids (the tags are still drawn) |
+| `gitGraph.rotateCommitLabel` | `true` | Turns the commit ids by 45 degrees; `false` draws them level under the commits |
+| `gitGraph.parallelCommits` | `false` | `true` places each commit one step after its parent, so commits made on different branches can stand side by side |
+| `gitGraph.mainBranchName` | `main` | The name of the first branch |
+| `gitGraph.mainBranchOrder` | 0 | The `order` of the main branch among the other branches |
+| `gitGraph.titleTopMargin` | 25 | How far above the graph the title is drawn |
+| `gitGraph.diagramPadding` | 8 | The margin around the graph |
+| `gitGraph.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- The commits are 50 pixels apart, in the order they were made; the branches are 90 pixels apart when the commit ids
+  are turned and 50 when they are not, plus half the width of the branch label from top to bottom and from bottom to
+  top.
+- An arrow that would pass over a commit made on the branch it runs along is moved to a lane of its own, with rounded
+  corners.
+- A git graph of the keyword alone draws the label of the main branch only: 104 by 37 pixels at the default settings.
+- `gitGraph.nodeLabel` and `gitGraph.arrowMarkerAbsolute` are read but change nothing in the drawing, as in Mermaid.
+
 ### Mermaid Unsupported Features and Strict Mode
 
 A construct that Mermaid defines but this package does not draw is reported as a `MermaidUnsupportedFeature` with a
@@ -698,7 +751,7 @@ fail on a warning.
 <!-- markdownlint-disable MD013 -->
 | Code | Kind | Reported when |
 | ---- | ---- | ------------- |
-| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, `mindmap`, and `packet`); the picture is empty |
+| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, `mindmap`, `packet`, and `gitGraph`); the picture is empty |
 | `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant, an `::icon(...)` of a mindmap node); the node or participant keeps its shape and label without the icon |
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
@@ -759,8 +812,9 @@ drawn with HTML labels, every state, transition, composite state, concurrent reg
 every entity with its rows and cells, relationship, and subgraph of an entity relationship diagram, with HTML or SVG
 labels, every slice, percentage label, legend entry, and title of a pie chart, every bar, task text, section row
 and title, axis tick, excluded day, and today line of a gantt chart (drawn with `Now` set to the clock of the
-reference renderer, `tools/visual-diff/`), and every block, label, bit number, and title of a packet diagram. A
-mindmap is laid out bit for bit as Mermaid lays it out when it is given
+reference renderer, `tools/visual-diff/`), every block, label, bit number, and title of a packet diagram, and every
+branch line and label, arrow, commit, commit id, tag, and title of a git graph (drawn with the commit ids that Mermaid
+generates from the same fixed sequence). A mindmap is laid out bit for bit as Mermaid lays it out when it is given
 Mermaid's node sizes, and its drawing is checked against Mermaid's in the same way (see *Mindmaps: layout* below).
 The known differences from Mermaid are:
 
@@ -771,7 +825,8 @@ The known differences from Mermaid are:
   text kept (`mermaid-html-tag-ignored`). Markdown labels support paragraphs, strong, and emphasis; links, tables, and
   strikethrough are plain text.
 - **Icons, looks, and layouts.** Icons are not drawn, the `handDrawn` and `neo` looks are drawn classic (a mindmap
-  too), and `elk` is laid out with dagre (each is reported, see the table above).
+  too), and `elk` is laid out with dagre (each is reported, see the table above). A git graph draws the shadow of the
+  `neo` look under its branch labels, as Mermaid does.
 - **Interaction and animation.** `click`, `href`, `call`, tooltips, the `link` and `callback` of a class diagram, and
   the `click` of a state diagram or a gantt chart are ignored (the text of a gantt task with a `click` is still drawn
   bold, as in Mermaid); an animated edge is drawn as its first frame.
@@ -889,21 +944,45 @@ The known differences from Mermaid are:
   it, can fail at an earlier split first.
 - **Packet diagrams: texts.** A character that no bundled font has is drawn as the missing-glyph box without the
   warning `mermaid-text-missing-glyph`.
+- **Git graphs: commit ids.** A commit without an `id` is given an id of the same form as Mermaid's (its number, a
+  dash, and seven hexadecimal digits, such as `0-eb28011`), but the digits come from a fixed pseudo-random sequence
+  that starts again for every diagram, where Mermaid draws random digits in every render, so the picture is the same
+  every time. The width of such an id, and so the place of its label, follows its digits.
+- **Git graphs: limits.** `MaxNodes` counts the main branch, the branches, and the commits; `MaxLabelLength` also
+  bounds the messages and tags that Mermaid composes for merges and cherry-picks (a chain of cherry-picks of
+  cherry-picks makes them longer each time) and the cleaned texts; `MaxLayoutWork` bounds the search of every arrow for
+  the commits it passes. A git graph of more than about 650 commits in one direction is larger than
+  `Surface.MaxDimension` at its natural size, so it needs a smaller `Scale` or the sized `Render` overload.
+- **Git graphs: settings and failures.** A git graph setting of the wrong type is `mermaid-config-invalid` and
+  ignored. The main branch name and order of the text's own configuration are used when the text is read; a site
+  configuration (`MermaidRenderOptions.Config`) that changes them runs the statements again when the diagram is drawn,
+  and an operation that then fails is a located `mermaid-render-failed` with Mermaid's message (a text that checks out
+  a main branch named only by the site configuration fails when it is read). Where Mermaid's renderer fails
+  ("Closest parent not found for commit ...", for a commit id used twice in a bottom-to-top graph with
+  `parallelCommits`), the render is a located `mermaid-render-failed`.
+- **Git graphs: texts.** A character that no bundled font has is drawn as the missing-glyph box without the warning
+  `mermaid-text-missing-glyph`. The width of a commit id or tag follows the rule of *Labels* above, which differs from
+  Chrome's by up to a pixel for a few glyphs at a few sizes (such as a 10-pixel id that ends in `D`), so its label or
+  tag can be up to a pixel narrower. A branch name keeps its spaces, and an empty row of a branch name takes no room, as
+  in Chrome.
+- **Git graphs: repeated commit ids.** A commit whose `id` is used again replaces the earlier commit, as in Mermaid,
+  which only logs a warning; nothing is reported.
 - **Pictures.** A picture that cannot be loaded leaves the node's frame (Mermaid fails the whole render).
 - **Background and size.** The background is transparent by default (as the SVG is), and `useMaxWidth` has no meaning
   for a picture of a fixed size.
 - **Themes.** `neo`, `neo-dark`, and `redux` are not available.
 - **Limits.** `MaxNodes`, `MaxNestingDepth`, `MaxLabelLength`, `MaxLayoutWork`, `MaxImages`, and `MaxPaintedPixels`
-  have no Mermaid equivalent; a gantt chart's date passes, excluded days, and ticks, a mindmap's layout steps, and a
-  packet diagram's blocks, row parts, and texts are charged to `MaxLayoutWork`.
+  have no Mermaid equivalent; a gantt chart's date passes, excluded days, and ticks, a mindmap's layout steps, a
+  packet diagram's blocks, row parts, and texts, and a git graph's commits, arrows, lanes, and texts are charged to
+  `MaxLayoutWork`.
 - **Version.** The target is Mermaid 11.17.2; later Mermaid versions are not followed automatically.
 
 ### Mermaid Third-Party Attribution
 
 `DemaConsulting.CanvasNet.Mermaid` is **derived with attribution**: to draw diagrams the way Mermaid draws them, its
-preprocessing, diagram detection, flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, and
-packet parsers and models, configuration defaults, themes, shapes, edges, labels, time axes, and layouts are ports of
-these projects (all MIT unless stated):
+preprocessing, diagram detection, flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, packet,
+and git graph parsers and models, configuration defaults, themes, shapes, edges, labels, time axes, and layouts are
+ports of these projects (all MIT unless stated):
 
 - **mermaid** (Copyright (c) 2014 - 2022 Knut Sveidqvist): the preprocessing, detectors, flowchart grammar and
   database, configuration and the five themes, the shapes, clusters, edges, markers, and label rules of its renderer,
@@ -911,10 +990,12 @@ these projects (all MIT unless stated):
   markers, and style sheet, the state grammar, database, data fetcher, state shapes, and style sheet, the entity
   relationship grammar, database, entity box, markers, and style sheet, the pie database, renderer, and style sheet,
   the gantt grammar, database, renderer, and style sheet, the mindmap grammar, database, renderer, shapes, style sheet,
-  and cose-bilkent setup, the packet database, renderer, and style sheet, and the text utilities they use;
-- **@mermaid-js/parser** (Copyright (c) 2023 Yokozuna59): the pie and packet grammars and their value converters;
-- **Langium** (Copyright 2021 TypeFox GmbH): the token order and the string and number conversion of the pie and
-  packet parsers;
+  and cose-bilkent setup, the packet database, renderer, and style sheet, the git graph database, renderer, and style
+  sheet, and the text utilities they use;
+- **@mermaid-js/parser** (Copyright (c) 2023 Yokozuna59): the pie, packet, and git graph grammars, the git graph token
+  builder, and their value converters;
+- **Langium** (Copyright 2021 TypeFox GmbH): the token order and the string and number conversion of the pie, packet,
+  and git graph parsers;
 - **dagre-d3-es**, derived from **dagre** and **graphlib** (Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
   contributors): the graph and the layered layout;
 - **layout-base** (Copyright (c) 2019 iVis@Bilkent) and **cose-base** (Copyright (c) 2019 - present, iVis@Bilkent):
@@ -1160,7 +1241,8 @@ left as written, so the document shows its code, and the tool's message is a Pan
 ### Example 58: The Mermaid Gallery
 
 The gallery is a set of small flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship
-diagrams, pie charts, gantt charts, mindmaps, and packet diagrams that together use the major features of the package.
+diagrams, pie charts, gantt charts, mindmaps, packet diagrams, and git graphs that together use the major features of
+the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `mermaid-*.mmd`, and is drawn
 below by the Pandoc filter, so the pictures are always those of the version of the library that built this guide. A
 test (`MermaidGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any warning, so a
@@ -1277,6 +1359,12 @@ bang, and a default node), with a Markdown string in a rectangle:
 a block split across two rows, a comment, accessibility texts, and the frontmatter title drawn below the rows:
 
 ![A packet diagram](examples/mermaid-packet.mmd){scale=2 width=60%}
+
+*A git graph.* Two features made side by side from top to bottom, from the frontmatter: a renamed main branch, branch
+orders, parallel commits, a highlighted and a reversed commit, a cherry-pick, merges with tags, a generated commit id,
+and the frontmatter title:
+
+![A git graph](examples/mermaid-gitgraph.mmd){scale=2 width=50%}
 
 ### Example 59: Rendering a Mermaid Sequence Diagram
 
@@ -1782,4 +1870,69 @@ packet
     +24: "Payload"
     +16: "Checksum"
     +8: "End"
+```
+
+### Example 67: Rendering a Mermaid Git Graph
+
+A git graph is opened, measured, and drawn exactly like a flowchart. Its node count is the number of commits (the merge
+and the cherry-pick included), its edge count the number of links from a commit to its parents, and its direction is
+the one of the header (`LR` when it has none):
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    gitGraph
+        title A release history
+        commit id: "init"
+        commit id: "readme"
+        branch develop
+        commit id: "api"
+        commit id: "tests" type: HIGHLIGHT
+        checkout main
+        commit id: "hotfix" type: REVERSE
+        merge develop id: "merge"
+        checkout develop
+        cherry-pick id: "hotfix"
+        commit id: "docs"
+        checkout main
+        branch release order: 1
+        commit id: "notes" tag: "v1.1.0"
+    """);
+
+Console.WriteLine($"{diagram.DiagramType} {diagram.Direction}");          // Output: gitGraph LR
+Console.WriteLine($"{diagram.NodeCount} commits, {diagram.EdgeCount} links"); // Output: 9 commits, 10 links
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 576x277
+var white = new Rgba32(255, 255, 255, 255);
+using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Background = white });
+PngCodec.Save(picture, "release-history.png");                            // 1152x554 pixels
+```
+
+The arrows from `readme` to `api`, from `tests` to `merge`, and from `merge` to `notes` turn with rounded corners, the
+reversed commit is drawn crossed and the highlighted one as a square, and the cherry-pick carries its default tag,
+`cherry-pick:hotfix`. The
+same text is the `gitgraph` example of the tool's help (`canvasnet help mermaid --example gitgraph`), and the Pandoc
+filter draws it from a code block:
+
+```{.mermaid caption="A release history, drawn from a code block" scale=2 width=100%}
+gitGraph
+    title A release history
+    commit id: "init"
+    commit id: "readme"
+    branch develop
+    commit id: "api"
+    commit id: "tests" type: HIGHLIGHT
+    checkout main
+    commit id: "hotfix" type: REVERSE
+    merge develop id: "merge"
+    checkout develop
+    cherry-pick id: "hotfix"
+    commit id: "docs"
+    checkout main
+    branch release order: 1
+    commit id: "notes" tag: "v1.1.0"
 ```

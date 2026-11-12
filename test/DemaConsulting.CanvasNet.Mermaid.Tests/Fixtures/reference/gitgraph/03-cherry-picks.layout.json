@@ -1,0 +1,1170 @@
+{
+  "source": "03-cherry-picks.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "gitGraph",
+  "viewBox": [-117.1484375, -36.70000076293945, 625.1484375, 256.3656311035156],
+  "branches": [
+    {
+      "line": {
+        "tag": "line",
+        "class": "branch branch0",
+        "x1": 0,
+        "y1": -2,
+        "x2": 500,
+        "y2": -2,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(51, 51, 51)",
+          "strokeWidth": 1,
+          "dasharray": "2px",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "rect": {
+        "tag": "rect",
+        "class": "branchLabelBkg label0",
+        "x": -68.78125,
+        "y": 1.5,
+        "width": 52.78125,
+        "height": 21,
+        "rx": 4,
+        "ry": 4,
+        "transform": "translate(-19, -14)",
+        "style": "",
+        "paint": {
+          "fill": "rgb(0, 0, 236)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "label": {
+        "class": "label branch-label0",
+        "transform": "translate(-78.78125, -12.5)",
+        "text": {
+          "class": null,
+          "anchor": "start",
+          "fontFamily": "\"Liberation Sans\"",
+          "fontSize": 16,
+          "fill": "rgb(255, 255, 255)",
+          "opacity": 1,
+          "box": [0, 2, 34.781, 17],
+          "rows": [{ "text": "main", "x": "0", "dy": "1em", "box": [0, 2, 34.781, 17] }]
+        }
+      }
+    },
+    {
+      "line": {
+        "tag": "line",
+        "class": "branch branch1",
+        "x1": 0,
+        "y1": 88,
+        "x2": 500,
+        "y2": 88,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(51, 51, 51)",
+          "strokeWidth": 1,
+          "dasharray": "2px",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "rect": {
+        "tag": "rect",
+        "class": "branchLabelBkg label1",
+        "x": -90.1484375,
+        "y": 1.5,
+        "width": 74.1484375,
+        "height": 21,
+        "rx": 4,
+        "ry": 4,
+        "transform": "translate(-19, 76)",
+        "style": "",
+        "paint": {
+          "fill": "rgb(222, 222, 0)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "label": {
+        "class": "label branch-label1",
+        "transform": "translate(-100.1484375, 77.5)",
+        "text": {
+          "class": null,
+          "anchor": "start",
+          "fontFamily": "\"Liberation Sans\"",
+          "fontSize": 16,
+          "fill": "rgb(0, 0, 0)",
+          "opacity": 1,
+          "box": [0, 2, 56.148, 17],
+          "rows": [{ "text": "develop", "x": "0", "dy": "1em", "box": [0, 2, 56.148, 17] }]
+        }
+      }
+    },
+    {
+      "line": {
+        "tag": "line",
+        "class": "branch branch2",
+        "x1": 0,
+        "y1": 178,
+        "x2": 500,
+        "y2": 178,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(51, 51, 51)",
+          "strokeWidth": 1,
+          "dasharray": "2px",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "rect": {
+        "tag": "rect",
+        "class": "branchLabelBkg label2",
+        "x": -86.578125,
+        "y": 1.5,
+        "width": 70.578125,
+        "height": 21,
+        "rx": 4,
+        "ry": 4,
+        "transform": "translate(-19, 166)",
+        "style": "",
+        "paint": {
+          "fill": "rgb(157, 236, 0)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "label": {
+        "class": "label branch-label2",
+        "transform": "translate(-96.578125, 167.5)",
+        "text": {
+          "class": null,
+          "anchor": "start",
+          "fontFamily": "\"Liberation Sans\"",
+          "fontSize": 16,
+          "fill": "rgb(0, 0, 0)",
+          "opacity": 1,
+          "box": [0, 2, 52.578, 17],
+          "rows": [{ "text": "release", "x": "0", "dy": "1em", "box": [0, 2, 52.578, 17] }]
+        }
+      }
+    }
+  ],
+  "arrows": [
+    {
+      "class": "arrow arrow1",
+      "d": "M 10 -2 L 10 68 A 20 20, 0, 0, 0, 30 88 L 60 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 60 88 L 110 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 10 -2 L 160 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 60 88 L 60 53 A 10 10, 0, 0, 1, 70 43 L 150 43 A 10 10, 0, 0, 0, 160 33 L 160 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 160 -2 L 210 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 110 88 L 110 18 A 20 20, 0, 0, 1, 130 -2 L 210 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 110 88 L 260 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 210 -2 L 310 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 260 88 L 290 88 A 20 20, 0, 0, 0, 310 68 L 310 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow2",
+      "d": "M 310 -2 L 310 158 A 20 20, 0, 0, 0, 330 178 L 360 178",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(157, 236, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow2",
+      "d": "M 360 178 L 410 178",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(157, 236, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow2",
+      "d": "M 310 -2 L 310 60 A 10 10, 0, 0, 0, 320 70 L 400 70 A 10 10, 0, 0, 1, 410 80 L 410 178",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(157, 236, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 260 88 L 460 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow2",
+      "d": "M 360 178 L 360 143 A 10 10, 0, 0, 1, 370 133 L 450 133 A 10 10, 0, 0, 0, 460 123 L 460 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(157, 236, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    }
+  ],
+  "bullets": [
+    {
+      "tag": "circle",
+      "class": "commit ZERO commit0",
+      "cx": 10,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit A commit1",
+      "cx": 60,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit B commit1",
+      "cx": 110,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 3-eb28011 commit-cherry-pick",
+      "cx": 160,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 3-eb28011 commit-cherry-pick",
+      "cx": 157,
+      "cy": 0,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 3-eb28011 commit-cherry-pick",
+      "cx": 163,
+      "cy": 0,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 3-eb28011 commit-cherry-pick",
+      "x1": 163,
+      "y1": -1,
+      "x2": 160,
+      "y2": -7,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 3-eb28011 commit-cherry-pick",
+      "x1": 157,
+      "y1": -1,
+      "x2": 160,
+      "y2": -7,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 4-cc99105 commit-cherry-pick",
+      "cx": 210,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 4-cc99105 commit-cherry-pick",
+      "cx": 207,
+      "cy": 0,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 4-cc99105 commit-cherry-pick",
+      "cx": 213,
+      "cy": 0,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 4-cc99105 commit-cherry-pick",
+      "x1": 213,
+      "y1": -1,
+      "x2": 210,
+      "y2": -7,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 4-cc99105 commit-cherry-pick",
+      "x1": 207,
+      "y1": -1,
+      "x2": 210,
+      "y2": -7,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit C commit1",
+      "cx": 260,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit MERGE commit0",
+      "cx": 310,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit commit-merge MERGE commit0",
+      "cx": 310,
+      "cy": -2,
+      "r": 6,
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(236, 236, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit R1 commit2",
+      "cx": 360,
+      "cy": 178,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(157, 236, 0)",
+        "stroke": "rgb(157, 236, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 8-43d14d3 commit-cherry-pick",
+      "cx": 410,
+      "cy": 178,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 8-43d14d3 commit-cherry-pick",
+      "cx": 407,
+      "cy": 180,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 8-43d14d3 commit-cherry-pick",
+      "cx": 413,
+      "cy": 180,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 8-43d14d3 commit-cherry-pick",
+      "x1": 413,
+      "y1": 179,
+      "x2": 410,
+      "y2": 173,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 8-43d14d3 commit-cherry-pick",
+      "x1": 407,
+      "y1": 179,
+      "x2": 410,
+      "y2": 173,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 9-4bc15df commit-cherry-pick",
+      "cx": 460,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 9-4bc15df commit-cherry-pick",
+      "cx": 457,
+      "cy": 90,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 9-4bc15df commit-cherry-pick",
+      "cx": 463,
+      "cy": 90,
+      "r": 2.75,
+      "fill": "#fff",
+      "paint": {
+        "fill": "rgb(255, 255, 255)",
+        "stroke": "none",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 9-4bc15df commit-cherry-pick",
+      "x1": 463,
+      "y1": 89,
+      "x2": 460,
+      "y2": 83,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "line",
+      "class": "commit 9-4bc15df commit-cherry-pick",
+      "x1": 457,
+      "y1": 89,
+      "x2": 460,
+      "y2": 83,
+      "stroke": "#fff",
+      "paint": {
+        "fill": "rgb(51, 51, 51)",
+        "stroke": "rgb(255, 255, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "kind": "commit",
+      "transform": "translate(-21.939999999999998, 19.520000000000003) rotate(-45, 0, -2)",
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": -6,
+        "y": 11.5,
+        "width": 32,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "ZERO",
+        "x": -4,
+        "y": 23,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [-4, 14, 28, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": "translate(-14.34, 12.72) rotate(-45, 50, 88)",
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 54,
+        "y": 101.5,
+        "width": 12,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "A",
+        "x": 56,
+        "y": 113,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [55, 104, 8, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": "translate(-13.96, 12.38) rotate(-45, 100, 88)",
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 104.5,
+        "y": 101.5,
+        "width": 11,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "B",
+        "x": 106.5,
+        "y": 113,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [106.5, 104, 7, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [118.66259765625, -19.2],
+          [118.66259765625, -23.2],
+          [126.66259765625, -28.7],
+          [193.33740234375, -28.7],
+          [193.33740234375, -13.7],
+          [126.66259765625, -13.7]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 122.66259765625,
+        "cy": -21.2,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "cherry-pick:A",
+        "x": 130.66259765625,
+        "y": -18,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [130.663, -27, 58.675, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [183.32763671875, -19.2],
+          [183.32763671875, -23.2],
+          [191.32763671875, -28.7],
+          [228.67236328125, -28.7],
+          [228.67236328125, -13.7],
+          [191.32763671875, -13.7]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 187.32763671875,
+        "cy": -21.2,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "picked",
+        "x": 195.32763671875,
+        "y": -18,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [195.328, -27, 29.345, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": "translate(-14.34, 12.72) rotate(-45, 250, 88)",
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 254,
+        "y": 101.5,
+        "width": 12,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "C",
+        "x": 256,
+        "y": 113,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [256, 104, 8, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": "translate(-25.36, 22.58) rotate(-45, 300, -2)",
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 289.5,
+        "y": 11.5,
+        "width": 41,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "MERGE",
+        "x": 291.5,
+        "y": 23,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [291.5, 14, 37, 11]
+      }
+    },
+    {
+      "kind": "commit",
+      "transform": "translate(-16.32423828125, 14.495371093749998) rotate(-45, 350, 178)",
+      "rect": {
+        "tag": "rect",
+        "class": "commit-label-bkg",
+        "x": 351.38916015625,
+        "y": 191.5,
+        "width": 17.2216796875,
+        "height": 15,
+        "paint": {
+          "fill": "rgb(255, 255, 222)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 0.5,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "commit-label",
+        "text": "R1",
+        "x": 353.38916015625,
+        "y": 203,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(0, 0, 33)",
+        "opacity": 1,
+        "box": [353.389, 194, 13.222, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [332.96240234375, 160.8],
+          [332.96240234375, 156.8],
+          [340.96240234375, 151.3],
+          [479.03759765625, 151.3],
+          [479.03759765625, 166.3],
+          [340.96240234375, 166.3]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 336.96240234375,
+        "cy": 158.8,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "cherry-pick:MERGE|parent:C",
+        "x": 344.96240234375,
+        "y": 162,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [344.962, 153, 130.075, 11]
+      }
+    }
+  ],
+  "title": null
+}

@@ -22,7 +22,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Syntax-DiagramDetector
 #### Data Model
 
 - `DiagramSupport` - `Supported` (drawn: `flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt`,
-  `mindmap`, and `packet`) and `Unsupported` (every other type).
+  `mindmap`, `packet`, and `gitGraph`) and `Unsupported` (every other type).
 - `DetectorSettings(FlowchartRenderer, ClassRenderer, StateRenderer)` - the `defaultRenderer` values that Mermaid's
   detectors read; `DetectorSettings.Default` is Mermaid's default (`dagre-wrapper` for all three).
 - `DetectedDiagram(MermaidId, DiagramType, Keyword, Support, Location)` - Mermaid's detector id (for example
@@ -40,11 +40,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Syntax-DiagramDetector
   `class` id are all drawn. Both state detectors are supported in the same way: `stateDiagram` (any
   `stateDiagram-v2` text, or a `stateDiagram` text with the default `dagre-wrapper` state renderer) and the legacy
   `state` (a `stateDiagram` text with another state renderer), so `stateDiagram`, `stateDiagram-v2`, and the legacy
-  `state` id are all drawn; the `er` (`erDiagram`), `pie`, `gantt`, `mindmap`, and `packet` (`packet` and `packet-beta`)
-  detectors are supported too.
+  `state` id are all drawn; the `er` (`erDiagram`), `pie`, `gantt`, `mindmap`, `packet` (`packet` and `packet-beta`),
+  and `gitGraph` detectors are supported too.
 - The keywords offered by the nearest-keyword hint (the common diagram keywords) and the supported keywords
   (`flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`,
-  `mindmap`, and `packet`).
+  `mindmap`, `packet`, and `gitGraph`).
 
 The unit has no mutable state and is safe for concurrent use.
 
@@ -56,7 +56,7 @@ The unit has no mutable state and is safe for concurrent use.
 - `ReplaceComments(MappedText)` - `detectType`'s comment expression (`/\s*%%.*\n/gm`) as a scanner: the white space
   before a comment, the comment, and its line feed become one line feed; a comment without a final line feed stays.
 - `UnsupportedHint(DetectedDiagram)` - "`<type>` diagrams are not supported; supported in this version: flowchart,
-  graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet".
+  graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet, gitGraph".
 - `SupportedDiagramKeywords` and `DetectorIds` - the supported keywords and the detector ids in detection order.
 - `EditDistance(string, string)` - the Levenshtein distance used by the nearest-keyword hint (and by the nearest-name
   hints of other subsystems).

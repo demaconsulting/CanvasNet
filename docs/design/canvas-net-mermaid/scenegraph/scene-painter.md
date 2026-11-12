@@ -6,7 +6,8 @@ The `ScenePainter` unit is the second software unit in the `Scenegraph` subsyste
 in the `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace that make up the internal sealed partial class
 `ScenePainter`: `ScenePainter.cs` (construction, the font resolver, the item walk, paths, dashes, the bounds checks,
 and the painted-pixel charge; it also defines the record struct `ScenePlacement` and the interface
-`ISceneImageLoader`), `ScenePainter.Shadow.cs` (drop shadows), `ScenePainter.Text.cs` (text lines), and
+`ISceneImageLoader`), `ScenePainter.Shadow.cs` (drop shadows), `ScenePainter.Text.cs` (text lines, rotated ones
+included), and
 `ScenePainter.Images.cs` (pictures). The SysML2 model names the unit `MermaidScenePainter`.
 
 #### Purpose
@@ -90,7 +91,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   then fills each run with a color that has alpha with `TextRenderer.CreateTextPath`, one after the other, followed,
   for an underlined run, by its underline bar in the same color; and, for a line with a stroke (a color with alpha and
   a positive bounded width), strokes the glyph outlines over the fill with `PathStroker`, also when the fill is
-  transparent. Characters missing from a face come from the core's bundled fallback fonts.
+  transparent. Characters missing from a face come from the core's bundled fallback fonts. A line with a `Rotation` is
+  placed as without it, then its glyph paths and underline bars are transformed (**`Turn`**) by
+  `Matrix3x2.CreateRotation` about the device point of its pivot (the pivot scaled and offset by the placement), and the
+  box charged is the device box of its turned line box (**`Turned`**, the box of the four turned corners); a line whose
+  angle is not finite or whose pivot is not bounded is not drawn.
 - **`UnderlineBar(face, size, x, baseline, width)`** - the bar of CSS's `text-decoration: underline` under a run, in
   device space: a rectangle across the run's whole advance from its start, its top the face's underline position below
   the baseline and its height the face's thickness, both scaled by the font size over the face's units per em; a face
@@ -133,7 +138,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Scenegraph-ScenePainte
   `ResolvedFont`, and `TrueTypeFont` (`Fonts`), and `TextRenderer` (`Rendering`), through the public API
 - **System public API** - `MermaidRenderException`, `MermaidDiagnosticCodes`, and `MermaidLimits` (for the limit's
   name)
-- **.NET base class library** - `System.Math`, `System.Numerics.Vector2`, LINQ, and invariant-culture formatting
+- **.NET base class library** - `System.Math`, `System.Numerics.Vector2` and `Matrix3x2`, LINQ, and invariant-culture
+  formatting
 
 #### Callers
 
@@ -142,7 +148,9 @@ measurement of the `Rendering` subsystem), and paints the laid-out scene with a 
 scene's picture loader, and `MermaidLimits.MaxPaintedPixels`, with `ScenePlacement.Uniform` for the natural size or
 `ScenePlacement.Fit` for an exact size. The `NodeImages` unit of the `Rendering` subsystem implements
 `ISceneImageLoader`. The underlined runs it paints come from the class boxes of the `Rendering` subsystem's
-`ShapeLibrary`, which a class diagram (the `ClassModel` unit of the `Class` subsystem) draws. The tests in
+`ShapeLibrary`, which a class diagram (the `ClassModel` unit of the `Class` subsystem) draws, and the rotated lines it
+paints come from the `GitGraphRenderer` unit of the `GitGraph` subsystem (the rotated commit labels and tags of a git
+graph). The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePainterTests.cs` call the unit directly through
 `InternalsVisibleTo`.
 

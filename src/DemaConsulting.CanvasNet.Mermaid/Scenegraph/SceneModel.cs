@@ -301,7 +301,23 @@ internal sealed record SceneText(double X, double Baseline, SceneTextAnchor Anch
     ///     the <c>old</c> text placement is stroked by its style rule).
     /// </summary>
     public SceneStroke? Stroke { get; init; }
+
+    /// <summary>
+    ///     Gets the rotation of the line about a point, or null for none (most text; a git graph's rotated commit labels
+    ///     and tags). The line is laid out as without it, then turned as a whole; <see cref="Box"/> stays the box the
+    ///     producer gives it (for a rotated line, the producer's choice of its bounds).
+    /// </summary>
+    public SceneRotation? Rotation { get; init; }
 }
+
+/// <summary>
+///     A rotation about a point, as SVG's <c>rotate(angle, cx, cy)</c>: positive angles turn clockwise on the screen (the
+///     y axis points down).
+/// </summary>
+/// <param name="Angle">The angle in degrees.</param>
+/// <param name="CenterX">The x of the point the item turns about, in the coordinates of the item.</param>
+/// <param name="CenterY">The y of the point the item turns about, in the coordinates of the item.</param>
+internal sealed record SceneRotation(double Angle, double CenterX, double CenterY);
 
 /// <summary>
 ///     A picture drawn into a box (an <c>@{ img }</c> node or an <c>&lt;img&gt;</c> in a label).

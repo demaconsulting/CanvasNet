@@ -2,8 +2,8 @@
 
 This document describes the unit-level verification strategy for the `ScenePainter` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the internal `ScenePainter` class (its paths, dashes, drop
-shadows, text with its underline bars, and pictures), the `ScenePlacement` record struct, and the `ISceneImageLoader`
-contract.
+shadows, text with its underline bars and rotation, and pictures), the `ScenePlacement` record struct, and the
+`ISceneImageLoader` contract.
 
 #### Verification Approach
 
@@ -12,7 +12,8 @@ pixels that their geometry covers, worked out by hand: a filled rectangle has it
 color on its edge, and full transparency outside; a dash pattern of 9 on and 5 off leaves x = 4 inked and x = 11
 empty; an even-odd ring leaves its hole empty; a scaled rectangle covers twice its size; text anchored in the middle
 has its ink centered on the anchor and text anchored at the end ends at the anchor; an underlined run has a bar under
-its baseline where the plain run has no ink. The underline bar of each bundled face is verified at a font size of
+its baseline where the plain run has no ink; a line turned a quarter turn about the origin covers the pixels of the
+plain line turned. The underline bar of each bundled face is verified at a font size of
 2048 pixels, at which one font unit of the faces is one pixel, against the position and thickness of the face's `post`
 table. The placement is verified by
 comparing `ScenePlacement.Fit` with the scale and offsets computed by hand. The painted-pixel limit is verified with
@@ -161,3 +162,18 @@ a run from x = 10 with an advance of 500 on the baseline y = 100, and asserts th
 wide, has its top at 100 minus the face's underline position (for example 167 for regular Liberation Sans, whose
 position is -67), and is as high as its thickness (150 for regular Liberation Sans, 215 for bold, 100 and 195 for
 Serif, 84 and 205 for Mono), to three decimals.
+
+##### CanvasNetMermaid-Scenegraph-ScenePainter-RotatedText: Rotated Text Is Turned About Its Pivot
+
+**Tests**: `ScenePainterTests.ScenePainter_Paint_RotatedText_IsTheLineTurnedAboutItsPivot`,
+`ScenePainterTests.ScenePainter_Paint_RotatedText_ChargesItsTurnedBox`,
+`ScenePainterTests.ScenePainter_Paint_RotatedTextWithoutAUsablePivotOrAngle_IsSkipped`
+
+Paints the underlined line `Hello` at 16 pixels in a 100 by 30 view box, and the same line turned by 90 degrees about
+the origin in the view box (-30, 0, 30, 100), and asserts that every pixel of the turned picture has the coverage of
+the plain pixel it turns from (a quarter turn takes x, y to -y, x), its underline bar included, within 8 of 255 levels,
+over more than 100 inked pixels. Asserts that the line `HHHH` with a box of 46 by 20 pixels paints under a
+painted-pixel limit of 1,500 pixels, while the same line turned by -45 degrees about (40, 50), whose turned box is
+about 47 by 47 pixels, fails under that limit with `mermaid-limit-exceeded` and paints ink under a limit of 2,500.
+Asserts that lines whose angle is not a number, whose pivot is a billion units away, or whose pivot is infinite are
+skipped: the surface stays fully transparent.

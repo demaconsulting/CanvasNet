@@ -1,0 +1,111 @@
+---
+# Software Unit Requirements for GitGraphRenderer
+#
+# These requirements describe the design-level behavior of the GitGraphRenderer unit of the GitGraph subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.GitGraph): the drawing of Mermaid's git graph renderer of the pinned
+# Mermaid release - the places of the branches and commits, the arrows and their lanes, the branch labels, commit
+# labels, and tags, the title, the view box, the paint of the git graph style sheet, the main branch of the render's
+# configuration, and the work the drawing charges. See
+# docs/verification/canvas-net-mermaid/git-graph/git-graph-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: GitGraph Requirements
+        sections:
+          - title: GitGraphRenderer Requirements
+            requirements:
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Positions
+                title: >-
+                  The GitGraphRenderer unit shall place each branch 50 pixels after the one before, 40 more when commit
+                  labels are rotated and half the width of its label more top to bottom and bottom to top, and shall
+                  place the commits in Mermaid's two passes with the state the passes share, parallel commits and the
+                  bottom to top placement of parallel commits included, failing the render with a located
+                  mermaid-render-failed error where Mermaid finds no closest parent.
+                justification: |
+                  The places of the branches and commits carry the meaning of a git graph; they must be Mermaid's,
+                  including where Mermaid's two passes give different places, and a graph Mermaid cannot place must
+                  not be drawn as a guess.
+                tests:
+                  - GitGraphRenderer_Draw_BranchPositions_FollowTheLabelsAndRotation
+                  - GitGraphRenderer_Draw_CommitPositions_StepFiftyInEachDirection
+                  - GitGraphRenderer_Draw_ReusedIdWithParallelCommits_ArrowsKeepTheFirstPass
+                  - GitGraphRenderer_Draw_ReusedIdBottomToTopParallel_FailsAsMermaid
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Arrows
+                title: >-
+                  The GitGraphRenderer unit shall draw an arrow from each parent to its commit between the places of
+                  the first pass, rerouted on a lane that Mermaid's lane search finds, with its cut after six tries,
+                  when a commit lies between them on the branch the arrow bends to, otherwise bent once or straight,
+                  each in the color of the branch Mermaid paints it with.
+                justification: |
+                  The arrows show the history; their paths, lanes, and colors must be Mermaid's for the same text.
+                tests:
+                  - GitGraphRenderer_Draw_ReroutedArrows_FindMermaidsLanes
+                  - GitGraphRenderer_Draw_ReusedIdWithParallelCommits_ArrowsKeepTheFirstPass
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Labels
+                title: >-
+                  The GitGraphRenderer unit shall draw the branch labels in rows (split at line breaks, each row
+                  trimmed, runs of spaces kept, an empty row taking no line), the commit labels below or beside their
+                  commits and turned by -45 degrees when the configuration rotates them, and the tags on their
+                  polygons with their holes, each text measured with Mermaid's entity placeholders and shown decoded.
+                justification: |
+                  The labels and tags name the branches and commits; their texts, places, and sizes must be what the
+                  browser shows for Mermaid's drawing.
+                tests:
+                  - GitGraphRenderer_Draw_RotatedLabel_TurnsAboutTheMovedCommitPlace
+                  - GitGraphRenderer_Draw_EmptyNameAndTag_HaveNoTextBox
+                  - GitGraphRenderer_TextHelpers_SplitRowsAndDecodePlaceholders
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Title
+                title: >-
+                  The GitGraphRenderer unit shall draw the title centered over the bounding box of the drawing, its
+                  baseline titleTopMargin above the top of the drawing, and no title when it is empty.
+                justification: |
+                  The title must stand where Mermaid puts it, which depends on the drawing below it.
+                tests:
+                  - GitGraphRenderer_Draw_FrontmatterTitle_IsCenteredOverTheDrawing
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-ViewBox
+                title: >-
+                  The GitGraphRenderer unit shall give the drawing the view box of the browser's bounding box of
+                  everything drawn - empty texts and groups left out, the boxes of turned elements mapped through their
+                  transforms, in single precision - grown by diagramPadding on every side.
+                justification: |
+                  The view box decides the size of the picture and the place of every item in it; it must be Mermaid's
+                  for the same drawing.
+                tests:
+                  - GitGraphRenderer_Draw_EmptyGraph_HasMermaidsViewBox
+                  - GitGraphRenderer_Draw_EmptyNameAndTag_HaveNoTextBox
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Paint
+                title: >-
+                  The GitGraphRenderer unit shall paint every shape and text with the style the git graph style sheet
+                  of the render gives it - the classes of the commit id included - with the white marks of a
+                  cherry-pick, black in the dark theme, and the shadow of the branch labels in the neo look.
+                justification: |
+                  The colors of a git graph must be Mermaid's for the same theme, theme variables, and theme CSS.
+                tests:
+                  - GitGraphRenderer_Draw_Paint_FollowsTheStyleSheet
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-RenderConfiguration
+                title: >-
+                  The GitGraphRenderer unit shall draw the commits and branches of the database for the main branch
+                  name and order of the render's configuration.
+                justification: |
+                  A site configuration that names another main branch must be drawn as Mermaid draws it.
+                tests:
+                  - GitGraphRenderer_Draw_SiteMainBranchName_RunsTheStatementsAgain
+
+              - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Cost
+                title: >-
+                  The GitGraphRenderer unit shall charge each branch, each commit of each pass, each parent looked at,
+                  each arrow with its scan for rerouting, each lane try, and each text to the layout work meter of the
+                  render, and shall stop with mermaid-limit-exceeded at MaxLayoutWork or with an
+                  OperationCanceledException when the render is canceled.
+                justification: |
+                  Untrusted text can make the lane search and the reroute scan grow with the square of the commits;
+                  the work of a render must be bounded and stop when the caller cancels it.
+                tests:
+                  - GitGraphRenderer_Draw_WorkLimitAndCancellation_StopTheRender

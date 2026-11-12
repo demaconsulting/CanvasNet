@@ -1,0 +1,14 @@
+gitGraph TB:
+    commit id: "A" tag: "v0.1"
+    commit id: "B" type: HIGHLIGHT
+    branch dev
+    commit id: "C" type: REVERSE tag: "t1" tag: "t2"
+    checkout main
+    commit id: "D1"
+    checkout dev
+    commit id: "E"
+    merge main id: "N" tag: "sync"
+    checkout main
+    cherry-pick id: "C"
+    merge dev id: "G" type: HIGHLIGHT
+    commit

@@ -3,8 +3,8 @@
 This document describes the unit-level verification strategy for the `ThemeResolver` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Configuration` namespace: the internal static `ThemeResolver` (`GetThemeVariables`
 and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles`, `ClassStyles`,
-`StateStyles`, `ErStyles`, `SequenceStyles`, `PieStyles`, `GanttStyles`, `MindmapStyles`, and `PacketStyles` with their
-shared bases
+`StateStyles`, `ErStyles`, `SequenceStyles`, `PieStyles`, `GanttStyles`, `MindmapStyles`, `PacketStyles`, and
+`GitGraphStyles` with their shared bases
 `DiagramStyles` and (for the flowchart, class, state, entity relationship, and mindmap sheets) `UnifiedStyles`.
 
 #### Verification Approach
@@ -32,7 +32,11 @@ variables, the gradient rule of the themes with `useGradient`, `themeCSS`, and t
 the default `NodePaintFor` of the other sheets is checked on the flowchart's. The packet style sheet is verified with
 `PacketStyles`: the shared global rules, every theme's packet object, the replacement of the theme's object by the
 user's, the options written as JavaScript writes them, `themeCSS`, and the paint a block inherits where its own is
-dropped, with the values Chrome computes for Mermaid's packet CSS. The
+dropped, with the values Chrome computes for Mermaid's packet CSS. The git graph style sheet is verified with
+`GitGraphStyles`: the shared global rules, the rules of every color index up to `THEME_COLOR_LIMIT` with the eight
+named git colors of every theme, the cascade over the elements of every git graph golden against the paint Chrome
+computed for it, the commit ids that are classes of their own, the number of colors, the `neo` look's shadow, and the
+theme variables and `themeCSS`. The
 unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
 `StyleDeclarations`, and `MermaidConfigResolver` are real, so no mocking or stubbing is required.
 
@@ -283,6 +287,39 @@ as `a,,2`) over the defaults, and that a theme variable that is not an object ch
 that paint and the last bit numbers blue, the first staying black, without a report; and that a block fill and stroke
 that are not colors leave the block filled with the root rule's fill (the theme's text color `#333`) and without a
 stroke.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-GitGraphStyleSheet: Mermaid's Git Graph Paint
+
+**Tests**: `ThemeResolverTests.GitGraphStyles_Create_EachTheme_PaintsTheNamedGitColors`,
+`ThemeResolverTests.GitGraphStyles_Compute_FixtureElements_MatchTheBrowsersComputedStyle`,
+`ThemeResolverTests.GitGraphStyles_Compute_CommitIdClasses_AreStyledByTheirRules`,
+`ThemeResolverTests.GitGraphStyles_ColorCount_FollowsTheArrayLengthOfTheLimit`,
+`ThemeResolverTests.GitGraphStyles_Create_NeoLook_ShadowsTheBranchLabels`,
+`ThemeResolverTests.GitGraphStyles_Create_ThemeVariablesAndThemeCss_AreAppliedAsTheBrowserDoes`
+
+Asserts (a theory with one case for each of the five themes) that the git graph sheet starts with the same global rules
+as the flowchart's and has one highlight rule for each of the 12 colors of the default `THEME_COLOR_LIMIT`, and that
+for each color index `i` from 0 to 11, with `c` being `i` modulo 8, a commit's bullet is filled and stroked with the
+theme's `git<c>`, a highlight's outer square with `gitInv<c>`, a branch label's rectangle is filled with `git<c>` and
+its text with `gitBranchLabel<c>`, and an arrow is stroked with `git<c>`, without a fill, 8 pixels wide with round
+caps. Asserts (a theory with one case for each of the 18 git graph goldens) that every branch line, label rectangle,
+branch label, arrow, bullet, commit label rectangle and text, tag polygon, hole, and text, and the title get from the
+sheet of the fixture's configuration exactly the fill, stroke, stroke width, dashes, line cap, opacity, shadow, font
+size, and text anchor that Chrome computed for them. Asserts that a bullet's commit id is classes of its own, split on
+ASCII white space as a browser splits them: a plain bullet is stroked 1 pixel wide, an id `x` followed by a tab and
+`commit-reverse` gives the `commit-reverse` rule's `primaryColor` fill and stroke width of 3, an id `arrow` gives the
+arrow rule's `git0` stroke 8 pixels wide with round caps, and a cherry-pick mark keeps its white fill attribute.
+Asserts that the number of colors is JavaScript's array length of `THEME_COLOR_LIMIT`: 12 without a value and for
+`12`, 4 for `4.9`, 0 for `0.5`, `-3`, and `many`, and the library's cap for `1000`; and that with a limit of 4 a commit
+of the class `commit3` takes `git3`, while one of the class `commit5` has no color rule and inherits the root's fill
+`#333` and no stroke. Asserts that the `neo` look makes the inline style of a branch label rectangle the theme's drop
+shadow (offset (1, 2), blur 2, `rgba(185, 185, 185, 1)`), which shadows that element only and not the children of a
+group that carries it, and that the classic look has no such style. Asserts that a unitless `commitLabelFontSize` of
+12 is dropped, as a browser drops it, so the commit label takes the root's 16 pixels, that a `tagLabelFontSize` of
+`13px` sizes the tags,
+that the `themeCSS` rules `.tag-label { fill: #0000ff; }` and `.arrow1 { stroke-width: 3px; }` color the tags blue and
+widen the arrows of the second color to 3 pixels, and that the rule `.bullet { fill: red; }`, whose selector the sheet
+does not know, is the one report.
 
 ##### CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses: A Node's Paint By Its Classes And Element
 

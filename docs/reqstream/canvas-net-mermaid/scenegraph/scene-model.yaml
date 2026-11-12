@@ -75,3 +75,14 @@ sections:
                   painter.
                 tests:
                   - SceneTextRun_Underline_DefaultsToFalse
+
+              - id: CanvasNetMermaid-Scenegraph-SceneModel-Rotation
+                title: >-
+                  The SceneModel unit shall let a text line carry a rotation - an angle in degrees about a point, as
+                  SVG's rotate(angle, cx, cy) turns it - none unless one is given, that does not change the box the
+                  producer gives the line.
+                justification: |
+                  Mermaid turns the commit labels and tags of a git graph; the scene must carry the turn to the
+                  painter, while the bounds stay the box the producer measured, as the producer computes the view box.
+                tests:
+                  - SceneText_Rotation_DefaultsToNoneAndKeepsTheBox

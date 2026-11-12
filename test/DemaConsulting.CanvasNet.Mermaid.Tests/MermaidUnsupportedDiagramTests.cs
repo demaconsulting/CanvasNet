@@ -30,7 +30,7 @@ public class MermaidUnsupportedDiagramTests
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
         Assert.Equal(new MermaidLocation("journey.mmd", 2, 1), report.Location);
-        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet", report.Hint);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet, gitGraph", report.Hint);
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ public class MermaidUnsupportedDiagramTests
     /// <param name="type">The expected type.</param>
     [Theory]
     [InlineData("journey\n title x", "journey")]
-    [InlineData("gitGraph\n commit", "gitGraph")]
+    [InlineData("quadrantChart\n title x", "quadrantChart")]
     [InlineData("timeline\n title x", "timeline")]
     [InlineData("kanban\n todo", "kanban")]
     public void CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint(string text, string type)

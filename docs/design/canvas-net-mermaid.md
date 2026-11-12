@@ -20,28 +20,29 @@ The goal is **fidelity to Mermaid**: a diagram must look like the picture the pi
 browser. The package is therefore a port, derived with attribution, of the parts of Mermaid that decide the picture:
 its preprocessing and diagram detection, the jison grammars and databases of the flowchart, the sequence diagram, the
 class diagram, the state diagram, the entity relationship diagram, the gantt chart, and the mindmap, and the Langium
-grammars and databases of the pie chart and the packet diagram (with the URL check of sanitize-url that Mermaid applies
-to the links a diagram keeps), its configuration defaults and precedence, its five themes and the khroma color functions
-they use, its unified renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and graphlib graph
-that Mermaid bundles, its sequence renderer with the drawing functions of the sequence diagram, its pie and gantt
-renderers with the d3 time scale, intervals, format, and axis and the dayjs date functions they use, and its mindmap
-renderer with the cose-bilkent force-directed layout (cytoscape-cose-bilkent over cose-base and layout-base) and the
-cytoscape edge points it reads back, and its packet renderer. Every
+grammars and databases of the pie chart, the packet diagram, and the git graph (with the URL check of sanitize-url that
+Mermaid applies to the links a diagram keeps), its configuration defaults and precedence, its five themes and the khroma
+color functions they use, its unified renderer (shapes, labels, edges, markers, clusters), the dagre layered layout and
+graphlib graph that Mermaid bundles, its sequence renderer with the drawing functions of the sequence diagram, its pie
+and gantt renderers with the d3 time scale, intervals, format, and axis and the dayjs date functions they use, and its
+mindmap renderer with the cose-bilkent force-directed layout (cytoscape-cose-bilkent over cose-base and layout-base) and
+the cytoscape edge points it reads back, its packet renderer, and its git graph renderer. Every
 construct that is recognized but not drawn is **reported with a stable `mermaid-*` code and the exact location,
 never skipped silently** (see _Fidelity and Known Differences_).
 
-This version (Phases 1a, 1b, 2a, 2b, 3a, 3b, and 4a, see _Phase Plan_) draws **flowcharts** (the `flowchart` and `graph`
+This version (Phases 1a, 1b, 2a, 2b, 3a, 3b, 4a, and 4b, see _Phase Plan_) draws **flowcharts** (the `flowchart` and
+`graph`
 keywords), **sequence diagrams** (the `sequenceDiagram` keyword), **class diagrams** (the `classDiagram` and
 `classDiagram-v2` keywords, and the legacy `class` id of `class.defaultRenderer: dagre-d3`), **state diagrams** (the
 `stateDiagram` and `stateDiagram-v2` keywords, and the legacy `state` id that a `state.defaultRenderer` other than
 `dagre-wrapper` selects for a `stateDiagram` text), **entity relationship diagrams** (the `erDiagram` keyword),
 **pie charts** (the `pie` keyword), **gantt charts** (the `gantt` keyword), **mindmaps** (the `mindmap` keyword),
-and **packet diagrams** (the `packet` and `packet-beta` keywords). Every other
+**packet diagrams** (the `packet` and `packet-beta` keywords), and **git graphs** (the `gitGraph` keyword). Every other
 Mermaid diagram type is detected (the 40 detectors of Mermaid, in Mermaid's order) and handled the same way: opening
 succeeds, `IsSupported` is false, and measuring or rendering reports `mermaid-diagram-unsupported` once and gives an
 empty, transparent 16 by 16 pixel picture (an exception in strict mode).
 
-The system consists of one direct unit and sixteen internal subsystems:
+The system consists of one direct unit and seventeen internal subsystems:
 
 - **MermaidDocument** (unit, root namespace; see _MermaidDocument Unit Design_) - the public API: `MermaidDocument`
   with `Parse`, `Open(path)`, `Open(stream)`, the metadata properties, `Measure`, `Render`, and
@@ -59,8 +60,8 @@ The system consists of one direct unit and sixteen internal subsystems:
 - **Configuration** (subsystem; see _Configuration Design_) - the effective configuration and paint:
   `MermaidConfigResolver` (defaults, precedence, secure keys, directive parsing, typed `MermaidConfig` view),
   `ThemeResolver` (the five themes and the flowchart, sequence, class, state, entity relationship, pie, gantt,
-  mindmap, and packet style sheets, the gantt one with a class-set cascade and the mindmap one painting each node by its
-  classes), `ColorMath` (the khroma subset), and
+  mindmap, packet, and git graph style sheets, the gantt and git graph ones with a class-set cascade and the mindmap one
+  painting each node by its classes), `ColorMath` (the khroma subset), and
   `StyleDeclarations` (the CSS declaration subset of `style`, `classDef`, `linkStyle`, and `themeCSS`).
 - **Graphlib** (subsystem; see _Graphlib Design_) - `Graph` (graphlib's directed, multi, and compound graph with
   JavaScript key order) and `GraphAlgorithms` (the traversals dagre uses).
@@ -78,7 +79,8 @@ The system consists of one direct unit and sixteen internal subsystems:
   bundled fonts, and the text utilities that measure and wrap the texts of sequence diagrams), and `NodeImages`
   (pictures through the caller's resolver).
 - **Scenegraph** (subsystem; see _Scenegraph Design_) - `SceneModel` (the immutable scene: groups, paths with their
-  drop shadows, text, images, and their bounds, which is the assertion surface of the tests and goldens) and
+  drop shadows, text that may be turned about a point, images, and their bounds, which is the assertion surface of the
+  tests and goldens) and
   `ScenePainter` (scene to pixels).
 - **Flowchart** (subsystem; see _Flowchart Design_) - `FlowchartParser` (the `flow.jison` lexer and grammar) and
   `FlowchartModel` (the `flowDb` semantics, the mapping to layout data, and the flowchart's own drawing steps).
@@ -116,6 +118,12 @@ The system consists of one direct unit and sixteen internal subsystems:
   package, its value converters, and the packet database semantics, with the `PacketDiagram` that gives the metadata
   and splits the blocks into rows as Mermaid's `populate` does) and `PacketRenderer` (Mermaid's packet renderer: the
   block rectangles, labels, and bit numbers of each row, the title, and the view box).
+- **GitGraph** (subsystem; see _GitGraph Design_) - `GitGraphParser` (the Langium git graph grammar of the Mermaid
+  parser package, its value converters, and the `GitGraphDatabase` port of Mermaid's git graph database with its
+  generated commit ids, with the `GitGraphDiagram` that gives the metadata and runs the statements again for a render
+  that names another main branch) and `GitGraphRenderer` (Mermaid's git graph renderer: the branch lines and labels,
+  the commit places of both passes, the arrows with their rerouting lanes, the commit bullets, the rotated commit labels,
+  the tags, the title, and the view box of the browser's bounding box).
 
 The dependency direction is one way:
 
@@ -140,6 +148,8 @@ MermaidDocument -> Syntax -> Configuration -> Flowchart -> Rendering -> Dagre ->
                                                         -> Dagre (LayoutWorkMeter)
                                                         -> Scenegraph
                                            -> Packet    -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
+                                                        -> Scenegraph
+                                           -> GitGraph  -> Rendering (LabelBuilder), Dagre (LayoutWorkMeter)
                                                         -> Scenegraph
 ```
 
@@ -173,7 +183,10 @@ test assembly through `InternalsVisibleTo` and to nothing else.
   tasks that are not vertical markers), with no edges, and `Direction` is null. For a mindmap they are its nodes, one
   edge for each node but the root, and no subgraphs; `Direction` is null and the title is only the frontmatter title.
   For a packet diagram they are its block statements (a block split across two rows counted once), with no edges or
-  subgraphs, and `Direction` is null; the counts do not depend on the row size of a render.
+  subgraphs, and `Direction` is null; the counts do not depend on the row size of a render. For a git graph they are
+  its commits (merges and cherry-picks included; a commit whose id is used again counted once), the links to their
+  parents (the arrows), and no subgraphs, counted with the main branch of the text's own configuration, and `Direction`
+  is `LR`, `TB`, or `BT`.
 - **Picture output** (`Measure`, `Render`, `Render(width, height)` with `MermaidRenderOptions`): a `MermaidSize` or a
   `Surface` (RGBA, straight alpha) whose sides lie within 1 and `Surface.MaxDimension`; a `CancellationToken` is
   observed.
@@ -249,7 +262,8 @@ and services, so its risk controls are about availability, integrity of the pict
 - **Determinism.** Only bundled fonts are used, the layout reproduces JavaScript iteration order, dates are computed
   in UTC, the cose layout of a mindmap computes its sines, cosines, logarithms, and powers correctly rounded rather than
   with the host's math library, and nothing reads the system clock, a random source, or the culture (a gantt chart takes
-  today only from `MermaidRenderOptions.Now`), so the output can be cached and reviewed.
+  today only from `MermaidRenderOptions.Now`, and the generated commit ids of a git graph come from a fixed pseudo-random
+  sequence restarted for every run of its database), so the output can be cached and reviewed.
 
 ## Data Flow
 
@@ -288,6 +302,9 @@ flowchart LR
     C --> KP[PacketParser]
     KP --> KR[PacketRenderer with LabelBuilder]
     KR --> S
+    C --> KG[GitGraphParser]
+    KG --> KGR[GitGraphRenderer with LabelBuilder]
+    KGR --> S
     S --> X[ScenePainter]
     X --> O[Surface]
 ```
@@ -313,7 +330,11 @@ flowchart LR
    call where Mermaid's grammar reduces, and its `MindmapDiagram` derives the sections, classes, and edges of `getData`;
    for a packet diagram, `PacketParser` lexes and parses the body with the Langium grammar and fills and checks the
    blocks of the `PacketDiagram` with the rules of Mermaid's packet database (the rows are not split yet, because they
-   depend on the configuration of a render). Syntax errors,
+   depend on the configuration of a render); for a git graph, `GitGraphParser` lexes and parses the body with the
+   Langium grammar and runs the statements against a `GitGraphDatabase` with the rules of Mermaid's git graph database
+   and the main branch name and order of the text's own configuration (resolved from the frontmatter and the
+   directives, and passed on by the registry), which gives the commits, branches, and generated ids of the
+   `GitGraphDiagram`. Syntax errors,
    database errors, and the
    open-time limits (edges, nodes, label length, nesting, YAML depth) fail here. Other known types are kept as
    unsupported diagrams.
@@ -351,7 +372,12 @@ flowchart LR
    drawing by `mindmap.padding` for the view box. A packet diagram is drawn by `PacketRenderer` alone: the blocks are
    split into rows of the render's `packet.bitsPerRow` as Mermaid's `populate` splits them, and each row's rectangles,
    labels, and bit numbers and the title are drawn with the texts measured by `LabelBuilder`, with the view box of
-   Mermaid's packet renderer. `Measure` stops here and returns the view box
+   Mermaid's packet renderer. A git graph is drawn by `GitGraphRenderer` alone: it takes the database of the text, or
+   runs the statements again when the render's configuration names another main branch or main branch order, places the
+   branches and the commits (twice, as Mermaid does), and draws the branch lines and labels, the arrows with their
+   rerouting lanes, the commit bullets, the commit labels and tags (rotated by 45 degrees where Mermaid rotates them),
+   and the title with the texts measured by `LabelBuilder`, with the view box of the browser's bounding box grown by
+   `gitGraph.diagramPadding`. `Measure` stops here and returns the view box
    rounded up and multiplied by the scale. `Render` paints the scene with `ScenePainter` (uniformly scaled, or fitted
    and centered for an exact size) over the background, loading pictures through the same `NodeImages`.
 3. **Reports** recorded by any stage go to the call's `MermaidReportSink` and are delivered to the handlers after the
@@ -384,7 +410,9 @@ instead use `MermaidDocument` directly with `MermaidRenderOptions`.
   the system clock, or a random source. lodash's `uniqueId` counter lives in the per-render `LayoutWorkMeter`, so names
   never depend on earlier renders. The cose layout of a mindmap draws no random number (a tree never reaches the random
   code of cose-base) and computes its sines, cosines, logarithms, and powers correctly rounded, without the host's math
-  library, so its chaotic layout is the same on every platform and equal to the browser's.
+  library, so its chaotic layout is the same on every platform and equal to the browser's. The commit ids a git graph
+  generates take their digits from the mulberry32 sequence with a fixed seed, restarted for every run of its database,
+  in place of Mermaid's `Math.random`, so they are the same in every render (item 59 below).
 - **Clock and time zone**: the library never reads the system clock. A gantt chart takes today only from
   `MermaidRenderOptions.Now` (else 1970-01-01, reported), and every date is computed as JavaScript computes it in a
   browser whose time zone is UTC, so a chart is the same on every machine; the reference harness renders the goldens
@@ -402,8 +430,8 @@ Portions derived from <project> (<license>); see third-party/README.md`:
 | Upstream project | License | Ported into |
 | --- | --- | --- |
 | mermaid | MIT | the Syntax units except `HtmlSanitizer`, configuration, themes, renderer, every drawn diagram type |
-| `@mermaid-js/parser` | MIT | the grammars, tokens, and value converters of `PieParser` and `PacketParser` |
-| Langium | MIT | the string and number conversions (`convertString`, `convertInt`) of `PieParser` and `PacketParser` |
+| `@mermaid-js/parser` | MIT | the grammars, tokens, and converters of `PieParser`, `PacketParser`, `GitGraphParser` |
+| Langium | MIT | `convertString` and `convertInt` of `PieParser`, `PacketParser`, and `GitGraphParser` |
 | dagre-d3-es (dagre, graphlib, dagre-d3) | MIT | `Graph`, `GraphAlgorithms`, the `Dagre` units, intersections |
 | d3-shape and d3-path | ISC | `EdgeBuilder` curves and path numbers, the `pie` and `arc` of `PieRenderer` |
 | d3-scale, d3-time, d3-time-format, d3-array, d3-axis, d3-interpolate | ISC | `TimeAxis`, the axes of `GanttRenderer` |
@@ -441,7 +469,7 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   states, concurrent regions with the generated last region, notes, and note groups; the entities of an entity
   relationship diagram, those named only after a subgraph included, and its subgraphs together; the section statements
   of a pie chart; the task and section statements of a gantt chart; the nodes of a mindmap; the block statements of a
-  packet diagram); `MaxLabelLength`, 4,096
+  packet diagram; the main branch, the branches, and the commits of a git graph); `MaxLabelLength`, 4,096
   (also the accessible title
   and description, the type and alias of sequence participant metadata, and the texts a diagram joins or derives from
   texts checked apart: the label of a generic class with its type, the qualified id of a nested namespace, and the CSS
@@ -452,7 +480,9 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   grow, and the compiled styles of an entity relationship diagram; the legend text `label [value]` of a pie chart with
   `showData`; the class list a gantt task gathers from `click` statements and its checked link; every id, text, icon,
   and class of a mindmap, sanitized, and the class list of each node; every label, title, and accessibility text of a
-  packet diagram, sanitized, and the frontmatter title it draws, located at the frontmatter); `MaxNestingDepth`, 32
+  packet diagram, sanitized, and the frontmatter title it draws, located at the frontmatter; every id, message, branch
+  name, tag, and parent of a git graph, sanitized, the messages and default tags it composes for merges and
+  cherry-picks, its title and accessibility texts, and the frontmatter title it draws); `MaxNestingDepth`, 32
   (subgraphs, namespaces, the dotted parts of a namespace name counted as levels, composite states with each concurrent
   region counted as a level, the subgraphs of an entity relationship diagram, the blocks and boxes of a sequence
   diagram, and the depth of a node in a mindmap's tree; at most 256; namespaces nested through class names, composite
@@ -467,14 +497,17 @@ All Mermaid text is untrusted. The limits are caller-adjustable through `Mermaid
   sorts, and for a mindmap the node data, every measured label, every drawn edge, and every step of the cose layout:
   the tree and its placement, each iteration, each repulsion pair, the cells of each grid before it is built, and each
   transcendental function, with weights pinned by tests; a mindmap of about 1,000 nodes or more can reach the default
-  limit; and for a packet diagram each block and each part of the row split, 1 each, and each measured text, 1 and its
-  length); `MaxImages`, 256 resolver calls; `MaxPaintedPixels`,
+  limit; for a packet diagram each block and each part of the row split, 1 each, and each measured text, 1 and its
+  length; and for a git graph each branch, each commit of each placing pass, and each parent looked at, 1 each, each
+  arrow, 1 and the commits its rerouting test scans, each lane try, 1 and the lanes it compares, and each measured text,
+  1 and its length); `MaxImages`, 256 resolver calls; `MaxPaintedPixels`,
   250,000,000 (charged before each item and drop shadow is painted): checked per call. Failure:
   `MermaidRenderException` with `mermaid-limit-exceeded`. The formatted tick labels of a gantt chart and the labels of a
   mindmap, as they are built for drawing, are also checked against `MaxLabelLength` when they are made, and the parts
   that the rows of a packet diagram split its blocks into are counted against `MaxNodes` as they are made, so a range
   that Mermaid splits into thousands of rows fails after at most `MaxNodes` parts (Mermaid's own cap of 10,000 rows is
-  kept above it).
+  kept above it). When a render runs the statements of a git graph again for another main branch, that run checks
+  `MaxNodes` and `MaxLabelLength` again, as a `MermaidRenderException`.
 - `MaxDiagnostics`, 1,000 reports per call: further reports become one `mermaid-diagnostics-suppressed` notice and
   rendering continues.
 
@@ -495,7 +528,9 @@ pinned packages: 207 flowchart parser and database vectors, 242 sequence parser 
 parser and database vectors, 157 state parser and database vectors, 246 entity relationship parser and database
 vectors, 133 pie parser and database vectors, 291 gantt parser and database vectors (the compiled task dates
 included), 246 mindmap parser and database vectors (the nodes and edges of `getData` included), 162 packet parser and
-database vectors (the effective packet configuration and the rows of the split included), 1,166 time vectors of
+database vectors (the effective packet configuration and the rows of the split included), 297 git graph parser and
+database vectors (the commits, branches, and branch order of the database with the generated ids of the seeded
+reference included), 1,166 time vectors of
 the d3 time functions, 36 cose layouts and the sines, cosines, logarithms, and powers of 29,332 math vectors recorded in
 Chrome (compared bit for bit), 53
 configuration cases and 622 khroma calls, 224 dagre
@@ -546,7 +581,14 @@ within 0.0004 pixel; `02-shapes` is excluded from the whole-drawing tier (item 4
 fixtures (`Fixtures/reference/packet/`) are compared the same way: the view box, every block rectangle with its paint,
 and every label, bit number, and title with its content, anchor, font size, color, and box, at 0.01 pixel (0.02 pixel
 for text boxes, which Chrome snaps to 1/64 pixel); every packet fixture agrees to within 0.001 pixel but
-`10-theme-variables`, a text box of which is 0.016 pixel off, and no packet fixture is excluded.
+`10-theme-variables`, a text box of which is 0.016 pixel off, and no packet fixture is excluded. The 18 original git
+graph fixtures (`Fixtures/reference/gitgraph/`) are rendered by the harness with the page's `Math.random` replaced by
+the same seeded sequence that CanvasNet uses for the generated commit ids, and compared the same way: the view box,
+every branch line, label rectangle, and label row, every arrow, every commit bullet, every commit label and tag with
+its shapes and text, and the title, with their paint compared exactly, at 0.01 pixel (0.02 pixel for text boxes);
+every git graph fixture agrees to within 0.0001 pixel in its geometry and 0.0006 pixel in its text boxes, and no git
+graph fixture is excluded. The git graph fixtures avoid the few glyphs and sizes whose boxes the shared glyph-box rule
+misses (item 62 below).
 
 **Known and accepted differences from Mermaid:**
 
@@ -617,7 +659,7 @@ for text boxes, which Chrome snaps to 1/64 pixel); every packet fixture agrees t
     transition, the four cardinality markers, and the terminal labels of class relations.
 17. **Diagram types.** Only `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, and `classDiagram-v2` (with the
     legacy `class` id), `stateDiagram` and `stateDiagram-v2` (with the legacy `state` id), `erDiagram`, `pie`,
-    `gantt`, `mindmap`, and `packet` (with `packet-beta`) are drawn in this version; every other type is
+    `gantt`, `mindmap`, `packet` (with `packet-beta`), and `gitGraph` are drawn in this version; every other type is
     `mermaid-diagram-unsupported` with a 16 by 16 transparent picture, and the documentation filter leaves such a block
     as written, with a warning.
 18. **Size and background.** The background is transparent by default (as Mermaid's SVG); the natural size is the SVG
@@ -786,10 +828,38 @@ for text boxes, which Chrome snaps to 1/64 pixel); every packet fixture agrees t
 57. **Packet texts and shapes.** The texts of a packet diagram are not checked for glyphs that no bundled font has (no
     `mermaid-text-missing-glyph` report), as for a pie chart (item 48); a block that is not wider than `paddingX` is
     drawn with its texts and without a rectangle, as SVG draws no rectangle without area.
-58. **Packet font sizes without a unit.** The browser drops a `font-size` declaration of a bare number other than zero
-    (`labelFontSize: 20`) in an SVG document, so the text takes the font size it inherits; the packet style sheet drops
-    it the same way. Only the packet style sheet drops it; the other style sheets read their declarations as
-    `StyleDeclarations` reads them.
+58. **Packet and git graph font sizes without a unit.** The browser drops a `font-size` declaration of a bare number
+    other than zero (`labelFontSize: 20`) in an SVG document, so the text takes the font size it inherits; the packet
+    and git graph style sheets drop it the same way. Only these two style sheets drop it; the other style sheets read
+    their declarations as `StyleDeclarations` reads them.
+59. **Generated commit ids.** A git graph commit without an id gets an id of Mermaid's form, its sequence number, a
+    dash, and seven hex digits. Mermaid draws the digits from `Math.random`, so its ids and the widths of their labels
+    change with every render; the library draws them from the mulberry32 sequence with a fixed seed, restarted for every
+    run of the database, so a diagram's ids are the same in every render, and the reference harness gives Mermaid the
+    same sequence, so the goldens have the same ids.
+60. **Git graph limits.** `MaxNodes` counts the main branch, each branch, and each commit (merges and cherry-picks
+    included) of a git graph, where Mermaid has no limit. `MaxLabelLength` also bounds the sanitized texts (the escapes
+    of the sanitizer make `=` eight characters long) and the messages and default tags that Mermaid composes for merges
+    and cherry-picks, so a chain of cherry-picks of cherry-picks, whose messages grow with each pick, ends at the
+    limit. `MaxLayoutWork` bounds the rerouting test of each arrow, which scans every commit, and the lane searches. A
+    natural size beyond `Surface.MaxDimension` (a git graph of about 650 or more commits in one direction) is the
+    documented `ArgumentOutOfRangeException` of a render at the natural size.
+61. **Git graph configuration and failures.** A git graph setting of the wrong type is `mermaid-config-invalid` and
+    ignored. The statements run against the database when the text is opened, with the main branch name and order of
+    the text's own configuration (its frontmatter and directives); a render whose site configuration names another
+    main branch or main branch order runs them again, and an operation the database then rejects is a located
+    `mermaid-render-failed` with Mermaid's message. So a text that relies on a main branch name that only the site
+    configuration gives (`checkout trunk` without the setting in the text) fails when it is opened, with Mermaid's
+    message for a branch that does not exist. Mermaid's renderer failure `Closest parent not found for commit ...`
+    (bottom to top with `parallelCommits`, after a commit id is used again) is a located `mermaid-render-failed`.
+62. **Git graph texts.** The texts of a git graph are not checked for glyphs that no bundled font has (no
+    `mermaid-text-missing-glyph` report), as for a pie chart and a packet diagram (items 48 and 57). A branch label's
+    rows keep their spaces, and an empty row adds no line, as in Chrome. The widths of the commit labels and tags follow
+    the glyph-box rule of `LabelBuilder`, which misses Chrome's box by up to a pixel for a few glyphs at a few sizes
+    (a 10 pixel label or tag that ends in `D` is up to 0.8 pixel narrower, for example); the git graph fixtures avoid
+    these glyphs.
+63. **Duplicate commit ids.** A commit whose id is already used replaces the earlier commit in its place, as in
+    Mermaid, which only logs a warning; nothing is reported.
 
 ## Phase Plan
 
@@ -815,9 +885,12 @@ for text boxes, which Chrome snaps to 1/64 pixel); every packet fixture agrees t
   drawn, the documentation build no longer runs a second, browser-based Mermaid filter: a block of a type this version
   does not draw is left as
   written, with a warning.
-- **Phase 4a (delivered by this version)**: packet diagrams (the `Packet` subsystem) with their own renderer and the
+- **Phase 4a (delivered)**: packet diagrams (the `Packet` subsystem) with their own renderer and the
   row split of Mermaid's packet parser, the packet configuration section and style sheet, the packet upstream vectors,
   and the packet reference goldens.
+- **Phase 4b (delivered by this version)**: git graphs (the `GitGraph` subsystem) with their own renderer, the git
+  graph configuration section and style sheet, rotated text in the scene, the git graph upstream vectors with seeded
+  ids, and the git graph reference goldens.
 
 Each phase adds only its own subsystems and units and extends the supported list of `DiagramDetector`; the public API,
 the report codes, and the limits stay compatible.

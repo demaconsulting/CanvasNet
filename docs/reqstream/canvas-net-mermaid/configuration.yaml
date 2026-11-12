@@ -4,10 +4,10 @@
 # These requirements decompose the CanvasNetMermaid system's configuration and theme responsibilities into the
 # Configuration subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the effective
 # configuration of a call from the site configuration, the frontmatter, and the directives (MermaidConfigResolver), the
-# five built-in themes and the diagram, chart, mindmap, and packet style sheets built from them (ThemeResolver), the
-# khroma color functions the themes derive their colors with (ColorMath), and the CSS subset of style statements and
-# themeCSS (StyleDeclarations). Each requirement here links down to the unit requirements that implement it. See
-# docs/verification/canvas-net-mermaid/configuration.md for the test-evidence mapping.
+# five built-in themes and the diagram, chart, mindmap, packet, and git graph style sheets built from them
+# (ThemeResolver), the khroma color functions the themes derive their colors with (ColorMath), and the CSS subset of
+# style statements and themeCSS (StyleDeclarations). Each requirement here links down to the unit requirements that
+# implement it. See docs/verification/canvas-net-mermaid/configuration.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetMermaid Requirements
@@ -37,6 +37,7 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapLayout
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-PacketSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-GitGraphSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ThemeOption_NodeFill
@@ -46,6 +47,7 @@ sections:
               - Configuration_ResolvePieAndGanttSectionsAndStyles_FullText
               - Configuration_ResolveMindmapSectionAndStyles_FullText
               - Configuration_ResolvePacketSectionAndStyles_FullText
+              - Configuration_ResolveGitGraphSectionAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Reports
             title: >-
@@ -69,6 +71,7 @@ sections:
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-GanttSection
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection
               - CanvasNetMermaid-Configuration-MermaidConfigResolver-PacketSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-GitGraphSection
             tests:
               - Configuration_ResolveThemeAndStyles_FullText
               - Configuration_ResolveClassSectionAndStyles_FullText
@@ -76,6 +79,7 @@ sections:
               - Configuration_ResolvePieAndGanttSectionsAndStyles_FullText
               - Configuration_ResolveMindmapSectionAndStyles_FullText
               - Configuration_ResolvePacketSectionAndStyles_FullText
+              - Configuration_ResolveGitGraphSectionAndStyles_FullText
               - Configuration_Document_RenderDeliversConfigurationWarnings
               - Configuration_Document_UnsupportedType_ConfigurationSilent
 
@@ -106,12 +110,12 @@ sections:
             title: >-
               The Configuration subsystem shall resolve the paint and fonts of the element classes of flowcharts,
               sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie charts, gantt
-              charts, mindmaps, and packet diagrams from the style sheets Mermaid writes for them (for a gantt chart
-              through the cascade of the classes of an element and its ancestors, and for a mindmap node through the
-              cascade of its own classes on the element that draws it) with the theme variables of the configuration,
-              apply the themeCSS rules of the diagram's own selectors after them, report every other themeCSS rule as
-              the unsupported feature mermaid-theme-css-unsupported, and give the rendering the text facts of each sheet
-              (whether it centers the SVG text of a node and the root font).
+              charts, mindmaps, packet diagrams, and git graphs from the style sheets Mermaid writes for them (for a
+              gantt chart through the cascade of the classes of an element and its ancestors, and for a mindmap node
+              through the cascade of its own classes on the element that draws it) with the theme variables of the
+              configuration, apply the themeCSS rules of the diagram's own selectors after them, report every other
+              themeCSS rule as the unsupported feature mermaid-theme-css-unsupported, and give the rendering the text
+              facts of each sheet (whether it centers the SVG text of a node and the root font).
             justification: |
               Mermaid paints a diagram through CSS rules built from the theme; reproducing those rules and the
               user's overrides of them gives the same paint without a browser, and a rule that cannot be applied
@@ -126,6 +130,7 @@ sections:
               - CanvasNetMermaid-Configuration-ThemeResolver-GanttStyleSheet
               - CanvasNetMermaid-Configuration-ThemeResolver-MindmapStyleSheet
               - CanvasNetMermaid-Configuration-ThemeResolver-PacketStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-GitGraphStyleSheet
               - CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses
               - CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
               - CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
@@ -140,6 +145,7 @@ sections:
               - Configuration_ResolvePieAndGanttSectionsAndStyles_FullText
               - Configuration_ResolveMindmapSectionAndStyles_FullText
               - Configuration_ResolvePacketSectionAndStyles_FullText
+              - Configuration_ResolveGitGraphSectionAndStyles_FullText
 
           - id: CanvasNetMermaid-Configuration-Declarations
             title: >-

@@ -17,8 +17,9 @@ sections:
             title: >-
               The Scenegraph subsystem shall represent a laid-out diagram as an immutable scene in Mermaid's SVG
               coordinates - a view box and translated groups of paths with fill, stroke, and drop shadow, lines of
-              styled text runs that may be underlined, and pictures, each with a role, Mermaid's element id, and the
-              location of its construct - whose bounds are those of its geometry as an SVG bounding box gives them.
+              styled text runs that may be underlined and that may be turned about a point, and pictures, each with a
+              role, Mermaid's element id, and the location of its construct - whose bounds are those of its geometry as
+              an SVG bounding box gives them.
             justification: |
               Separating the scene from the pixels lets the tests and the reference comparison assert the layout
               with numbers, and the view box of a diagram includes bounds that Mermaid takes from the bounding box
@@ -29,6 +30,7 @@ sections:
               - CanvasNetMermaid-Scenegraph-SceneModel-Bounds
               - CanvasNetMermaid-Scenegraph-SceneModel-Shadow
               - CanvasNetMermaid-Scenegraph-SceneModel-Underline
+              - CanvasNetMermaid-Scenegraph-SceneModel-Rotation
             tests:
               - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
               - Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds
@@ -40,7 +42,7 @@ sections:
               placed at a uniform scale or fitted and centered in a size, with anti-aliased fills under the nonzero
               or even-odd rule, strokes with their width and dashes scaled, drop shadows under their paths, and text
               runs in the bundled fonts anchored at the start, middle, or end of their line, an underlined run with a
-              bar under its baseline.
+              bar under its baseline, and a rotated line turned about its point.
             justification: |
               The painter turns the verified scene into the pixels of the natural-size and exact-size renders of a
               diagram, and it must draw what Mermaid's SVG shows.
@@ -53,6 +55,7 @@ sections:
               - CanvasNetMermaid-Scenegraph-ScenePainter-DropShadow
               - CanvasNetMermaid-Scenegraph-ScenePainter-StrokedText
               - CanvasNetMermaid-Scenegraph-ScenePainter-Underline
+              - CanvasNetMermaid-Scenegraph-ScenePainter-RotatedText
             tests:
               - Scenegraph_PaintNodeScene_TwoScales_DeterministicAndScaled
               - Scenegraph_PaintBoxScene_ShadowIsUnderTheBoxAndOutsideTheBounds

@@ -60,7 +60,7 @@ specification and is rendered, in strict mode, by a test.*
 - 🛡️ **Vega-Lite Hardening** - Resource limits for every stage (rows, steps, items, painted pixels), cancellation,
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
 - 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams, pie
-  charts, gantt charts, mindmaps, and packet diagrams with ports of Mermaid's own layouts
+  charts, gantt charts, mindmaps, packet diagrams, and git graphs with ports of Mermaid's own layouts
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
 - 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
@@ -115,7 +115,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
-| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams, charts, mindmaps, and packets  |
+| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams, mindmaps, packets, git graphs  |
 | `DemaConsulting.CanvasNet.Viewer`   | The `canvasnet` operations as library calls      |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
@@ -204,11 +204,12 @@ Mermaid's SVG (`--scale`, `--width`, `--height`, and `--size` change it), for ex
 (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram;
 states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity
 relationship diagram; slices for a pie chart; tasks and sections for a gantt chart; nodes and edges for a mindmap;
-blocks for a packet diagram) without drawing it. This version draws flowcharts (`flowchart` and `graph`), sequence
-diagrams (`sequenceDiagram`), class diagrams (`classDiagram`), state diagrams (`stateDiagram-v2` and `stateDiagram`),
-entity relationship diagrams (`erDiagram`), pie charts (`pie`), gantt charts (`gantt`, with every date in UTC and no
-today line, because the tool sets no clock), mindmaps (`mindmap`), and packet diagrams (`packet` and `packet-beta`);
-every other type is recognized, reported as `mermaid-diagram-unsupported`, and drawn as an empty picture.
+blocks for a packet diagram; commits and the links to their parents for a git graph) without drawing it. This version
+draws flowcharts (`flowchart` and `graph`), sequence diagrams (`sequenceDiagram`), class diagrams (`classDiagram`),
+state diagrams (`stateDiagram-v2` and `stateDiagram`), entity relationship diagrams (`erDiagram`), pie charts (`pie`),
+gantt charts (`gantt`, with every date in UTC and no today line, because the tool sets no clock), mindmaps
+(`mindmap`), packet diagrams (`packet` and `packet-beta`), and git graphs (`gitGraph`); every other type is
+recognized, reported as `mermaid-diagram-unsupported`, and drawn as an empty picture.
 `--theme default|base|dark|forest|neutral` chooses the theme like
 `mmdc -t` (a theme the diagram sets itself still wins), and `flow.mmd#theme=dark` does the same for one input or link.
 What the library recognizes but cannot draw (icons, the hand-drawn look, the ELK layout) is reported in `diagnostics`
@@ -270,7 +271,7 @@ canvasnet render bracket.scad --view top -D width=55 -o top.png --json
 canvasnet info sales.vl.json --json
 canvasnet render sales.vl.json --scale 2 -o sales.png --json
 
-# 4e. Draw a Mermaid diagram (flowchart, sequence, class, state, ER, pie, gantt, mindmap, packet) in the dark theme
+# 4e. Draw a Mermaid diagram (flowchart, sequence, gantt, mindmap, packet, git graph, ...) in the dark theme
 canvasnet info flow.mmd --json
 canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 ```

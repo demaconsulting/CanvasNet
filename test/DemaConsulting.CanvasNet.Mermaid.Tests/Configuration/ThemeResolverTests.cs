@@ -20,6 +20,29 @@ public class ThemeResolverTests
     /// <summary>A mindmap whose configuration the style tests resolve.</summary>
     private const string MindmapText = "mindmap\n  root\n    child\n";
 
+    /// <summary>A git graph whose configuration the style tests resolve.</summary>
+    private const string GitGraphText = "gitGraph\n  commit\n";
+
+    /// <summary>Gets the svg element of a git graph's element chains.</summary>
+    private static GitGraphElement Svg { get; } = GitGraphElement.Of("svg", string.Empty);
+
+    /// <summary>
+    ///     Gets the git graph goldens, by file name.
+    /// </summary>
+    public static TheoryData<string> GitGraphGoldens
+    {
+        get
+        {
+            var data = new TheoryData<string>();
+            foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference", "gitgraph"), "*.layout.json").Order(StringComparer.Ordinal))
+            {
+                data.Add(Path.GetFileName(file));
+            }
+
+            return data;
+        }
+    }
+
     /// <summary>
     ///     Gets the theme cases: every theme without overrides, with <c>themeVariables</c>, and in dark mode.
     /// </summary>
@@ -645,6 +668,254 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the git graph's style rules of each theme: the global rules first, five rules for each of the twelve
+    ///     colors of <c>THEME_COLOR_LIMIT</c>, and the paint of each of the eight named colors (a commit's bullet, a
+    ///     highlight's outer square, a branch label's rectangle and text, an arrow), which repeats for the colors past the
+    ///     eighth.
+    /// </summary>
+    /// <param name="theme">The theme.</param>
+    [Theory]
+    [InlineData("default")]
+    [InlineData("base")]
+    [InlineData("dark")]
+    [InlineData("forest")]
+    [InlineData("neutral")]
+    public void GitGraphStyles_Create_EachTheme_PaintsTheNamedGitColors(string theme)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject { ["theme"] = theme }, GitGraphText);
+        Rgba32 Var(string name) => Color(config.ThemeVariable(name)!);
+
+        // Act
+        var styles = GitGraphStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(12, styles.Rules.Count(rule => rule.Selector.StartsWith(".commit-highlight", StringComparison.Ordinal) && char.IsAsciiDigit(rule.Selector[^1])));
+        for (var i = 0; i < 12; i++)
+        {
+            var c = (i % 8).ToString(CultureInfo.InvariantCulture);
+            var n = i.ToString(CultureInfo.InvariantCulture);
+            var bullet = styles.Compute([Svg, GitGraphElement.Of("g", "commit-bullets"), GitGraphElement.Of("circle", $"commit 0-eb28011 commit{n}")]);
+            var outer = styles.Compute([Svg, GitGraphElement.Of("g", "commit-bullets"), GitGraphElement.Of("rect", $"commit A commit-highlight{n} commit-highlight-outer")]);
+            var rect = styles.Compute([Svg, GitGraphElement.Of("g", string.Empty), GitGraphElement.Of("rect", $"branchLabelBkg label{n}")]);
+            var label = styles.Compute([Svg, GitGraphElement.Of("g", string.Empty), GitGraphElement.Of("g", "branchLabel"), GitGraphElement.Of("g", $"label branch-label{n}"), GitGraphElement.Of("text", string.Empty)]);
+            var arrow = styles.Compute([Svg, GitGraphElement.Of("g", "commit-arrows"), GitGraphElement.Of("path", $"arrow arrow{n}")]);
+            Assert.Equal((Var("git" + c), Var("git" + c)), (bullet.Fill, bullet.Stroke));
+            Assert.Equal((Var("gitInv" + c), Var("gitInv" + c)), (outer.Fill, outer.Stroke));
+            Assert.Equal(Var("git" + c), rect.Fill);
+            Assert.Equal(Var("gitBranchLabel" + c), label.Fill);
+            Assert.Equal((Var("git" + c), (Rgba32?)null, 8.0, "round"), (arrow.Stroke, arrow.Fill, arrow.StrokeWidth, arrow.LineCap));
+        }
+    }
+
+    /// <summary>
+    ///     Validates the cascade against the browser: every branch line, branch label, arrow, bullet, commit label, tag
+    ///     and title of each git graph golden gets, from the style sheet of its fixture's configuration (its theme, theme
+    ///     variables, <c>themeCSS</c> and look), the fill, stroke, stroke width, dashes, line cap, opacity, shadow, font
+    ///     size and text anchor that Chrome computed for it.
+    /// </summary>
+    /// <param name="golden">The golden file name.</param>
+    [Theory]
+    [MemberData(nameof(GitGraphGoldens))]
+    public void GitGraphStyles_Compute_FixtureElements_MatchTheBrowsersComputedStyle(string golden)
+    {
+        // Arrange
+        var reference = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "reference", "gitgraph", golden)))!;
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gitgraph", (string)reference["source"]!));
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(Mermaid.Syntax.Preprocessor.Run(text, "t.mmd", MermaidLimits.Default), "gitGraph", null, sink);
+        var checks = 0;
+
+        // Act
+        var styles = GitGraphStyles.Create(config, sink);
+
+        // Assert
+        void Shape(JsonNode shape, params GitGraphElement[] parents)
+        {
+            var attributes = new List<(string, string)>();
+            foreach (var name in (string[])["fill", "stroke"])
+            {
+                if (shape[name] is { } value)
+                {
+                    attributes.Add((name, value.GetValue<string>()));
+                }
+            }
+
+            var styleText = shape["style"]?.GetValue<string>() ?? string.Empty;
+            var inline = styleText.Length > 0 ? styles.BranchLabelStyle : null;
+            Assert.Equal(styleText.Length > 0, inline is not null);
+            var element = GitGraphElement.Of((string)shape["tag"]!, (string?)shape["class"] ?? string.Empty, [.. attributes]) with { Inline = inline };
+            var computed = styles.Compute([Svg, .. parents, element]);
+            var paint = shape["paint"]!;
+            AssertChromeColor(paint["fill"], computed.Fill);
+            AssertChromeColor(paint["stroke"], computed.Stroke);
+            Assert.Equal((double)paint["strokeWidth"]!, computed.StrokeWidth, 3);
+            Assert.Equal(ChromeDash(paint["dasharray"]), computed.Dash);
+            Assert.Equal((string)paint["lineCap"]!, computed.LineCap);
+            Assert.Equal((double)paint["opacity"]!, computed.Opacity, 3);
+            Assert.Equal(ChromeShadow(paint["filter"]), computed.Shadow);
+            checks++;
+        }
+
+        void Text(JsonNode label, params GitGraphElement[] parents)
+        {
+            var computed = styles.Compute([Svg, .. parents, GitGraphElement.Of("text", (string?)label["class"] ?? string.Empty)]);
+            AssertChromeColor(label["fill"], computed.Fill);
+            Assert.Equal((double)label["fontSize"]!, computed.FontSize, 3);
+            Assert.Equal((string)label["anchor"]!, computed.TextAnchor);
+            Assert.Equal((double)label["opacity"]!, computed.Opacity, 3);
+            checks++;
+        }
+
+        var group = GitGraphElement.Of("g", string.Empty);
+        foreach (var branch in reference["branches"]!.AsArray())
+        {
+            Shape(branch!["line"]!, group);
+            Shape(branch["rect"]!, group);
+            Text(branch["label"]!["text"]!, group, GitGraphElement.Of("g", "branchLabel"), GitGraphElement.Of("g", (string)branch["label"]!["class"]!));
+        }
+
+        foreach (var arrow in reference["arrows"]!.AsArray())
+        {
+            var path = new JsonObject { ["tag"] = "path", ["class"] = (string)arrow!["class"]!, ["paint"] = arrow["paint"]!.DeepClone() };
+            Shape(path, GitGraphElement.Of("g", "commit-arrows"));
+        }
+
+        foreach (var bullet in reference["bullets"]!.AsArray())
+        {
+            Shape(bullet!, GitGraphElement.Of("g", "commit-bullets"));
+        }
+
+        var labels = GitGraphElement.Of("g", "commit-labels");
+        foreach (var label in reference["labels"]!.AsArray())
+        {
+            if ((string)label!["kind"]! == "commit")
+            {
+                Shape(label["rect"]!, labels, group);
+                Text(label["text"]!, labels, group);
+            }
+            else
+            {
+                Shape(label["polygon"]!, labels);
+                Shape(label["hole"]!, labels);
+                Text(label["text"]!, labels);
+            }
+        }
+
+        if (reference["title"] is { } title)
+        {
+            Text(title);
+        }
+
+        Assert.True(checks > 0);
+    }
+
+    /// <summary>
+    ///     Validates that the commit id in a bullet's class attribute is classes of its own, split on ASCII white space as a
+    ///     browser splits them: an id that is also a class of the sheet (<c>commit-reverse</c>, <c>arrow</c>) is styled by
+    ///     its rule, and a white fill attribute of a cherry-pick's mark loses to no rule.
+    /// </summary>
+    [Fact]
+    public void GitGraphStyles_Compute_CommitIdClasses_AreStyledByTheirRules()
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), GitGraphText);
+        var styles = GitGraphStyles.Create(config, null);
+        var bullets = GitGraphElement.Of("g", "commit-bullets");
+
+        // Act
+        var plain = styles.Compute([Svg, bullets, GitGraphElement.Of("circle", "commit A commit0")]);
+        var reverse = styles.Compute([Svg, bullets, GitGraphElement.Of("circle", "commit x\tcommit-reverse commit0")]);
+        var arrow = styles.Compute([Svg, bullets, GitGraphElement.Of("circle", "commit arrow commit0")]);
+        var mark = styles.Compute([Svg, bullets, GitGraphElement.Of("circle", "commit A commit-cherry-pick", ("fill", "#fff"))]);
+
+        // Assert
+        Assert.Equal(1.0, plain.StrokeWidth);
+        Assert.Equal((Color(config.ThemeVariable("primaryColor")!), 3.0), (reverse.Fill!.Value, reverse.StrokeWidth));
+        Assert.Equal((Color(config.ThemeVariable("git0")!), 8.0, "round"), (arrow.Stroke!.Value, arrow.StrokeWidth, arrow.LineCap));
+        Assert.Equal(Color("#fff"), mark.Fill);
+    }
+
+    /// <summary>
+    ///     Validates the number of colors of the sheet: JavaScript's array length of <c>THEME_COLOR_LIMIT</c> (its whole
+    ///     part, zero for a value that is not a positive number), capped; with fewer than eight colors, a commit of a later
+    ///     branch has no color rule and inherits the root's fill and no stroke.
+    /// </summary>
+    [Fact]
+    public void GitGraphStyles_ColorCount_FollowsTheArrayLengthOfTheLimit()
+    {
+        // Arrange
+        var site = new JsonObject { ["themeVariables"] = new JsonObject { ["THEME_COLOR_LIMIT"] = 4 } };
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site, GitGraphText);
+
+        // Act
+        var counts = new[] { null, "12", "4.9", "0.5", "-3", "many", "1000" }.Select(GitGraphStyles.ColorCount).ToArray();
+        var styles = GitGraphStyles.Create(config, null);
+        var colored = styles.Compute([Svg, GitGraphElement.Of("g", "commit-bullets"), GitGraphElement.Of("circle", "commit A commit3")]);
+        var uncolored = styles.Compute([Svg, GitGraphElement.Of("g", "commit-bullets"), GitGraphElement.Of("circle", "commit A commit5")]);
+
+        // Assert
+        Assert.Equal([12, 12, 4, 0, 0, 0, ThemeResolver.MaxColorLimit], counts);
+        Assert.Equal(Color(config.ThemeVariable("git3")!), colored.Fill);
+        Assert.Equal((Color("#333"), (Rgba32?)null), (uncolored.Fill!.Value, uncolored.Stroke));
+    }
+
+    /// <summary>
+    ///     Validates the <c>neo</c> look's shadow: the inline style of a branch label's rectangle is the theme's
+    ///     <c>dropShadow</c> filter, which the cascade turns into a shadow of that element only; the classic look has no
+    ///     inline style.
+    /// </summary>
+    [Fact]
+    public void GitGraphStyles_Create_NeoLook_ShadowsTheBranchLabels()
+    {
+        // Arrange
+        var neo = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject { ["look"] = "neo" }, GitGraphText);
+        var classic = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject(), GitGraphText);
+
+        // Act
+        var styles = GitGraphStyles.Create(neo, null);
+        var rect = styles.Compute([Svg, GitGraphElement.Of("g", string.Empty), GitGraphElement.Of("rect", "branchLabelBkg label0") with { Inline = styles.BranchLabelStyle }]);
+        var group = styles.Compute([Svg, GitGraphElement.Of("g", string.Empty) with { Inline = styles.BranchLabelStyle }, GitGraphElement.Of("rect", "branchLabelBkg label0")]);
+
+        // Assert
+        Assert.Equal(new ShadowPaint(1, 2, 2, Color("rgba(185, 185, 185, 1)")), rect.Shadow);
+        Assert.Null(group.Shadow);
+        Assert.Null(GitGraphStyles.Create(classic, null).BranchLabelStyle);
+    }
+
+    /// <summary>
+    ///     Validates the theme variables and <c>themeCSS</c> of a git graph: a unitless commit label font size is dropped
+    ///     as a browser drops it (the label takes the root's size), a <c>themeCSS</c> rule of a known selector overrides
+    ///     the theme's, and a rule of an unknown selector is reported.
+    /// </summary>
+    [Fact]
+    public void GitGraphStyles_Create_ThemeVariablesAndThemeCss_AreAppliedAsTheBrowserDoes()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  themeVariables:\n    commitLabelFontSize: 12\n    tagLabelFontSize: 13px\n" +
+                            "  themeCSS: \".tag-label { fill: #0000ff; } .arrow1 { stroke-width: 3px; } .bullet { fill: red; }\"\n---\n" + GitGraphText;
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default), "gitGraph", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = GitGraphStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+        var label = styles.Compute([Svg, GitGraphElement.Of("g", "commit-labels"), GitGraphElement.Of("g", string.Empty), GitGraphElement.Of("text", "commit-label")]);
+        var tag = styles.Compute([Svg, GitGraphElement.Of("g", "commit-labels"), GitGraphElement.Of("text", "tag-label")]);
+        var arrow = styles.Compute([Svg, GitGraphElement.Of("g", "commit-arrows"), GitGraphElement.Of("path", "arrow arrow1")]);
+
+        // Assert
+        Assert.Equal(16.0, label.FontSize);
+        Assert.Equal((13.0, Color("#0000ff")), (tag.FontSize, tag.Fill!.Value));
+        Assert.Equal(3.0, arrow.StrokeWidth);
+        Assert.Single(reports);
+    }
+
+    /// <summary>
     ///     Validates the gantt chart's cascade of the default theme: the global rules first; a bar's class rules over the
     ///     section style; an <c>!important</c> clickable text color over a later normal rule; a compound selector
     ///     (<c>.doneText0.taskTextOutsideRight</c>) over its single classes; the descendant rule of the axis labels over
@@ -1149,4 +1420,43 @@ public class ThemeResolverTests
     /// <param name="text">The color text.</param>
     /// <returns>The color.</returns>
     private static Rgba32 Color(string text) => CssColor.Parse(text);
+
+    /// <summary>
+    ///     Reads a paint Chrome computed (<c>none</c>, or a color as <c>rgb(...)</c> or <c>rgba(...)</c>).
+    /// </summary>
+    /// <param name="node">The computed value.</param>
+    /// <returns>The paint, or null for none.</returns>
+    private static Rgba32? ChromePaint(JsonNode? node) => (string)node! is "none" ? null : Color((string)node!);
+
+    /// <summary>
+    ///     Asserts that a paint is exactly the one Chrome computed (the core color parser converts an <c>hsl()</c> theme
+    ///     color, such as the forest theme's <c>git1</c>, as Chrome converts it).
+    /// </summary>
+    /// <param name="expected">The computed value Chrome reported.</param>
+    /// <param name="actual">The computed paint.</param>
+    private static void AssertChromeColor(JsonNode? expected, Rgba32? actual) => Assert.Equal(ChromePaint(expected), actual);
+
+    /// <summary>
+    ///     Reads a dash array Chrome computed (<c>none</c>, or lengths in pixels), as the cascade's parser reads one.
+    /// </summary>
+    /// <param name="node">The computed value.</param>
+    /// <returns>The dash lengths, empty for none.</returns>
+    private static IReadOnlyList<double> ChromeDash(JsonNode? node)
+    {
+        var text = (string)node!;
+        if (text == "none")
+        {
+            return [];
+        }
+
+        return StyleDeclarations.TryParseDashArray(text, out var dashes) ? dashes : throw new FormatException(text);
+    }
+
+    /// <summary>
+    ///     Reads a filter Chrome computed (<c>none</c>, or a <c>drop-shadow(color x y blur)</c>).
+    /// </summary>
+    /// <param name="node">The computed value.</param>
+    /// <returns>The shadow, or null for none.</returns>
+    private static ShadowPaint? ChromeShadow(JsonNode? node) =>
+        SequenceStyles.TryParseFilter((string)node!, out var shadow) ? shadow : throw new FormatException((string)node!);
 }

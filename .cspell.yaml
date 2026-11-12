@@ -1082,6 +1082,8 @@ words:
   - Placefor
   - htmllabels
   - maxwidth
+  # The git graph port (its fixture folder, vector and golden names)
+  - gitgraph
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
@@ -1096,6 +1098,7 @@ words:
   - longhands
   - FFFD
   - xlink
+  - linecap
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:
@@ -1153,3 +1156,9 @@ overrides:
     ignoreRegExpList:
       - "/ﬂ°°?|¶ß/g"
       - "/\\\\n/g"
+  # The git graph vectors: every JSON string (the texts of mermaid's git graph tests, with branch names that are not
+  # words, the case names made from the test names, Mermaid's entity-encoding markers, escaped line feeds)
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gitgraph-parser.json"
+    ignoreRegExpList:
+      - "/\"(?:[^\"\\\\\\n]|\\\\.)*\"/g"

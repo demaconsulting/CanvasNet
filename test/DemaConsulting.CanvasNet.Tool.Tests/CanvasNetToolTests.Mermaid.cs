@@ -148,6 +148,37 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that the tool, run as a real process, describes and draws a git graph strictly, at the size info reports,
+    ///     with its commits as nodes and the links to their parents as edges, and without a diagnostic.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Mermaid_GitGraphAsProcess_IsDrawn()
+    {
+        // Arrange: two branches and a merge
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "history.mmd", "gitGraph\n    commit id: \"A\"\n    branch dev\n    commit id: \"B\"\n    checkout main\n    merge dev\n");
+        var output = directory.Combine("history.png");
+
+        // Act: run info and a strict render as real processes
+        var infoExitCode = Runner.Run(out var info, "dotnet", _dllPath, "info", input, "--json");
+        var renderExitCode = Runner.Run(out var render, "dotnet", _dllPath, "render", input, "-o", output, "--strict", "--json");
+
+        // Assert: info names the supported type, its direction, commits, and parent links; render writes that size without a diagnostic
+        Assert.Equal(0, infoExitCode);
+        using var infoDocument = JsonDocument.Parse(info);
+        var diagram = infoDocument.RootElement.GetProperty("diagram");
+        Assert.Equal(("gitGraph", true, "LR", 3, 3), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean(), diagram.GetProperty("direction").GetString(), diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32()));
+        var size = infoDocument.RootElement.GetProperty("image");
+        Assert.Equal((254, 146), (size.GetProperty("width").GetInt32(), size.GetProperty("height").GetInt32()));
+        Assert.Equal(0, renderExitCode);
+        using var renderDocument = JsonDocument.Parse(render);
+        Assert.Empty(renderDocument.RootElement.GetProperty("diagnostics").EnumerateArray());
+        using var image = PngCodec.Load(output);
+        Assert.Equal((254, 146), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[0, 0]);
+    }
+
+    /// <summary>
     ///     Test that an unknown diagram keyword is a <c>mermaid-error</c> with a hint, that a diagram type this version does not
     ///     draw is a diagnostic and an <c>unsupported-feature</c> error with <c>--strict</c>, and that <c>--theme</c> on another
     ///     kind of input is a usage error, each with the documented exit code.

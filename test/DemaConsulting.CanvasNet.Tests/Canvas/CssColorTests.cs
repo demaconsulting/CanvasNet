@@ -217,9 +217,13 @@ public class CssColorTests
             ("hsl(0, 100%, 50%)", new Rgba32(255, 0, 0, 255)),
             ("hsl(120 100% 25%)", new Rgba32(0, 128, 0, 255)),
 
-            // hsl() converts in single precision as browsers do: the blue channel is 143.4999... in double
-            // precision (143) and 143.5 in single precision (144)
+            // hsl() converts as browsers do: the channel is kept and scaled to 255 in single precision, so the blue channel
+            // is 143.4999... in double precision (143) and 143.5 in single precision (144); the conversion itself runs in
+            // double precision, so a channel that a single-precision conversion takes below a half stays above it, as in
+            // Chrome (the blue channel 41 here, not 40)
             ("hsl(150, 100%, 56.2745098039%)", new Rgba32(32, 255, 144, 255)),
+            ("hsl(69.1956281662, 100%, 57.9411764706%)", new Rgba32(222, 255, 41, 255)),
+            ("hsl(156.0861968994, 100%, 59.1176470588%)", new Rgba32(47, 255, 172, 255)),
             ("hsla(240, 100%, 50%, 0.25)", new Rgba32(0, 0, 255, 64)),
             ("hsl(0.5turn 100% 50%)", new Rgba32(0, 255, 255, 255)),
             ("hsl(180deg, 100%, 50%)", new Rgba32(0, 255, 255, 255)),

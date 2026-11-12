@@ -1,0 +1,442 @@
+{
+  "source": "11-hidden-branches-and-labels.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "gitGraph",
+  "viewBox": [-19.8349609375, -36.70000076293945, 303.17724609375, 142.6999969482422],
+  "branches": [],
+  "arrows": [
+    {
+      "class": "arrow arrow1",
+      "d": "M 10 -2 L 10 68 A 20 20, 0, 0, 0, 30 88 L 60 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 10 -2 L 110 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 60 88 L 160 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 160 88 L 210 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 110 -2 L 110 33 A 10 10, 0, 0, 0, 120 43 L 200 43 A 10 10, 0, 0, 1, 210 53 L 210 88",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow0",
+      "d": "M 110 -2 L 260 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "class": "arrow arrow1",
+      "d": "M 210 88 L 240 88 A 20 20, 0, 0, 0, 260 68 L 260 -2",
+      "paint": {
+        "fill": "none",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 8,
+        "dasharray": "none",
+        "lineCap": "round",
+        "opacity": 1,
+        "filter": "none"
+      }
+    }
+  ],
+  "bullets": [
+    {
+      "tag": "circle",
+      "class": "commit A commit0",
+      "cx": 10,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit B commit1",
+      "cx": 60,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit C commit0",
+      "cx": 110,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit D commit1",
+      "cx": 160,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit N commit1",
+      "cx": 210,
+      "cy": 88,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(222, 222, 0)",
+        "stroke": "rgb(222, 222, 0)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit commit-merge N commit1",
+      "cx": 210,
+      "cy": 88,
+      "r": 6,
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(236, 236, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit 5-eb28011 commit0",
+      "cx": 260,
+      "cy": -2,
+      "r": 10,
+      "paint": {
+        "fill": "rgb(0, 0, 236)",
+        "stroke": "rgb(0, 0, 236)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    },
+    {
+      "tag": "circle",
+      "class": "commit commit-merge 5-eb28011 commit0",
+      "cx": 260,
+      "cy": -2,
+      "r": 6,
+      "paint": {
+        "fill": "rgb(236, 236, 255)",
+        "stroke": "rgb(236, 236, 255)",
+        "strokeWidth": 1,
+        "dasharray": "none",
+        "lineCap": "butt",
+        "opacity": 1,
+        "filter": "none"
+      }
+    }
+  ],
+  "labels": [
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [-11.8349609375, -19.2],
+          [-11.8349609375, -23.2],
+          [-3.8349609375, -28.7],
+          [23.8349609375, -28.7],
+          [23.8349609375, -13.7],
+          [-3.8349609375, -13.7]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": -7.8349609375,
+        "cy": -21.2,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "start",
+        "x": 0.1650390625,
+        "y": -18,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [0.165, -27, 19.67, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [139.4384765625, 70.8],
+          [139.4384765625, 66.8],
+          [147.4384765625, 61.3],
+          [172.5615234375, 61.3],
+          [172.5615234375, 76.3],
+          [147.4384765625, 76.3]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 143.4384765625,
+        "cy": 68.8,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "two",
+        "x": 151.5,
+        "y": 72,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [150.5, 63, 17, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [139.4384765625, 50.8],
+          [139.4384765625, 46.8],
+          [147.4384765625, 41.3],
+          [172.5615234375, 41.3],
+          [172.5615234375, 56.3],
+          [147.4384765625, 56.3]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 143.4384765625,
+        "cy": 48.8,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "one",
+        "x": 151.4384765625,
+        "y": 52,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [151.438, 43, 17.123, 11]
+      }
+    },
+    {
+      "kind": "tag",
+      "polygon": {
+        "tag": "polygon",
+        "class": "tag-label-bkg",
+        "points": [
+          [236.65771484375, -19.2],
+          [236.65771484375, -23.2],
+          [244.65771484375, -28.7],
+          [275.34228515625, -28.7],
+          [275.34228515625, -13.7],
+          [244.65771484375, -13.7]
+        ],
+        "paint": {
+          "fill": "rgb(236, 236, 255)",
+          "stroke": "rgb(199, 199, 241)",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "hole": {
+        "tag": "circle",
+        "class": "tag-hole",
+        "cx": 240.65771484375,
+        "cy": -21.2,
+        "r": 1.5,
+        "paint": {
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "none",
+          "strokeWidth": 1,
+          "dasharray": "none",
+          "lineCap": "butt",
+          "opacity": 1,
+          "filter": "none"
+        }
+      },
+      "text": {
+        "class": "tag-label",
+        "text": "done",
+        "x": 248.65771484375,
+        "y": -18,
+        "anchor": "start",
+        "fontFamily": "\"Liberation Sans\"",
+        "fontSize": 10,
+        "fill": "rgb(19, 19, 0)",
+        "opacity": 1,
+        "box": [248.658, -27, 22.685, 11]
+      }
+    }
+  ],
+  "title": null
+}

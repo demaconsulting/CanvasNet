@@ -1,0 +1,28 @@
+---
+config:
+  gitGraph:
+    parallelCommits: true
+---
+gitGraph TB:
+    branch side
+    commit id: "S"
+    checkout main
+    commit id: "A"
+    branch dev
+    commit id: "B"
+    branch feat
+    commit id: "C"
+    checkout main
+    commit id: "D1"
+    checkout dev
+    commit id: "E"
+    checkout main
+    merge dev id: "M"
+    checkout feat
+    commit id: "F"
+    commit id: "G"
+    checkout main
+    merge feat id: "N"
+    checkout side
+    cherry-pick id: "D1"
+    commit id: "T"

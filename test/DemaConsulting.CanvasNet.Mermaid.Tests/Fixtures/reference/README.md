@@ -13,6 +13,8 @@ described in [Gantt Goldens](#gantt-goldens). The `mindmap/` folder holds the go
 `../mindmap/`, which `MermaidMindmapReferenceLayoutTests` compares; their format is described in
 [Mindmap Goldens](#mindmap-goldens). The `packet/` folder holds the goldens of the packet fixtures of `../packet/`,
 which `MermaidChartReferenceLayoutTests` compares; their format is described in [Packet Goldens](#packet-goldens).
+The `gitgraph/` folder holds the goldens of the git graph fixtures of `../gitgraph/`, which
+`MermaidGitGraphReferenceLayoutTests` compares; their format is described in [Git Graph Goldens](#git-graph-goldens).
 
 ## Provenance
 
@@ -71,10 +73,11 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram pie           # the p
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram gantt         # the gantt goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram mindmap       # the mindmap goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram packet        # the packet goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram gitgraph      # the git graph goldens only
 ```
 
 A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/`, `../pie/`, `../gantt/`,
-`../mindmap/` or `../packet/` needs a
+`../mindmap/`, `../packet/` or `../gitgraph/` needs a
 golden, or an entry in the exclusions of the script, the test and this file. A golden change in a pull request is
 reviewed like code: the diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the
 browser's geometry is single precision, and a value near a rounding boundary can round either way.
@@ -640,3 +643,76 @@ none is excluded.
 | `11-labels` | Escapes, runs of spaces, quotes, an empty label, an entity, markup kept as text, a long label |
 | `12-empty` | `packet` alone: no rows and no title (a 1026 x 15 view box) |
 | `13-theme-css` | The neutral theme with `themeCSS` rules on `.packetBlock` and `.packetByte.end` |
+
+## Git Graph Goldens
+
+The files in `gitgraph/` hold the layout that the reference gives each fixture of `../gitgraph/`. They have the
+provenance, fonts, one-line arrays and objects, and the read-back at a scale of exactly 1 of the pie goldens, and are
+written by `extractGitGraph` of `render-mermaid.mjs`, run with `--seed-random`: the calls of Mermaid's id function get
+the fixed sequence of `tools/visual-diff/mermaid/seeded-random.mjs`, so a commit without an id has the same label in
+every run, the label CanvasNet gives it (the first ids of a diagram are `0-eb28011`, `1-cc99105`, ...).
+
+### Git Graph Layout Content
+
+- `diagram`: `gitGraph`.
+- `viewBox`: the view box Mermaid sets (the box of everything drawn, grown by `diagramPadding` on every side), at
+  full precision.
+- `branches`: each branch in the drawn order (none when `showBranches` is false), with its `line` (`line.branch`),
+  its `rect` (`rect.branchLabelBkg`) and its `label`: the `class` and `transform` of the `g.label` that holds the text
+  of `drawText`, and the `text` with its `rows` in place of its content (each `tspan` with its `text`, its `x` and
+  `dy` attributes and its `box`, `null` for an empty row).
+- `arrows`: each `path` of `g.commit-arrows` in the drawn order (commits in the order of the commit map, each parent in
+  order), with its `class`, its path data `d` as written and its `paint`.
+- `bullets`: the shapes of `g.commit-bullets` of the second drawing pass in the drawn order (commits sorted by `seq`,
+  reversed for `BT`): circles, rectangles, lines and the cross path of each commit.
+- `labels`: the items of `g.commit-labels` of the second pass in the drawn order: a commit label (`kind: commit`) with
+  the `transform` of its group, its `rect` (`rect.commit-label-bkg`) and its `text` (`text.commit-label`), and a tag
+  (`kind: tag`) with its `polygon` (`polygon.tag-label-bkg`, with its `points`), its `hole` (`circle.tag-hole`) and its
+  `text` (`text.tag-label`).
+- `title`: the `text.gitTitleText`, or `null` without a title.
+
+A shape holds its `tag`, `class` (the commit id is part of the class of a bullet), its geometry attributes (`x`, `y`,
+`width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `x1`, `y1`, `x2`, `y2`) as written, its `d`, `transform`, `fill`,
+`stroke`, `style` and `data-look` attributes when it has them, and its `paint`: the computed `fill`, `stroke`,
+`strokeWidth`, `dasharray`, `lineCap`, `opacity` and `filter`. A text holds its `class`, `text` (as the browser shows
+it), its `x`, `y` and `transform` attributes when it has them, its computed `anchor`, `fontFamily`, `fontSize`, `fill`
+and `opacity`, and its `box`. Attributes are given as Mermaid wrote them; every box is the element's `getBBox` in its
+own coordinates (before its `transform` and the transforms of its groups), rounded to 0.001.
+
+### Git Graph Tolerances
+
+`MermaidGitGraphReferenceLayoutTests` compares every git graph golden at **0.01 px**: the view box, the branch lines,
+label rectangles and label transforms, the numbers of every arrow's path data, every bullet, commit label and tag
+(geometry and transforms), the title, and the computed paint (exactly, with Chrome's conversion of `hsl()` theme
+colors). Text boxes are compared at 0.02 px, as for the other goldens. A transformed element is compared through its
+transforms: its corners, points, center or anchor are mapped through them, and a text's box is the box of its mapped
+box. Every position agrees within 0.0001 px and every text box within 0.001 px.
+
+### Git Graph Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded. They avoid the glyphs whose box Chrome's rasterizer reports a pixel wider or narrower than
+`LabelBuilder`'s rule at the end of a text (a probe of the printable ASCII glyphs at 10 to 20 px found 8 of 1,128,
+among them `D` at 10 px, the font size of the commit labels and tags: Chrome's box of a label ending in `D` is 8 px
+wide where the rule gives 7.23 px), so the commit that was `D` is `D1`.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic` | Generated ids, a branch, a merge (`LR`) |
+| `02-commit-types` | `NORMAL`, `REVERSE` and `HIGHLIGHT` commits, merge types, several tags, a merge without a label |
+| `03-cherry-picks` | Default, custom and empty cherry-pick tags, a cherry-picked merge with its `parent` |
+| `04-rerouting` | Rerouted arrows on new lanes, the lane search's depth limit, a rerouted cherry-pick |
+| `05-top-to-bottom` | `TB`: every commit type, tags, a cherry-pick, rerouted arrows |
+| `06-bottom-to-top` | `BT`: the same statements as `05` with other types |
+| `07-parallel-left-to-right` | `parallelCommits` with two roots, merges and a cherry-pick (`LR`) |
+| `08-parallel-top-to-bottom` | The same graph `TB` |
+| `09-parallel-bottom-to-top` | The same graph `BT` (the three loops of the bottom-to-top positions) |
+| `10-rotate-false` | `rotateCommitLabel: false` |
+| `11-hidden-branches-and-labels` | `showBranches: false` and `showCommitLabel: false` with tags and a rerouted arrow |
+| `12-many-branches` | Ten branches with and without `order`, colors past 8, `mainBranchName`, `mainBranchOrder` |
+| `13-title-and-accessibility` | A `title` over a frontmatter title, accessibility, `titleTopMargin`, `diagramPadding` |
+| `14-labels` | Branch names over rows (an empty row, `\n`), spaces, long ids, markup, an entity, a raw merge tag |
+| `15-dark` | The dark theme (black cherry-pick marks) |
+| `16-forest` | The forest theme |
+| `17-neutral-neo` | The neutral theme with `look: neo` (the drop shadow of the branch labels) |
+| `18-theme-variables-css` | The base theme, git theme variables, font sizes, `themeCSS`, an id equal to a style class |

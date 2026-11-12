@@ -10,7 +10,7 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence, class, state, ER, pie, gantt, mindmap, and packet diagrams are drawn by the filter itself, a diagram
+    hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
     before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left alone without
     starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
@@ -494,6 +494,26 @@ packet
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $packetMarkersBefore -and
         $packet.Log -notmatch 'left as written') `
         'a packet block is drawn' "$($packet.Log)`n$($packet.Html)"
+
+    # A git graph is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $history = @'
+```mermaid
+gitGraph
+    commit id: "init"
+    branch develop
+    commit id: "api"
+    checkout main
+    merge develop tag: "v1"
+```
+'@
+    $graphsBefore = @(Get-Pictures).Count
+    $graphMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $gitGraph = Invoke-Filter 'mermaid-gitgraph' $history
+    Write-Result ($gitGraph.ExitCode -eq 0 -and $gitGraph.Html -notmatch '<code' -and
+        $gitGraph.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $graphsBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $graphMarkersBefore -and
+        $gitGraph.Log -notmatch 'left as written') `
+        'a gitGraph block is drawn' "$($gitGraph.Log)`n$($gitGraph.Html)"
 
     # A diagram type the tool does not draw is left as written (the document shows its code), with a warning that
     # names it, and a marker in the cache remembers it: the next run warns from the marker and does not draw it.

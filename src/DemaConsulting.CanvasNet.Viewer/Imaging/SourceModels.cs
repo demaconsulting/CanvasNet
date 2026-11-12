@@ -342,17 +342,17 @@ public sealed record ChartFacts(
 /// <summary>
 ///     What a Mermaid diagram declares, read by parsing it (the diagram is laid out for its size but not drawn).
 /// </summary>
-/// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c>, <c>class</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c> or <c>packet</c>.</param>
+/// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c>, <c>class</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, <c>packet</c> or <c>gitGraph</c>.</param>
 /// <param name="Supported">
 ///     <see langword="true"/> when this version draws the type; a diagram of a type that is recognized but not drawn
 ///     (for example <c>journey</c>) is an empty picture with the unsupported note <c>mermaid-diagram-unsupported</c>.
 /// </param>
-/// <param name="Direction">The direction of a flowchart, a class, state or entity relationship diagram (<c>TB</c>, <c>TD</c>, <c>BT</c>, <c>LR</c>, or <c>RL</c>), or <see langword="null"/>.</param>
+/// <param name="Direction">The direction of a flowchart, a class, state or entity relationship diagram (<c>TB</c>, <c>TD</c>, <c>BT</c>, <c>LR</c>, or <c>RL</c>) or of a git graph (<c>LR</c>, <c>TB</c>, or <c>BT</c>), or <see langword="null"/>.</param>
 /// <param name="Title">The title from the frontmatter or the diagram itself, or <see langword="null"/> when there is none.</param>
 /// <param name="AccTitle">The accessible title (<c>accTitle</c>), or <see langword="null"/> when there is none.</param>
-/// <param name="NodeCount">The number of nodes (the participants of a sequence diagram, the classes of a class diagram, the states of a state diagram, the entities of an entity relationship diagram, the slices of a pie chart, the tasks of a gantt chart, the nodes of a mindmap, the blocks of a packet diagram); 0 for a type that is not drawn.</param>
-/// <param name="EdgeCount">The number of edges (links; the messages of a sequence diagram, the relations of a class diagram, the transitions of a state diagram, the relationships of an entity relationship diagram, the edges of a mindmap, one fewer than its nodes; 0 for a pie or gantt chart or a packet diagram); 0 for a type that is not drawn.</param>
-/// <param name="SubgraphCount">The number of subgraphs (the boxes of a sequence diagram, the namespaces of a class diagram, the composite states of a state diagram, the subgraphs of an entity relationship diagram, the sections of a gantt chart; 0 for a pie chart, a mindmap or a packet diagram); 0 for a type that is not drawn.</param>
+/// <param name="NodeCount">The number of nodes (the participants of a sequence diagram, the classes of a class diagram, the states of a state diagram, the entities of an entity relationship diagram, the slices of a pie chart, the tasks of a gantt chart, the nodes of a mindmap, the blocks of a packet diagram, the commits of a git graph); 0 for a type that is not drawn.</param>
+/// <param name="EdgeCount">The number of edges (links; the messages of a sequence diagram, the relations of a class diagram, the transitions of a state diagram, the relationships of an entity relationship diagram, the edges of a mindmap, one fewer than its nodes, the links from the commits of a git graph to their parents; 0 for a pie or gantt chart or a packet diagram); 0 for a type that is not drawn.</param>
+/// <param name="SubgraphCount">The number of subgraphs (the boxes of a sequence diagram, the namespaces of a class diagram, the composite states of a state diagram, the subgraphs of an entity relationship diagram, the sections of a gantt chart; 0 for a pie chart, a mindmap, a packet diagram or a git graph); 0 for a type that is not drawn.</param>
 public sealed record DiagramFacts(
     string Type,
     bool Supported,

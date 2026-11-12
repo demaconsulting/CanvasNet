@@ -794,6 +794,54 @@ public class MermaidConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the gitGraph section: the schema's defaults without configuration (its eleven keys, with the
+    ///     <c>nodeLabel</c> object), the values a frontmatter sets, a site configuration's main branch under the text's
+    ///     other settings, and values of the wrong type (a main branch name that is not a string, a <c>nodeLabel</c>
+    ///     coordinate that is not a number) reported at their keys and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_GitGraphSection_DefaultsValuesAndInvalidValues()
+    {
+        // Arrange
+        const string Set = "---\nconfig:\n  gitGraph:\n    titleTopMargin: 40\n    diagramPadding: 20\n    mainBranchName: trunk\n" +
+                           "    mainBranchOrder: 2.5\n    showCommitLabel: false\n    showBranches: false\n    rotateCommitLabel: false\n" +
+                           "    parallelCommits: true\n    useMaxWidth: false\n---\ngitGraph\n  commit\n";
+        const string Wrong = "%%{init: {\"gitGraph\": {\"mainBranchName\": 7, \"parallelCommits\": \"yes\", \"nodeLabel\": {\"x\": \"left\"}}}}%%\ngitGraph\n  commit\n";
+        var site = new MermaidRenderOptions { Config = """{ "gitGraph": { "mainBranchName": "release" } }""" };
+
+        // Act
+        var (defaults, defaultWarnings) = Resolve("gitGraph\n  commit\n", diagramId: "gitGraph");
+        var (set, setWarnings) = Resolve(Set, diagramId: "gitGraph");
+        var (sited, sitedWarnings) = Resolve("---\nconfig:\n  gitGraph:\n    parallelCommits: true\n---\ngitGraph\n  commit\n", site, "gitGraph");
+        var (wrong, wrongWarnings) = Resolve(Wrong, diagramId: "gitGraph");
+
+        // Assert
+        Assert.Empty(defaultWarnings);
+        Assert.Empty(setWarnings);
+        Assert.Empty(sitedWarnings);
+        Assert.Equal(11, defaults.Raw["gitGraph"]!.AsObject().Count);
+        Assert.Equal(4, defaults.Raw["gitGraph"]!["nodeLabel"]!.AsObject().Count);
+        Assert.Equal(new GitGraphConfig(), defaults.GitGraph);
+        Assert.Equal(
+            (25.0, 8.0, "main", 0.0, true, true, true, false, true),
+            (defaults.GitGraph.TitleTopMargin, defaults.GitGraph.DiagramPadding, defaults.GitGraph.MainBranchName, defaults.GitGraph.MainBranchOrder,
+             defaults.GitGraph.ShowCommitLabel, defaults.GitGraph.ShowBranches, defaults.GitGraph.RotateCommitLabel, defaults.GitGraph.ParallelCommits,
+             defaults.GitGraph.UseMaxWidth));
+        Assert.Equal(
+            (40.0, 20.0, "trunk", 2.5, false, false, false, true, false),
+            (set.GitGraph.TitleTopMargin, set.GitGraph.DiagramPadding, set.GitGraph.MainBranchName, set.GitGraph.MainBranchOrder,
+             set.GitGraph.ShowCommitLabel, set.GitGraph.ShowBranches, set.GitGraph.RotateCommitLabel, set.GitGraph.ParallelCommits,
+             set.GitGraph.UseMaxWidth));
+        Assert.Equal(("release", true), (sited.GitGraph.MainBranchName, sited.GitGraph.ParallelCommits));
+        Assert.Equal(3, wrongWarnings.Count);
+        Assert.All(wrongWarnings, warning => Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code));
+        Assert.Contains(wrongWarnings, warning => warning.Message.Contains("gitGraph.mainBranchName", StringComparison.Ordinal));
+        Assert.Contains(wrongWarnings, warning => warning.Message.Contains("gitGraph.nodeLabel.x", StringComparison.Ordinal));
+        Assert.Equal(new GitGraphConfig(), wrong.GitGraph);
+        Assert.Equal(-25.0, wrong.Raw["gitGraph"]!["nodeLabel"]!["x"]!.GetValue<double>());
+    }
+
+    /// <summary>
     ///     Validates the mindmap's layout as its database's <c>getData</c> sets it: <c>cose-bilkent</c> unless the site
     ///     configuration, the frontmatter or a directive sets a layout (which is kept, even <c>dagre</c>), and only for a
     ///     mindmap (a flowchart keeps the default <c>dagre</c>; <c>mindmap.layoutAlgorithm</c> changes nothing).

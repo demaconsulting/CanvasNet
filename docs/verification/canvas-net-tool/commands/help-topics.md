@@ -37,9 +37,9 @@ fails the build. The content is checked against the things it describes, so that
 - the **`pictures` snippet** of the `mermaid` topic is a diagram whose nodes show a model and a chart, so it is a
   snippet too; a dedicated test writes it with the `plate` example of the `scad` topic as `part.scad` and the `bar`
   example of the `vega-lite` topic as `chart.vl.json` and renders it with `--strict`;
-- the **`class`, `state`, `er`, `pie`, `gantt`, `mindmap`, and `packet` sections** of the `mermaid` topic are compared,
-  item by item and in order, with the rows of the class, state, entity relationship, pie, gantt, mindmap, and packet
-  syntax, relation,
+- the **`class`, `state`, `er`, `pie`, `gantt`, `mindmap`, `packet`, and `gitgraph` sections** of the `mermaid` topic
+  are compared, item by item and in order, with the rows of the class, state, entity relationship, pie, gantt, mindmap,
+  packet, and git graph syntax, relation,
   cardinality, or tag,
   and settings tables of the
   Mermaid user guide (`docs/user_guide/canvas-net-mermaid.md`), and every
@@ -77,12 +77,12 @@ delete.
   trigger produces its identifier, and `--strict` turns a report into `unsupported-feature`.
 - Every source example renders with `--strict` and no diagnostic; each snippet (of the `svg` and `mermaid` topics)
   renders with `--strict` and no diagnostic once its sibling files exist.
-- The `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, and `packet` sections of the `mermaid` topic have exactly the
-  class
+- The `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, `packet`, and `gitgraph` sections of the `mermaid` topic have
+  exactly the class
   syntax,
   relation, and setting rows, the state syntax and setting rows, the entity relationship syntax, cardinality, and
   setting rows, the pie syntax and setting rows, the gantt syntax, tag, and setting rows, the mindmap syntax and setting
-  rows, and the packet syntax and setting rows of the Mermaid user guide,
+  rows, the packet syntax and setting rows, and the git graph syntax and setting rows of the Mermaid user guide,
   in order and worded the same apart from formatting, and every code of the guide's table of unsupported features and
   warnings is an item of the topic.
 - The `flatten` section of the `svg` topic has exactly the rows of the flatten reference table of the tool user guide,
@@ -128,8 +128,8 @@ and has no file name; a source example or snippet has a file name with the exten
 
 **HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics**: a theory over every text example (the OpenSCAD models, the
 Vega-Lite charts, the Mermaid diagrams - the `flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt`,
-`mindmap`, and `packet` examples of the `mermaid` topic - and the SVG drawings; not the snippets): the example is saved
-under its file name and
+`mindmap`, `packet`, and `gitgraph` examples of the `mermaid` topic - and the SVG drawings; not the snippets): the
+example is saved under its file name and
 rendered with `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0, `ok` is
 true, there is no diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid
 anchors, one inside a `translate` and a `rotate`) is covered by this theory, so an anchor example that warned would fail
@@ -166,8 +166,9 @@ the picture written.
 **HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide**: the rows of the tables under each of the guide's headings
 `### Supported Class Syntax` (at least 30 rows), `### Supported State Syntax` (at least 18), and `### Supported Entity
 Relationship Syntax` (at least 24), `### Supported Pie Syntax` (at least 12), `### Supported Gantt Syntax` (at least
-35), `### Supported Mindmap Syntax` (at least 16), and `### Supported Packet Syntax` (at least 16) are, one for one and
-in order, the items of the `class`, `state`, `er`, `pie`, `gantt`, `mindmap`, and `packet` sections of the `mermaid`
+35), `### Supported Mindmap Syntax` (at least 16), `### Supported Packet Syntax` (at least 16), and `### Supported Git
+Graph Syntax` (at least 21) are, one for one and in order, the items of the `class`, `state`, `er`, `pie`, `gantt`,
+`mindmap`, `packet`, and `gitgraph` sections of the `mermaid`
 topic, with nothing missing or extra at the end: a row of an `Area | Supported` table is the item text `<area>:
 <supported>.`, a row of a `Relation | Drawn as` table (the class relations, the entity relationship cardinalities and
 lines, and the gantt tags in a `Tag | Drawn as` table) the item whose term is the relation and whose text is the

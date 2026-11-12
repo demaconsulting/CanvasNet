@@ -3,8 +3,8 @@
 #
 # These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Mermaid package (root
 # namespace DemaConsulting.CanvasNet.Mermaid; internal subsystem namespaces Syntax, Configuration, Graphlib, Dagre,
-# Rendering, Scenegraph, Flowchart, Sequence, Class, State, Er, Pie, Gantt, Mindmap, Cose, and Packet) from the
-# perspective of its consumers, without specifying implementation details.
+# Rendering, Scenegraph, Flowchart, Sequence, Class, State, Er, Pie, Gantt, Mindmap, Cose, Packet, and GitGraph) from
+# the perspective of its consumers, without specifying implementation details.
 #
 # CanvasNetMermaid is an independent software system distributed as its own NuGet package. It reads Mermaid diagram text
 # and renders a static, deterministic picture onto a CanvasNet Surface using only managed code and the public CanvasNet
@@ -17,8 +17,9 @@
 # layout and Mermaid's entity tables and cardinality markers, pie charts (the pie keyword) with a port of Mermaid's pie
 # renderer, gantt charts (the gantt keyword) with a port of Mermaid's gantt renderer and of the d3 time scale and the
 # dayjs date functions it uses, with today taken only from the caller, mindmaps (the mindmap keyword) with a port of
-# Mermaid's mindmap renderer laid out by a port of the cose-bilkent layout, and packet diagrams (the packet and
-# packet-beta keywords) with a port of Mermaid's packet renderer; every other Mermaid diagram type is
+# Mermaid's mindmap renderer laid out by a port of the cose-bilkent layout, packet diagrams (the packet and
+# packet-beta keywords) with a port of Mermaid's packet renderer, and git graphs (the gitGraph keyword) with a port of
+# Mermaid's git graph database and renderer; every other Mermaid diagram type is
 # recognized and reported as unsupported with a stable mermaid-* identifier instead of failing or drawing a guess (see
 # docs/design/canvas-net-mermaid.md, Fidelity and Known Differences, and the Phase Plan). The ported behavior of
 # Mermaid, the Mermaid parser package and Langium, dagre, graphlib, d3, dayjs, cytoscape, cytoscape-cose-bilkent,
@@ -54,6 +55,7 @@ sections:
           - CanvasNetMermaid-Gantt-Language
           - CanvasNetMermaid-Mindmap-Language
           - CanvasNetMermaid-Packet-Language
+          - CanvasNetMermaid-GitGraph-Language
         tests:
           - CanvasNetMermaid_Open_StringStreamAndPath_Agree
           - CanvasNetMermaid_Flowchart_Fixture_RendersStrictly
@@ -66,8 +68,8 @@ sections:
           the namespaces it draws; for a state diagram its states, transitions, and composite states; for an entity
           relationship diagram its drawn entities, relationships, and subgraphs; for a pie chart its sections; for a
           gantt chart its tasks and the sections it draws; for a mindmap its nodes and their links; for a packet diagram
-          its blocks as written) - from a parsed document without rendering it and without opening any other file or the
-          network.
+          its blocks as written; for a git graph its commits and the links to their parents) - from a parsed document
+          without rendering it and without opening any other file or the network.
         tags: [system]
         justification: |
           Tools describe a diagram before they render it (the canvasnet info command, a documentation filter that
@@ -87,6 +89,7 @@ sections:
           - CanvasNetMermaid-Gantt-Metadata
           - CanvasNetMermaid-Mindmap-Metadata
           - CanvasNetMermaid-Packet-Metadata
+          - CanvasNetMermaid-GitGraph-Metadata
         tests:
           - CanvasNetMermaid_Metadata_Flowchart_DescribesTheDiagram
           - CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint
@@ -98,6 +101,7 @@ sections:
           - CanvasNetMermaid_GanttChart_Metadata_CountsTasksAndSections
           - CanvasNetMermaid_Mindmap_Metadata_CountsNodesAndEdges
           - CanvasNetMermaid_PacketDiagram_Metadata_CountsTheBlocks
+          - CanvasNetMermaid_GitGraph_Metadata_CountsCommitsAndParentLinks
 
       - id: CanvasNetMermaid-SyntaxErrors
         title: >-
@@ -126,6 +130,7 @@ sections:
           - CanvasNetMermaid-Gantt-FailClosed
           - CanvasNetMermaid-Mindmap-FailClosed
           - CanvasNetMermaid-Packet-FailClosed
+          - CanvasNetMermaid-GitGraph-FailClosed
         tests:
           - CanvasNetMermaid_SyntaxErrors_AreLocatedCodedAndHinted
           - CanvasNetMermaid_Hardening_MutatedFixtures_ThrowOnlyDocumentedExceptions
@@ -136,9 +141,11 @@ sections:
           - CanvasNetMermaid_Hardening_MutatedGanttFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_Hardening_MutatedMindmapFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_Hardening_MutatedGitGraphFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_PieChart_NegativeValue_FailsLocated
           - CanvasNetMermaid_Mindmap_SecondRoot_FailsLocated
           - CanvasNetMermaid_PacketDiagram_GapBetweenBlocks_FailsLocated
+          - CanvasNetMermaid_GitGraph_RejectedMerge_FailsLocated
 
       - id: CanvasNetMermaid-Configuration
         title: >-
@@ -189,6 +196,7 @@ sections:
           - CanvasNetMermaid-Gantt-Drawing
           - CanvasNetMermaid-Mindmap-Drawing
           - CanvasNetMermaid-Packet-Drawing
+          - CanvasNetMermaid-GitGraph-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_DefaultTheme_PaintsMermaidsColors
           - CanvasNetMermaid_Flowchart_Theme_ChangesTheNodeFill
@@ -210,6 +218,7 @@ sections:
           - CanvasNetMermaid_Mindmap_DefaultTheme_PaintsRootAndSections
           - CanvasNetMermaid_Mindmap_Theme_ChangesTheColors
           - CanvasNetMermaid_PacketDiagram_Pixels_CarryTheThemeColors
+          - CanvasNetMermaid_GitGraph_Pixels_CarryTheThemeColors
 
       - id: CanvasNetMermaid-Flowcharts
         title: >-
@@ -524,6 +533,40 @@ sections:
           - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
           - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
 
+      - id: CanvasNetMermaid-GitGraphs
+        title: >-
+          The library shall draw git graphs (the gitGraph keyword) with their commits (normal, reverse, and highlight),
+          branches with their order, checkouts, merges, cherry-picks, and tags, in the LR, TB, and BT directions, with
+          the title, the accessibility statements, the git graph colors of the theme, and the git graph configuration
+          settings; and shall fail, located, on the git graphs that Mermaid fails on (a merge or cherry-pick that
+          Mermaid's git graph database rejects, a branch that already exists, a checkout of a branch that does not
+          exist, a placement Mermaid cannot make).
+        tags: [system]
+        justification: |
+          Git graphs document branching strategies and release histories; an author must be able to use the whole git
+          graph language and its settings without checking which parts are drawn, and a diagram Mermaid refuses must
+          not be drawn as a guess.
+        children:
+          - CanvasNetMermaid-Syntax-ParserInput
+          - CanvasNetMermaid-Syntax-UntrustedInput
+          - CanvasNetMermaid-Configuration-Precedence
+          - CanvasNetMermaid-Configuration-StyleSheet
+          - CanvasNetMermaid-Rendering-Labels
+          - CanvasNetMermaid-Scenegraph-Painting
+          - CanvasNetMermaid-GitGraph-Language
+          - CanvasNetMermaid-GitGraph-FailClosed
+          - CanvasNetMermaid-GitGraph-Configuration
+          - CanvasNetMermaid-GitGraph-Drawing
+        tests:
+          - CanvasNetMermaid_GitGraph_Fixture_RendersStrictly
+          - CanvasNetMermaid_GitGraph_Pixels_CarryTheThemeColors
+          - CanvasNetMermaid_GitGraph_RejectedMerge_FailsLocated
+          - CanvasNetMermaid_GitGraph_SiteMainBranch_IsUsedWhenDrawn
+          - CanvasNetMermaid_GitGraph_GeneratedIds_AreDeterministic
+          - CanvasNetMermaid_GitGraphReferenceLayout_MatchesMermaid
+          - CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType
+          - CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings
+
       - id: CanvasNetMermaid-LayoutFidelity
         title: >-
           The library shall lay out a flowchart as Mermaid does - the same view box, node centers and sizes,
@@ -540,8 +583,9 @@ sections:
           markers, task texts, section titles, excluded days, axes and their ticks, today line, and title - and a
           mindmap as Mermaid does - the same view box, node sizes, centers, and paint, and edge routes and paint, the
           layout equal bit for bit to Mermaid's for the same node sizes - and a packet diagram as Mermaid does - the
-          same view box, block rectangles, labels, bit numbers, and title - within the tolerance documented in the
-          system design when Mermaid measures text with the same bundled fonts.
+          same view box, block rectangles, labels, bit numbers, and title - and a git graph as Mermaid does - the same
+          view box, branch lines and labels, arrows, commit bullets, commit labels, tags, and title - within the
+          tolerance documented in the system design when Mermaid measures text with the same bundled fonts.
         tags: [system]
         justification: |
           A picture that differs in layout from the one the author previewed in Mermaid breaks the author's
@@ -575,6 +619,7 @@ sections:
           - CanvasNetMermaid-Cose-Layout
           - CanvasNetMermaid-Packet-Rows
           - CanvasNetMermaid-Packet-Drawing
+          - CanvasNetMermaid-GitGraph-Drawing
         tests:
           - CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid
           - CanvasNetMermaid_Flowchart_ReferenceGoldens_CoverEveryFixture
@@ -597,6 +642,8 @@ sections:
           - CanvasNetMermaid_Mindmap_ReferenceExclusions_NameGoldens
           - CanvasNetMermaid_PacketReferenceLayout_MatchesMermaid
           - CanvasNetMermaid_Packet_ReferenceGoldens_CoverEveryFixture
+          - CanvasNetMermaid_GitGraphReferenceLayout_MatchesMermaid
+          - CanvasNetMermaid_GitGraph_ReferenceGoldens_CoverEveryFixture
 
       - id: CanvasNetMermaid-MeasureRender
         title: >-
@@ -655,11 +702,12 @@ sections:
         title: >-
           The library shall report every construct it recognizes but does not draw - a diagram type other than a
           flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship diagram, a pie chart,
-          a gantt chart, a mindmap, or a packet diagram (drawn as an empty transparent picture), the hand-drawn look, a
-          layout other than dagre (for a mindmap, other than cose-bilkent), the legacy state renderer, icons, math,
-          style declarations outside the supported subset, and HTML elements outside the supported subset - with a
-          stable mermaid-* code, a message, a hint, and the location, delivered once, in order, on the calling thread to
-          the caller's handlers, and shall throw a MermaidUnsupportedFeatureException at the first one in strict mode.
+          a gantt chart, a mindmap, a packet diagram, or a git graph (drawn as an empty transparent picture), the
+          hand-drawn look, a layout other than dagre (for a mindmap, other than cose-bilkent), the legacy state
+          renderer, icons, math, style declarations outside the supported subset, and HTML elements outside the
+          supported subset - with a stable mermaid-* code, a message, a hint, and the location, delivered once, in
+          order, on the calling thread to the caller's handlers, and shall throw a MermaidUnsupportedFeatureException at
+          the first one in strict mode.
         tags: [system]
         justification: |
           A partial picture must never be mistaken for a complete one; reports with stable codes let a host warn,
@@ -708,10 +756,11 @@ sections:
           caller-adjustable limits - the text size, edges, nodes (counted together with every group a diagram draws as a
           cluster: subgraphs, sequence boxes, namespaces, composite states, concurrent regions, and note groups; the
           sections of a pie chart; the tasks and sections of a gantt chart; the nodes of a mindmap; the blocks of a
-          packet diagram and the parts its rows split them into), label length (also
-          of the texts a diagram joins from shorter ones), nesting depth (also the depth of a mindmap), YAML depth
-          (refusing YAML aliases), layout work (also the days, references, and ticks of a gantt chart, the layout of a
-          mindmap, and the rows and texts of a packet diagram), pictures, painted pixels, and reports - failing with a
+          packet diagram and the parts its rows split them into; the main branch, branches, and commits of a git
+          graph), label length (also of the texts a diagram joins from shorter ones and the messages a git graph
+          composes), nesting depth (also the depth of a mindmap), YAML depth (refusing YAML aliases), layout work (also
+          the days, references, and ticks of a gantt chart, the layout of a mindmap, the rows and texts of a packet
+          diagram, and the arrows and lanes of a git graph), pictures, painted pixels, and reports - failing with a
           located mermaid-limit-exceeded error (or an InvalidDataException for oversized text) instead of hanging or
           exhausting memory.
         tags: [system]
@@ -739,6 +788,7 @@ sections:
           - CanvasNetMermaid-Cose-Limits
           - CanvasNetMermaid-Packet-FailClosed
           - CanvasNetMermaid-Packet-Rows
+          - CanvasNetMermaid-GitGraph-FailClosed
         tests:
           - CanvasNetMermaid_Hardening_TooManyEdges_IsALocatedLimit
           - CanvasNetMermaid_Hardening_TooLongText_IsRefused
@@ -813,6 +863,13 @@ sections:
           - CanvasNetMermaid_Hardening_PacketLongTexts_AreALocatedLabelLimit
           - CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions
           - CanvasNetMermaid_PacketDiagram_HugeRange_FailsWithLimitExceeded
+          - CanvasNetMermaid_Hardening_HostileGitGraph_RendersOrFailsLocated
+          - CanvasNetMermaid_Hardening_GitGraphManyCommits_IsALocatedNodeLimit
+          - CanvasNetMermaid_Hardening_GitGraphLongTexts_AreALocatedLabelLimit
+          - CanvasNetMermaid_Hardening_GitGraphCherryPickChain_EndsAtTheLabelLimit
+          - CanvasNetMermaid_Hardening_GitGraphManyReroutes_StaysWithinTheWorkLimit
+          - CanvasNetMermaid_Hardening_MutatedGitGraphFixtures_ThrowOnlyDocumentedExceptions
+          - CanvasNetMermaid_GitGraph_Limits_FailWithLimitExceeded
 
       - id: CanvasNetMermaid-UnsafeLinks
         title: >-
@@ -877,6 +934,9 @@ sections:
           - CanvasNetMermaid_Hardening_MindmapFixtures_RenderDeterministically
           - CanvasNetMermaid_PacketDiagram_RepeatedAndConcurrentRenders_AreIdentical
           - CanvasNetMermaid_Hardening_PacketFixtures_RenderDeterministically
+          - CanvasNetMermaid_GitGraph_RepeatedAndConcurrentRenders_AreIdentical
+          - CanvasNetMermaid_Hardening_GitGraphFixtures_RenderDeterministically
+          - CanvasNetMermaid_GitGraph_GeneratedIds_AreDeterministic
 
       - id: CanvasNetMermaid-Cancellation
         title: >-
@@ -902,6 +962,7 @@ sections:
           - CanvasNetMermaid_GanttChart_CanceledToken_Throws
           - CanvasNetMermaid_Mindmap_CanceledToken_Throws
           - CanvasNetMermaid_PacketDiagram_CanceledToken_Throws
+          - CanvasNetMermaid_GitGraph_CanceledToken_Throws
 
       - id: CanvasNetMermaid-ImageSource
         title: >-
