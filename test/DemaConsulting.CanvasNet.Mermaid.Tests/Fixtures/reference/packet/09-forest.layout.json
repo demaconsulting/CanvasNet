@@ -1,0 +1,133 @@
+{
+  "source": "09-forest.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 141],
+  "rows": [
+    {
+      "blocks": [
+        {
+          "rect": [1, 15, 379, 32],
+          "paint": { "fill": "rgb(205, 228, 152)", "stroke": "rgb(50, 27, 103)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [385, 15, 635, 32],
+          "paint": { "fill": "rgb(205, 228, 152)", "stroke": "rgb(50, 27, 103)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Header",
+          "at": [190.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(50, 27, 103)",
+          "box": [170.82, 23.172, 40.361, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "0",
+          "at": [1, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(50, 27, 103)",
+          "box": [1, 4, 6, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "11",
+          "at": [380, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(50, 27, 103)",
+          "box": [369.609, 4, 10.819, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Payload",
+          "at": [702.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(50, 27, 103)",
+          "box": [680.813, 23.172, 43.691, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "12",
+          "at": [385, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(50, 27, 103)",
+          "box": [385, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "31",
+          "at": [1020, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(50, 27, 103)",
+          "box": [1008.875, 4, 11.562, 11]
+        }
+      ]
+    },
+    {
+      "blocks": [
+        {
+          "rect": [1, 62, 379, 32],
+          "paint": { "fill": "rgb(205, 228, 152)", "stroke": "rgb(50, 27, 103)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Payload",
+          "at": [190.5, 78],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(50, 27, 103)",
+          "box": [168.813, 70.172, 43.691, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "32",
+          "at": [1, 60],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(50, 27, 103)",
+          "box": [1, 51, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "43",
+          "at": [380, 60],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(50, 27, 103)",
+          "box": [367.875, 51, 12.562, 11]
+        }
+      ]
+    }
+  ],
+  "title": {
+    "class": "packetTitle",
+    "text": "Forest packet",
+    "at": [513, 117.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 14,
+    "fill": "rgb(50, 27, 103)",
+    "box": [470.586, 108.203, 85.924, 16]
+  }
+}

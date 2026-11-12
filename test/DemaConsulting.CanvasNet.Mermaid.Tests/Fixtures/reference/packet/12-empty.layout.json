@@ -1,0 +1,18 @@
+{
+  "source": "12-empty.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 15],
+  "rows": [],
+  "title": {
+    "class": "packetTitle",
+    "text": "",
+    "at": [513, -8.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 14,
+    "fill": "rgb(0, 0, 0)",
+    "box": null
+  }
+}

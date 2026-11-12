@@ -11,7 +11,8 @@ state and ER fixtures of `../state/` and `../er/`; their format is described in 
 folder holds the goldens of the gantt fixtures of `../gantt/`, which the same test compares; their format is
 described in [Gantt Goldens](#gantt-goldens). The `mindmap/` folder holds the goldens of the mindmap fixtures of
 `../mindmap/`, which `MermaidMindmapReferenceLayoutTests` compares; their format is described in
-[Mindmap Goldens](#mindmap-goldens).
+[Mindmap Goldens](#mindmap-goldens). The `packet/` folder holds the goldens of the packet fixtures of `../packet/`,
+which `MermaidChartReferenceLayoutTests` compares; their format is described in [Packet Goldens](#packet-goldens).
 
 ## Provenance
 
@@ -69,10 +70,11 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram state, er     # the s
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram pie           # the pie goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram gantt         # the gantt goldens only
 pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram mindmap       # the mindmap goldens only
+pwsh tools/visual-diff/update-mermaid-goldens.ps1 -Diagram packet        # the packet goldens only
 ```
 
-A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/`, `../pie/`, `../gantt/` or
-`../mindmap/` needs a
+A new fixture in `../flowchart/`, `../sequence/`, `../class/`, `../state/`, `../er/`, `../pie/`, `../gantt/`,
+`../mindmap/` or `../packet/` needs a
 golden, or an entry in the exclusions of the script, the test and this file. A golden change in a pull request is
 reviewed like code: the diff shows which coordinates moved. Regenerating can change a few numbers by 0.001: the
 browser's geometry is single precision, and a value near a rounding boundary can round either way.
@@ -582,3 +584,57 @@ none is excluded. None sets `layout`, because mermaid-cli can load other layouts
 | `12-single-node` | A root alone |
 | `13-large` | 56 nodes in three levels |
 | `14-classes-icons` | `:::` classes and `::icon(...)` decorations on several nodes |
+
+## Packet Goldens
+
+The files in `packet/` hold the layout that the reference gives each fixture of `../packet/`. They have the provenance,
+fonts, one-line arrays and objects, and the read-back at a scale of exactly 1 of the pie goldens, and are written by
+`extractPacket` of `render-mermaid.mjs`. The packet renderer draws no transformed group, so every number is an
+attribute or a box in the coordinates of the view box.
+
+### Packet Layout Content
+
+- `diagram`: `packet`.
+- `viewBox`: the view box Mermaid sets (`[0, 0, width, height]`).
+- `rows`: each row group in order, with its `blocks` (each `rect.packetBlock` with its `rect`, the `x`, `y`, `width`
+  and `height` attributes, and its `paint`) and its `texts` in the order Mermaid appends them (each block's
+  `text.packetLabel`, then with `showBits` its `text.packetByte start` and, for a block of more than one bit, its
+  `text.packetByte end`).
+- `title`: the `text.packetTitle`, which Mermaid always appends (its text is empty without a title).
+
+A `paint` holds the computed `fill`, `stroke` and `strokeWidth`. A text holds its `class`, `text`, the point of its
+anchor (`at`, its `x` and `y` attributes), its computed `anchor` and dominant `baseline`, its `fontSize` and `fill`,
+and its `box` (`null` for an empty text).
+
+### Packet Tolerances
+
+`MermaidChartReferenceLayoutTests` compares every packet golden at **0.01 px**: the view box, every block rectangle
+and its paint, and every text's content, anchor point, anchor, font size and fill. Text boxes are compared at 0.02 px,
+as for the other goldens. An empty text (an empty label, or the title of a diagram without one) draws nothing and is
+not an item of CanvasNet's scene. Two browser rules make this possible:
+
+- **A middle baseline is x-height/2 down.** Chrome places a text with `dominant-baseline: middle` half the x-height of
+  the font below its `y`, rounded to 1/64 px; `auto` is the alphabetic baseline at `y`.
+- **An invalid declaration is dropped.** A unitless `labelFontSize` (fixture `10-theme-variables`) is not a CSS length,
+  so the label inherits the 16 px font size of the diagram's root rule.
+
+### Packet Fixtures
+
+The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
+none is excluded.
+
+| Fixture | Covers |
+| --- | --- |
+| `01-basic` | `packet-beta`, ranges over two rows, no title |
+| `02-keyword-title-acc` | `packet`, `title`, `accTitle`, a multi-line `accDescr` |
+| `03-bit-counts` | `+N` bit counts, single bits (centered bit numbers) |
+| `04-row-splits` | A block over three rows (the split parts repeat the label), an exact cut, a single bit |
+| `05-show-bits-false` | Frontmatter `packet.showBits: false` (no bit numbers, `paddingY` not grown), a title |
+| `06-geometry-config` | `rowHeight`, `bitWidth`, `bitsPerRow: 16`, `paddingX`, `paddingY`, a title |
+| `07-frontmatter-title` | The frontmatter title drawn as the title |
+| `08-dark` | The dark theme's packet colors |
+| `09-forest` | The forest theme's packet colors, a title |
+| `10-theme-variables` | `themeVariables.packet` replacing the dark theme's object, a dropped unitless font size |
+| `11-labels` | Escapes, runs of spaces, quotes, an empty label, an entity, markup kept as text, a long label |
+| `12-empty` | `packet` alone: no rows and no title (a 1026 x 15 view box) |
+| `13-theme-css` | The neutral theme with `themeCSS` rules on `.packetBlock` and `.packetByte.end` |

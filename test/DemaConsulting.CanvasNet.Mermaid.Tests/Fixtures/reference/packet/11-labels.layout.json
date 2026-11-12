@@ -1,0 +1,259 @@
+{
+  "source": "11-labels.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 109],
+  "rows": [
+    {
+      "blocks": [
+        {
+          "rect": [1, 15, 251, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [257, 15, 251, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [513, 15, 251, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [769, 15, 123, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [897, 15, 27, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [929, 15, 91, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Line\nbreak and\ttab",
+          "at": [126.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [76.789, 23.172, 99.736, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "0",
+          "at": [1, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1, 4, 6, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "7",
+          "at": [252, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [246.438, 4, 6, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Many    spaces",
+          "at": [382.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [347.148, 23.172, 70.703, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "8",
+          "at": [257, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [257, 4, 6, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "15",
+          "at": [508, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [496.875, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Single \"quoted\"",
+          "at": [638.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [597.539, 23.172, 82.654, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "16",
+          "at": [513, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [513, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "23",
+          "at": [764, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [752.875, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "",
+          "at": [830.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": null
+        },
+        {
+          "class": "packetByte start",
+          "text": "24",
+          "at": [769, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [769, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "27",
+          "at": [892, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [880.875, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "A long label on one bit",
+          "at": [910.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [850.445, 23.172, 119.762, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "28",
+          "at": [910.5, 13],
+          "anchor": "middle",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [904.938, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "# and <b>bold</b>",
+          "at": [974.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [923.117, 23.172, 101.766, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "29",
+          "at": [929, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [929, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "31",
+          "at": [1020, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1008.875, 4, 11.562, 11]
+        }
+      ]
+    },
+    {
+      "blocks": [
+        {
+          "rect": [1, 62, 507, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Café naïve",
+          "at": [254.5, 78],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [225.477, 70.172, 58.363, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "32",
+          "at": [1, 60],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1, 51, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "47",
+          "at": [508, 60],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [495.875, 51, 12.562, 11]
+        }
+      ]
+    }
+  ],
+  "title": {
+    "class": "packetTitle",
+    "text": "",
+    "at": [513, 85.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 14,
+    "fill": "rgb(0, 0, 0)",
+    "box": null
+  }
+}

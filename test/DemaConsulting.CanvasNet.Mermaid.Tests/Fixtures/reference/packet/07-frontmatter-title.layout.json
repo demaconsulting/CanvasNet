@@ -1,0 +1,99 @@
+{
+  "source": "07-frontmatter-title.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 141],
+  "rows": [
+    {
+      "blocks": [
+        {
+          "rect": [1, 15, 1019, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Word",
+          "at": [510.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [495.273, 23.172, 29.779, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "0",
+          "at": [1, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1, 4, 6, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "31",
+          "at": [1020, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1008.875, 4, 11.562, 11]
+        }
+      ]
+    },
+    {
+      "blocks": [
+        {
+          "rect": [1, 62, 251, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Byte",
+          "at": [126.5, 78],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [114.492, 70.172, 24.338, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "32",
+          "at": [1, 60],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1, 51, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "39",
+          "at": [252, 60],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [240.875, 51, 11.562, 11]
+        }
+      ]
+    }
+  ],
+  "title": {
+    "class": "packetTitle",
+    "text": "A frontmatter title",
+    "at": [513, 117.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 14,
+    "fill": "rgb(0, 0, 0)",
+    "box": [459.086, 108.203, 107.034, 16]
+  }
+}

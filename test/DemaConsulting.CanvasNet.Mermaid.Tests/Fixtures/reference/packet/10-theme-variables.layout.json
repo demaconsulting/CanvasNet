@@ -1,0 +1,93 @@
+{
+  "source": "10-theme-variables.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 94],
+  "rows": [
+    {
+      "blocks": [
+        {
+          "rect": [1, 15, 507, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [513, 15, 507, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Field A",
+          "at": [254.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fill": "rgb(255, 0, 0)",
+          "box": [230.039, 21.219, 49.242, 17.016]
+        },
+        {
+          "class": "packetByte start",
+          "text": "0",
+          "at": [1, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1, 4, 6, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "15",
+          "at": [508, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [496.875, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Field B",
+          "at": [766.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fill": "rgb(255, 0, 0)",
+          "box": [741.602, 21.219, 50.125, 17.016]
+        },
+        {
+          "class": "packetByte start",
+          "text": "16",
+          "at": [513, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [513, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "31",
+          "at": [1020, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1008.875, 4, 11.562, 11]
+        }
+      ]
+    }
+  ],
+  "title": {
+    "class": "packetTitle",
+    "text": "Replaced packet theme",
+    "at": [513, 70.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 20,
+    "fill": "rgb(0, 255, 0)",
+    "box": [407.93, 57.781, 210.141, 22]
+  }
+}
