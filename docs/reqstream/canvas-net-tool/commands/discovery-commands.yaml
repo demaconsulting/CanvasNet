@@ -155,9 +155,9 @@ sections:
           one text line with its path, the size it is laid out at, its type and direction (with a note when this
           version does not draw the type), its numbers of nodes, edges, and subgraphs (named participants, messages,
           and boxes for a sequence diagram, classes, relations, and namespaces for a class diagram, sections for a pie
-          chart, tasks and drawn sections for a gantt chart, nodes and their links for a mindmap, and blocks for a
-          packet diagram), its title and
-          accessible title when it has them, and its size in bytes; and as the image object of the JSON document (the
+          chart, tasks and drawn sections for a gantt chart, nodes and their links for a mindmap, blocks for a packet
+          diagram, and commits and the links to their parents for a git graph), its title and accessible title when
+          it has them, and its size in bytes; and as the image object of the JSON document (the
           laid-out size and four channels) followed by the diagram object with the type, supported (false for a type
           that is recognized but that this version does not draw), the direction, title, and accTitle when the diagram
           has them, and the nodes, edges, and subgraphs; a theme fragment of the input shall be checked (a name that is
@@ -176,6 +176,7 @@ sections:
           - DiscoveryCommands_Info_GanttChart_ReportsTasksAndSections
           - DiscoveryCommands_Info_Mindmap_ReportsNodesAndEdges
           - DiscoveryCommands_Info_Packet_ReportsBlocks
+          - DiscoveryCommands_Info_GitGraph_ReportsCommitsAndParentLinks
           - DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored
           - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
           - DiscoveryCommands_FormatTables_InputFormatsMatchSourceKinds

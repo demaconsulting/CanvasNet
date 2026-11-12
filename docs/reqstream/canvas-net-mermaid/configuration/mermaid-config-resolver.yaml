@@ -262,3 +262,17 @@ sections:
                   not change the picture, and the author must know it had no effect.
                 tests:
                   - MermaidConfigResolver_Resolve_PacketSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-GitGraphSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the gitGraph section with Mermaid's effective defaults (the
+                  eleven keys of the schema: useMaxWidth, a title top margin of 25, a diagram padding of 8, nodeLabel, a
+                  main branch named main with order 0, the commit labels shown and rotated, the branches shown,
+                  parallelCommits off, and arrowMarkerAbsolute), give typed access to the nine settings that the git
+                  graph database and renderer read, and report as mermaid-config-invalid, and leave without effect, a
+                  gitGraph value of the wrong type, nodeLabel and arrowMarkerAbsolute being only checked for their type.
+                justification: |
+                  The branches, the commits, and the size of a git graph follow these settings; a value Mermaid would
+                  not use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_GitGraphSection_DefaultsValuesAndInvalidValues

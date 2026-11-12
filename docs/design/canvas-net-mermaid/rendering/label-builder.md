@@ -178,7 +178,10 @@ label's length, and reports Font Awesome labels with `ContainsFontAwesome`, whic
 `PacketRenderer` of the `Packet` subsystem creates a builder for each render (charged to the render's work meter),
 measures its SVG texts (the block labels, the bit numbers, and the title) with `SvgLineExtent` and `VerticalMetrics`,
 places a `middle` baseline with `XHeight`, and decodes the texts it draws with `DecodeEntities` and
-`CollapseSvgWhiteSpace`. The tests
+`CollapseSvgWhiteSpace`. `GitGraphRenderer` of the `GitGraph` subsystem creates a builder for each render (charged to
+the render's work meter), measures its SVG texts (the branch label rows, the commit labels, the tags, and the title) with
+`SvgLineExtent` and `VerticalMetrics`, decodes the texts it draws with `DecodeEntities` and `CollapseSvgWhiteSpace`, and
+splits branch names at `<br>` tags with `MatchBreakTag`, which the git graph database's sanitizer also uses. The tests
 in `LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid

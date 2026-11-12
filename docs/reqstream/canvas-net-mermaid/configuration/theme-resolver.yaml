@@ -4,8 +4,8 @@
 # These requirements describe the design-level behavior of the ThemeResolver unit of the Configuration subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's five built-in themes
 # (with the JavaScript object model their derivations rely on, ThemeObject) and of the style sheet Mermaid writes for
-# a flowchart (FlowchartStyles), with the style sheets of the other diagrams, of pie and gantt charts, of mindmaps, and
-# of packet diagrams (PieStyles, GanttStyles, MindmapStyles, PacketStyles). See
+# a flowchart (FlowchartStyles), with the style sheets of the other diagrams, of pie and gantt charts, of mindmaps, of
+# packet diagrams, and of git graphs (PieStyles, GanttStyles, MindmapStyles, PacketStyles, GitGraphStyles). See
 # docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for the test-evidence mapping.
 
 sections:
@@ -250,6 +250,26 @@ sections:
                   - PacketStyles_Options_ValuesAsJavaScriptStrings_MergedOverDefaults
                   - PacketStyles_Create_ThemeCss_OverridesKnownSelectors
                   - PacketStyles_Create_InvalidBlockPaint_InheritsRootFill
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-GitGraphStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a git graph - the same
+                  global rules as for a flowchart and the git rules for each of the theme's THEME_COLOR_LIMIT color
+                  indexes - from the theme variables of a
+                  configuration, apply after them the themeCSS rules of the git graph's own selectors, and resolve the
+                  computed style of an element as the browser's cascade does - presentation attributes, single-class
+                  rules in sheet order, inline style, important declarations, inherited properties, and the classes
+                  that a commit id gives its shapes - with the shadow of the branch labels in the neo look.
+                justification: |
+                  Mermaid paints a git graph through these rules in every theme; resolving them the same way, the
+                  classes of the commit ids and the overrides of the author included, gives the same paint.
+                tests:
+                  - GitGraphStyles_Create_EachTheme_PaintsTheNamedGitColors
+                  - GitGraphStyles_Compute_FixtureElements_MatchTheBrowsersComputedStyle
+                  - GitGraphStyles_Compute_CommitIdClasses_AreStyledByTheirRules
+                  - GitGraphStyles_ColorCount_FollowsTheArrayLengthOfTheLimit
+                  - GitGraphStyles_Create_NeoLook_ShadowsTheBranchLabels
+                  - GitGraphStyles_Create_ThemeVariablesAndThemeCss_AreAppliedAsTheBrowserDoes
 
               - id: CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses
                 title: >-

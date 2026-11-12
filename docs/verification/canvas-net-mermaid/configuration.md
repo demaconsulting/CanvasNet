@@ -3,9 +3,9 @@
 This document describes the subsystem-level verification strategy for the `Configuration` subsystem (internal
 namespace `DemaConsulting.CanvasNet.Mermaid.Configuration`), containing four units: `MermaidConfigResolver` (the
 effective configuration of a call and its located reports, with the typed view `MermaidConfig`), `ThemeResolver` (the
-five built-in themes and the flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, and packet
-style sheets `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`,
-`GanttStyles`, `MindmapStyles`, and `PacketStyles`), `ColorMath` (the port of the
+five built-in themes and the flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, packet, and
+git graph style sheets `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`,
+`GanttStyles`, `MindmapStyles`, `PacketStyles`, and `GitGraphStyles`), `ColorMath` (the port of the
 khroma color functions), and `StyleDeclarations` (the CSS subset of style statements and `themeCSS`).
 
 ### Verification Approach
@@ -20,8 +20,9 @@ parsed by `StyleDeclarations` (`SequenceStyles.Create` the sequence diagram's pa
 configuration, `ClassStyles.Create` the class diagram's paint, with the class section and the state spacing of the
 configuration, and `StateStyles.Create` and `ErStyles.Create` the state and entity relationship diagrams' paint, with
 the state and `er` sections of the configuration, and `MindmapStyles.Create` the mindmap's paint, with the mindmap
-section and the layout of the configuration, and `PacketStyles.Create` the packet diagram's paint, with the packet
-section of the configuration). Two scenarios go through the public `MermaidDocument` to verify
+section and the layout of the configuration, `PacketStyles.Create` the packet diagram's paint, with the packet
+section of the configuration, and `GitGraphStyles.Create` the git graph's paint, with the gitGraph section and the
+look of the configuration). Two scenarios go through the public `MermaidDocument` to verify
 that the configuration of the text drives the diagram detection and that its warnings are delivered by a render
 call.
 
@@ -56,7 +57,8 @@ scenario in the four unit verification documents passes without error or unexpec
 `ConfigurationTests.Configuration_ResolveStateAndErSectionsAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveMindmapSectionAndStyles_FullText`,
-`ConfigurationTests.Configuration_ResolvePacketSectionAndStyles_FullText`
+`ConfigurationTests.Configuration_ResolvePacketSectionAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveGitGraphSectionAndStyles_FullText`
 
 Asserts that a text whose frontmatter names the `forest` theme and whose directive names `dark`, rendered with the theme
 option `neutral`, resolves to the `dark` theme with the frontmatter's flowchart curve, and that the theme option alone
@@ -73,7 +75,8 @@ donut hole of 0.4, and a gantt chart whose frontmatter names the `dark` theme an
 to a bar height of 30; and that a mindmap whose frontmatter names the `forest` theme and sets `mindmap.padding: 6`
 resolves to a padding of 6 and the layout `cose-bilkent`, while a mindmap whose frontmatter sets `layout: elk` keeps
 `elk` (the user's layout wins); and that a packet diagram whose frontmatter names the `forest` theme and sets
-`packet.bitsPerRow: 16` resolves to 16 bits per row.
+`packet.bitsPerRow: 16` resolves to 16 bits per row; and that a git graph whose frontmatter names the `base` theme and
+sets `gitGraph.mainBranchName: trunk` resolves to the main branch name `trunk`.
 
 #### CanvasNetMermaid-Configuration-Reports: Configuration Problems Are Reported And Ignored
 
@@ -83,6 +86,7 @@ resolves to a padding of 6 and the layout `cose-bilkent`, while a mindmap whose 
 `ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveMindmapSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolvePacketSectionAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveGitGraphSectionAndStyles_FullText`,
 `ConfigurationTests.Configuration_Document_RenderDeliversConfigurationWarnings`,
 `ConfigurationTests.Configuration_Document_UnsupportedType_ConfigurationSilent`
 
@@ -97,7 +101,9 @@ that in the mindmap text above `mindmap.maxNodeWidth: narrow` is the one warning
 with the default 200 kept and no unsupported-feature report, that in the packet text above `packet.rowHeight: tall` is
 reported as `mermaid-config-invalid` at line 6 with the default 32 kept, and a frontmatter
 `themeVariables.packet.blockFillColor`, which Mermaid's directive sanitizer deletes, is reported as
-`mermaid-config-unknown-key` and has no effect, with no unsupported-feature report,
+`mermaid-config-unknown-key` and has no effect, with no unsupported-feature report, that in the git graph text above
+`gitGraph.showBranches: maybe` is reported as `mermaid-config-invalid` at line 7 with the default `true` kept and no
+unsupported-feature report,
 that a secure key in the frontmatter of a flowchart is delivered by a render call as `mermaid-config-secure-key` at its
 location, and that the secure and unknown keys of a user journey (not drawn by this version) produce no warning, only
 the unsupported diagram report.
@@ -120,7 +126,8 @@ dark theme named by a directive gives its `mainBkg` (`#1f2020`) while the direct
 `ConfigurationTests.Configuration_ResolveStateAndErSectionsAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolvePieAndGanttSectionsAndStyles_FullText`,
 `ConfigurationTests.Configuration_ResolveMindmapSectionAndStyles_FullText`,
-`ConfigurationTests.Configuration_ResolvePacketSectionAndStyles_FullText`
+`ConfigurationTests.Configuration_ResolvePacketSectionAndStyles_FullText`,
+`ConfigurationTests.Configuration_ResolveGitGraphSectionAndStyles_FullText`
 
 Asserts that the flowchart's edge and marker colors follow the overridden `lineColor`, that the node fill of the
 style sheet is the theme's, and that a `themeCSS` rule for `.cluster rect` is applied to that selector's declarations;
@@ -138,7 +145,10 @@ of a node of that section takes the `forest` theme's `cScale2` and the root's pa
 diagram above the frontmatter `themeVariables.packet.labelColor` (`#ff0000`), which the sanitizer keeps, colors the
 labels and replaces the `forest` theme's packet object, so a block is filled with the default `#efefef`, and the
 directive rule `.packetByte.end { fill: #0000ff }` makes the last bit numbers blue without a report while the first
-ones stay black.
+ones stay black; and that for the git graph above, with the `neo` look and the frontmatter `themeVariables.git0`
+(`#ff0000`), a bullet of the first color is filled red, the directive rule `.arrow0 { stroke: #0000ff }` makes the
+arrows of the first color blue without a report, and a branch label rectangle of the first color is filled red with
+the theme's drop shadow.
 
 #### CanvasNetMermaid-Configuration-Declarations: CSS Declarations Take Effect
 

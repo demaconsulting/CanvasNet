@@ -510,6 +510,7 @@ sections:
           - SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock
           - SourceLoader_Load_MermaidMindmap_ProbesAndDraws
           - SourceLoader_Load_MermaidPacket_ProbesAndDraws
+          - SourceLoader_Load_MermaidGitGraph_ProbesAndDraws
 
       - id: CanvasNetViewer-Imaging-SourceLoader-MermaidRender
         title: >-
@@ -541,6 +542,7 @@ sections:
           - SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock
           - SourceLoader_Load_MermaidMindmap_ProbesAndDraws
           - SourceLoader_Load_MermaidPacket_ProbesAndDraws
+          - SourceLoader_Load_MermaidGitGraph_ProbesAndDraws
           - SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions
           - SourceLoader_Load_MermaidTheme_IsAppliedAndValidated
           - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme

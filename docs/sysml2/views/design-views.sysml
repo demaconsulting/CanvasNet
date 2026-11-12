@@ -164,6 +164,10 @@ package CanvasNet {
         expose MermaidPacket;
     }
 
+    view MermaidGitGraphView {
+        expose MermaidGitGraph;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

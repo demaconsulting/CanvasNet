@@ -12,8 +12,8 @@ This document describes the system-level verification strategy for CanvasNetMerm
   from in-memory text, streams, temporary files, the 42 flowchart fixtures in `Fixtures/flowchart/`, the 24
   sequence fixtures in `Fixtures/sequence/`, the 16 class fixtures in `Fixtures/class/`, the 14 state fixtures in
   `Fixtures/state/`, the 12 ER fixtures in `Fixtures/er/`, the 8 pie fixtures in `Fixtures/pie/`, the 18 gantt
-  fixtures in `Fixtures/gantt/`, the 14 mindmap fixtures in `Fixtures/mindmap/`, and the 13 packet fixtures in
-  `Fixtures/packet/` with `MermaidDocument.Parse` and
+  fixtures in `Fixtures/gantt/`, the 14 mindmap fixtures in `Fixtures/mindmap/`, the 13 packet fixtures in
+  `Fixtures/packet/`, and the 18 git graph fixtures in `Fixtures/gitgraph/` with `MermaidDocument.Parse` and
   `MermaidDocument.Open`, supply `MermaidOpenOptions`, `MermaidRenderOptions`, and
   `MermaidLimits`, and assert on observable outputs: the metadata properties, the sizes, sampled pixels of the
   rendered `Surface`, the reports delivered to the handlers, and the exceptions with their codes, locations, and
@@ -36,8 +36,11 @@ This document describes the system-level verification strategy for CanvasNetMerm
   and a Font Awesome label, the empty mindmap, the second root, work limit, determinism, cancellation),
   `MermaidMindmapReferenceLayoutTests` (the mindmap layout goldens in three tiers), `MermaidPacketIntegrationTests`
   (every packet fixture in strict mode, metadata, theme pixels, the two keywords, the located gap between blocks, the
-  huge range, determinism, cancellation), `MermaidChartReferenceLayoutTests` (the pie, gantt, and packet layout
-  goldens), `MermaidReferenceLayoutTests` (the flowchart, class, state, and ER layout goldens) and
+  huge range, determinism, cancellation), `MermaidGitGraphIntegrationTests` (every git graph fixture in strict mode,
+  metadata, theme pixels, the generated ids, the located rejected merge, the site's main branch, limits, determinism,
+  cancellation), `MermaidGitGraphReferenceLayoutTests` (the git graph layout goldens),
+  `MermaidChartReferenceLayoutTests` (the pie, gantt, and packet layout goldens), `MermaidReferenceLayoutTests` (the
+  flowchart, class, state, and ER layout goldens) and
   `MermaidSequenceReferenceLayoutTests` (the sequence layout goldens), `MermaidHardeningTests` (limits and seeded
   mutation fuzzers), `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw), and
   `MermaidGalleryTests` (the diagrams of the documentation gallery). They are named
@@ -88,7 +91,12 @@ Two kinds of upstream evidence make the fidelity objective:
   cose-bilkent layout is chaotic: the node sizes the library gives the layout, the layout alone given the golden's own
   sizes (bit for bit), and the whole drawing. The packet goldens (`Fixtures/reference/packet/*.layout.json`) are
   extracted the same way from every packet fixture; the system test compares the view box, every block rectangle with
-  its paint, and every label, bit number, and title with its content, anchor, font size, color, and box.
+  its paint, and every label, bit number, and title with its content, anchor, font size, color, and box. The git graph
+  goldens (`Fixtures/reference/gitgraph/*.layout.json`) are extracted the same way from every git graph fixture, with
+  Mermaid's id function given the fixed pseudo-random sequence of `tools/visual-diff/mermaid/seeded-random.mjs`, so a
+  commit without an id has the label the library gives it; the system test compares the view box, every branch line,
+  label rectangle, and label row, the path data of every arrow, every bullet, every commit label and tag through their
+  transforms, and the title, each with its computed paint.
 
 The goldens and vectors are committed; CI only compares. `tools/visual-diff/compare-with-mermaid.ps1` produces
 side-by-side pictures for a manual visual review and never gates.
@@ -116,7 +124,8 @@ texts are SVG text; for the state and ER goldens 0.01 pixel with no exception; f
 0.02 pixel for text boxes and slice arc boxes; for the mindmap goldens 0.02 pixel for the node sizes, bit equality for
 the layout given the golden's sizes, and 0.01 pixel for the whole drawing of every fixture but `02-shapes`, whose cloud
 node Chrome measures 7.6e-6 pixel taller, which the chaotic layout turns into a different picture; for the packet goldens
-0.01 pixel, 0.02 pixel for text boxes), a fixture that gives
+0.01 pixel, 0.02 pixel for text boxes; for the git graph goldens 0.01 pixel, 0.02 pixel for text boxes, with no
+exception), a fixture that gives
 a report it should
 not give in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the
 mutation fuzzer, or two renders of the same document that differ constitutes a failure.
@@ -143,7 +152,8 @@ by its path.
 `MermaidPieIntegrationTests.CanvasNetMermaid_PieChart_Metadata_CountsTheSections`,
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_Metadata_CountsTasksAndSections`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_Metadata_CountsNodesAndEdges`,
-`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Metadata_CountsTheBlocks`
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Metadata_CountsTheBlocks`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_Metadata_CountsCommitsAndParentLinks`
 
 Asserts the type, the supported flag, the frontmatter title, the accessible title, the direction, and the node, edge,
 and subgraph counts of a flowchart without rendering it, and the type and the unsupported flag of other known
@@ -170,7 +180,11 @@ supported flag, the counts 5, 4, and 0, no direction, no title, and no accessibl
 frontmatter title takes that title. For a `packet-beta` diagram titled `Frame` with `accTitle: A frame`, the block
 `0-99` (drawn over four rows), and the block `+4`, asserts the type `packet`, the supported flag, the counts 2, 0, and 0
 (the blocks as written), no direction, the title `Frame`, and the accessible title `A frame`, and that a packet diagram
-without a title of its own takes the frontmatter title.
+without a title of its own takes the frontmatter title. For a `gitGraph BT:` git graph titled `History` with
+`accTitle: A history`, a commit, the branch `dev` with a commit, and a merge of `dev` into `main`, asserts the type
+`gitGraph`, the supported flag, the counts 3, 3, and 0 (the commits, and the links to their parents, two of them from
+the merge), the direction `BT`, the title `History`, and the accessible title `A history`, and that a git graph without
+a title of its own takes the frontmatter title and the direction `LR`.
 
 ### CanvasNetMermaid-SyntaxErrors: Invalid Text Fails Closed With A Location And A Hint
 
@@ -185,7 +199,9 @@ without a title of its own takes the frontmatter title.
 `MermaidPieIntegrationTests.CanvasNetMermaid_PieChart_NegativeValue_FailsLocated`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_SecondRoot_FailsLocated`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions`,
-`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_GapBetweenBlocks_FailsLocated`
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_GapBetweenBlocks_FailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedGitGraphFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_RejectedMerge_FailsLocated`
 
 Asserts the `mermaid-syntax-error` code, the source name, the line, the expected tokens, and the message prefix of an
 unclosed label, and the `mermaid-unknown-diagram` code with a hint naming `flowchart` for a misspelled keyword; the
@@ -210,7 +226,13 @@ with the tokens of the packet language (both keywords, titles and accessibility 
 bit counts, `+0`, numbers with leading zeros or fractions, huge numbers, comments, directives, frontmatter fences, line
 breaks, escapes, and entities) and asserts that opening and measuring raise only the documented exception types; and a
 block `9-15` after `0-7` in `frame.mmd` fails at open with `mermaid-syntax-error` at line 3, column 3, with Mermaid's
-message `Packet block 9 - 15 is not contiguous. It should start from 8.`
+message `Packet block 9 - 15 is not contiguous. It should start from 8.` A seeded fuzzer (seed 20261112) mutates each of
+the 18 git graph fixtures twelve times with the tokens of the git graph language (the header forms and directions,
+every statement and option, commit types, quotes, colons, comments, directives, frontmatter fences, line breaks,
+escapes, entities, `<br>` tags, decimals, and a letter no token matches) and asserts that opening and measuring raise
+only the documented exception types; and a merge of the branch `feature`, which does not exist, in `graph.mmd` fails
+at open with `mermaid-syntax-error` at line 3, column 3, with Mermaid's message `Incorrect usage of "merge". Branch to
+be merged (feature) does not exist`.
 
 ### CanvasNetMermaid-Configuration: The Text Overrides The Caller
 
@@ -244,7 +266,8 @@ sets a top-level `nodeSpacing: 30` beside `er.nodeSpacing: 200`, as Mermaid's da
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_Theme_ChangesTheBarColors`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_DefaultTheme_PaintsRootAndSections`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_Theme_ChangesTheColors`,
-`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Pixels_CarryTheThemeColors`
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Pixels_CarryTheThemeColors`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_Pixels_CarryTheThemeColors`
 
 Asserts the default theme's node fill `#ECECFF`, node border `#9370DB`, arrowhead `#333333`, and subgraph fill `#ffffde`
 at sampled pixels, and the node fill of the `dark`, `forest`, and `neutral` themes; for a sequence diagram rendered at
@@ -270,7 +293,9 @@ each theme changes the bar color. For a mindmap rendered at scale 2 over white, 
 (`#0000EC`) and its first child and that child's child filled with the first section color (`#FFFF78`), and that the
 `forest` theme changes the colors of the root and of the first section. For a packet diagram of a title and three blocks
 rendered over white at its natural size of 1026 by 141 pixels, asserts a block filled `#efefef` inside and stroked dark
-on its top edge in the default theme, and filled `#333` in the `dark` theme.
+on its top edge in the default theme, and filled `#333` in the `dark` theme. For a git graph of the one commit `A`
+rendered over white at its natural size, asserts the pixel at the commit's center (10, -2), which is (105, 18) on the
+surface, filled with the default theme's `git0` (`#0000EC`), and another color there in the `dark` theme.
 
 ### CanvasNetMermaid-Flowcharts: Every Fixture Draws Strictly
 
@@ -455,6 +480,33 @@ the block colors of the default and dark themes in pixels; and asserts that a ga
 located, with Mermaid's message. The gallery holds a packet diagram that renders strictly without warnings, and holds
 every drawn diagram type, packet diagrams included.
 
+### CanvasNetMermaid-GitGraphs: Git Graphs Are Drawn As Mermaid Draws Them
+
+**Tests**: `MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_Fixture_RendersStrictly`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_Pixels_CarryTheThemeColors`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_RejectedMerge_FailsLocated`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_SiteMainBranch_IsUsedWhenDrawn`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_GeneratedIds_AreDeterministic`,
+`MermaidGitGraphReferenceLayoutTests.CanvasNetMermaid_GitGraphReferenceLayout_MatchesMermaid`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
+
+Renders each of the 18 git graph fixtures (generated ids, branches and merges, the normal, reverse, and highlight
+commits, cherry-picks, rerouted arrows, the three directions, parallel commits in each direction, labels that are not
+rotated, hidden branches and commit labels, many branches with orders and a renamed main branch, titles and
+accessibility texts, labels with markup and entities, the dark, forest, and neutral themes with the `neo` look, and
+theme variables with `themeCSS`) in strict mode and asserts the type, the supported flag, that it measures as it
+renders, that it draws something, and that it gives no report; compares the drawing of each fixture with its
+mermaid-cli golden (see _CanvasNetMermaid-LayoutFidelity_); asserts the main branch's commit color of the default and
+dark themes in pixels; asserts that a merge of a branch that does not exist fails at open, located, with Mermaid's
+message; asserts that the ids generated for commits without one are the same in two documents of the same text, which
+draw the same pixels, and are `0-eb28011`, `1-cc99105`, and `3-4bc15df` for the labeled commits of a graph of two
+branches, a tag, a merge (drawn without a label), and a last commit; and asserts that a site configuration naming the
+main branch `trunk` runs the statements
+with that name, so the same graph's `checkout main` fails when measured with `mermaid-render-failed` at line 5 and
+Mermaid's message, while a graph of one commit draws the branch `trunk`. The gallery holds a git graph that renders
+strictly without warnings, and holds every drawn diagram type, git graphs included.
+
 ### CanvasNetMermaid-LayoutFidelity: The Layout Matches Mermaid
 
 **Tests**: `MermaidReferenceLayoutTests.CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid`,
@@ -477,7 +529,9 @@ every drawn diagram type, packet diagrams included.
 `MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_Mindmap_ReferenceGoldens_CoverEveryFixture`,
 `MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_Mindmap_ReferenceExclusions_NameGoldens`,
 `MermaidChartReferenceLayoutTests.CanvasNetMermaid_PacketReferenceLayout_MatchesMermaid`,
-`MermaidChartReferenceLayoutTests.CanvasNetMermaid_Packet_ReferenceGoldens_CoverEveryFixture`
+`MermaidChartReferenceLayoutTests.CanvasNetMermaid_Packet_ReferenceGoldens_CoverEveryFixture`,
+`MermaidGitGraphReferenceLayoutTests.CanvasNetMermaid_GitGraphReferenceLayout_MatchesMermaid`,
+`MermaidGitGraphReferenceLayoutTests.CanvasNetMermaid_GitGraph_ReferenceGoldens_CoverEveryFixture`
 
 Compares the scene of each fixture with its mermaid-cli golden within the documented tolerance, and asserts that
 every fixture has a golden except the documented `38-unicode` exclusion; compares the scene of each sequence fixture
@@ -512,7 +566,12 @@ box of its cloud node is about 8e-6 pixel taller, as it bounds the arcs in singl
 moves every node), names a golden. Compares the scene of each packet fixture with its golden (the view box, every block
 rectangle with its fill, stroke, and stroke width, and every label, bit number, and title with its content, anchor, x,
 font size, color, and box) at 0.01 pixel, 0.02 pixel for text boxes, and asserts that the 13 packet fixtures and the
-packet goldens are the same set.
+packet goldens are the same set. Compares the scene of each git graph fixture with its golden (the view box, every
+branch line, label rectangle, label transform, and label row with its font size, the numbers of every arrow's path
+data, every bullet's circle, rectangle, line, or cross, every commit label and tag with its rectangle or polygon, hole,
+and text mapped through their transforms, and the title, each with its fill, stroke, stroke width, dashes, and shadow
+compared exactly) at 0.01 pixel, 0.02 pixel for text boxes, with no fixture excluded, and asserts that the 18 git graph
+fixtures and the git graph goldens are the same set.
 
 ### CanvasNetMermaid-MeasureRender: Natural Size, Scale, Exact Size, And Background
 
@@ -568,9 +627,9 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 
 Asserts the `mermaid-look-unsupported` report at its frontmatter line and the `mermaid-style-ignored` warning at the
 styled node while the diagram is drawn; that a user journey gives one located report whose hint says that journey
-diagrams are not supported and names the supported types (mindmap and packet included), and a
+diagrams are not supported and names the supported types (mindmap, packet, and gitGraph included), and a
 transparent 16 by 16 picture (scaled by the scale, filled by a background), throws in strict mode, and that every
-other known type that is not drawn (gitGraph, timeline, and kanban among them) does the same with its own hint; and
+other known type that is not drawn (quadrantChart, timeline, and kanban among them) does the same with its own hint; and
 that a failing handler's exception reaches the caller. For a
 sequence diagram, asserts that the `neo` look is reported once and drawn with the same pixels as the classic look and
 throws in strict mode; that `$$` math is reported once as `mermaid-math-unsupported` at its message (line 3) and
@@ -658,7 +717,14 @@ of the feature `mermaid-icon-unsupported`, `mermaid-layout-unsupported`, `mermai
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketManyBlocks_IsALocatedNodeLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketLongTexts_AreALocatedLabelLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions`,
-`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_HugeRange_FailsWithLimitExceeded`
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_HugeRange_FailsWithLimitExceeded`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostileGitGraph_RendersOrFailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_GitGraphManyCommits_IsALocatedNodeLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_GitGraphLongTexts_AreALocatedLabelLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_GitGraphCherryPickChain_EndsAtTheLabelLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_GitGraphManyReroutes_StaysWithinTheWorkLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedGitGraphFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_Limits_FailWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
 `InvalidDataException` for too long text, refusal of a YAML alias bomb, a label limit that can be raised, a complete
@@ -771,7 +837,20 @@ font sizes of 1e300 pixels and a color that is not one, markup, entities, and es
 packet integration test; that 2,001 block statements fail at open with `MaxNodes` at the extra block (line 2,002); that
 a title, an accessible title, both forms of the accessible description, and a label of 4,097 characters fail at open
 with `MaxLabelLength` at their statement (line 3); and that a seeded mutation fuzzer over the packet fixtures only ever
-raises the documented exception types.
+raises the documented exception types. For git graphs, asserts that hostile graphs (a diagram padding of 1e300 and
+-1e300, a title top margin of 1e300 and -1e300, a main branch order of 1e300 with parallel commits, a branch order of
+413 digits, theme font sizes of 1e300 pixels, markup, a script, and an image in the ids, tags, branch names, and
+messages, and the bottom-to-top placement on which Mermaid fails) render fitted to 400 by 300 pixels or fail with a
+located `MermaidRenderException`; that 2,001 commits fail at open with `MaxNodes` at the commit that makes the 2,001st
+node, the main branch counted (line 2,001); that a title, an accessible title, both forms of the accessible
+description, an id, a message, a tag, and a branch name of 4,097 characters fail at open with `MaxLabelLength` at their
+statement (line 3); that a chain of cherry-picks of cherry-picks, whose messages Mermaid composes from the picked
+commit's message, ends with `MaxLabelLength` instead of growing without bound; that a graph of 300 rounds of commits on
+two branches merged back each time, whose arrows are rerouted many times, lays out or fails with
+`mermaid-limit-exceeded` under the default work limit and fails with it under a work limit of 10,000; that a seeded
+mutation fuzzer over the git graph fixtures only ever raises the documented exception types; and that a graph of two
+branches, a tag, and a merge fails at open with `mermaid-limit-exceeded` at line 4 under a `MaxNodes` of 3 and fails
+the render with it under a `MaxLayoutWork` of 50.
 
 ### CanvasNetMermaid-UnsafeLinks: Encoded Unsafe Links Are Checked And Never Exposed
 
@@ -808,7 +887,10 @@ links and in its click statements alike, and for the gantt chart in the links of
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_RepeatedAndConcurrentRenders_AreIdentical`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MindmapFixtures_RenderDeterministically`,
 `MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_RepeatedAndConcurrentRenders_AreIdentical`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketFixtures_RenderDeterministically`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketFixtures_RenderDeterministically`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_RepeatedAndConcurrentRenders_AreIdentical`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_GitGraphFixtures_RenderDeterministically`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_GeneratedIds_AreDeterministic`
 
 Renders the same documents repeatedly and from parallel threads and asserts identical pixels, sizes, and reports;
 renders a numbered sequence fixture twice and six times in parallel, and every sequence fixture twice, and asserts
@@ -819,7 +901,11 @@ chart and a gantt chart twice and in parallel, and every pie and gantt fixture t
 parallel threads), and asserts identical pixels; renders a mindmap of every shape twice and six times in parallel, and
 every mindmap fixture twice on parallel threads, and asserts identical pixels (the cose layout makes no random choice
 and does not use the host's math library, which the Cose subsystem verifies bit for bit); renders the packet fixture
-`04-row-splits` twice and six times in parallel, and every packet fixture twice, and asserts identical pixels. That the
+`04-row-splits` twice and six times in parallel, and every packet fixture twice, and asserts identical pixels; renders
+the git graph fixture `04-rerouting` twice and six times in parallel, and every git graph fixture twice, and asserts
+identical pixels, and asserts that two documents of the same git graph generate the same commit ids and draw the same
+pixels (the ids come from a fixed pseudo-random sequence restarted for each document, never from the host's random
+generator). That the
 library never
 reads the system clock is shown by the gantt
 chart without `Now`, which draws no today line and reports what needs today, while the same chart with `Now` draws the
@@ -836,11 +922,12 @@ line at that time.
 `MermaidPieIntegrationTests.CanvasNetMermaid_PieChart_CanceledToken_Throws`,
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_CanceledToken_Throws`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_CanceledToken_Throws`,
-`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_CanceledToken_Throws`
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_CanceledToken_Throws`,
+`MermaidGitGraphIntegrationTests.CanvasNetMermaid_GitGraph_CanceledToken_Throws`
 
 Asserts `OperationCanceledException` from `Measure`, `Render`, and `Render(width, height)` with a canceled token, and
 from the render of a sequence diagram, a class diagram, a state diagram, an ER diagram, a pie chart, a gantt chart, a
-mindmap, and a packet diagram.
+mindmap, a packet diagram, and a git graph.
 
 ### CanvasNetMermaid-ImageSource: Diagram Bytes Through The Image-Source Contract
 

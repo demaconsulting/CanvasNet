@@ -225,6 +225,9 @@ input-files:
   - docs/verification/canvas-net-mermaid/packet.md
   - docs/verification/canvas-net-mermaid/packet/packet-parser.md
   - docs/verification/canvas-net-mermaid/packet/packet-renderer.md
+  - docs/verification/canvas-net-mermaid/git-graph.md
+  - docs/verification/canvas-net-mermaid/git-graph/git-graph-parser.md
+  - docs/verification/canvas-net-mermaid/git-graph/git-graph-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

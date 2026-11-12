@@ -59,9 +59,9 @@ and below it only, a missing one is an error, delimited text is not type-inferre
 there is no data-folder option, and nothing is read from the network; its only option is `--param`, which sets the
 parameters of the chart, and the usage text shows the option and the `param.` fragment of a link), and how a Mermaid
 diagram is drawn (a flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart,
-mindmap, or packet diagram at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme` sets
-unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with the
-note
+mindmap, packet diagram, or git graph at the size Mermaid lays it out at, with the bundled fonts, in the theme `--theme`
+sets unless the text sets one; a diagram type that is not drawn (journey, timeline, and so on) is an empty picture with
+the note
 `mermaid-diagram-unsupported`, and `canvasnet help mermaid` says what is supported; an example draws
 `flow.mmd --theme dark --scale 2`). A verb has no alias, and its
 usage text is `canvasnet {verb} <input>

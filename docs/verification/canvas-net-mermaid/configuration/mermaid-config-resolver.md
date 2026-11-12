@@ -256,3 +256,19 @@ numbers); that a frontmatter setting a row height of 40, a bit width of 20, 16 b
 directive with a text `packet.bitsPerRow`, a number `packet.showBits`, and a text `packet.paddingY` gives three
 `mermaid-config-invalid` warnings, one naming `packet.bitsPerRow`, and leaves the typed `packet` section at its
 defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-GitGraphSection: The Git Graph Section
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_GitGraphSection_DefaultsValuesAndInvalidValues`
+
+Asserts, for a git graph without configuration, that the effective `gitGraph` section holds the 11 keys of Mermaid's
+schema (its `nodeLabel` object with 4 keys) and that the typed `gitGraph` section is the default `GitGraphConfig`: a
+title top margin of 25, a diagram padding of 8, the main branch `main` of order 0, the commit labels and branches shown,
+the commit labels rotated, no parallel commits, and `useMaxWidth`; that a frontmatter setting a title top margin of 40,
+a diagram padding of 20, the main branch `trunk` of order 2.5, hidden commit labels and branches, labels that are not
+rotated, parallel commits, and no `useMaxWidth` gives those values without a warning; that a site configuration's main
+branch `release` is kept under a frontmatter that sets only `parallelCommits`, without a warning; and that a directive
+with a number `gitGraph.mainBranchName`, a text `gitGraph.parallelCommits`, and a text `gitGraph.nodeLabel.x` gives
+three `mermaid-config-invalid` warnings, among them one naming `gitGraph.mainBranchName` and one naming
+`gitGraph.nodeLabel.x`, leaves the typed `gitGraph` section at its defaults, and keeps the default -25 of
+`nodeLabel.x` in the effective section.

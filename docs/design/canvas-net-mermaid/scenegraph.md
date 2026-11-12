@@ -14,13 +14,15 @@ the test assembly. It contains two units:
 - **SceneModel** - the scene records in `SceneModel.cs`: `Scene` (the view box, the items, the picture loader, and the
   helpers `Walk`, `BoundsOf`, and `ToPath`), the items `SceneItem`, `SceneGroup`, `ScenePath`, `SceneText`, and
   `SceneImage`, and their parts `SceneRect`, `SceneSegment` and `SceneSegmentKind`, `SceneStroke`, `SceneShadow`,
-  `SceneFont`, `SceneTextRun` (which may be underlined), and `SceneTextAnchor`; see _SceneModel Unit Design_
+  `SceneFont`, `SceneTextRun` (which may be underlined), `SceneTextAnchor`, and `SceneRotation` (the turn of a text line
+  about a point); see _SceneModel Unit Design_
   (`scenegraph/scene-model.md`)
 - **ScenePainter** - the painter `ScenePainter` (a partial class in `ScenePainter.cs`, `ScenePainter.Shadow.cs`,
   `ScenePainter.Text.cs`, and `ScenePainter.Images.cs`), the placement `ScenePlacement`, and the picture-loader
   contract `ISceneImageLoader`: fills, strokes and dashes, drop shadows, text in the bundled fonts (filled and, when
-  it has a stroke, stroked, and an underlined run with a bar under its baseline), pictures, the painted-pixel limit,
-  and cancellation; see _ScenePainter Unit Design_ (`scenegraph/scene-painter.md`)
+  it has a stroke, stroked, an underlined run with a bar under its baseline, and a rotated line turned about its
+  pivot), pictures, the painted-pixel limit, and cancellation; see _ScenePainter Unit Design_
+  (`scenegraph/scene-painter.md`)
 
 The subsystem's namespace documentation is in `Scenegraph/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetMermaid-Scenegraph-*` requirements in `docs/reqstream/canvas-net-mermaid/scenegraph.yaml`. The SysML2 model
@@ -31,12 +33,14 @@ System Design_).
 The subsystem is original work of this repository; it ports no upstream code. It reproduces the drawing rules of the
 SVG that Mermaid produces (the path commands, the fill rules, the dash rules of browsers, the bounding box of
 `getBBox`, the `preserveAspectRatio="none"` of Mermaid's node pictures, the `drop-shadow` filter of the boxes and
-menus of sequence diagrams, blurred as the SVG specification approximates the Gaussian blur, and the
-`text-decoration: underline` of the static members of a class box).
+menus of sequence diagrams, blurred as the SVG specification approximates the Gaussian blur, the
+`text-decoration: underline` of the static members of a class box, and the `rotate(angle, cx, cy)` of the rotated
+commit labels and tags of a git graph).
 
 ### Interfaces
 
-**Exposed** (internal only): the immutable scene types (among them `SceneTextRun` with its `Underline`);
+**Exposed** (internal only): the immutable scene types (among them `SceneTextRun` with its `Underline` and `SceneText`
+with its `Rotation`, a `SceneRotation`);
 `Scene.Walk`, `Scene.BoundsOf`, and `Scene.ToPath`;
 `SceneRect.Union` and `Offset`; the `SceneSegment` factories `Move`, `Line`, `Quadratic`, `Cubic`, `Arc`, and
 `Close`; `ScenePainter(FontResolver, ISceneImageLoader?, long)`, `ScenePainter.CreateFontResolver`, and
@@ -54,7 +58,8 @@ class diagram, a state diagram, or an entity relationship diagram, which the `Fl
 subsystem, the `ClassModel` unit of the `Class` subsystem, the `StateModel` unit of the `State` subsystem, and the
 `ErModel` unit of the `Er` subsystem return (the class box marks the runs of a static member `Underline`, and a note
 group of a state diagram is an unpainted path that only gives the cluster its box); the `SequenceLayout` and
-`SequenceRenderer` units of the `Sequence` subsystem build the items of a scene;
+`SequenceRenderer` units of the `Sequence` subsystem build the items of a scene; the `GitGraphRenderer` unit of the
+`GitGraph` subsystem builds the scene of a git graph, turning its rotated commit labels and tags with `SceneRotation`;
 `NodeImages` of the `Rendering` subsystem implements `ISceneImageLoader` and is carried by the scene; and the
 `MermaidDocument` unit creates the font resolver of a call with `ScenePainter.CreateFontResolver`, lays the diagram
 out into a scene, and paints it with `ScenePlacement.Uniform` for the natural size or `ScenePlacement.Fit` for an
@@ -81,7 +86,9 @@ the font resolver of the call resolves - the same resolver the layout measured t
 painting agree - and the resolver maps the common family names (Mermaid's `"trebuchet ms", verdana, arial`) to the
 bundled Liberation families and never uses the fonts installed on the machine; a line with a stroke has its glyph
 outlines stroked over the fill, and an underlined run gets a bar under its baseline across its advance, in its color,
-at the underline position and thickness of the face's metrics (the `post` table of the bundled face). Pictures are
+at the underline position and thickness of the face's metrics (the `post` table of the bundled face); a line with a
+rotation is laid out as without it, then its glyph outlines and underline bars are turned about the device point of its
+pivot, and the box of its turned box is charged. Pictures are
 asked from the loader that the
 scene carries (the same `NodeImages` that measured them, so the `MaxImages` budget is shared) at the device size of
 their box and stretched to it.

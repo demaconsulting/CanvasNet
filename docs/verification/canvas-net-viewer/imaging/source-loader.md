@@ -319,6 +319,13 @@ title `Frame`, no accessible title, four nodes (the blocks as written), no edge,
 loaded in strict mode it is drawn at the probed size, which is the library's size, with a white corner, exactly the
 pixels the library draws over white, more than a quarter of its pixels not white, and no note.
 
+**SourceLoader_Load_MermaidGitGraph_ProbesAndDraws**: a `gitGraph BT:` git graph titled `History` with the commit `A`,
+the branch `dev` with the commit `B`, and a cherry-pick of `B` onto `main` is probed with the facts `gitGraph`,
+supported, the direction `BT`, the title `History`, no accessible title, three nodes (the commits, the cherry-pick
+included), three edges (the links to their parents, two of them from the cherry-pick), and no subgraph, at 174 by 258
+pixels; loaded in strict mode it is drawn at the probed size, which is the library's size, with a white corner, exactly
+the pixels the library draws over white, more than a twentieth of its pixels not white, and no note.
+
 **SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
 the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the
 fitted diagram, and a background with zero alpha leaves the corner transparent while the nodes keep the default fill.

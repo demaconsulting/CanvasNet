@@ -37,7 +37,8 @@ console.
   text and JSON, and `info` describes a diagram as one text line and as the `image` and `diagram` objects, with
   `supported` false for a type that is not drawn and the counts named participants, messages, and boxes for a
   sequence diagram (a class diagram counts its classes, relations, and namespaces as nodes, edges, and subgraphs, and a
-  mindmap its nodes, the edges to them, and no subgraphs, and a packet diagram its blocks as written); a
+  mindmap its nodes, the edges to them, and no subgraphs, a packet diagram its blocks as written, and a git graph its
+  commits and the links to their parents); a
   theme fragment is checked and does not change the description.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
@@ -202,6 +203,13 @@ edges, 0 subgraphs, title "Garden", <bytes> bytes`.
 0 edges, and 0 subgraphs, laid out at 1026 by 141 pixels (two rows and the title row), and its text line is exactly
 `<path>: mermaid, WxH px (laid out), packet, 3 nodes, 0 edges, 0 subgraphs, title "Frame", accTitle "A frame", <bytes>
 bytes`.
+
+**DiscoveryCommands_Info_GitGraph_ReportsCommitsAndParentLinks**: a `gitGraph TB:` git graph titled `History` with
+`accTitle: A history`, a commit, the branch `dev` with a commit, and a merge of `dev` into `main` tagged `v1` is
+described with the type `gitGraph`, `supported` true, the direction `TB`, the title `History`, the accessible title
+`A history`, 3 nodes (the commits, the merge included), 3 edges (the links to their parents, two of them from the
+merge), and 0 subgraphs, laid out at 202 by 237 pixels, and its text line is exactly `<path>: mermaid, WxH px (laid
+out), gitGraph TB, 3 nodes, 3 edges, 0 subgraphs, title "History", accTitle "A history", <bytes> bytes`.
 
 **DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and

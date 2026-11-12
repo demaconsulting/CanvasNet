@@ -238,6 +238,9 @@ includes:
   - docs/reqstream/canvas-net-mermaid/packet.yaml
   - docs/reqstream/canvas-net-mermaid/packet/packet-parser.yaml
   - docs/reqstream/canvas-net-mermaid/packet/packet-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/git-graph.yaml
+  - docs/reqstream/canvas-net-mermaid/git-graph/git-graph-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/git-graph/git-graph-renderer.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

@@ -8,15 +8,16 @@ The `Configuration` subsystem (namespace `DemaConsulting.CanvasNet.Mermaid.Confi
 `src/DemaConsulting.CanvasNet.Mermaid/Configuration/`) turns the site configuration of the caller, the frontmatter, and
 the directives of a diagram text into the effective configuration of one measure or render call, and the theme of that
 configuration into the paint and fonts every flowchart, sequence diagram, class diagram, state diagram, entity
-relationship diagram, pie chart, gantt chart, mindmap, and packet diagram element class is drawn with, as the pinned
-Mermaid release computes them. It is **internal**: its types are visible only to the other subsystems of the system and,
+relationship diagram, pie chart, gantt chart, mindmap, packet diagram, and git graph element class is drawn with, as the
+pinned Mermaid release computes them. It is **internal**: its types are visible only to the other subsystems of the
+system and,
 through `InternalsVisibleTo`, to the test assembly. It contains four units:
 
 - **MermaidConfigResolver** - the internal static `MermaidConfigResolver` (a partial class in
   `MermaidConfigResolver.cs`, `MermaidConfigResolver.Defaults.cs`, `MermaidConfigResolver.Merge.cs`, and
   `MermaidConfigResolver.Validation.cs`) and the typed view of its result, `MermaidConfig` with `FlowchartConfig`,
   `SequenceConfig`, `ClassConfig`, `StateConfig`, `ErConfig`, `PieConfig`, `GanttConfig`, `MindmapConfig`,
-  `PacketConfig`, `MermaidFontConfig`, and `ConfigScalar`
+  `PacketConfig`, `GitGraphConfig`, `MermaidFontConfig`, and `ConfigScalar`
   (`MermaidConfig.cs`): the layers of the configuration in Mermaid's order with Mermaid's merge rules, sanitizers,
   secure keys, and theme recomputation, and the located reports of the keys and values that have no effect; see
   _MermaidConfigResolver Unit Design_ (`configuration/mermaid-config-resolver.md`)
@@ -29,9 +30,10 @@ through `InternalsVisibleTo`, to the test assembly. It contains four units:
   and `ShadowPaint` (`ThemeResolver.SequenceStyles.cs`), and the chart style sheets `PieStyles` with `SlicePaint` and
   `GanttStyles` with `GanttElement` and the packet style sheet `PacketStyles` (`ThemeResolver.ChartStyles.cs`), and the
   mindmap style sheet `MindmapStyles`
-  (`ThemeResolver.MindmapStyles.cs`): the five built-in themes and the style rules
+  (`ThemeResolver.MindmapStyles.cs`), and the git graph style sheet `GitGraphStyles` with `GitGraphElement` and
+  `GitGraphComputedStyle` (`ThemeResolver.GitGraphStyles.cs`): the five built-in themes and the style rules
   Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship
-  diagram, a pie chart, a gantt chart, a mindmap, and a packet diagram; see
+  diagram, a pie chart, a gantt chart, a mindmap, a packet diagram, and a git graph; see
   _ThemeResolver Unit Design_ (`configuration/theme-resolver.md`)
 - **ColorMath** - the internal static `ColorMath` (`ColorMath.cs` and `ColorMath.Parsers.cs`, with the channel model
   `Channels` and the exception `ColorFormatException`): the subset of the khroma color library that the themes derive
@@ -62,6 +64,9 @@ model names the subsystem `MermaidConfiguration` (see _CanvasNetMermaid System D
   axis, display mode, and width of the `gantt` section), `Mindmap` (a `MindmapConfig` with the padding, the maximum
   node width, the layout algorithm, and `useMaxWidth` of the `mindmap` section), `Packet` (a `PacketConfig` with the row
   height, the bit width, the bits per row, `showBits`, the paddings, and the vertical padding the renderer uses),
+  `GitGraph` (a `GitGraphConfig` with the title margin, the diagram padding, the main branch name and order,
+  `showCommitLabel`, `showBranches`, `rotateCommitLabel`, `parallelCommits`, and `useMaxWidth` of the `gitGraph`
+  section),
   `DetectorSettings`, and `LocationOf(key)`;
 - `ThemeResolver.GetThemeVariables(theme, overrides)`, `ThemeResolver.IsTheme`, and
   `ThemeResolver.UnsupportedMermaidThemes`;
@@ -90,6 +95,10 @@ model names the subsystem `MermaidConfiguration` (see _CanvasNetMermaid System D
   `KnownSelectors` and the `.class element` selectors of the diagram's node classes for `themeCSS`;
 - `PacketStyles.Create(MermaidConfig, MermaidReportSink?)` with `Block` (a `ShapePaint`), `Label`, `Title`,
   `ByteStart`, and `ByteEnd`, and its options `Options(JsonNode?)`;
+- `GitGraphStyles.Create(MermaidConfig, MermaidReportSink?)` with `Compute(chain)`, the style of an element from the
+  tags, classes, presentation attributes, and inline styles of the svg element, its groups, and the element
+  (`GitGraphElement`) through a class-set cascade, as a `GitGraphComputedStyle`; `BranchLabelStyle`, the inline style
+  of a branch label's rectangle; `KnownSelectors`; and `ColorCount`;
 - `ColorMath` (`Adjust`, `Darken`, `Lighten`, `Invert`, `Mix`, `Rgba`, `Channel`, `Luminance`, `IsDark`, `IsColor`);
 - `StyleDeclarations.ParseItems`, `ParseBlock`, `ParseSheet`, `NormalizeSelector`, and the value parsers
   `TryParsePaint`, `TryParseLength`, `TryParseDashArray`, `TryParseOpacity`, `TryParseBold`, and `TryParseItalic`,
@@ -117,7 +126,9 @@ builds the `PieStyles` of the call; the `Gantt` subsystem (`GanttRenderer`) read
 `GanttStyles` of the call; the `Mindmap` subsystem (`MindmapRenderer`) reads the `mindmap` section, the look, and the
 layout (and reports an unsupported look or layout at `LocationOf`) and builds the `MindmapStyles` of the call, which
 the shared shapes and edges draw with; the `Packet` subsystem (`PacketRenderer`) reads the `packet` section and builds the
-`PacketStyles` of the call; the `Rendering` subsystem reads the configuration
+`PacketStyles` of the call; the `GitGraph` subsystem reads the `gitGraph` section (`GitGraphParser` the main branch name
+and order of the text's own configuration when a text is opened, `GitGraphRenderer` the whole section of a render) and
+builds the `GitGraphStyles` of the call; the `Rendering` subsystem reads the configuration
 through its `LayoutData` (`ClusterLayout` the subgraph margins), `ShapeLibrary` reads the class section for a class box
 (its padding and `hideEmptyMembersBox`) and the `er` section for an entity box (its two paddings and the minimum
 entity width), and `ShapeLibrary`, `EdgeBuilder`, and `LabelBuilder` parse the `style`,
@@ -173,7 +184,15 @@ wide. `PacketStyles` is not a unified sheet either: it builds its six rules from
 with the theme variable `packet` (an object that replaces the theme's own, as Mermaid's `calculate` re-applies the
 user's overrides; each value written as JavaScript's `String` writes it), drops a font size without a unit as the
 browser drops it, and resolves the paint of a block (inheriting the root rule's paint, as SVG paint is inherited,
-where its own is dropped) and the fonts and colors of the labels, the bit numbers, and the title.
+where its own is dropped) and the fonts and colors of the labels, the bit numbers, and the title. `GitGraphStyles` is
+not a unified sheet either: it builds the rules of the git graph's `styles.js` for every color index up to the theme's
+`THEME_COLOR_LIMIT` (`git{i % 8}` and its kin), with the `themeCSS` rules of the known git graph selectors after them,
+and computes the style of each element over the chain from the svg element through its groups as a browser's cascade
+does (presentation attributes, then the matching single-compound rules by specificity and sheet order, then the inline
+style, with `!important` declarations first, and the inherited fill, stroke, stroke width, dashes, line cap, font, and
+text anchor), so a commit id written into the class attribute, as Mermaid writes it, is styled by a rule of the same
+class; it drops a font size without a unit as the browser drops it, and in the `neo` look gives the rectangle of a branch
+label the theme's `dropShadow` as its inline `filter`.
 
 **Checked against upstream vectors.** The fixture `Fixtures/upstream-vectors/themes.json`, generated from the pinned
 Mermaid and khroma by `tools/visual-diff/mermaid/gen-theme-vectors.mjs`, records 622 khroma calls, 53
@@ -190,7 +209,9 @@ and entity relationship style sheets, and the state and entity relationship refe
 and the mindmap rules against Mermaid's schema, its mindmap `styles.ts`, and the computed paint of every node, line,
 label, and edge recorded in the mindmap reference layout goldens; and the `packet` section and the packet rules against
 the effective packet configuration of the packet vectors, Mermaid's packet `styles.ts`, and the computed paint of every
-block and text recorded in the packet reference layout goldens.
+block and text recorded in the packet reference layout goldens; and the `gitGraph` section and the git graph rules
+against the effective git graph configuration of the git graph vectors, Mermaid's git graph `styles.js`, and the
+computed paint of every branch, arrow, bullet, label, tag, and title recorded in the git graph reference layout goldens.
 
 **Attribution.** `MermaidConfigResolver` ports `config.ts`, `mermaidAPI.ts` (`initialize`), `assignWithDepth.ts`,
 `utils.ts` (`detectInit`, `cleanAndMerge`), `preprocess.ts` (`processFrontmatter`), `utils/sanitizeDirective.ts`,
@@ -200,12 +221,12 @@ diagram's `init` of `sequenceDiagram.ts` and `setConf` of `sequenceRenderer.ts`,
 sections of `config.schema.yaml` with the reads of `stateRenderer-v3-unified.ts` and `erRenderer-unified.ts`, and the
 `pie` and `gantt` sections of `config.schema.yaml`, and the `mindmap` section of `config.schema.yaml` with the layout
 step of the mindmap database's `getData`, and the `packet` section of `config.schema.yaml` with the `getConfig` of the
-packet database.
+packet database, and the `gitGraph` section of `config.schema.yaml` with the `getConfig` of the git graph database.
 `ThemeResolver` ports `themes/theme-default.js`, `theme-base.js`, `theme-dark.js`, `theme-forest.js`,
 `theme-neutral.js`, `theme-helpers.js`, `erDiagram-oldHardcodedValues.ts`, the global `styles.ts`, the flowchart's
 `styles.ts`, the sequence diagram's `styles.js`, the class diagram's `styles.js`, the state diagram's `styles.js`,
 the entity relationship diagram's `styles.ts`, the pie chart's `pieStyles.ts`, the gantt chart's `styles.js`, the
-mindmap's `styles.ts`, and the packet diagram's `styles.ts`.
+mindmap's `styles.ts`, the packet diagram's `styles.ts`, and the git graph's `styles.js`.
 `ColorMath` ports the parsers, channel model, and functions of
 khroma. `StyleDeclarations` is original work of this repository. The source files that contain ported code carry a
 `Portions derived from` header, and the provenance is recorded in `third-party/README.md` of the package.

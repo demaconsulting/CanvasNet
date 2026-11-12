@@ -2,8 +2,9 @@
 
 This document describes the unit-level verification strategy for the `SceneModel` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Scenegraph` namespace: the immutable scene records (`SceneRect`, `SceneSegment`,
-`SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun` (with its underline), the items `SceneGroup`, `ScenePath`,
-`SceneText`, and `SceneImage`, and `Scene`) with `Scene.BoundsOf` and `Scene.ToPath`.
+`SceneStroke`, `SceneShadow`, `SceneFont`, `SceneTextRun` (with its underline), `SceneRotation`, the items
+`SceneGroup`, `ScenePath`, `SceneText` (with its rotation), and `SceneImage`, and `Scene`) with `Scene.BoundsOf` and
+`Scene.ToPath`.
 
 #### Verification Approach
 
@@ -11,8 +12,9 @@ The unit is verified by building records and comparing the results of their help
 rectangle unions and offsets; the fields that each segment factory fills; the bounds of a cubic curve whose control
 points reach y = -40 while the curve itself reaches y = -30 (three quarters of the control height, from the Bezier
 formula at t = 0.5); the device bounds of a half circle of radius 10 converted at scale 2 and moved by (5, 50),
-which reaches 20 device pixels above its chord; and the underline flag of a text run, off by default and without effect
-on the bounds of its line. The unit depends only on the core `Path` and `PathBuilder`, which
+which reaches 20 device pixels above its chord; the underline flag of a text run, off by default and without effect
+on the bounds of its line; and the rotation of a text line, none by default and without effect on its bounds. The
+unit depends only on the core `Path` and `PathBuilder`, which
 are real, so no mocking or stubbing is required; the internal types are reached through the test assembly's
 `InternalsVisibleTo` access.
 
@@ -77,3 +79,12 @@ it, and that the shadow does not change the bounds of the path, as SVG's `getBBo
 Asserts that a text run is not underlined unless marked, that a copy marked underlined is, and that a text line of the
 underlined run keeps the box it was given (0, 0, 8, 18) as its bounds, so the underline does not change what
 `Scene.BoundsOf` reports.
+
+##### CanvasNetMermaid-Scenegraph-SceneModel-Rotation: A Text Line Can Be Turned
+
+**Tests**: `SceneModelTests.SceneText_Rotation_DefaultsToNoneAndKeepsTheBox`
+
+Asserts that a text line has no rotation unless one is given, that a copy given the rotation
+`SceneRotation(-45, 10, 20)` carries the angle of -45 degrees and the pivot (10, 20), as SVG's `rotate(-45, 10, 20)`
+gives them, and that the turned line keeps the box it was given as its bounds, so the rotation does not change what
+`Scene.BoundsOf` reports; the producer gives the box it means to be measured.

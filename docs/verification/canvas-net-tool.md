@@ -387,6 +387,12 @@ a diagnostic and writes a PNG of exactly the size `info` reported with a white c
 `supported` true, three `nodes`, and no `edges`, and the size 1026 by 109 pixels; `render --strict --json` exits with 0
 without a diagnostic and writes a PNG of exactly that size with a white corner.
 
+**CanvasNetTool_Mermaid_GitGraphAsProcess_IsDrawn**: a git graph of the commit `A`, the branch `dev` with the commit
+`B`, and a merge of `dev` into `main` is described and rendered by real processes: `info --json` gives the `diagram`
+object with the type `gitGraph`, `supported` true, the direction `LR`, three `nodes` (the commits, the merge
+included), and three `edges` (the links to their parents), and the size 254 by 146 pixels; `render --strict --json`
+exits with 0 without a diagnostic and writes a PNG of exactly that size with a white corner.
+
 **CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract**: in-process through the entry point, a diagram whose
 first keyword is not a Mermaid keyword (`drawing LR`) returns exit code 1 with an `Error: mermaid-error:` line that
 names `mermaid-unknown-diagram` and a `Hint:` line; a user journey diagram (`journey` titled `Ducks`, not supported)

@@ -44,7 +44,9 @@ lays out the diagram.
   have no edges and a null `Direction`. For a mindmap `NodeCount` is the nodes and `EdgeCount` one fewer (0 for an
   empty mindmap), with no subgraphs, a null `Direction`, and the frontmatter title as its only title. For a packet
   diagram `NodeCount` is the block statements (a block split across two rows counted once), with no edges or
-  subgraphs and a null `Direction`. A site-level
+  subgraphs and a null `Direction`. For a git graph `NodeCount` is the commits and `EdgeCount` the links to their
+  parents, with no subgraphs, counted with the main branch of the text's own configuration, and `Direction` is `LR`,
+  `TB`, or `BT`. A site-level
   setting in `MermaidRenderOptions.Config` is not known when the
   text is opened, so it changes the drawing but not the counts, as for every other descriptive property.
 - **`MermaidOpenOptions`**: `SourceName` (not white space) and `Limits`.
@@ -83,8 +85,10 @@ lays out the diagram.
   whichever state renderer the configuration names) to `StateParser` and `StateModel`, and `er` (from the `er`
   detector, an `erDiagram` text) to `ErParser` and `ErModel`, `pie` to `PieParser` (whose `PieDiagram` implements
   `IMermaidDiagram`), `gantt` to `GanttParser` and `GanttModel`, `mindmap` to `MindmapParser` (whose
-  `MindmapDiagram` implements `IMermaidDiagram`), and `packet` to `PacketParser` (whose `PacketDiagram` implements
-  `IMermaidDiagram`). A
+  `MindmapDiagram` implements `IMermaidDiagram`), `packet` to `PacketParser` (whose `PacketDiagram` implements
+  `IMermaidDiagram`), and `gitGraph` to `GitGraphParser` (whose `GitGraphDiagram` implements `IMermaidDiagram`), with
+  the text's own configuration, whose `gitGraph.mainBranchName` and `gitGraph.mainBranchOrder` the statements run
+  with. A
   known type that is not drawn is not parsed (the document's diagram is null). Postcondition: an immutable document,
   or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
@@ -131,7 +135,8 @@ lays out the diagram.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
 - Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart,
-  Sequence, Class, State, Er, Pie, Gantt, Mindmap, and Packet subsystems; the unit adds nothing but the source name.
+  Sequence, Class, State, Er, Pie, Gantt, Mindmap, Packet, and GitGraph subsystems; the unit adds nothing but the
+  source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
   subsystems (for a mindmap, the Mindmap and Cose subsystems); a size outside the surface range throws
   `ArgumentOutOfRangeException` naming the scale and the size.
@@ -159,6 +164,7 @@ lays out the diagram.
 - **Mindmap**: through `DiagramRegistry` (`MindmapParser`, whose `MindmapDiagram` implements `IMermaidDiagram`); its
   renderer uses the `Cose` subsystem for the layout.
 - **Packet**: through `DiagramRegistry` (`PacketParser`, whose `PacketDiagram` implements `IMermaidDiagram`).
+- **GitGraph**: through `DiagramRegistry` (`GitGraphParser`, whose `GitGraphDiagram` implements `IMermaidDiagram`).
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

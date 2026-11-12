@@ -129,4 +129,25 @@ public class SceneModelTests
         Assert.True(underlined.Underline);
         Assert.Equal(box, Scene.BoundsOf([new SceneText(0, 14, SceneTextAnchor.Start, [underlined], box) { Role = "label" }]));
     }
+
+    /// <summary>
+    ///     Validates that a text line is not turned unless asked, that a rotation keeps its angle and pivot, and that the
+    ///     rotation does not change the box the producer gives the line.
+    /// </summary>
+    [Fact]
+    public void SceneText_Rotation_DefaultsToNoneAndKeepsTheBox()
+    {
+        // Arrange
+        var run = new SceneTextRun("x", new SceneFont("sans-serif", 16, false, false), new Rgba32(0, 0, 0, 255));
+        var box = new SceneRect(0, 0, 8, 18);
+        var text = new SceneText(0, 14, SceneTextAnchor.Start, [run], box) { Role = "label" };
+
+        // Act
+        var rotated = text with { Rotation = new SceneRotation(-45, 10, 20) };
+
+        // Assert
+        Assert.Null(text.Rotation);
+        Assert.Equal(new SceneRotation(-45, 10, 20), rotated.Rotation);
+        Assert.Equal(box, Scene.BoundsOf([rotated]));
+    }
 }

@@ -16,16 +16,18 @@ rendering units draw with, the flowchart style sheet `FlowchartStyles`, and its 
 its typed paint `SlicePaint` and `GanttStyles` with the element description `GanttElement`, the computed style
 `GanttComputedStyle`, and the selector `GanttSelector` of its cascade, and the packet style sheet `PacketStyles`, and
 `ThemeResolver.MindmapStyles.cs`, which
-holds the mindmap style sheet `MindmapStyles`.
+holds the mindmap style sheet `MindmapStyles`, and `ThemeResolver.GitGraphStyles.cs`, which holds the git graph style
+sheet `GitGraphStyles` with the element description `GitGraphElement` and the computed style `GitGraphComputedStyle` of
+its cascade.
 
 #### Purpose
 
 `ThemeResolver` reproduces Mermaid's five built-in themes - `default`, `base`, `dark`, `forest`, and `neutral` - and the
 style sheets that Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity
-relationship diagram, a pie chart, a gantt chart, a mindmap, and a packet diagram from them. Given a theme name and the
-user's theme variable overrides, it computes every theme variable of every diagram type with the same text as Mermaid's
-`getThemeVariables`, and `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`,
-`GanttStyles`, `MindmapStyles`, and `PacketStyles` turn
+relationship diagram, a pie chart, a gantt chart, a mindmap, a packet diagram, and a git graph from them. Given a theme
+name and the user's theme variable overrides, it computes every theme variable of every diagram type with the same text
+as Mermaid's `getThemeVariables`, and `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`,
+`PieStyles`, `GanttStyles`, `MindmapStyles`, `PacketStyles`, and `GitGraphStyles` turn
 the theme variables and the `themeCSS` of a configuration into the paint and fonts the diagram is drawn with.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeResolver-*` requirements in
@@ -182,6 +184,33 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   SVG paint is inherited; `Label` and `Title` are the fonts and colors of `.packetLabel` and `.packetTitle`, and
   `ByteStart` and `ByteEnd` those of `.packetByte` cascaded with `.packetByte.start` or `.packetByte.end`. An instance is
   immutable.
+- **`GitGraphStyles`** - the rules of the git graph's style sheet (`git/styles.js` for the built-in themes) after the
+  global rules, with its own `KnownSelectors`, and a small CSS cascade over them. The rules are those of `styles.js` in
+  their order: `.commit-id`, `.commit-msg`, and `.branch-label` (light grey; their font family is a `var()` that no page
+  defines, which a browser treats as inherited, so it is left out); for each of the `THEME_COLOR_LIMIT` colors `i`
+  (12 in every theme; JavaScript's array length of the value, capped by `MaxColorLimit`, `ColorCount`), with
+  `c = i % 8`, `.branch-label<i>` filled `gitBranchLabel<c>`, `.commit<i>` stroked and filled `git<c>`,
+  `.commit-highlight<i>` stroked and filled `gitInv<c>`, `.label<i>` filled `git<c>`, and `.arrow<i>` stroked
+  `git<c>`; then `.branch` (the theme's `strokeWidth`, `commitLineColor` or else `lineColor`, and a dash of 2),
+  `.commit-label`, `.commit-label-bkg` (half opaque), `.tag-label`, `.tag-label-bkg`, `.tag-hole`, `.commit-merge`,
+  `.commit-reverse` (a stroke width of 3), `.commit-highlight-inner`, `.arrow` (8 pixels wide with round caps and no
+  fill), and `.gitTitleText` (centered, 18 pixels). A font size that is a bare number other than zero is dropped, as a
+  browser drops it in an SVG document. Every rule of Mermaid is scoped by the diagram's id, so the rules that match an
+  element are ordered by the number of their classes and tags, then by their place in the sheet, and an `!important`
+  declaration beats every normal one; a rule beats a presentation attribute (the `fill` and `stroke` of a
+  cherry-pick's marks, white or, in the dark theme, black), and the inline style (the `filter` of a branch label's
+  rectangle in the `neo` look,
+  `BranchLabelStyle`, from the theme's `dropShadow` when `SequenceStyles.TryParseFilter` reads it) beats the normal
+  declarations of the rules. The selectors are one compound of a tag and classes, matched by the unit's own matcher; the
+  root rule applies to the svg element only, and every other rule to the elements below it whose tag and classes it
+  names. A `GitGraphElement` is an element's tag, its classes (its class attribute split on ASCII white space, so the
+  words of a commit id that Mermaid writes into the class attribute are classes, and an id such as `commit-reverse` is
+  styled by its rule, as in a browser), its presentation attributes, and its inline style. `Compute` takes the chain of
+  elements from the svg element to the element and gives a `GitGraphComputedStyle` (fill, stroke, stroke width, dashes,
+  line cap, opacity, font family and size, text anchor, and the shadow of the element's own `filter`): fill, stroke,
+  stroke width, dashes, line cap, the font, and the text anchor are inherited, `currentColor` is the inherited `color`,
+  and the opacities of an element and its groups multiply; `Faded` folds the opacity into a color. An instance is used
+  by one render on one thread, because it caches the rules that match an element.
 - **`MindmapStyles`** - the rules of the mindmap's style sheet (`mindmap/styles.ts`) after the global rules, a
   `UnifiedStyles` with its own `KnownSelectors`. The rules are those of `styles.ts` in their order, with the
   declarations that change pixels and the values of the classic look: `.edge` with a stroke width of 3; then, for each
@@ -271,6 +300,13 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
 - `PacketStyles.Create(MermaidConfig config, MermaidReportSink? sink)` - builds the same global rules and then the six
   rules of the packet `styles.ts` from the options (`Options`, the defaults merged with the theme variable `packet`), in
   their order, and appends the `themeCSS` rules of the packet selectors as `FlowchartStyles.Create` does.
+- `GitGraphStyles.Create(MermaidConfig config, MermaidReportSink? sink)` - builds the same global rules and then the
+  rules of the git graph `styles.js` from the theme variables, in their order, appends the `themeCSS` rules of the git
+  graph selectors as `FlowchartStyles.Create` does, and in the `neo` look keeps the theme's `dropShadow` as
+  `BranchLabelStyle` when it is a filter that is drawn.
+- `GitGraphStyles.Compute(IReadOnlyList<GitGraphElement> chain)` - the computed style of the last element of the chain
+  by the cascade above; the matched rules of an element are cached. `GitGraphStyles.ColorCount(string? limit)` is the
+  number of colors the sheet styles for a `THEME_COLOR_LIMIT`.
 
 **Preconditions and postconditions**: `GetThemeVariables` requires a supported theme name; it returns a new JSON object
 of string, number, and Boolean values. The methods are pure functions of their arguments and safe for concurrent use.
@@ -282,7 +318,8 @@ of string, number, and Boolean values. The methods are pure functions of their a
 is not a color; the exception carries the offending value, so that `MermaidConfigResolver` can drop the variable and
 compute the theme again. A hostile `THEME_COLOR_LIMIT` cannot make the loops unbounded; khroma then fails on the
 missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`,
-`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, `MindmapStyles.Create`, `PacketStyles.Create`, and
+`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, `MindmapStyles.Create`, `PacketStyles.Create`,
+`GitGraphStyles.Create`, and
 `SequenceStyles.Create` report each `themeCSS` rule of another selector, at-rule, or nested rule as
 `mermaid-theme-css-unsupported` at the location of `themeCSS` and do not apply it; in strict mode the sink throws
 `MermaidUnsupportedFeatureException` at the first one.
@@ -308,8 +345,10 @@ missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Crea
   descendant selectors); a `themeCSS` rule with any other selector is reported.
 - The mindmap sheet is built for the classic look only: the gradient fills, filters, and node strokes of the `neo`
   look and the shapes and colors of the `redux` themes are not built.
-- The packet sheet drops a font size without a unit, as Chrome does in an SVG document; the other sheets read such a
-  declaration as `StyleDeclarations` reads it.
+- The packet and git graph sheets drop a font size without a unit, as Chrome does in an SVG document; the other sheets
+  read such a declaration as `StyleDeclarations` reads it.
+- The git graph cascade knows only the one-compound selectors of Mermaid's git graph sheet; a `themeCSS` rule with any
+  other selector is reported. The opacity of a git graph element is folded into its fill and stroke colors.
 
 #### Dependencies
 
@@ -319,8 +358,8 @@ missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Crea
   `StyleDeclarationSet`
 - **`MermaidConfigResolver`** (this subsystem) - the `MermaidConfig` that `FlowchartStyles.Create`,
   `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`,
-  `MindmapStyles.Create`, `PacketStyles.Create`, and `SequenceStyles.Create` read, and `IsTruthy` for the gradient
-  rule
+  `MindmapStyles.Create`, `PacketStyles.Create`, `GitGraphStyles.Create`, and `SequenceStyles.Create` read, and
+  `IsTruthy` for the gradient rule
 - **System root** - `MermaidReportSink` and `MermaidLocation`
 - **Core `CanvasNet`** - `Rgba32` and `CssColor` (the `Canvas` subsystem), through the public API
 - **.NET base class library** - `System.Text.Json` and `System.Collections.Frozen`
@@ -331,8 +370,9 @@ missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Crea
 subsystem (`FlowchartModel`) builds the `FlowchartStyles` of a call, the `Class` subsystem (`ClassModel`) the
 `ClassStyles`, the `State` subsystem (`StateModel`) the `StateStyles`, and the `Er` subsystem (`ErModel`) the `ErStyles`
 of a call, the `Pie` subsystem (`PieRenderer`) the `PieStyles`, the `Gantt` subsystem (`GanttRenderer`) the
-`GanttStyles`, the `Mindmap` subsystem (`MindmapRenderer`) the `MindmapStyles`, and the `Packet` subsystem
-(`PacketRenderer`) the `PacketStyles` of a render, which they draw with;
+`GanttStyles`, the `Mindmap` subsystem (`MindmapRenderer`) the `MindmapStyles`, the `Packet` subsystem
+(`PacketRenderer`) the `PacketStyles`, and the `GitGraph` subsystem (`GitGraphRenderer`) the `GitGraphStyles` of a
+render, which they draw with;
 the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through
 them and for the diagram title `ClusterLayout`) draws with the resolved paints, the rules, and `DiagramStyles.Root` of
 any of these sheets through `UnifiedStyles` (`ShapeLibrary` reads `ClusterTitle(html)`, `CentersNodeSvgText`,
