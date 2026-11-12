@@ -141,6 +141,14 @@ internal static partial class MermaidConfigResolver
         ["mindmap.padding"] = ValueKind.Number,
         ["mindmap.maxNodeWidth"] = ValueKind.Number,
         ["mindmap.layoutAlgorithm"] = ValueKind.Text,
+        ["packet"] = ValueKind.Object,
+        ["packet.useMaxWidth"] = ValueKind.Boolean,
+        ["packet.rowHeight"] = ValueKind.Number,
+        ["packet.bitWidth"] = ValueKind.Number,
+        ["packet.bitsPerRow"] = ValueKind.Number,
+        ["packet.showBits"] = ValueKind.Boolean,
+        ["packet.paddingX"] = ValueKind.Number,
+        ["packet.paddingY"] = ValueKind.Number,
     };
 
     /// <summary>

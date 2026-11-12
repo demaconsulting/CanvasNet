@@ -35,8 +35,8 @@ internal sealed record TextPaint(string FontFamily, double FontSize, Rgba32 Colo
 ///     <para>
 ///         The diagram style sheets (<see cref="FlowchartStyles"/>, <see cref="ClassStyles"/>, <see cref="StateStyles"/>,
 ///         <see cref="ErStyles"/>, <see cref="SequenceStyles"/>, <see cref="PieStyles"/>, <see cref="GanttStyles"/>,
-///         <see cref="MindmapStyles"/>) share the rule building, the global rules and the cascade here. An instance is
-///         immutable.
+///         <see cref="MindmapStyles"/>, <see cref="PacketStyles"/>) share the rule building, the global rules and the
+///         cascade here. An instance is immutable.
 ///     </para>
 /// </remarks>
 internal abstract class DiagramStyles

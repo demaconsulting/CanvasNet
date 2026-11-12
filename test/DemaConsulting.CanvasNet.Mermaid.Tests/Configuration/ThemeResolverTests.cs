@@ -507,6 +507,144 @@ public class ThemeResolverTests
     }
 
     /// <summary>
+    ///     Validates the packet diagram's style rules of each theme: the global rules first; the default, base and neutral
+    ///     themes have no <c>packet</c> object (black texts and strokes on <c>#efefef</c>), the dark and forest themes set
+    ///     theirs; the font sizes and the stroke width always come from the sheet's defaults.
+    /// </summary>
+    /// <param name="theme">The theme.</param>
+    /// <param name="text">The color of the texts and strokes.</param>
+    /// <param name="fill">The fill of the blocks.</param>
+    [Theory]
+    [InlineData("default", "#000000", "#efefef")]
+    [InlineData("base", "#000000", "#efefef")]
+    [InlineData("neutral", "#000000", "#efefef")]
+    [InlineData("dark", "#e0dfdf", "#333333")]
+    [InlineData("forest", "#321b67", "#cde498")]
+    public void PacketStyles_Create_EachTheme_UsesThemePacketObject(string theme, string text, string fill)
+    {
+        // Arrange
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(new JsonObject { ["theme"] = theme }, "packet\n0: \"a\"\n");
+        const string Family = "\"trebuchet ms\", verdana, arial, sans-serif";
+
+        // Act
+        var styles = PacketStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(
+            FlowchartStyles.Create(config, null).Rules.Take(GlobalRuleCount).Select(rule => rule.Selector),
+            styles.Rules.Take(GlobalRuleCount).Select(rule => rule.Selector));
+        Assert.Equal(new ShapePaint(Color(fill), Color(text), 1), styles.Block);
+        Assert.Equal(new TextPaint(Family, 12, Color(text)), styles.Label);
+        Assert.Equal(new TextPaint(Family, 14, Color(text)), styles.Title);
+        Assert.Equal(new TextPaint(Family, 10, Color(text)), styles.ByteStart);
+        Assert.Equal(new TextPaint(Family, 10, Color(text)), styles.ByteEnd);
+    }
+
+    /// <summary>
+    ///     Validates that a user's <c>themeVariables.packet</c> replaces the theme's object: the keys it gives apply, the
+    ///     keys it leaves out take the sheet's defaults (black bytes and strokes on <c>#efefef</c> in the dark theme), and
+    ///     a unitless font size is dropped as a browser drops it, so the label takes the root's 16 pixels.
+    /// </summary>
+    [Fact]
+    public void PacketStyles_Create_PacketOverride_ReplacesThemeObject()
+    {
+        // Arrange
+        var site = new JsonObject
+        {
+            ["theme"] = "dark",
+            ["themeVariables"] = new JsonObject
+            {
+                ["packet"] = new JsonObject { ["labelColor"] = "red", ["titleFontSize"] = "20px", ["labelFontSize"] = 20, ["blockStrokeWidth"] = 3 },
+            },
+        };
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site, "packet\n0: \"a\"\n");
+
+        // Act
+        var styles = PacketStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal((16.0, Color("#ff0000")), (styles.Label.FontSize, styles.Label.Color));
+        Assert.Equal((20.0, Color("#000000")), (styles.Title.FontSize, styles.Title.Color));
+        Assert.Equal(Color("#000000"), styles.ByteStart.Color);
+        Assert.Equal(new ShapePaint(Color("#efefef"), Color("#000000"), 3), styles.Block);
+    }
+
+    /// <summary>
+    ///     Validates the options of the packet sheet: the defaults, a replacing object whose values are written as
+    ///     JavaScript's <c>String</c> writes them, and a theme variable that is not an object, which changes nothing.
+    /// </summary>
+    [Fact]
+    public void PacketStyles_Options_ValuesAsJavaScriptStrings_MergedOverDefaults()
+    {
+        // Arrange
+        var packet = new JsonObject
+        {
+            ["labelColor"] = 12.5,
+            ["titleColor"] = null,
+            ["endByteColor"] = true,
+            ["blockFillColor"] = new JsonObject { ["a"] = 1 },
+            ["blockStrokeColor"] = new JsonArray("a", null, 2),
+        };
+
+        // Act
+        var defaults = PacketStyles.Options(null);
+        var merged = PacketStyles.Options(packet);
+        var text = PacketStyles.Options(JsonValue.Create("red"));
+
+        // Assert
+        Assert.Equal(10, defaults.Count);
+        Assert.Equal(("10px", "#efefef", "1"), (defaults["byteFontSize"], defaults["blockFillColor"], defaults["blockStrokeWidth"]));
+        Assert.Equal(("12.5", "null", "true"), (merged["labelColor"], merged["titleColor"], merged["endByteColor"]));
+        Assert.Equal(("[object Object]", "a,,2", "black"), (merged["blockFillColor"], merged["blockStrokeColor"], merged["startByteColor"]));
+        Assert.Equal(defaults, text);
+    }
+
+    /// <summary>
+    ///     Validates that a <c>themeCSS</c> rule for a packet selector overrides the theme's: a block's fill, stroke and
+    ///     width, and the color of the last bit numbers only (<c>.packetByte.end</c>), without a report.
+    /// </summary>
+    [Fact]
+    public void PacketStyles_Create_ThemeCss_OverridesKnownSelectors()
+    {
+        // Arrange
+        const string Text = "%%{init: {\"themeCSS\": \".packetBlock { fill: #ffe0b2; stroke: #e65100; stroke-width: 2px } .packetByte.end { fill: blue }\"}}%%\npacket\n0: \"a\"\n";
+        var source = Mermaid.Syntax.Preprocessor.Run(Text, "t.mmd", MermaidLimits.Default);
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+        var config = MermaidConfigResolver.Resolve(source, "packet", null, sink);
+        var reports = new List<MermaidUnsupportedFeature>();
+
+        // Act
+        var styles = PacketStyles.Create(config, sink);
+        sink.Deliver(null, reports.Add);
+
+        // Assert
+        Assert.Empty(reports);
+        Assert.Equal(new ShapePaint(Color("#ffe0b2"), Color("#e65100"), 2), styles.Block);
+        Assert.Equal((Color("#0000ff"), Color("#000000")), (styles.ByteEnd.Color, styles.ByteStart.Color));
+    }
+
+    /// <summary>
+    ///     Validates that a block whose rule has no valid fill inherits the root rule's fill (the theme's text color), as
+    ///     SVG paint is inherited, and that an invalid stroke falls back to none.
+    /// </summary>
+    [Fact]
+    public void PacketStyles_Create_InvalidBlockPaint_InheritsRootFill()
+    {
+        // Arrange
+        var site = new JsonObject
+        {
+            ["themeVariables"] = new JsonObject { ["packet"] = new JsonObject { ["blockFillColor"] = "not a color", ["blockStrokeColor"] = "nope" } },
+        };
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site, "packet\n0: \"a\"\n");
+
+        // Act
+        var styles = PacketStyles.Create(config, null);
+
+        // Assert
+        Assert.Equal(new ShapePaint(Color("#333"), null, 1), styles.Block);
+    }
+
+    /// <summary>
     ///     Validates the gantt chart's cascade of the default theme: the global rules first; a bar's class rules over the
     ///     section style; an <c>!important</c> clickable text color over a later normal rule; a compound selector
     ///     (<c>.doneText0.taskTextOutsideRight</c>) over its single classes; the descendant rule of the axis labels over

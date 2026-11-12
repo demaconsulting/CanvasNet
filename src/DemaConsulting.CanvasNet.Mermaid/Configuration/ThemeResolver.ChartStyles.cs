@@ -1,6 +1,8 @@
 // Portions derived from mermaid (MIT); see third-party/README.md
 using System.Collections.Frozen;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
@@ -172,6 +174,191 @@ internal sealed class PieStyles : DiagramStyles
             ("font-family", Var("fontFamily")));
         Add(".slice", ("font-family", Var("fontFamily")), ("fill", Var("pieSectionTextColor")), ("font-size", Var("pieSectionTextSize")));
         Add(".legend text", ("fill", Var("pieLegendTextColor")), ("font-family", Var("fontFamily")), ("font-size", Var("pieLegendTextSize")));
+
+        // The user styles come last
+        builder.Rules.AddRange(user);
+        return builder.Rules;
+    }
+
+    /// <summary>Gets black, the default of SVG paint.</summary>
+    private static Rgba32 Black => new(0, 0, 0, 255);
+}
+
+/// <summary>
+///     The style sheet Mermaid writes for a packet diagram (its packet <c>styles.ts</c> after the global rules of
+///     <c>styles.ts</c>), built from the theme variables of a configuration, with the rules of <c>themeCSS</c> applied
+///     after it.
+/// </summary>
+/// <remarks>
+///     <para>
+///         <b>Options.</b> The sheet reads its ten values from <c>cleanAndMerge</c> of its defaults (black texts and
+///         strokes, a <c>#efefef</c> fill, 10, 12 and 14 pixel fonts and a stroke width of 1) and the theme variable
+///         <c>packet</c> when it is an object, each value written as JavaScript's <c>String</c> writes it. The dark and
+///         forest themes set the object; a user's <c>themeVariables.packet</c> replaces the theme's object, so the keys it
+///         leaves out take the defaults.
+///     </para>
+///     <para>
+///         <b>Cascade.</b> A declaration whose value is not valid CSS is dropped as a browser drops it: a color that is
+///         not a color, and a font size that is a number without a unit (a unitless <c>labelFontSize</c>), so the text
+///         inherits the root rule's font size. A bit number matches <c>.packetByte</c> and, more specific,
+///         <c>.packetByte.start</c> or <c>.packetByte.end</c>. A block whose rule declares no valid fill inherits the
+///         root rule's fill, as SVG paint is inherited.
+///     </para>
+///     <para>
+///         An instance is immutable.
+///     </para>
+/// </remarks>
+internal sealed class PacketStyles : DiagramStyles
+{
+    /// <summary>The defaults of the sheet's options (Mermaid's <c>defaultPacketStyleOptions</c>), in their order.</summary>
+    private static readonly (string Key, string Value)[] DefaultOptions =
+    [
+        ("byteFontSize", "10px"),
+        ("startByteColor", "black"),
+        ("endByteColor", "black"),
+        ("labelColor", "black"),
+        ("labelFontSize", "12px"),
+        ("titleColor", "black"),
+        ("titleFontSize", "14px"),
+        ("blockStrokeColor", "black"),
+        ("blockStrokeWidth", "1"),
+        ("blockFillColor", "#efefef"),
+    ];
+
+    /// <summary>
+    ///     Initializes the styles from their rules.
+    /// </summary>
+    /// <param name="rules">The rules in cascade order.</param>
+    private PacketStyles(IReadOnlyList<StyleRule> rules)
+        : base(rules)
+    {
+    }
+
+    /// <summary>Gets the selectors of the packet diagram's style sheet, which <c>themeCSS</c> may use.</summary>
+    public static FrozenSet<string> KnownSelectors { get; } = BuildRules(new Dictionary<string, string?>(), Options(null), [])
+        .Select(rule => rule.Selector)
+        .ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    ///     Gets the paint of a block (<c>rect.packetBlock</c>; the rectangle has no paint attributes, so a fill, stroke or
+    ///     stroke width its rule does not declare is inherited from the root rule, else SVG's black fill, no stroke and a
+    ///     width of 1).
+    /// </summary>
+    public ShapePaint Block
+    {
+        get
+        {
+            var root = Resolve(Root);
+            var set = Resolve(".packetBlock");
+            return new ShapePaint(
+                set.Paint("fill", root.Paint("fill", Black)),
+                set.Paint("stroke", root.Paint("stroke")),
+                set.Length("stroke-width", root.Length("stroke-width", 1)));
+        }
+    }
+
+    /// <summary>Gets the font and color of a block's label (<c>.packetLabel</c>).</summary>
+    public TextPaint Label => Text(".packetLabel", "fill");
+
+    /// <summary>Gets the font and color of the title (<c>.packetTitle</c>).</summary>
+    public TextPaint Title => Text(".packetTitle", "fill");
+
+    /// <summary>Gets the font and color of a block's first bit number (<c>.packetByte</c> with <c>.packetByte.start</c>).</summary>
+    public TextPaint ByteStart => Text(Resolve(".packetByte").Cascade(Resolve(".packetByte.start")), "fill");
+
+    /// <summary>Gets the font and color of a block's last bit number (<c>.packetByte</c> with <c>.packetByte.end</c>).</summary>
+    public TextPaint ByteEnd => Text(Resolve(".packetByte").Cascade(Resolve(".packetByte.end")), "fill");
+
+    /// <summary>
+    ///     Builds the styles of a configuration: the packet diagram's rules from its theme variables, then the known rules
+    ///     of its <c>themeCSS</c>.
+    /// </summary>
+    /// <param name="config">The configuration.</param>
+    /// <param name="sink">The report sink for <c>themeCSS</c> problems, or null.</param>
+    /// <returns>The styles.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null.</exception>
+    /// <exception cref="MermaidUnsupportedFeatureException">Thrown in strict mode at the first unsupported <c>themeCSS</c> rule.</exception>
+    public static PacketStyles Create(MermaidConfig config, MermaidReportSink? sink)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return new PacketStyles(BuildRules(VariablesOf(config), Options(config.ThemeVariables["packet"]), UserRules(config, KnownSelectors, sink)));
+    }
+
+    /// <summary>
+    ///     Gets the options of the sheet: Mermaid's <c>cleanAndMerge</c> of the defaults and the theme variable
+    ///     <c>packet</c> (when it is an object), each value as JavaScript's <c>String</c> writes it.
+    /// </summary>
+    /// <param name="packet">The theme variable <c>packet</c>, or null.</param>
+    /// <returns>The options by key.</returns>
+    internal static Dictionary<string, string> Options(JsonNode? packet)
+    {
+        var options = DefaultOptions.ToDictionary(option => option.Key, option => option.Value, StringComparer.Ordinal);
+        if (packet is JsonObject overrides)
+        {
+            foreach (var (key, value) in overrides)
+            {
+                options[key] = JsString(value);
+            }
+        }
+
+        return options;
+    }
+
+    /// <summary>
+    ///     Writes a JSON value as JavaScript's <c>String</c> writes the value it parses to: a string as it is, a number as
+    ///     JavaScript writes it, <c>true</c>, <c>false</c>, <c>null</c>, an object as <c>[object Object]</c> and an array
+    ///     as its elements joined by commas (a null element as nothing).
+    /// </summary>
+    /// <param name="node">The value.</param>
+    /// <returns>The text.</returns>
+    internal static string JsString(JsonNode? node) => node switch
+    {
+        null => "null",
+        JsonObject => "[object Object]",
+        JsonArray array => string.Join(',', array.Select(item => item is null ? string.Empty : JsString(item))),
+        JsonValue value => value.GetValueKind() switch
+        {
+            JsonValueKind.String => value.GetValue<string>(),
+            JsonValueKind.Number => ColorMath.FormatNumber(double.Parse(value.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture)),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => "null",
+        },
+        _ => "null",
+    };
+
+    /// <summary>
+    ///     Keeps a font size a browser accepts: a number without a unit is not a CSS length (unless it is zero), so the
+    ///     declaration is dropped.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns>The value, or null when the browser drops it.</returns>
+    private static string? FontSize(string value) =>
+        double.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && number != 0 ? null : value;
+
+    /// <summary>
+    ///     Builds the rules: the global rules of Mermaid's <c>getStyles</c>, the packet diagram's <c>styles.ts</c> in its
+    ///     order, then the user's.
+    /// </summary>
+    /// <param name="v">The theme variables as text.</param>
+    /// <param name="options">The options of the sheet.</param>
+    /// <param name="user">The user rules.</param>
+    /// <returns>The rules.</returns>
+    private static List<StyleRule> BuildRules(IReadOnlyDictionary<string, string?> v, IReadOnlyDictionary<string, string> options, IReadOnlyList<StyleRule> user)
+    {
+        var builder = new RuleBuilder(v);
+        void Add(string selectors, params (string Property, string? Value)[] declarations) => builder.Add(selectors, declarations);
+
+        // Global rules (styles.ts getStyles) before the diagram styles
+        builder.AddGlobalRules();
+
+        // The packet styles.ts
+        Add(".packetByte", ("font-size", FontSize(options["byteFontSize"])));
+        Add(".packetByte.start", ("fill", options["startByteColor"]));
+        Add(".packetByte.end", ("fill", options["endByteColor"]));
+        Add(".packetLabel", ("fill", options["labelColor"]), ("font-size", FontSize(options["labelFontSize"])));
+        Add(".packetTitle", ("fill", options["titleColor"]), ("font-size", FontSize(options["titleFontSize"])));
+        Add(".packetBlock", ("stroke", options["blockStrokeColor"]), ("stroke-width", options["blockStrokeWidth"]), ("fill", options["blockFillColor"]));
 
         // The user styles come last
         builder.Rules.AddRange(user);
