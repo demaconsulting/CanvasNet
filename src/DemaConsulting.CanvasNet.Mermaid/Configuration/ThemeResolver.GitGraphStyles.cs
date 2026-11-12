@@ -80,7 +80,7 @@ internal sealed record GitGraphComputedStyle(
 /// <remarks>
 ///     <para>
 ///         <b>Rules.</b> The rules are those of <c>styles.js</c> in their order: <c>.commit-id</c>, <c>.commit-msg</c> and
-///         <c>.branch-label</c> (light grey; their font family is a <c>var()</c> that no page defines, which a browser
+///         <c>.branch-label</c> (light gray; their font family is a <c>var()</c> that no page defines, which a browser
 ///         treats as inherited, so it is left out); for each of the <c>THEME_COLOR_LIMIT</c> colors <c>i</c> (12 in
 ///         every theme; JavaScript's array length of the value, capped as the themes cap it), with <c>c = i % 8</c>,
 ///         <c>.branch-label&lt;i&gt;</c> filled <c>gitBranchLabel&lt;c&gt;</c>, <c>.commit&lt;i&gt;</c> stroked and filled

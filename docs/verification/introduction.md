@@ -101,8 +101,9 @@ constituent software items, specifically:
   _CanvasNetVegaLite System Verification_
   (`canvas-net-vega-lite.md`)
 - **CanvasNetMermaid (System)** — A separate software system providing a Mermaid diagram renderer that parses Mermaid
-  text, describes, measures, and renders flowcharts, sequence diagrams, class diagrams, state diagrams, and entity
-  relationship diagrams with Mermaid's own layout and look, and
+  text, describes, measures, and renders flowcharts, sequence diagrams, class diagrams, state diagrams, entity
+  relationship diagrams, pie charts, gantt charts, mindmaps, packet diagrams, and git graphs with Mermaid's own layout
+  and look, and
   reports the other diagram types as unsupported, containing a single direct unit, `MermaidDocument` (the public parse,
   open, measure, and render API, options, limits, locations, report codes, exceptions, and the image source), and
   seventeen internal subsystems:

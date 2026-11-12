@@ -186,7 +186,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   immutable.
 - **`GitGraphStyles`** - the rules of the git graph's style sheet (`git/styles.js` for the built-in themes) after the
   global rules, with its own `KnownSelectors`, and a small CSS cascade over them. The rules are those of `styles.js` in
-  their order: `.commit-id`, `.commit-msg`, and `.branch-label` (light grey; their font family is a `var()` that no page
+  their order: `.commit-id`, `.commit-msg`, and `.branch-label` (light gray; their font family is a `var()` that no page
   defines, which a browser treats as inherited, so it is left out); for each of the `THEME_COLOR_LIMIT` colors `i`
   (12 in every theme; JavaScript's array length of the value, capped by `MaxColorLimit`, `ColorCount`), with
   `c = i % 8`, `.branch-label<i>` filled `gitBranchLabel<c>`, `.commit<i>` stroked and filled `git<c>`,
