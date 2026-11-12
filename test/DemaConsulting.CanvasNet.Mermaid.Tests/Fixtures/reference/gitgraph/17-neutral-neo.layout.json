@@ -3,7 +3,7 @@
   "mermaid": "11.17.2",
   "mermaidCli": "11.16.0",
   "diagram": "gitGraph",
-  "viewBox": [-95.78125, -36.70000076293945, 453.78125, 252.74411010742188],
+  "viewBox": [-95.78125, -36.70000076293945, 453.78125, 256.3656311035156],
   "branches": [
     {
       "line": {
@@ -373,7 +373,7 @@
     },
     {
       "tag": "circle",
-      "class": "commit D commit2",
+      "class": "commit D1 commit2",
       "cx": 160,
       "cy": 178,
       "r": 10,
@@ -685,13 +685,13 @@
     },
     {
       "kind": "commit",
-      "transform": "translate(-14.34, 12.72) rotate(-45, 150, 178)",
+      "transform": "translate(-16.32423828125, 14.495371093749998) rotate(-45, 150, 178)",
       "rect": {
         "tag": "rect",
         "class": "commit-label-bkg",
-        "x": 154,
+        "x": 151.38916015625,
         "y": 191.5,
-        "width": 12,
+        "width": 17.2216796875,
         "height": 15,
         "paint": {
           "fill": "rgb(252, 252, 252)",
@@ -705,15 +705,15 @@
       },
       "text": {
         "class": "commit-label",
-        "text": "D",
-        "x": 156,
+        "text": "D1",
+        "x": 153.38916015625,
         "y": 203,
         "anchor": "start",
         "fontFamily": "\"Liberation Sans\"",
         "fontSize": 10,
         "fill": "rgb(3, 3, 3)",
         "opacity": 1,
-        "box": [156, 194, 8, 11]
+        "box": [153.389, 194, 13.222, 11]
       }
     },
     {

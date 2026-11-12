@@ -683,13 +683,18 @@ own coordinates (before its `transform` and the transforms of its groups), round
 
 `MermaidGitGraphReferenceLayoutTests` compares every git graph golden at **0.01 px**: the view box, the branch lines,
 label rectangles and label transforms, the numbers of every arrow's path data, every bullet, commit label and tag
-(geometry and transforms), the title, and the computed paint. Text boxes are compared at 0.02 px, as for the other
-goldens.
+(geometry and transforms), the title, and the computed paint (exactly, with Chrome's conversion of `hsl()` theme
+colors). Text boxes are compared at 0.02 px, as for the other goldens. A transformed element is compared through its
+transforms: its corners, points, center or anchor are mapped through them, and a text's box is the box of its mapped
+box. Every position agrees within 0.0001 px and every text box within 0.001 px.
 
 ### Git Graph Fixtures
 
 The fixtures are original and use only text that Liberation Sans covers, so no golden depends on the machine and
-none is excluded.
+none is excluded. They avoid the glyphs whose box Chrome's rasterizer reports a pixel wider or narrower than
+`LabelBuilder`'s rule at the end of a text (a probe of the printable ASCII glyphs at 10 to 20 px found 8 of 1,128,
+among them `D` at 10 px, the font size of the commit labels and tags: Chrome's box of a label ending in `D` is 8 px
+wide where the rule gives 7.23 px), so the commit that was `D` is `D1`.
 
 | Fixture | Covers |
 | --- | --- |

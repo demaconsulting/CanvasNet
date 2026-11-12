@@ -520,7 +520,7 @@
     },
     {
       "tag": "circle",
-      "class": "commit D commit0",
+      "class": "commit D1 commit0",
       "cx": 160,
       "cy": -2,
       "r": 10,
@@ -1011,13 +1011,13 @@
     },
     {
       "kind": "commit",
-      "transform": "translate(-14.34, 12.72) rotate(-45, 150, -2)",
+      "transform": "translate(-16.32423828125, 14.495371093749998) rotate(-45, 150, -2)",
       "rect": {
         "tag": "rect",
         "class": "commit-label-bkg",
-        "x": 154,
+        "x": 151.38916015625,
         "y": 11.5,
-        "width": 12,
+        "width": 17.2216796875,
         "height": 15,
         "paint": {
           "fill": "rgb(255, 255, 222)",
@@ -1031,15 +1031,15 @@
       },
       "text": {
         "class": "commit-label",
-        "text": "D",
-        "x": 156,
+        "text": "D1",
+        "x": 153.38916015625,
         "y": 23,
         "anchor": "start",
         "fontFamily": "\"Liberation Sans\"",
         "fontSize": 10,
         "fill": "rgb(0, 0, 33)",
         "opacity": 1,
-        "box": [156, 14, 8, 11]
+        "box": [153.389, 14, 13.222, 11]
       }
     },
     {

@@ -460,7 +460,7 @@
     },
     {
       "tag": "circle",
-      "class": "commit D commit0",
+      "class": "commit D1 commit0",
       "cx": 60,
       "cy": -2,
       "r": 10,
@@ -824,13 +824,13 @@
     },
     {
       "kind": "commit",
-      "transform": "translate(-14.34, 12.72) rotate(-45, 50, -2)",
+      "transform": "translate(-16.32423828125, 14.495371093749998) rotate(-45, 50, -2)",
       "rect": {
         "tag": "rect",
         "class": "commit-label-bkg",
-        "x": 54,
+        "x": 51.38916015625,
         "y": 11.5,
-        "width": 12,
+        "width": 17.2216796875,
         "height": 15,
         "paint": {
           "fill": "rgb(255, 255, 222)",
@@ -844,15 +844,15 @@
       },
       "text": {
         "class": "commit-label",
-        "text": "D",
-        "x": 56,
+        "text": "D1",
+        "x": 53.38916015625,
         "y": 23,
         "anchor": "start",
         "fontFamily": "\"Liberation Sans\"",
         "fontSize": 10,
         "fill": "rgb(0, 0, 33)",
         "opacity": 1,
-        "box": [56, 14, 8, 11]
+        "box": [53.389, 14, 13.222, 11]
       }
     },
     {
@@ -1026,12 +1026,12 @@
         "tag": "polygon",
         "class": "tag-label-bkg",
         "points": [
-          [68.16259765625, 70.8],
-          [68.16259765625, 66.8],
-          [76.16259765625, 61.3],
-          [143.83740234375, 61.3],
-          [143.83740234375, 76.3],
-          [76.16259765625, 76.3]
+          [65.5517578125, 70.8],
+          [65.5517578125, 66.8],
+          [73.5517578125, 61.3],
+          [146.4482421875, 61.3],
+          [146.4482421875, 76.3],
+          [73.5517578125, 76.3]
         ],
         "paint": {
           "fill": "rgb(236, 236, 255)",
@@ -1046,7 +1046,7 @@
       "hole": {
         "tag": "circle",
         "class": "tag-hole",
-        "cx": 72.16259765625,
+        "cx": 69.5517578125,
         "cy": 68.8,
         "r": 1.5,
         "paint": {
@@ -1061,15 +1061,15 @@
       },
       "text": {
         "class": "tag-label",
-        "text": "cherry-pick:D",
-        "x": 80.16259765625,
+        "text": "cherry-pick:D1",
+        "x": 77.5517578125,
         "y": 72,
         "anchor": "start",
         "fontFamily": "\"Liberation Sans\"",
         "fontSize": 10,
         "fill": "rgb(19, 19, 0)",
         "opacity": 1,
-        "box": [80.163, 63, 59.675, 11]
+        "box": [77.552, 63, 64.896, 11]
       }
     },
     {
