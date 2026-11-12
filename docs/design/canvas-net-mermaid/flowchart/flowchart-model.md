@@ -86,8 +86,10 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
   `flowchart.curve`), and the spacings `nodeSpacing` and `rankSpacing` (50 when zero). A collapsed subgraph hides the
   subgraphs and vertices inside it, an edge into or out of it ends at it, and an edge inside it is dropped. A subgraph
   listed in another subgraph is nested in it wherever it is declared, so chained subgraphs nest without any nesting in
-  the text; `GetData` checks the nesting the parents make against `MaxNestingDepth` with
-  `LayoutData.CheckNestingDepth` (`subgraphs`).
+  the text; `GetData` first checks the nesting the parents make against `MaxNestingDepth` on the complete subgraph
+  graph, collapsed subgraphs and their hidden descendants included, with `LayoutData.CheckNestingDepthOf`
+  (`subgraphs`), and only then lets `CollapsedSubgraphs` (an iterative walk) hide the descendants of a collapsed
+  subgraph; a visible node has the same ancestors in the layout data, so this one check bounds both.
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, a look other than `classic`, a layout
   other than `dagre` (the `flowchart-elk` keyword sets `elk`), every node icon, and every label of a vertex, edge, or
   subgraph in which `LabelBuilder.ContainsFontAwesome` (the Rendering subsystem's shared test) finds a Font Awesome

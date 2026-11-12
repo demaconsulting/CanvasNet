@@ -96,7 +96,8 @@ is one node of shape `collapsedGroup` that is not a group, that its members are 
 it end at it, and that no cluster remains; that a subgraph without a direction has none by default and the diagram
 direction `LR` when `flowchart.inheritDir` is set; and that, with `MaxNestingDepth` of 3, four subgraphs chained by id
 (`subgraph Si` listing `S(i+1)`, the last listing `X`) fail with `mermaid-limit-exceeded` located at `X` (line 12) and
-a message naming `MermaidLimits.MaxNestingDepth`, while a chain of three passes with `X` in `S2`, `S2` in `S1`, and
+a message naming `MermaidLimits.MaxNestingDepth`, also when the root `S0` is collapsed and hides the whole chain from
+the layout data, while a chain of three passes with `X` in `S2`, `S2` in `S1`, and
 `S1` in `S0`, and a subgraph re-used inside one declared after it is nested in it.
 
 ##### CanvasNetMermaid-Flowchart-FlowchartModel-Unsupported: Reports In Order

@@ -81,7 +81,8 @@ sections:
                   direction and spacings, collapsed subgraphs that hide their content and take over the edges that
                   cross them, and the diagram direction for subgraphs without one when inheritDir is set; and shall
                   refuse, with a located mermaid-limit-exceeded, subgraphs that nest deeper than MaxNestingDepth
-                  through their ids (a subgraph listed in another one declared elsewhere).
+                  through their ids (a subgraph listed in another one declared elsewhere), also when a collapsed
+                  subgraph hides them from the layout.
                 justification: |
                   The configuration of a render is known only when it starts, and the same model must serve every
                   render with that render's settings. Subgraphs chained by id nest without any nesting in the text,
