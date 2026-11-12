@@ -638,7 +638,7 @@ internal sealed class PieDiagram : IMermaidDiagram
     /// <summary>Gets the sections in the order they were added (Mermaid's <c>getSections</c>).</summary>
     public IReadOnlyList<PieSection> Sections { get; }
 
-    /// <summary>Gets the title the diagram declares, or null (the frontmatter title is the document's fallback).</summary>
+    /// <summary>Gets the title the diagram declares, or null (the frontmatter title is the document's fallback unless IsTitleSet).</summary>
     public string? Title => DiagramTitle.Length > 0 ? DiagramTitle : null;
 
     /// <summary>Gets the accessible title, or null.</summary>

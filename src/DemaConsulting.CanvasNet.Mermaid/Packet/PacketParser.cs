@@ -722,7 +722,7 @@ internal sealed class PacketDiagram : IMermaidDiagram
     /// <summary>Gets the blocks in order.</summary>
     public IReadOnlyList<PacketBlock> Blocks { get; }
 
-    /// <summary>Gets the title the diagram declares, or null (the frontmatter title is the document's fallback).</summary>
+    /// <summary>Gets the title the diagram declares, or null (the frontmatter title is the document's fallback unless IsTitleSet).</summary>
     public string? Title => DiagramTitle.Length > 0 ? DiagramTitle : null;
 
     /// <summary>Gets the accessible title, or null.</summary>

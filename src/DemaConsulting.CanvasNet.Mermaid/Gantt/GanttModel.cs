@@ -208,7 +208,7 @@ internal sealed partial class GanttModel : IMermaidDiagram
     /// <summary>Gets the sanitized links by task id, in the order they were first set (<c>getLinks</c>).</summary>
     public IReadOnlyList<KeyValuePair<string, string>> Links => _links;
 
-    /// <summary>Gets the title the diagram declares, trimmed, or null (the frontmatter title is the document's fallback).</summary>
+    /// <summary>Gets the title the diagram declares, trimmed, or null (the frontmatter title is the document's fallback unless IsTitleSet).</summary>
     public string? Title => Preprocessor.TrimJs(DiagramTitle) is { Length: > 0 } title ? title : null;
 
     /// <summary>Gets the accessible title, or null.</summary>

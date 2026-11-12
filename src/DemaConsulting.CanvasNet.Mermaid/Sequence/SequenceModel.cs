@@ -146,7 +146,7 @@ internal sealed partial class SequenceModel
     /// <summary>Gets the accessible description (empty when there is none).</summary>
     public string AccessibleDescription { get; private set; } = string.Empty;
 
-    /// <summary>Gets the title the diagram declares, or null (the frontmatter title is the document's fallback).</summary>
+    /// <summary>Gets the title the diagram declares, or null (the frontmatter title is the document's fallback unless IsTitleSet).</summary>
     public string? Title => DiagramTitle.Length > 0 ? DiagramTitle : null;
 
     /// <summary>Gets the accessible title, or null.</summary>
