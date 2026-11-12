@@ -659,6 +659,7 @@ of the feature `mermaid-icon-unsupported`, `mermaid-layout-unsupported`, `mermai
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_TooLongText_IsRefused`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_DeepNesting_IsALocatedLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_NestingAtTheLimit_Renders`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_FlowchartNestedThroughIds_IsALocatedNestingLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_YamlAliasBomb_IsRefused`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_LongLabel_IsALimitOrWraps`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_CompleteGraph_RendersOrHitsTheWorkLimit`,
@@ -733,7 +734,10 @@ that render, and only documented exceptions from the seeded mutation fuzzer; and
 by review, that the two diagrams on which Mermaid 11.17.2 fails (a subgraph used as a node of another subgraph, a
 self-loop on a subgraph) fail with a located `mermaid-render-failed` at line 9, and that font sizes that are zero or
 infinite in single precision (in `style`, `classDef`, `linkStyle`, an HTML label, and the theme's `fontSize`) and dash
-patterns beyond single precision render a picture. For sequence diagrams, asserts that 33 nested blocks fail at open
+patterns beyond single precision render a picture; and that 32 flowchart subgraphs chained by id (`subgraph Si` listing
+`S(i+1)`, declared in order or in reverse, so a subgraph is re-used inside one declared after it) render while 40 fail
+when measured with `mermaid-limit-exceeded` and the message `subgraphs are nested deeper than 32 levels`, located at
+`subgraph S33` (line 101 in order, line 20 in reverse). For sequence diagrams, asserts that 33 nested blocks fail at open
 with a located `mermaid-limit-exceeded` while 32 render, that 2,001 participants fail at the extra participant (line
 2,002), that 1,000 boxes of one participant each fail at the next box (line 3,002), that a participant metadata alias of
 9,000 `1e20` numbers (about 45,000 characters, 197,999 once converted) fails with `MaxLabelLength` at its line, and that

@@ -77,7 +77,9 @@ tests open all of them, and the system-level reference layout tests compare thei
 located `MermaidSyntaxException`: a grammar or lexical error (with Mermaid's expected tokens), what Mermaid's database
 fails on (a subgraph without a name, an unknown shape, a `linkStyle` index without an edge, invalid YAML), and the
 limits of the open call (`MaxNestingDepth` in the parser; `MaxEdges`, `MaxNodes`, and `MaxLabelLength` in the model).
-A render of an opened flowchart only reports what it does not draw (look, layout, icons) and then draws.
+A render of an opened flowchart only reports what it does not draw (look, layout, icons) and then draws; it fails,
+located, only for the nesting that subgraphs chained by id make beyond `MaxNestingDepth`, which the text does not show
+(`GetData`), and for the limits of the shared rendering.
 
 **Deterministic and bounded.** The parser and the model hold no shared state; a parsed model is never changed again,
 so it is safe for concurrent renders. The lexer replaces every regular expression of Mermaid with a scanner that cannot

@@ -86,14 +86,18 @@ a flowchart without accessibility statements has no accessible title and no titl
 
 **Tests**: `FlowchartModelTests.FlowchartModel_GetData_Shapes_FollowGetTypeFromVertex`,
 `FlowchartModelTests.FlowchartModel_GetData_CollapsedSubgraph_RedirectsEdges`,
-`FlowchartModelTests.FlowchartModel_GetData_InheritDirection_GivesDiagramDirection`
+`FlowchartModelTests.FlowchartModel_GetData_InheritDirection_GivesDiagramDirection`,
+`FlowchartModelTests.FlowchartModel_GetData_SubgraphsNestedThroughIds_ThrowsLimitExceeded`
 
 Asserts the shapes `squareRect`, `roundedRect`, `ellipse`, `imageSquare`, `iconCircle`, and `diam` for a square
 bracket, a round bracket, the ellipse bracket, an image, an icon with the circle form, and a shape alias, the markers
 `point`, `circle`, and `cross`, the direction `LR`, the spacings 50, and the layout `dagre`; that a collapsed subgraph
 is one node of shape `collapsedGroup` that is not a group, that its members are hidden, that the edges into and out of
-it end at it, and that no cluster remains; and that a subgraph without a direction has none by default and the diagram
-direction `LR` when `flowchart.inheritDir` is set.
+it end at it, and that no cluster remains; that a subgraph without a direction has none by default and the diagram
+direction `LR` when `flowchart.inheritDir` is set; and that, with `MaxNestingDepth` of 3, four subgraphs chained by id
+(`subgraph Si` listing `S(i+1)`, the last listing `X`) fail with `mermaid-limit-exceeded` located at `X` (line 12) and
+a message naming `MermaidLimits.MaxNestingDepth`, while a chain of three passes with `X` in `S2`, `S2` in `S1`, and
+`S1` in `S0`, and a subgraph re-used inside one declared after it is nested in it.
 
 ##### CanvasNetMermaid-Flowchart-FlowchartModel-Unsupported: Reports In Order
 

@@ -21,11 +21,19 @@ internal sealed partial class FlowchartModel
     /// <remarks>
     ///     The clusters come first, last declared first; then the vertices in declaration order, except those hidden in
     ///     a collapsed subgraph; a vertex with the id of a subgraph updates the subgraph's node instead. Edges keep their
-    ///     order; an edge into or out of a collapsed subgraph is redirected to it, and one inside it is dropped.
+    ///     order; an edge into or out of a collapsed subgraph is redirected to it, and one inside it is dropped. A subgraph
+    ///     listed in another subgraph is nested in it wherever the subgraph itself is declared, so chained subgraphs nest
+    ///     without any nesting in the text; the nesting the parents make is checked against
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/> (<see cref="LayoutData.CheckNestingDepth"/>), as the parser checks
+    ///     the nested <c>subgraph</c> blocks.
     /// </remarks>
     /// <param name="config">The effective configuration of the render.</param>
     /// <param name="diagramType">The diagram type as Mermaid names it (<c>flowchart-v2</c> or <c>flowchart-elk</c>).</param>
     /// <returns>The layout data.</returns>
+    /// <exception cref="MermaidRenderException">
+    ///     Thrown, located, with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> when the subgraphs nest deeper than
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/>.
+    /// </exception>
     public LayoutData GetData(MermaidConfig config, string diagramType)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -130,7 +138,7 @@ internal sealed partial class FlowchartModel
             });
         }
 
-        return new LayoutData(nodes, LayoutEdges(config, collapsedAncestor), config)
+        var data = new LayoutData(nodes, LayoutEdges(config, collapsedAncestor), config)
         {
             DiagramType = diagramType,
             Direction = Direction,
@@ -138,6 +146,10 @@ internal sealed partial class FlowchartModel
             RankSpacing = config.Flowchart.RankSpacing is not 0 and not double.NaN ? config.Flowchart.RankSpacing : 50,
             Markers = ["point", "circle", "cross"],
         };
+
+        // A subgraph listed in another subgraph declared elsewhere is nested in it, without any nesting in the text
+        data.CheckNestingDepth(_limits.MaxNestingDepth, "subgraphs");
+        return data;
     }
 
     /// <summary>

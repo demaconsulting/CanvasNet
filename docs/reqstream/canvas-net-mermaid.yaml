@@ -794,6 +794,7 @@ sections:
           - CanvasNetMermaid_Hardening_TooLongText_IsRefused
           - CanvasNetMermaid_Hardening_DeepNesting_IsALocatedLimit
           - CanvasNetMermaid_Hardening_NestingAtTheLimit_Renders
+          - CanvasNetMermaid_Hardening_FlowchartNestedThroughIds_IsALocatedNestingLimit
           - CanvasNetMermaid_Hardening_YamlAliasBomb_IsRefused
           - CanvasNetMermaid_Hardening_LongLabel_IsALimitOrWraps
           - CanvasNetMermaid_Hardening_CompleteGraph_RendersOrHitsTheWorkLimit

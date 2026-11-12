@@ -84,7 +84,10 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
   when `flowchart.inheritDir` is set), the edge markers of `destructEdgeType` (none for open and invisible edges), the
   edge styles (`linkStyle default` and then its own), the curve (its own, else `linkStyle default interpolate`, else
   `flowchart.curve`), and the spacings `nodeSpacing` and `rankSpacing` (50 when zero). A collapsed subgraph hides the
-  subgraphs and vertices inside it, an edge into or out of it ends at it, and an edge inside it is dropped.
+  subgraphs and vertices inside it, an edge into or out of it ends at it, and an edge inside it is dropped. A subgraph
+  listed in another subgraph is nested in it wherever it is declared, so chained subgraphs nest without any nesting in
+  the text; `GetData` checks the nesting the parents make against `MaxNestingDepth` with
+  `LayoutData.CheckNestingDepth` (`subgraphs`).
 - **`ReportUnsupported(MermaidConfig, MermaidReportSink)`** reports, in order, a look other than `classic`, a layout
   other than `dagre` (the `flowchart-elk` keyword sets `elk`), every node icon, and every label of a vertex, edge, or
   subgraph in which `LabelBuilder.ContainsFontAwesome` (the Rendering subsystem's shared test) finds a Font Awesome
@@ -115,6 +118,10 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
     shape-data label, accessible title, or accessible description longer than `MaxLabelLength`
     (`mermaid-limit-exceeded`).
 - `ReportUnsupported` throws `MermaidUnsupportedFeatureException` through the sink at the first report in strict mode.
+- `GetData` throws a `MermaidRenderException` with code `mermaid-limit-exceeded` when subgraphs nest deeper than
+  `MaxNestingDepth` through their parents (`subgraphs are nested deeper than N levels`), located at the first vertex or
+  subgraph one level too deep (the `subgraph` keyword, or the vertex's first mention); a cycle of parents is left to
+  the layout, which fails on it.
 - `Layout` propagates the render errors of the shared rendering (`MermaidRenderException` for the layout work, image,
   and pixel limits and for layouts Mermaid cannot draw, `OperationCanceledException` for a canceled token).
 - The public methods throw `ArgumentNullException` for null arguments.
@@ -149,7 +156,10 @@ order with type, pattern, length, markers, styles, curve, and animation; the dir
 - **Limits at open.** `MaxEdges`, `MaxNodes` (vertices and subgraphs together), and `MaxLabelLength` (every label and
   title, and the accessible title and description) refuse the text when the document is opened, as a
   `MermaidSyntaxException` with code `mermaid-limit-exceeded`. Mermaid's `maxEdges` of a site configuration is not
-  consulted; only `MermaidLimits.MaxEdges` (with the same default of 500) applies.
+  consulted; only `MermaidLimits.MaxEdges` (with the same default of 500) applies. Subgraphs nested deeper than
+  `MaxNestingDepth` through their ids (a subgraph listed in another one declared elsewhere) are refused when the
+  diagram is laid out, as a `MermaidRenderException` with the same code; the parser refuses nested `subgraph` blocks
+  at open.
 - **Shape-data values.** Values that are not strings (a numeric `label`, `icon`, or `curve`) are converted with
   JavaScript's `String()`; `curve: null` is ignored; `shape: constructor`, which Mermaid accepts through a JavaScript
   prototype accident, is refused as an unknown shape.

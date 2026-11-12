@@ -232,6 +232,40 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates the regression that subgraphs nested through their ids, without any nesting in the text, are held to
+    ///     <see cref="MermaidLimits.MaxNestingDepth"/> as nested <c>subgraph</c> blocks are: a chain of subgraphs that each
+    ///     lists the next (<c>subgraph S0 / S1 / end</c>, then <c>subgraph S1 / S2 / end</c>, ...), and the same chain
+    ///     declared in reverse order (a subgraph re-used inside one declared after it), fail when the diagram is measured,
+    ///     located at the subgraph statement of the first subgraph one level too deep; at the limit they render.
+    /// </summary>
+    /// <param name="reversed">Whether the subgraphs are declared innermost first.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CanvasNetMermaid_Hardening_FlowchartNestedThroughIds_IsALocatedNestingLimit(bool reversed)
+    {
+        // Arrange: subgraph Si lists S(i+1); declared in order, Si is on lines 2 + 3i to 4 + 3i
+        static string Chain(int count, bool reversed)
+        {
+            var order = Enumerable.Range(0, count);
+            return "flowchart TB\n" + string.Concat((reversed ? order.Reverse() : order).Select(i => $"subgraph S{i}\nS{i + 1}\nend\n"));
+        }
+
+        var accepted = MermaidDocument.Parse(Chain(32, reversed));
+        var refused = MermaidDocument.Parse(Chain(40, reversed));
+
+        // Act
+        var size = accepted.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => refused.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert: S33 is the first id inside 33 subgraphs; the report is at its subgraph statement, line 2 + 3 x 33 (in order) or 2 + 3 x 6 (reversed)
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(reversed ? 20 : 101, exception.Location.Line);
+        Assert.Contains("subgraphs are nested deeper than 32 levels (MermaidLimits.MaxNestingDepth)", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a YAML alias bomb in the frontmatter is refused (anchors and aliases are not supported).
     /// </summary>
     [Fact]
