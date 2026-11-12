@@ -20,7 +20,7 @@ internal sealed partial class LabelBuilder
     private const double LayoutUnits = 64;
 
     /// <summary>The elements of a label that are understood (the rest is dropped with its text kept).</summary>
-    private static readonly HashSet<string> KnownElements = new(StringComparer.Ordinal) { "b", "strong", "i", "em", "br", "img", "span", "p" };
+    private static readonly HashSet<string> KnownElements = new(StringComparer.Ordinal) { "b", "strong", "i", "em", "u", "ins", "br", "img", "span", "p" };
 
     /// <summary>
     ///     The kind of an inline item of an HTML label.
@@ -240,6 +240,9 @@ internal sealed partial class LabelBuilder
             {
                 "b" or "strong" => current with { Font = current.Font with { Bold = true } },
                 "i" or "em" => current with { Font = current.Font with { Italic = true } },
+
+                // Chrome's user-agent style sheet underlines both (text-decoration: underline), and DOMPurify keeps both
+                "u" or "ins" => current with { Underline = true },
                 "span" when tag.Attribute("style") is { } style => ApplyStyle(current, style, request.Location),
                 _ => current,
             };
@@ -251,7 +254,7 @@ internal sealed partial class LabelBuilder
                 MermaidDiagnosticCodes.HtmlTagIgnored,
                 $"the HTML element <{name}> of a label is not supported; its text is drawn without it.",
                 request.Location,
-                "use <b>, <strong>, <i>, <em>, <br>, <img> or <span style=\"...\"> in labels");
+                "use <b>, <strong>, <i>, <em>, <u>, <ins>, <br>, <img> or <span style=\"...\"> in labels");
         }
 
         return items;
@@ -294,7 +297,7 @@ internal sealed partial class LabelBuilder
             color = color with { A = (byte)Math.Round(color.A * factor, MidpointRounding.AwayFromZero) };
         }
 
-        return new HtmlStyle(font, color);
+        return style with { Font = font, Color = color };
     }
 
     /// <summary>
@@ -401,7 +404,7 @@ internal sealed partial class LabelBuilder
             }
         }
 
-        var measured = runs.Select(run => new LabelRun(run.Text, run.Style.Font, run.Style.Color, HtmlAdvance(run.Text, run.Style.Font))).ToList();
+        var measured = runs.Select(run => new LabelRun(run.Text, run.Style.Font, run.Style.Color, HtmlAdvance(run.Text, run.Style.Font)) { Underline = run.Style.Underline }).ToList();
         return new HtmlLine(measured, measured.Sum(run => run.Width), null);
     }
 
@@ -512,13 +515,13 @@ internal sealed partial class LabelBuilder
             foreach (var piece in line.Where(piece => piece.Style is not null))
             {
                 // Pieces of one style merge into one run
-                if (runs.Count > 0 && runs[^1].Font == piece.Style!.Font && runs[^1].Color == piece.Style.Color)
+                if (runs.Count > 0 && runs[^1].Font == piece.Style!.Font && runs[^1].Color == piece.Style.Color && runs[^1].Underline == piece.Style.Underline)
                 {
                     runs[^1] = runs[^1] with { Text = runs[^1].Text + piece.Text, Width = runs[^1].Width + piece.Width };
                 }
                 else
                 {
-                    runs.Add(new LabelRun(piece.Text, piece.Style!.Font, piece.Style.Color, piece.Width));
+                    runs.Add(new LabelRun(piece.Text, piece.Style!.Font, piece.Style.Color, piece.Width) { Underline = piece.Style.Underline });
                 }
             }
 
@@ -692,7 +695,8 @@ internal sealed partial class LabelBuilder
     /// </summary>
     /// <param name="Font">The font.</param>
     /// <param name="Color">The color.</param>
-    private sealed record HtmlStyle(SceneFont Font, Rgba32 Color);
+    /// <param name="Underline">Whether the content is underlined (inside <c>&lt;u&gt;</c> or <c>&lt;ins&gt;</c>).</param>
+    private sealed record HtmlStyle(SceneFont Font, Rgba32 Color, bool Underline = false);
 
     /// <summary>
     ///     An inline item of an HTML label.

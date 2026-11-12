@@ -229,7 +229,7 @@ Graph Syntax*.
 | Node shapes | Every bracket form (`[ ]`, `( )`, `([ ])`, `[[ ]]`, `[( )]`, `(( ))`, `((( )))`, `> ]`, `{ }`, `{{ }}`, `[/ /]`, `[\ \]`, `[/ \]`, `[\ /]`) and the `@{ shape: ... }` syntax with all of Mermaid's named shapes (`rect`, `rounded`, `stadium`, `cyl`, `diam`, `hex`, `doc`, `docs`, `fork`, `delay`, and so on) |
 | Links | Arrows, open links, dotted (`-.->`) and thick (`==>`) links, circle (`--o`) and cross (`--x`) heads, two-headed links, longer links (`--->`), labels (`-- text -->` and `-->\|text\|`), chains and `&` groups, invisible links (`~~~`), self-loops, and edge ids (`e1@-->`) with `curve` and `animate` shape data |
 | Subgraphs | Titles, nesting, their own `direction`, and links to and from a subgraph |
-| Labels | Quoted text, Markdown strings (`` "`**bold** and *italic*`" ``), `<br>` and the common inline tags (`b`, `strong`, `i`, `em`, `span` with a style, `img`), entity codes (`#quot;`, `#35;`), and wrapping at `wrappingWidth` |
+| Labels | Quoted text, Markdown strings (`` "`**bold** and *italic*`" ``), `<br>` and the common inline tags (`b`, `strong`, `i`, `em`, `u`, `ins`, `span` with a style, `img`), entity codes (`#quot;`, `#35;`), and wrapping at `wrappingWidth` |
 | Styles | `style`, `classDef` (including `classDef default`), `class`, `:::`, and `linkStyle` (including `default` and `interpolate`), with `fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`, `font-weight`, `font-style`, `font-size`, `font-family`, and `opacity` |
 | Configuration | YAML frontmatter (`title`, `config`), `%%{init: ...}%%` directives, the five themes (`default`, `base`, `dark`, `forest`, `neutral`), `themeVariables`, and the flowchart settings (`nodeSpacing`, `rankSpacing`, `curve`, `padding`, `wrappingWidth`, and so on), with Mermaid's precedence |
 | Pictures | `@{ img: "part.png", label, pos, w, h, constraint }` nodes and `<img>` in labels, through the caller's resolver |
@@ -821,7 +821,8 @@ The known differences from Mermaid are:
 - **Fonts.** Mermaid uses the fonts of the browser, so its pictures differ from these where Trebuchet MS is installed.
   Against Mermaid drawn with Liberation Sans the text widths agree to a fraction of a pixel.
 - **Labels.** HTML labels are emulated with Mermaid's rules (a line box of 1.5 em, wrapping at `wrappingWidth`). Only
-  the tags `b`, `strong`, `i`, `em`, `br`, `img`, and `span` with a style are drawn; other tags are dropped with their
+  the tags `b`, `strong`, `i`, `em`, `u`, `ins` (underlined), `br`, `img`, and `span` with a style are drawn; other
+  tags are dropped with their
   text kept (`mermaid-html-tag-ignored`). Markdown labels support paragraphs, strong, and emphasis; links, tables, and
   strikethrough are plain text.
 - **Icons, looks, and layouts.** Icons are not drawn, the `handDrawn` and `neo` looks are drawn classic (a mindmap

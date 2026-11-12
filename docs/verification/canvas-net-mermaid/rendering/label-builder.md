@@ -90,12 +90,15 @@ the common indentation is removed as `ts-dedent` removes it.
 ##### CanvasNetMermaid-Rendering-LabelBuilder-HtmlSubset: The HTML Subset Is Styled And The Rest Reported
 
 **Tests**: `LabelBuilderTests.LabelBuilder_Build_StyledElements_StyleTheRuns`,
+`LabelBuilderTests.LabelBuilder_Build_UnderlineElements_UnderlineTheRuns`,
 `LabelBuilderTests.LabelBuilder_Build_UnsupportedElement_ReportsAndKeepsText`,
 `LabelBuilderTests.LabelBuilder_Build_HtmlIcon_IsRemovedSilently`
 
 Asserts that `b`, `i`, and a span with a color and a 20 pixel size style their runs (the line box growing to 30
-pixels), that two `u` elements are dropped with their text kept and reported once as `mermaid-html-tag-ignored` at the
-label's location, and that an icon name is removed from an HTML label without a report.
+pixels), that `u` and `ins` underline their runs and no other run, on one line and after wrapping, and keep the
+underline in the scene text without a report, that two `s` elements are dropped with their text kept and reported once
+as `mermaid-html-tag-ignored` at the label's location, and that an icon name is removed from an HTML label without a
+report.
 
 ##### CanvasNetMermaid-Rendering-LabelBuilder-Entities: Entities Are Decoded Before Measuring
 

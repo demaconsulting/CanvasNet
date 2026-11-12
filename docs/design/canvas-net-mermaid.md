@@ -596,10 +596,10 @@ misses (item 62 below).
    subpixel advances while CanvasNet applies the `kern` table; label widths differ by well under a pixel. Pictures
    differ from a stock `mmdc` render on a machine that has Trebuchet MS.
 2. **HTML labels** are emulated with Mermaid's DOM-derived constants (line box 1.5 em, `max-width` the wrapping
-   width, the no-wrap then break retry, run widths rounded up to 1/64 pixel). Only `b`, `strong`, `i`, `em`, `br`,
-   `img`, `p`, and `span` with a style are honored; other elements keep their text and are reported
-   (`mermaid-html-tag-ignored`) and their size effect is not modeled. Mixed font sizes on one line use the tallest
-   line box.
+   width, the no-wrap then break retry, run widths rounded up to 1/64 pixel). Only `b`, `strong`, `i`, `em`, `u`,
+   `ins`, `br`, `img`, `p`, and `span` with a style are honored (`u` and `ins` underline, as in Chrome); other elements
+   keep their text and are reported (`mermaid-html-tag-ignored`) and their size effect is not modeled. Mixed font sizes
+   on one line use the tallest line box.
 3. **SVG labels** (`htmlLabels: false`) emulate `getBBox` with the rounded hhea metrics and outline bounds (typically
    0.1 pixel, at most 1.6 pixel different).
 4. **Markdown** is the subset of marked that labels use (paragraphs, strong and emphasis, escapes, inline HTML, code
