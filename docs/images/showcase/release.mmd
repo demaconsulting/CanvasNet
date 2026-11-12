@@ -1,0 +1,19 @@
+---
+config:
+  sequence:
+    mirrorActors: false
+    width: 120
+    actorMargin: 40
+---
+%% A small sequence diagram. composition.svg shows it with the dark theme through the link release.mmd#theme=dark.
+sequenceDiagram
+    actor Dev as Developer
+    participant CI as Build server
+    participant Feed as Package feed
+    Dev->>CI: Push tag v1.2
+    Note over CI: Build and test
+    alt tests pass
+        CI->>Feed: Publish
+    else tests fail
+        CI-->>Dev: Report failure
+    end

@@ -23,15 +23,46 @@ codecs for loading and saving images in common file formats. It's designed for f
 image operations using `Span<T>`, and supports independent-copy cropping and high-quality resizing for
 load/crop/resize/save workflows.
 
-![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a PDF page with mesh shadings, a PowerPoint slide with a chart, and a Visio diagram, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
+![CanvasNet showcase: an SVG dashboard, an OpenSCAD 3D model, a Vega-Lite bar chart, a Mermaid flowchart, a PDF page with mesh shadings, a PowerPoint slide with a chart, a Visio diagram, and an SVG page that composes several of them, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/showcase.png)
 
-*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, PDF, PowerPoint, and Visio. See
+*Rendered with the `canvasnet` tool: SVG, OpenSCAD 3D, Vega-Lite, Mermaid, PDF, PowerPoint, Visio, and a composition
+of them (see the Composition section below). See
 [how the image was made](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
 
 ![The Vega-Lite gallery: a line chart, stacked bars, a binned heat map, a donut, a density estimate, and a dark-themed chart, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/vegalite-gallery.png)
 
 *Six of the 18 charts of the Vega-Lite gallery in the user guide; every chart of the gallery is an original
 specification and is rendered, in strict mode, by a test.*
+
+![Six Mermaid diagram types: a sequence diagram, a class diagram, a state diagram, a gantt chart, a mindmap, and a git graph, all rendered by CanvasNet](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/mermaid-gallery.png)
+
+*Six of the ten Mermaid diagram types CanvasNet draws (sequence, class, state, gantt, mindmap, and git graph), each
+from the examples of the user guide, rendered in strict mode with ports of Mermaid's own layouts.*
+
+## Composition
+
+Any format CanvasNet reads can be a picture inside another. An SVG `<image href>` names any such file, a Mermaid node
+shows one (`part@{ img: "part.scad" }`, or `<img src="part.scad">` in a label), and a Vega-Lite `image` mark can too.
+Links go through a sandboxed resolver: only the document's own folder and below, never the network. A URL fragment
+passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=` and `def.<name>=`
+(OpenSCAD views and variables), `param.<name>=` (Vega-Lite parameters), and `#theme=` (Mermaid); join several with
+`&amp;` in XML.
+
+```xml
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720">
+  <image href="pipeline.mmd" x="32" y="128" width="896" height="164"/> <!-- its nodes show .scad and .vl.json -->
+  <image href="explode.scad#def.explode=1" x="250" y="416" width="210" height="230"/>
+  <image href="release.mmd#theme=dark" x="504" y="416" width="424" height="250"/>
+</svg>
+```
+
+![An SVG page titled System overview: a Mermaid flowchart whose nodes show an OpenSCAD enclosure and a Vega-Lite bar chart, one OpenSCAD assembly drawn twice with different explode fragments, and a Mermaid sequence diagram drawn with the dark theme](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/composition.png)
+
+*One SVG page, three levels deep: SVG, then Mermaid, then OpenSCAD and Vega-Lite. See
+[its sources](https://github.com/demaconsulting/CanvasNet/blob/main/docs/images/README.md).*
+
+`canvasnet flatten overview.svg -o overview-flat.svg` turns such a composite SVG into a self-contained one whose links
+are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline shows it.
 
 ## Features
 
@@ -74,9 +105,9 @@ specification and is rendered, in strict mode, by a test.*
 - 🔣 **Glyph Fallback** - A character a font lacks (`∝`, `≫`, arrows, math signs) is drawn from bundled Noto fonts,
   the same on every machine; `GlyphFallback.FindMissing` lists the rest
 - 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
-- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, other SVG files, document pages
-  (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the `Viewer` package lists
-  every format, and you can add your own source
+- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, Mermaid diagrams, other SVG files, document
+  pages (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the `Viewer` package
+  lists every format, and you can add your own source
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with

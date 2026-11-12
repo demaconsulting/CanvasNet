@@ -1,0 +1,15 @@
+---
+title: Order fulfillment
+---
+%% The Mermaid panel of showcase.png: a title, a check with two branches, a dotted link, a subgraph laid out left to
+%% right inside a top-down chart, and a class.
+flowchart TB
+    order([Order received]) --> stock{{In stock?}}
+    stock -- yes --> warehouse
+    stock -- no --> supplier[Order from supplier]
+    supplier -.-> warehouse
+    subgraph warehouse [Warehouse]
+        direction LR
+        pick[Pick items] --> pack[Pack box] --> label[Print label] --> ship([Ship]):::done
+    end
+    classDef done fill:#d1fae5,stroke:#059669
