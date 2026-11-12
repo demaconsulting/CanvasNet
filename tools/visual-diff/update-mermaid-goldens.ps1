@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Developer tool: regenerates the Mermaid layout goldens (test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/
-    reference/*.layout.json and reference/{sequence,class,state,er,pie,gantt,mindmap,packet}/*.layout.json) from the reference implementation.
+    reference/*.layout.json and reference/{sequence,class,state,er,pie,gantt,mindmap,packet,gitgraph}/*.layout.json) from the reference implementation.
 
 .DESCRIPTION
     Not part of the build, the tests, or CI. It runs render-mermaid.mjs (the repository's pinned mermaid-cli and
@@ -19,7 +19,10 @@
     - mindmap: Fixtures/mindmap/*.mmd to Fixtures/reference/mindmap/*.layout.json (MermaidMindmapReferenceLayoutTests;
       each mindmap is drawn twice and must give the same layout, and the run fails if cose-bilkent ever calls
       Math.random);
-    - packet: Fixtures/packet/*.mmd to Fixtures/reference/packet/*.layout.json (MermaidChartReferenceLayoutTests).
+    - packet: Fixtures/packet/*.mmd to Fixtures/reference/packet/*.layout.json (MermaidChartReferenceLayoutTests);
+    - gitgraph: Fixtures/gitgraph/*.mmd to Fixtures/reference/gitgraph/*.layout.json (MermaidGitGraphReferenceLayoutTests;
+      drawn with --seed-random, so that the ids Mermaid generates for commits without one are those of the fixed
+      sequence of mermaid/seeded-random.mjs, which CanvasNet uses too).
 
     The fixtures in $Excluded get no golden; Fixtures/reference/README.md gives the reason of each. A golden change
     in a pull request is reviewed like code: the diff shows which coordinates moved.
@@ -28,16 +31,16 @@
     puppeteer with its headless Chrome); it refuses any mermaid but the pinned 11.17.2.
 
 .PARAMETER Diagram
-    The diagram types to regenerate (flowchart, sequence, class, state, er, pie, gantt, mindmap, packet; default:
-    all).
+    The diagram types to regenerate (flowchart, sequence, class, state, er, pie, gantt, mindmap, packet, gitgraph;
+    default: all).
 
 .PARAMETER Fixture
     The names of the fixtures to regenerate (without .mmd; default: every fixture that is not excluded).
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('flowchart', 'sequence', 'class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet')]
-    [string[]]$Diagram = @('flowchart', 'sequence', 'class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet'),
+    [ValidateSet('flowchart', 'sequence', 'class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet', 'gitgraph')]
+    [string[]]$Diagram = @('flowchart', 'sequence', 'class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet', 'gitgraph'),
 
     [string[]]$Fixture
 )
@@ -56,6 +59,7 @@ $Folders = @{
     gantt     = @{ Source = 'gantt'; Golden = 'reference/gantt' }
     mindmap   = @{ Source = 'mindmap'; Golden = 'reference/mindmap' }
     packet    = @{ Source = 'packet'; Golden = 'reference/packet' }
+    gitgraph  = @{ Source = 'gitgraph'; Golden = 'reference/gitgraph'; Options = @('--seed-random') }
 }
 
 # Fixtures whose reference depends on the machine (see Fixtures/reference/README.md)
@@ -69,6 +73,7 @@ $Excluded = @{
     gantt     = @()
     mindmap   = @()
     packet    = @()
+    gitgraph  = @()
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -100,7 +105,8 @@ foreach ($type in $Diagram) {
         continue
     }
 
-    node (Join-Path $PSScriptRoot 'render-mermaid.mjs') --layout-dir $goldenDir @files
+    $options = @(if ($Folders[$type].ContainsKey('Options')) { $Folders[$type].Options })
+    node (Join-Path $PSScriptRoot 'render-mermaid.mjs') --layout-dir $goldenDir @options @files
     if ($LASTEXITCODE -ne 0) {
         throw 'render-mermaid.mjs failed (see the message above).'
     }

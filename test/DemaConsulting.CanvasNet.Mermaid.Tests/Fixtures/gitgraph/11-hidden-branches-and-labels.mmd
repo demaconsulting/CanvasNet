@@ -1,0 +1,17 @@
+---
+config:
+  gitGraph:
+    showBranches: false
+    showCommitLabel: false
+---
+gitGraph
+    commit id: "A" tag: "start"
+    branch dev
+    commit id: "B"
+    checkout main
+    commit id: "C"
+    checkout dev
+    commit id: "D" tag: "one" tag: "two"
+    merge main id: "N"
+    checkout main
+    merge dev tag: "done"

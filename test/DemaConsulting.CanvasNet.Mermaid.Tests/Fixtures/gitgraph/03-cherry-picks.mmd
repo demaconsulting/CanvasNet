@@ -1,0 +1,17 @@
+gitGraph
+    commit id: "ZERO"
+    branch develop
+    commit id: "A"
+    commit id: "B"
+    checkout main
+    cherry-pick id: "A"
+    cherry-pick id: "B" tag: "picked"
+    checkout develop
+    commit id: "C"
+    checkout main
+    merge develop id: "MERGE"
+    branch release
+    commit id: "R1"
+    cherry-pick id: "MERGE" parent: "C"
+    checkout develop
+    cherry-pick id: "R1" tag: ""

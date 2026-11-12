@@ -1,0 +1,16 @@
+---
+config:
+  theme: forest
+---
+gitGraph
+    commit id: "A"
+    commit id: "B" type: REVERSE tag: "v1"
+    branch dev
+    commit id: "C" type: HIGHLIGHT
+    branch feat
+    commit id: "D"
+    checkout main
+    cherry-pick id: "C"
+    merge feat id: "M" tag: "release"
+    checkout dev
+    merge main

@@ -1,0 +1,31 @@
+gitGraph
+    commit id: "A"
+    branch dev
+    commit id: "B"
+    branch feat
+    commit id: "C"
+    checkout main
+    commit id: "D"
+    checkout dev
+    commit id: "E"
+    merge main id: "N1"
+    checkout main
+    commit id: "F"
+    checkout dev
+    commit id: "G"
+    merge main id: "N2"
+    checkout main
+    commit id: "H"
+    checkout dev
+    commit id: "I"
+    merge main id: "N3"
+    checkout main
+    commit id: "J"
+    checkout dev
+    commit id: "K"
+    merge main id: "N4"
+    checkout feat
+    commit id: "L"
+    checkout main
+    cherry-pick id: "C"
+    merge feat id: "M"

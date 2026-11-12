@@ -4,8 +4,8 @@
 //
 // Developer tooling of tools/visual-diff; see the README there. Usage:
 //
-//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet [--modules <folder>] [--out <file>]
-//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet [--modules <folder>] --probe <file>
+//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet|gitgraph [--modules <folder>] [--out <file>]
+//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet|gitgraph [--modules <folder>] --probe <file>
 //
 // <type> selects the cases (<type>-vector-cases.mjs next to this script) and the facts recorded: for class, the ClassDB
 // classes, relations, notes and namespaces; for state, the StateDB statement tree (after the translation of start, end and
@@ -13,7 +13,7 @@
 // subgraphs; and for each of those, the reduced getData() nodes and edges; for pie, the PieDB sections (each value as
 // String() writes it), showData, title and accessibility texts; for gantt, the GanttDB statements (date and axis formats, tick
 // interval, today marker, includes, excludes, weekday, inclusive end dates, top axis, display mode, sections, links,
-// title and accessibility texts) and the tasks of getTasks() (their dates in milliseconds), or the error getTasks throws; for mindmap, the MindmapDB nodes in the order they were added (with the sections getData assigns) and the getData() nodes and edges; for packet, the PacketDB title and accessibility texts, the effective packet configuration (getConfig()) and the rows of getPacket() (each block's start, end, bits and label; the first and last 50 rows of a diagram with more than 100). <modules> is a folder that holds node_modules/mermaid
+// title and accessibility texts) and the tasks of getTasks() (their dates in milliseconds), or the error getTasks throws; for mindmap, the MindmapDB nodes in the order they were added (with the sections getData assigns) and the getData() nodes and edges; for packet, the PacketDB title and accessibility texts, the effective packet configuration (getConfig()) and the rows of getPacket() (each block's start, end, bits and label; the first and last 50 rows of a diagram with more than 100); for gitgraph, the git graph database (the direction, title and accessibility texts, the effective gitGraph configuration of getConfig(), the commits in the order of the commit map with all their fields, the head of each branch, the branch order of getBranchesAsObjArray(), the current branch and the head commit), with Math.random seeded (seeded-random.mjs) so that the ids mermaid generates are the same in every run. <modules> is a folder that holds node_modules/mermaid
 // and node_modules/puppeteer (default: the repository root). <out> is the vector file (default:
 // test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/<type>-parser.json). --probe runs the texts of a
 // JSON file (an array of strings) and prints the results instead (a development aid).
@@ -32,14 +32,15 @@ import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { GIT_ID_SEED, installSeededRandom } from './seeded-random.mjs';
 
 // The repository root is three folders above tools/visual-diff/mermaid
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..', '..');
 
 // Read the arguments
-const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet [--modules <folder>] [--out <file> | --probe <file>]';
-const types = ['class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet'];
+const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet|gitgraph [--modules <folder>] [--out <file> | --probe <file>]';
+const types = ['class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet', 'gitgraph'];
 const args = process.argv.slice(2);
 let type = null;
 let modules = root;
@@ -285,10 +286,34 @@ function packetFacts(diagram) {
     ...(rows.length > 100 ? { truncated: true, rows: [...rows.slice(0, 50), ...rows.slice(-50)] } : { rows })
   };
 }
-const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts, gantt: ganttFacts, mindmap: mindmapFacts, packet: packetFacts };
+
+// Runs in the page: the facts of a git graph (the gitGraph database): the direction, the title and accessibility texts,
+// the effective gitGraph configuration (getConfig()), the commits in the order of the commit map (a commit whose id is
+// used again keeps its place and takes the new value) with all their fields (customType and customId of a merge only),
+// the head commit of each branch (null before its first commit), the branch order of getBranchesAsObjArray(), the
+// current branch and the head commit
+function gitgraphFacts(diagram) {
+  const db = diagram.db;
+  const commit = (c) => JSON.parse(JSON.stringify({ id: c.id, message: c.message, seq: c.seq, type: c.type,
+    customType: c.customType, customId: c.customId, tags: c.tags, parents: c.parents, branch: c.branch }));
+  return {
+    type: diagram.type,
+    direction: db.getDirection(),
+    title: db.getDiagramTitle(),
+    accTitle: db.getAccTitle(),
+    accDescr: db.getAccDescription(),
+    config: db.getConfig(),
+    commits: [...db.getCommits().values()].map(commit),
+    branches: [...db.getBranches().entries()].map(([name, head]) => ({ name, head: head ?? null })),
+    branchOrder: db.getBranchesAsObjArray().map((b) => b.name),
+    currentBranch: db.getCurrentBranch(),
+    head: db.getHead()?.id ?? null
+  };
+}
+const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts, gantt: ganttFacts, mindmap: mindmapFacts, packet: packetFacts, gitgraph: gitgraphFacts };
 // The diagram ids (diagram.type) whose facts each type records: the legacy ids draw (class) or parse (state) the same
 // way
-const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'], gantt: ['gantt'], mindmap: ['mindmap'], packet: ['packet'] };
+const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'], gantt: ['gantt'], mindmap: ['mindmap'], packet: ['packet'], gitgraph: ['gitGraph'] };
 
 // The fixed clock of every page (mermaid's gantt chart reads the time for "today"): a Date whose constructor without
 // arguments and now() give this instant; the pages also run in the UTC time zone, the zone of the CanvasNet port
@@ -319,6 +344,10 @@ const runCase = async (browser, text, site) => {
     await page.goto('about:blank');
     await page.evaluate(fixClock, fixedNow);
     await page.addScriptTag({ path: join(mermaidFolder, 'dist', 'mermaid.min.js') });
+    if (type === 'gitgraph') {
+      // The ids of commits without one come from Math.random (see seeded-random.mjs)
+      await page.evaluate(installSeededRandom, GIT_ID_SEED);
+    }
     return await page.evaluate(
       async ({ text, site, facts, wanted }) => {
         // Keeps the listed keys of an object whose values are defined, as JSON.stringify would write them

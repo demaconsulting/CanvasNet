@@ -1,0 +1,17 @@
+gitGraph
+    commit id: "Normal" tag: "v1.0"
+    commit id: "Reverse" type: REVERSE
+    commit id: "Highlight" type: HIGHLIGHT tag: "beta" tag: "rc1"
+    branch feature
+    commit id: "Feature" msg: "work"
+    checkout main
+    merge feature
+    branch hotfix
+    commit id: "Fix" type: HIGHLIGHT
+    checkout main
+    merge hotfix id: "Merged" type: REVERSE tag: "v1.1"
+    branch docs
+    commit id: "Docs"
+    checkout main
+    merge docs id: "Release" type: HIGHLIGHT
+    commit

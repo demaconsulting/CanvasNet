@@ -1082,6 +1082,8 @@ words:
   - Placefor
   - htmllabels
   - maxwidth
+  # The git graph port (its fixture folder, vector and golden names)
+  - gitgraph
   # Mermaid documentation terms (user guide, design, and requirements)
   - acyclicity
   - multigraphs
@@ -1153,3 +1155,9 @@ overrides:
     ignoreRegExpList:
       - "/ﬂ°°?|¶ß/g"
       - "/\\\\n/g"
+  # The git graph vectors: every JSON string (the texts of mermaid's git graph tests, with branch names that are not
+  # words, the case names made from the test names, Mermaid's entity-encoding markers, escaped line feeds)
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gitgraph-parser.json"
+    ignoreRegExpList:
+      - "/\"(?:[^\"\\\\\\n]|\\\\.)*\"/g"
