@@ -1429,24 +1429,12 @@ public class ThemeResolverTests
     private static Rgba32? ChromePaint(JsonNode? node) => (string)node! is "none" ? null : Color((string)node!);
 
     /// <summary>
-    ///     Asserts that a paint is the one Chrome computed, each channel within one: Chrome converts an <c>hsl()</c> theme
-    ///     color (the forest theme's <c>git1</c>, say) in double precision and rounds each channel's single-precision
-    ///     value, while the core color parser converts in single precision, so a channel that falls on a half can round
-    ///     the other way.
+    ///     Asserts that a paint is exactly the one Chrome computed (the core color parser converts an <c>hsl()</c> theme
+    ///     color, such as the forest theme's <c>git1</c>, as Chrome converts it).
     /// </summary>
     /// <param name="expected">The computed value Chrome reported.</param>
     /// <param name="actual">The computed paint.</param>
-    private static void AssertChromeColor(JsonNode? expected, Rgba32? actual)
-    {
-        var paint = ChromePaint(expected);
-        Assert.Equal(paint is null, actual is null);
-        if (paint is { } e && actual is { } a)
-        {
-            Assert.True(
-                Math.Abs(e.R - a.R) <= 1 && Math.Abs(e.G - a.G) <= 1 && Math.Abs(e.B - a.B) <= 1 && e.A == a.A,
-                $"Expected {e}, got {a}");
-        }
-    }
+    private static void AssertChromeColor(JsonNode? expected, Rgba32? actual) => Assert.Equal(ChromePaint(expected), actual);
 
     /// <summary>
     ///     Reads a dash array Chrome computed (<c>none</c>, or lengths in pixels), as the cascade's parser reads one.

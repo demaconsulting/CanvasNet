@@ -80,7 +80,8 @@ Verifies `rgb()`, `rgba()`, `hsl()`, and `hsla()` in comma and space-and-slash s
 `none` keyword (space syntax), hue units, `hsl(0 100 50)` with plain numbers in the space syntax, and the alpha as a
 number or a percentage; verifies that the syntaxes are never mixed (`rgb(1 2 3 0.5)`, `rgb(1,2,3 / 0.5)`, empty
 components, trailing commas, `none` or bare-number saturation in the comma syntax are rejected); that `hsl()` is
-converted in single precision as browsers convert it (`hsl(150, 100%, 56.2745098039%)` is (32, 255, 144)); and that
+converted as browsers convert it (`hsl(150, 100%, 56.2745098039%)` is (32, 255, 144) and
+`hsl(69.1956281662, 100%, 57.9411764706%)` is (222, 255, 41), as in Chrome); and that
 `hsl(1e308turn,100%,50%)`, whose converted hue overflows, is rejected rather than read as black.
 
 ##### CanvasNet-Canvas-CssColor-RoundingAndClamping: Rounding And Clamping
