@@ -240,8 +240,8 @@ value:
   valid field path (required by every operation but `count`), a non-empty text `as`, and, for `exponential` and
   `exponentialb`, a `param` greater than 0 and at most 1; `groupby` is an array of field paths.
 - **`window`** is the same with the window-only operations added, a `param` that is an integer of at least 1 for
-  `ntile`,
-  `lag`, `lead`, and `nth_value` (required for `ntile` and `nth_value`), a `sort` array of `{field, order}`, a `frame`
+  `ntile` and `nth_value` (required for both) and any integer for `lag` and `lead` (a negative offset reads the other
+  way, as in Vega), a `sort` array of `{field, order}`, a `frame`
   of
   two entries that are each an integer or null, and a boolean `ignorePeers`.
 - **`bin`** is true or an object of parameters and needs a `field`; `as` is a non-empty text or two of them. The

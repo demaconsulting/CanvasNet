@@ -186,6 +186,30 @@ public class AggregateTransformsWindowTests
     }
 
     /// <summary>
+    ///     Validates the regression that a negative offset of <c>lag</c> or <c>lead</c>, which the parser now accepts as Vega does, reads
+    ///     the other way through the whole pipeline (a <c>lag</c> of -1 is a <c>lead</c> of 1, a <c>lead</c> of -2 a <c>lag</c> of 2) with
+    ///     null beyond the partition, and that a zero offset is 1 (Vega's <c>+offset || 1</c>).
+    /// </summary>
+    [Fact]
+    public void AggregateTransforms_Window_NegativeLagAndLeadOffsetsReadTheOtherWay()
+    {
+        // Arrange
+        const string ops = """
+            [{"op":"lag","field":"v","param":-1,"as":"lm1"},{"op":"lead","field":"v","param":-2,"as":"dm2"},
+             {"op":"lag","field":"v","param":0,"as":"l0"},{"op":"lead","field":"v","param":0,"as":"d0"}]
+            """;
+
+        // Act
+        var table = Window(Rows4, ops, "\"sort\":[{\"field\":\"id\"}]");
+
+        // Assert: rows are 10, 20, 20, 30 in order
+        Assert.Equal(["20", "20", "30", "null"], Rows(table, "lm1"));
+        Assert.Equal(["null", "null", "10", "20"], Rows(table, "dm2"));
+        Assert.Equal(["null", "10", "20", "20"], Rows(table, "l0"));
+        Assert.Equal(["20", "20", "30", "null"], Rows(table, "d0"));
+    }
+
+    /// <summary>
     ///     Validates the regression of a defect that review found (index arithmetic of the window engine on offsets of any size): a frame whose bounds are beyond the range of an int or of a long clamps to the
     ///     partition as in Vega (a bound before the first row is the first row, one after the last is the end; a frame wholly outside the partition is empty), and the offsets of <c>lag</c>, <c>lead</c> and
     ///     <c>nth_value</c> and the tile count of <c>ntile</c> beyond the range of an int are no row (no value), never an index that wrapped into the partition or out of it. Rows are 10, 20, 20, 30 in order.
@@ -238,7 +262,7 @@ public class AggregateTransformsWindowTests
 
     /// <summary>
     ///     Validates the index arithmetic of the window engine against an exact reference on every combination of extreme frame bound and operation parameter, with callers that skip the parser (which restricts the
-    ///     parameter to integers of at least 1): <c>lag</c>, <c>lead</c>, <c>nth_value</c>, <c>first_value</c> and <c>last_value</c> never throw (no <see cref="IndexOutOfRangeException"/> and no wrapped index), and
+    ///     parameter of <c>nth_value</c> to integers of at least 1 and that of <c>lag</c> and <c>lead</c> to integers): <c>lag</c>, <c>lead</c>, <c>nth_value</c>, <c>first_value</c> and <c>last_value</c> never throw (no <see cref="IndexOutOfRangeException"/> and no wrapped index), and
     ///     each result is the value that the reference computes with unbounded integers. A zero offset is 1 as in Vega (<c>+offset || 1</c>); a position outside the partition or the frame has no value.
     /// </summary>
     [Fact]

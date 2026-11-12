@@ -263,6 +263,7 @@ budget is unchanged.
 `AggregateTransformsWindowTests.AggregateTransforms_Window_PartitionsAreSortedSeparatelyAndOutputKeepsInputOrder`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_SortIsStableNullFirstAndDescendingReverses`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_LagAndLeadReadNeighbors`,
+`AggregateTransformsWindowTests.AggregateTransforms_Window_NegativeLagAndLeadOffsetsReadTheOtherWay`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_PositionalValuesReadTheFrame`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_PreviousAndNextValueSkipNulls`,
 `AggregateTransformsWindowTests.AggregateTransforms_Window_SlidingFrameAverages`,
@@ -281,7 +282,9 @@ two rows are peers, so `rank` is the row number; that peers at the start of a pa
 of their whole group; the default names (`op` or `op_field`) and the default frame `[null, 0]`; the peer-widened frame
 against `ignorePeers`; that partitions sort separately and the output keeps the input order; that the sort is stable,
 puts null first, and reverses for descending, with several fields in order of significance; that `lag` and `lead` default
-to offset 1, give null beyond the partition, and do not overflow at the largest integer; `first_value`, `last_value`,
+to offset 1, give null beyond the partition, and do not overflow at the largest integer; that a negative offset, which
+the parser accepts as Vega does, reads the other way through the parser and the engine (a `lag` of -1 is a `lead` of 1,
+a `lead` of -2 a `lag` of 2) and a zero offset is 1; `first_value`, `last_value`,
 and `nth_value` over `[-1, 1]` clamped at the ends; that `prev_value` and `next_value` take the nearest non-null value
 and do not carry across partitions; the sliding average; the clamped and empty frames above; the whole-partition frame
 per partition; that `values` follows the frame and peers share one array; aggregate operations over a partition; that

@@ -302,9 +302,21 @@ internal sealed partial class SpecParser
             return;
         }
 
+        if (windowOp is WindowOp.Lag or WindowOp.Lead)
+        {
+            // Any integer: Vega reads data[index -/+ offset] of +offset || 1, so a negative offset reads the other way and zero is 1;
+            // an offset beyond the partition has no row (no value). A fraction would read no row of Vega's data, so it is refused
+            if (!(parameter.IsNumber && double.IsInteger(parameter.NumberValue)))
+            {
+                throw Error(parameter, $"The 'param' of {item["op"]!.StringValue} must be an integer.");
+            }
+
+            return;
+        }
+
         if (windowOp is { } window && AggregateMeasures.TakesParameter(window) && !(parameter.IsNumber && double.IsInteger(parameter.NumberValue) && parameter.NumberValue >= 1))
         {
-            // Any integer from 1: an offset or a position beyond the partition has no row (no value), and a tile count beyond the rows is one row a tile
+            // Any integer from 1 (Vega fails below it): a position beyond the frame has no row (no value), and a tile count beyond the rows is one row a tile
             throw Error(parameter, $"The 'param' of {item["op"]!.StringValue} must be an integer of at least 1.");
         }
 
