@@ -274,9 +274,10 @@ public static partial class SvgFlattener
     /// <returns>
     ///     The new attribute value (escaped for XML), or <see langword="null"/> for a link that is not a relative path: one
     ///     with a URI scheme (<c>data:</c>, <c>http:</c>, <c>file:</c>), a same-document <c>#</c> link, an empty link, a
-    ///     rooted path, a path with a null character, and a path the file system cannot resolve (too long). The query and
-    ///     the fragment are kept as written; the path is percent-encoded per segment, and is a <c>file:</c> URI when no
-    ///     relative path exists (another drive).
+    ///     rooted path, a Windows drive or UNC path on every platform (<see cref="IsWindowsRootedPath"/>), a path with a
+    ///     null character, and a path the file system cannot resolve (too long). The query and the fragment are kept as
+    ///     written; the path is percent-encoded per segment, and is a <c>file:</c> URI when no relative path exists
+    ///     (another drive).
     /// </returns>
     internal static string? RebaseLink(string href, char quote, string inputFolder, string outputFolder)
     {
@@ -290,7 +291,7 @@ public static partial class SvgFlattener
         var path = cut < 0 ? href : href[..cut];
         var suffix = cut < 0 ? string.Empty : href[cut..];
         var decoded = path.Contains('%', StringComparison.Ordinal) ? Uri.UnescapeDataString(path) : path;
-        if (decoded.Length == 0 || decoded.Contains('\0', StringComparison.Ordinal) || Path.IsPathRooted(decoded))
+        if (decoded.Length == 0 || decoded.Contains('\0', StringComparison.Ordinal) || Path.IsPathRooted(decoded) || IsWindowsRootedPath(decoded))
         {
             return null;
         }
@@ -310,6 +311,24 @@ public static partial class SvgFlattener
             return null;
         }
     }
+
+    /// <summary>
+    ///     Tells whether a path is a Windows drive or UNC path, whatever the platform the tool runs on.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="Path.IsPathRooted(string)"/> answers for the current platform only: on Linux and macOS
+    ///     <c>C:\x.png</c>, <c>C:/x.png</c>, and <c>\\server\share\x.png</c> are relative file names, so a copy written
+    ///     to another folder would rebase them into a link to a file that was never meant. Such a link is not a portable
+    ///     URL reference, so it is classified the same way everywhere and left as written.
+    /// </remarks>
+    /// <param name="path">The decoded path of a link (without its query or fragment).</param>
+    /// <returns>
+    ///     <see langword="true"/> for an ASCII letter and a colon at the start (a drive: <c>C:\x.png</c>, <c>C:/x.png</c>,
+    ///     or the drive-relative <c>C:x.png</c>) and for a path that starts with a backslash (a UNC path
+    ///     <c>\\server\share\x.png</c>, or the root of the current drive <c>\x.png</c>); otherwise <see langword="false"/>.
+    /// </returns>
+    internal static bool IsWindowsRootedPath(string path) =>
+        (path.Length >= 2 && char.IsAsciiLetter(path[0]) && path[1] == ':') || path.StartsWith('\\');
 
     /// <summary>
     ///     Tells whether a link starts with a URI scheme, as the resolver decides it.

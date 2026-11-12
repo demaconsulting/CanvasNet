@@ -224,4 +224,60 @@ public class SvgFlattenerLinkTests
         // Assert
         Assert.Null(exception);
     }
+
+    /// <summary>
+    ///     Test the regression that a Windows drive or UNC path is classified as rooted on every platform (the check does
+    ///     not depend on the platform's own path rules), and that relative paths, rooted POSIX paths, and schemes are not.
+    /// </summary>
+    /// <param name="path">The decoded path.</param>
+    /// <param name="expected">Whether it is a Windows drive or UNC path.</param>
+    [Theory]
+    [InlineData(@"C:\x.png", true)]
+    [InlineData("C:/x.png", true)]
+    [InlineData("c:x.png", true)]
+    [InlineData("Z:", true)]
+    [InlineData(@"\\server\share\x.png", true)]
+    [InlineData(@"\x.png", true)]
+    [InlineData("x.png", false)]
+    [InlineData("img/x.png", false)]
+    [InlineData("../x.png", false)]
+    [InlineData("/abs/x.png", false)]
+    [InlineData("//server/share/x.png", false)]
+    [InlineData("1:x.png", false)]
+    [InlineData("C", false)]
+    [InlineData("", false)]
+    public void SvgFlattener_IsWindowsRootedPath_DriveAndUncPaths_ClassifiedOnEveryPlatform(string path, bool expected)
+    {
+        // Act
+        var rooted = SvgFlattener.IsWindowsRootedPath(path);
+
+        // Assert
+        Assert.Equal(expected, rooted);
+    }
+
+    /// <summary>
+    ///     Test the regression that a Windows drive or UNC link, written plainly or percent-encoded, is left as written when
+    ///     the copy goes to another folder, on every platform (on Linux and macOS the platform's own rules would read it as
+    ///     a relative file name and rebase it).
+    /// </summary>
+    /// <param name="href">The link.</param>
+    [Theory]
+    [InlineData(@"C:\x.png")]
+    [InlineData("C:/x.png")]
+    [InlineData("C:/x.pdf#page=2")]
+    [InlineData(@"\\server\share\x.png")]
+    [InlineData("%5C%5Cserver%5Cshare%5Cx.png")]
+    [InlineData(@"\x.png")]
+    public void SvgFlattener_RebaseLink_WindowsDriveOrUncLink_UntouchedOnEveryPlatform(string href)
+    {
+        // Arrange
+        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "flatten-rebase"));
+        var output = Path.Combine(root, "out");
+
+        // Act
+        var moved = SvgFlattener.RebaseLink(href, '"', root, output);
+
+        // Assert
+        Assert.Null(moved);
+    }
 }
