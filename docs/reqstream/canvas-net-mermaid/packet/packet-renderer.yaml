@@ -50,6 +50,7 @@ sections:
                   Mermaid draws the title below the blocks and makes the picture a row higher for it.
                 tests:
                   - PacketRenderer_Draw_Title_IsCenteredInAnExtraRow
+                  - PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow
 
               - id: CanvasNetMermaid-Packet-PacketRenderer-ViewBox
                 title: >-
@@ -63,6 +64,7 @@ sections:
                 tests:
                   - PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid
                   - PacketRenderer_Draw_Title_IsCenteredInAnExtraRow
+                  - PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow
                   - PacketRenderer_Draw_Empty_IsThePaddingOnly
 
               - id: CanvasNetMermaid-Packet-PacketRenderer-Paint

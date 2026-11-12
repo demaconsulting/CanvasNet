@@ -173,11 +173,12 @@ sections:
               - id: CanvasNetMermaid-Gantt-GanttRenderer-Title
                 title: >-
                   The GanttRenderer unit shall draw the title of the chart, or the frontmatter title when the chart
-                  has none, centered at half the width of the chart at the title top margin.
+                  has no title statement, centered at half the width of the chart at the title top margin.
                 justification: |
                   The title names the chart in its picture and must stand where Mermaid puts it.
                 tests:
                   - GanttRenderer_Draw_Title_FromTheTextOrTheFrontmatter
+                  - GanttRenderer_Draw_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle
 
               - id: CanvasNetMermaid-Gantt-GanttRenderer-Failures
                 title: >-

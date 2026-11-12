@@ -171,6 +171,23 @@ public sealed class PacketParserTests
     }
 
     /// <summary>
+    ///     Validates that a title statement with a value replaces the frontmatter title even when sanitizing empties it,
+    ///     while a bare <c>title</c> keeps the frontmatter title, as Mermaid's <c>populateCommonDb</c> tests the value
+    ///     before sanitizing.
+    /// </summary>
+    [Fact]
+    public void PacketParser_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle()
+    {
+        // Act
+        var emptied = Parse("---\ntitle: FM\n---\npacket\ntitle <script>x</script>\n0: \"a\"\n");
+        var bare = Parse("---\ntitle: FM\n---\npacket\ntitle\n0: \"a\"\n");
+
+        // Assert
+        Assert.Equal((string.Empty, string.Empty, (string?)null, true), (emptied.DiagramTitle, emptied.DrawnTitle, emptied.Title, emptied.IsTitleSet));
+        Assert.Equal(("FM", false), (bare.DrawnTitle, bare.IsTitleSet));
+    }
+
+    /// <summary>
     ///     Validates that labels are kept as Langium's string converter gives them (escapes, quotes, a label over two
     ///     lines), without sanitizing them.
     /// </summary>

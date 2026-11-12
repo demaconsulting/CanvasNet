@@ -61,11 +61,12 @@ Mermaid keeps it (a part that the split makes has Mermaid's count, one less than
 of its statement. The numbers are doubles, as in JavaScript.
 
 **`PacketDiagram`** is immutable and safe for concurrent renders. It holds the location of the diagram keyword
-(`KeywordLocation`), the sanitized title of the `title` statement (`DiagramTitle`), the sanitized accessible title
-(`AccessibleTitle`) and description (`AccessibleDescription`), the sanitized frontmatter title (`FrontmatterTitle`),
-each empty when not set, and the blocks in order with their starts, ends, and bit counts filled in (`Blocks`).
-`DrawnTitle` is the title Mermaid draws: the diagram's title, else the frontmatter title. `MaxPacketSize` is Mermaid's
-cap of 10,000 rows.
+(`KeywordLocation`), the sanitized title of the `title` statement (`DiagramTitle`), whether a `title` statement with a
+value set it (`IsTitleSet`), the sanitized accessible title (`AccessibleTitle`) and description
+(`AccessibleDescription`), the sanitized frontmatter title (`FrontmatterTitle`), each empty when not set, and the blocks
+in order with their starts, ends, and bit counts filled in (`Blocks`). `DrawnTitle` is the title Mermaid draws: the
+diagram's title when `IsTitleSet`, even one that sanitizes to empty, else the frontmatter title. `MaxPacketSize` is
+Mermaid's cap of 10,000 rows.
 
 #### Key Methods
 

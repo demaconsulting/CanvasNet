@@ -65,9 +65,10 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
 
 - **Settings.** `SetDateFormat`, `SetAxisFormat`, `SetTickInterval`, `SetTodayMarker`, `EnableInclusiveEndDates`,
   `SetWeekday`, and `SetWeekend` keep their values as written, the last statement winning; `SetExcludes` and
-  `SetIncludes` merge their tokens (`MergeTokens`); `SetDiagramTitle` sanitizes the title, and `SetAccessibleTitle` and
-  `SetAccessibleDescription` sanitize their texts as Mermaid's `commonDb.ts` does (the title without leading white
-  space, the description without the white space after each line feed); `AddSection` starts a section.
+  `SetIncludes` merge their tokens (`MergeTokens`); `SetDiagramTitle` sanitizes the title and marks it set
+  (`IsTitleSet`), and `SetAccessibleTitle` and `SetAccessibleDescription` sanitize their texts as Mermaid's
+  `commonDb.ts` does (the title without leading white space, the description without the white space after each line
+  feed); `AddSection` starts a section.
 - **`AddTask(name, data, location)`** is Mermaid's `addTask` with `parseData`: the data after its colon is split on
   commas; the leading tags (fields that are a tag when trimmed) are taken off in Mermaid's order until none matches, and
   data that runs out of fields while tags are taken off fails as Mermaid fails; the remaining fields are trimmed and

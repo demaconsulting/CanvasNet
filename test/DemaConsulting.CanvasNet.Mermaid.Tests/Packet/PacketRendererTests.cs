@@ -84,6 +84,21 @@ public sealed class PacketRendererTests
     }
 
     /// <summary>
+    ///     Validates that a title statement that sanitizes to empty replaces the frontmatter title, so no title row is
+    ///     added, as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow()
+    {
+        // Act
+        var scene = SceneQuery.Layout("---\ntitle: FM\n---\npacket\ntitle <script>x</script>\n0: \"a\"\n");
+
+        // Assert
+        Assert.Equal(new SceneRect(0, 0, 1026, 62), scene.ViewBox);
+        Assert.Empty(SceneQuery.OfRole(scene, "title"));
+    }
+
+    /// <summary>
     ///     Validates an empty diagram (no rows, no title): a view box of 1026 by the padding of 15 and no items.
     /// </summary>
     [Fact]

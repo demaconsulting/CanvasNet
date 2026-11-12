@@ -46,10 +46,10 @@ the filled `PacketDiagram` or throws a located `MermaidSyntaxException`; and the
 `IMermaidDiagram` of the document: the metadata (`Title`, the sanitized title of the `title` statement or null;
 `AccTitle`; `Direction`, always null; `NodeCount` for the block statements; and `EdgeCount` and `SubgraphCount`, always
 0) and `Layout(DiagramRenderContext)`, which creates a `PacketRenderer` and returns the drawn `Scene`. For tests and for
-the vectors the diagram also exposes its state (`Blocks`, `DiagramTitle`, `AccessibleTitle`, `AccessibleDescription`,
-`FrontmatterTitle`, `DrawnTitle`, and `KeywordLocation`) and its row split `Rows(double, MermaidLimits,
-LayoutWorkMeter)`, the parser its converters (`ConvertString`, `ConvertSingleLine`, and `ConvertMultiLine`), and the
-renderer `DisplayText`.
+the vectors the diagram also exposes its state (`Blocks`, `DiagramTitle`, `IsTitleSet`, `AccessibleTitle`,
+`AccessibleDescription`, `FrontmatterTitle`, `DrawnTitle`, and `KeywordLocation`) and its row split `Rows(double,
+MermaidLimits, LayoutWorkMeter)`, the parser its converters (`ConvertString`, `ConvertSingleLine`, and
+`ConvertMultiLine`), and the renderer `DisplayText`.
 
 **Consumed**: from the `Syntax` subsystem the preprocessed text and its map to the original text (`PreprocessedSource`,
 `MappedText`, and the frontmatter title of `FrontmatterData`), the detected diagram (`DetectedDiagram`), JavaScript's
@@ -97,7 +97,7 @@ fractional, zero, or negative `bitsPerRow` is split exactly as Mermaid splits it
 **Metadata from the text alone.** The counts of the document describe the diagram as written, whatever row size a
 render sets: the block statements as nodes, and no edges or subgraphs. A packet diagram has no direction. The title is
 the title of the `title` statement; when the diagram has none, the document falls back to the frontmatter title, and
-the renderer draws the frontmatter title too, as Mermaid does.
+when the diagram has no title statement with a value, the renderer draws the frontmatter title too, as Mermaid does.
 
 **Drawing Mermaid's geometry.** `PacketRenderer.Draw` follows Mermaid's `draw` and `drawWord`: each row the row height
 plus the vertical padding (grown by 10 for the bit numbers) below the one before it; each part a rectangle at its first

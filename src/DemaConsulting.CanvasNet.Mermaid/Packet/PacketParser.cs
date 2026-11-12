@@ -424,7 +424,8 @@ internal sealed partial class PacketParser
         string? accDescr,
         List<ParsedBlock> parsed)
     {
-        // populateCommonDb sets the texts that are not empty; the frontmatter title is set before the text is parsed
+        // populateCommonDb sets the texts that are not empty, testing each value before sanitizing it; the frontmatter
+        // title is set before the text is parsed
         var description = string.IsNullOrEmpty(accDescr) ? string.Empty : CheckDerived(PacketDiagram.SanitizeDescription(accDescr), keyword);
         var accessibleTitle = string.IsNullOrEmpty(accTitle) ? string.Empty : CheckDerived(PacketDiagram.SanitizeAccTitle(accTitle), keyword);
         var diagramTitle = string.IsNullOrEmpty(title) ? string.Empty : CheckDerived(PacketDiagram.Sanitize(title), keyword);
@@ -459,7 +460,7 @@ internal sealed partial class PacketParser
             lastBit = final;
         }
 
-        return new PacketDiagram(keyword, diagramTitle, accessibleTitle, description, frontmatterTitle, blocks);
+        return new PacketDiagram(keyword, diagramTitle, !string.IsNullOrEmpty(title), accessibleTitle, description, frontmatterTitle, blocks);
     }
 
     /// <summary>
@@ -665,6 +666,10 @@ internal sealed class PacketDiagram : IMermaidDiagram
     /// </summary>
     /// <param name="keywordLocation">The location of the diagram keyword.</param>
     /// <param name="diagramTitle">The sanitized title, or empty.</param>
+    /// <param name="isTitleSet">
+    ///     Whether a <c>title</c> statement with a value set the title (Mermaid's <c>populateCommonDb</c> tests the value
+    ///     before sanitizing), so that it replaces the frontmatter title even when sanitizing leaves it empty.
+    /// </param>
     /// <param name="accessibleTitle">The sanitized accessible title, or empty.</param>
     /// <param name="accessibleDescription">The sanitized accessible description, or empty.</param>
     /// <param name="frontmatterTitle">The sanitized frontmatter title, or empty.</param>
@@ -672,6 +677,7 @@ internal sealed class PacketDiagram : IMermaidDiagram
     public PacketDiagram(
         MermaidLocation keywordLocation,
         string diagramTitle,
+        bool isTitleSet,
         string accessibleTitle,
         string accessibleDescription,
         string frontmatterTitle,
@@ -679,6 +685,7 @@ internal sealed class PacketDiagram : IMermaidDiagram
     {
         KeywordLocation = keywordLocation;
         DiagramTitle = diagramTitle;
+        IsTitleSet = isTitleSet;
         AccessibleTitle = accessibleTitle;
         AccessibleDescription = accessibleDescription;
         FrontmatterTitle = frontmatterTitle;
@@ -691,6 +698,12 @@ internal sealed class PacketDiagram : IMermaidDiagram
     /// <summary>Gets the title of the <c>title</c> statement, sanitized (empty when there is none).</summary>
     public string DiagramTitle { get; }
 
+    /// <summary>
+    ///     Gets a value indicating whether a <c>title</c> statement with a value set the title, even one that sanitizing
+    ///     empties.
+    /// </summary>
+    public bool IsTitleSet { get; }
+
     /// <summary>Gets the accessible title (empty when there is none).</summary>
     public string AccessibleTitle { get; }
 
@@ -701,10 +714,10 @@ internal sealed class PacketDiagram : IMermaidDiagram
     public string FrontmatterTitle { get; }
 
     /// <summary>
-    ///     Gets the title Mermaid draws: the database's title, which is the frontmatter title until a non-empty
-    ///     <c>title</c> statement replaces it.
+    ///     Gets the title Mermaid draws: the database's title, which is the frontmatter title until a <c>title</c>
+    ///     statement with a value replaces it, even one that sanitizes to empty.
     /// </summary>
-    public string DrawnTitle => DiagramTitle.Length > 0 ? DiagramTitle : FrontmatterTitle;
+    public string DrawnTitle => IsTitleSet ? DiagramTitle : FrontmatterTitle;
 
     /// <summary>Gets the blocks in order.</summary>
     public IReadOnlyList<PacketBlock> Blocks { get; }

@@ -331,7 +331,7 @@ internal sealed partial class GanttRenderer
     private void DrawTitle()
     {
         var title = _model.DiagramTitle;
-        if (title.Length == 0 && _context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter)
+        if (!_model.IsTitleSet && _context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter)
         {
             title = GanttModel.Sanitize(frontmatter);
         }

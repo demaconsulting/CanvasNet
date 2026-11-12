@@ -45,7 +45,8 @@ filled `PieDiagram` or throws a located `MermaidSyntaxException`; and the `PieDi
 document: the metadata (`Title`, the sanitized title of the `title` statement or null; `AccTitle`; `Direction`, always
 null; `NodeCount` for the sections; and `EdgeCount` and `SubgraphCount`, always 0) and `Layout(DiagramRenderContext)`,
 which creates a `PieRenderer` and returns the drawn `Scene`. For tests and for the vectors the diagram also exposes its
-state (`Sections`, `ShowData`, `DiagramTitle`, `AccessibleTitle`, `AccessibleDescription`, and `KeywordLocation`), the
+state (`Sections`, `ShowData`, `DiagramTitle`, `IsTitleSet`, `AccessibleTitle`, `AccessibleDescription`, and
+`KeywordLocation`), the
 parser its converters (`ConvertString`, `ConvertSingleLine`, and `ConvertMultiLine`), and the renderer its d3 and
 JavaScript ports (`Pie`, `ArcPath`, `Centroid`, `ToFixed0`) and `DisplayText`.
 
@@ -85,8 +86,8 @@ wins) and refuses a negative value, as Mermaid's `addSection` does.
 
 **Metadata from the text alone.** The counts of the document describe the chart that is drawn: the sections (each label
 once, the legend entries) as nodes, and no edges or subgraphs. A pie chart has no direction. The title is the title of
-the `title` statement; when the chart has none, the document falls back to the frontmatter title, and the renderer
-draws the frontmatter title too, as Mermaid does.
+the `title` statement; when the chart has none, the document falls back to the frontmatter title, and when the chart
+has no title statement with a value, the renderer draws the frontmatter title too, as Mermaid does.
 
 **Drawing Mermaid's geometry.** `PieRenderer.Draw` follows Mermaid's `draw` step by step: the fixed chart of 450 pixels
 with the pie of radius 185 centered at (225, 225); the 1% filter and d3's `pie()` for the angles; d3's `arc()` for the

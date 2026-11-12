@@ -135,6 +135,11 @@ internal sealed partial class SequenceModel
     /// <summary>Gets the title of the <c>title</c> statement, sanitized (empty when there is none).</summary>
     public string DiagramTitle { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Gets a value indicating whether a <c>title</c> statement set the title, even one that sanitizing empties.
+    /// </summary>
+    public bool IsTitleSet { get; private set; }
+
     /// <summary>Gets the accessible title (empty when there is none).</summary>
     public string AccessibleTitle { get; private set; } = string.Empty;
 
@@ -223,6 +228,7 @@ internal sealed partial class SequenceModel
     {
         ArgumentNullException.ThrowIfNull(text);
         DiagramTitle = HtmlSanitizer.Sanitize(text);
+        IsTitleSet = true;
     }
 
     /// <summary>

@@ -63,19 +63,23 @@ centered over it (x 526.5), that the baseline of the bit number `32` of the seco
 
 ##### CanvasNetMermaid-Packet-PacketRenderer-Title: A Title Row Below The Blocks
 
-**Tests**: `PacketRendererTests.PacketRenderer_Draw_Title_IsCenteredInAnExtraRow`
+**Tests**: `PacketRendererTests.PacketRenderer_Draw_Title_IsCenteredInAnExtraRow`,
+`PacketRendererTests.PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow`
 
 Asserts that the title `Header` of one row of blocks makes the view box 94 pixels high (two rows of 47) and is centered
-at the x of 513 with its baseline in the middle of the extra row (between 70.5 and 75), and that the frontmatter title
-`From front` is drawn when the text has no title.
+at the x of 513 with its baseline in the middle of the extra row (between 70.5 and 75), that the frontmatter title
+`From front` is drawn when the text has no title, and that a `title` statement that sanitizes to empty
+(`<script>x</script>`) replaces the frontmatter title, so no title is drawn, as in Mermaid.
 
 ##### CanvasNetMermaid-Packet-PacketRenderer-ViewBox: Mermaid's View Box
 
 **Tests**: `PacketRendererTests.PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid`,
 `PacketRendererTests.PacketRenderer_Draw_Title_IsCenteredInAnExtraRow`,
+`PacketRendererTests.PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow`,
 `PacketRendererTests.PacketRenderer_Draw_Empty_IsThePaddingOnly`
 
-Asserts that two rows without a title give the view box (0, 0, 1026, 109), one row with a title (0, 0, 1026, 94), and
+Asserts that two rows without a title give the view box (0, 0, 1026, 109), one row with a title (0, 0, 1026, 94), one
+row with a title statement that sanitizes to empty (0, 0, 1026, 62), as in Mermaid, and
 the keyword alone (0, 0, 1026, 15), the padding of one row, with an empty group.
 
 ##### CanvasNetMermaid-Packet-PacketRenderer-Paint: The Paint Of The Packet Style Sheet

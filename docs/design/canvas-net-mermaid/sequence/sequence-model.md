@@ -94,7 +94,7 @@ indexes first, in numeric order, then the other keys in insertion order; a key s
   explicit setting, else the configuration's (Mermaid's `autoWrap`).
 - **Title and accessibility** (`SetDiagramTitle`, `SetAccessibleTitle`, `SetAccessibleDescription`) sanitize the
   texts as Mermaid's `commonDb.ts` does (the title not trimmed, the accessible title without leading white space, the
-  description without the white space after each line feed).
+  description without the white space after each line feed); `SetDiagramTitle` also marks the title set (`IsTitleSet`).
 - **Metadata** (`IMermaidDiagram`): `Title` is the title of the `title` statement or null (so the document falls back
   to the frontmatter title), `AccTitle` the accessible title or null, `Direction` null, `NodeCount` the participants
   (declared, mentioned, and created), `EdgeCount` the messages drawn as arrows, and `SubgraphCount` the boxes.

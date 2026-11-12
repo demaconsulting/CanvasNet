@@ -163,10 +163,13 @@ mermaid-cli does, while over 10,001 days it warns and draws d3's 14 default tick
 
 ##### CanvasNetMermaid-Gantt-GanttRenderer-Title: The Title
 
-**Tests**: `GanttRendererTests.GanttRenderer_Draw_Title_FromTheTextOrTheFrontmatter`
+**Tests**: `GanttRendererTests.GanttRenderer_Draw_Title_FromTheTextOrTheFrontmatter`,
+`GanttRendererTests.GanttRenderer_Draw_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle`
 
 Asserts that the title of `title Own title` is one text `Own title` anchored in the middle at x 392 (half the width of
-784) and the baseline 25, and that a chart without a `title` statement draws the frontmatter title `Front title`.
+784) and the baseline 25, that a chart without a `title` statement draws the frontmatter title `Front title`, and that
+a `title` statement that sanitizes to empty (`<script>x</script>`) replaces the frontmatter title, so no title is
+drawn, as in Mermaid.
 
 ##### CanvasNetMermaid-Gantt-GanttRenderer-Failures: The Located Failures
 

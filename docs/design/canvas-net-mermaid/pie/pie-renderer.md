@@ -57,8 +57,8 @@ labels, and the legend items carry the section label as their id and the locatio
     `Pie`, and keeps those whose percentage `toFixed(0)` is not `0`; each becomes a slice (`Slice`) and a label of its
     percentage `toFixed(0)` and `%` at the `Centroid` of the arc whose inner and outer radius are `textPosition` times
     the radius, in the font and color of `.slice`.
-  - It draws the title of the diagram, or the sanitized frontmatter title when the diagram has none, centered at
-    (0, -200) from the pie's center, in the font and color of `.pieTitleText`.
+  - It draws the title of the diagram, or the sanitized frontmatter title when no title statement with a value set the
+    title (`IsTitleSet`), centered at (0, -200) from the pie's center, in the font and color of `.pieTitleText`.
   - It makes the text of every section's legend entry (the label, with `showData` followed by the value in brackets)
     at (22, 14) in its group, in the font and color of `.legend text`, and keeps the widest of their measured widths
     (minus infinity when there are no sections).

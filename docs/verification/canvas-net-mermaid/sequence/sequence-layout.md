@@ -151,10 +151,13 @@ right side is at x 151.
 
 **Tests**: `SequenceLayoutTests.SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures`,
 `SequenceLayoutTests.SequenceLayout_Draw_Title_AddsRoomAboveTheDiagram`,
+`SequenceLayoutTests.SequenceLayout_Draw_TitleSanitizedToEmpty_AddsNoRoom`,
 `SequenceLayoutTests.SequenceLayout_Draw_MirrorActorsOff_LifelinesRunTo2000`,
 `SequenceLayoutTests.SequenceLayout_JsMaxAndJsMin_LeaveOutMissingValues`
 
 Asserts that the view box of one message is (-50, -10, 450, 215); that a `title` statement adds 40 pixels at the top
 (the view box starts at y -50) and is drawn at x 75 on the baseline y -25, and that a frontmatter title is drawn the
-same way; that without mirrored participants the view box is 129 high; and that Mermaid's maximum and minimum helpers
-leave out missing values and values that are not a number (negative infinity when none is left).
+same way; that a `title` statement that sanitizes to empty (`<script>x</script>`) replaces the frontmatter title, so
+no title is drawn and the view box stays (-50, -10, 450, 215), as in Mermaid; that without mirrored participants the
+view box is 129 high; and that Mermaid's maximum and minimum helpers leave out missing values and values that are not
+a number (negative infinity when none is left).

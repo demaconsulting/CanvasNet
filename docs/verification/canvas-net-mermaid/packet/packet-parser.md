@@ -134,12 +134,14 @@ parts) and fails with `mermaid-limit-exceeded` on a meter of 4; and that the row
 ##### CanvasNetMermaid-Packet-PacketParser-Metadata: Counts And Titles
 
 **Tests**: `PacketParserTests.PacketParser_Parse_TitleAccessibilityAndMetadata_AreRead`,
-`PacketParserTests.PacketParser_Parse_FrontmatterTitle_IsTheDrawnTitleFallback`
+`PacketParserTests.PacketParser_Parse_FrontmatterTitle_IsTheDrawnTitleFallback`,
+`PacketParserTests.PacketParser_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle`
 
 Asserts that two blocks give a node count of 2, an edge count of 0, a subgraph count of 0, and no direction, with the
 title and the accessible title of their statements; that a diagram without a `title` statement has no title of its own
-and draws the sanitized frontmatter title `From <i>front</i>`; and that a diagram with its own title draws it instead of
-the frontmatter title.
+and draws the sanitized frontmatter title `From <i>front</i>`; that a diagram with its own title draws it instead of
+the frontmatter title; and that a `title` statement that sanitizes to empty (`<script>x</script>`) replaces the
+frontmatter title `FM`, so no title is drawn, while a bare `title` keeps `FM`, as in Mermaid.
 
 ##### CanvasNetMermaid-Packet-PacketParser-Errors: Errors With Chevrotain's Expected Tokens
 

@@ -43,9 +43,9 @@ location of the block statement; and the title text (`title`). The view box star
   - It computes the size of the picture as Mermaid does: the total row height is the row height plus the vertical
     padding; the height is the total row height times the rows plus one, less the row height when there is no title;
     the width is the bit width times `bitsPerRow` plus 2.
-  - It draws each row with `DrawWord`, then the title to draw (`DrawnTitle`, the diagram's title, else the frontmatter
-    title) centered at half the width and half a total row height above the bottom, with a `middle` baseline, in the
-    font and color of `.packetTitle`; an empty title draws nothing.
+  - It draws each row with `DrawWord`, then the title to draw (`DrawnTitle`, the diagram's title once a title statement
+    with a value sets it, else the frontmatter title) centered at half the width and half a total row height above the
+    bottom, with a `middle` baseline, in the font and color of `.packetTitle`; an empty title draws nothing.
 - **`DrawWord`** follows Mermaid's `drawWord` for the row of index `r`: the row's top is `r` times the total row height
   plus the vertical padding; for each part, the rectangle's left is the part's start modulo `bitsPerRow` (with the sign
   of the start, as JavaScript's `%` and C#'s keep it) times the bit width plus 1, its width is the part's bits times

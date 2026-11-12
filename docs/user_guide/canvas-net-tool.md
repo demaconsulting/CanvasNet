@@ -809,8 +809,8 @@ needs today (a `todayMarker` style, an `after` id that no task has) takes 1970-0
 mindmap layout: every node shape, Markdown texts, and the section colors; an `::icon(...)` is reported, as Mermaid does
 not draw it either. **Packet diagrams** (`packet` and `packet-beta`) are drawn with a port of Mermaid's packet
 renderer: blocks of bit ranges split into rows, the bit numbers, the title, and the packet colors of the theme.
-`canvasnet help mermaid` lists them. Every other diagram type is recognized: `info` reports it
-with `"supported": false`, and `render` writes an empty picture of 16 by 16 pixels with the diagnostic
+`canvasnet help mermaid` lists the syntax and settings of each diagram type. Every other diagram type is recognized:
+`info` reports it with `"supported": false`, and `render` writes an empty picture of 16 by 16 pixels with the diagnostic
 `mermaid-diagram-unsupported` (`--strict` makes it an `unsupported-feature` failure).
 
 **Theme.** `--theme <name>` chooses one of Mermaid's five themes, `default`, `base`, `dark`, `forest`, or `neutral`

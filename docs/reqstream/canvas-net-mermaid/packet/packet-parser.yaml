@@ -107,13 +107,15 @@ sections:
                 title: >-
                   The PacketParser unit shall give, for the parsed diagram, the title of its title statement or none,
                   the accessible title or none, the number of its block statements as nodes, no edges, no subgraphs, and
-                  no direction, and as the title to draw its own title, else the sanitized frontmatter title.
+                  no direction, and as the title to draw its own title when a title statement with a value sets one
+                  (even one that sanitizing empties), else the sanitized frontmatter title.
                 justification: |
                   The counts must keep the meaning of the document's node, edge, and subgraph counts and must not
                   depend on the row size of a render; Mermaid draws the frontmatter title when the diagram has none.
                 tests:
                   - PacketParser_Parse_TitleAccessibilityAndMetadata_AreRead
                   - PacketParser_Parse_FrontmatterTitle_IsTheDrawnTitleFallback
+                  - PacketParser_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle
 
               - id: CanvasNetMermaid-Packet-PacketParser-Errors
                 title: >-

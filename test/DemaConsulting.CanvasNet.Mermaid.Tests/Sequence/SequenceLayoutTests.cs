@@ -72,6 +72,21 @@ public class SequenceLayoutTests
     }
 
     /// <summary>
+    ///     Validates that a title statement that sanitizes to empty replaces the frontmatter title, so no title or room is
+    ///     added, as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void SequenceLayout_Draw_TitleSanitizedToEmpty_AddsNoRoom()
+    {
+        // Act
+        var scene = SceneQuery.Layout("---\ntitle: FM\n---\nsequenceDiagram\n    title <script>x</script>\n    A->>B: x\n");
+
+        // Assert
+        Assert.Equal(new SceneRect(-50, -10, 450, 215), scene.ViewBox);
+        Assert.Empty(SceneQuery.OfRole(scene, "title"));
+    }
+
+    /// <summary>
     ///     Validates that without mirrored participants there is no bottom row, the lifelines run to y 2000, and the view
     ///     box ends at the diagram margin below the last message.
     /// </summary>

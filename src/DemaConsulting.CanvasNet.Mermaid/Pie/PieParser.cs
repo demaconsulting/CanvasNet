@@ -413,7 +413,7 @@ internal sealed partial class PieParser
             }
         }
 
-        return new PieDiagram(keyword, showData, diagramTitle, accessibleTitle, description, sections);
+        return new PieDiagram(keyword, showData, diagramTitle, !string.IsNullOrEmpty(title), accessibleTitle, description, sections);
     }
 
     /// <summary>
@@ -589,6 +589,10 @@ internal sealed class PieDiagram : IMermaidDiagram
     /// <param name="keywordLocation">The location of the diagram keyword.</param>
     /// <param name="showData">Whether <c>showData</c> is set.</param>
     /// <param name="diagramTitle">The sanitized title, or empty.</param>
+    /// <param name="isTitleSet">
+    ///     Whether a <c>title</c> statement with a value set the title (Mermaid's <c>populateCommonDb</c> tests the value
+    ///     before sanitizing), so that it replaces the frontmatter title even when sanitizing leaves it empty.
+    /// </param>
     /// <param name="accessibleTitle">The sanitized accessible title, or empty.</param>
     /// <param name="accessibleDescription">The sanitized accessible description, or empty.</param>
     /// <param name="sections">The sections in order, each label once.</param>
@@ -596,6 +600,7 @@ internal sealed class PieDiagram : IMermaidDiagram
         MermaidLocation keywordLocation,
         bool showData,
         string diagramTitle,
+        bool isTitleSet,
         string accessibleTitle,
         string accessibleDescription,
         IReadOnlyList<PieSection> sections)
@@ -603,6 +608,7 @@ internal sealed class PieDiagram : IMermaidDiagram
         KeywordLocation = keywordLocation;
         ShowData = showData;
         DiagramTitle = diagramTitle;
+        IsTitleSet = isTitleSet;
         AccessibleTitle = accessibleTitle;
         AccessibleDescription = accessibleDescription;
         Sections = sections;
@@ -616,6 +622,12 @@ internal sealed class PieDiagram : IMermaidDiagram
 
     /// <summary>Gets the title of the <c>title</c> statement, sanitized (empty when there is none).</summary>
     public string DiagramTitle { get; }
+
+    /// <summary>
+    ///     Gets a value indicating whether a <c>title</c> statement with a value set the title, even one that sanitizing
+    ///     empties.
+    /// </summary>
+    public bool IsTitleSet { get; }
 
     /// <summary>Gets the accessible title (empty when there is none).</summary>
     public string AccessibleTitle { get; }

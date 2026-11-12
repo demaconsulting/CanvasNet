@@ -290,6 +290,20 @@ public sealed class GanttRendererTests
     }
 
     /// <summary>
+    ///     Validates that a title statement that sanitizes to empty replaces the frontmatter title, so no title is drawn,
+    ///     as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void GanttRenderer_Draw_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle()
+    {
+        // Act
+        var scene = Layout("---\ntitle: FM\n---\ngantt\ntitle <script>x</script>\nA :a, 2024-01-01, 1d\n");
+
+        // Assert
+        Assert.Empty(Of(scene, "title"));
+    }
+
+    /// <summary>
     ///     Validates the failures of the renderer: a section named like an inherited JavaScript property in compact mode
     ///     fails as in Mermaid, and a tick label longer than <see cref="MermaidLimits.MaxLabelLength"/> is a limit.
     /// </summary>
