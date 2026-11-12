@@ -44,8 +44,7 @@ side-by-side picture is the result. The sizes of the two charts are not forced t
 size is stretched to ours, so a layout difference shows as a difference of the whole picture, and the sizes of the two
 pictures are the first thing to look at.
 
-`render-vega.mjs` drops the unit of the `font-size` attributes that Vega writes (`10px` becomes `10`), because the SVG
-reader of CanvasNet takes plain numbers for lengths; the picture does not change. A remote `data.url` is not fetched.
+A remote `data.url` is not fetched.
 
 ### Status
 
