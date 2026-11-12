@@ -149,6 +149,22 @@ internal static partial class MermaidConfigResolver
         ["packet.showBits"] = ValueKind.Boolean,
         ["packet.paddingX"] = ValueKind.Number,
         ["packet.paddingY"] = ValueKind.Number,
+        ["gitGraph"] = ValueKind.Object,
+        ["gitGraph.useMaxWidth"] = ValueKind.Boolean,
+        ["gitGraph.titleTopMargin"] = ValueKind.Number,
+        ["gitGraph.diagramPadding"] = ValueKind.Number,
+        ["gitGraph.nodeLabel"] = ValueKind.Object,
+        ["gitGraph.nodeLabel.width"] = ValueKind.Number,
+        ["gitGraph.nodeLabel.height"] = ValueKind.Number,
+        ["gitGraph.nodeLabel.x"] = ValueKind.Number,
+        ["gitGraph.nodeLabel.y"] = ValueKind.Number,
+        ["gitGraph.mainBranchName"] = ValueKind.Text,
+        ["gitGraph.mainBranchOrder"] = ValueKind.Number,
+        ["gitGraph.showCommitLabel"] = ValueKind.Boolean,
+        ["gitGraph.showBranches"] = ValueKind.Boolean,
+        ["gitGraph.rotateCommitLabel"] = ValueKind.Boolean,
+        ["gitGraph.parallelCommits"] = ValueKind.Boolean,
+        ["gitGraph.arrowMarkerAbsolute"] = ValueKind.Boolean,
     };
 
     /// <summary>

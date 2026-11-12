@@ -1098,6 +1098,7 @@ words:
   - longhands
   - FFFD
   - xlink
+  - linecap
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

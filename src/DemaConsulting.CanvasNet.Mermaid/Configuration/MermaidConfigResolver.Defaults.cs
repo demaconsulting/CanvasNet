@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
 ///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, the pie and gantt
-///     charts, the mindmap and the packet diagram, and the set of configuration keys that Mermaid's
+///     charts, the mindmap, the packet diagram and the git graph, and the set of configuration keys that Mermaid's
 ///     <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
@@ -207,6 +207,7 @@ internal static partial class MermaidConfigResolver
             ["gantt"] = CreateGanttDefaults(),
             ["mindmap"] = CreateMindmapDefaults(),
             ["packet"] = CreatePacketDefaults(),
+            ["gitGraph"] = CreateGitGraphDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -380,5 +381,31 @@ internal static partial class MermaidConfigResolver
         ["showBits"] = true,
         ["paddingX"] = 5.0,
         ["paddingY"] = 5.0,
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default gitGraph section (the defaults of <c>GitGraphDiagramConfig</c>, in the order of
+    ///     Mermaid's <c>getConfig</c>).
+    /// </summary>
+    /// <returns>The default gitGraph section.</returns>
+    private static JsonObject CreateGitGraphDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["titleTopMargin"] = 25.0,
+        ["diagramPadding"] = 8.0,
+        ["nodeLabel"] = new JsonObject
+        {
+            ["width"] = 75.0,
+            ["height"] = 100.0,
+            ["x"] = -25.0,
+            ["y"] = 0.0,
+        },
+        ["mainBranchName"] = "main",
+        ["mainBranchOrder"] = 0.0,
+        ["showCommitLabel"] = true,
+        ["showBranches"] = true,
+        ["rotateCommitLabel"] = true,
+        ["parallelCommits"] = false,
+        ["arrowMarkerAbsolute"] = false,
     };
 }

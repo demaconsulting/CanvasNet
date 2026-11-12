@@ -285,6 +285,49 @@ internal sealed record PacketConfig
 }
 
 /// <summary>
+///     The gitGraph section of the effective configuration, as Mermaid's git graph database and renderer read it
+///     (<c>getConfig</c> of <c>gitGraphAst.ts</c>: <c>cleanAndMerge</c> of the schema's defaults and the section).
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>GitGraphDiagramConfig</c>. The database names the first branch
+///     <c>mainBranchName</c> and orders it by <c>mainBranchOrder</c>; the renderer draws the commit labels when
+///     <c>showCommitLabel</c> is set (rotated by 45 degrees when <c>rotateCommitLabel</c> is set, which also moves the
+///     branches apart), the branch lines and labels when <c>showBranches</c> is set, places the commits of
+///     <c>parallelCommits</c> by their parents, places the title <c>titleTopMargin</c> above the drawing and pads the view
+///     box by <c>diagramPadding</c>. <c>useMaxWidth</c> only sets the CSS width of the SVG, which a picture does not have;
+///     <c>nodeLabel</c> and <c>arrowMarkerAbsolute</c> change nothing Mermaid draws.
+/// </remarks>
+internal sealed record GitGraphConfig
+{
+    /// <summary>Gets the space between the title's baseline and the top of the drawing (<c>gitGraph.titleTopMargin</c>).</summary>
+    public double TitleTopMargin { get; init; } = 25;
+
+    /// <summary>Gets the padding of the view box around the drawing (<c>gitGraph.diagramPadding</c>).</summary>
+    public double DiagramPadding { get; init; } = 8;
+
+    /// <summary>Gets the name of the first branch (<c>gitGraph.mainBranchName</c>).</summary>
+    public string MainBranchName { get; init; } = "main";
+
+    /// <summary>Gets the order of the first branch among the branches (<c>gitGraph.mainBranchOrder</c>).</summary>
+    public double MainBranchOrder { get; init; }
+
+    /// <summary>Gets a value indicating whether the commit labels are drawn (<c>gitGraph.showCommitLabel</c>).</summary>
+    public bool ShowCommitLabel { get; init; } = true;
+
+    /// <summary>Gets a value indicating whether the branch lines and labels are drawn (<c>gitGraph.showBranches</c>).</summary>
+    public bool ShowBranches { get; init; } = true;
+
+    /// <summary>Gets a value indicating whether the commit labels are rotated (<c>gitGraph.rotateCommitLabel</c>).</summary>
+    public bool RotateCommitLabel { get; init; } = true;
+
+    /// <summary>Gets a value indicating whether the commits are placed by their parents (<c>gitGraph.parallelCommits</c>).</summary>
+    public bool ParallelCommits { get; init; }
+
+    /// <summary>Gets a value indicating whether the picture may shrink to the page width (<c>gitGraph.useMaxWidth</c>).</summary>
+    public bool UseMaxWidth { get; init; } = true;
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -515,6 +558,7 @@ internal sealed class MermaidConfig
         Gantt = ReadGantt(raw);
         Mindmap = ReadMindmap(raw);
         Packet = ReadPacket(raw);
+        GitGraph = ReadGitGraph(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -594,6 +638,9 @@ internal sealed class MermaidConfig
 
     /// <summary>Gets the packet section, as the packet database and renderer read it.</summary>
     public PacketConfig Packet { get; }
+
+    /// <summary>Gets the gitGraph section, as the git graph database and renderer read it.</summary>
+    public GitGraphConfig GitGraph { get; }
 
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
@@ -837,6 +884,30 @@ internal sealed class MermaidConfig
             ShowBits = Boolean(section, "showBits", defaults.ShowBits),
             PaddingX = Number(section, "paddingX", defaults.PaddingX),
             PaddingY = Number(section, "paddingY", defaults.PaddingY),
+            UseMaxWidth = Boolean(section, "useMaxWidth", defaults.UseMaxWidth),
+        };
+    }
+
+    /// <summary>
+    ///     Reads the gitGraph section as the git graph database and renderer see it: the section's values over the
+    ///     schema's defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The gitGraph section.</returns>
+    private static GitGraphConfig ReadGitGraph(JsonObject raw)
+    {
+        var section = raw["gitGraph"] as JsonObject ?? [];
+        var defaults = new GitGraphConfig();
+        return new GitGraphConfig
+        {
+            TitleTopMargin = Number(section, "titleTopMargin", defaults.TitleTopMargin),
+            DiagramPadding = Number(section, "diagramPadding", defaults.DiagramPadding),
+            MainBranchName = Text(section, "mainBranchName") ?? defaults.MainBranchName,
+            MainBranchOrder = Number(section, "mainBranchOrder", defaults.MainBranchOrder),
+            ShowCommitLabel = Boolean(section, "showCommitLabel", defaults.ShowCommitLabel),
+            ShowBranches = Boolean(section, "showBranches", defaults.ShowBranches),
+            RotateCommitLabel = Boolean(section, "rotateCommitLabel", defaults.RotateCommitLabel),
+            ParallelCommits = Boolean(section, "parallelCommits", defaults.ParallelCommits),
             UseMaxWidth = Boolean(section, "useMaxWidth", defaults.UseMaxWidth),
         };
     }

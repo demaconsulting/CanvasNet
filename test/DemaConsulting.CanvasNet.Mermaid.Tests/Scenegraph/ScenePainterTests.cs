@@ -247,6 +247,87 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that a rotated line is the unrotated line turned about its pivot: a quarter turn about the origin
+    ///     moves each pixel of the line, its underline bar included, to the turned pixel (<c>rotate(90)</c> takes x, y to
+    ///     -y, x), with the same coverage within the rounding of a single-precision rotation.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RotatedText_IsTheLineTurnedAboutItsPivot()
+    {
+        // Arrange: an underlined line in a 100 x 30 box, and the same line turned by 90 degrees about (0, 0), which puts
+        // it in the box from (-30, 0) to (0, 100)
+        var font = new SceneFont("\"trebuchet ms\", verdana, arial, sans-serif", 16, false, false);
+        var line = new SceneText(10, 20, SceneTextAnchor.Start, [new SceneTextRun("Hello", font, new Rgba32(0, 0, 0, 255)) { Underline = true }], new SceneRect(10, 4, 40, 20)) { Role = "label" };
+        var turned = line with { Rotation = new SceneRotation(90, 0, 0) };
+
+        // Act
+        using var plain = Paint(new Scene(new SceneRect(0, 0, 100, 30), [line]));
+        using var rotated = Paint(new Scene(new SceneRect(-30, 0, 30, 100), [turned]));
+        var inked = 0;
+        var largest = 0;
+        for (var x = 0; x < 30; x++)
+        {
+            for (var y = 0; y < 100; y++)
+            {
+                // The rotated pixel (x, y) covers the device square that the plain pixel (y, 29 - x) turns to
+                var expected = plain[y, 29 - x].A;
+                inked += expected > 0 ? 1 : 0;
+                largest = Math.Max(largest, Math.Abs(rotated[x, y].A - expected));
+            }
+        }
+
+        // Assert
+        Assert.True(inked > 100);
+        Assert.InRange(largest, 0, 8);
+    }
+
+    /// <summary>
+    ///     Validates that a rotated line charges the box of its turned corners to the painted-pixel limit: a 45 degree
+    ///     turn of a line whose own box fits the limit needs more pixels than the limit allows.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RotatedText_ChargesItsTurnedBox()
+    {
+        // Arrange: a line about 46 x 19 pixels; turned by 45 degrees its box is about 47 x 47 pixels
+        var font = new SceneFont("\"trebuchet ms\", verdana, arial, sans-serif", 16, false, false);
+        var line = new SceneText(20, 50, SceneTextAnchor.Start, [new SceneTextRun("HHHH", font, new Rgba32(0, 0, 0, 255))], new SceneRect(20, 34, 46, 20)) { Role = "label" };
+        var turned = line with { Rotation = new SceneRotation(-45, 40, 50) };
+
+        // Act
+        using var fits = Paint(new Scene(new SceneRect(0, 0, 100, 100), [line]), maxPixels: 1500);
+        var ex = Assert.Throws<MermaidRenderException>(() => Paint(new Scene(new SceneRect(0, 0, 100, 100), [turned]), maxPixels: 1500));
+        using var turnedFits = Paint(new Scene(new SceneRect(0, 0, 100, 100), [turned]), maxPixels: 2500);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, ex.Code);
+        Assert.Contains(Enumerable.Range(0, 100), x => Enumerable.Range(0, 100).Any(y => turnedFits[x, y].A > 0));
+    }
+
+    /// <summary>
+    ///     Validates that a rotated line whose pivot or angle cannot be drawn (not finite, or far outside every surface)
+    ///     is skipped, not drawn.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_RotatedTextWithoutAUsablePivotOrAngle_IsSkipped()
+    {
+        // Arrange
+        var font = new SceneFont("sans-serif", 16, false, false);
+        var line = new SceneText(10, 20, SceneTextAnchor.Start, [new SceneTextRun("HH", font, new Rgba32(0, 0, 0, 255))], new SceneRect(10, 4, 20, 20)) { Role = "label" };
+        SceneItem[] items =
+        [
+            line with { Rotation = new SceneRotation(double.NaN, 0, 0) },
+            line with { Rotation = new SceneRotation(30, 1e9, 0) },
+            line with { Rotation = new SceneRotation(30, 0, double.PositiveInfinity) },
+        ];
+
+        // Act
+        using var surface = Paint(new Scene(new SceneRect(0, 0, 50, 30), items));
+
+        // Assert
+        Assert.True(MermaidTestHelpers.IsFullyTransparent(surface));
+    }
+
+    /// <summary>
     ///     Validates the background fill and that a scaled placement scales geometry.
     /// </summary>
     [Fact]
