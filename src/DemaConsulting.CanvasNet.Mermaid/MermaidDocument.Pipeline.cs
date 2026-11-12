@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.Mermaid.Configuration;
 using DemaConsulting.CanvasNet.Mermaid.Er;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Gantt;
+using DemaConsulting.CanvasNet.Mermaid.GitGraph;
 using DemaConsulting.CanvasNet.Mermaid.Mindmap;
 using DemaConsulting.CanvasNet.Mermaid.Packet;
 using DemaConsulting.CanvasNet.Mermaid.Pie;
@@ -118,8 +119,9 @@ internal sealed record DiagramRenderContext(
 ///         (<c>erDiagram</c>) by <see cref="ErParser"/> into an <see cref="ErModel"/>, the pie chart (<c>pie</c>) by
 ///         <see cref="PieParser"/> into a <see cref="PieDiagram"/>, the gantt chart (<c>gantt</c>) by <see cref="GanttParser"/>
 ///         into a <see cref="GanttModel"/>, the mindmap (<c>mindmap</c>) by <see cref="MindmapParser"/> into a
-///         <see cref="MindmapDiagram"/>, and the packet diagram (<c>packet</c> and <c>packet-beta</c>) by
-///         <see cref="PacketParser"/> into a <see cref="PacketDiagram"/>.
+///         <see cref="MindmapDiagram"/>, the packet diagram (<c>packet</c> and <c>packet-beta</c>) by
+///         <see cref="PacketParser"/> into a <see cref="PacketDiagram"/>, and the git graph (<c>gitGraph</c>) by
+///         <see cref="GitGraphParser"/> into a <see cref="GitGraphDiagram"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -135,7 +137,8 @@ internal static class DiagramRegistry
     /// <param name="limits">The limits of the open call.</param>
     /// <param name="textConfig">
     ///     The configuration of the text alone (frontmatter and directives), which selects what the metadata counts where
-    ///     a setting changes what is drawn (<c>class.hierarchicalNamespaces</c>).
+    ///     a setting changes what is drawn (<c>class.hierarchicalNamespaces</c>; the main branch name and order of a git
+    ///     graph, <c>gitGraph.mainBranchName</c> and <c>gitGraph.mainBranchOrder</c>).
     /// </param>
     /// <returns>The parsed diagram.</returns>
     /// <exception cref="ArgumentException">Thrown when the type is not supported.</exception>
@@ -157,6 +160,7 @@ internal static class DiagramRegistry
             (true, "gantt") => GanttParser.Parse(source, detected, limits),
             (true, "mindmap") => MindmapParser.Parse(source, detected, limits),
             (true, "packet") => PacketParser.Parse(source, detected, limits),
+            (true, "gitGraph") => GitGraphParser.Parse(source, detected, limits, textConfig),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

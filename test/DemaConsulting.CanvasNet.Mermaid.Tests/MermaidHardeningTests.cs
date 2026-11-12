@@ -2224,9 +2224,220 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
-    ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
-    ///     state, so each adds two nesting levels.
+    ///     Validates that every git graph fixture renders the same pixels twice.
     /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GitGraphFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gitgraph"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile git graphs through the public API, fitted to 400 by 300 pixels: huge and negative paddings,
+    ///     margins and orders, an order of 400 digits, huge font sizes, markup in every text, and Mermaid's placement
+    ///     failure each render, or end in a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  gitGraph:\n    diagramPadding: 1e300\n---\ngitGraph\n  commit\n")]
+    [InlineData("---\nconfig:\n  gitGraph:\n    diagramPadding: -1e300\n    titleTopMargin: 1e300\n---\ngitGraph\n  title T\n  commit\n")]
+    [InlineData("---\nconfig:\n  gitGraph:\n    titleTopMargin: -1e300\n---\ngitGraph\n  title T\n  commit\n")]
+    [InlineData("---\nconfig:\n  gitGraph:\n    mainBranchOrder: 1e300\n    parallelCommits: true\n---\ngitGraph TB:\n  commit\n  branch b order: 5\n  commit\n")]
+    [InlineData("gitGraph\n  commit\n  branch b order: 1" + "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" + "\n  commit\n")]
+    [InlineData("%%{init: {'themeVariables': {'commitLabelFontSize': '1e300px', 'tagLabelFontSize': '1e300px', 'fontSize': '1e300px'}}}%%\ngitGraph\n  title T\n  commit tag: \"t\"\n")]
+    [InlineData("gitGraph\n  commit id: \"<b>x</b> #amp; <script>y</script> = z\" tag: \"<br><br>\" tag: \"\"\n  branch \"<i>a</i><br>\\n\"\n  commit msg: \"<img src=x onerror=alert(1)>\"\n  checkout main\n  merge \"<i>a</i><br>\\n\" tag: \"<b>raw</b>\"\n")]
+    [InlineData("---\nconfig:\n  gitGraph:\n    parallelCommits: true\n---\ngitGraph BT:\n  commit id: \"p\"\n  branch dev\n  commit id: \"q\"\n  checkout main\n  commit id: \"p\"\n")]
+    public void CanvasNetMermaid_Hardening_HostileGitGraph_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("gitGraph", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that more commits than the default <see cref="MermaidLimits.MaxNodes"/> (the main branch counted)
+    ///     fail at open, located at the first one over the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GitGraphManyCommits_IsALocatedNodeLimit()
+    {
+        // Arrange: 2,001 commits after the main branch
+        var text = "gitGraph\n" + string.Concat(Enumerable.Repeat("commit\n", 2_001));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_001, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that every text of a git graph that is longer than the default
+    ///     <see cref="MermaidLimits.MaxLabelLength"/> fails at open, located at its statement: the title, the accessible
+    ///     title, both forms of the accessible description, an id, a message, a tag and a branch name.
+    /// </summary>
+    /// <param name="statement">The statement.</param>
+    [Theory]
+    [InlineData("title {0}")]
+    [InlineData("accTitle: {0}")]
+    [InlineData("accDescr: {0}")]
+    [InlineData("accDescr {{\n{0}\n}}")]
+    [InlineData("commit id: \"{0}\"")]
+    [InlineData("commit msg: \"{0}\"")]
+    [InlineData("commit tag: \"{0}\"")]
+    [InlineData("branch {0}")]
+    public void CanvasNetMermaid_Hardening_GitGraphLongTexts_AreALocatedLabelLimit(string statement)
+    {
+        // Arrange: a text one over the limit
+        var text = "gitGraph\ncommit\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, statement, new string('x', 4_097)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a long chain of cherry-picks of cherry-picks, whose messages Mermaid composes from the picked
+    ///     commit's message, ends at the label limit instead of growing without bound.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GitGraphCherryPickChain_EndsAtTheLabelLimit()
+    {
+        // Arrange: each pick on the other branch picks the last pick, whose generated id the text so far gives
+        var text = new System.Text.StringBuilder("gitGraph\ncommit id: \"c0\"\nbranch b\ncommit\ncheckout main\n");
+        var last = "c0";
+        MermaidSyntaxException? exception = null;
+
+        // Act
+        for (var i = 0; exception is null && i < 1_000; i++)
+        {
+            text.Append(i % 2 == 0 ? "checkout b\n" : "checkout main\n");
+            text.Append(System.Globalization.CultureInfo.InvariantCulture, $"cherry-pick id: \"{last}\"\n");
+            try
+            {
+                var diagram = Assert.IsType<Mermaid.GitGraph.GitGraphDiagram>(MermaidDocument.Parse(text.ToString()).Diagram);
+                last = diagram.OpenDatabase.Head!.Id;
+            }
+            catch (MermaidSyntaxException ex)
+            {
+                exception = ex;
+            }
+        }
+
+        // Assert
+        Assert.NotNull(exception);
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a graph whose arrows are rerouted many times (each merge back crosses the commits made since)
+    ///     either lays out or fails with the layout work limit, and a tiny work limit fails it, both bounded.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_GitGraphManyReroutes_StaysWithinTheWorkLimit()
+    {
+        // Arrange: commits alternating between two branches, merged back and forth
+        var text = new System.Text.StringBuilder("gitGraph\ncommit\nbranch dev\ncommit\n");
+        for (var i = 0; i < 300; i++)
+        {
+            text.Append("checkout main\ncommit\ncheckout dev\ncommit\nmerge main\n");
+        }
+
+        var document = MermaidDocument.Parse(text.ToString());
+
+        // Act
+        var outcome = Record.Exception(() => document.LayoutScene(null, TestContext.Current.CancellationToken));
+        var limited = Assert.Throws<MermaidRenderException>(() => document.LayoutScene(new MermaidRenderOptions { Limits = new MermaidLimits { MaxLayoutWork = 10_000 } }, TestContext.Current.CancellationToken));
+
+        // Assert
+        if (outcome is not null)
+        {
+            Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, Assert.IsType<MermaidRenderException>(outcome).Code);
+        }
+
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, limited.Code);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the git graph fixtures that opening and measuring only ever throw
+    ///     the documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedGitGraphFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "gitGraph", "gitGraph:", "TB:", "BT:", "LR", "commit", "branch x", "checkout main", "switch x", "merge x", "cherry-pick id: \"A\"",
+            "id: \"A\"", "tag: \"t\"", "type: REVERSE", "type: HIGHLIGHT", "order: 3", "parent: \"A\"", "msg: \"m\"", "title ", "accTitle: t",
+            "accDescr {", "}", "\"", "'", ":", "%%", "%%{x}%%", "---\n", "\n", "  ", "\\", "#35;", "<br>", "1.0", "café",
+        ];
+        var random = new Random(20261112);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "gitgraph"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 12; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
     /// <param name="count">The number of composite states.</param>
     /// <returns>The text, with composite state <c>i</c> on line <c>i + 2</c>.</returns>
     private static string NestedRegions(int count) =>

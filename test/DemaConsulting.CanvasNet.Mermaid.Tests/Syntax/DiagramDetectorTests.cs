@@ -42,7 +42,7 @@ public class DiagramDetectorTests
     [InlineData("requirementDiagram", "requirement", "requirement", "Unsupported")]
     [InlineData("swimlane-beta", "swimlane", "swimlane", "Unsupported")]
     [InlineData("timeline", "timeline", "timeline", "Unsupported")]
-    [InlineData("gitGraph", "gitGraph", "gitGraph", "Unsupported")]
+    [InlineData("gitGraph", "gitGraph", "gitGraph", "Supported")]
     [InlineData("journey", "journey", "journey", "Unsupported")]
     [InlineData("quadrantChart", "quadrantChart", "quadrantChart", "Unsupported")]
     [InlineData("sankey-beta", "sankey", "sankey", "Unsupported")]
@@ -189,15 +189,15 @@ public class DiagramDetectorTests
 
     /// <summary>
     ///     Validates the hints of the unsupported-type report: the type is not supported, and the supported keywords
-    ///     (mindmap and packet included) are listed.
+    ///     (mindmap, packet and gitGraph included) are listed.
     /// </summary>
     [Fact]
     public void DiagramDetector_UnsupportedHint_NamesSupportedKeywords()
     {
         // Arrange / Act / Assert
-        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet", DiagramDetector.UnsupportedHint(Detect("journey")));
-        Assert.Equal("gitGraph diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet", DiagramDetector.UnsupportedHint(Detect("gitGraph")));
-        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt", "mindmap", "packet"], DiagramDetector.SupportedDiagramKeywords);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet, gitGraph", DiagramDetector.UnsupportedHint(Detect("journey")));
+        Assert.Equal("timeline diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet, gitGraph", DiagramDetector.UnsupportedHint(Detect("timeline")));
+        Assert.Equal(["flowchart", "graph", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "pie", "gantt", "mindmap", "packet", "gitGraph"], DiagramDetector.SupportedDiagramKeywords);
     }
 
     /// <summary>

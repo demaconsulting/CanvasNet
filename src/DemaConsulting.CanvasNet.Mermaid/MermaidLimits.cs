@@ -107,7 +107,8 @@ public sealed class MermaidLimits
     /// <summary>
     ///     Gets the maximum number of nodes of a diagram, subgraphs included (the section statements of a pie chart, the
     ///     task and section statements of a gantt chart, the nodes of a mindmap, the block statements of a packet diagram
-    ///     and, when it is drawn, the parts its rows split them into); 2,000 by default.
+    ///     and, when it is drawn, the parts its rows split them into, the main branch, branches and commits of a git graph);
+    ///     2,000 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxNodes
@@ -120,7 +121,8 @@ public sealed class MermaidLimits
     ///     Gets the maximum length of one label (the text of a node, an edge or a subgraph title, a pie chart's title,
     ///     labels and legend texts, every text of a gantt chart and its axis labels, a mindmap's ids, descriptions, icons,
     ///     classes and class lists, and its labels as they are drawn, a packet diagram's labels, title and accessibility
-    ///     texts) in UTF-16 characters; 4,096 by default.
+    ///     texts, a git graph's commit ids, messages, tags, branch names, title and accessibility texts, sanitized, and the
+    ///     messages and tags Mermaid composes for its merges and cherry-picks) in UTF-16 characters; 4,096 by default.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxLabelLength
@@ -156,8 +158,9 @@ public sealed class MermaidLimits
     /// </summary>
     /// <remarks>
     ///     The layout stages charge their iterative work (network-simplex pivots, ordering sweeps, coordinate passes, a
-    ///     gantt chart's date passes, excluded days and ticks, every step of a mindmap's cose-bilkent layout, and a packet
-    ///     diagram's blocks, row parts and texts) to this
+    ///     gantt chart's date passes, excluded days and ticks, every step of a mindmap's cose-bilkent layout, a packet
+    ///     diagram's blocks, row parts and texts, and a git graph's branches, commit placements, arrows with the commits
+    ///     their rerouting test scans, lane searches and texts) to this
     ///     budget, so a pathological graph fails with <see cref="MermaidDiagnosticCodes.LimitExceeded"/> instead of
     ///     running for minutes; a mindmap of about 1,000 nodes or more can reach the default.
     ///     <see cref="MermaidDocument.Measure"/> lays the diagram out too and is bounded the same way.
