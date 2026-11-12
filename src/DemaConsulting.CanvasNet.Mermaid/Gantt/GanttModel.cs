@@ -179,6 +179,11 @@ internal sealed partial class GanttModel : IMermaidDiagram
     /// <summary>Gets the title of the <c>title</c> statement, sanitized (empty when there is none).</summary>
     public string DiagramTitle { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Gets a value indicating whether a <c>title</c> statement set the title, even one that sanitizing empties.
+    /// </summary>
+    public bool IsTitleSet { get; private set; }
+
     /// <summary>Gets the location of the last title statement, or the keyword's.</summary>
     public MermaidLocation TitleLocation { get; private set; }
 
@@ -203,7 +208,7 @@ internal sealed partial class GanttModel : IMermaidDiagram
     /// <summary>Gets the sanitized links by task id, in the order they were first set (<c>getLinks</c>).</summary>
     public IReadOnlyList<KeyValuePair<string, string>> Links => _links;
 
-    /// <summary>Gets the title the diagram declares, trimmed, or null (the frontmatter title is the document's fallback).</summary>
+    /// <summary>Gets the title the diagram declares, trimmed, or null (the frontmatter title is the document's fallback unless IsTitleSet).</summary>
     public string? Title => Preprocessor.TrimJs(DiagramTitle) is { Length: > 0 } title ? title : null;
 
     /// <summary>Gets the accessible title, or null.</summary>
@@ -321,6 +326,7 @@ internal sealed partial class GanttModel : IMermaidDiagram
     public void SetDiagramTitle(string text, MermaidLocation location)
     {
         DiagramTitle = Checked(Sanitize(text), location);
+        IsTitleSet = true;
         TitleLocation = location;
     }
 

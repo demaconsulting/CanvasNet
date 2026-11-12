@@ -243,3 +243,16 @@ Asserts that a mindmap without configuration, and one whose frontmatter sets onl
 laid out with `cose-bilkent`, as the mindmap database's `getData` sets it; that a frontmatter `layout: elk`, a directive
 `layout: tidy-tree`, and a site configuration `layout: dagre` are kept as the mindmap's layout (the user's layout wins,
 even `dagre`); and that a flowchart keeps the default `dagre`.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-PacketSection: The Packet Section
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_PacketSection_DefaultsValuesAndInvalidValues`
+
+Asserts, for a packet diagram without configuration, that the effective `packet` section holds the 7 keys of Mermaid's
+schema and that the typed `packet` section is the default `PacketConfig`: a row height, a bit width, and bits per row of
+32, the bit numbers shown, paddings of 5, `useMaxWidth`, and an effective vertical padding of 15 (grown by 10 for the bit
+numbers); that a frontmatter setting a row height of 40, a bit width of 20, 16 bits per row, no bit numbers, paddings of
+2 and 8, and no `useMaxWidth` gives those values, with an effective vertical padding of 8, without a warning; and that a
+directive with a text `packet.bitsPerRow`, a number `packet.showBits`, and a text `packet.paddingY` gives three
+`mermaid-config-invalid` warnings, one naming `packet.bitsPerRow`, and leaves the typed `packet` section at its
+defaults.

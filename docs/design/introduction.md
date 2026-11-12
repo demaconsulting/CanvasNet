@@ -352,12 +352,13 @@ software items, specifically:
   (`FlowchartParser` and `FlowchartModel`), `Sequence` (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and
   `SequenceRenderer`), `Class` (`ClassParser` and `ClassModel`), `State` (`StateParser` and `StateModel`), `Er`
   (`ErParser` and `ErModel`), `Pie` (`PieParser` and `PieRenderer`), `Gantt` (`GanttParser`, `GanttModel`,
-  `GanttRenderer`, and `TimeAxis`), `Mindmap` (`MindmapParser` and `MindmapRenderer`), and `Cose` (`CoseLayout`). This
-  version draws flowcharts, sequence diagrams, class diagrams, state diagrams,
-  entity relationship diagrams, pie charts, gantt charts, and mindmaps; every other Mermaid diagram type is
-  recognized and reported as unsupported — see _CanvasNetMermaid System Design_ (`canvas-net-mermaid.md`) for the
-  known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the `CanvasNet` system's `Canvas`,
-  `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `ImageSources` subsystems through their public API only
+  `GanttRenderer`, and `TimeAxis`), `Mindmap` (`MindmapParser` and `MindmapRenderer`), `Cose` (`CoseLayout`), and
+  `Packet` (`PacketParser` and `PacketRenderer`). This version draws flowcharts, sequence diagrams, class diagrams,
+  state diagrams, entity relationship diagrams, pie charts, gantt charts, mindmaps, and packet diagrams; every other
+  Mermaid diagram type is recognized and reported as unsupported — see _CanvasNetMermaid System Design_
+  (`canvas-net-mermaid.md`) for the known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the
+  `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `ImageSources` subsystems through
+  their public API only
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -605,11 +606,12 @@ subsystem holds the `ClassParser` and `ClassModel` units, its internal `State` s
 `StateModel` units, its internal `Er` subsystem holds the `ErParser` and `ErModel` units, its internal `Pie` subsystem
 holds the `PieParser` and `PieRenderer` units, its internal `Gantt` subsystem holds the `GanttParser`,
 `GanttModel`, `GanttRenderer`, and `TimeAxis` units, its internal `Mindmap` subsystem holds the `MindmapParser` and
-`MindmapRenderer` units, and its internal `Cose` subsystem holds the `CoseLayout` unit (each subsystem lives in
+`MindmapRenderer` units, its internal `Cose` subsystem holds the `CoseLayout` unit, and its internal `Packet` subsystem
+holds the `PacketParser` and `PacketRenderer` units (each subsystem lives in
 the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def` names carry the
 prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`, `MermaidRendering`,
 `MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`, `MermaidState`, `MermaidEr`, `MermaidPie`,
-`MermaidGantt`, `MermaidMindmap`, and `MermaidCose`) and the
+`MermaidGantt`, `MermaidMindmap`, `MermaidCose`, and `MermaidPacket`) and the
 scene units are
 `MermaidSceneModel` and `MermaidScenePainter`,
 because the model package is shared by every system and `Rendering`, `SceneModel`, and `ScenePainter` are already
@@ -1530,7 +1532,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 The `CanvasNetMermaid` system lives in the `src/DemaConsulting.CanvasNet.Mermaid/` project folder (the separate
 `DemaConsulting.CanvasNet.Mermaid` package). The `MermaidDocument` unit occupies the project root; the internal
 subsystems occupy the sub-folders `Syntax/`, `Configuration/`, `Graphlib/`, `Dagre/`, `Rendering/`, `Scenegraph/`,
-`Flowchart/`, `Sequence/`, `Class/`, `State/`, `Er/`, `Pie/`, `Gantt/`, `Mindmap/`, and `Cose/`, whose names equal
+`Flowchart/`, `Sequence/`, `Class/`, `State/`, `Er/`, `Pie/`, `Gantt/`, `Mindmap/`, `Cose/`, and `Packet/`, whose
+names equal
 their sub-namespaces; partial files and small helper types
 belong to the unit named before the dash (see _CanvasNetMermaid System Design_, `canvas-net-mermaid.md`):
 
@@ -1564,7 +1567,8 @@ src/DemaConsulting.CanvasNet.Mermaid/
 ├── Configuration/                 — Configuration subsystem
 │   ├── MermaidConfigResolver*.cs, MermaidConfig.cs — MermaidConfigResolver: defaults, precedence, typed view
 │   ├── ThemeResolver*.cs          — ThemeResolver: the five themes and the style sheet of each drawn type (pie and
-│   │                                gantt in ThemeResolver.ChartStyles.cs, mindmap in ThemeResolver.MindmapStyles.cs)
+│   │                                gantt and packet in ThemeResolver.ChartStyles.cs, mindmap in
+│   │                                ThemeResolver.MindmapStyles.cs)
 │   ├── ColorMath.cs, ColorMath.Parsers.cs — ColorMath: the khroma subset
 │   └── StyleDeclarations.cs       — StyleDeclarations: the CSS declaration subset
 ├── Graphlib/                      — Graphlib subsystem
@@ -1617,8 +1621,11 @@ src/DemaConsulting.CanvasNet.Mermaid/
 ├── Mindmap/                       — Mindmap subsystem
 │   ├── MindmapParser*.cs          — MindmapParser: the mindmap.jison lexer and grammar, mindmapDb, MindmapDiagram
 │   └── MindmapRenderer.cs         — MindmapRenderer: the mindmapRenderer.ts drawing with the cose-bilkent renderer
-└── Cose/                          — Cose subsystem
-    └── CoseLayout*.cs             — CoseLayout: the cose-bilkent layout, cytoscape's edge points, correctly rounded math
+├── Cose/                          — Cose subsystem
+│   └── CoseLayout*.cs             — CoseLayout: the cose-bilkent layout, cytoscape's edge points, correctly rounded math
+└── Packet/                        — Packet subsystem
+    ├── PacketParser*.cs           — PacketParser: the Langium packet grammar, the packet database, the row split
+    └── PacketRenderer.cs          — PacketRenderer: the packet renderer.ts drawing
 ```
 
 Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses only the
@@ -1850,20 +1857,22 @@ with `docs/sysml2/model/canvas-net-mermaid.sysml`; its system tests are `Mermaid
 `MermaidSequenceReferenceLayoutTests.cs`, `MermaidClassIntegrationTests.cs`, `MermaidStateIntegrationTests.cs`,
 `MermaidErIntegrationTests.cs`, `MermaidPieIntegrationTests.cs`, `MermaidGanttIntegrationTests.cs`
 (with `MermaidChartReferenceLayoutTests.cs`), `MermaidMindmapIntegrationTests.cs` (with
-`MermaidMindmapReferenceLayoutTests.cs`), `MermaidGalleryTests.cs`, `MermaidHardeningTests.cs`, and
-`MermaidUnsupportedDiagramTests.cs` in the root of its test project. Units whose helper types live in their own
-files list those files in their design and SysML2 model (for example `ObjectKeyMap.cs` belongs to `Graph`,
-`ShapeNames.cs` to `ShapeLibrary`, `LayoutData.cs` to `ClusterLayout`, and `HtmlEntities.cs` to `HtmlSanitizer`).
-The original flowchart, sequence, class, state, entity relationship, pie, gantt, and mindmap fixtures are in
-`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/`, `Fixtures/sequence/`, `Fixtures/class/`,
-`Fixtures/state/`, `Fixtures/er/`, `Fixtures/pie/`, `Fixtures/gantt/`, and `Fixtures/mindmap/`, the upstream vectors in
+`MermaidMindmapReferenceLayoutTests.cs`), `MermaidPacketIntegrationTests.cs`, `MermaidGalleryTests.cs`,
+`MermaidHardeningTests.cs`, and `MermaidUnsupportedDiagramTests.cs` in the root of its test project. Units whose helper
+types live in their own files list those files in their design and SysML2 model (for example `ObjectKeyMap.cs` belongs
+to `Graph`, `ShapeNames.cs` to `ShapeLibrary`, `LayoutData.cs` to `ClusterLayout`, and `HtmlEntities.cs` to
+`HtmlSanitizer`). The original flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, and packet
+fixtures are in `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/`, `Fixtures/sequence/`,
+`Fixtures/class/`, `Fixtures/state/`, `Fixtures/er/`, `Fixtures/pie/`, `Fixtures/gantt/`, `Fixtures/mindmap/`, and
+`Fixtures/packet/`, the upstream vectors in
 `Fixtures/upstream-vectors/`, and the reference layout goldens with their provenance README in `Fixtures/reference/`
-(the sequence, class, state, entity relationship, pie, gantt, and mindmap goldens in `Fixtures/reference/sequence/`,
+(the sequence, class, state, entity relationship, pie, gantt, mindmap, and packet goldens in
+`Fixtures/reference/sequence/`,
 `Fixtures/reference/class/`, `Fixtures/reference/state/`, `Fixtures/reference/er/`, `Fixtures/reference/pie/`,
-`Fixtures/reference/gantt/`, and `Fixtures/reference/mindmap/`). The attribution record and license texts are in
-`src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the vectors and goldens, and
-the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and `tools/visual-diff/mermaid/`
-(run by hand, never in CI); they are not software items.
+`Fixtures/reference/gantt/`, `Fixtures/reference/mindmap/`, and `Fixtures/reference/packet/`). The attribution record
+and license texts are in `src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the
+vectors and goldens, and the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and
+`tools/visual-diff/mermaid/` (run by hand, never in CI); they are not software items.
 
 ## References
 

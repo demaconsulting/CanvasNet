@@ -1,0 +1,21 @@
+---
+title: A message header
+config:
+  packet:
+    bitsPerRow: 16
+    rowHeight: 36
+---
+packet-beta
+    accTitle: Message header
+    accDescr: The fields of a message header, sixteen bits to a row
+    0-3: "Version"
+    4-7: "Kind"
+    8-15: "Hop count"
+    +16: "Message id"
+    32: "R"
+    33: "E"
+    34-39: "Reserved"
+    +24: "Sequence number"
+    +8: "Length"
+    %% the check closes the header
+    +8: "Check"

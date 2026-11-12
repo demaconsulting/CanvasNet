@@ -496,8 +496,13 @@ internal sealed partial class SequenceLayout
 
         var width = Math.Max(stopx - startx, requiredBoxSize.MaxWidth) + (2 * _conf.DiagramMarginX);
 
-        // The title: the diagram's own, else the frontmatter's
-        var title = _model.Title ?? (_context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter ? HtmlSanitizer.Sanitize(frontmatter) : null);
+        // The title: the title statement's (even one that sanitizes to empty), else the frontmatter's
+        var title = _model.DiagramTitle;
+        if (!_model.IsTitleSet && _context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter)
+        {
+            title = HtmlSanitizer.Sanitize(frontmatter);
+        }
+
         if (!string.IsNullOrEmpty(title))
         {
             _renderer.DrawTitle(title, ((stopx - startx) / 2) - (2 * _conf.DiagramMarginX), -25);

@@ -222,6 +222,9 @@ input-files:
   - docs/verification/canvas-net-mermaid/mindmap/mindmap-renderer.md
   - docs/verification/canvas-net-mermaid/cose.md
   - docs/verification/canvas-net-mermaid/cose/cose-layout.md
+  - docs/verification/canvas-net-mermaid/packet.md
+  - docs/verification/canvas-net-mermaid/packet/packet-parser.md
+  - docs/verification/canvas-net-mermaid/packet/packet-renderer.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md

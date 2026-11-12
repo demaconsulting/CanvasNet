@@ -122,6 +122,33 @@ public class MermaidDocumentTests
     }
 
     /// <summary>
+    ///     Validates that a packet, pie, gantt, or sequence title statement that sanitizes to empty replaces the
+    ///     frontmatter title, leaving the document without a title as drawn, while a bare pie <c>title</c> keeps the
+    ///     frontmatter title.
+    /// </summary>
+    [Fact]
+    public void MermaidDocument_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle()
+    {
+        // Arrange
+        const string Frontmatter = "---\ntitle: FM\n---\n";
+        string[] texts =
+        [
+            "packet\ntitle <script>x</script>\n0: \"a\"\n",
+            "pie\ntitle <script>x</script>\n\"a\" : 1\n",
+            "gantt\ntitle <script>x</script>\nA :a, 2024-01-01, 1d\n",
+            "sequenceDiagram\n    title <script>x</script>\n    A->>B: x\n",
+        ];
+
+        // Act
+        var titles = texts.Select(text => MermaidDocument.Parse(Frontmatter + text).Title).ToList();
+        var bareTitle = MermaidDocument.Parse(Frontmatter + "pie\ntitle\n\"a\" : 1\n").Title;
+
+        // Assert
+        Assert.All(titles, Assert.Null);
+        Assert.Equal("FM", bareTitle);
+    }
+
+    /// <summary>
     ///     Validates that text without a diagram keyword fails with the unknown-diagram code, a location and a hint
     ///     naming the nearest keyword.
     /// </summary>

@@ -139,7 +139,10 @@ shapes and the color of its label, and each edge's `dataPoints` (cytoscape's sta
 the path's `data-points`) and computed paint. A mindmap is drawn twice, and the script fails when the two layouts
 differ. Every page also wraps `Math.random`: the script fails when it is called from cose-base's
 `findPlaceforPrunedNode`, the only place where the layout could use a random number (it is reached only by a graph that
-is not a tree, which a mindmap never is). The format is described in
+is not a tree, which a mindmap never is). A packet diagram (`aria-roledescription="packet"`) gets the packet layout
+(`extractPacket`): each row group with its block rectangles (their attributes and computed paint) and texts (the labels
+and bit numbers with their class, anchor point, computed anchor, dominant baseline, font size, fill and box), and the
+title. The format is described in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
@@ -150,15 +153,16 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 [-Diagram <type>...] [-Fixture
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`, and the class, state, ER, pie, gantt and mindmap fixtures (`Fixtures/class`,
-`Fixtures/state`, `Fixtures/er`, `Fixtures/pie`, `Fixtures/gantt` and `Fixtures/mindmap`) give `reference/class`,
-`reference/state`, `reference/er`, `reference/pie`, `reference/gantt` and `reference/mindmap`. `-Diagram` picks the
-types (`flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt` and `mindmap`; default: all). The script refuses
-to run unless the installed mermaid is the pinned 11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws
-with a system font) get no golden; no sequence, class, state, ER, pie, gantt or mindmap fixture is excluded.
-`MermaidReferenceLayoutTests` compares CanvasNet's flowchart layout with the goldens, `MermaidChartReferenceLayoutTests`
-its pie and gantt layouts, and `MermaidMindmapReferenceLayoutTests` its mindmap layouts (the node sizes, the layout
-given the golden's sizes bit for bit, and the whole drawing). The tolerance is 0.01 px, or 0.1 px for the two flowchart
+`reference/sequence/*.layout.json`, and the class, state, ER, pie, gantt, mindmap and packet fixtures (`Fixtures/class`,
+`Fixtures/state`, `Fixtures/er`, `Fixtures/pie`, `Fixtures/gantt`, `Fixtures/mindmap` and `Fixtures/packet`) give
+`reference/class`, `reference/state`, `reference/er`, `reference/pie`, `reference/gantt`, `reference/mindmap` and
+`reference/packet`. `-Diagram` picks the types (`flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt`,
+`mindmap` and `packet`; default: all). The script refuses to run unless the installed mermaid is the pinned 11.17.2.
+Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence, class,
+state, ER, pie, gantt, mindmap or packet fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's
+flowchart layout with the goldens, `MermaidChartReferenceLayoutTests` its pie, gantt and packet layouts, and
+`MermaidMindmapReferenceLayoutTests` its mindmap layouts (the node sizes, the layout given the golden's sizes bit for
+bit, and the whole drawing). The tolerance is 0.01 px, or 0.1 px for the two flowchart
 fixtures with rough.js circles; text boxes, the slice boxes of a pie and the node sizes of a mindmap are compared at
 0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A golden change is reviewed like code.
 
@@ -220,6 +224,13 @@ is their vector file.
   `mindmap-vector-cases.mjs`, or the error (jison's lexer and parse errors, the database's "only one root" error, or the
   TypeError of a decoration before any node). The inputs are those of mermaid's mindmap parser and `getData` specs
   (MIT; the database calls written as mindmap texts), original texts and the mindmap fixtures.
+- `gen-diagram-vectors.mjs --type packet` writes `packet-parser.json`: the PacketDB facts (the title and accessibility
+  texts, the effective packet configuration of `getConfig()`, and the rows of `getPacket()` with each block's start,
+  end, bits and label; the first and last 50 rows of a diagram with more than 100, marked `truncated`) of the cases in
+  `packet-vector-cases.mjs`, or the error (Langium's lexer and parser errors, the database's contiguity, order and
+  zero-bit errors, or the row split's error for a fractional `bitsPerRow`). The inputs are those of mermaid's packet
+  spec and of the packet tests of `@mermaid-js/parser` (MIT), original texts (the row split for several `bitsPerRow`
+  values, given as a site configuration, the only configuration `getDiagramFromText` applies) and the packet fixtures.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).

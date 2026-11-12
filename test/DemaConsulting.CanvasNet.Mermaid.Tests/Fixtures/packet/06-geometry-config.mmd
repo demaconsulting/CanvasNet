@@ -1,0 +1,17 @@
+---
+config:
+  packet:
+    rowHeight: 40
+    bitWidth: 20
+    bitsPerRow: 16
+    paddingX: 2
+    paddingY: 8
+---
+packet
+    title Sixteen bits per row
+    0-3: "Version"
+    4-7: "IHL"
+    8-13: "Service"
+    14-15: "ECN"
+    16-40: "Total Length and more"
+    41: "X"

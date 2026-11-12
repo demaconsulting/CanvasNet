@@ -1,0 +1,151 @@
+{
+  "source": "13-theme-css.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 94],
+  "rows": [
+    {
+      "blocks": [
+        {
+          "rect": [1, 15, 507, 32],
+          "paint": { "fill": "rgb(255, 224, 178)", "stroke": "rgb(230, 81, 0)", "strokeWidth": 2 }
+        },
+        {
+          "rect": [513, 15, 251, 32],
+          "paint": { "fill": "rgb(255, 224, 178)", "stroke": "rgb(230, 81, 0)", "strokeWidth": 2 }
+        },
+        {
+          "rect": [769, 15, 27, 32],
+          "paint": { "fill": "rgb(255, 224, 178)", "stroke": "rgb(230, 81, 0)", "strokeWidth": 2 }
+        },
+        {
+          "rect": [801, 15, 219, 32],
+          "paint": { "fill": "rgb(255, 224, 178)", "stroke": "rgb(230, 81, 0)", "strokeWidth": 2 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "First",
+          "at": [254.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [242.836, 23.172, 23.992, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "0",
+          "at": [1, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [1, 4, 6, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "15",
+          "at": [508, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 255)",
+          "box": [496.875, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Second",
+          "at": [638.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [618.148, 23.172, 41.025, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "16",
+          "at": [513, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [513, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "23",
+          "at": [764, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 255)",
+          "box": [752.875, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "C",
+          "at": [782.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [778.164, 23.172, 9, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "24",
+          "at": [782.5, 13],
+          "anchor": "middle",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [776.938, 4, 11.562, 11]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Third",
+          "at": [910.5, 31],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [896.828, 23.172, 27.666, 14]
+        },
+        {
+          "class": "packetByte start",
+          "text": "25",
+          "at": [801, 13],
+          "anchor": "start",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 0)",
+          "box": [801, 4, 11.562, 11]
+        },
+        {
+          "class": "packetByte end",
+          "text": "31",
+          "at": [1020, 13],
+          "anchor": "end",
+          "baseline": "auto",
+          "fontSize": 10,
+          "fill": "rgb(0, 0, 255)",
+          "box": [1008.875, 4, 11.562, 11]
+        }
+      ]
+    }
+  ],
+  "title": {
+    "class": "packetTitle",
+    "text": "Styled with themeCSS",
+    "at": [513, 70.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 14,
+    "fill": "rgb(0, 0, 0)",
+    "box": [443.352, 61.203, 139.297, 16]
+  }
+}

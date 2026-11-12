@@ -1,0 +1,102 @@
+---
+# Software Unit Requirements for PacketRenderer
+#
+# These requirements describe the design-level behavior of the PacketRenderer unit of the Packet subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Packet): the drawing of Mermaid's packet renderer of the pinned Mermaid
+# release - the rectangles and labels of the parts of each row, the bit numbers, the title row, the view box, the paint
+# and fonts of the packet style sheet, the texts as the browser shows them, and the work the drawing charges. See
+# docs/verification/canvas-net-mermaid/packet/packet-renderer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Packet Requirements
+        sections:
+          - title: PacketRenderer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Packet-PacketRenderer-Blocks
+                title: >-
+                  The PacketRenderer unit shall draw each row of parts the row height plus the padding above it below
+                  the row before it, the first after the padding, each part as a rectangle at its first bit within the
+                  row times the bit width plus 1, as wide as its bits times the bit width less the horizontal padding
+                  and as high as the row height, with its label centered on it, and no rectangle for a part that is not
+                  wider than zero.
+                justification: |
+                  The blocks carry the meaning of a packet diagram; they must stand where Mermaid puts them, and a
+                  rectangle SVG does not draw must not be drawn.
+                tests:
+                  - PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid
+                  - PacketRenderer_Draw_Configuration_ChangesTheGeometry
+                  - PacketRenderer_Draw_NarrowBlock_HasTextsButNoRectangle
+
+              - id: CanvasNetMermaid-Packet-PacketRenderer-BitNumbers
+                title: >-
+                  The PacketRenderer unit shall draw, when the configuration shows the bits, the first bit of each part
+                  above its left edge and the last above its right edge, 2 pixels above the part, or one number centered
+                  above a part of one bit, written as JavaScript writes the number, and shall then grow the padding
+                  above each row by 10 pixels; without the bits it shall draw no number and keep the padding.
+                justification: |
+                  The bit numbers tell the reader where each field lies in the packet; they must read and stand as in
+                  Mermaid's picture.
+                tests:
+                  - PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid
+                  - PacketRenderer_Draw_Configuration_ChangesTheGeometry
+
+              - id: CanvasNetMermaid-Packet-PacketRenderer-Title
+                title: >-
+                  The PacketRenderer unit shall draw the title to draw, when it is not empty, centered in a row of its
+                  own below the rows, and draw no title row without one.
+                justification: |
+                  Mermaid draws the title below the blocks and makes the picture a row higher for it.
+                tests:
+                  - PacketRenderer_Draw_Title_IsCenteredInAnExtraRow
+                  - PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow
+
+              - id: CanvasNetMermaid-Packet-PacketRenderer-ViewBox
+                title: >-
+                  The PacketRenderer unit shall give the drawing the view box of Mermaid's packet renderer - as wide as
+                  the bit width times the bits per row plus 2, and as high as the rows and the title row, each the row
+                  height plus the padding, less a row height without a title - so that a diagram without blocks or a
+                  title is the padding of one row high.
+                justification: |
+                  The natural size of the picture must be the size of Mermaid's SVG for the same text and
+                  configuration.
+                tests:
+                  - PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid
+                  - PacketRenderer_Draw_Title_IsCenteredInAnExtraRow
+                  - PacketRenderer_Draw_TitleSanitizedToEmpty_HasNoTitleRow
+                  - PacketRenderer_Draw_Empty_IsThePaddingOnly
+
+              - id: CanvasNetMermaid-Packet-PacketRenderer-Paint
+                title: >-
+                  The PacketRenderer unit shall paint the rectangles, the labels, the bit numbers, and the title with
+                  the fill, stroke, colors, and font sizes of the packet style sheet of the render's configuration and
+                  theme.
+                justification: |
+                  The colors and fonts of a packet diagram come from the packet theme variables in every theme; the
+                  picture must have Mermaid's colors.
+                tests:
+                  - PacketRenderer_Draw_DarkTheme_PaintsWithThePacketColors
+                  - PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketRenderer-Texts
+                title: >-
+                  The PacketRenderer unit shall draw every text as the browser shows Mermaid's SVG text - Mermaid's
+                  entity placeholders decoded, any other text as written, and its white space collapsed - on the
+                  baseline and with the anchor that Mermaid sets, and shall draw no empty text.
+                justification: |
+                  A label must read as in Mermaid's picture and stand where Mermaid puts it; a text with an entity must
+                  show the character, as the browser shows it.
+                tests:
+                  - PacketRenderer_DisplayText_DecodesOnlyThePlaceholders
+                  - PacketRenderer_Draw_Default_PlacesBlocksAndBitNumbersAsMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketRenderer-Cost
+                title: >-
+                  The PacketRenderer unit shall charge the split and every text it measures to the layout work limit of
+                  the render, failing with a MermaidRenderException of code mermaid-limit-exceeded when the limit is
+                  reached, and shall stop when the render is canceled.
+                justification: |
+                  The work of drawing untrusted text must be bounded and must stop when the caller no longer needs it.
+                tests:
+                  - PacketRenderer_Draw_WorkLimitAndCancellation_StopTheRender

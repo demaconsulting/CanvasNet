@@ -87,10 +87,10 @@ internal sealed partial class RenderCommand : ICommand
         + "unless its format.parse is \"auto\". --param name=value sets a parameter of the chart (a number, true, false, text," + Environment.NewLine
         + "or a JSON array or object such as brush={\"x\":[2,6]}; repeatable). A feature that is not supported yet is reported" + Environment.NewLine
         + "(an error with --strict)." + Environment.NewLine
-        + "A Mermaid diagram (flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart, or" + Environment.NewLine
-        + "mindmap) is drawn at the size Mermaid lays it out at, with the bundled fonts; --theme sets its theme (default, base," + Environment.NewLine
-        + "dark, forest, or neutral) unless the text sets one. A gantt chart has no today line (the tool sets no clock). A" + Environment.NewLine
-        + "diagram type that is not drawn (journey, timeline, and so on) is an empty picture with the note" + Environment.NewLine
+        + "A Mermaid diagram (flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart," + Environment.NewLine
+        + "mindmap, or packet diagram) is drawn at the size Mermaid lays it out at, with the bundled fonts; --theme sets its" + Environment.NewLine
+        + "theme (default, base, dark, forest, or neutral) unless the text sets one. A gantt chart has no today line (the tool" + Environment.NewLine
+        + "sets no clock). A diagram type that is not drawn (journey, timeline, and so on) is an empty picture with the note" + Environment.NewLine
         + "mermaid-diagram-unsupported; run 'canvasnet help mermaid' for what is supported." + Environment.NewLine
         + "An SVG drawing can embed a picture, model, chart, SVG file, or document page that sits beside it with" + Environment.NewLine
         + "<image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20 and chart.vl.json#param.cutoff=50" + Environment.NewLine

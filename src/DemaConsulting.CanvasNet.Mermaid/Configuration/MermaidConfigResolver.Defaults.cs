@@ -7,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Mermaid.Configuration;
 /// <content>
 ///     Mermaid's default configuration (the defaults of <c>config.schema.yaml</c> and <c>defaultConfig.ts</c>) for the
 ///     global keys, the flowchart, the sequence, class, state and entity relationship diagrams, the pie and gantt
-///     charts and the mindmap, and the set of configuration keys that Mermaid's <c>sanitizeDirective</c> accepts.
+///     charts, the mindmap and the packet diagram, and the set of configuration keys that Mermaid's
+///     <c>sanitizeDirective</c> accepts.
 /// </content>
 internal static partial class MermaidConfigResolver
 {
@@ -205,6 +206,7 @@ internal static partial class MermaidConfigResolver
             ["pie"] = CreatePieDefaults(),
             ["gantt"] = CreateGanttDefaults(),
             ["mindmap"] = CreateMindmapDefaults(),
+            ["packet"] = CreatePacketDefaults(),
             ["theme"] = "default",
             ["look"] = "classic",
             ["handDrawnSeed"] = 0.0,
@@ -363,5 +365,20 @@ internal static partial class MermaidConfigResolver
         ["padding"] = 10.0,
         ["maxNodeWidth"] = 200.0,
         ["layoutAlgorithm"] = "cose-bilkent",
+    };
+
+    /// <summary>
+    ///     Builds Mermaid's default packet section (the defaults of <c>PacketDiagramConfig</c>).
+    /// </summary>
+    /// <returns>The default packet section.</returns>
+    private static JsonObject CreatePacketDefaults() => new()
+    {
+        ["useMaxWidth"] = true,
+        ["rowHeight"] = 32.0,
+        ["bitWidth"] = 32.0,
+        ["bitsPerRow"] = 32.0,
+        ["showBits"] = true,
+        ["paddingX"] = 5.0,
+        ["paddingY"] = 5.0,
     };
 }

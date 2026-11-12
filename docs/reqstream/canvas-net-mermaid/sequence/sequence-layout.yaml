@@ -144,12 +144,14 @@ sections:
                 title: >-
                   The SequenceLayout unit shall compute the view box from the bounds of the diagram with Mermaid's
                   diagram margins, leaving out missing values as Mermaid's maximum and minimum helpers do, and add room
-                  above the diagram for the title of the title statement or of the frontmatter.
+                  above the diagram for the title of the title statement or, without a title statement, of the
+                  frontmatter.
                 justification: |
                   The view box is the natural size of the picture; it must be Mermaid's so that a scale of 1 matches
                   what an author previews.
                 tests:
                   - SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures
                   - SequenceLayout_Draw_Title_AddsRoomAboveTheDiagram
+                  - SequenceLayout_Draw_TitleSanitizedToEmpty_AddsNoRoom
                   - SequenceLayout_Draw_MirrorActorsOff_LifelinesRunTo2000
                   - SequenceLayout_JsMaxAndJsMin_LeaveOutMissingValues

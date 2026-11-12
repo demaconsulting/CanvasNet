@@ -764,6 +764,36 @@ public class MermaidConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the packet section: the schema's defaults without configuration (the effective <c>paddingY</c> grown
+    ///     by 10 for the bit numbers), the values a frontmatter sets (without bit numbers the padding is not grown), and
+    ///     values of the wrong type reported at their keys and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_PacketSection_DefaultsValuesAndInvalidValues()
+    {
+        // Arrange
+        const string Set = "---\nconfig:\n  packet:\n    rowHeight: 40\n    bitWidth: 20\n    bitsPerRow: 16\n    showBits: false\n    paddingX: 2\n    paddingY: 8\n    useMaxWidth: false\n---\npacket\n0: \"a\"\n";
+        const string Wrong = "%%{init: {\"packet\": {\"bitsPerRow\": \"wide\", \"showBits\": 1, \"paddingY\": \"7\"}}}%%\npacket\n0: \"a\"\n";
+
+        // Act
+        var (defaults, defaultWarnings) = Resolve("packet\n0: \"a\"\n", diagramId: "packet");
+        var (set, setWarnings) = Resolve(Set, diagramId: "packet");
+        var (wrong, wrongWarnings) = Resolve(Wrong, diagramId: "packet");
+
+        // Assert
+        Assert.Empty(defaultWarnings);
+        Assert.Empty(setWarnings);
+        Assert.Equal(7, defaults.Raw["packet"]!.AsObject().Count);
+        Assert.Equal(new PacketConfig(), defaults.Packet);
+        Assert.Equal((32.0, 32.0, 32.0, true, 5.0, 5.0, true, 15.0), (defaults.Packet.RowHeight, defaults.Packet.BitWidth, defaults.Packet.BitsPerRow, defaults.Packet.ShowBits, defaults.Packet.PaddingX, defaults.Packet.PaddingY, defaults.Packet.UseMaxWidth, defaults.Packet.EffectivePaddingY));
+        Assert.Equal((40.0, 20.0, 16.0, false, 2.0, 8.0, false, 8.0), (set.Packet.RowHeight, set.Packet.BitWidth, set.Packet.BitsPerRow, set.Packet.ShowBits, set.Packet.PaddingX, set.Packet.PaddingY, set.Packet.UseMaxWidth, set.Packet.EffectivePaddingY));
+        Assert.Equal(3, wrongWarnings.Count);
+        Assert.All(wrongWarnings, warning => Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code));
+        Assert.Contains(wrongWarnings, warning => warning.Message.Contains("packet.bitsPerRow", StringComparison.Ordinal));
+        Assert.Equal(new PacketConfig(), wrong.Packet);
+    }
+
+    /// <summary>
     ///     Validates the mindmap's layout as its database's <c>getData</c> sets it: <c>cose-bilkent</c> unless the site
     ///     configuration, the frontmatter or a directive sets a layout (which is kept, even <c>dagre</c>), and only for a
     ///     mindmap (a flowchart keeps the default <c>dagre</c>; <c>mindmap.layoutAlgorithm</c> changes nothing).

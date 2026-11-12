@@ -5,6 +5,7 @@ using DemaConsulting.CanvasNet.Mermaid.Er;
 using DemaConsulting.CanvasNet.Mermaid.Flowchart;
 using DemaConsulting.CanvasNet.Mermaid.Gantt;
 using DemaConsulting.CanvasNet.Mermaid.Mindmap;
+using DemaConsulting.CanvasNet.Mermaid.Packet;
 using DemaConsulting.CanvasNet.Mermaid.Pie;
 using DemaConsulting.CanvasNet.Mermaid.Scenegraph;
 using DemaConsulting.CanvasNet.Mermaid.Sequence;
@@ -30,9 +31,16 @@ internal interface IMermaidDiagram
 {
     /// <summary>
     ///     Gets the title the diagram itself declares (a title statement), or null; the frontmatter title is the document's
-    ///     fallback.
+    ///     fallback unless <see cref="IsTitleSet"/>.
     /// </summary>
     string? Title { get; }
+
+    /// <summary>
+    ///     Gets a value indicating whether a title statement set the diagram's title, even one that sanitizing empties;
+    ///     when true the frontmatter title is neither drawn nor the document's title. False for a type without a title
+    ///     statement.
+    /// </summary>
+    bool IsTitleSet => false;
 
     /// <summary>
     ///     Gets the accessible title (<c>accTitle</c>), or null.
@@ -109,8 +117,9 @@ internal sealed record DiagramRenderContext(
 ///         <see cref="StateParser"/> into a <see cref="StateModel"/>, the entity relationship diagram
 ///         (<c>erDiagram</c>) by <see cref="ErParser"/> into an <see cref="ErModel"/>, the pie chart (<c>pie</c>) by
 ///         <see cref="PieParser"/> into a <see cref="PieDiagram"/>, the gantt chart (<c>gantt</c>) by <see cref="GanttParser"/>
-///         into a <see cref="GanttModel"/>, and the mindmap (<c>mindmap</c>) by <see cref="MindmapParser"/> into a
-///         <see cref="MindmapDiagram"/>.
+///         into a <see cref="GanttModel"/>, the mindmap (<c>mindmap</c>) by <see cref="MindmapParser"/> into a
+///         <see cref="MindmapDiagram"/>, and the packet diagram (<c>packet</c> and <c>packet-beta</c>) by
+///         <see cref="PacketParser"/> into a <see cref="PacketDiagram"/>.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -147,6 +156,7 @@ internal static class DiagramRegistry
             (true, "pie") => PieParser.Parse(source, detected, limits),
             (true, "gantt") => GanttParser.Parse(source, detected, limits),
             (true, "mindmap") => MindmapParser.Parse(source, detected, limits),
+            (true, "packet") => PacketParser.Parse(source, detected, limits),
             _ => throw new ArgumentException($"The diagram type '{detected.DiagramType}' is not supported.", nameof(detected)),
         };
     }

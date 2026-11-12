@@ -3,7 +3,8 @@
 This document describes the unit-level verification strategy for the `ThemeResolver` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Configuration` namespace: the internal static `ThemeResolver` (`GetThemeVariables`
 and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles`, `ClassStyles`,
-`StateStyles`, `ErStyles`, `SequenceStyles`, `PieStyles`, `GanttStyles`, and `MindmapStyles` with their shared bases
+`StateStyles`, `ErStyles`, `SequenceStyles`, `PieStyles`, `GanttStyles`, `MindmapStyles`, and `PacketStyles` with their
+shared bases
 `DiagramStyles` and (for the flowchart, class, state, entity relationship, and mindmap sheets) `UnifiedStyles`.
 
 #### Verification Approach
@@ -28,7 +29,10 @@ paint of the ER sheet, and the subgraph titles), and `themeCSS`; and the facts e
 sheet is verified with `MindmapStyles`: the shared global rules, the paint of each node by its classes and the element
 its shape draws, as Chrome computes Mermaid's mindmap CSS, the edge widths with the negative ones dropped, every theme's
 variables, the gradient rule of the themes with `useGradient`, `themeCSS`, and the bound of `THEME_COLOR_LIMIT`; and
-the default `NodePaintFor` of the other sheets is checked on the flowchart's. The
+the default `NodePaintFor` of the other sheets is checked on the flowchart's. The packet style sheet is verified with
+`PacketStyles`: the shared global rules, every theme's packet object, the replacement of the theme's object by the
+user's, the options written as JavaScript writes them, `themeCSS`, and the paint a block inherits where its own is
+dropped, with the values Chrome computes for Mermaid's packet CSS. The
 unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
 `StyleDeclarations`, and `MermaidConfigResolver` are real, so no mocking or stubbing is required.
 
@@ -256,6 +260,29 @@ rule wins, as mmdc draws it) with the class's stroke, fill its circle `#ffa500`,
 leave the node of section 1 unchanged, and report `.urgent p` once; that a rule for a class no node has (`.urgent`)
 and for a node class that is not a plain CSS identifier (`a.b`) are both reported and not applied; and that a
 `THEME_COLOR_LIMIT` of 3 styles sections 0 and 1 and leaves section 2 without a fill.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-PacketStyleSheet: Mermaid's Packet Diagram Paint
+
+**Tests**: `ThemeResolverTests.PacketStyles_Create_EachTheme_UsesThemePacketObject`,
+`ThemeResolverTests.PacketStyles_Create_PacketOverride_ReplacesThemeObject`,
+`ThemeResolverTests.PacketStyles_Options_ValuesAsJavaScriptStrings_MergedOverDefaults`,
+`ThemeResolverTests.PacketStyles_Create_ThemeCss_OverridesKnownSelectors`,
+`ThemeResolverTests.PacketStyles_Create_InvalidBlockPaint_InheritsRootFill`
+
+Asserts that the packet sheet starts with the same global rules as the flowchart's, and (a theory with one case for each
+theme) that the default, base, and neutral themes paint the texts and the block strokes black on a `#efefef` block, the
+dark theme `#e0dfdf` on `#333333`, and the forest theme `#321b67` on `#cde498`, with a stroke width of 1 and the font
+sizes 12 (label), 14 (title), and 10 (bit numbers) in the theme's font family; that a `themeVariables.packet` of the
+dark theme with a red label color, a title font size of `20px`, a label font size of the bare number 20, and a block
+stroke width of 3 replaces the theme's object: the label is red at the root's 16 pixels (the bare number is dropped, as
+Chrome drops it), the title is black at 20 pixels, the bit numbers are black, and the block is `#efefef` stroked black at
+3; that the options are the 10 defaults (`byteFontSize` `10px`, `blockFillColor` `#efefef`, `blockStrokeWidth` `1`), that
+an object's values are written as JavaScript's `String` writes them (`12.5`, `null`, `true`, `[object Object]`, and an array
+as `a,,2`) over the defaults, and that a theme variable that is not an object changes nothing; that the `themeCSS` rules
+`.packetBlock { fill: #ffe0b2; stroke: #e65100; stroke-width: 2px }` and `.packetByte.end { fill: blue }` give the block
+that paint and the last bit numbers blue, the first staying black, without a report; and that a block fill and stroke
+that are not colors leave the block filled with the root rule's fill (the theme's text color `#333`) and without a
+stroke.
 
 ##### CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses: A Node's Paint By Its Classes And Element
 

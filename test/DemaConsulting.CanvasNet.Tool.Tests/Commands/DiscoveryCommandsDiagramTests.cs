@@ -257,6 +257,39 @@ public class DiscoveryCommandsDiagramTests
     }
 
     /// <summary>
+    ///     Test that a packet diagram is described as supported, without a direction, with its title and accessible title,
+    ///     and with its blocks as written (a block split across two rows counts once) as nodes and no edges or subgraphs.
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Info_Packet_ReportsBlocks()
+    {
+        // Arrange: three blocks, the second split across the end of the first row
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "frame.mmd",
+            "packet\n    title Frame\n    accTitle: A frame\n    0-23: \"Header\"\n    +16: \"Length\"\n    +8: \"Check\"\n");
+        var info = SourceLoader.Probe(path);
+
+        // Act
+        var json = RunInfo(true, path);
+        var text = RunInfo(false, path).TrimEnd();
+
+        // Assert
+        using var document = JsonDocument.Parse(json);
+        var diagram = document.RootElement.GetProperty("diagram");
+        Assert.Equal("packet", diagram.GetProperty("type").GetString());
+        Assert.True(diagram.GetProperty("supported").GetBoolean());
+        Assert.False(diagram.TryGetProperty("direction", out _));
+        Assert.Equal(("Frame", "A frame"), (diagram.GetProperty("title").GetString(), diagram.GetProperty("accTitle").GetString()));
+        Assert.Equal((3, 0, 0), (diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32(), diagram.GetProperty("subgraphs").GetInt32()));
+        Assert.Equal((1026, 141), (info.Width, info.Height));
+        Assert.Equal(
+            $"{path}: mermaid, {info.Width}x{info.Height} px (laid out), packet, 3 nodes, 0 edges, 0 subgraphs, title \"Frame\", accTitle \"A frame\", {info.Bytes} bytes",
+            text);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw is described with <c>supported</c> false and no direction or
     ///     titles, so an agent learns before rendering that it would get an empty picture.
     /// </summary>

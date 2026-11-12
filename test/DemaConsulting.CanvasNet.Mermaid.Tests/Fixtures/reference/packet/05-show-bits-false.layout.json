@@ -1,0 +1,87 @@
+{
+  "source": "05-show-bits-false.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "packet",
+  "viewBox": [0, 0, 1026, 111],
+  "rows": [
+    {
+      "blocks": [
+        {
+          "rect": [1, 5, 251, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [257, 5, 251, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        },
+        {
+          "rect": [513, 5, 507, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Type",
+          "at": [126.5, 21],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [113.492, 13.172, 26.342, 14]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Code",
+          "at": [382.5, 21],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [368.156, 13.172, 29.014, 14]
+        },
+        {
+          "class": "packetLabel",
+          "text": "Checksum",
+          "at": [766.5, 21],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [738.156, 13.172, 56.688, 14]
+        }
+      ]
+    },
+    {
+      "blocks": [
+        {
+          "rect": [1, 42, 507, 32],
+          "paint": { "fill": "rgb(239, 239, 239)", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1 }
+        }
+      ],
+      "texts": [
+        {
+          "class": "packetLabel",
+          "text": "Identifier",
+          "at": [254.5, 58],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 12,
+          "fill": "rgb(0, 0, 0)",
+          "box": [231.484, 50.172, 47.029, 14]
+        }
+      ]
+    }
+  ],
+  "title": {
+    "class": "packetTitle",
+    "text": "Without bit numbers",
+    "at": [513, 92.5],
+    "anchor": "middle",
+    "baseline": "middle",
+    "fontSize": 14,
+    "fill": "rgb(0, 0, 0)",
+    "box": [449.75, 83.203, 125.5, 16]
+  }
+}

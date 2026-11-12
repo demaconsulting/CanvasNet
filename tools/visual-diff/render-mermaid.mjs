@@ -42,6 +42,10 @@
 // getBBox of its group, which the cose-bilkent layout was given) and center (from its transform), the computed paint of
 // its shapes and label, and each edge's data-points (cytoscape's three points) and computed paint (extractMindmap). A
 // mindmap is drawn twice and the run fails when the layouts differ, or when cose-base calls Math.random (RANDOM_GUARD).
+// A packet diagram (aria-roledescription="packet") gets the packet layout (extractPacket): each row group with its block
+// rectangles (their x, y, width and height attributes and computed paint) and its texts (the labels and the bit numbers,
+// with their class, the point of their anchor, the computed anchor, dominant baseline, font size and fill, and their box),
+// and the title text.
 // Groups nested in other groups (an extracted subgraph is drawn in a translated group) are mapped with getScreenCTM.
 
 import { createRequire } from 'node:module';
@@ -311,6 +315,8 @@ async function readBack(svgText, definition, picture) {
       layout = await page.evaluate(extractPie, svgId);
     } else if (role === 'gantt') {
       layout = await page.evaluate(extractGantt, svgId);
+    } else if (role === 'packet') {
+      layout = await page.evaluate(extractPacket, svgId);
     } else {
       layout = await page.evaluate(extract, svgId, samples, shapes, terminalTexts, groupShapes, randomIdPattern);
       if (role === 'mindmap') {
@@ -1019,5 +1025,53 @@ function extractPie(id) {
         text: text(g.querySelector('text'))
       };
     })
+  };
+}
+
+// Runs in the page: the layout of a packet diagram (packet/renderer.ts). The svg holds an empty group, then one group per
+// row (each block's rect.packetBlock, its text.packetLabel and, with showBits, its text.packetByte start and end), then the
+// text.packetTitle (empty without a title).
+function extractPacket(id) {
+  const svg = document.getElementById(id);
+  const round = (v) => Math.round(v * 1000) / 1000 + 0;
+  const attr = (element, name) => Number(element.getAttribute(name) ?? 0);
+  const box = (element) => {
+    const b = element.getBBox();
+    return [b.x, b.y, b.width, b.height].map(round);
+  };
+  // The computed paint (the packet style sheet sets it by class)
+  const paint = (element) => {
+    const s = getComputedStyle(element);
+    return { fill: s.fill, stroke: s.stroke, strokeWidth: round(parseFloat(s.strokeWidth)) };
+  };
+  // A text: its class, content, the point of its anchor, its computed anchor, baseline, font and fill, and its box
+  const text = (element) => {
+    const s = getComputedStyle(element);
+    return {
+      class: element.getAttribute('class'),
+      text: element.textContent,
+      at: [round(attr(element, 'x')), round(attr(element, 'y'))],
+      anchor: s.textAnchor,
+      baseline: s.dominantBaseline,
+      fontSize: round(parseFloat(s.fontSize)),
+      fill: s.fill,
+      box: element.textContent.length > 0 ? box(element) : null
+    };
+  };
+
+  const rows = Array.from(svg.children).filter((c) => c.tagName === 'g' && c.children.length > 0);
+  const title = svg.querySelector(':scope > text.packetTitle');
+  const viewBox = svg.getAttribute('data-layout-view-box') ?? svg.dataset.layoutViewBox ?? svg.getAttribute('viewBox');
+  return {
+    diagram: 'packet',
+    viewBox: viewBox.trim().split(/[\s,]+/).map(Number).map(round),
+    rows: rows.map((g) => ({
+      blocks: Array.from(g.querySelectorAll(':scope > rect'), (rect) => ({
+        rect: ['x', 'y', 'width', 'height'].map((n) => round(attr(rect, n))),
+        paint: paint(rect)
+      })),
+      texts: Array.from(g.querySelectorAll(':scope > text'), text)
+    })),
+    title: title ? text(title) : null
   };
 }

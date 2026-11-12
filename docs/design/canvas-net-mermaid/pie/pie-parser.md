@@ -58,9 +58,10 @@ gives the text of its legend entry: the label, followed with `showData` by the v
 `String` writes the number (`a [1]`).
 
 **`PieDiagram`** is immutable and safe for concurrent renders. It holds the location of the `pie` keyword
-(`KeywordLocation`), `ShowData`, the sanitized title of the `title` statement (`DiagramTitle`), the sanitized accessible
-title (`AccessibleTitle`) and description (`AccessibleDescription`), each empty when not set, and the sections in the
-order they were added, each label once (`Sections`, Mermaid's `getSections`).
+(`KeywordLocation`), `ShowData`, the sanitized title of the `title` statement (`DiagramTitle`), whether a `title`
+statement with a value set it (`IsTitleSet`), the sanitized accessible title (`AccessibleTitle`) and description
+(`AccessibleDescription`), each empty when not set, and the sections in the order they were added, each label once
+(`Sections`, Mermaid's `getSections`).
 
 #### Key Methods
 
@@ -97,8 +98,9 @@ order they were added, each label once (`Sections`, Mermaid's `getSections`).
   `commonDb.ts`: the text sanitized with `HtmlSanitizer` (an empty text kept), the accessible title without its leading
   white space, and the description without the white space after each line feed.
 - **Metadata** (`IMermaidDiagram`): `Title` is the title of the `title` statement or null (the document then falls back
-  to the frontmatter title), `AccTitle` the accessible title or null, `Direction` null, `NodeCount` the number of
-  sections (the legend entries), and `EdgeCount` and `SubgraphCount` 0.
+  to the frontmatter title unless `IsTitleSet`, which the diagram exposes through `IMermaidDiagram`), `AccTitle` the
+  accessible title or null, `Direction` null, `NodeCount` the number of sections (the legend entries), and `EdgeCount`
+  and `SubgraphCount` 0.
 - **`PieDiagram.Layout(DiagramRenderContext)`** creates a `PieRenderer` for the render and returns the scene it draws
   (see _PieRenderer Unit Design_).
 - **`Is`**, **`Expect`**, **`Fail`**, **`TextOf`**, **`Checked`**, **`CheckDerived`**, and **`Locate`**: `Is` tests the

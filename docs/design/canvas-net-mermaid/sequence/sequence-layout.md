@@ -73,8 +73,8 @@ the cancellation token), a `LabelBuilder` charged to that meter, the `SequenceBo
   7. the `rect` backgrounds go behind everything drawn so far, the lifelines are ended (at the mirrored participant,
      or at y 2000 without mirrored participants), and `LayoutBoxes` sizes the boxes and draws them behind everything;
   8. `DrawActorsPopup` draws the menus of the drawn participants with links and gets the size they need (a hidden menu
-     still counts), and `ViewBox` draws the title (the `title` statement's, else the frontmatter's, sanitized) and
-     returns the scene.
+     still counts), and `ViewBox` draws the title (the `title` statement's, even one that sanitizes to empty, else the
+     frontmatter's, sanitized) and returns the scene.
 - **`BuildMessageModel`** places the ends of an arrow at the activations of both participants (`ActivationBounds`),
   shortened for the arrowheads, moved for central connections (`CentralConnectionOffset`), with a self message as
   Mermaid's loop to the right of the lifeline; **`BuildNoteModel`** places a note by its placement (left of, right

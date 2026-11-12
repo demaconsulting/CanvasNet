@@ -292,6 +292,35 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
+    ///     Test that a packet diagram is probed as a supported diagram with its title and its blocks as nodes, and drawn
+    ///     strictly at its natural size over white, as the library draws it, with no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidPacket_ProbesAndDraws()
+    {
+        // Arrange: four blocks, the third split across the end of the first row
+        const string Text = "packet-beta\n    title Frame\n    0-15: \"Source\"\n    16: \"A\"\n    +24: \"Target\"\n    +7: \"Flags\"\n";
+        using var directory = new TempDirectory();
+        var path = directory.Combine("frame.mmd");
+        File.WriteAllText(path, Text);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the facts, the size, the white corner, the library's pixels, and no note
+        Assert.Equal(new DiagramFacts("packet", true, null, "Frame", null, 4, 0, 0), info.Diagram);
+        Assert.Equal((1026, 141), (info.Width, info.Height));
+        Assert.Equal((info.Width, info.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(White, loaded.Surface[0, 0]);
+        Assert.Equal((expected.Width, expected.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(0, CountDifferences(expected, loaded.Surface));
+        Assert.True(CountNot(loaded.Surface, White) > loaded.Surface.Width * loaded.Surface.Height / 4);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw (a user journey) is probed with <c>Supported</c> false and
     ///     drawn as an empty picture with one unsupported note that says it is not supported, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.

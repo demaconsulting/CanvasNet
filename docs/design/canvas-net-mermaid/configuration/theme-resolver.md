@@ -14,17 +14,18 @@ rendering units draw with, the flowchart style sheet `FlowchartStyles`, and its 
 `ThemeResolver.SequenceStyles.cs`, which holds the sequence style sheet `SequenceStyles` and its typed paints
 `StrokePaint` and `ShadowPaint`, and `ThemeResolver.ChartStyles.cs`, which holds the chart style sheets `PieStyles` with
 its typed paint `SlicePaint` and `GanttStyles` with the element description `GanttElement`, the computed style
-`GanttComputedStyle`, and the selector `GanttSelector` of its cascade, and `ThemeResolver.MindmapStyles.cs`, which
+`GanttComputedStyle`, and the selector `GanttSelector` of its cascade, and the packet style sheet `PacketStyles`, and
+`ThemeResolver.MindmapStyles.cs`, which
 holds the mindmap style sheet `MindmapStyles`.
 
 #### Purpose
 
 `ThemeResolver` reproduces Mermaid's five built-in themes - `default`, `base`, `dark`, `forest`, and `neutral` - and the
 style sheets that Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity
-relationship diagram, a pie chart, a gantt chart, and a mindmap from them. Given a theme name and the user's theme
-variable overrides, it computes every theme variable of every diagram type with the same text as Mermaid's
+relationship diagram, a pie chart, a gantt chart, a mindmap, and a packet diagram from them. Given a theme name and the
+user's theme variable overrides, it computes every theme variable of every diagram type with the same text as Mermaid's
 `getThemeVariables`, and `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`,
-`GanttStyles`, and `MindmapStyles` turn
+`GanttStyles`, `MindmapStyles`, and `PacketStyles` turn
 the theme variables and the `themeCSS` of a configuration into the paint and fonts the diagram is drawn with.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeResolver-*` requirements in
@@ -167,6 +168,20 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   root to the element (tag, classes, attributes, inline style) and gives a `GanttComputedStyle` (fill, stroke, stroke
   width and dashes, opacity, font, weight, style, text anchor, and transform); `Faded` folds the opacity into a
   color. An instance is used by one render on one thread, because it caches the rules that match a chain.
+- **`PacketStyles`** - the rules of the packet diagram's style sheet (`packet/styles.ts`) after the global rules, with
+  its own `KnownSelectors` (`.packetByte`, `.packetByte.start`, `.packetByte.end`, `.packetLabel`, `.packetTitle`, and
+  `.packetBlock`). Its options are the sheet's defaults (`byteFontSize` 10px, `startByteColor`, `endByteColor`,
+  `labelColor`, `titleColor`, and `blockStrokeColor` black, `labelFontSize` 12px, `titleFontSize` 14px,
+  `blockStrokeWidth` 1, and `blockFillColor` `#efefef`) with the theme variable `packet` merged over them when it is an
+  object, each value written as JavaScript's `String` writes it (a number as JavaScript writes it, `null` as `null`, an
+  object as `[object Object]`, an array joined with commas). The dark and forest themes set `packet`; a user's
+  `themeVariables.packet` replaces the theme's object (Mermaid's `calculate` applies the overrides again after the theme's
+  `updateColors`), so the keys it leaves out take the defaults. A font size that is a bare number other than zero is
+  dropped, as a browser drops it in an SVG document, so the text inherits the root rule's size. `Block` is the paint
+  of `.packetBlock`, inheriting the root rule's fill, stroke, and stroke width where its own declaration is dropped, as
+  SVG paint is inherited; `Label` and `Title` are the fonts and colors of `.packetLabel` and `.packetTitle`, and
+  `ByteStart` and `ByteEnd` those of `.packetByte` cascaded with `.packetByte.start` or `.packetByte.end`. An instance is
+  immutable.
 - **`MindmapStyles`** - the rules of the mindmap's style sheet (`mindmap/styles.ts`) after the global rules, a
   `UnifiedStyles` with its own `KnownSelectors`. The rules are those of `styles.ts` in their order, with the
   declarations that change pixels and the values of the classic look: `.edge` with a stroke width of 3; then, for each
@@ -253,6 +268,9 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `FlowchartStyles.Create` does.
 - `MindmapStyles.NodePaintFor(string cssClasses, string element)` and `NodeLabelFor(string cssClasses, bool html)` -
   the cascades above: a body's fill, stroke, and stroke width, and a label's font and color.
+- `PacketStyles.Create(MermaidConfig config, MermaidReportSink? sink)` - builds the same global rules and then the six
+  rules of the packet `styles.ts` from the options (`Options`, the defaults merged with the theme variable `packet`), in
+  their order, and appends the `themeCSS` rules of the packet selectors as `FlowchartStyles.Create` does.
 
 **Preconditions and postconditions**: `GetThemeVariables` requires a supported theme name; it returns a new JSON object
 of string, number, and Boolean values. The methods are pure functions of their arguments and safe for concurrent use.
@@ -264,10 +282,10 @@ of string, number, and Boolean values. The methods are pure functions of their a
 is not a color; the exception carries the offending value, so that `MermaidConfigResolver` can drop the variable and
 compute the theme again. A hostile `THEME_COLOR_LIMIT` cannot make the loops unbounded; khroma then fails on the
 missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`,
-`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, `MindmapStyles.Create`, and `SequenceStyles.Create`
-report each `themeCSS` rule of another selector, at-rule, or nested rule as `mermaid-theme-css-unsupported` at the
-location of `themeCSS` and do not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException` at the
-first one.
+`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, `MindmapStyles.Create`, `PacketStyles.Create`, and
+`SequenceStyles.Create` report each `themeCSS` rule of another selector, at-rule, or nested rule as
+`mermaid-theme-css-unsupported` at the location of `themeCSS` and do not apply it; in strict mode the sink throws
+`MermaidUnsupportedFeatureException` at the first one.
 
 #### Known Differences From Mermaid
 
@@ -290,6 +308,8 @@ first one.
   descendant selectors); a `themeCSS` rule with any other selector is reported.
 - The mindmap sheet is built for the classic look only: the gradient fills, filters, and node strokes of the `neo`
   look and the shapes and colors of the `redux` themes are not built.
+- The packet sheet drops a font size without a unit, as Chrome does in an SVG document; the other sheets read such a
+  declaration as `StyleDeclarations` reads it.
 
 #### Dependencies
 
@@ -299,7 +319,8 @@ first one.
   `StyleDeclarationSet`
 - **`MermaidConfigResolver`** (this subsystem) - the `MermaidConfig` that `FlowchartStyles.Create`,
   `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`,
-  `MindmapStyles.Create`, and `SequenceStyles.Create` read, and `IsTruthy` for the gradient rule
+  `MindmapStyles.Create`, `PacketStyles.Create`, and `SequenceStyles.Create` read, and `IsTruthy` for the gradient
+  rule
 - **System root** - `MermaidReportSink` and `MermaidLocation`
 - **Core `CanvasNet`** - `Rgba32` and `CssColor` (the `Canvas` subsystem), through the public API
 - **.NET base class library** - `System.Text.Json` and `System.Collections.Frozen`
@@ -310,7 +331,8 @@ first one.
 subsystem (`FlowchartModel`) builds the `FlowchartStyles` of a call, the `Class` subsystem (`ClassModel`) the
 `ClassStyles`, the `State` subsystem (`StateModel`) the `StateStyles`, and the `Er` subsystem (`ErModel`) the `ErStyles`
 of a call, the `Pie` subsystem (`PieRenderer`) the `PieStyles`, the `Gantt` subsystem (`GanttRenderer`) the
-`GanttStyles`, and the `Mindmap` subsystem (`MindmapRenderer`) the `MindmapStyles` of a render, which they draw with;
+`GanttStyles`, the `Mindmap` subsystem (`MindmapRenderer`) the `MindmapStyles`, and the `Packet` subsystem
+(`PacketRenderer`) the `PacketStyles` of a render, which they draw with;
 the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through
 them and for the diagram title `ClusterLayout`) draws with the resolved paints, the rules, and `DiagramStyles.Root` of
 any of these sheets through `UnifiedStyles` (`ShapeLibrary` reads `ClusterTitle(html)`, `CentersNodeSvgText`,

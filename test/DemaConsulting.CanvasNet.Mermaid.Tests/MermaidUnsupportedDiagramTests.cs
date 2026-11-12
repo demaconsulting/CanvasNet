@@ -30,7 +30,7 @@ public class MermaidUnsupportedDiagramTests
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
         Assert.Equal(new MermaidLocation("journey.mmd", 2, 1), report.Location);
-        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap", report.Hint);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet", report.Hint);
     }
 
     /// <summary>

@@ -3771,9 +3771,10 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidErIntegrationTests.cs"  # ER system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidPieIntegrationTests.cs"  # pie system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGanttIntegrationTests.cs"  # gantt system tests
-      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidChartReferenceLayoutTests.cs"  # pie and gantt goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidChartReferenceLayoutTests.cs"  # chart goldens
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidMindmapIntegrationTests.cs"  # mindmap system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidMindmapReferenceLayoutTests.cs"  # mindmap goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidPacketIntegrationTests.cs"  # packet system tests
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
@@ -4950,6 +4951,56 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Cose/CoseGoldenTests.cs"  # unit tests (browser goldens)
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/cose-layouts.json"  # layout vectors
       - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json"  # math vectors
+
+  # CanvasNetMermaid-Packet Review (one per subsystem)
+  - id: CanvasNetMermaid-Packet
+    title: Review that CanvasNetMermaid Packet Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/packet.yaml"            # subsystem requirements
+      - "docs/design/canvas-net-mermaid/packet.md"                 # subsystem design
+      - "docs/verification/canvas-net-mermaid/packet.md"           # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/packet.sysml"        # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Packet/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Packet/PacketTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/packet/*.mmd"  # original packet fixtures
+
+  # CanvasNetMermaid-Packet-PacketParser Review (one per unit)
+  - id: CanvasNetMermaid-Packet-PacketParser
+    title: Review that CanvasNetMermaid Packet PacketParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/packet.md"
+      - "docs/reqstream/canvas-net-mermaid/packet.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/packet/packet-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/packet/packet-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/packet/packet-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/packet/packet-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Packet/PacketParser.cs"  # unit source (grammar, database, rows)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Packet/PacketParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Packet/PacketParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Packet/PacketVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/packet-parser.json"  # vectors
+
+  # CanvasNetMermaid-Packet-PacketRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Packet-PacketRenderer
+    title: Review that CanvasNetMermaid Packet PacketRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/packet.md"
+      - "docs/reqstream/canvas-net-mermaid/packet.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/packet/packet-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/packet/packet-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/packet/packet-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/packet/packet-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Packet/PacketRenderer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Packet/PacketRendererTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture

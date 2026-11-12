@@ -12,7 +12,8 @@ This document describes the system-level verification strategy for CanvasNetMerm
   from in-memory text, streams, temporary files, the 42 flowchart fixtures in `Fixtures/flowchart/`, the 24
   sequence fixtures in `Fixtures/sequence/`, the 16 class fixtures in `Fixtures/class/`, the 14 state fixtures in
   `Fixtures/state/`, the 12 ER fixtures in `Fixtures/er/`, the 8 pie fixtures in `Fixtures/pie/`, the 18 gantt
-  fixtures in `Fixtures/gantt/`, and the 14 mindmap fixtures in `Fixtures/mindmap/` with `MermaidDocument.Parse` and
+  fixtures in `Fixtures/gantt/`, the 14 mindmap fixtures in `Fixtures/mindmap/`, and the 13 packet fixtures in
+  `Fixtures/packet/` with `MermaidDocument.Parse` and
   `MermaidDocument.Open`, supply `MermaidOpenOptions`, `MermaidRenderOptions`, and
   `MermaidLimits`, and assert on observable outputs: the metadata properties, the sizes, sampled pixels of the
   rendered `Surface`, the reports delivered to the handlers, and the exceptions with their codes, locations, and
@@ -33,9 +34,10 @@ This document describes the system-level verification strategy for CanvasNetMerm
   the gantt reports, the located invalid date, determinism, cancellation), `MermaidMindmapIntegrationTests` (metadata,
   theme pixels of the root and the sections, transparency, scale, the strict-mode reports of an icon, a layout, a look,
   and a Font Awesome label, the empty mindmap, the second root, work limit, determinism, cancellation),
-  `MermaidMindmapReferenceLayoutTests` (the mindmap layout goldens in three tiers), `MermaidChartReferenceLayoutTests`
-  (the pie
-  and gantt layout goldens), `MermaidReferenceLayoutTests` (the flowchart, class, state, and ER layout goldens) and
+  `MermaidMindmapReferenceLayoutTests` (the mindmap layout goldens in three tiers), `MermaidPacketIntegrationTests`
+  (every packet fixture in strict mode, metadata, theme pixels, the two keywords, the located gap between blocks, the
+  huge range, determinism, cancellation), `MermaidChartReferenceLayoutTests` (the pie, gantt, and packet layout
+  goldens), `MermaidReferenceLayoutTests` (the flowchart, class, state, and ER layout goldens) and
   `MermaidSequenceReferenceLayoutTests` (the sequence layout goldens), `MermaidHardeningTests` (limits and seeded
   mutation fuzzers), `MermaidUnsupportedDiagramTests` (the diagram types this version does not draw), and
   `MermaidGalleryTests` (the diagrams of the documentation gallery). They are named
@@ -84,7 +86,9 @@ Two kinds of upstream evidence make the fidelity objective:
   number; they hold each node's size as Chrome's `getBBox` gives it, its center, box, and computed paint, and each
   edge's cytoscape points, 21 samples, and paint. The system test compares them in three tiers because the
   cose-bilkent layout is chaotic: the node sizes the library gives the layout, the layout alone given the golden's own
-  sizes (bit for bit), and the whole drawing.
+  sizes (bit for bit), and the whole drawing. The packet goldens (`Fixtures/reference/packet/*.layout.json`) are
+  extracted the same way from every packet fixture; the system test compares the view box, every block rectangle with
+  its paint, and every label, bit number, and title with its content, anchor, font size, color, and box.
 
 The goldens and vectors are committed; CI only compares. `tools/visual-diff/compare-with-mermaid.ps1` produces
 side-by-side pictures for a manual visual review and never gates.
@@ -111,7 +115,8 @@ text boxes and cylinder arcs; for the class goldens 0.01 pixel, 0.23 pixel for `
 texts are SVG text; for the state and ER goldens 0.01 pixel with no exception; for the pie and gantt goldens 0.01 pixel,
 0.02 pixel for text boxes and slice arc boxes; for the mindmap goldens 0.02 pixel for the node sizes, bit equality for
 the layout given the golden's sizes, and 0.01 pixel for the whole drawing of every fixture but `02-shapes`, whose cloud
-node Chrome measures 7.6e-6 pixel taller, which the chaotic layout turns into a different picture), a fixture that gives
+node Chrome measures 7.6e-6 pixel taller, which the chaotic layout turns into a different picture; for the packet goldens
+0.01 pixel, 0.02 pixel for text boxes), a fixture that gives
 a report it should
 not give in strict mode, a pixel of a documented theme color that differs, an undocumented exception type from the
 mutation fuzzer, or two renders of the same document that differ constitutes a failure.
@@ -137,7 +142,8 @@ by its path.
 `MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_Metadata_CountsEntitiesRelationshipsAndSubgraphs`,
 `MermaidPieIntegrationTests.CanvasNetMermaid_PieChart_Metadata_CountsTheSections`,
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_Metadata_CountsTasksAndSections`,
-`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_Metadata_CountsNodesAndEdges`
+`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_Metadata_CountsNodesAndEdges`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Metadata_CountsTheBlocks`
 
 Asserts the type, the supported flag, the frontmatter title, the accessible title, the direction, and the node, edge,
 and subgraph counts of a flowchart without rendering it, and the type and the unsupported flag of other known
@@ -161,7 +167,10 @@ the frontmatter title. For a gantt chart titled `Plan` with `accTitle: Schedule`
 but its section is not drawn), no direction, the title `Plan`, and the accessible title `Schedule`. For a mindmap of a
 root with the children `Origins` (holding `History`), `Research`, and `Tools`, asserts the type `mindmap`, the
 supported flag, the counts 5, 4, and 0, no direction, no title, and no accessible title, and that a mindmap under a
-frontmatter title takes that title.
+frontmatter title takes that title. For a `packet-beta` diagram titled `Frame` with `accTitle: A frame`, the block
+`0-99` (drawn over four rows), and the block `+4`, asserts the type `packet`, the supported flag, the counts 2, 0, and 0
+(the blocks as written), no direction, the title `Frame`, and the accessible title `A frame`, and that a packet diagram
+without a title of its own takes the frontmatter title.
 
 ### CanvasNetMermaid-SyntaxErrors: Invalid Text Fails Closed With A Location And A Hint
 
@@ -174,7 +183,9 @@ frontmatter title takes that title.
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedGanttFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedMindmapFixtures_ThrowOnlyDocumentedExceptions`,
 `MermaidPieIntegrationTests.CanvasNetMermaid_PieChart_NegativeValue_FailsLocated`,
-`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_SecondRoot_FailsLocated`
+`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_SecondRoot_FailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_GapBetweenBlocks_FailsLocated`
 
 Asserts the `mermaid-syntax-error` code, the source name, the line, the expected tokens, and the message prefix of an
 unclosed label, and the `mermaid-unknown-diagram` code with a hint naming `flowchart` for a misspelled keyword; the
@@ -194,7 +205,12 @@ of the 14 mindmap fixtures twelve times with the tokens of the mindmap language 
 quotes and backticks, icons, classes, comments, line breaks, markdown, Font Awesome names, and a frontmatter fence) and
 asserts that opening and measuring raise only the documented exception types; and a second root `c` in `map.mmd`
 fails at open with `mermaid-syntax-error` at line 4, column 3, with Mermaid's message `There can be only one root. No
-parent could be found for ("c")`.
+parent could be found for ("c")`. A seeded fuzzer (seed 20261112) mutates each of the 13 packet fixtures twelve times
+with the tokens of the packet language (both keywords, titles and accessibility texts, quoted labels, colons, ranges,
+bit counts, `+0`, numbers with leading zeros or fractions, huge numbers, comments, directives, frontmatter fences, line
+breaks, escapes, and entities) and asserts that opening and measuring raise only the documented exception types; and a
+block `9-15` after `0-7` in `frame.mmd` fails at open with `mermaid-syntax-error` at line 3, column 3, with Mermaid's
+message `Packet block 9 - 15 is not contiguous. It should start from 8.`
 
 ### CanvasNetMermaid-Configuration: The Text Overrides The Caller
 
@@ -227,7 +243,8 @@ sets a top-level `nodeSpacing: 30` beside `er.nodeSpacing: 200`, as Mermaid's da
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_DefaultTheme_PaintsTheTaskStates`,
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_Theme_ChangesTheBarColors`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_DefaultTheme_PaintsRootAndSections`,
-`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_Theme_ChangesTheColors`
+`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_Theme_ChangesTheColors`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Pixels_CarryTheThemeColors`
 
 Asserts the default theme's node fill `#ECECFF`, node border `#9370DB`, arrowhead `#333333`, and subgraph fill `#ffffde`
 at sampled pixels, and the node fill of the `dark`, `forest`, and `neutral` themes; for a sequence diagram rendered at
@@ -251,7 +268,9 @@ blue 255), and that each theme changes the first section's color. For a gantt ch
 `taskBkgColor` (`#8a90dd`), a critical bar in `red`, a done bar in `lightgrey`, and an active bar in `#bfc7ff`, and that
 each theme changes the bar color. For a mindmap rendered at scale 2 over white, asserts the root filled with `git0`
 (`#0000EC`) and its first child and that child's child filled with the first section color (`#FFFF78`), and that the
-`forest` theme changes the colors of the root and of the first section.
+`forest` theme changes the colors of the root and of the first section. For a packet diagram of a title and three blocks
+rendered over white at its natural size of 1026 by 141 pixels, asserts a block filled `#efefef` inside and stroked dark
+on its top edge in the default theme, and filled `#333` in the `dark` theme.
 
 ### CanvasNetMermaid-Flowcharts: Every Fixture Draws Strictly
 
@@ -417,6 +436,25 @@ asserts that the keyword alone renders strictly, without any report, as a transp
 no nodes and no edges; and asserts that a second root fails at open, located. The gallery holds mindmaps that render
 strictly without warnings, and holds every drawn diagram type, mindmaps included.
 
+### CanvasNetMermaid-PacketDiagrams: Packet Diagrams Are Drawn In Rows
+
+**Tests**: `MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Fixture_RendersStrictly`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_PacketBeta_DrawsAsPacket`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_Pixels_CarryTheThemeColors`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_GapBetweenBlocks_FailsLocated`,
+`MermaidChartReferenceLayoutTests.CanvasNetMermaid_PacketReferenceLayout_MatchesMermaid`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_HoldsEveryDrawnDiagramType`,
+`MermaidGalleryTests.CanvasNetMermaid_SystemIntegration_Gallery_RendersStrictWithoutWarnings`
+
+Renders each of the 13 packet fixtures (ranges, single bits, bit counts, row splits, the bit numbers turned off, the
+geometry settings, titles and accessibility texts, the themes, theme variables, labels with escapes and entities, the
+keyword alone, and `themeCSS`) in strict mode and asserts the type, that it measures as it renders, that it draws
+something unless it has no block, and that it gives no report; compares the drawing of each fixture with its mermaid-cli
+golden (see _CanvasNetMermaid-LayoutFidelity_); asserts that `packet` and `packet-beta` draw the same pixels; asserts
+the block colors of the default and dark themes in pixels; and asserts that a gap between two blocks fails at open,
+located, with Mermaid's message. The gallery holds a packet diagram that renders strictly without warnings, and holds
+every drawn diagram type, packet diagrams included.
+
 ### CanvasNetMermaid-LayoutFidelity: The Layout Matches Mermaid
 
 **Tests**: `MermaidReferenceLayoutTests.CanvasNetMermaid_Flowchart_ReferenceLayout_MatchesMermaid`,
@@ -437,7 +475,9 @@ strictly without warnings, and holds every drawn diagram type, mindmaps included
 `MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_MindmapReferenceSeededLayout_MatchesMermaid`,
 `MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_MindmapReferenceLayout_MatchesMermaid`,
 `MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_Mindmap_ReferenceGoldens_CoverEveryFixture`,
-`MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_Mindmap_ReferenceExclusions_NameGoldens`
+`MermaidMindmapReferenceLayoutTests.CanvasNetMermaid_Mindmap_ReferenceExclusions_NameGoldens`,
+`MermaidChartReferenceLayoutTests.CanvasNetMermaid_PacketReferenceLayout_MatchesMermaid`,
+`MermaidChartReferenceLayoutTests.CanvasNetMermaid_Packet_ReferenceGoldens_CoverEveryFixture`
 
 Compares the scene of each fixture with its mermaid-cli golden within the documented tolerance, and asserts that
 every fixture has a golden except the documented `38-unicode` exclusion; compares the scene of each sequence fixture
@@ -469,7 +509,10 @@ box, and paint: the body's fill and stroke, the line's stroke and width, and eve
 samples, length, and paint) matches the golden at 0.01 pixel with the colors exact. Asserts that the 14 mindmap fixtures
 and the mindmap goldens are the same set, and that the one exclusion from the whole-drawing tier, `02-shapes` (Chrome's
 box of its cloud node is about 8e-6 pixel taller, as it bounds the arcs in single precision, and the chaotic layout
-moves every node), names a golden.
+moves every node), names a golden. Compares the scene of each packet fixture with its golden (the view box, every block
+rectangle with its fill, stroke, and stroke width, and every label, bit number, and title with its content, anchor, x,
+font size, color, and box) at 0.01 pixel, 0.02 pixel for text boxes, and asserts that the 13 packet fixtures and the
+packet goldens are the same set.
 
 ### CanvasNetMermaid-MeasureRender: Natural Size, Scale, Exact Size, And Background
 
@@ -525,7 +568,7 @@ resolver is asked for that link and the red pixels are drawn; without a resolver
 
 Asserts the `mermaid-look-unsupported` report at its frontmatter line and the `mermaid-style-ignored` warning at the
 styled node while the diagram is drawn; that a user journey gives one located report whose hint says that journey
-diagrams are not supported and names the supported types (mindmap included), and a
+diagrams are not supported and names the supported types (mindmap and packet included), and a
 transparent 16 by 16 picture (scaled by the scale, filled by a background), throws in strict mode, and that every
 other known type that is not drawn (gitGraph, timeline, and kanban among them) does the same with its own hint; and
 that a failing handler's exception reaches the caller. For a
@@ -609,7 +652,13 @@ of the feature `mermaid-icon-unsupported`, `mermaid-layout-unsupported`, `mermai
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MindmapLongTexts_AreALocatedLabelLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MindmapLargeTree_RendersOrHitsTheWorkLimit`,
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedMindmapFixtures_ThrowOnlyDocumentedExceptions`,
-`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_WorkLimit_FailsWithLimitExceeded`
+`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_WorkLimit_FailsWithLimitExceeded`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_HostilePacketDiagram_RendersOrFailsLocated`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketHugeBlock_IsALocatedNodeLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketManyBlocks_IsALocatedNodeLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketLongTexts_AreALocatedLabelLimit`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_HugeRange_FailsWithLimitExceeded`
 
 Asserts located `mermaid-limit-exceeded` errors for too many edges and too deep nesting (and a render at the limit),
 `InvalidDataException` for too long text, refusal of a YAML alias bomb, a label limit that can be raised, a complete
@@ -713,7 +762,16 @@ default `MaxLayoutWork` a tree of 301 nodes (a root, 20 children, and 14 grandch
 1,961 nodes (40 children of 48 grandchildren each) stops with `mermaid-limit-exceeded` naming `MaxLayoutWork` at the
 keyword (line 1); that the seeded mutation fuzzer over the mindmap fixtures only ever raises the documented exception
 types; and that a mindmap of five nodes under a work limit of 500 fails with `mermaid-limit-exceeded` at line 1 naming
-`MaxLayoutWork`.
+`MaxLayoutWork`. For packet diagrams, asserts that hostile diagrams (row sizes of 0, -3, 1.5, and 1,000,000,000, a negative
+row height and padding, a horizontal padding, a bit width, and a row height of 1e300, the bit numbers turned off, theme
+font sizes of 1e300 pixels and a color that is not one, markup, entities, and escapes in the texts, and a bit count of
+301 digits) render fitted to 400 by 300 pixels or fail with a located `MermaidRenderException`; that the range
+`0-99999999` and the bit count `+99999999999999999999`, which Mermaid splits into 10,000 rows, fail when measured with
+`mermaid-limit-exceeded` naming `MermaidLimits.MaxNodes` at their statement (line 2), as the range does through the
+packet integration test; that 2,001 block statements fail at open with `MaxNodes` at the extra block (line 2,002); that
+a title, an accessible title, both forms of the accessible description, and a label of 4,097 characters fail at open
+with `MaxLabelLength` at their statement (line 3); and that a seeded mutation fuzzer over the packet fixtures only ever
+raises the documented exception types.
 
 ### CanvasNetMermaid-UnsafeLinks: Encoded Unsafe Links Are Checked And Never Exposed
 
@@ -748,7 +806,9 @@ links and in its click statements alike, and for the gantt chart in the links of
 `MermaidHardeningTests.CanvasNetMermaid_Hardening_GanttFixtures_RenderDeterministically`,
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_Now_DrawsTheTodayLineOrReports`,
 `MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_RepeatedAndConcurrentRenders_AreIdentical`,
-`MermaidHardeningTests.CanvasNetMermaid_Hardening_MindmapFixtures_RenderDeterministically`
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_MindmapFixtures_RenderDeterministically`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_RepeatedAndConcurrentRenders_AreIdentical`,
+`MermaidHardeningTests.CanvasNetMermaid_Hardening_PacketFixtures_RenderDeterministically`
 
 Renders the same documents repeatedly and from parallel threads and asserts identical pixels, sizes, and reports;
 renders a numbered sequence fixture twice and six times in parallel, and every sequence fixture twice, and asserts
@@ -758,7 +818,9 @@ twice and six times in parallel, and every state and ER fixture twice, and asser
 chart and a gantt chart twice and in parallel, and every pie and gantt fixture twice (the gantt fixtures also on
 parallel threads), and asserts identical pixels; renders a mindmap of every shape twice and six times in parallel, and
 every mindmap fixture twice on parallel threads, and asserts identical pixels (the cose layout makes no random choice
-and does not use the host's math library, which the Cose subsystem verifies bit for bit). That the library never
+and does not use the host's math library, which the Cose subsystem verifies bit for bit); renders the packet fixture
+`04-row-splits` twice and six times in parallel, and every packet fixture twice, and asserts identical pixels. That the
+library never
 reads the system clock is shown by the gantt
 chart without `Now`, which draws no today line and reports what needs today, while the same chart with `Now` draws the
 line at that time.
@@ -773,11 +835,12 @@ line at that time.
 `MermaidErIntegrationTests.CanvasNetMermaid_ErDiagram_CanceledToken_Throws`,
 `MermaidPieIntegrationTests.CanvasNetMermaid_PieChart_CanceledToken_Throws`,
 `MermaidGanttIntegrationTests.CanvasNetMermaid_GanttChart_CanceledToken_Throws`,
-`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_CanceledToken_Throws`
+`MermaidMindmapIntegrationTests.CanvasNetMermaid_Mindmap_CanceledToken_Throws`,
+`MermaidPacketIntegrationTests.CanvasNetMermaid_PacketDiagram_CanceledToken_Throws`
 
 Asserts `OperationCanceledException` from `Measure`, `Render`, and `Render(width, height)` with a canceled token, and
-from the render of a sequence diagram, a class diagram, a state diagram, an ER diagram, a pie chart, a gantt chart, and
-a mindmap.
+from the render of a sequence diagram, a class diagram, a state diagram, an ER diagram, a pie chart, a gantt chart, a
+mindmap, and a packet diagram.
 
 ### CanvasNetMermaid-ImageSource: Diagram Bytes Through The Image-Source Contract
 

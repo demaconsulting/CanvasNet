@@ -4,9 +4,9 @@
 # These requirements describe the design-level behavior of the ThemeResolver unit of the Configuration subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's five built-in themes
 # (with the JavaScript object model their derivations rely on, ThemeObject) and of the style sheet Mermaid writes for
-# a flowchart (FlowchartStyles), with the style sheets of the other diagrams, of pie and gantt charts, and of mindmaps
-# (PieStyles, GanttStyles, MindmapStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for
-# the test-evidence mapping.
+# a flowchart (FlowchartStyles), with the style sheets of the other diagrams, of pie and gantt charts, of mindmaps, and
+# of packet diagrams (PieStyles, GanttStyles, MindmapStyles, PacketStyles). See
+# docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetMermaid Requirements
@@ -230,6 +230,26 @@ sections:
                   - MindmapStyles_Create_ThemeCssNodeClass_CascadesInSheetOrder
                   - MindmapStyles_Create_ThemeCssOtherClass_IsReported
                   - MindmapStyles_Create_ColorLimit_BoundsTheSections
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-PacketStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a packet diagram - the same
+                  global rules as for a flowchart and the packet rules - from the sheet's default options merged with
+                  the theme variable packet of a configuration (an object that replaces the packet colors of the dark
+                  and forest themes, each value written as JavaScript writes it), leave out a declaration that the
+                  browser drops (a font size without a unit), apply after them the themeCSS rules of the diagram's own
+                  selectors, and resolve from them
+                  the paint of a block (inheriting the root rule's paint where its own is dropped), and the fonts and
+                  colors of the labels, the first and last bit numbers, and the title.
+                justification: |
+                  Mermaid paints a packet diagram through these rules in every theme; resolving them the same way, the
+                  replaced theme object and the declarations the browser drops included, gives the same paint.
+                tests:
+                  - PacketStyles_Create_EachTheme_UsesThemePacketObject
+                  - PacketStyles_Create_PacketOverride_ReplacesThemeObject
+                  - PacketStyles_Options_ValuesAsJavaScriptStrings_MergedOverDefaults
+                  - PacketStyles_Create_ThemeCss_OverridesKnownSelectors
+                  - PacketStyles_Create_InvalidBlockPaint_InheritsRootFill
 
               - id: CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses
                 title: >-

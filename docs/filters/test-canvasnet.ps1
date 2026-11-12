@@ -10,7 +10,7 @@
     leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
     fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
-    hashed), sequence, class, state, ER, pie, gantt, and mindmap diagrams are drawn by the filter itself, a diagram
+    hashed), sequence, class, state, ER, pie, gantt, mindmap, and packet diagrams are drawn by the filter itself, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
     before a later command-line filter, which sees only the blocks left as written. An SVG picture that links no file only the tool draws is left alone without
     starting the tool; one that links a diagram (directly or through a nested SVG file) points at a flattened copy whose
@@ -476,6 +476,24 @@ mindmap
         @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $mindmapMarkersBefore -and
         $mindmap.Log -notmatch 'left as written') `
         'a mindmap block is drawn' "$($mindmap.Log)`n$($mindmap.Html)"
+
+    # A packet diagram is drawn by the filter itself too: the block becomes a picture, and no marker is left.
+    $fields = @'
+```mermaid
+packet
+    0-15: "Source"
+    +16: "Target"
+    +8: "Flags"
+```
+'@
+    $packetsBefore = @(Get-Pictures).Count
+    $packetMarkersBefore = @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count
+    $packet = Invoke-Filter 'mermaid-packet' $fields
+    Write-Result ($packet.ExitCode -eq 0 -and $packet.Html -notmatch '<code' -and
+        $packet.Html -match 'generated/canvasnet/mermaid-' -and @(Get-Pictures).Count -eq $packetsBefore + 1 -and
+        @(Get-ChildItem -LiteralPath $cache -Filter '*.unsupported').Count -eq $packetMarkersBefore -and
+        $packet.Log -notmatch 'left as written') `
+        'a packet block is drawn' "$($packet.Log)`n$($packet.Html)"
 
     # A diagram type the tool does not draw is left as written (the document shows its code), with a warning that
     # names it, and a marker in the cache remembers it: the next run warns from the marker and does not draw it.

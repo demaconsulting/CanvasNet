@@ -172,7 +172,7 @@ internal sealed partial class PieRenderer
 
         // The title, at the top of the pie
         var title = _diagram.DiagramTitle;
-        if (title.Length == 0 && _context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter)
+        if (!_diagram.IsTitleSet && _context.Source.Frontmatter?.Title is { Length: > 0 } frontmatter)
         {
             title = PieDiagram.Sanitize(frontmatter);
         }

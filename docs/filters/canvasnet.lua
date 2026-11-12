@@ -80,8 +80,8 @@ not from the document's folder, so a diagram that draws pictures must be a .mmd 
 ![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
 
 Diagram types the tool does not draw. The tool draws flowchart (and graph), sequenceDiagram, classDiagram,
-stateDiagram (and stateDiagram-v2), erDiagram, pie, gantt, and mindmap diagrams (a gantt chart without a today
-line: the tool sets no clock). For any other type (journey, timeline, and so on) the tool reports
+stateDiagram (and stateDiagram-v2), erDiagram, pie, gantt, mindmap, and packet (and packet-beta) diagrams (a gantt
+chart without a today line: the tool sets no clock). For any other type (journey, timeline, and so on) the tool reports
 mermaid-diagram-unsupported, and the filter leaves the code block (or the .mmd picture) exactly as written, so the
 document shows the code, and warns with the tool's message ("...; it is left as written and not drawn"). No other
 filter is expected to draw it: the CanvasNet build fails when a generated document still holds such a block or
@@ -177,7 +177,8 @@ with the same organization (header, helpers, hash, render, rewrite), to draw eve
 
 -- Part of every picture's hash, so a change to what the filter draws or how it treats a diagram draws the pictures
 -- again. 12: a diagram type the tool does not draw is left as written with a warning, no longer for another filter.
-local FILTER_VERSION = "12"
+-- 13: packet diagrams are drawn, so a marker that left one as written is no longer used.
+local FILTER_VERSION = "13"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.

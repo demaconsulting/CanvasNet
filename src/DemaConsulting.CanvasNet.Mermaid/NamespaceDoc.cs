@@ -22,7 +22,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         the internals can evolve. Every diagram type Mermaid knows is recognized; this version draws flowcharts
 ///         (<c>flowchart</c> and <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>), class diagrams
 ///         (<c>classDiagram</c>), state diagrams (<c>stateDiagram</c>), entity relationship diagrams (<c>erDiagram</c>),
-///         pie charts (<c>pie</c>), gantt charts (<c>gantt</c>) and mindmaps (<c>mindmap</c>), and reports any other type as
+///         pie charts (<c>pie</c>), gantt charts (<c>gantt</c>), mindmaps (<c>mindmap</c>) and packet diagrams
+///         (<c>packet</c>), and reports any other type as
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> with
 ///         an empty picture.
 ///     </para>

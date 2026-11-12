@@ -86,11 +86,12 @@ sections:
               - id: CanvasNetMermaid-Pie-PieRenderer-Title
                 title: >-
                   The PieRenderer unit shall draw the title of the chart, or the frontmatter title when the chart has
-                  none, centered 200 pixels above the center of the pie.
+                  no title statement with a value, centered 200 pixels above the center of the pie.
                 justification: |
                   The title names the chart in its picture and must stand where Mermaid puts it.
                 tests:
                   - PieRenderer_Draw_LongTitle_WidensTheViewBoxToTheLeft
+                  - PieRenderer_Draw_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle
 
               - id: CanvasNetMermaid-Pie-PieRenderer-ViewBox
                 title: >-

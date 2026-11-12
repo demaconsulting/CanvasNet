@@ -1,0 +1,146 @@
+---
+# Software Unit Requirements for PacketParser
+#
+# These requirements describe the design-level behavior of the PacketParser unit of the Packet subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Packet): the lexer and the grammar of the packet diagram language of the
+# pinned Mermaid release, the value converters, the checks of Mermaid's packet database with their messages, the title
+# and accessibility texts, the metadata of the diagram, the split of the blocks into rows, the located errors with
+# Mermaid's expected tokens, and the limits checked while the text is read and while it is split. See
+# docs/verification/canvas-net-mermaid/packet/packet-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Packet Requirements
+        sections:
+          - title: PacketParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Packet-PacketParser-Tokens
+                title: >-
+                  The PacketParser unit shall split a packet diagram text into the tokens that Mermaid's packet lexer
+                  produces, the first token type that matches at a position winning in Mermaid's order - the keyword
+                  packet-beta wherever it is written and the keyword packet only when followed by white space, a
+                  comment, or the end, and whole numbers as the integer terminal matches them, a zero alone and no
+                  digit after a leading zero, giving back the digits before a dot - while keeping every token located
+                  in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in the corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - PacketParser_Parse_Keywords_FollowTheTokenBuilder
+                  - PacketParser_Parse_IntTerminal_BacktracksAsTheRegularExpression
+                  - PacketParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Grammar
+                title: >-
+                  The PacketParser unit shall accept exactly the texts that the packet grammar of the pinned Mermaid
+                  release accepts - optional line breaks, the packet or packet-beta keyword, and then, in any order and
+                  number, title, accessible title, and accessible description statements, blocks of a start and an
+                  optional end or of a plus sign and a number of bits followed by a colon and a quoted label, and blank
+                  lines, each statement ended by a line break or the end of the text - and shall keep the blocks in the
+                  order they are written.
+                justification: |
+                  The blocks, their order, and the texts of a packet diagram depend on the statements of its text, and
+                  the drawing depends on all of them.
+                tests:
+                  - PacketParser_Parse_UpstreamVector_MatchesMermaid
+                  - PacketParser_Vectors_FileHasEnoughCases_AtLeast120
+                  - PacketParser_Parse_BlockForms_FillStartEndAndBits
+                  - PacketParser_Parse_Keywords_FollowTheTokenBuilder
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Values
+                title: >-
+                  The PacketParser unit shall convert the values of the statements as Mermaid's value converters do - a
+                  title, an accessible title, and a one-line accessible description trimmed with their runs of spaces
+                  and tabs made one space; an accessible description in braces with its lines trimmed and its blank
+                  lines removed; a quoted label without its quotes, with Langium's escapes, and not sanitized; and a
+                  number as JavaScript's parseInt reads it - the last statement of each kind winning and an empty text
+                  setting nothing.
+                justification: |
+                  The labels, the titles, and the bits decide what the diagram shows; they must be the texts and numbers
+                  Mermaid shows for the same statements.
+                tests:
+                  - PacketParser_Parse_TitleAccessibilityAndMetadata_AreRead
+                  - PacketParser_Parse_Labels_FollowConvertString
+                  - PacketParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Database
+                title: >-
+                  The PacketParser unit shall fill in each block as Mermaid's packet database does - a missing start
+                  is the bit after the block before it, a missing end is the start plus the number of bits less one -
+                  and shall refuse, in Mermaid's order of checks, a block whose end is before its start, a block that
+                  does not start at the bit after the block before it (the first at bit 0), and a block of zero bits,
+                  with a MermaidSyntaxException of code mermaid-syntax-error located at the block, with Mermaid's
+                  message and a hint; the title and the accessibility texts are sanitized as Mermaid's common database
+                  sanitizes them.
+                justification: |
+                  The blocks of the database are what the rows show; a block Mermaid refuses must not be drawn, and the
+                  author compares the message with Mermaid's.
+                tests:
+                  - PacketParser_Parse_BlockForms_FillStartEndAndBits
+                  - PacketParser_Parse_InvalidBlock_FailsLocatedWithMermaidsMessage
+                  - PacketParser_Parse_TitleAccessibilityAndMetadata_AreRead
+                  - PacketParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Rows
+                title: >-
+                  The PacketParser unit shall split the blocks into rows of a given number of bits exactly as Mermaid's
+                  packet parser splits them, in JavaScript's double arithmetic - a block that passes the end of a row
+                  cut there into parts that keep its label and Mermaid's bit counts, a row completed by a part that ends
+                  at its last bit, and at most 10,000 rows - and shall refuse, located at the block, a part that starts
+                  after its end with a MermaidRenderException of code mermaid-render-failed and Mermaid's message, and
+                  more parts than MaxNodes with one of code mermaid-limit-exceeded, charging one unit of layout work for
+                  each block and each part.
+                justification: |
+                  The rows depend on the row size of each render, so they are split when the diagram is drawn; they
+                  must be Mermaid's for every row size, Mermaid's failure must not be drawn as a guess, and the work of
+                  a long range must be bounded.
+                tests:
+                  - PacketDiagram_Rows_SplitBlocksAsMermaid
+                  - PacketDiagram_Rows_OtherRowSizes_SplitAsMermaid
+                  - PacketDiagram_Rows_PartStartAfterEnd_IsALocatedRenderFailure
+                  - PacketDiagram_Rows_TooManyParts_IsALocatedLimit
+                  - PacketDiagram_Rows_ChargesOnePerBlockAndPart
+                  - PacketParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Metadata
+                title: >-
+                  The PacketParser unit shall give, for the parsed diagram, the title of its title statement or none,
+                  the accessible title or none, the number of its block statements as nodes, no edges, no subgraphs, and
+                  no direction, and as the title to draw its own title when a title statement with a value sets one
+                  (even one that sanitizing empties), else the sanitized frontmatter title.
+                justification: |
+                  The counts must keep the meaning of the document's node, edge, and subgraph counts and must not
+                  depend on the row size of a render; Mermaid draws the frontmatter title when the diagram has none.
+                tests:
+                  - PacketParser_Parse_TitleAccessibilityAndMetadata_AreRead
+                  - PacketParser_Parse_FrontmatterTitle_IsTheDrawnTitleFallback
+                  - PacketParser_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Errors
+                title: >-
+                  The PacketParser unit shall refuse the first token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's parser lists, with a hint;
+                  and shall refuse text that no token matches, before any grammar error, with a located error of the
+                  same code at the first character that is not matched.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to write
+                  and where, and Mermaid reports the errors of its lexer first.
+                tests:
+                  - PacketParser_Parse_GrammarError_IsLocatedWithTheExpectedTokens
+                  - PacketParser_Parse_IntTerminal_BacktracksAsTheRegularExpression
+                  - PacketParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Packet-PacketParser-Limits
+                title: >-
+                  The PacketParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
+                  located at the element that breaches it, more block statements than MaxNodes, and every token text,
+                  label, title, accessibility text, sanitized text, or frontmatter title that is longer than
+                  MaxLabelLength.
+                justification: |
+                  The size of the diagram, and so the cost of every later stage, must be bounded while untrusted text is
+                  read; every text the drawing shows must be bounded.
+                tests:
+                  - PacketParser_Parse_TooManyBlocks_IsALocatedLimit
+                  - PacketParser_Parse_LongTexts_AreLocatedLimits

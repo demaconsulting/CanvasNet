@@ -11,7 +11,9 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 ///     <c>Fixtures/reference/pie/</c> (the layout that the pinned mermaid-cli and mermaid draw in headless Chrome with
 ///     Liberation Sans, see <c>Fixtures/reference/README.md</c>) is compared with CanvasNet's scene: the view box, the
 ///     pie's place, the outer circle, every slice's path data, box and paint, every percentage label, the title and every
-///     legend entry.
+///     legend entry; each golden of <c>Fixtures/reference/gantt/</c> and <c>Fixtures/reference/packet/</c> likewise with
+///     the facts of its type (for a packet diagram: the view box, every block's rectangle and paint, every label and bit
+///     number, and the title).
 /// </summary>
 public class MermaidChartReferenceLayoutTests
 {
@@ -143,6 +145,63 @@ public class MermaidChartReferenceLayoutTests
         var scene = SceneQuery.Layout(text, new MermaidRenderOptions { Now = ReferenceNow });
         var comparison = new Comparison();
         comparison.CompareGantt(golden, scene);
+
+        // Assert
+        Assert.True(
+            comparison.Issues.Count == 0,
+            $"{name}: {comparison.Issues.Count} difference(s) (largest {comparison.Largest:0.###} px):\n" +
+            string.Join('\n', comparison.Issues.Take(25)));
+    }
+
+    /// <summary>
+    ///     Gets the names of the packet goldens.
+    /// </summary>
+    /// <returns>The names (the fixture names).</returns>
+    public static TheoryData<string> PacketGoldens()
+    {
+        var data = new TheoryData<string>();
+        foreach (var name in GoldenNames("packet"))
+        {
+            data.Add(name);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    ///     Validates that every packet fixture has a golden.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Packet_ReferenceGoldens_CoverEveryFixture()
+    {
+        // Arrange
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "packet"), "*.mmd")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Order(StringComparer.Ordinal);
+
+        // Act
+        var goldens = GoldenNames("packet");
+
+        // Assert
+        Assert.Equal(fixtures, goldens);
+    }
+
+    /// <summary>
+    ///     Validates that CanvasNet lays a packet fixture out and paints it as the reference does, within the tolerances.
+    /// </summary>
+    /// <param name="name">The fixture name.</param>
+    [Theory]
+    [MemberData(nameof(PacketGoldens))]
+    public void CanvasNetMermaid_PacketReferenceLayout_MatchesMermaid(string name)
+    {
+        // Arrange
+        var golden = JsonNode.Parse(File.ReadAllText(Path.Combine(ReferenceFolder("packet"), name + ".layout.json")))!.AsObject();
+        var text = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "packet", (string)golden["source"]!));
+
+        // Act
+        var scene = SceneQuery.Layout(text);
+        var comparison = new Comparison();
+        comparison.ComparePacket(golden, scene);
 
         // Assert
         Assert.True(
@@ -376,6 +435,97 @@ public class MermaidChartReferenceLayoutTests
             {
                 Count("title", 0, title2.Count);
             }
+        }
+
+        /// <summary>
+        ///     Compares every fact of a packet golden: the view box, the rows, every drawn block's rectangle and paint, every
+        ///     text that shows something (an empty text is no item of the scene) and the title.
+        /// </summary>
+        /// <param name="golden">The golden.</param>
+        /// <param name="scene">The scene.</param>
+        public void ComparePacket(JsonObject golden, Scene scene)
+        {
+            var viewBox = scene.ViewBox;
+            Check("viewBox", Numbers(golden["viewBox"]), [viewBox.X, viewBox.Y, viewBox.Width, viewBox.Height], DefaultTolerance);
+
+            // The rows, then their blocks and texts in order
+            var items = scene.Walk().ToList();
+            var goldenRows = golden["rows"]!.AsArray();
+            Count("rows", goldenRows.Count, items.Count(entry => entry.Item.Role == "packet-row"));
+            var blocks = items.Where(entry => entry.Item.Role == "packet-block").ToList();
+            var goldenBlocks = goldenRows.SelectMany(row => row!["blocks"]!.AsArray())
+                .Where(block => Numbers(block!["rect"]) is [_, _, > 0, > 0])
+                .ToList();
+            Count("blocks", goldenBlocks.Count, blocks.Count);
+            foreach (var (block, (item, x, y)) in goldenBlocks.Zip(blocks))
+            {
+                var path = (ScenePath)item;
+                var rect = Numbers(block!["rect"]);
+                var label = $"block {path.Id}";
+                Check($"{label} rect", rect, Scene.BoundsOf([path]) is { } b ? [b.X + x, b.Y + y, b.Width, b.Height] : [], DefaultTolerance);
+                var paint = block["paint"]!;
+                Color($"{label} fill", (string)paint["fill"]!, 1, path.Fill);
+                var stroke = (string)paint["stroke"]!;
+                Color($"{label} stroke", stroke, 1, path.Stroke?.Color);
+                if (stroke != "none" && path.Stroke is { } ours)
+                {
+                    Check($"{label} stroke width", [(double)paint["strokeWidth"]!], [ours.Width], DefaultTolerance);
+                }
+            }
+
+            var roles = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["packetLabel"] = "packet-label",
+                ["packetByte start"] = "packet-bit-start",
+                ["packetByte end"] = "packet-bit-end",
+            };
+            var texts = items.Where(entry => entry.Item is SceneText && entry.Item.Role != "title").ToList();
+            var goldenTexts = goldenRows.SelectMany(row => row!["texts"]!.AsArray()).Where(text => text!["box"] is not null).ToList();
+            Count("texts", goldenTexts.Count, texts.Count);
+            foreach (var (text, (item, x, y)) in goldenTexts.Zip(texts))
+            {
+                Same("text role", roles[(string)text!["class"]!], item.Role);
+                PacketText((string)text["class"]!, text, (SceneText)item, x, y);
+            }
+
+            // The title, drawn when it shows something
+            var titles = items.Where(entry => entry.Item.Role == "title").ToList();
+            var goldenTitle = golden["title"]!;
+            Count("titles", ((string)goldenTitle["text"]!).Length > 0 ? 1 : 0, titles.Count);
+            if (titles.Count == 1 && ((string)goldenTitle["text"]!).Length > 0)
+            {
+                PacketText("title", goldenTitle, (SceneText)titles[0].Item, titles[0].OffsetX, titles[0].OffsetY);
+            }
+        }
+
+        /// <summary>
+        ///     Compares a packet text: its content (white space collapsed), the x of its anchor (and the y of an
+        ///     <c>auto</c> baseline, which is the baseline; a <c>middle</c> baseline is checked by the box), anchor, box,
+        ///     font size and color.
+        /// </summary>
+        /// <param name="what">The text.</param>
+        /// <param name="golden">The golden text.</param>
+        /// <param name="line">The scene's text.</param>
+        /// <param name="dx">The absolute offset of the text.</param>
+        /// <param name="dy">The absolute offset of the text.</param>
+        private void PacketText(string what, JsonNode golden, SceneText line, double dx, double dy)
+        {
+            var content = System.Text.RegularExpressions.Regex.Replace((string)golden["text"]!, "\\s+", " ").Trim();
+            Same($"{what} text", content, string.Concat(line.Runs.Select(run => run.Text)));
+            var at = Numbers(golden["at"]);
+            if ((string)golden["baseline"]! == "auto")
+            {
+                Check($"{what} '{content}' at", at, [dx + line.X, dy + line.Baseline], DefaultTolerance);
+            }
+            else
+            {
+                Check($"{what} '{content}' at x", [at[0]], [dx + line.X], DefaultTolerance);
+            }
+
+            Same($"{what} '{content}' anchor", (string)golden["anchor"]!, line.Anchor.ToString().ToLowerInvariant());
+            Check($"{what} '{content}' box", Numbers(golden["box"]), Box(line.Box.Offset(dx, dy)), TextTolerance);
+            Check($"{what} '{content}' font size", [(double)golden["fontSize"]!], [line.Runs[0].Font.Size], DefaultTolerance);
+            Color($"{what} '{content}' fill", (string)golden["fill"]!, 1, line.Runs[0].Color);
         }
 
         /// <summary>

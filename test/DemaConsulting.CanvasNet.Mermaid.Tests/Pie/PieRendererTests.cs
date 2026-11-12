@@ -268,6 +268,22 @@ public sealed class PieRendererTests
     }
 
     /// <summary>
+    ///     Validates that a title statement that sanitizes to empty replaces the frontmatter title, while a bare
+    ///     <c>title</c> keeps it, as in Mermaid.
+    /// </summary>
+    [Fact]
+    public void PieRenderer_Draw_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle()
+    {
+        // Act
+        var emptied = Walk(SceneQuery.Layout("---\ntitle: FM\n---\npie\ntitle <script>x</script>\n\"a\" : 1\n"));
+        var bare = Walk(SceneQuery.Layout("---\ntitle: FM\n---\npie\ntitle\n\"a\" : 1\n"));
+
+        // Assert
+        Assert.Equal(string.Empty, Text(emptied.Single(i => i.Item.Role == "title").Item));
+        Assert.Equal("FM", Text(bare.Single(i => i.Item.Role == "title").Item));
+    }
+
+    /// <summary>
     ///     Gets every item of a scene with its absolute offset.
     /// </summary>
     /// <param name="scene">The scene.</param>

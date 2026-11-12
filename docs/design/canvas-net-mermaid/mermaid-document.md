@@ -26,8 +26,10 @@ lays out the diagram.
   frontmatter, directives, and the location map), the `DetectedDiagram` (Mermaid id, public type, keyword, support,
   location), the parsed diagram (`IMermaidDiagram`, null for a type this version does not draw), and the source name.
   Properties: `SourceName`, `DiagramType` (Mermaid's id with `class`, `state`, and `flowchart` aliases folded),
-  `IsSupported`, `Title` (the diagram's own title, else the frontmatter title), `AccTitle`, `Direction`, `NodeCount`,
-  `EdgeCount`, and `SubgraphCount` (zero and null for an unsupported type). The counts are the parsed diagram's and
+  `IsSupported`, `Title` (the diagram's own title, else the frontmatter title; when the diagram's `IsTitleSet` is true,
+  default false on `IMermaidDiagram`, its title is used even when null, so a title that sanitizes to empty leaves none,
+  as drawn), `AccTitle`, `Direction`, `NodeCount`, `EdgeCount`, and `SubgraphCount` (zero and null for an unsupported
+  type). The counts are the parsed diagram's and
   are fixed when the text is opened, under the configuration of the text itself (its frontmatter and directives): for
   a class diagram `NodeCount` is the classes, `EdgeCount` the relations, and `SubgraphCount` the namespaces that are
   drawn under that configuration (with `class.hierarchicalNamespaces` false, only the declared namespaces, so
@@ -40,7 +42,9 @@ lays out the diagram.
   the diagram is laid out in), else `TB`. For a pie chart `NodeCount` is the sections (each label once), and for a
   gantt chart the tasks (vertical markers included) with `SubgraphCount` the sections whose titles are drawn; both
   have no edges and a null `Direction`. For a mindmap `NodeCount` is the nodes and `EdgeCount` one fewer (0 for an
-  empty mindmap), with no subgraphs, a null `Direction`, and the frontmatter title as its only title. A site-level
+  empty mindmap), with no subgraphs, a null `Direction`, and the frontmatter title as its only title. For a packet
+  diagram `NodeCount` is the block statements (a block split across two rows counted once), with no edges or
+  subgraphs and a null `Direction`. A site-level
   setting in `MermaidRenderOptions.Config` is not known when the
   text is opened, so it changes the drawing but not the counts, as for every other descriptive property.
 - **`MermaidOpenOptions`**: `SourceName` (not white space) and `Limits`.
@@ -78,8 +82,9 @@ lays out the diagram.
   `state` (from the `stateDiagram` and legacy `state` detectors, so `stateDiagram` and `stateDiagram-v2` texts alike,
   whichever state renderer the configuration names) to `StateParser` and `StateModel`, and `er` (from the `er`
   detector, an `erDiagram` text) to `ErParser` and `ErModel`, `pie` to `PieParser` (whose `PieDiagram` implements
-  `IMermaidDiagram`), `gantt` to `GanttParser` and `GanttModel`, and `mindmap` to `MindmapParser` (whose
-  `MindmapDiagram` implements `IMermaidDiagram`). A
+  `IMermaidDiagram`), `gantt` to `GanttParser` and `GanttModel`, `mindmap` to `MindmapParser` (whose
+  `MindmapDiagram` implements `IMermaidDiagram`), and `packet` to `PacketParser` (whose `PacketDiagram` implements
+  `IMermaidDiagram`). A
   known type that is not drawn is not parsed (the document's diagram is null). Postcondition: an immutable document,
   or an exception.
 - **`Open(string path, ...)`**: opens the file for reading and reads it as a stream; the document is named by the
@@ -126,7 +131,7 @@ lays out the diagram.
 - Oversized text throws `InvalidDataException` (as the Vega-Lite and SCAD packages do, so hosts map it to
   corrupt input).
 - Invalid text, refused YAML, and the open-time limits throw `MermaidSyntaxException` from the Syntax, Flowchart,
-  Sequence, Class, State, Er, Pie, Gantt, and Mindmap subsystems; the unit adds nothing but the source name.
+  Sequence, Class, State, Er, Pie, Gantt, Mindmap, and Packet subsystems; the unit adds nothing but the source name.
 - Layout, picture, and painting limits and render failures throw `MermaidRenderException` from the lower
   subsystems (for a mindmap, the Mindmap and Cose subsystems); a size outside the surface range throws
   `ArgumentOutOfRangeException` naming the scale and the size.
@@ -153,6 +158,7 @@ lays out the diagram.
   passes `Now` to the model in the render context.
 - **Mindmap**: through `DiagramRegistry` (`MindmapParser`, whose `MindmapDiagram` implements `IMermaidDiagram`); its
   renderer uses the `Cose` subsystem for the layout.
+- **Packet**: through `DiagramRegistry` (`PacketParser`, whose `PacketDiagram` implements `IMermaidDiagram`).
 - **Scenegraph**: `Scene`, `ScenePlacement`, `ScenePainter` (and `ScenePainter.CreateFontResolver`).
 - **Core CanvasNet**: `Surface`, `Rgba32` (Canvas), `IImageResolver`, `IImageSource`, `IFragmentImageSource`,
   `ImageFragment`, `ImageSourceRequest`, `ImageSourceResult`, `ImageDiagnostic` (ImageSources).

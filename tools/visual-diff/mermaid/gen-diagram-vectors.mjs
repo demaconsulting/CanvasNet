@@ -4,8 +4,8 @@
 //
 // Developer tooling of tools/visual-diff; see the README there. Usage:
 //
-//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap [--modules <folder>] [--out <file>]
-//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap [--modules <folder>] --probe <file>
+//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet [--modules <folder>] [--out <file>]
+//     node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet [--modules <folder>] --probe <file>
 //
 // <type> selects the cases (<type>-vector-cases.mjs next to this script) and the facts recorded: for class, the ClassDB
 // classes, relations, notes and namespaces; for state, the StateDB statement tree (after the translation of start, end and
@@ -13,7 +13,7 @@
 // subgraphs; and for each of those, the reduced getData() nodes and edges; for pie, the PieDB sections (each value as
 // String() writes it), showData, title and accessibility texts; for gantt, the GanttDB statements (date and axis formats, tick
 // interval, today marker, includes, excludes, weekday, inclusive end dates, top axis, display mode, sections, links,
-// title and accessibility texts) and the tasks of getTasks() (their dates in milliseconds), or the error getTasks throws; for mindmap, the MindmapDB nodes in the order they were added (with the sections getData assigns) and the getData() nodes and edges. <modules> is a folder that holds node_modules/mermaid
+// title and accessibility texts) and the tasks of getTasks() (their dates in milliseconds), or the error getTasks throws; for mindmap, the MindmapDB nodes in the order they were added (with the sections getData assigns) and the getData() nodes and edges; for packet, the PacketDB title and accessibility texts, the effective packet configuration (getConfig()) and the rows of getPacket() (each block's start, end, bits and label; the first and last 50 rows of a diagram with more than 100). <modules> is a folder that holds node_modules/mermaid
 // and node_modules/puppeteer (default: the repository root). <out> is the vector file (default:
 // test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/<type>-parser.json). --probe runs the texts of a
 // JSON file (an array of strings) and prints the results instead (a development aid).
@@ -38,8 +38,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..', '..');
 
 // Read the arguments
-const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap [--modules <folder>] [--out <file> | --probe <file>]';
-const types = ['class', 'state', 'er', 'pie', 'gantt', 'mindmap'];
+const usage = 'usage: node gen-diagram-vectors.mjs --type class|state|er|pie|gantt|mindmap|packet [--modules <folder>] [--out <file> | --probe <file>]';
+const types = ['class', 'state', 'er', 'pie', 'gantt', 'mindmap', 'packet'];
 const args = process.argv.slice(2);
 let type = null;
 let modules = root;
@@ -267,10 +267,28 @@ function mindmapFacts(diagram, pick) {
   };
 }
 
-const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts, gantt: ganttFacts, mindmap: mindmapFacts };
+// Runs in the page: the facts of a packet diagram (the PacketDB state): the title and accessibility texts, the effective
+// packet configuration (getConfig(), with paddingY grown by 10 when showBits is set) and the rows of getPacket(). A
+// number that JSON cannot hold (an infinite bit number) is written as its String(); a diagram of more than 100 rows
+// keeps its first and last 50 (truncated)
+function packetFacts(diagram) {
+  const db = diagram.db;
+  const number = (v) => (Number.isFinite(v) ? v : String(v));
+  const rows = db.getPacket().map((word) => word.map((b) => ({ start: number(b.start), end: number(b.end), bits: number(b.bits), label: b.label })));
+  return {
+    type: diagram.type,
+    title: db.getDiagramTitle(),
+    accTitle: db.getAccTitle(),
+    accDescr: db.getAccDescription(),
+    config: db.getConfig(),
+    rowCount: rows.length,
+    ...(rows.length > 100 ? { truncated: true, rows: [...rows.slice(0, 50), ...rows.slice(-50)] } : { rows })
+  };
+}
+const factsOf = { class: classFacts, state: stateFacts, er: erFacts, pie: pieFacts, gantt: ganttFacts, mindmap: mindmapFacts, packet: packetFacts };
 // The diagram ids (diagram.type) whose facts each type records: the legacy ids draw (class) or parse (state) the same
 // way
-const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'], gantt: ['gantt'], mindmap: ['mindmap'] };
+const wantedOf = { class: ['classDiagram', 'class'], state: ['stateDiagram', 'state'], er: ['er'], pie: ['pie'], gantt: ['gantt'], mindmap: ['mindmap'], packet: ['packet'] };
 
 // The fixed clock of every page (mermaid's gantt chart reads the time for "today"): a Date whose constructor without
 // arguments and now() give this instant; the pages also run in the UTC time zone, the zone of the CanvasNet port

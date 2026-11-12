@@ -245,6 +245,46 @@ internal sealed record MindmapConfig
 }
 
 /// <summary>
+///     The packet section of the effective configuration, as Mermaid's packet database and renderer read it
+///     (<c>PacketDB.getConfig</c>: <c>cleanAndMerge</c> of the schema's defaults and the section).
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>PacketDiagramConfig</c>. The database splits the blocks into rows of
+///     <c>bitsPerRow</c> bits; the renderer draws each bit <c>bitWidth</c> wide and each row <c>rowHeight</c> high, a
+///     block <c>paddingX</c> narrower than its bits, the rows <see cref="EffectivePaddingY"/> apart, and the bit numbers
+///     when <c>showBits</c> is set. <c>useMaxWidth</c> only sets the CSS width of the SVG, which a picture does not have.
+/// </remarks>
+internal sealed record PacketConfig
+{
+    /// <summary>Gets the height of a row (<c>packet.rowHeight</c>).</summary>
+    public double RowHeight { get; init; } = 32;
+
+    /// <summary>Gets the width of a bit (<c>packet.bitWidth</c>).</summary>
+    public double BitWidth { get; init; } = 32;
+
+    /// <summary>Gets the number of bits in a row (<c>packet.bitsPerRow</c>; any finite number, split as Mermaid splits it).</summary>
+    public double BitsPerRow { get; init; } = 32;
+
+    /// <summary>Gets a value indicating whether the bit numbers are drawn (<c>packet.showBits</c>).</summary>
+    public bool ShowBits { get; init; } = true;
+
+    /// <summary>Gets the space between two blocks of a row (<c>packet.paddingX</c>).</summary>
+    public double PaddingX { get; init; } = 5;
+
+    /// <summary>Gets the space above each row as configured (<c>packet.paddingY</c>).</summary>
+    public double PaddingY { get; init; } = 5;
+
+    /// <summary>Gets a value indicating whether the picture may shrink to the page width (<c>packet.useMaxWidth</c>).</summary>
+    public bool UseMaxWidth { get; init; } = true;
+
+    /// <summary>
+    ///     Gets the space above each row as the renderer uses it: <c>getConfig</c> adds 10 to <c>paddingY</c> when
+    ///     <c>showBits</c> is set, which makes room for the bit numbers.
+    /// </summary>
+    public double EffectivePaddingY => ShowBits ? PaddingY + 10 : PaddingY;
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -474,6 +514,7 @@ internal sealed class MermaidConfig
         Pie = ReadPie(raw);
         Gantt = ReadGantt(raw);
         Mindmap = ReadMindmap(raw);
+        Packet = ReadPacket(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -550,6 +591,9 @@ internal sealed class MermaidConfig
 
     /// <summary>Gets the mindmap section, as the mindmap database and renderer read it.</summary>
     public MindmapConfig Mindmap { get; }
+
+    /// <summary>Gets the packet section, as the packet database and renderer read it.</summary>
+    public PacketConfig Packet { get; }
 
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
@@ -771,6 +815,28 @@ internal sealed class MermaidConfig
             Padding = Number(section, "padding", defaults.Padding),
             MaxNodeWidth = Number(section, "maxNodeWidth", defaults.MaxNodeWidth),
             LayoutAlgorithm = Text(section, "layoutAlgorithm") ?? defaults.LayoutAlgorithm,
+            UseMaxWidth = Boolean(section, "useMaxWidth", defaults.UseMaxWidth),
+        };
+    }
+
+    /// <summary>
+    ///     Reads the packet section as the packet database and renderer see it: the section's values over the schema's
+    ///     defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The packet section.</returns>
+    private static PacketConfig ReadPacket(JsonObject raw)
+    {
+        var section = raw["packet"] as JsonObject ?? [];
+        var defaults = new PacketConfig();
+        return new PacketConfig
+        {
+            RowHeight = Number(section, "rowHeight", defaults.RowHeight),
+            BitWidth = Number(section, "bitWidth", defaults.BitWidth),
+            BitsPerRow = Number(section, "bitsPerRow", defaults.BitsPerRow),
+            ShowBits = Boolean(section, "showBits", defaults.ShowBits),
+            PaddingX = Number(section, "paddingX", defaults.PaddingX),
+            PaddingY = Number(section, "paddingY", defaults.PaddingY),
             UseMaxWidth = Boolean(section, "useMaxWidth", defaults.UseMaxWidth),
         };
     }

@@ -65,9 +65,10 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
 
 - **Settings.** `SetDateFormat`, `SetAxisFormat`, `SetTickInterval`, `SetTodayMarker`, `EnableInclusiveEndDates`,
   `SetWeekday`, and `SetWeekend` keep their values as written, the last statement winning; `SetExcludes` and
-  `SetIncludes` merge their tokens (`MergeTokens`); `SetDiagramTitle` sanitizes the title, and `SetAccessibleTitle` and
-  `SetAccessibleDescription` sanitize their texts as Mermaid's `commonDb.ts` does (the title without leading white
-  space, the description without the white space after each line feed); `AddSection` starts a section.
+  `SetIncludes` merge their tokens (`MergeTokens`); `SetDiagramTitle` sanitizes the title and marks it set
+  (`IsTitleSet`), and `SetAccessibleTitle` and `SetAccessibleDescription` sanitize their texts as Mermaid's
+  `commonDb.ts` does (the title without leading white space, the description without the white space after each line
+  feed); `AddSection` starts a section.
 - **`AddTask(name, data, location)`** is Mermaid's `addTask` with `parseData`: the data after its colon is split on
   commas; the leading tags (fields that are a tag when trimmed) are taken off in Mermaid's order until none matches, and
   data that runs out of fields while tags are taken off fails as Mermaid fails; the remaining fields are trimmed and
@@ -82,7 +83,8 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
 - **`FindTask(id)`** is Mermaid's `findTaskById`: the last task with the id; a null id is the key `undefined`, and
   `__proto__` is never found. **`IndexOf`** gives its index for the compilation.
 - **Metadata** (`IMermaidDiagram`): `Title` is the title of the `title` statement trimmed, or null when it is empty (the
-  document then falls back to the frontmatter title), `AccTitle` the accessible title or null, `Direction` null,
+  document then falls back to the frontmatter title unless `IsTitleSet`, which the diagram exposes through
+  `IMermaidDiagram`), `AccTitle` the accessible title or null, `Direction` null,
   `NodeCount` the number of tasks, vertical markers included, `EdgeCount` 0, and `SubgraphCount` the number of
   sections of the tasks that are not vertical markers, each once, without a section named `__proto__` (whose title
   Mermaid does not draw).

@@ -818,6 +818,7 @@ sections:
           - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
           - CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn
           - CanvasNetTool_Mermaid_MindmapAsProcess_IsDrawn
+          - CanvasNetTool_Mermaid_PacketAsProcess_IsDrawn
           - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
 
       - id: CanvasNetTool-System-SvgEmbed

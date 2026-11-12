@@ -123,8 +123,8 @@ items carry the location of their task, of the `todayMarker` statement, of the t
   line from the axis to the tick size at the scaled tick plus 0.5, and a label formatted by `TimeAxis.Format`, checked
   against `MaxLabelLength`, 3 pixels past the axis, the bottom labels one em lower, with the paint of the `.grid`
   rules of the style sheet over the presentation attributes that d3-axis writes.
-- **`DrawTitle`** draws the title of the model, or the sanitized frontmatter title when the model has none, at half the
-  width and the title top margin, with the paint of `.titleText`.
+- **`DrawTitle`** draws the title of the model, or the sanitized frontmatter title when no title statement set the
+  title (`IsTitleSet`), at half the width and the title top margin, with the paint of `.titleText`.
 - **`TextLine`** makes one text: it shows it as `DisplayText` gives it, at an x and a baseline that are 0 when they are
   not numbers, with the box of the browser's `getBBox` from the `LabelBuilder`, anchored as its computed `text-anchor`
   says, and charges the meter for its length; an empty text or a font size that cannot be drawn gives no text.

@@ -248,3 +248,17 @@ sections:
                   is not drawn must be the one the author chose, so that it can be reported.
                 tests:
                   - MermaidConfigResolver_Resolve_MindmapLayout_IsCoseBilkentUnlessUserDefined
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-PacketSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the packet section with Mermaid's effective defaults (a row
+                  height of 32, a bit width of 32, 32 bits per row, the bit numbers shown, paddings of 5, and
+                  useMaxWidth), give typed access to the row height, the bit width, the bits per row, the bit numbers
+                  switch, the paddings, and the vertical padding grown by 10 when the bit numbers are shown, as the
+                  packet renderer reads them, and report as mermaid-config-invalid, and leave without effect, a packet
+                  value of the wrong type.
+                justification: |
+                  The rows and the size of a packet diagram follow these settings; a value Mermaid would not use must
+                  not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_PacketSection_DefaultsValuesAndInvalidValues

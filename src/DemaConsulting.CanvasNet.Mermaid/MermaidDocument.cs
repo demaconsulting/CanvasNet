@@ -23,7 +23,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///         supported ones are drawn (<see cref="IsSupported"/>): in this version flowcharts (<c>flowchart</c> and
 ///         <c>graph</c>), sequence diagrams (<c>sequenceDiagram</c>), class diagrams (<c>classDiagram</c>), state diagrams
 ///         (<c>stateDiagram</c>), entity relationship diagrams (<c>erDiagram</c>), pie charts (<c>pie</c>), gantt charts
-///         (<c>gantt</c>) and mindmaps (<c>mindmap</c>). Any other known type (<c>journey</c>, <c>timeline</c>, ...) opens without
+///         (<c>gantt</c>), mindmaps (<c>mindmap</c>) and packet diagrams (<c>packet</c> and <c>packet-beta</c>). Any other
+///         known type (<c>journey</c>, <c>timeline</c>, ...) opens without
 ///         error; measuring or rendering it reports the unsupported feature
 ///         <see cref="MermaidDiagnosticCodes.DiagramUnsupported"/> and gives an empty, transparent picture of 16 by 16 pixels
 ///         (twice Mermaid's diagram padding), or throws <see cref="MermaidUnsupportedFeatureException"/> in strict mode.
@@ -67,8 +68,8 @@ public sealed partial class MermaidDocument
 
     /// <summary>
     ///     Gets the diagram type: <c>flowchart</c> (written <c>flowchart</c> or <c>graph</c>), or the name of another
-    ///     Mermaid type such as <c>sequence</c>, <c>class</c>, <c>state</c>, <c>er</c>, <c>gantt</c>, <c>pie</c> or
-    ///     <c>mindmap</c>.
+    ///     Mermaid type such as <c>sequence</c>, <c>class</c>, <c>state</c>, <c>er</c>, <c>gantt</c>, <c>pie</c>,
+    ///     <c>mindmap</c> or <c>packet</c>.
     /// </summary>
     public string DiagramType => Detected.DiagramType;
 
@@ -79,10 +80,12 @@ public sealed partial class MermaidDocument
     public bool IsSupported => Detected.IsSupported;
 
     /// <summary>
-    ///     Gets the title of the diagram (its own title statement, else the frontmatter <c>title</c>), or
-    ///     <see langword="null"/> when it has none.
+    ///     Gets the title of the diagram (its own title statement - even one that sanitizes to empty, which leaves no
+    ///     title - else the frontmatter <c>title</c>), or <see langword="null"/> when it has none.
     /// </summary>
-    public string? Title => Diagram?.Title ?? Source.Frontmatter?.Title;
+    public string? Title => Diagram is { IsTitleSet: true } diagram
+        ? diagram.Title
+        : Diagram?.Title ?? Source.Frontmatter?.Title;
 
     /// <summary>
     ///     Gets the accessible title (<c>accTitle</c>), or <see langword="null"/> when the diagram has none or its type is

@@ -100,10 +100,13 @@ right only for `left` and down by 66 only for `top`; and that with `showData` th
 
 ##### CanvasNetMermaid-Pie-PieRenderer-Title: The Title
 
-**Tests**: `PieRendererTests.PieRenderer_Draw_LongTitle_WidensTheViewBoxToTheLeft`
+**Tests**: `PieRendererTests.PieRenderer_Draw_LongTitle_WidensTheViewBoxToTheLeft`,
+`PieRendererTests.PieRenderer_Draw_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle`
 
 Asserts that the title of a `title` statement is one text anchored in the middle at x 0 and the baseline -200 from the
-pie's center, and that a chart without a `title` statement draws the frontmatter title `From the frontmatter`.
+pie's center, that a chart without a `title` statement draws the frontmatter title `From the frontmatter`, and that a
+`title` statement that sanitizes to empty (`<script>x</script>`) replaces the frontmatter title `FM` with an empty
+title while a bare `title` keeps `FM`, as in Mermaid.
 
 ##### CanvasNetMermaid-Pie-PieRenderer-ViewBox: The View Box
 

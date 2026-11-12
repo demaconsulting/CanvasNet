@@ -190,6 +190,40 @@ public class ConfigurationTests
     }
 
     /// <summary>
+    ///     Validates a packet text that configures its section and its style at once: the section's settings take effect,
+    ///     a frontmatter <c>themeVariables.packet</c> keeps the keys Mermaid's sanitizer keeps (a label color) and loses
+    ///     the others (a block fill, reported as unknown), a <c>themeCSS</c> rule of a packet selector overrides the theme
+    ///     without a report, and a section value of the wrong type is reported at its key.
+    /// </summary>
+    [Fact]
+    public void Configuration_ResolvePacketSectionAndStyles_FullText()
+    {
+        // Arrange
+        const string Text = "---\nconfig:\n  theme: forest\n  packet:\n    bitsPerRow: 16\n    rowHeight: tall\n" +
+                            "  themeVariables:\n    packet:\n      labelColor: '#ff0000'\n      blockFillColor: '#00ff00'\n---\n" +
+                            "%%{init: {'themeCSS': '.packetByte.end { fill: #0000ff }'}}%%\n" +
+                            "packet\n  0: \"a\"\n";
+        var sink = new MermaidReportSink(100, throwOnUnsupported: false);
+
+        // Act
+        var config = MermaidConfigResolver.Resolve(Preprocessor.Run(Text, "packet.mmd", MermaidLimits.Default), "packet", null, sink);
+        var styles = PacketStyles.Create(config, sink);
+        var warnings = new List<MermaidDiagnostic>();
+        var unsupported = new List<MermaidUnsupportedFeature>();
+        sink.Deliver(warnings.Add, unsupported.Add);
+
+        // Assert
+        Assert.Equal((16.0, 32.0), (config.Packet.BitsPerRow, config.Packet.RowHeight));
+        Assert.Equal(CssColor.Parse("#ff0000"), styles.Label.Color);
+        Assert.Equal(CssColor.Parse("#efefef"), styles.Block.Fill);
+        Assert.Equal(CssColor.Parse("#0000ff"), styles.ByteEnd.Color);
+        Assert.Equal(CssColor.Parse("#000000"), styles.ByteStart.Color);
+        Assert.Empty(unsupported);
+        Assert.Contains(warnings, warning => (warning.Code, warning.Location.Line) == (MermaidDiagnosticCodes.ConfigInvalid, 6));
+        Assert.Contains(warnings, warning => warning.Code == MermaidDiagnosticCodes.ConfigUnknownKey && warning.Message.Contains("blockFillColor", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     ///     Validates a mindmap text that configures its section, its layout and its style at once: the section's settings
     ///     take effect, the layout is <c>cose-bilkent</c> unless the text sets one, a <c>themeCSS</c> rule of a section
     ///     selector overrides the theme without a report, the theme's colors reach the sections and the root, and a
