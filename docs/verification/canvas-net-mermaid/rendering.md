@@ -158,7 +158,7 @@ centers it.
 
 Asserts the sizes that follow from the measured labels: the node widths of the subgraph fixture, which are the HTML
 label widths with the padding, and the positions of the edge labels and the width of the view box of the labeled
-chain, which follow from the measured edge label boxes. Lays out, without an image resolver, a node with an `<u>`
+chain, which follow from the measured edge label boxes. Lays out, without an image resolver, a node with an `<s>`
 label, a node whose label has a character that no bundled font draws, and an image node, and asserts that the three
 nodes are laid out, that no feature is reported as unsupported, and that the warnings are, in this order,
 `mermaid-html-tag-ignored` at line 2, `mermaid-text-missing-glyph` at line 3, and `mermaid-image-unresolved` at line 4.

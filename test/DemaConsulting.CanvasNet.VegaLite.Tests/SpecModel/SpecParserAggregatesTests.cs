@@ -89,10 +89,13 @@ public class SpecParserAggregatesTests
     [InlineData("""{"window":[{"op":"ntile","param":1.5}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"ntile","param":"4"}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"lag"}]}""", "/transform/0/window/0")]
-    [InlineData("""{"window":[{"op":"lag","field":"a","param":0}]}""", "/transform/0/window/0/param")]
-    [InlineData("""{"window":[{"op":"lead","field":"a","param":-1}]}""", "/transform/0/window/0/param")]
+    [InlineData("""{"window":[{"op":"lag","field":"a","param":1.5}]}""", "/transform/0/window/0/param")]
+    [InlineData("""{"window":[{"op":"lead","field":"a","param":-0.5}]}""", "/transform/0/window/0/param")]
+    [InlineData("""{"window":[{"op":"lead","field":"a","param":"1"}]}""", "/transform/0/window/0/param")]
+    [InlineData("""{"window":[{"op":"ntile","param":-2}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"nth_value","field":"a"}]}""", "/transform/0/window/0")]
     [InlineData("""{"window":[{"op":"nth_value","field":"a","param":0}]}""", "/transform/0/window/0/param")]
+    [InlineData("""{"window":[{"op":"nth_value","field":"a","param":-1}]}""", "/transform/0/window/0/param")]
     [InlineData("""{"window":[{"op":"first_value"}]}""", "/transform/0/window/0")]
     [InlineData("""{"window":[{"op":"sum"}]}""", "/transform/0/window/0")]
     [InlineData("""{"window":[{"op":"exponential","field":"a","param":2}]}""", "/transform/0/window/0/param")]
@@ -112,6 +115,29 @@ public class SpecParserAggregatesTests
     [InlineData("""{"window":[{"op":"rank"}],"ignorePeers":"yes"}""", "/transform/0/ignorePeers")]
     public void SpecParser_Parse_WindowTransformShapesArePinned(string entry, string pointer) =>
         AssertLocated(FailTransform(entry), pointer);
+
+    /// <summary>
+    ///     Validates the regression that a negative or zero <c>param</c> of <c>lag</c> or <c>lead</c> is accepted, as Vega accepts it
+    ///     (<c>WindowOps.js</c> reads <c>data[index -/+ offset]</c> of <c>+offset || 1</c>: a negative offset reads the other way and
+    ///     zero is 1), and an offset of any size too.
+    /// </summary>
+    /// <param name="entry">The text of the transform object.</param>
+    [Theory]
+    [InlineData("""{"window":[{"op":"lag","field":"a","param":-1}]}""")]
+    [InlineData("""{"window":[{"op":"lead","field":"a","param":-1}]}""")]
+    [InlineData("""{"window":[{"op":"lag","field":"a","param":-3,"as":"x"},{"op":"lead","field":"a","param":-2,"as":"y"}]}""")]
+    [InlineData("""{"window":[{"op":"lag","field":"a","param":0}]}""")]
+    [InlineData("""{"window":[{"op":"lead","field":"a","param":0}]}""")]
+    [InlineData("""{"window":[{"op":"lag","field":"a","param":-4294967296}]}""")]
+    [InlineData("""{"window":[{"op":"lead","field":"a","param":-1e300}]}""")]
+    public void SpecParser_Parse_WindowLagAndLeadAcceptNegativeAndZeroOffsets(string entry)
+    {
+        // Act
+        var spec = SpecParser.Parse("{\"transform\":[" + entry + "]}", "t.json");
+
+        // Assert
+        Assert.NotNull(spec);
+    }
 
     /// <summary>
     ///     Validates that a wrongly shaped <c>bin</c> transform, or wrong bin parameters, are a located error at the offending value.

@@ -87,7 +87,14 @@ internal sealed record LabelRequest(string Text, LabelFont Font)
 /// <param name="Font">The font.</param>
 /// <param name="Color">The color.</param>
 /// <param name="Width">The advance width.</param>
-internal sealed record LabelRun(string Text, SceneFont Font, Rgba32 Color, double Width);
+internal sealed record LabelRun(string Text, SceneFont Font, Rgba32 Color, double Width)
+{
+    /// <summary>
+    ///     Gets a value indicating whether the run is underlined (the text of an HTML label's <c>&lt;u&gt;</c> or
+    ///     <c>&lt;ins&gt;</c>); false by default.
+    /// </summary>
+    public bool Underline { get; init; }
+}
 
 /// <summary>
 ///     One line of a measured label, in the coordinates of the label (before the label's translation).
@@ -161,7 +168,7 @@ internal sealed record LabelLayout(bool IsHtml, SceneRect Box, IReadOnlyList<Lab
                 continue;
             }
 
-            var runs = line.Runs.Select(run => new SceneTextRun(run.Text, run.Font, run.Color)).ToList();
+            var runs = line.Runs.Select(run => new SceneTextRun(run.Text, run.Font, run.Color) { Underline = run.Underline }).ToList();
             items.Add(new SceneText(line.X + dx, line.Baseline + dy, SceneTextAnchor.Start, runs, line.Box.Offset(dx, dy))
             {
                 Role = role,

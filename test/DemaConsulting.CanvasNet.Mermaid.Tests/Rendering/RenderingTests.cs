@@ -261,7 +261,7 @@ public sealed class RenderingTests
     public void Rendering_Flowchart_UndrawnConstructs_AreReportedAtTheirNodes()
     {
         // Arrange
-        const string Text = "flowchart LR\n  a[\"<u>under</u>\"]\n  b[\"x \U000F0000\"]\n  c@{ img: \"pic.png\" }\n";
+        const string Text = "flowchart LR\n  a[\"<s>struck</s>\"]\n  b[\"x \U000F0000\"]\n  c@{ img: \"pic.png\" }\n";
         var (options, warnings, unsupported) = MermaidTestHelpers.Collecting();
 
         // Act

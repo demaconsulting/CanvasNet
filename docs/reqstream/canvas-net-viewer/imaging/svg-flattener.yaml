@@ -74,10 +74,13 @@ sections:
           When the copy is written to another folder than the drawing, the SvgFlattener class shall rewrite each
           relative image link that is left so that it names the same file from the folder of the copy, keeping its query
           and fragment, and shall report each rewritten link, and shall leave a link whose path the file system cannot
-          name (a null character, a path that is too long) as written.
+          name (a null character, a path that is too long), and a Windows drive or UNC link on every platform, as
+          written.
         justification: |
           A copy written next to other build output (the cache folder of the Pandoc filter) must still show the raster
-          pictures and plain SVG files that the drawing links.
+          pictures and plain SVG files that the drawing links. A drive or UNC link is not a portable URL reference, and
+          on Linux and macOS it would otherwise be read as a relative file name and rewritten into a link to a file that
+          was never meant.
         tests:
           - SvgFlattener_Execute_OutputInOtherFolder_RebasesRemainingRelativeLinks
           - SvgFlattener_Execute_OutputInOtherFolder_InvalidLinkPathLeftAsWritten
@@ -86,6 +89,8 @@ sections:
           - SvgFlattener_RebaseLink_NotRelativePath_Untouched
           - SvgFlattener_RebaseLink_InvalidPath_Untouched
           - SvgFlattener_RebaseLink_VeryLongPath_DoesNotThrow
+          - SvgFlattener_IsWindowsRootedPath_DriveAndUncPaths_ClassifiedOnEveryPlatform
+          - SvgFlattener_RebaseLink_WindowsDriveOrUncLink_UntouchedOnEveryPlatform
 
       - id: CanvasNetViewer-Imaging-SvgFlattener-NothingToReplace
         title: >-

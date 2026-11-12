@@ -62,8 +62,9 @@ wrap, and the width of an entity box text and of a narrow entity name. The unit'
   sanitizer of the `Syntax` subsystem), then an HTML or an SVG label.
 - HTML labels (`LabelBuilder.Html.cs`) - markdown becomes HTML (`MarkdownToHtml`) and plain text a paragraph
   (`NonMarkdownToHtml`); entity placeholders are decoded, `fa:` icon names are replaced by an empty element
-  (`ReplaceIcons`), and the HTML is sanitized and read into styled inline items (`b`, `strong`, `i`, `em`, `br`, `img`,
-  `span` with a style, and `p`). The items are laid out with the rules of Mermaid's label element: white space
+  (`ReplaceIcons`), and the HTML is sanitized and read into styled inline items (`b`, `strong`, `i`, `em`, `u`, `ins`,
+  `br`, `img`, `span` with a style, and `p`; `u` and `ins` underline their runs, as Chrome's style sheet does). The
+  items are laid out with the rules of Mermaid's label element: white space
   collapsed and no wrapping, line boxes of 1.5 font sizes, centered lines, and a baseline at
   `top + floor((L - (A + D)) / 2) + A` with the rounded ascent and descent; run widths are rounded up to the browser's
   1/64 pixel layout unit. When the text and the paragraph padding reach the wrapping width, the items are laid out
@@ -193,9 +194,9 @@ in `LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
   typically 0.1 pixel and at most 1.6 pixels. The SVG texts of a class box differ by up to 0.882 pixel in the class
   references, because Chrome takes the box of SVG text from the glyphs it rasterizes at their place on the device pixel
   grid, so the same text measures differently where it is drawn. HTML labels match to the layout unit.
-- Only the HTML elements `b`, `strong`, `i`, `em`, `br`, `img`, `span` (with a style), and `p` are understood; any
-  other element (`sup`, `code`, `u`, `a`, and so on) is dropped with its text kept and reported, and its size changes
-  are not modeled. Mixed font sizes on one line use the line box of the tallest font.
+- Only the HTML elements `b`, `strong`, `i`, `em`, `u`, `ins`, `br`, `img`, `span` (with a style), and `p` are
+  understood; any other element (`sup`, `code`, `s`, `a`, and so on) is dropped with its text kept and reported, and its
+  size changes are not modeled. Mixed font sizes on one line use the line box of the tallest font.
 - The named character references are those of HTML 4 (252) and `apos`, `equals`, `num`, `semi`, and `colon`; any other
   HTML 5 name stays literal.
 - An `<img>` beside text in an HTML label is as wide as the label's content (approximating `width: 100%`); alone it is

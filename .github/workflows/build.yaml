@@ -602,20 +602,14 @@ jobs:
 
       # === INSTALL DEPENDENCIES ===
       # This section installs all required dependencies and tools for document generation.
+      # No step of this job runs Node.js or npm (the Pandoc filter is canvasnet.lua and draws the Mermaid
+      # diagrams with the canvasnet tool), so neither is set up here.
       # Downstream projects: Add any additional dependency installations here.
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 'lts/*'
 
       - name: Setup dotnet
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.x
-
-      - name: Install npm dependencies
-        run: npm install
 
       - name: Restore Tools
         run: dotnet tool restore
@@ -642,7 +636,7 @@ jobs:
           echo "Capturing tool versions..."
           dotnet versionmark --capture --job-id "build-docs" \
             --output "artifacts/versionmark-build-docs.json" -- \
-            dotnet git node npm pandoc weasyprint sarifmark sonarmark reqstream \
+            dotnet git pandoc weasyprint sarifmark sonarmark reqstream \
             buildmark versionmark reviewmark fileassert sysml2tools
           echo "✓ Tool versions captured"
 

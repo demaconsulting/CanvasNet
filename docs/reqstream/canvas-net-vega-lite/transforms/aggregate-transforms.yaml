@@ -158,6 +158,7 @@ sections:
                   - AggregateTransforms_Window_PartitionsAreSortedSeparatelyAndOutputKeepsInputOrder
                   - AggregateTransforms_Window_SortIsStableNullFirstAndDescendingReverses
                   - AggregateTransforms_Window_LagAndLeadReadNeighbors
+                  - AggregateTransforms_Window_NegativeLagAndLeadOffsetsReadTheOtherWay
                   - AggregateTransforms_Window_PositionalValuesReadTheFrame
                   - AggregateTransforms_Window_PreviousAndNextValueSkipNulls
                   - AggregateTransforms_Window_SlidingFrameAverages
