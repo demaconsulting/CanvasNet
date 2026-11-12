@@ -439,8 +439,8 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the <c>mermaid</c> topic says, word for word, what the tables of the Mermaid user guide say: the
-    ///     <c>class</c>, <c>state</c>, <c>er</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, and <c>packet</c> sections hold exactly the rows of the
-    ///     guide's class, state, entity relationship, pie, gantt, mindmap, and packet syntax, relation, tag, and settings tables, in order, and every
+    ///     <c>class</c>, <c>state</c>, <c>er</c>, <c>pie</c>, <c>gantt</c>, <c>mindmap</c>, <c>packet</c>, and <c>gitgraph</c> sections hold exactly the rows of the
+    ///     guide's class, state, entity relationship, pie, gantt, mindmap, packet, and git graph syntax, relation, tag, and settings tables, in order, and every
     ///     row of the guide's table of unsupported features and warnings is an item of the <c>unsupported</c> or
     ///     <c>diagnostics</c> section. Backticks are dropped, <c>\|</c> is read as <c>|</c>, and the first letter of a text
     ///     (after an <c>Area: </c> prefix) is compared ignoring case.
@@ -461,6 +461,7 @@ public partial class HelpTopicsTests
             ("gantt", "### Supported Gantt Syntax", 35),
             ("mindmap", "### Supported Mindmap Syntax", 16),
             ("packet", "### Supported Packet Syntax", 16),
+            ("gitgraph", "### Supported Git Graph Syntax", 21),
         ];
 
         // Act: the items that the rows of the guide's tables promise

@@ -1,0 +1,16 @@
+gitGraph
+    title A release history
+    commit id: "init"
+    commit id: "readme"
+    branch develop
+    commit id: "api"
+    commit id: "tests" type: HIGHLIGHT
+    checkout main
+    commit id: "hotfix" type: REVERSE
+    merge develop id: "merge"
+    checkout develop
+    cherry-pick id: "hotfix"
+    commit id: "docs"
+    checkout main
+    branch release order: 1
+    commit id: "notes" tag: "v1.1.0"

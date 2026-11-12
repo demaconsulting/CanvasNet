@@ -15,7 +15,7 @@ public class MermaidGalleryTests
     private const int MinimumDiagrams = 20;
 
     /// <summary>The diagram types this version draws, which the gallery shows.</summary>
-    private static readonly string[] DrawnTypes = ["flowchart", "sequence", "class", "state", "er", "pie", "gantt", "mindmap", "packet"];
+    private static readonly string[] DrawnTypes = ["flowchart", "sequence", "class", "state", "er", "pie", "gantt", "mindmap", "packet", "gitGraph"];
 
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

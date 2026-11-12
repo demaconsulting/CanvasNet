@@ -1,0 +1,27 @@
+---
+title: Two features
+config:
+  gitGraph:
+    mainBranchName: trunk
+    parallelCommits: true
+---
+gitGraph TB:
+    accTitle: Two features
+    accDescr: Two feature branches made side by side and merged into the trunk
+    commit id: "start"
+    branch search order: 2
+    commit id: "index"
+    commit id: "query" type: HIGHLIGHT
+    checkout trunk
+    branch export order: 1
+    commit id: "csv"
+    commit id: "pdf"
+    checkout trunk
+    commit id: "fix" type: REVERSE
+    checkout search
+    cherry-pick id: "fix"
+    checkout trunk
+    merge export tag: "v1.1"
+    merge search id: "release" tag: "v2.0"
+    %% the next commit is given an id
+    commit
