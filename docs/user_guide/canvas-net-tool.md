@@ -312,7 +312,8 @@ canvasnet info <input> [--page N | --all-pages] [--json]
 Reads only the header of a file (a model is parsed but not evaluated, and a chart or a diagram is parsed and laid out
 but not drawn) and reports its properties without rendering
 it, which is cheap even for a large file. The input may end in a fragment (`report.pdf#page=2`): only its page is used
-(it replaces `--page` and `--all-pages`), the other parameters are checked and ignored, and the `input` object of the
+(it replaces `--page` and `--all-pages`), the other parameters are checked (a value that cannot be used is an error) and
+otherwise ignored, and the `input` object of the
 result has a `fragment` member (see *Fragments on Input Paths*).
 
 - A **raster image or SVG** reports its format, size in pixels (the intrinsic size for an SVG), number of channels,
@@ -739,11 +740,9 @@ the same data files. See *Vega-Lite Data* in the CanvasNet User Guide for the CS
 
 **Pictures.** The `image` mark draws pictures that lie **next to the specification**: `"url": "icon.png"` (a field, a
 datum, or a value of the `url` channel, or the `url` of the mark). The tool wires the same sandboxed folder resolver
-that
-draws the pictures of an SVG, rooted at the folder of the specification, so the link can name a PNG or JPEG, an SVG
-file, an
-OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), or another chart, and
-nothing
+that draws the pictures of an SVG, rooted at the folder of the specification, so the link can name a PNG or JPEG, an
+SVG file, an OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), a Mermaid
+diagram (`"url": "flow.mmd#theme=dark"`), or another chart, and nothing
 outside that folder is read. A link that leaves the folder, an absolute path, a symbolic link, and a network URL are
 **never read or fetched**: the picture is not drawn and the diagnostic `svg-image-unresolved` names the link (`--strict`
 makes it an `unsupported-feature` failure). A picture that is found but is broken is the error of its own format, naming
@@ -1478,8 +1477,10 @@ canvasnet montage deck.pptx --all-pages --columns 4 --cell 320x180 --labels -o d
 
 A vector input (SVG, document page, model) is drawn directly at the cell size, so it is sharp; a raster is fitted with
 `--fit`. A cell is always scaled to fill the limiting side, because a contact sheet is a preview (there is no
-`--allow-upscale`). An input path may end in a fragment (`"assembly.scad#def.explode=0.5"`, `"report.pdf#page=3"`) that
-overrides the shared options for that input, so one file named several times is several cells; see *Fragments on Input
+`--allow-upscale`). An input path may end in a fragment (`"assembly.scad#def.explode=0.5"`, `"report.pdf#page=3"`,
+`"flow.mmd#theme=dark"`) that overrides the shared options for that input, so one file named several times is several
+cells; a fragment is the only way to set a chart parameter or a Mermaid theme in a montage (it has no `--param` or
+`--theme`). See *Fragments on Input
 Paths*, which also shows how to fix the camera of a model so that its cells share a scale.
 
 **Layout.** With `count` cells and `columns` columns, `rows = ceil(count / columns)`, the label strip is

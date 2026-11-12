@@ -785,7 +785,8 @@ text, to `MermaidRenderOptions.ImageResolver`, and the resolver decides what it 
 picture is drawn and the warning `mermaid-image-unresolved` is reported. `CanvasNetViewer.CreateImageResolver(folder)`
 of the `DemaConsulting.CanvasNet.Viewer` package confines the links to one folder and draws every CanvasNet format, so a
 node can show a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or
-another diagram. `MaxImages` bounds the pictures of one render.
+another diagram. A link may carry the fragments of an SVG link, such as `part.scad#def.width=20` or
+`flow.mmd#theme=dark`. `MaxImages` bounds the pictures of one render.
 
 The size of a picture node follows Mermaid: `w` and `h` set the picture size, and with `constraint: "on"` the picture
 keeps its aspect ratio. Give a picture node its `w` and `h` so that the layout does not depend on the picture: the

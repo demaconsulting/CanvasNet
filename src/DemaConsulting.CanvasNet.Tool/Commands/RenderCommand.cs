@@ -92,13 +92,14 @@ internal sealed partial class RenderCommand : ICommand
         + "sets its theme (default, base, dark, forest, or neutral) unless the text sets one. A gantt chart has no today line" + Environment.NewLine
         + "(the tool sets no clock). A diagram type that is not drawn (journey, timeline, and so on) is an empty picture with" + Environment.NewLine
         + "the note mermaid-diagram-unsupported; run 'canvasnet help mermaid' for what is supported." + Environment.NewLine
-        + "An SVG drawing can embed a picture, model, chart, SVG file, or document page that sits beside it with" + Environment.NewLine
-        + "<image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20 and chart.vl.json#param.cutoff=50" + Environment.NewLine
-        + "set a variable or a parameter); run 'canvasnet help svg' for the file types," + Environment.NewLine
-        + "the folder rule, the fragment, and an example." + Environment.NewLine
+        + "An SVG drawing can embed a picture, model, chart, Mermaid diagram, SVG file, or document page that sits" + Environment.NewLine
+        + "beside it with <image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20" + Environment.NewLine
+        + "and chart.vl.json#param.cutoff=50 set a variable or a parameter); run 'canvasnet help svg' for the file" + Environment.NewLine
+        + "types, the folder rule, the fragment, and an example." + Environment.NewLine
         + "An input path takes the same fragment: report.pdf#page=3, part.scad#view=top&def.width=20 (quote it in a shell:" + Environment.NewLine
-        + "& ends a command), chart.vl.json#param.cutoff=50. It overrides --page, --view, -D, and --param for that input; a" + Environment.NewLine
-        + "'#' is a fragment only when no file has that exact name. 'canvasnet help svg' lists the parameters." + Environment.NewLine
+        + "& ends a command), chart.vl.json#param.cutoff=50, flow.mmd#theme=dark. It overrides --page, --view, --theme," + Environment.NewLine
+        + "-D, and --param for that input; a '#' is a fragment only when no file has that exact name." + Environment.NewLine
+        + "'canvasnet help svg' lists the parameters." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine

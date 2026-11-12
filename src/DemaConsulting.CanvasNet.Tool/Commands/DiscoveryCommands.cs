@@ -116,10 +116,11 @@ internal static class DiscoveryCommands
             + "(.vl.json or .vl) is parsed and measured (not drawn) and reports the size it is laid out at, and the" + Environment.NewLine
             + "marks, data references, parameters, title, and schema version of its specification. A Mermaid diagram" + Environment.NewLine
             + "(.mmd or .mermaid) is parsed and measured (not drawn) and reports the size it is laid out at, its type" + Environment.NewLine
-            + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs (participants," + Environment.NewLine
-            + "messages, and boxes for a sequence diagram). The input may end in a" + Environment.NewLine
-            + "fragment (report.pdf#page=2) as for 'render'; only the page is used here (the other parameters are checked" + Environment.NewLine
-            + "and ignored), and a warning about the fragment is written to standard error." + Environment.NewLine
+            + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs" + Environment.NewLine
+            + "('canvasnet help mermaid' says what each diagram type counts). The input may end in a" + Environment.NewLine
+            + "fragment (report.pdf#page=2) as for 'render'; only the page is used here: the other parameters are checked" + Environment.NewLine
+            + "(a value that cannot be used is an error) and otherwise ignored, and an unknown or repeated parameter is a" + Environment.NewLine
+            + "warning on standard error." + Environment.NewLine
             + Environment.NewLine
             + "Examples:" + Environment.NewLine
             + "  canvasnet info photo.jpg" + Environment.NewLine
