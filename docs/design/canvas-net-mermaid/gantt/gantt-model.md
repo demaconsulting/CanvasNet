@@ -83,7 +83,8 @@ three letters, the meridiem `AM`/`PM`, and no long-date formats) and the token l
 - **`FindTask(id)`** is Mermaid's `findTaskById`: the last task with the id; a null id is the key `undefined`, and
   `__proto__` is never found. **`IndexOf`** gives its index for the compilation.
 - **Metadata** (`IMermaidDiagram`): `Title` is the title of the `title` statement trimmed, or null when it is empty (the
-  document then falls back to the frontmatter title), `AccTitle` the accessible title or null, `Direction` null,
+  document then falls back to the frontmatter title unless `IsTitleSet`, which the diagram exposes through
+  `IMermaidDiagram`), `AccTitle` the accessible title or null, `Direction` null,
   `NodeCount` the number of tasks, vertical markers included, `EdgeCount` 0, and `SubgraphCount` the number of
   sections of the tasks that are not vertical markers, each once, without a section named `__proto__` (whose title
   Mermaid does not draw).

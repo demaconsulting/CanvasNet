@@ -31,9 +31,16 @@ internal interface IMermaidDiagram
 {
     /// <summary>
     ///     Gets the title the diagram itself declares (a title statement), or null; the frontmatter title is the document's
-    ///     fallback.
+    ///     fallback unless <see cref="IsTitleSet"/>.
     /// </summary>
     string? Title { get; }
+
+    /// <summary>
+    ///     Gets a value indicating whether a title statement set the diagram's title, even one that sanitizing empties;
+    ///     when true the frontmatter title is neither drawn nor the document's title. False for a type without a title
+    ///     statement.
+    /// </summary>
+    bool IsTitleSet => false;
 
     /// <summary>
     ///     Gets the accessible title (<c>accTitle</c>), or null.

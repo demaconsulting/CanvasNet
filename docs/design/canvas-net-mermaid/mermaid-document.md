@@ -26,8 +26,10 @@ lays out the diagram.
   frontmatter, directives, and the location map), the `DetectedDiagram` (Mermaid id, public type, keyword, support,
   location), the parsed diagram (`IMermaidDiagram`, null for a type this version does not draw), and the source name.
   Properties: `SourceName`, `DiagramType` (Mermaid's id with `class`, `state`, and `flowchart` aliases folded),
-  `IsSupported`, `Title` (the diagram's own title, else the frontmatter title), `AccTitle`, `Direction`, `NodeCount`,
-  `EdgeCount`, and `SubgraphCount` (zero and null for an unsupported type). The counts are the parsed diagram's and
+  `IsSupported`, `Title` (the diagram's own title, else the frontmatter title; when the diagram's `IsTitleSet` is true,
+  default false on `IMermaidDiagram`, its title is used even when null, so a title that sanitizes to empty leaves none,
+  as drawn), `AccTitle`, `Direction`, `NodeCount`, `EdgeCount`, and `SubgraphCount` (zero and null for an unsupported
+  type). The counts are the parsed diagram's and
   are fixed when the text is opened, under the configuration of the text itself (its frontmatter and directives): for
   a class diagram `NodeCount` is the classes, `EdgeCount` the relations, and `SubgraphCount` the namespaces that are
   drawn under that configuration (with `class.hierarchicalNamespaces` false, only the declared namespaces, so

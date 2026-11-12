@@ -111,8 +111,9 @@ Mermaid's cap of 10,000 rows.
   at the row's last bit (`row * bitsPerRow - 1`) and goes on at the next row's first bit, the bit counts of both parts
   one less than their bits, as in Mermaid. All arithmetic is in doubles, as in JavaScript.
 - **Metadata** (`IMermaidDiagram`): `Title` is the title of the `title` statement or null (the document then falls back
-  to the frontmatter title), `AccTitle` the accessible title or null, `Direction` null, `NodeCount` the number of block
-  statements, and `EdgeCount` and `SubgraphCount` 0.
+  to the frontmatter title unless `IsTitleSet`, which the diagram exposes through `IMermaidDiagram`), `AccTitle` the
+  accessible title or null, `Direction` null, `NodeCount` the number of block statements, and `EdgeCount` and
+  `SubgraphCount` 0.
 - **`PacketDiagram.Layout(DiagramRenderContext)`** creates a `PacketRenderer` for the render and returns the scene it
   draws (see _PacketRenderer Unit Design_).
 - **`Is`**, **`Expect`**, **`Fail`**, **`TextOf`**, **`Checked`**, **`CheckDerived`**, and **`Locate`**: `Is` tests the

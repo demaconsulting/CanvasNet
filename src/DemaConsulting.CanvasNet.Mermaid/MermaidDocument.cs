@@ -80,10 +80,12 @@ public sealed partial class MermaidDocument
     public bool IsSupported => Detected.IsSupported;
 
     /// <summary>
-    ///     Gets the title of the diagram (its own title statement, else the frontmatter <c>title</c>), or
-    ///     <see langword="null"/> when it has none.
+    ///     Gets the title of the diagram (its own title statement - even one that sanitizes to empty, which leaves no
+    ///     title - else the frontmatter <c>title</c>), or <see langword="null"/> when it has none.
     /// </summary>
-    public string? Title => Diagram?.Title ?? Source.Frontmatter?.Title;
+    public string? Title => Diagram is { IsTitleSet: true } diagram
+        ? diagram.Title
+        : Diagram?.Title ?? Source.Frontmatter?.Title;
 
     /// <summary>
     ///     Gets the accessible title (<c>accTitle</c>), or <see langword="null"/> when the diagram has none or its type is

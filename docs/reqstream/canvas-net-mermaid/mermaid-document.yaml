@@ -35,7 +35,8 @@ sections:
           - id: CanvasNetMermaid-MermaidDocument-Metadata
             title: >-
               The MermaidDocument unit shall expose the source name, the diagram type, whether this version draws
-              the type, the title (the frontmatter title when the diagram has none of its own), the accessible
+              the type, the title (the diagram's title statement, even one that sanitizes to empty, else the
+              frontmatter title), the accessible
               title, the direction, and the node, edge, and subgraph counts of an opened document, counted under the
               configuration of the text itself (its frontmatter and directives), and shall open a known diagram type
               that this version does not draw without error.
@@ -46,6 +47,7 @@ sections:
               - MermaidDocument_Parse_Flowchart_IsSupportedFlowchart
               - MermaidDocument_Parse_JourneyDiagram_IsKnownButNotSupported
               - MermaidDocument_Parse_FrontmatterTitle_IsTitle
+              - MermaidDocument_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle
               - MermaidDocument_Parse_ClassDiagram_CountsFollowTheTextConfiguration
 
           - id: CanvasNetMermaid-MermaidDocument-ErrorContract

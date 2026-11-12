@@ -52,10 +52,13 @@ that text and streams over the size limit throw `InvalidDataException`.
 **Tests**: `MermaidDocumentTests.MermaidDocument_Parse_Flowchart_IsSupportedFlowchart`,
 `MermaidDocumentTests.MermaidDocument_Parse_JourneyDiagram_IsKnownButNotSupported`,
 `MermaidDocumentTests.MermaidDocument_Parse_FrontmatterTitle_IsTitle`,
+`MermaidDocumentTests.MermaidDocument_Parse_TitleSanitizedToEmpty_ReplacesTheFrontmatterTitle`,
 `MermaidDocumentTests.MermaidDocument_Parse_ClassDiagram_CountsFollowTheTextConfiguration`
 
 Asserts the type, support, direction, and counts of a flowchart, that a user journey opens as a known but
-unsupported type, and that the frontmatter title becomes the title; and that a class diagram whose directive sets
+unsupported type, that the frontmatter title becomes the title, and that a packet, pie, gantt, or sequence title
+statement that sanitizes to empty leaves the document without a title (while a bare pie `title` keeps the
+frontmatter title); and that a class diagram whose directive sets
 `class.hierarchicalNamespaces` to false, with one class in `namespace Geo.Plane` and one relation to a second class,
 opens as the supported `class` type with the direction `TB` and the counts 2 nodes, 1 edge, and 1 subgraph: the
 dotted namespace counts once, as it is drawn under the text's own configuration, where the default configuration
