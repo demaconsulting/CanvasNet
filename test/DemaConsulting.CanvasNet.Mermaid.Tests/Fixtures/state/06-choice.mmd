@@ -1,0 +1,11 @@
+stateDiagram-v2
+    state check <<choice>>
+    state route [[choice]]
+    [*] --> Input
+    Input --> check
+    check --> Small : under ten
+    check --> Large : ten or more
+    Large --> route
+    route --> Archive : old
+    route --> Keep : new
+    Small --> [*]

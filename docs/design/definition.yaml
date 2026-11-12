@@ -157,6 +157,71 @@ input-files:
   - docs/design/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/design/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/design/canvas-net-vega-lite/scenegraph/symbol-path-parser.md
+  - docs/design/canvas-net-mermaid.md
+  - docs/design/canvas-net-mermaid/mermaid-document.md
+  - docs/design/canvas-net-mermaid/syntax.md
+  - docs/design/canvas-net-mermaid/syntax/preprocessor.md
+  - docs/design/canvas-net-mermaid/syntax/diagram-detector.md
+  - docs/design/canvas-net-mermaid/syntax/yaml-subset-parser.md
+  - docs/design/canvas-net-mermaid/syntax/source-scanner.md
+  - docs/design/canvas-net-mermaid/syntax/html-sanitizer.md
+  - docs/design/canvas-net-mermaid/configuration.md
+  - docs/design/canvas-net-mermaid/configuration/mermaid-config-resolver.md
+  - docs/design/canvas-net-mermaid/configuration/theme-resolver.md
+  - docs/design/canvas-net-mermaid/configuration/color-math.md
+  - docs/design/canvas-net-mermaid/configuration/style-declarations.md
+  - docs/design/canvas-net-mermaid/graphlib.md
+  - docs/design/canvas-net-mermaid/graphlib/graph.md
+  - docs/design/canvas-net-mermaid/graphlib/graph-algorithms.md
+  - docs/design/canvas-net-mermaid/dagre.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-layout.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-acyclic.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-ranker.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-nesting.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-normalizer.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-ordering.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-positioning.md
+  - docs/design/canvas-net-mermaid/dagre/dagre-coordinate-system.md
+  - docs/design/canvas-net-mermaid/dagre/layout-work-meter.md
+  - docs/design/canvas-net-mermaid/rendering.md
+  - docs/design/canvas-net-mermaid/rendering/cluster-layout.md
+  - docs/design/canvas-net-mermaid/rendering/shape-library.md
+  - docs/design/canvas-net-mermaid/rendering/edge-builder.md
+  - docs/design/canvas-net-mermaid/rendering/label-builder.md
+  - docs/design/canvas-net-mermaid/rendering/node-images.md
+  - docs/design/canvas-net-mermaid/scenegraph.md
+  - docs/design/canvas-net-mermaid/scenegraph/scene-model.md
+  - docs/design/canvas-net-mermaid/scenegraph/scene-painter.md
+  - docs/design/canvas-net-mermaid/flowchart.md
+  - docs/design/canvas-net-mermaid/flowchart/flowchart-parser.md
+  - docs/design/canvas-net-mermaid/flowchart/flowchart-model.md
+  - docs/design/canvas-net-mermaid/sequence.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-parser.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-model.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-layout.md
+  - docs/design/canvas-net-mermaid/sequence/sequence-renderer.md
+  - docs/design/canvas-net-mermaid/class.md
+  - docs/design/canvas-net-mermaid/class/class-parser.md
+  - docs/design/canvas-net-mermaid/class/class-model.md
+  - docs/design/canvas-net-mermaid/state.md
+  - docs/design/canvas-net-mermaid/state/state-parser.md
+  - docs/design/canvas-net-mermaid/state/state-model.md
+  - docs/design/canvas-net-mermaid/er.md
+  - docs/design/canvas-net-mermaid/er/er-parser.md
+  - docs/design/canvas-net-mermaid/er/er-model.md
+  - docs/design/canvas-net-mermaid/pie.md
+  - docs/design/canvas-net-mermaid/pie/pie-parser.md
+  - docs/design/canvas-net-mermaid/pie/pie-renderer.md
+  - docs/design/canvas-net-mermaid/gantt.md
+  - docs/design/canvas-net-mermaid/gantt/gantt-parser.md
+  - docs/design/canvas-net-mermaid/gantt/gantt-model.md
+  - docs/design/canvas-net-mermaid/gantt/gantt-renderer.md
+  - docs/design/canvas-net-mermaid/gantt/time-axis.md
+  - docs/design/canvas-net-mermaid/mindmap.md
+  - docs/design/canvas-net-mermaid/mindmap/mindmap-parser.md
+  - docs/design/canvas-net-mermaid/mindmap/mindmap-renderer.md
+  - docs/design/canvas-net-mermaid/cose.md
+  - docs/design/canvas-net-mermaid/cose/cose-layout.md
   - docs/design/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/canvas-net-viewer.md
   - docs/design/canvas-net-viewer/viewer-exception.md
@@ -171,6 +236,7 @@ input-files:
   - docs/design/canvas-net-viewer/imaging/image-inspector.md
   - docs/design/canvas-net-viewer/imaging/image-comparer.md
   - docs/design/canvas-net-viewer/imaging/montage-builder.md
+  - docs/design/canvas-net-viewer/imaging/svg-flattener.md
   - docs/design/canvas-net-tool.md
   - docs/design/canvas-net-tool/program.md
   - docs/design/canvas-net-tool/context.md
@@ -186,6 +252,7 @@ input-files:
   - docs/design/canvas-net-tool/commands/compare-command.md
   - docs/design/canvas-net-tool/commands/montage-command.md
   - docs/design/canvas-net-tool/commands/inspect-command.md
+  - docs/design/canvas-net-tool/commands/flatten-command.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md

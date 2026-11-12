@@ -390,6 +390,7 @@ jobs:
               'DemaConsulting.CanvasNet.Render3D.dll',
               'DemaConsulting.CanvasNet.Scad.dll',
               'DemaConsulting.CanvasNet.VegaLite.dll',
+              'DemaConsulting.CanvasNet.Mermaid.dll',
               'DemaConsulting.CanvasNet.Viewer.dll',
               'DemaConsulting.TestResults.dll',
               'System.Numerics.Tensors.dll'
@@ -402,12 +403,27 @@ jobs:
                 }
               }
             }
-            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC) must
-            # accompany the binaries, so they travel in the package's licenses folder.
+            # The third-party notices of the bundled Vega-Lite library (BSD-3-Clause and ISC) and
+            # of the bundled Mermaid library (MIT and ISC) must accompany the binaries, so they
+            # travel in the package's licenses folder (Mermaid's d3 notice under its own name).
             $notices = @(
               'licenses/LICENSE-vega.txt',
               'licenses/LICENSE-d3.txt',
-              'licenses/VegaLite-third-party-README.md'
+              'licenses/VegaLite-third-party-README.md',
+              'licenses/LICENSE-mermaid.txt',
+              'licenses/LICENSE-mermaid-parser.txt',
+              'licenses/LICENSE-langium.txt',
+              'licenses/LICENSE-dayjs.txt',
+              'licenses/LICENSE-dagre.txt',
+              'licenses/LICENSE-js-yaml.txt',
+              'licenses/LICENSE-khroma.txt',
+              'licenses/LICENSE-lodash.txt',
+              'licenses/LICENSE-marked.txt',
+              'licenses/LICENSE-sanitize-url.txt',
+              'licenses/LICENSE-cose-base.txt',
+              'licenses/LICENSE-cytoscape.txt',
+              'licenses/Mermaid-LICENSE-d3.txt',
+              'licenses/Mermaid-third-party-README.md'
             )
             foreach ($notice in $notices) {
               if (-not ($zip.Entries.FullName -contains $notice)) {
@@ -473,6 +489,7 @@ jobs:
           grep -q '"ok":true' formats.json || { echo "✗ Formats result is not a success document"; exit 1; }
           grep -q '"format":"scad"' formats.json || { echo "✗ Formats result does not list scad"; exit 1; }
           grep -q '"format":"vega-lite"' formats.json || { echo "✗ Formats result does not list vega-lite"; exit 1; }
+          grep -q '"format":"mermaid"' formats.json || { echo "✗ Formats result does not list mermaid"; exit 1; }
           echo "✓ Formats command succeeded"
 
       - name: Test render and crop
@@ -510,6 +527,24 @@ jobs:
           test -s smoke/chart.png \
             || { echo "✗ Chart render wrote no output file"; exit 1; }
           echo "✓ Vega-Lite chart render succeeded"
+
+      - name: Test Mermaid diagram render
+        shell: bash
+        run: |
+          echo "Testing canvasnet render of a Mermaid diagram..."
+          mkdir -p smoke
+          printf 'flowchart LR\n    A[One] --> B[Two] --> C[Three]\n' > smoke/flow.mmd
+          canvasnet info smoke/flow.mmd --json > smoke/flow-info.json \
+            || { echo "✗ Info command failed"; exit 1; }
+          grep -q '"format":"mermaid"' smoke/flow-info.json \
+            || { echo "✗ Info result does not name mermaid"; exit 1; }
+          canvasnet render smoke/flow.mmd -o smoke/flow.png --json > smoke/flow-render.json \
+            || { echo "✗ Diagram render command failed"; exit 1; }
+          grep -q '"ok":true' smoke/flow-render.json \
+            || { echo "✗ Diagram render result is not a success document"; exit 1; }
+          test -s smoke/flow.png \
+            || { echo "✗ Diagram render wrote no output file"; exit 1; }
+          echo "✓ Mermaid diagram render succeeded"
 
       - name: Run self-validation
         shell: bash
@@ -692,7 +727,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/build_notes/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/build_notes/generated/build_notes.html
@@ -775,7 +809,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/code_quality/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/code_quality/generated/quality.html
@@ -837,7 +870,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/code_review_plan/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/code_review_plan/generated/plan.html
@@ -854,7 +886,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/code_review_report/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/code_review_report/generated/report.html
@@ -900,7 +931,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/design/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/design/generated/design.html
@@ -932,7 +962,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/verification/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/verification/generated/verification.html
@@ -964,7 +993,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/user_guide/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/user_guide/generated/user_guide.html
@@ -1029,7 +1057,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/requirements_doc/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/requirements_doc/generated/requirements.html
@@ -1046,7 +1073,6 @@ jobs:
         run: >
           dotnet pandoc
           --defaults docs/requirements_report/definition.yaml
-          --filter node_modules/.bin/mermaid-filter.cmd
           --metadata version="${{ inputs.version }}"
           --metadata date="$(date +'%Y-%m-%d')"
           --output docs/requirements_report/generated/trace_matrix.html
@@ -1063,6 +1089,26 @@ jobs:
           dotnet fileassert
           --results artifacts/fileassert-requirements.trx
           requirements
+
+      # === CHECK THAT EVERY MERMAID DIAGRAM IS DRAWN ===
+      # canvasnet.lua draws every Mermaid diagram type the tool supports and leaves any other type as written, with a
+      # warning; no other filter draws it. A document that still holds such a diagram fails the build. Pandoc writes
+      # a code block with the class mermaid (class="sourceCode mermaid" when it is highlighted), and a .mmd or
+      # .mermaid picture as an image whose src is still that file (<img src="diagram.mmd">).
+      # Downstream projects: Remove this section if the documents hold no Mermaid diagrams.
+
+      - name: Check every Mermaid diagram is drawn
+        shell: bash
+        run: |
+          if grep -l -E 'class="([^"]* )?mermaid( [^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a Mermaid block that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          if grep -l -E 'src="[^"]*\.(mmd|mermaid)(#[^"]*)?"' docs/*/generated/*.html; then
+            echo "✗ The documents above hold a Mermaid picture that was not drawn (see the canvasnet.lua warnings)"
+            exit 1
+          fi
+          echo "✓ Every Mermaid diagram (code block or picture) in the documents is drawn"
 
       # === UPLOAD ARTIFACTS ===
       # This section uploads all generated documentation artifacts.

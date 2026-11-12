@@ -84,6 +84,7 @@ sections:
           - CanvasNetTool-Validation-CompareMontageSelfTests
           - CanvasNetTool-Validation-AdjustmentsSelfTest
           - CanvasNetTool-Validation-VegaLiteSelfTest
+          - CanvasNetTool-Validation-MermaidSelfTest
           - CanvasNetTool-Validation-HelpExamplesSelfTest
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
@@ -352,11 +353,12 @@ sections:
 
       - id: CanvasNetTool-System-Info
         title: >-
-          The tool shall describe an image, drawing, document, model, or chart file (its format, pixel size,
+          The tool shall describe an image, drawing, document, model, chart, or diagram file (its format, pixel size,
           channels, transparency, size in bytes, and, when they apply, frame count, EXIF orientation,
           the number and size of the pages of a PDF, PPTX, or VSDX document, the modules,
-          functions, and include and use directives of an OpenSCAD model, and the marks, data
-          references, parameters, title, and schema version of a Vega-Lite chart) without rendering it
+          functions, and include and use directives of an OpenSCAD model, the marks, data
+          references, parameters, title, and schema version of a Vega-Lite chart, and the type, direction,
+          titles, and numbers of nodes, edges, and subgraphs of a Mermaid diagram) without rendering it
           when the `info` command is run, as text or as JSON.
         tags: [system]
         justification: |
@@ -369,6 +371,7 @@ sections:
           - CanvasNetTool_Info_DocumentPages_DescribesPages
           - CanvasNetTool_Scad_Info_DescribesModel
           - CanvasNetTool_VegaLite_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Render
         title: >-
@@ -648,9 +651,9 @@ sections:
       - id: CanvasNetTool-System-InputFormats
         title: >-
           The tool shall read PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
-          OpenSCAD (SCAD), and Vega-Lite (.vl.json, .vl, or a .json file with a Vega-Lite schema)
-          files, recognizing the format from the content before the file name extension (a model or
-          a chart by its file name, or a chart also by its schema).
+          OpenSCAD (SCAD), Vega-Lite (.vl.json, .vl, or a .json file with a Vega-Lite schema), and
+          Mermaid (.mmd or .mermaid) files, recognizing the format from the content before the file name
+          extension (a model, a chart, or a diagram by its file name, or a chart also by its schema).
         tags: [system]
         justification: |
           Agents work with whatever files they are given; reading the common raster formats, SVG
@@ -663,6 +666,7 @@ sections:
           - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
+          - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
 
       - id: CanvasNetTool-System-Documents
         title: >-
@@ -775,19 +779,60 @@ sections:
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
           - RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder
 
+      - id: CanvasNetTool-System-Mermaid
+        title: >-
+          The tool shall render a Mermaid diagram (a `.mmd` or `.mermaid` file) at the size the size options ask for
+          (the size Mermaid lays it out at by default, placed as Mermaid places it), over white unless `--background`
+          says otherwise, with only the fonts bundled with the tool and without reading anything from the network,
+          giving the same picture every time, in the theme `--theme` names (default, base, dark, forest, or neutral;
+          the theme fragment of the input, flow.mmd#theme=dark, wins over the option, and a theme the text sets itself
+          wins over both); shall show the pictures of its nodes (a raster, an SVG file, a model, a chart, a page of a
+          document, or another diagram) from the folder of the diagram and below it only; shall describe a diagram
+          with the `info` command (its laid-out size and, in a `diagram` object, its type, whether this version draws
+          it, its direction, titles, and numbers of nodes, edges, and subgraphs), list the `mermaid` format of the
+          kind `diagram` with the `formats` command, and explain it in the help topic `mermaid` (alias `mmd`); shall
+          report a diagram type that this version does not draw as the diagnostic mermaid-diagram-unsupported with an
+          empty picture (an unsupported-feature error with `--strict`); and shall report invalid text with the error
+          code mermaid-error, a diagram that exceeds a limit of the library with budget-exceeded, a text longer than
+          the limit of the library with corrupt-input, a size larger than the maximum image size with size-limit, and
+          `--theme` with a name that is not a theme or on another kind of input with usage-error, as expected
+          failures. The self-validation includes the Mermaid self-test (see the validate requirement).
+        tags: [system]
+        justification: |
+          Agents and documentation describe processes and structures as Mermaid text; drawing it without a browser
+          or a Node.js installation, the same on every machine, lets agents check what they wrote and lets documents
+          embed the result. An agent learns before it renders whether this version draws the type of a diagram, every
+          gap of the renderer is reported rather than silently skipped, and every mistake of a diagram is a concise,
+          coded error with a suggestion rather than a crash.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidProbe
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidRender
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidErrors
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidImages
+          - CanvasNetTool-Commands-DiscoveryCommands-Mermaid
+          - CanvasNetTool-Commands-RenderCommand-Mermaid
+          - CanvasNetTool-Commands-RenderCommand-Theme
+          - CanvasNetTool-Commands-HelpTopics-Mermaid
+        tests:
+          - CanvasNetTool_Mermaid_RenderAsProcess_DescribesAndWritesImage
+          - CanvasNetTool_Mermaid_PieAndGanttAsProcess_AreDrawn
+          - CanvasNetTool_Mermaid_MindmapAsProcess_IsDrawn
+          - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
+
       - id: CanvasNetTool-System-SvgEmbed
         title: >-
           The tool shall let an SVG file embed, with an image element whose href is a relative path, a raster,
-          another SVG file, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document
-          (page 1, or the page the fragment of the href names with page=N or slide=N; the type is decided by the
-          file name extension; the tool wires in the image resolver of the Viewer
+          another SVG file, an OpenSCAD model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX
+          document (page 1, or the page the fragment of the href names with page=N or slide=N; the type is decided by
+          the file name extension; the tool wires in the image resolver of the Viewer
           package and has no plug-in mechanism),
           reading the embedded files only from the folder of the SVG file the user named and below it (with no
           option for another folder, never from the network, and refusing an absolute path, a path that leaves
-          the folder, and a symbolic link), drawing a model or chart at the size of its placement, reporting an
-          href that it does not draw as the warning svg-image-unresolved, a picture too large for the pixel budget
-          as the warning svg-image-too-large, a fragment that cannot be used as image-fragment-invalid, and a page
-          that does not exist as image-page-out-of-range (each an unsupported-feature error with
+          the folder, and a symbolic link), drawing a model, chart, or diagram at the size of its placement,
+          reporting an href that it does not draw as the warning svg-image-unresolved, a picture too large for the
+          pixel budget as the warning svg-image-too-large, a fragment that cannot be used as image-fragment-invalid,
+          and a page that does not exist as image-page-out-of-range (each an unsupported-feature error with
           `--strict`; a parameter the file does not use or a duplicate stays a warning), ignoring a query after the
           file name, limiting the nesting, the number of
           embedded files, and the pixels they may use in total, and reporting an embedded file
@@ -808,12 +853,31 @@ sections:
           - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
           - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
 
+      - id: CanvasNetTool-System-Flatten
+        title: >-
+          The tool shall write, with the flatten command, a copy of an SVG file in which every image link to an OpenSCAD
+          model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document (and to a nested SVG
+          file that links one) is a PNG picture of its placement size, keeping every other byte, following the links
+          with the sandbox and limits of render, writing nothing and exiting with code 0 when there is nothing to
+          flatten, and reporting its failures as expected errors.
+        tags: [system]
+        justification: |
+          A documentation build that turns HTML into a PDF with an SVG reader that cannot draw models, charts, or
+          diagrams (WeasyPrint) needs a copy of a composite drawing it can show; a plain drawing must stay as it is.
+        children:
+          - CanvasNetTool-Commands-Flatten
+          - CanvasNetViewer-Imaging-Flatten
+        tests:
+          - CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy
+          - CanvasNetTool_Flatten_PlainSvg_ExitsZeroWithoutOutput
+          - CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors
+
       - id: CanvasNetTool-System-Diagnostics
         title: >-
           The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries
           skip or approximate, the warnings, unsupported features, and echoed text of an OpenSCAD
-          model, the warnings and unsupported features of a Vega-Lite chart, and the image references of
-          an SVG file that are not drawn, in the `diagnostics`
+          model, the warnings and unsupported features of a Vega-Lite chart or a Mermaid diagram, and the image
+          references of an SVG file that are not drawn, in the `diagnostics`
           and `echo` of the JSON result (each diagnostic with its finer `detail`, its `location`, and the `origin`
           of an embedded file where there is one) and, without `--json`, as Unsupported and Warning lines (and
           ECHO lines) on standard error that leave the exit code unchanged, and with `--strict` shall fail
@@ -834,6 +898,7 @@ sections:
           - RenderCommand_Run_ScadWarning_WritesDetailAndLocation
           - RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
+          - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract
           - RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode
           - RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode
 
@@ -893,7 +958,8 @@ sections:
         title: >-
           The tool shall report a missing, unsupported, truncated, or corrupt input file (including a
           document with a missing page or a broken part, a model with a syntax error or an include
-          that cannot be read, and a chart with an invalid specification), a page that does not exist, and an image
+          that cannot be read, a chart with an invalid specification, and a diagram with invalid text), a page that does
+          not exist, and an image
           larger than the maximum size, as an expected failure with a stable error code and exit code
           1, never as an unexpected error, and shall write no output.
         tags: [system]
@@ -908,3 +974,4 @@ sections:
           - CanvasNetTool_Defaults_OversizedInput_IsRefusedBeforeDecoding
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
+          - CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract

@@ -1,0 +1,15 @@
+erDiagram
+    CUSTOMER {
+        string name
+        string email
+        int age
+        float balance
+        date registered
+    }
+    ORDER {
+        int id
+        varchar(255) note
+        string[] tags
+        decimal? discount
+    }
+    CUSTOMER ||--o{ ORDER : places

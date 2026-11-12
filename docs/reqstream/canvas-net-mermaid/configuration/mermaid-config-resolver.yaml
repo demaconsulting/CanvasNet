@@ -1,0 +1,250 @@
+---
+# Software Unit Requirements for MermaidConfigResolver
+#
+# These requirements describe the design-level behavior of the MermaidConfigResolver unit of the Configuration
+# subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's configuration
+# code that resolves the effective configuration of a call from the defaults, the site configuration, the frontmatter,
+# and the directives, with the located reports of secure, unknown, and invalid keys, and the typed view of the result
+# (MermaidConfig). See docs/verification/canvas-net-mermaid/configuration/mermaid-config-resolver.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: MermaidConfigResolver Requirements
+            requirements:
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-Precedence
+                title: >-
+                  The MermaidConfigResolver unit shall apply the configuration layers in Mermaid's order - the
+                  defaults, the theme option, the site configuration (whose theme wins over the option), the
+                  frontmatter config, and the init and initialize directives in text order - so that each later layer
+                  overrides the earlier ones.
+                justification: |
+                  The precedence decides which of several conflicting settings takes effect; it must be the one that
+                  Mermaid and its command line tool use.
+                tests:
+                  - MermaidConfigResolver_Resolve_ThemePrecedence
+                  - MermaidConfigResolver_Resolve_MatchesMermaid
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-MermaidFidelity
+                title: >-
+                  The MermaidConfigResolver unit shall produce the same global values, flowchart section, Gantt
+                  display mode, and theme variables as the pinned Mermaid for the same site configuration and text,
+                  from Mermaid's global and flowchart defaults, Mermaid's set of configuration keys, and Mermaid's
+                  merge rules.
+                justification: |
+                  The layout and the paint of a diagram read the effective configuration; any difference from Mermaid
+                  shows in the pixels, so the result is checked against configurations recorded from Mermaid itself.
+                tests:
+                  - MermaidConfigResolver_Resolve_MatchesMermaid
+                  - MermaidConfigResolver_ConfigKeys_MatchMermaid
+                  - MermaidConfigResolver_CreateDefaults_MatchMermaid
+                  - MermaidConfigResolver_MergePrimitives_FollowMermaid
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-Directives
+                title: >-
+                  The MermaidConfigResolver unit shall read the arguments of init directives as Mermaid does (single
+                  quotes accepted, the config key of a single directive moved to the section of the diagram type,
+                  every init directive ignored when one of them is not valid JSON), apply the wrap directive, and
+                  report and ignore arguments that are not a JSON object.
+                justification: |
+                  Directives are the most common way a text configures itself; their quirks in Mermaid decide which
+                  settings take effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_DirectiveSingleQuotesAndConfigKey
+                  - MermaidConfigResolver_Resolve_InvalidJson_IgnoresAllInitDirectives
+                  - MermaidConfigResolver_Resolve_NonObjectArguments_Reported
+                  - MermaidConfigResolver_Resolve_WrapHtmlLabelsAndLocations
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-SecureKeys
+                title: >-
+                  The MermaidConfigResolver unit shall ignore a change of a secure key - Mermaid's default secure keys
+                  and the keys the site configuration lists as secure - made by the frontmatter or a directive, and
+                  report each as mermaid-config-secure-key at the key or the directive.
+                justification: |
+                  The host, not the untrusted text, decides the security level and the size limits; the author is told
+                  that the change had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_SecureKeyInFrontmatter_IgnoredAndLocated
+                  - MermaidConfigResolver_Resolve_SecureKeysOfSite_IgnoredInDirective
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-UnknownKeys
+                title: >-
+                  The MermaidConfigResolver unit shall report a key that Mermaid does not define as
+                  mermaid-config-unknown-key at its location with the nearest known key as the hint, within a bounded
+                  number of hints, and the key shall have no effect.
+                justification: |
+                  A misspelled key is silently dropped by Mermaid; a located report with a suggestion lets the author
+                  correct it, and the cost of the suggestions must stay bounded for hostile text.
+                tests:
+                  - MermaidConfigResolver_Resolve_UnknownKey_ReportedWithHint
+                  - MermaidConfigResolver_Resolve_ManyUnknownKeys_HintsBounded
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-InvalidValues
+                title: >-
+                  The MermaidConfigResolver unit shall report as mermaid-config-invalid, and leave without effect, a
+                  value of the wrong type for a key this version reads (the lower layer's value is kept), a frontmatter
+                  config that is not a mapping, a string that Mermaid's sanitizers refuse, and a theme name that is not
+                  one of the five supported themes.
+                justification: |
+                  Every typed setting must have a value of its type when the diagram is drawn, and the author must
+                  learn which values were not used.
+                tests:
+                  - MermaidConfigResolver_Resolve_WrongType_KeepsLowerLayer
+                  - MermaidConfigResolver_Resolve_FrontmatterConfigNotMapping_Reported
+                  - MermaidConfigResolver_Resolve_RefusedStrings_Reported
+                  - MermaidConfigResolver_Resolve_UnavailableTheme_Reported
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-ThemeRecovery
+                title: >-
+                  The MermaidConfigResolver unit shall report a theme variable that the theme cannot derive colors from
+                  as mermaid-config-invalid, compute the theme again without it within a bounded number of attempts,
+                  and use the theme without overrides when the theme still cannot be computed.
+                justification: |
+                  Mermaid fails the whole render for one unreadable theme color; this version draws the diagram with
+                  the other settings and tells the author which value was dropped.
+                tests:
+                  - MermaidConfigResolver_Resolve_ThemeVariableNotAColor_Dropped
+                  - MermaidConfigResolver_Resolve_HostileColorLimit_FallsBackToTheme
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-TypedView
+                title: >-
+                  The MermaidConfigResolver unit shall give typed access to the effective settings that the drawing
+                  reads (theme, theme variables, fonts, look, layout, HTML labels, wrap, and the flowchart section,
+                  with the layout of an ELK flowchart), the default renderers that the diagram detection reads, and
+                  the location of the layer that set each top-level key.
+                justification: |
+                  The later stages read the configuration without knowing its JSON form, and report unsupported
+                  settings at the place where the text wrote them.
+                tests:
+                  - MermaidConfigResolver_Resolve_WrapHtmlLabelsAndLocations
+                  - MermaidConfigResolver_Resolve_ElkRenderer_SettingsAndLayout
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-SilentResolution
+                title: >-
+                  The MermaidConfigResolver unit shall resolve the same configuration whether or not its problems are
+                  reported.
+                justification: |
+                  The configuration is resolved without reports when a document is opened and with reports when it is
+                  rendered; both must agree.
+                tests:
+                  - MermaidConfigResolver_Resolve_WithoutSink_SameResult
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection
+                title: >-
+                  The MermaidConfigResolver unit shall give typed access to the sequence section with Mermaid's
+                  defaults and the font rules of Mermaid's sequence renderer (the top-level font family and size of a
+                  render replacing the section's own, the section's weights applying unless a top-level font weight
+                  replaces them), shall make the texts of a sequence diagram wrap when the top-level wrap setting or a
+                  wrap directive is true or the section's wrap setting is true, shall move the config key of a single
+                  directive to the sequence section for a sequence diagram, and shall report as mermaid-config-invalid,
+                  and leave without effect, a sequence value of the wrong type and an alignment that Mermaid does not
+                  draw.
+                justification: |
+                  The layout and the drawing of a sequence diagram read these settings; Mermaid's sequence renderer
+                  overrides the section's fonts with the top-level ones, so every sequence text is measured at the
+                  top-level size unless the top level changes it.
+                tests:
+                  - MermaidConfigResolver_Resolve_SequenceDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_SequenceFonts_FollowSetConf
+                  - MermaidConfigResolver_Resolve_SequenceWrap_FollowsInit
+                  - MermaidConfigResolver_Resolve_SequenceInvalidValues_ReportedAndIgnored
+                  - MermaidConfigResolver_Resolve_SequenceAlignInvalid_ReportsAllSixValues
+                  - MermaidConfigResolver_Resolve_SequenceAlignValues_Accepted
+                  - MermaidConfigResolver_Resolve_SequenceDirectiveConfig_MovesToSection
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
+                title: >-
+                  The MermaidConfigResolver unit shall give typed access to the class section with Mermaid's effective
+                  defaults (padding, hideEmptyMembersBox, hierarchicalNamespaces, and the default renderer), take the
+                  node spacing, rank spacing, and title margin of a class diagram from the state section as Mermaid's
+                  class renderer does, and report as mermaid-config-invalid, and leave without effect, a class or
+                  state value of the wrong type.
+                justification: |
+                  The layout and the drawing of a class diagram read these settings, and Mermaid's class renderer
+                  reads its spacing from the state section, which authors see in its picture.
+                tests:
+                  - MermaidConfigResolver_Resolve_ClassDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_ClassSpacingFromState_FollowsClassRenderer
+                  - MermaidConfigResolver_Resolve_ClassInvalidValues_ReportedAndIgnored
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the state section with Mermaid's effective defaults (the
+                  whole section of the schema), give typed access to the default renderer, the node spacing, the rank
+                  spacing, and the title margin that the detection and the state renderer read - a zero spacing falling
+                  back to its default and a zero title margin kept, as the renderer reads them - and report as
+                  mermaid-config-invalid, and leave without effect, a state value of the wrong type.
+                justification: |
+                  The detection and the layout of a state diagram read these settings, and the renderer's way of
+                  reading them decides the spacing that authors see in Mermaid's picture.
+                tests:
+                  - MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers
+                  - MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the er section with Mermaid's effective defaults (the whole
+                  section of the schema), give typed access to the diagram padding, the entity padding, the minimum
+                  entity width, the node spacing, the rank spacing, and the title margin that the ER renderer and the
+                  entity box read - a zero spacing falling back to its default and a zero title margin kept - and report
+                  as mermaid-config-invalid, and leave without effect, an er value of the wrong type.
+                justification: |
+                  The layout and the entity boxes of an entity relationship diagram read these settings, and the
+                  renderer's way of reading them decides the spacing that authors see in Mermaid's picture.
+                tests:
+                  - MermaidConfigResolver_Resolve_StateAndErDefaults_MatchMermaid
+                  - MermaidConfigResolver_Resolve_StateAndErSpacing_FollowTheRenderers
+                  - MermaidConfigResolver_Resolve_StateAndErInvalidValues_ReportedAndIgnored
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-PieSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the pie section with Mermaid's effective defaults (the
+                  whole section of the schema), give typed access to the text position, the donut hole, the legend
+                  position, and the highlighted slice that the pie renderer reads, and report as
+                  mermaid-config-invalid, and leave without effect, a pie value of the wrong type.
+                justification: |
+                  The labels, the legend, and the shape of a pie chart follow these settings; a value Mermaid would not
+                  use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_PieSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-GanttSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the gantt section with Mermaid's effective defaults (the
+                  whole section of the schema, with no tick interval and no width), give typed access to the title
+                  margin, the bar height and gap, the paddings, the grid line start, the font sizes, the number of
+                  section styles, the axis format, the tick interval, the top axis, the display mode (also from the
+                  frontmatter displayMode), and the width that the gantt renderer reads, and report as
+                  mermaid-config-invalid, and leave without effect, a gantt value of the wrong type.
+                justification: |
+                  The size, the rows, and the axes of a gantt chart follow these settings; a value Mermaid would not
+                  use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_GanttSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the mindmap section with Mermaid's effective defaults (a
+                  padding of 10, a maximum node width of 200, the cose-bilkent layout algorithm, and useMaxWidth), give
+                  typed access to the padding and the maximum node width that the mindmap renderer reads, and report as
+                  mermaid-config-invalid, and leave without effect, a mindmap value of the wrong type.
+                justification: |
+                  The size of every mindmap node and the margin of the picture follow these settings; a value Mermaid
+                  would not use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_MindmapSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapLayout
+                title: >-
+                  The MermaidConfigResolver unit shall give a mindmap the layout that the site configuration or the text
+                  sets, and cose-bilkent when neither sets one, as Mermaid's mindmap initialization does, whatever the
+                  mindmap section's layout algorithm says.
+                justification: |
+                  Mermaid lays out a mindmap with cose-bilkent unless the author chose another layout; the layout that
+                  is not drawn must be the one the author chose, so that it can be reported.
+                tests:
+                  - MermaidConfigResolver_Resolve_MindmapLayout_IsCoseBilkentUnlessUserDefined

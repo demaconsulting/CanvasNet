@@ -1,0 +1,16 @@
+---
+title: Kinds of relations
+---
+classDiagram
+    direction LR
+    Vehicle <|-- Car : inherits
+    Car *-- Engine : composition
+    Garage o-- Car : aggregation
+    Driver --> Car : association
+    Car ..> Fuel : dependency
+    Car ..|> Drivable : realization
+    Car -- Road : link
+    Road .. Map : dashed link
+    Driver <--> Garage : two-way
+    Engine "1" *-- "4..8" Cylinder
+    Engine --() Runnable

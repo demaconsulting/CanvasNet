@@ -1,0 +1,14 @@
+classDiagram
+    class Box~T~ {
+        -T value
+        +List~T~ items
+        +get() T
+        +map(Function~T,R~ f) Box~R~
+        +nested() List~List~int~~
+    }
+    class Pair~K~ {
+        +K key
+    }
+    class IntBox
+    Box~T~ <|-- IntBox
+    Pair <-- Box : holds

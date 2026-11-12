@@ -1,0 +1,118 @@
+---
+# Software Unit Requirements for GanttParser
+#
+# These requirements describe the design-level behavior of the GanttParser unit of the Gantt subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Gantt): the jison lexer and the grammar of the gantt chart language of the
+# pinned Mermaid release, the values the grammar's actions pass to the gantt database, the click statements, the
+# located errors with Mermaid's expected tokens, the failures of Mermaid's own parser, and the limits checked while the
+# text is read. See docs/verification/canvas-net-mermaid/gantt/gantt-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Gantt Requirements
+        sections:
+          - title: GanttParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Gantt-GanttParser-Tokens
+                title: >-
+                  The GanttParser unit shall split a gantt chart text into the tokens that the jison lexer of Mermaid's
+                  gantt grammar produces, its rules tried in Mermaid's order within their start conditions, in any
+                  case, the first that matches winning - the value of a setting statement or of a task's data running
+                  to the end of its line or to a semicolon (and, except for todayMarker, to a  #), the value of a title
+                  or a section to the end of its line, a keyword's one white-space character possibly a line feed, %%
+                  and a single % starting a comment, any character but } followed by % starting a comment that takes
+                  that character with it (a line feed included), a line that starts with click, call, or href and a
+                  quote read as a part of a click statement, and a task name running to the first colon - while
+                  keeping every token located in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in the corner cases that authors rely on, its quirks
+                  included; locations must still point into the file as written.
+                tests:
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+                  - GanttParser_Parse_KeywordsAnyCaseAndLineFeedSeparator_AreRead
+                  - GanttParser_Parse_CommentQuirks_FollowJisonRuleOrder
+                  - GanttParser_Parse_Tasks_SplitNameTagsAndFields
+
+              - id: CanvasNetMermaid-Gantt-GanttParser-Grammar
+                title: >-
+                  The GanttParser unit shall accept exactly the texts that the gantt grammar of the pinned Mermaid
+                  release accepts - the gantt keyword, then line breaks and statements, each statement one or two
+                  tokens (a task being its name followed by its data) or a click statement - and shall pass the
+                  statements to the gantt database in the order they are written.
+                justification: |
+                  The tasks, their order, and the settings of a gantt chart depend on the statements of its text, and
+                  the drawing depends on all of them.
+                tests:
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+                  - GanttParser_Vectors_FileHasEnoughCases_AtLeast200
+                  - GanttParser_Parse_Statements_KeepTheActionsSubstrings
+                  - GanttParser_Parse_Tasks_SplitNameTagsAndFields
+
+              - id: CanvasNetMermaid-Gantt-GanttParser-Statements
+                title: >-
+                  The GanttParser unit shall pass the value of each statement to the gantt database as the grammar's
+                  action passes it - the text after the keyword and its one white-space character, trailing white
+                  space kept - the accessible title and description trimmed as JavaScript trims them, and a task's name
+                  as written up to its colon with its data after the colon.
+                justification: |
+                  The values reach Mermaid's database with the offsets of its actions, and the database and the
+                  renderer use them as they come; a value cut differently would format, parse, or draw differently.
+                tests:
+                  - GanttParser_Parse_Statements_KeepTheActionsSubstrings
+                  - GanttParser_Parse_KeywordsAnyCaseAndLineFeedSeparator_AreRead
+                  - GanttParser_Parse_Tasks_SplitNameTagsAndFields
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttParser-Clicks
+                title: >-
+                  The GanttParser unit shall read the seven forms of the click statement - the task ids followed by an
+                  href, by a call with or without arguments, or by both in either order - and make the database calls
+                  of each form in the order of Mermaid's grammar.
+                justification: |
+                  A click statement makes its tasks clickable, which changes how their texts are painted, and gives
+                  them links; each form must have the effect it has in Mermaid.
+                tests:
+                  - GanttParser_Parse_ClickForms_AddClassesAndSanitizedLinks
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttParser-Errors
+                title: >-
+                  The GanttParser unit shall refuse the first token that the grammar does not accept - a date,
+                  accDescription, or a colon alone at the start of a statement included - with a MermaidSyntaxException
+                  of code mermaid-syntax-error, located at the token in the original text, that names the token found
+                  and lists as expected, in jison's order, the tokens of the parser state where jison reports the
+                  error, with a hint.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to
+                  write and where.
+                tests:
+                  - GanttParser_Parse_GrammarErrors_ListTheExpectedTokensOfJison
+                  - GanttParser_Parse_CommentQuirks_FollowJisonRuleOrder
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttParser-MermaidFailures
+                title: >-
+                  The GanttParser unit shall refuse the texts on which Mermaid's own parser fails with a JavaScript
+                  error - the topAxis statement and a task whose data holds only tags - with a MermaidSyntaxException of
+                  code mermaid-syntax-error located at the statement, without expected tokens, and with a hint.
+                justification: |
+                  Mermaid draws nothing for these texts; the author needs the place of the statement and the way to
+                  write it that Mermaid accepts, such as the gantt.topAxis setting.
+                tests:
+                  - GanttParser_Parse_MermaidsOwnFailures_FailLocated
+                  - GanttParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Gantt-GanttParser-Limits
+                title: >-
+                  The GanttParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
+                  located at the element that breaches it, more task and section statements together than MaxNodes, and
+                  the text of any token it keeps - a title, a section, a task name or data, a format, a tick interval,
+                  an excludes or includes list, a today marker, an accessibility text, or a part of a click statement -
+                  that is longer than MaxLabelLength.
+                justification: |
+                  The size of the chart, and so the cost of every later stage, must be bounded while untrusted text is
+                  read.
+                tests:
+                  - GanttParser_Parse_TooManyTasksAndSections_ExceedsMaxNodes
+                  - GanttParser_Parse_LongText_ExceedsMaxLabelLength

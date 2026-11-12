@@ -157,6 +157,71 @@ input-files:
   - docs/verification/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/verification/canvas-net-vega-lite/scenegraph/symbol-path-parser.md
+  - docs/verification/canvas-net-mermaid.md
+  - docs/verification/canvas-net-mermaid/mermaid-document.md
+  - docs/verification/canvas-net-mermaid/syntax.md
+  - docs/verification/canvas-net-mermaid/syntax/preprocessor.md
+  - docs/verification/canvas-net-mermaid/syntax/diagram-detector.md
+  - docs/verification/canvas-net-mermaid/syntax/yaml-subset-parser.md
+  - docs/verification/canvas-net-mermaid/syntax/source-scanner.md
+  - docs/verification/canvas-net-mermaid/syntax/html-sanitizer.md
+  - docs/verification/canvas-net-mermaid/configuration.md
+  - docs/verification/canvas-net-mermaid/configuration/mermaid-config-resolver.md
+  - docs/verification/canvas-net-mermaid/configuration/theme-resolver.md
+  - docs/verification/canvas-net-mermaid/configuration/color-math.md
+  - docs/verification/canvas-net-mermaid/configuration/style-declarations.md
+  - docs/verification/canvas-net-mermaid/graphlib.md
+  - docs/verification/canvas-net-mermaid/graphlib/graph.md
+  - docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md
+  - docs/verification/canvas-net-mermaid/dagre.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-layout.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-acyclic.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-nesting.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-normalizer.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-ordering.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-positioning.md
+  - docs/verification/canvas-net-mermaid/dagre/dagre-coordinate-system.md
+  - docs/verification/canvas-net-mermaid/dagre/layout-work-meter.md
+  - docs/verification/canvas-net-mermaid/rendering.md
+  - docs/verification/canvas-net-mermaid/rendering/cluster-layout.md
+  - docs/verification/canvas-net-mermaid/rendering/shape-library.md
+  - docs/verification/canvas-net-mermaid/rendering/edge-builder.md
+  - docs/verification/canvas-net-mermaid/rendering/label-builder.md
+  - docs/verification/canvas-net-mermaid/rendering/node-images.md
+  - docs/verification/canvas-net-mermaid/scenegraph.md
+  - docs/verification/canvas-net-mermaid/scenegraph/scene-model.md
+  - docs/verification/canvas-net-mermaid/scenegraph/scene-painter.md
+  - docs/verification/canvas-net-mermaid/flowchart.md
+  - docs/verification/canvas-net-mermaid/flowchart/flowchart-parser.md
+  - docs/verification/canvas-net-mermaid/flowchart/flowchart-model.md
+  - docs/verification/canvas-net-mermaid/sequence.md
+  - docs/verification/canvas-net-mermaid/sequence/sequence-parser.md
+  - docs/verification/canvas-net-mermaid/sequence/sequence-model.md
+  - docs/verification/canvas-net-mermaid/sequence/sequence-layout.md
+  - docs/verification/canvas-net-mermaid/sequence/sequence-renderer.md
+  - docs/verification/canvas-net-mermaid/class.md
+  - docs/verification/canvas-net-mermaid/class/class-parser.md
+  - docs/verification/canvas-net-mermaid/class/class-model.md
+  - docs/verification/canvas-net-mermaid/state.md
+  - docs/verification/canvas-net-mermaid/state/state-parser.md
+  - docs/verification/canvas-net-mermaid/state/state-model.md
+  - docs/verification/canvas-net-mermaid/er.md
+  - docs/verification/canvas-net-mermaid/er/er-parser.md
+  - docs/verification/canvas-net-mermaid/er/er-model.md
+  - docs/verification/canvas-net-mermaid/pie.md
+  - docs/verification/canvas-net-mermaid/pie/pie-parser.md
+  - docs/verification/canvas-net-mermaid/pie/pie-renderer.md
+  - docs/verification/canvas-net-mermaid/gantt.md
+  - docs/verification/canvas-net-mermaid/gantt/gantt-parser.md
+  - docs/verification/canvas-net-mermaid/gantt/gantt-model.md
+  - docs/verification/canvas-net-mermaid/gantt/gantt-renderer.md
+  - docs/verification/canvas-net-mermaid/gantt/time-axis.md
+  - docs/verification/canvas-net-mermaid/mindmap.md
+  - docs/verification/canvas-net-mermaid/mindmap/mindmap-parser.md
+  - docs/verification/canvas-net-mermaid/mindmap/mindmap-renderer.md
+  - docs/verification/canvas-net-mermaid/cose.md
+  - docs/verification/canvas-net-mermaid/cose/cose-layout.md
   - docs/verification/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-viewer/viewer-exception.md
@@ -171,6 +236,7 @@ input-files:
   - docs/verification/canvas-net-viewer/imaging/image-inspector.md
   - docs/verification/canvas-net-viewer/imaging/image-comparer.md
   - docs/verification/canvas-net-viewer/imaging/montage-builder.md
+  - docs/verification/canvas-net-viewer/imaging/svg-flattener.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md
@@ -186,6 +252,7 @@ input-files:
   - docs/verification/canvas-net-tool/commands/compare-command.md
   - docs/verification/canvas-net-tool/commands/montage-command.md
   - docs/verification/canvas-net-tool/commands/inspect-command.md
+  - docs/verification/canvas-net-tool/commands/flatten-command.md
   - docs/verification/ots.md
   - docs/verification/ots/buildmark.md
   - docs/verification/ots/fileassert.md

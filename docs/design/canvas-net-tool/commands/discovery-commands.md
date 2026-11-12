@@ -14,17 +14,18 @@ provides two commands, `formats` and `info`, implemented as the nested classes `
 #### Data Model
 
 **InputFormats** (`IReadOnlyList<InputFormat>`): one row per input format, in listing order - `png`, `jpeg`, `bmp`,
-`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`. A row (`InputFormat`) has `Name`, `Kind`
-(`raster`: decoded at its own size; `vector`: a drawing rendered at any requested size; `document`: pages or slides
-rendered at any requested size; `model`: a 3D model rendered from a viewpoint; `chart`: a Vega-Lite chart rendered at
-any requested size), `Extensions` (lower case, with the
-dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size
-rather than decoded at its own size), and `HelpTopic` (the help topic that describes the format: `raster` for the six
-raster formats, otherwise the name of the format). The rows are the `SourceKind` members in order, and their
+`tiff`, `gif`, `jpeg2000`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`, `mermaid`. A row (`InputFormat`) has
+`Name`, `Kind` (`raster`: decoded at its own size; `vector`: a drawing rendered at any requested size; `document`: pages
+or slides rendered at any requested size; `model`: a 3D model rendered from a viewpoint; `chart`: a Vega-Lite chart
+rendered at any requested size; `diagram`: a Mermaid diagram rendered at any requested size), `Extensions` (lower case,
+with the dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested
+size rather than decoded at its own size), and `HelpTopic` (the help topic that describes the format: `raster` for the
+six raster formats, otherwise the name of the format). The rows are the `SourceKind` members in order, and their
 extensions are those
 that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
 the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an
-extension); a test keeps the table consistent with the enumeration and the
+extension; the `mermaid` row, of the kind `diagram`, lists `.mmd` and `.mermaid`, is a vector format, is not multi-page,
+and has the help topic `mermaid`); a test keeps the table consistent with the enumeration and the
 loader, so a listed format is one the code knows, and a further test probes a file of every listed kind to prove that
 the loader reads it.
 
@@ -90,7 +91,11 @@ presentation is called a slide; sizes in points are rounded to two decimals). Fo
 `use <{path}> (line {n})` for each directive, all in source order. For a Vega-Lite chart, one line:
 `{path}: vega-lite, {w}x{h} px (laid out), {n} mark[s], {n} data reference[s], {n} parameter[s][, title "{title}"]
 [, schema v{n}], {bytes} bytes` (the size is the one the library lays the chart out at; a title of several lines is
-joined with spaces).
+joined with spaces). For a Mermaid diagram, one line:
+`{path}: mermaid, {w}x{h} px (laid out), {type}[ {direction}][ (not drawn by this version)], {n} node[s], {n} edge[s],`
+`{n} subgraph[s][, title "{title}"][, accTitle "{accTitle}"], {bytes} bytes` (for example
+`flow.mmd: mermaid, 674x286 px (laid out), flowchart LR, 5 nodes, 5 edges, 1 subgraph, title "Order flow", 313 bytes`;
+a title of several lines is joined with spaces).
 
 **Info JSON document**: `ResultWriter.Success("info", ...)` with these fields after the envelope, in this order:
 
@@ -101,6 +106,7 @@ joined with spaces).
 | `image` | for an image: object: `width`, `height`, `channels`, `hasAlpha`, `canDecode`, `frameCount`, and `exifOrientation` only when the file has one |
 | `document` | for a PDF, PPTX, or VSDX document, instead of `image`: object: `pageCount` and `pages`, an array with one object for each page described: `page`, `width`, `height` (pixels at 96 dpi), `widthPt`, `heightPt`, `rotation` (PDF only), and `name` (VSDX only) |
 | `chart` | for a Vega-Lite chart, after `image` (which gives the laid-out `width` and `height`, 4 `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1): object: `title` and `schemaMajorVersion` only when the specification has them, `marks` (an array of the mark types as written, in document order, including those of layers and concatenations), `dataReferences` (an array of objects in document order: `kind` (`inline`, `url`, `name`, or `sequence`), `url` as written for a `url` source, `rows` when the text gives the row count, and `line` of the `data` object), and `parameters` (an array of the declared parameter names) |
+| `diagram` | for a Mermaid diagram, after `image` (which gives the laid-out `width` and `height`, 4 `channels`, `hasAlpha` true, `canDecode` true, and `frameCount` 1), written by `WriteDiagram`: object: `type` (for example `flowchart`, `sequence`, or `mindmap`), `supported` (false for a type that is recognized but not drawn, such as a user journey, which `render` draws as an empty picture with the diagnostic `mermaid-diagram-unsupported`), `direction`, `title`, and `accTitle` only when the diagram has them, and `nodes`, `edges`, and `subgraphs` (for a mindmap its nodes, one edge fewer than its nodes, and 0 subgraphs; 0 for a type that is not drawn) |
 | `model` | for an OpenSCAD model, instead of `image`: object: `modules` and `functions` (arrays of the names defined at file scope, in source order, a repeated name kept) and `directives` (an array of objects: `kind` (`include` or `use`), `path` as written, and `line`) |
 <!-- markdownlint-enable MD013 -->
 
@@ -112,11 +118,17 @@ references are the text of the specification), but the library lays the chart ou
 the data the chart names inline. The `chart` object keeps the style of the `model` object: arrays are always present
 (empty when the chart declares nothing) and the optional scalars are omitted when absent.
 
+A diagram is parsed and measured, not drawn: the library lays it out with the default theme and without the pictures of
+its nodes (no other file is read), so the `supported` member tells an agent before it renders that a type would give an
+empty picture. The `diagram` object keeps the style of the `chart` object: the counts are always present and the
+optional strings are omitted when absent.
+
 **Input fragment (info).** `info` probes its input with `SourceLoader.Probe(InputReference.Parse(input))`: the page of
 the fragment replaces `--page` and `--all-pages`, the `input` object of the JSON result has the `fragment` member, and
 the warnings about the fragment are written to standard error in text mode (the JSON document of `info` has no
 `diagnostics`; a script that needs them uses `render --json`). The other parameters of the fragment are checked and
-ignored, because `info` only reads headers.
+ignored, because `info` only reads headers: a `theme=` fragment of a diagram is checked (a name that is not a Mermaid
+theme is `image-fragment-invalid`) and does not change the description, which is always measured in the default theme.
 
 #### Error Handling
 
@@ -125,7 +137,10 @@ An argument or option on the `formats` command line throws a `ToolException` wit
 command line. The `info` command's failures to read the file come from `SourceLoader.Probe` (`input-not-found`,
 `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, `scad-error` for a model with a
 syntax error, and `vega-lite-error` for a chart with an invalid specification, `budget-exceeded` for a chart that
-exceeds a limit of the library, and `size-limit` for a chart that lays out larger than the maximum image size), and
+exceeds a limit of the library, and `size-limit` for a chart that lays out larger than the maximum image size;
+`mermaid-error` for a diagram that is not valid text, `budget-exceeded` for a diagram that exceeds a limit of the
+library, and `corrupt-input` for a diagram text longer than the text limit; a diagram whose natural size is larger than
+the maximum image size is described with that size, not refused), and
 a page the file does not have
 is `page-out-of-range`. Null arguments throw `ArgumentNullException`. The `formats` command does not touch the file
 system and has no other failure mode.

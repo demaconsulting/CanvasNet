@@ -95,8 +95,8 @@ software items, specifically:
   picks the source by file name extension or URI scheme, bounds depth, cycles, image count, and the pixels the sources
   allocate, forwards notes, and
   never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
-  ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `PdfImageSource`,
-  `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that package
+  ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `MermaidImageSource`,
+  `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that package
 - **Packaging (Subsystem)** — hardened building blocks for reading untrusted Open Packaging
   Conventions (OPC) packages and untrusted XML, depending only on the .NET base class library: the
   `OpcPackage` unit (a read-only, size-bounded view of an OPC ZIP package, such as a `.pptx` or
@@ -335,6 +335,29 @@ software items, specifically:
   `Geometry`, `Drawing`, `Fonts`, `Files`, and `Rendering` subsystems through their public API, and must never reference
   `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, or
   `CanvasNetScad`
+- **CanvasNetMermaid (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Mermaid`)
+  providing a static, offline renderer for the Mermaid diagram language that parses, describes, measures, and renders
+  diagrams with Mermaid's own layout, shapes, labels, edges, and themes, derived with attribution from Mermaid,
+  dagre-d3-es (dagre and graphlib), d3, khroma, js-yaml, lodash, and marked (their license texts ship in the package;
+  not affiliated with those projects). It contains one direct unit, `MermaidDocument` (the public
+  `Parse`/`Open`/`Measure`/`Render` API with `MermaidOpenOptions`, `MermaidRenderOptions`, `MermaidLimits`,
+  `MermaidLocation`, `MermaidDiagnostic`, `MermaidUnsupportedFeature`, `MermaidSize`, `MermaidDiagnosticCodes`,
+  `MermaidSyntaxException`, `MermaidRenderException`, `MermaidUnsupportedFeatureException`, the internal report sink,
+  and `MermaidImageSource`), and fifteen internal subsystems: `Syntax` (`Preprocessor`, `DiagramDetector`,
+  `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`), `Configuration` (`MermaidConfigResolver`,
+  `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Graphlib` (`Graph` and `GraphAlgorithms`), `Dagre`
+  (`DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`, `DagreNormalizer`, `DagreOrdering`,
+  `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`), `Rendering` (`ClusterLayout`, `ShapeLibrary`,
+  `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph` (`SceneModel` and `ScenePainter`), `Flowchart`
+  (`FlowchartParser` and `FlowchartModel`), `Sequence` (`SequenceParser`, `SequenceModel`, `SequenceLayout`, and
+  `SequenceRenderer`), `Class` (`ClassParser` and `ClassModel`), `State` (`StateParser` and `StateModel`), `Er`
+  (`ErParser` and `ErModel`), `Pie` (`PieParser` and `PieRenderer`), `Gantt` (`GanttParser`, `GanttModel`,
+  `GanttRenderer`, and `TimeAxis`), `Mindmap` (`MindmapParser` and `MindmapRenderer`), and `Cose` (`CoseLayout`). This
+  version draws flowcharts, sequence diagrams, class diagrams, state diagrams,
+  entity relationship diagrams, pie charts, gantt charts, and mindmaps; every other Mermaid diagram type is
+  recognized and reported as unsupported — see _CanvasNetMermaid System Design_ (`canvas-net-mermaid.md`) for the
+  known differences from Mermaid and its Phase Plan. `CanvasNetMermaid` depends on the `CanvasNet` system's `Canvas`,
+  `Geometry`, `Drawing`, `Fonts`, `Rendering`, and `ImageSources` subsystems through their public API only
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), that lets people, scripts, and AI agents inspect, render, transform, compare,
   and compose
@@ -353,7 +376,8 @@ software items, specifically:
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
   `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
   the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
-  with the `montage` command, and the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands).
+  with the `montage` command, the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands, and
+  the `FlattenCommand` unit with the `flatten` command).
   It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
@@ -361,22 +385,23 @@ software items, specifically:
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
   units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
-  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and Vega-Lite) and the extensions they claim,
-  creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that an SVG document can
-  embed every format, renders any file by path or from a stream, and lets a library user add image sources of their own
-  (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every expected failure,
-  with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which recognizes, probes, and
-  loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, views of
-  OpenSCAD models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle,
-  flips, pads, adjusts, deskews, trims, and grids pixels in the order the operations are given, the `GridOverlay` unit,
-  which does the grid work for it (the flip, pad, trim, tone, rotation, skew, and analysis arithmetic is the core
-  library's `Surface`), the `ImageWriter` unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit,
-  which checks how two images compare (measured by the core library's `Surface`) against thresholds, the `ContactSheet`
-  unit, which composes images into a labeled sheet, and the four operation units that chain them: `ImageRenderer`
-  (render the pages of a source), `ImageInspector` (colors and pixels), `ImageComparer` (compare two images), and
-  `MontageBuilder` (a contact sheet). It references the core package and the Svg, Pdf, Pptx, Vsdx, Scad, Render3D, and
-  VegaLite packages, is referenced only by the tool, and has no plug-in mechanism of its own — see _CanvasNetViewer
-  System Design_ (`canvas-net-viewer.md`)
+  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid) and the extensions
+  they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that an SVG
+  document can embed every format, renders any file by path or from a stream, and lets a library user add image sources
+  of their own (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every
+  expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which
+  recognizes, probes, and loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX
+  documents, views of OpenSCAD models, Vega-Lite charts, and Mermaid diagrams, the `ImagePipeline` unit, which crops,
+  resizes, fits, rotates by any angle, flips, pads, adjusts, deskews, trims, and grids pixels in the order the
+  operations are given, the `GridOverlay` unit, which does the grid work for it (the flip, pad, trim, tone, rotation,
+  skew, and analysis arithmetic is the core library's `Surface`), the `ImageWriter` unit, which writes PNG, JPEG, BMP,
+  and TIFF files, the `ImageComparison` unit, which checks how two images compare (measured by the core library's
+  `Surface`) against thresholds, the `ContactSheet` unit, which composes images into a labeled sheet, and the five
+  operation units that chain them: `ImageRenderer` (render the pages of a source), `ImageInspector` (colors and pixels),
+  `ImageComparer` (compare two images), `MontageBuilder` (a contact sheet), and `SvgFlattener` (a copy of an SVG drawing
+  that other SVG readers can show). It references the core package and the
+  Svg, Pdf, Pptx, Vsdx, Scad, Render3D, VegaLite, and Mermaid packages, is referenced only by the tool, and has no
+  plug-in mechanism of its own — see _CanvasNetViewer System Design_ (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
 
@@ -562,20 +587,52 @@ every system and `SceneModel` already names a `CanvasNetRender3D` subsystem. It 
 `Canvas` (`Surface`, `Rgba32`), `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See
 the Folder Layout section below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
+A further sibling top-level system, `CanvasNetMermaid`, likewise lives in this same repository alongside `CanvasNet`
+and is distributed as its own NuGet package. It is a static, offline renderer for the Mermaid diagram language that
+parses, describes, measures, and renders diagrams with Mermaid's own layout and look, derived with attribution from
+Mermaid, dagre-d3-es, d3, khroma, js-yaml, lodash, and marked (the licenses ship in the package): its direct unit,
+`MermaidDocument` (namespace `DemaConsulting.CanvasNet.Mermaid`), is the public API and the image source; its internal
+`Syntax` subsystem holds the `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and
+`HtmlSanitizer` units, its internal `Configuration` subsystem holds the `MermaidConfigResolver`, `ThemeResolver`,
+`ColorMath`, and `StyleDeclarations` units, its internal `Graphlib` subsystem holds the `Graph` and `GraphAlgorithms`
+units, its internal `Dagre` subsystem holds the `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
+`DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter` units, its
+internal `Rendering` subsystem holds the `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and
+`NodeImages` units, its internal `Scenegraph` subsystem holds the `SceneModel` and `ScenePainter` units, its internal
+`Flowchart` subsystem holds the `FlowchartParser` and `FlowchartModel` units, its internal `Sequence` subsystem
+holds the `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer` units, its internal `Class`
+subsystem holds the `ClassParser` and `ClassModel` units, its internal `State` subsystem holds the `StateParser` and
+`StateModel` units, its internal `Er` subsystem holds the `ErParser` and `ErModel` units, its internal `Pie` subsystem
+holds the `PieParser` and `PieRenderer` units, its internal `Gantt` subsystem holds the `GanttParser`,
+`GanttModel`, `GanttRenderer`, and `TimeAxis` units, its internal `Mindmap` subsystem holds the `MindmapParser` and
+`MindmapRenderer` units, and its internal `Cose` subsystem holds the `CoseLayout` unit (each subsystem lives in
+the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def` names carry the
+prefix `Mermaid` (`MermaidSyntax`, `MermaidConfiguration`, `MermaidGraphlib`, `MermaidDagre`, `MermaidRendering`,
+`MermaidScenegraph`, `MermaidFlowchart`, `MermaidSequence`, `MermaidClass`, `MermaidState`, `MermaidEr`, `MermaidPie`,
+`MermaidGantt`, `MermaidMindmap`, and `MermaidCose`) and the
+scene units are
+`MermaidSceneModel` and `MermaidScenePainter`,
+because the model package is shared by every system and `Rendering`, `SceneModel`, and `ScenePainter` are already
+taken. It depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Rendering`, and
+`ImageSources` subsystems through their public API. See the Folder Layout section below and _CanvasNetMermaid System
+Design_ (`canvas-net-mermaid.md`).
 A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
 own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the
 library form of the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`)
-lists the built-in sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, and Vega-Lite), creates the `FolderImageResolver` of
+lists the built-in sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, and Mermaid), creates the
+`FolderImageResolver` of
 the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
 a picture; its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`;
 and its `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`,
 `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels,
 transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew
 operations), turn pixels into files, check the comparison of two images against thresholds, and compose a contact sheet,
-and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder` units that chain them into the render,
-inspect, compare, and montage operations. It references the core package and the `CanvasNetSvg`, `CanvasNetPdf`,
-`CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, and `CanvasNetVegaLite` packages; only the tool
-references it. See the Folder Layout section below and _CanvasNetViewer System Design_ (`canvas-net-viewer.md`).
+and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units that chain them
+into the render, inspect, compare, montage, and flatten operations. It references the core package and the
+`CanvasNetSvg`, `CanvasNetPdf`,
+`CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, and `CanvasNetMermaid`
+packages; the tool references it. See the Folder Layout section below and _CanvasNetViewer System Design_
+(`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -584,13 +641,14 @@ direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
 grammar, the JSON result documents, the self-validation, and the safe path helper, and its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`, and
-`RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units (the `formats`, `info`, `render`,
+`RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand` units (the `formats`,
+`info`, `render`,
 `convert`, `crop`,
-`resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, and `inspect`
+`resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, `inspect`, and `flatten`
 commands). It is a thin shell: the commands call the operations of the `Imaging` subsystem of the `CanvasNetViewer`
 system with request records built from the command line, and print the results. It uses the `CanvasNet`, `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`, and
-`CanvasNetViewer` systems
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`,
+`CanvasNetMermaid`, and `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
 
@@ -1469,6 +1527,102 @@ src/DemaConsulting.CanvasNet.VegaLite/
 `Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter`, `ArcGeometry`,
 `SymbolPathParser`, and `TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
+The `CanvasNetMermaid` system lives in the `src/DemaConsulting.CanvasNet.Mermaid/` project folder (the separate
+`DemaConsulting.CanvasNet.Mermaid` package). The `MermaidDocument` unit occupies the project root; the internal
+subsystems occupy the sub-folders `Syntax/`, `Configuration/`, `Graphlib/`, `Dagre/`, `Rendering/`, `Scenegraph/`,
+`Flowchart/`, `Sequence/`, `Class/`, `State/`, `Er/`, `Pie/`, `Gantt/`, `Mindmap/`, and `Cose/`, whose names equal
+their sub-namespaces; partial files and small helper types
+belong to the unit named before the dash (see _CanvasNetMermaid System Design_, `canvas-net-mermaid.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Mermaid/
+├── DemaConsulting.CanvasNet.Mermaid.csproj — Package definition (net8.0/net9.0/net10.0; packable; ships third-party/)
+├── NamespaceDoc.cs                — MermaidDocument: namespace-level XML documentation
+├── MermaidDocument.cs             — MermaidDocument: Parse/Open entry points and the metadata properties
+├── MermaidDocument.Render.cs      — MermaidDocument: Measure, Render, natural size, and report delivery
+├── MermaidDocument.Pipeline.cs    — MermaidDocument: the internal diagram seam and registry
+├── MermaidOpenOptions.cs          — MermaidDocument: validated open options
+├── MermaidRenderOptions.cs        — MermaidDocument: validated render options and the theme names
+├── MermaidLimits.cs               — MermaidDocument: resource limits
+├── MermaidLocation.cs             — MermaidDocument: file, line, and column value
+├── MermaidDiagnostic.cs           — MermaidDocument: warning record
+├── MermaidUnsupportedFeature.cs   — MermaidDocument: unsupported-feature report record
+├── MermaidSize.cs                 — MermaidDocument: size in pixels
+├── MermaidDiagnosticCodes.cs      — MermaidDocument: the stable mermaid-* codes
+├── MermaidSyntaxException.cs      — MermaidDocument: located syntax exception with the expected tokens
+├── MermaidRenderException.cs      — MermaidDocument: located render exception
+├── MermaidUnsupportedFeatureException.cs — MermaidDocument: strict-mode exception
+├── MermaidReportSink.cs           — MermaidDocument: ordered, de-duplicated, capped report delivery
+├── MermaidImageSource.cs          — MermaidDocument: the image source for .mmd and .mermaid files
+├── third-party/                   — License texts and the provenance table of the ported projects
+├── Syntax/                        — Syntax subsystem
+│   ├── Preprocessor.cs, Preprocessor.MappedText.cs — Preprocessor: clean-up, frontmatter, directives, location map
+│   ├── DiagramDetector.cs         — DiagramDetector: Mermaid's detectors in Mermaid's order
+│   ├── YamlSubsetParser.cs, YamlSubsetParser.Values.cs — YamlSubsetParser: the js-yaml subset
+│   ├── SourceScanner.cs, SourceScanner.Patterns.cs, SourceScanner.Tokens.cs — SourceScanner: jison lexer semantics
+│   └── HtmlSanitizer.cs, HtmlEntities.cs — HtmlSanitizer: label HTML clean-up and named references
+├── Configuration/                 — Configuration subsystem
+│   ├── MermaidConfigResolver*.cs, MermaidConfig.cs — MermaidConfigResolver: defaults, precedence, typed view
+│   ├── ThemeResolver*.cs          — ThemeResolver: the five themes and the style sheet of each drawn type (pie and
+│   │                                gantt in ThemeResolver.ChartStyles.cs, mindmap in ThemeResolver.MindmapStyles.cs)
+│   ├── ColorMath.cs, ColorMath.Parsers.cs — ColorMath: the khroma subset
+│   └── StyleDeclarations.cs       — StyleDeclarations: the CSS declaration subset
+├── Graphlib/                      — Graphlib subsystem
+│   ├── Graph.cs, GraphEdge.cs, ObjectKeyMap.cs — Graph: graphlib's graph with JavaScript key order
+│   └── GraphAlgorithms.cs         — GraphAlgorithms: depth-first preorder and postorder
+├── Dagre/                         — Dagre subsystem
+│   ├── DagreLayout.cs, DagreLayout.Util.cs, DagreGraph.cs, LayoutModel.cs, Lodash.cs — DagreLayout: the pipeline
+│   ├── DagreAcyclic.cs            — DagreAcyclic: cycle breaking
+│   ├── DagreRanker*.cs            — DagreRanker: longest path, feasible tree, network simplex
+│   ├── DagreNesting.cs            — DagreNesting: nesting graph, border segments, dummy chains
+│   ├── DagreNormalizer.cs         — DagreNormalizer: long-edge dummies
+│   ├── DagreOrdering*.cs          — DagreOrdering: crossing reduction
+│   ├── DagrePositioning*.cs       — DagrePositioning: Brandes-Koepf coordinates
+│   ├── DagreCoordinateSystem.cs   — DagreCoordinateSystem: rank direction transforms
+│   └── LayoutWorkMeter.cs         — LayoutWorkMeter: work budget, cancellation, unique ids
+├── Rendering/                     — Rendering subsystem
+│   ├── ClusterLayout*.cs, LayoutData.cs — ClusterLayout: subgraphs, recursive layout, placement, diagram frame
+│   ├── ShapeLibrary*.cs, ShapeNames.cs — ShapeLibrary: shapes, class and entity boxes, state and mindmap shapes
+│   ├── EdgeBuilder*.cs            — EdgeBuilder: routes, curves, markers, edge labels, terminal labels
+│   ├── LabelBuilder*.cs           — LabelBuilder: HTML, markdown, and SVG labels; the text utilities of sequence text
+│   └── NodeImages.cs              — NodeImages: pictures through the caller's resolver
+├── Scenegraph/                    — Scenegraph subsystem
+│   ├── SceneModel.cs              — SceneModel: scene records, bounds, placement, drop shadows
+│   └── ScenePainter*.cs           — ScenePainter: paths, shadows, text, and pictures to pixels
+├── Flowchart/                     — Flowchart subsystem
+│   ├── FlowchartParser*.cs        — FlowchartParser: the flow.jison lexer and grammar
+│   └── FlowchartModel*.cs         — FlowchartModel: the flowDb rules, layout data, and drawing
+├── Sequence/                      — Sequence subsystem
+│   ├── SequenceParser*.cs         — SequenceParser: the sequenceDiagram.jison lexer and grammar
+│   ├── SequenceModel*.cs          — SequenceModel: the sequenceDb rules, metadata, and reports
+│   ├── SequenceLayout*.cs         — SequenceLayout: the sequenceRenderer.ts layout and view box
+│   └── SequenceRenderer*.cs       — SequenceRenderer: the svgDraw.js drawing into scene items
+├── Class/                         — Class subsystem
+│   ├── ClassParser*.cs            — ClassParser: the classDiagram.jison lexer and grammar
+│   └── ClassModel*.cs             — ClassModel: the classDb rules, members, URL check, metadata, and layout data
+├── State/                         — State subsystem
+│   ├── StateParser*.cs            — StateParser: the stateDiagram.jison lexer and grammar
+│   └── StateModel*.cs             — StateModel: the stateDb rules, data fetcher, metadata, and layout data
+├── Er/                            — Er subsystem
+│   ├── ErParser*.cs               — ErParser: the erDiagram.jison lexer and grammar
+│   └── ErModel*.cs                — ErModel: the erDb rules, subgraphs, styles, metadata, and layout data
+├── Pie/                           — Pie subsystem
+│   ├── PieParser*.cs              — PieParser: the Langium pie grammar, the pieDb rules, and PieDiagram
+│   └── PieRenderer*.cs            — PieRenderer: the pieRenderer.ts drawing with d3's pie and arc
+├── Gantt/                         — Gantt subsystem
+│   ├── GanttParser*.cs            — GanttParser: the gantt.jison lexer and grammar
+│   ├── GanttModel*.cs             — GanttModel: the ganttDb rules, the task dates, the clock, and the dayjs subset
+│   ├── GanttRenderer*.cs          — GanttRenderer: the ganttRenderer.js drawing with d3-axis
+│   └── TimeAxis*.cs               — TimeAxis: JavaScript dates in UTC and the d3 time functions
+├── Mindmap/                       — Mindmap subsystem
+│   ├── MindmapParser*.cs          — MindmapParser: the mindmap.jison lexer and grammar, mindmapDb, MindmapDiagram
+│   └── MindmapRenderer.cs         — MindmapRenderer: the mindmapRenderer.ts drawing with the cose-bilkent renderer
+└── Cose/                          — Cose subsystem
+    └── CoseLayout*.cs             — CoseLayout: the cose-bilkent layout, cytoscape's edge points, correctly rounded math
+```
+
+Each sub-folder also holds a `NamespaceDoc.cs` with the namespace documentation. `CanvasNetMermaid` uses only the
+`CanvasNet` system through its public API and declares it as its only package dependency.
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
 `DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
 project root, and its `Imaging` subsystem occupies the `Imaging/` sub-folder, whose name equals its sub-namespace (see
@@ -1496,6 +1650,7 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── SourceLoader.VegaLite.cs   — SourceLoader: Vega-Lite charts
+    ├── SourceLoader.Mermaid.cs    — SourceLoader: Mermaid diagrams
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: applying the ordered operations to a surface
     ├── ImagePipeline.Anchors.cs   — ImagePipeline: the mapping of model anchors through the applied steps
@@ -1506,13 +1661,16 @@ src/DemaConsulting.CanvasNet.Viewer/
     ├── ImageRenderer.cs           — ImageRenderer: the render operation (load, transform, and write the pages of a source)
     ├── ImageInspector.cs          — ImageInspector: the inspect operation (colors and pixels after the pipeline)
     ├── ImageComparer.cs           — ImageComparer: the compare operation (sizes, measures, thresholds, and pictures)
-    └── MontageBuilder.cs          — MontageBuilder: the montage operation (a contact sheet of many sources)
+    ├── MontageBuilder.cs          — MontageBuilder: the montage operation (a contact sheet of many sources)
+    ├── SvgFlattener.cs            — SvgFlattener: the flatten operation (records and orchestration)
+    ├── SvgFlattener.Links.cs      — SvgFlattener: the link scanner, the rewrite, and the rebasing of links
+    └── SvgFlattener.Recorder.cs   — SvgFlattener: the recording resolver that draws the links to replace
 ```
 
 `CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, and `CanvasNetVegaLite` packages
-for
-the image source each one supplies and the operations of `Imaging`; no package references it except the tool.
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, `CanvasNetVegaLite`, and
+`CanvasNetMermaid` packages for the image source each one supplies and the operations of `Imaging`; no package it except
+the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
@@ -1536,9 +1694,9 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
     ├── HelpTopics.cs              — HelpTopics: the topic model, the embedded catalog, tokens, and lookup
     ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
-    ├── Help/                      — HelpTopics: the embedded topic files (scad, vega-lite, svg, pdf, pptx, vsdx,
-    │   │                            raster, json, errors, and limits, one JSON file each)
-    │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, and SVG files)
+    ├── Help/                      — HelpTopics: the embedded topic files (scad, vega-lite, mermaid, svg, pdf, pptx,
+    │   │                            vsdx, raster, json, errors, and limits, one JSON file each)
+    │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
     ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
     ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
     ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
@@ -1549,7 +1707,21 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
     ├── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
     ├── InspectCommand.cs          — InspectCommand: the inspect colors and inspect pixel commands, run and result
-    └── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
+    ├── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
+    └── FlattenCommand.cs          — FlattenCommand: the flatten command, options, run, and result
+```
+
+The top-level `tools/` folder is a separate tree of support tools that are not software items: unlike
+`docs/reqstream/`, `docs/design/`, `docs/verification/`, `src/`, and `test/`, it does not follow the software-item
+naming convention, has no requirements, design, or verification artifacts, is not shipped, and is run by hand, never
+by CI (see `tools/README.md`):
+
+```text
+tools/
+├── README.md                    — What each tool is for, when to run it, its prerequisites, and adding a tool
+├── DemaConsulting.CanvasNet.VegaLite.Benchmarks/ — Profiling: Stopwatch Vega-Lite benchmarks (built by the solution)
+└── visual-diff/                 — Fidelity: visual diff against Vega, Vega-Lite, and mermaid-cli
+    └── mermaid/                 — Generators of the Mermaid test goldens and upstream vectors
 ```
 
 ## Document Conventions
@@ -1659,8 +1831,39 @@ have no companion artifacts of their own: the original gallery specifications an
 `docs/user_guide/examples/gallery/` (drawn by the Pandoc filter, rendered strictly by
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs`, and shown in the montage
 `docs/images/vegalite-gallery.png`, which `docs/images/render-images.ps1` draws and checks), the Stopwatch benchmark
-harness is the project `benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run by
-hand), and the visual-diff scripts against Vega and Vega-Lite are in `benchmarks/visual-diff/` (run by hand, never in CI).
+harness is the project `tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/` (compiled by the solution build, run
+by hand), and the visual-diff scripts against Vega and Vega-Lite are in `tools/visual-diff/` (run by hand, never in
+CI).
+
+For the `CanvasNetMermaid` system the parallel paths are, for example for the `DagreRanker` unit in the `Dagre`
+subsystem: requirements `docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml`, design
+`docs/design/canvas-net-mermaid/dagre/dagre-ranker.md`, verification
+`docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md`, SysML2 model
+`docs/sysml2/model/canvas-net-mermaid/dagre/dagre-ranker.sysml`, source
+`src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.cs` (with `DagreRanker.FeasibleTree.cs` and
+`DagreRanker.NetworkSimplex.cs`), and tests `test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreRankerTests.cs`.
+The subsystem tests are `{Subsystem}Tests.cs` in each test folder (for example `Dagre/DagreTests.cs` with the dagre
+stage goldens), the direct unit `MermaidDocument` has no subsystem folder
+(`docs/design/canvas-net-mermaid/mermaid-document.md`), and the system itself is `docs/design/canvas-net-mermaid.md`
+with `docs/sysml2/model/canvas-net-mermaid.sysml`; its system tests are `MermaidSystemIntegrationTests.cs`,
+`MermaidFlowchartIntegrationTests.cs`, `MermaidReferenceLayoutTests.cs`, `MermaidSequenceIntegrationTests.cs`,
+`MermaidSequenceReferenceLayoutTests.cs`, `MermaidClassIntegrationTests.cs`, `MermaidStateIntegrationTests.cs`,
+`MermaidErIntegrationTests.cs`, `MermaidPieIntegrationTests.cs`, `MermaidGanttIntegrationTests.cs`
+(with `MermaidChartReferenceLayoutTests.cs`), `MermaidMindmapIntegrationTests.cs` (with
+`MermaidMindmapReferenceLayoutTests.cs`), `MermaidGalleryTests.cs`, `MermaidHardeningTests.cs`, and
+`MermaidUnsupportedDiagramTests.cs` in the root of its test project. Units whose helper types live in their own
+files list those files in their design and SysML2 model (for example `ObjectKeyMap.cs` belongs to `Graph`,
+`ShapeNames.cs` to `ShapeLibrary`, `LayoutData.cs` to `ClusterLayout`, and `HtmlEntities.cs` to `HtmlSanitizer`).
+The original flowchart, sequence, class, state, entity relationship, pie, gantt, and mindmap fixtures are in
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/`, `Fixtures/sequence/`, `Fixtures/class/`,
+`Fixtures/state/`, `Fixtures/er/`, `Fixtures/pie/`, `Fixtures/gantt/`, and `Fixtures/mindmap/`, the upstream vectors in
+`Fixtures/upstream-vectors/`, and the reference layout goldens with their provenance README in `Fixtures/reference/`
+(the sequence, class, state, entity relationship, pie, gantt, and mindmap goldens in `Fixtures/reference/sequence/`,
+`Fixtures/reference/class/`, `Fixtures/reference/state/`, `Fixtures/reference/er/`, `Fixtures/reference/pie/`,
+`Fixtures/reference/gantt/`, and `Fixtures/reference/mindmap/`). The attribution record and license texts are in
+`src/DemaConsulting.CanvasNet.Mermaid/third-party/`. The developer scripts that generate the vectors and goldens, and
+the visual-diff harness against mermaid-cli, are in `tools/visual-diff/` and `tools/visual-diff/mermaid/`
+(run by hand, never in CI); they are not software items.
 
 ## References
 

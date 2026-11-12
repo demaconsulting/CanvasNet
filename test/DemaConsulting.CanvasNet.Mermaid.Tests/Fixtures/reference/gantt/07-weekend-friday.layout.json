@@ -1,0 +1,361 @@
+{
+  "source": "07-weekend-friday.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "gantt",
+  "viewBox": [0, 0, 784, 148],
+  "excludes": [
+    {
+      "id": "exclude-2024-03-01",
+      "corners": [[256, 35], [347, 35], [347, 98], [256, 98]],
+      "paint": { "fill": "rgb(238, 238, 238)", "stroke": "none", "strokeWidth": 1, "opacity": 1 }
+    },
+    {
+      "id": "exclude-2024-03-08",
+      "corners": [[573, 35], [664, 35], [664, 98], [573, 98]],
+      "paint": { "fill": "rgb(238, 238, 238)", "stroke": "none", "strokeWidth": 1, "opacity": 1 }
+    }
+  ],
+  "axes": [
+    {
+      "origin": [75, 98],
+      "ticks": [
+        {
+          "at": [75.5, 98],
+          "end": [75.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-02-26",
+            "at": [75.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [49.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [120.5, 98],
+          "end": [120.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-02-27",
+            "at": [120.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [94.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [166.5, 98],
+          "end": [166.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-02-28",
+            "at": [166.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [140.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [211.5, 98],
+          "end": [211.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-02-29",
+            "at": [211.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [185.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [256.5, 98],
+          "end": [256.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-01",
+            "at": [256.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [230.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [301.5, 98],
+          "end": [301.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-02",
+            "at": [301.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [275.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [347.5, 98],
+          "end": [347.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-03",
+            "at": [347.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [321.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [392.5, 98],
+          "end": [392.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-04",
+            "at": [392.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [366.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [437.5, 98],
+          "end": [437.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-05",
+            "at": [437.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [411.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [483.5, 98],
+          "end": [483.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-06",
+            "at": [483.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [457.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [528.5, 98],
+          "end": [528.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-07",
+            "at": [528.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [502.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [573.5, 98],
+          "end": [573.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-08",
+            "at": [573.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [547.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [618.5, 98],
+          "end": [618.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-09",
+            "at": [618.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [592.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [664.5, 98],
+          "end": [664.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-10",
+            "at": [664.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [638.922, 102, 51.591, 11]
+          }
+        },
+        {
+          "at": [709.5, 98],
+          "end": [709.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-03-11",
+            "at": [709.5, 101],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(51, 51, 51)",
+            "box": [684.289, 102, 50.849, 11]
+          }
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "class": "section section0",
+      "corners": [[0, 48], [746.5, 48], [746.5, 72], [0, 72]],
+      "paint": { "fill": "rgba(102, 102, 255, 0.49)", "stroke": "none", "strokeWidth": 1, "opacity": 0.2 }
+    },
+    {
+      "class": "section section0",
+      "corners": [[0, 72], [746.5, 72], [746.5, 96], [0, 96]],
+      "paint": { "fill": "rgba(102, 102, 255, 0.49)", "stroke": "none", "strokeWidth": 1, "opacity": 0.2 }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "w1",
+      "class": "task task0",
+      "rx": 3,
+      "corners": [[75, 50], [392, 50], [392, 70], [75, 70]],
+      "paint": { "fill": "rgb(138, 144, 221)", "stroke": "rgb(83, 79, 188)", "strokeWidth": 2, "opacity": 1 }
+    },
+    {
+      "id": "w2",
+      "class": "task task0",
+      "rx": 3,
+      "corners": [[392, 74], [709, 74], [709, 94], [392, 94]],
+      "paint": { "fill": "rgb(138, 144, 221)", "stroke": "rgb(83, 79, 188)", "strokeWidth": 2, "opacity": 1 }
+    }
+  ],
+  "texts": [
+    {
+      "id": "w1-text",
+      "class": "taskText taskText0",
+      "text": "Week one        ",
+      "at": [233.5, 63.5],
+      "dy": null,
+      "anchor": "middle",
+      "fontSize": 11,
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "fill": "rgb(255, 255, 255)",
+      "box": [207.836, 53.5, 50.328, 12]
+    },
+    {
+      "id": "w2-text",
+      "class": "taskText taskText0",
+      "text": "Week two        ",
+      "at": [550.5, 87.5],
+      "dy": null,
+      "anchor": "middle",
+      "fontSize": 11,
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "fill": "rgb(255, 255, 255)",
+      "box": [525.453, 77.5, 49.094, 12]
+    }
+  ],
+  "sectionTitles": [
+    {
+      "class": "sectionTitle sectionTitle0",
+      "fill": "rgb(51, 51, 51)",
+      "fontSize": 11,
+      "lines": [{ "text": "Work", "box": [9, 68, 26.964, 12] }]
+    }
+  ],
+  "today": {
+    "start": [4940, 25],
+    "end": [4940, 123],
+    "paint": { "fill": "none", "stroke": "rgb(255, 0, 0)", "strokeWidth": 2, "opacity": 1 }
+  },
+  "title": {
+    "text": "",
+    "at": [392, 25],
+    "dy": null,
+    "anchor": "middle",
+    "fontSize": 18,
+    "fontWeight": "400",
+    "fontStyle": "normal",
+    "fill": "rgb(51, 51, 51)",
+    "box": null
+  }
+}

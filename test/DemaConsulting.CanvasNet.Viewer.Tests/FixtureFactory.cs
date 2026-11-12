@@ -41,7 +41,8 @@ internal static partial class FixtureFactory
         ("pptx", ".pptx"),
         ("vsdx", ".vsdx"),
         ("scad", ".scad"),
-        ("vega-lite", ".vl.json")
+        ("vega-lite", ".vl.json"),
+        ("mermaid", ".mmd")
     ];
 
     /// <summary>
@@ -192,6 +193,9 @@ internal static partial class FixtureFactory
                 break;
             case "vega-lite":
                 File.Copy(FixturePath("baskets.vl.json"), path);
+                break;
+            case "mermaid":
+                File.Copy(FixturePath(Path.Combine("mermaid", "flow.mmd")), path);
                 break;
             default:
                 File.Copy(FixturePath("shapes.svg"), path);

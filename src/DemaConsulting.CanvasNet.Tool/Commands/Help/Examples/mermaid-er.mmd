@@ -1,0 +1,21 @@
+---
+title: Lending
+---
+erDiagram
+    MEMBER ||--o{ LOAN : borrows
+    BOOK ||--o{ LOAN : "lent in"
+    AUTHOR }|--|{ BOOK : writes
+    MEMBER {
+        int id PK
+        string name
+        string email UK "for reminders"
+    }
+    LOAN {
+        int member FK
+        string isbn FK
+        date due
+    }
+    BOOK {
+        string isbn PK "the book number"
+        string title
+    }

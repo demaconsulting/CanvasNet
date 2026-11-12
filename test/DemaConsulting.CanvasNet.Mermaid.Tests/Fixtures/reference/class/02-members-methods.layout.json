@@ -1,0 +1,300 @@
+{
+  "source": "02-members-methods.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 645.375, 644],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-BankAccount-0",
+      "shape": "classBox",
+      "x": 236.766,
+      "y": 116,
+      "box": [8, 8, 457.531, 216],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 457.531, 216] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 457.531, 216] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [185.203, 20, 103.125, 24],
+          "text": "BankAccount",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 68, 99.172, 24],
+          "text": "+String owner"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [20, 92, 127.625, 24],
+          "text": "+Decimal balance"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 140, 124.969, 24],
+          "text": "+deposit(amount)"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 164, 242.328, 24],
+          "text": "+withdraw(Decimal amount) : bool"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [20, 188, 381.969, 24],
+          "text": "+transfer(BankAccount target, Decimal amount) : bool"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 56, 457.531, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 128, 457.531, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Ledger-1",
+      "shape": "classBox",
+      "x": 406.609,
+      "y": 370,
+      "box": [332.813, 274, 147.594, 192],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [332.813, 274, 147.594, 192]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [332.813, 274, 147.594, 192]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [379.938, 286, 53.344, 24],
+          "text": "Ledger",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [344.813, 334, 60.484, 24],
+          "text": "int count"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [344.813, 358, 71.141, 24],
+          "text": "String title"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [344.813, 406, 96.922, 24],
+          "text": "entries() : List"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [344.813, 430, 46.234, 24],
+          "text": "reset()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [332.813, 322, 147.594, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [332.813, 394, 147.594, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Statement-2",
+      "shape": "classBox",
+      "x": 406.609,
+      "y": 576,
+      "box": [328.348, 516, 156.523, 120],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [328.348, 516, 156.523, 120]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [328.348, 516, 156.523, 120]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [367.93, 528, 77.359, 24],
+          "text": "Statement",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [340.348, 576, 93.844, 24],
+          "text": "+Date issued"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [328.348, 564, 156.523, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [328.348, 612, 156.523, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Clerk-3",
+      "shape": "classBox",
+      "x": 576.453,
+      "y": 116,
+      "box": [515.531, 53, 121.844, 126],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [515.531, 53, 121.844, 126]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [515.531, 53, 121.844, 126]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [556.438, 65, 40.031, 24],
+          "text": "Clerk",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [527.531, 143, 77.828, 24],
+          "text": "+approve()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [515.531, 101, 121.844, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [515.531, 125, 121.844, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_BankAccount_Ledger_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 132.301,
+      "points": [
+        [236.766, 224],
+        [236.837, 230.613],
+        [238.332, 237.032],
+        [241.342, 242.911],
+        [245.207, 248.275],
+        [249.58, 253.236],
+        [254.28, 257.889],
+        [259.185, 262.327],
+        [264.217, 266.621],
+        [269.335, 270.812],
+        [274.517, 274.924],
+        [279.748, 278.972],
+        [285.02, 282.969],
+        [290.324, 286.922],
+        [295.655, 290.838],
+        [301.008, 294.725],
+        [306.379, 298.586],
+        [311.763, 302.429],
+        [317.151, 306.268],
+        [322.538, 310.106],
+        [327.926, 313.944]
+      ]
+    },
+    {
+      "id": "id_Ledger_Statement_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 44,
+      "points": [
+        [406.609, 466],
+        [406.609, 468.2],
+        [406.609, 470.4],
+        [406.609, 472.6],
+        [406.609, 474.8],
+        [406.609, 477],
+        [406.609, 479.2],
+        [406.609, 481.4],
+        [406.609, 483.6],
+        [406.609, 485.8],
+        [406.609, 488],
+        [406.609, 490.2],
+        [406.609, 492.4],
+        [406.609, 494.6],
+        [406.609, 496.8],
+        [406.609, 499],
+        [406.609, 501.2],
+        [406.609, 503.4],
+        [406.609, 505.6],
+        [406.609, 507.8],
+        [406.609, 510]
+      ]
+    },
+    {
+      "id": "id_Clerk_Ledger_3",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 173.111,
+      "points": [
+        [576.453, 179],
+        [576.453, 187.656],
+        [576.409, 196.311],
+        [575.963, 204.953],
+        [574.877, 213.538],
+        [573.058, 221.997],
+        [570.452, 230.248],
+        [567.036, 238.197],
+        [562.824, 245.754],
+        [557.87, 252.847],
+        [552.343, 259.506],
+        [546.412, 265.809],
+        [540.184, 271.818],
+        [533.727, 277.582],
+        [527.092, 283.14],
+        [520.313, 288.521],
+        [513.417, 293.753],
+        [506.432, 298.864],
+        [499.392, 303.899],
+        [492.342, 308.922],
+        [485.293, 313.944]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

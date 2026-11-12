@@ -1,6 +1,7 @@
 // cspell:ignore jpeg tiff tif exif gif jpeg2000 scad deskew deskewed
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -82,6 +83,9 @@ public class ImagingSubsystemTests
                     SourceLoader.DefaultScadSize,
                     SourceLoader.DefaultScadSize,
                     new ScadRenderOptions { Projection = CameraProjection.Orthographic });
+
+            case "mermaid":
+                return MermaidDocument.Open(path).Render(new MermaidRenderOptions { Background = new Rgba32(255, 255, 255, 255) }, TestContext.Current.CancellationToken);
 
             case "vega-lite":
                 var chart = VegaLiteDocument.Open(path);
@@ -662,6 +666,39 @@ public class ImagingSubsystemTests
         var picture = Assert.Single(result.Pictures);
         Assert.Equal(diff, picture.Result.Path);
         Assert.True(File.Exists(diff));
+    }
+
+    /// <summary>
+    ///     Test that the flatten operation draws the linked diagram and model of a drawing through the loader, keeps the
+    ///     raster link, and writes a copy whose pictures are PNG data URIs.
+    /// </summary>
+    [Fact]
+    public void Imaging_Flatten_ComposedSvg_ReplacesOnlyCanvasNetImages()
+    {
+        // Arrange: a drawing that links a Mermaid diagram, an OpenSCAD model, and a PNG
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath("mermaid/flow.mmd"), directory.Combine("flow.mmd"));
+        File.Copy(FixtureFactory.FixturePath("cube.scad"), directory.Combine("part.scad"));
+        File.Copy(FixtureFactory.WriteSource(directory.Path, "png"), directory.Combine("logo.png"));
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "dashboard.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='100'>"
+            + "<image href='flow.mmd' width='100' height='50'/><image href='part.scad' x='100' width='50' height='50'/>"
+            + "<image href='logo.png' y='50' width='20' height='20'/></svg>");
+        var output = directory.Combine("flat.svg");
+
+        // Act
+        var result = SvgFlattener.Execute(SourceLoader.Probe(input), new FlattenRequest(output));
+
+        // Assert: two pictures replaced, the raster link kept, and the copy is an SVG file the loader reads
+        Assert.Equal(["flow.mmd", "part.scad"], result.Replaced.Select(r => r.Href));
+        Assert.Equal(["mermaid", "scad"], result.Replaced.Select(r => r.Format));
+        var text = File.ReadAllText(output);
+        Assert.Contains("href='logo.png'", text, StringComparison.Ordinal);
+        Assert.Equal(2, text.Split("data:image/png;base64,").Length - 1);
+        var info = SourceLoader.Probe(output);
+        Assert.Equal((SourceKind.Svg, 200, 100), (info.Format, info.Width, info.Height));
     }
 
     /// <summary>

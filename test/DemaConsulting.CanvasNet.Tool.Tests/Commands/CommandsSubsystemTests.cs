@@ -458,4 +458,34 @@ public class CommandsSubsystemTests
         Assert.Contains("--deskew", help.StdOut);
         Assert.Contains("Usage: canvasnet inspect colors <input> [--count N] [options]", byName.StdOut);
     }
+
+    /// <summary>
+    ///     Test that the default registry runs the flatten command through the entry point and lists it in the help.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_Flatten_DefaultRegistry_RunsFlattenAndListsItInHelp()
+    {
+        // Arrange: a drawing that links a Mermaid diagram
+        using var directory = new TempDirectory();
+        var input = FlattenCommandTests.WriteDrawing(directory, "<image href='flow.mmd' width='50' height='30'/>");
+        var output = directory.Combine("flat.svg");
+
+        // Act: the command, a failing one, the help, and the help by name
+        var flatten = ToolHost.Invoke("flatten", input, "-o", output);
+        var failing = ToolHost.Invoke("flatten", input);
+        var top = ToolHost.Invoke("--help");
+        var byName = ToolHost.Invoke("help", "flatten");
+
+        // Assert: success with nothing on standard error; the failing one is an expected error
+        Assert.Equal(0, flatten.ExitCode);
+        Assert.StartsWith($"wrote {output} (", flatten.StdOut, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, flatten.StdErr);
+        Assert.Equal(1, failing.ExitCode);
+        Assert.Contains("Error: usage-error:", failing.StdErr, StringComparison.Ordinal);
+
+        // Assert: listed with its summary and its usage
+        Assert.Contains("only CanvasNet can draw with PNG pictures", top.StdOut, StringComparison.Ordinal);
+        Assert.Contains("Usage: canvasnet flatten <input.svg> -o <output.svg>", byName.StdOut, StringComparison.Ordinal);
+        Assert.Contains("--scale <factor>", byName.StdOut, StringComparison.Ordinal);
+    }
 }

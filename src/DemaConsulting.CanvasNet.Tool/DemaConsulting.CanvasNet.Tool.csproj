@@ -14,7 +14,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, and Vega-Lite charts) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
+    <Description>DemaConsulting.CanvasNet.Tool is the canvasnet command-line tool: it inspects, renders, and transforms images and documents (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PowerPoint, Visio, OpenSCAD models, Vega-Lite charts, and Mermaid diagrams) using the CanvasNet libraries, with a stable machine-readable JSON contract so that scripts and AI agents can drive it.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
@@ -93,6 +93,7 @@
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Render3D\DemaConsulting.CanvasNet.Render3D.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Mermaid\DemaConsulting.CanvasNet.Mermaid.csproj" PrivateAssets="all" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" PrivateAssets="all" />
   </ItemGroup>
 
@@ -120,6 +121,17 @@
   <ItemGroup>
     <None Include="..\DemaConsulting.CanvasNet.VegaLite\third-party\LICENSE-*.txt" Pack="true" PackagePath="licenses\" />
     <None Include="..\DemaConsulting.CanvasNet.VegaLite\third-party\README.md" Pack="true" PackagePath="licenses\VegaLite-third-party-README.md" />
+  </ItemGroup>
+
+  <!-- Third-party license notices of the bundled Mermaid library: MIT (mermaid, @mermaid-js/parser, Langium, dayjs,
+       js-yaml, khroma, dagre, lodash, marked, sanitize-url, cytoscape, cytoscape-cose-bilkent, cose-base, layout-base)
+       and ISC (d3) require the notices to be reproduced in binary distributions, so they ship in the same licenses\
+       folder. The d3 notice of Mermaid (the d3 modules it ports) differs from the one of Vega-Lite, which already has
+       the name LICENSE-d3.txt there, so it keeps a Mermaid prefix, as the README does. -->
+  <ItemGroup>
+    <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-*.txt" Exclude="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\" />
+    <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\LICENSE-d3.txt" Pack="true" PackagePath="licenses\Mermaid-LICENSE-d3.txt" />
+    <None Include="..\DemaConsulting.CanvasNet.Mermaid\third-party\README.md" Pack="true" PackagePath="licenses\Mermaid-third-party-README.md" />
   </ItemGroup>
 
 </Project>

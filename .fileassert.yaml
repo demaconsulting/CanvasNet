@@ -239,13 +239,16 @@ tests:
           - query: "//head/title"
             count: 1
           # The Pandoc filter (docs/filters/canvasnet.lua) draws the example pictures; a source file that still
-          # names a .scad, .vl.json, .vsdx, .pptx, or .pdf picture means the filter did not run, and a src that
-          # is not relative to this file would leave the picture out of the PDF without an error.
+          # names a .scad, .vl.json, .vsdx, .pptx, .pdf, .mmd, or .mermaid picture means the filter did not run (or
+          # left a diagram type the tool does not draw yet, which only a code block may be), and a src that
+          # is not relative to this file would leave the picture out of the PDF without an error. Pandoc writes a
+          # picture whose extension is not an image type as <embed>, so the second check looks at both elements.
           - query: "//img[starts-with(@src,'../../generated/canvasnet/')]"
             min: 5
           - query: >-
-              //img[contains(@src,'.scad') or contains(@src,'.vl.json') or contains(@src,'.vsdx')
-              or contains(@src,'.pptx') or contains(@src,'.pdf')]
+              //*[self::img or self::embed][contains(@src,'.scad') or contains(@src,'.vl.json')
+              or contains(@src,'.vsdx') or contains(@src,'.pptx') or contains(@src,'.pdf') or contains(@src,'.mmd')
+              or contains(@src,'.mermaid')]
             count: 0
         text:
           - contains: "User Guide"

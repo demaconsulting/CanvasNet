@@ -1,0 +1,114 @@
+---
+# Software Subsystem Requirements for Flowchart
+#
+# These requirements decompose the CanvasNetMermaid system's flowchart responsibility into the Flowchart subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Flowchart): reading the flowchart language exactly as the pinned
+# Mermaid release reads it (FlowchartParser), keeping what it declares as Mermaid's flowchart database keeps it, and
+# turning that content into the input of the shared rendering for each render (FlowchartModel). Each requirement here
+# links down to the unit requirements that implement it. See docs/verification/canvas-net-mermaid/flowchart.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Flowchart Requirements
+        requirements:
+          - id: CanvasNetMermaid-Flowchart-Language
+            title: >-
+              The Flowchart subsystem shall open every flowchart text (the flowchart and graph keywords) that the
+              flowchart grammar of the pinned Mermaid release accepts - every bracket shape and shape data, node
+              chains, every link form, subgraphs, directions, classDef, class, style, linkStyle, click, and the
+              accessibility statements - into the same vertices, edges, subgraphs, classes, and styles that Mermaid's
+              flowchart database records for it.
+            justification: |
+              A flowchart can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's grammar and database, not by a description of them.
+            children:
+              - CanvasNetMermaid-Flowchart-FlowchartParser-Grammar
+              - CanvasNetMermaid-Flowchart-FlowchartParser-Tokens
+              - CanvasNetMermaid-Flowchart-FlowchartParser-LinearTime
+              - CanvasNetMermaid-Flowchart-FlowchartParser-ClickAndAccessibility
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Links
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Vertices
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Styles
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Subgraphs
+            tests:
+              - Flowchart_Open_Fixture_ParsesWithoutReports
+              - Flowchart_Fixtures_AreAboutForty
+              - Flowchart_GetData_WholeText_MapsLikeMermaid
+
+          - id: CanvasNetMermaid-Flowchart-Metadata
+            title: >-
+              The Flowchart subsystem shall give the direction, the accessible title, and the numbers of nodes,
+              edges, and subgraphs of an opened flowchart without rendering it, counting a subgraph id that is also
+              used as a vertex as a subgraph only.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone.
+            children:
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Metadata
+              - CanvasNetMermaid-Flowchart-FlowchartParser-ClickAndAccessibility
+            tests:
+              - Flowchart_Open_Document_GivesMetadata
+
+          - id: CanvasNetMermaid-Flowchart-FailClosed
+            title: >-
+              The Flowchart subsystem shall refuse, when the document is opened, a flowchart text that its grammar does
+              not accept, that Mermaid's flowchart database rejects, or that exceeds the edge, node, label length, or
+              nesting limits of the open call, with a coded MermaidSyntaxException located in the original text, with a
+              hint, and for a grammar error with the tokens that Mermaid lists as expected.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it.
+            children:
+              - CanvasNetMermaid-Flowchart-FlowchartParser-SyntaxErrors
+              - CanvasNetMermaid-Flowchart-FlowchartParser-DatabaseErrors
+              - CanvasNetMermaid-Flowchart-FlowchartParser-Limits
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Styles
+            tests:
+              - Flowchart_Open_SyntaxErrorAfterFrontmatter_IsLocatedInOriginalText
+              - Flowchart_Open_OverLimits_IsRefusedAtTheElement
+              - Flowchart_Open_DatabaseErrors_AreLocatedWithHints
+
+          - id: CanvasNetMermaid-Flowchart-LayoutData
+            title: >-
+              The Flowchart subsystem shall give the shared rendering, for each render, the same layout input that
+              Mermaid's flowchart renderer gives its layout under the effective configuration of that render: the
+              clusters and the nodes with their parents, shapes, classes, and styles, and the edges with their
+              patterns, markers, styles, and curves.
+            justification: |
+              The layout and the drawing can only match Mermaid when their input matches Mermaid's; the configuration
+              of a render (curve, padding, spacing, look, inherited directions) is known only when the render starts.
+            children:
+              - CanvasNetMermaid-Flowchart-FlowchartModel-LayoutData
+            tests:
+              - Flowchart_GetData_WholeText_MapsLikeMermaid
+              - Flowchart_Open_Fixture_ParsesWithoutReports
+
+          - id: CanvasNetMermaid-Flowchart-UnsupportedFeatures
+            title: >-
+              The Flowchart subsystem shall report, at their locations and in order before drawing, a look other than
+              classic, a layout other than dagre (including the flowchart-elk keyword), node icons, and Font Awesome
+              icons in labels with their stable mermaid-* codes, draw the diagram in the classic look with the dagre
+              layout without the icons, and stop at the first report in strict mode.
+            justification: |
+              The host must know when the picture differs from what Mermaid would draw, and a strict host must be able
+              to refuse it.
+            children:
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Unsupported
+            tests:
+              - Flowchart_Render_UnsupportedFeatures_AreReported
+              - Flowchart_Render_StrictMode_ThrowsAtFirstUnsupportedFeature
+              - Flowchart_Render_ElkKeyword_ReportsLayout
+
+          - id: CanvasNetMermaid-Flowchart-Drawing
+            title: >-
+              The Flowchart subsystem shall draw an opened flowchart, when it is measured or rendered, as Mermaid's
+              flowchart renderer does: the layout input through the shared rendering, the frontmatter title above the
+              drawing, and a view box of the drawn bounds grown by the diagram padding.
+            justification: |
+              The size and the pixels of a flowchart must be Mermaid's for the same text and configuration.
+            children:
+              - CanvasNetMermaid-Flowchart-FlowchartModel-Drawing
+            tests:
+              - Flowchart_Render_ElkKeyword_ReportsLayout
+              - Flowchart_Render_UnsupportedFeatures_AreReported

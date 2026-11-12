@@ -1,0 +1,454 @@
+{
+  "source": "03-arrows-classic.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 450, 699],
+  "title": null,
+  "actors": [
+    {
+      "name": "S",
+      "type": "participant",
+      "description": "Sender",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Sender"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [49.203, 24, 52.266, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 613, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 613, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Sender"],
+            "at": [75, 645.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [49.203, 637, 52.266, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 613], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "R",
+      "type": "participant",
+      "description": "Receiver",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Receiver"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [243.43, 24, 63.805, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 613, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 613, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Receiver"],
+            "at": [275, 645.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [243.43, 637, 63.805, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 613], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid open"],
+          "at": [175, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [138.523, 86.219, 73.047, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 274, 109]
+    },
+    {
+      "id": "i1",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": null,
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted open"],
+          "at": [175, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [132.734, 130.219, 84.625, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 153, 274, 153]
+    },
+    {
+      "id": "i2",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid arrow"],
+          "at": [174, 168],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [135.32, 174.219, 77.805, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 197, 271, 197]
+    },
+    {
+      "id": "i3",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted arrow"],
+          "at": [174, 212],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [129.531, 218.219, 89.383, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 241, 271, 241]
+    },
+    {
+      "id": "i4",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": "arrowhead",
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid both ways"],
+          "at": [175, 256],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [120.305, 262.219, 109.391, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [79, 285, 271, 285]
+    },
+    {
+      "id": "i5",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": "arrowhead",
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted both ways"],
+          "at": [175, 300],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [114.516, 306.219, 120.969, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [79, 329, 271, 329]
+    },
+    {
+      "id": "i6",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "crosshead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid cross"],
+          "at": [174, 344],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [136.211, 350.219, 75.578, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 373, 271, 373]
+    },
+    {
+      "id": "i7",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "crosshead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted cross"],
+          "at": [174, 388],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [130.422, 394.219, 87.156, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 417, 271, 417]
+    },
+    {
+      "id": "i8",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "filled-head",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid async"],
+          "at": [174, 432],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [134.422, 438.219, 79.156, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 461, 271, 461]
+    },
+    {
+      "id": "i9",
+      "from": "S",
+      "to": "R",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "filled-head",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted async"],
+          "at": [174, 476],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [128.633, 482.219, 90.734, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 505, 271, 505]
+    },
+    {
+      "id": "i10",
+      "from": "R",
+      "to": "S",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["solid arrow back"],
+          "at": [177, 520],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [119.195, 526.219, 116.602, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 549, 79, 549]
+    },
+    {
+      "id": "i11",
+      "from": "R",
+      "to": "S",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "crosshead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["dotted cross back"],
+          "at": [177, 564],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [114.297, 570.219, 126.398, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 593, 79, 593]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:R",
+    "actor-bottom:S",
+    "lifeline:R",
+    "actor-top:R",
+    "lifeline:S",
+    "actor-top:S",
+    "message:i0",
+    "message:i1",
+    "message:i2",
+    "message:i3",
+    "message:i4",
+    "message:i5",
+    "message:i6",
+    "message:i7",
+    "message:i8",
+    "message:i9",
+    "message:i10",
+    "message:i11"
+  ]
+}

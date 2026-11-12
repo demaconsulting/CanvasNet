@@ -1,0 +1,14 @@
+---
+config:
+  sequence:
+    forceMenus: true
+---
+sequenceDiagram
+    participant Portal
+    participant Billing
+    participant Support
+    links Portal: {"Home": "https://example.com/", "Help": "https://example.com/help"}
+    link Billing: Invoices @ https://example.com/invoices
+    properties Support: {"class": "internal"}
+    Portal->>Billing: Pay
+    Billing->>Support: Escalate

@@ -1,0 +1,13 @@
+erDiagram
+    classDef warm fill:#f96,stroke:#333,stroke-width:2px
+    classDef cool fill:#9cf,color:#036
+    HOT:::warm ||--o{ COLD : cools
+    COLD {
+        int temp
+    }
+    MILD
+    CALM
+    class COLD cool
+    class MILD,CALM warm
+    style MILD fill:#ffd,stroke:#c00
+    style CALM stroke:#090,stroke-width:3px

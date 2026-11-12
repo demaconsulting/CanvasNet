@@ -1,0 +1,10 @@
+stateDiagram
+    [*] --> First
+    First --> Second : next
+    state Second {
+        [*] --> Inside
+        Inside --> [*]
+    }
+    Second --> Third
+    Third : described
+    Third --> [*]

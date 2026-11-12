@@ -1,0 +1,397 @@
+{
+  "source": "15-rect-backgrounds.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-67, -10, 667, 618],
+  "title": null,
+  "actors": [
+    {
+      "name": "Editor",
+      "type": "participant",
+      "description": "Editor",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Editor"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.102, 24, 42.469, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 532, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 532, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Editor"],
+            "at": [75, 564.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [54.102, 556, 42.469, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 532], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Compiler",
+      "type": "participant",
+      "description": "Compiler",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Compiler"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [242.992, 24, 64.688, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 532, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 532, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Compiler"],
+            "at": [275, 564.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [242.992, 556, 64.688, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 532], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Linker",
+      "type": "participant",
+      "description": "Linker",
+      "top": {
+        "box": [400, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Linker"],
+            "at": [475, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [453.211, 24, 44.25, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 532, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 532, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Linker"],
+            "at": [475, 564.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [453.211, 556, 44.25, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [475, 65, 475, 532], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i1",
+      "from": "Editor",
+      "to": "Compiler",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Build"],
+          "at": [174, 100],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [156.211, 106.219, 35.68, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 129, 271, 129]
+    },
+    {
+      "id": "i3",
+      "from": "Compiler",
+      "to": "Compiler",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Parse"],
+          "at": [276, 164],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [255.102, 170.219, 41.898, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 276,193 C 336,183 336,223 276,213",
+      "length": 99.683,
+      "points": [
+        [276, 193],
+        [280.93, 192.272],
+        [285.886, 191.741],
+        [290.86, 191.438],
+        [295.843, 191.402],
+        [300.818, 191.686],
+        [305.754, 192.369],
+        [310.588, 193.568],
+        [315.179, 195.489],
+        [319.117, 198.504],
+        [321, 203],
+        [319.117, 207.496],
+        [315.179, 210.511],
+        [310.588, 212.432],
+        [305.754, 213.631],
+        [300.818, 214.314],
+        [295.843, 214.598],
+        [290.86, 214.562],
+        [285.886, 214.259],
+        [280.93, 213.728],
+        [276, 213]
+      ]
+    },
+    {
+      "id": "i4",
+      "from": "Compiler",
+      "to": "Linker",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Link"],
+          "at": [374, 238],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [359.32, 244.219, 30.352, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [276, 267, 471, 267]
+    },
+    {
+      "id": "i8",
+      "from": "Linker",
+      "to": "Editor",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Binary"],
+          "at": [277, 322],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [254.32, 328.219, 46.352, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [474, 351, 79, 351]
+    },
+    {
+      "id": "i11",
+      "from": "Editor",
+      "to": "Editor",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Run"],
+          "at": [76, 396],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [61.32, 402.219, 29.453, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 76,425 C 136,415 136,455 76,445",
+      "length": 99.683,
+      "points": [
+        [76, 425],
+        [80.93, 424.272],
+        [85.886, 423.741],
+        [90.86, 423.438],
+        [95.843, 423.402],
+        [100.818, 423.686],
+        [105.754, 424.369],
+        [110.588, 425.568],
+        [115.179, 427.489],
+        [119.117, 430.504],
+        [121, 435],
+        [119.117, 439.496],
+        [115.179, 442.511],
+        [110.588, 444.432],
+        [105.754, 445.631],
+        [100.818, 446.314],
+        [95.843, 446.598],
+        [90.86, 446.562],
+        [85.886, 446.259],
+        [80.93, 445.728],
+        [76, 445]
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "i12",
+      "box": [-7, 465, 164, 37],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["Inside a green block"],
+          "at": [75, 470],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [3.398, 476.219, 144.203, 17.016]
+        }
+      ]
+    }
+  ],
+  "activations": [],
+  "frames": [],
+  "rects": [
+    { "box": [-17, 371, 184, 141], "paint": { "fill": "rgb(194, 240, 194)", "stroke": "none", "strokeWidth": 1 } },
+    { "box": [64, 297, 422, 64], "paint": { "fill": "rgb(255, 255, 224)", "stroke": "none", "strokeWidth": 1 } },
+    { "box": [64, 75, 432, 212], "paint": { "fill": "rgb(230, 240, 255)", "stroke": "none", "strokeWidth": 1 } },
+    { "box": [191, 139, 295, 138], "paint": { "fill": "rgba(255, 200, 120, 0.5)", "stroke": "none", "strokeWidth": 1 } }
+  ],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "rect:0",
+    "rect:1",
+    "rect:2",
+    "rect:3",
+    "actor-bottom:Linker",
+    "actor-bottom:Compiler",
+    "actor-bottom:Editor",
+    "lifeline:Linker",
+    "actor-top:Linker",
+    "lifeline:Compiler",
+    "actor-top:Compiler",
+    "lifeline:Editor",
+    "actor-top:Editor",
+    "note:i12",
+    "message:i1",
+    "message:i3",
+    "message:i4",
+    "message:i8",
+    "message:i11"
+  ]
+}

@@ -59,9 +59,12 @@ specification and is rendered, in strict mode, by a test.*
 - 📉 **Vega-Lite Charts** - Render a growing subset of Vega-Lite specs (see User Guide)
 - 🛡️ **Vega-Lite Hardening** - Resource limits for every stage (rows, steps, items, painted pixels), cancellation,
   a fuzz-tested renderer that fails only with documented, located errors, and pixel-identical output across runs
+- 🧜 **Mermaid Diagrams** - Render Mermaid flowcharts, sequence, class, state, and entity relationship diagrams, pie
+  charts, gantt charts, and mindmaps with ports of Mermaid's own layouts
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
-- 📝 **Pandoc Filter** - Draw models, charts, and pages in Pandoc documents (see User Guide)
+- 📝 **Pandoc Filter** - Draw models, charts, diagrams, and pages in Pandoc documents, including `mermaid` code blocks
+  and SVG drawings that link them, which are flattened so WeasyPrint shows them (see User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread
@@ -77,7 +80,7 @@ specification and is rendered, in strict mode, by a test.*
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
   `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
-  a transformation pipeline, inspect, compare, and make a contact sheet) as library calls
+  a transformation pipeline, inspect, compare, make a contact sheet, and flatten an SVG drawing) as library calls
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
@@ -112,6 +115,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
+| `DemaConsulting.CanvasNet.Mermaid`  | Mermaid diagrams, charts, and mindmaps           |
 | `DemaConsulting.CanvasNet.Viewer`   | The `canvasnet` operations as library calls      |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
@@ -127,9 +131,9 @@ canvasnet --help
 ```
 
 An SVG drawing can also embed files that sit beside it with `<image href="part.scad" .../>` (a 3D model, a Vega-Lite
-chart, another SVG file, a document page, or a picture), so a diagram can show a part and a chart beside boxes and
-arrows; a fragment chooses the page of a document (`report.pdf#page=3`, `deck.pptx#slide=2`; page 1 without one);
-run `canvasnet help svg` for the file types and rules.
+chart, a Mermaid diagram, another SVG file, a document page, or a picture), so a diagram can show a part and a chart
+beside boxes and arrows; a fragment chooses the page of a document (`report.pdf#page=3`, `deck.pptx#slide=2`; page 1
+without one); run `canvasnet help svg` for the file types and rules.
 
 The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
 message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and
@@ -153,9 +157,10 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `compare`                  | Measure how much two images differ (MAE, RMSE, PSNR, SSIM, grid)                 |
 | `montage`                  | Compose images and document pages into one labeled contact sheet                 |
 | `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
+| `flatten`                  | Copy an SVG drawing with its linked models, charts, and diagrams as PNG pictures |
 
-`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite charts
-(`.vl.json`, `.vl`), and applies `--crop`, `--resize`,
+`render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts
+(`.vl.json`, `.vl`), and Mermaid diagrams (`.mmd`, `.mermaid`), and applies `--crop`, `--resize`,
 `--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo operations
 `--grayscale`, `--invert`, `--threshold`, `--levels`, `--brightness`, `--contrast`, `--auto-levels`, `--deskew`, `--trim`,
 and `--grid`; `crop`, `resize`, `rotate`, `flip`, and `pad` are
@@ -192,6 +197,25 @@ network; a chart's CSV, TSV, DSV, or JSON data file is read from the folder of i
 remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
 such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
 
+A Mermaid diagram is read from a file named `.mmd` or `.mermaid` and is drawn with Mermaid's own layout at the size of
+Mermaid's SVG (`--scale`, `--width`, `--height`, and `--size` change it), for example
+`canvasnet render flow.mmd -o flow.png --json`. It is a `diagram` in the `kind` column of `canvasnet formats`, and
+`canvasnet info flow.mmd` reports its diagram type, direction, title, and the numbers of nodes, edges, and subgraphs
+(participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram;
+states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity
+relationship diagram; slices for a pie chart; tasks and sections for a gantt chart; nodes and edges for a mindmap)
+without drawing it. This version draws flowcharts (`flowchart` and `graph`), sequence diagrams (`sequenceDiagram`),
+class diagrams (`classDiagram`), state diagrams (`stateDiagram-v2` and `stateDiagram`), entity relationship diagrams
+(`erDiagram`), pie charts (`pie`), gantt charts (`gantt`, with every date in UTC and no today line, because the tool
+sets no clock), and mindmaps (`mindmap`); every other type is recognized, reported as `mermaid-diagram-unsupported`,
+and drawn as an empty picture.
+`--theme default|base|dark|forest|neutral` chooses the theme like
+`mmdc -t` (a theme the diagram sets itself still wins), and `flow.mmd#theme=dark` does the same for one input or link.
+What the library recognizes but cannot draw (icons, the hand-drawn look, the ELK layout) is reported in `diagnostics`
+with a stable `mermaid-*` code, and invalid text is the error `mermaid-error` with the file, line, column, and a hint.
+A node can show a picture that lies beside the diagram (`@{ img: "part.scad" }`), and an SVG drawing can embed a
+diagram with `<image href="flow.mmd" .../>`.
+
 `compare <a> <b>` measures how much two images, drawings, document pages, or models differ: the mean absolute error,
 RMSE, PSNR, a structural similarity (SSIM), the share of pixels that differ by more than `--tolerance`, and the RMSE of
 each cell of a `--grid`, all computed exactly so that the same inputs give the same numbers. Images of different sizes
@@ -201,6 +225,9 @@ directly at that size. `--diff`, `--side-by-side`, and `--overlay` write picture
 the error code `threshold-failed` after writing the result and the pictures; with `--json` that failure document
 carries the metrics too. `montage <inputs...> -o sheet.png` composes images and, with `--all-pages`, every page of
 documents into one contact sheet (`--columns`, `--cell`, `--labels` with the bundled font).
+`flatten <in.svg> -o out.svg` writes a copy of a drawing whose `<image>` links to models, charts, diagrams, and
+document pages are PNG pictures of their placement size (`--scale` for print), so a browser or WeasyPrint shows it; a
+drawing with nothing to flatten is left alone and nothing is written.
 
 ### Quick start for AI agents
 
@@ -242,11 +269,15 @@ canvasnet render bracket.scad --view top -D width=55 -o top.png --json
 # 4d. Draw a Vega-Lite chart; anything the library cannot draw yet is listed in the diagnostics
 canvasnet info sales.vl.json --json
 canvasnet render sales.vl.json --scale 2 -o sales.png --json
+
+# 4e. Draw a Mermaid diagram (flowchart, sequence, class, state, ER, pie, gantt, mindmap) in the dark theme
+canvasnet info flow.mmd --json
+canvasnet render flow.mmd --theme dark --scale 2 -o flow.png --json
 ```
 
 Check `ok` in each JSON document and branch on `error.code` on a failure (`usage-error`, `input-not-found`,
-`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `vega-lite-error`, `size-mismatch`,
-`threshold-failed`, and so on); read `diagnostics` even on
+`corrupt-input`, `unsupported-feature`, `page-out-of-range`, `scad-error`, `vega-lite-error`, `mermaid-error`,
+`size-mismatch`, `threshold-failed`, and so on); read `diagnostics` even on
 success, because they list what the renderer left out. For the full command reference, JSON schemas, error codes,
 defaults, and recipes see the [User Guide][link-releases].
 
@@ -465,6 +496,34 @@ using var picture = chart.Render(options);
 PngCodec.Save(picture, "crates.png");
 ```
 
+Render a Mermaid flowchart (the `DemaConsulting.CanvasNet.Mermaid` package lays it out with a port of Mermaid's own
+layout, uses only the bundled fonts, never touches the network, and reports everything it recognizes but cannot draw;
+it is not affiliated with the Mermaid project):
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+// Parse a diagram (or MermaidDocument.Open("flow.mmd") to read a file); a syntax error is a MermaidSyntaxException
+// with the line, the column, a stable code, and a hint
+var diagram = MermaidDocument.Parse("""
+    flowchart LR
+        order[Order received] --> check{In stock?}
+        check -- yes --> ship([Ship])
+        check -- no --> wait[(Backlog)]
+    """);
+
+// Render at twice the natural size in the forest theme, and be told about every construct that was not drawn
+var options = new MermaidRenderOptions
+{
+    Theme = "forest",
+    Scale = 2,
+    UnsupportedFeatureHandler = feature => Console.WriteLine(feature), // location, mermaid-* code, and message
+};
+using var flow = diagram.Render(options);
+PngCodec.Save(flow, "order.png");
+```
+
 Embed models, charts, and pictures in an SVG diagram, or render any file, with the `DemaConsulting.CanvasNet.Viewer`
 package. Links are confined to the folder of the document, and nothing is read from the network:
 
@@ -480,7 +539,7 @@ using var diagram = SvgCodec.Load(
     "diagrams/overview.svg", 800, 480, null, new SvgLoadOptions { ImageResolver = resolver });
 PngCodec.Save(diagram, "overview.png");
 
-// Or draw any single file the library can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, or a raster)
+// Or draw any single file the library can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, Mermaid, or a raster)
 using var image = CanvasNetViewer.Render("diagrams/part.scad", new ViewerRenderOptions { Width = 512 });
 PngCodec.Save(image.Surface, "part.png");
 
@@ -493,7 +552,7 @@ See the Viewer chapter of the User Guide for adding your own image source (a new
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
 parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,
-Vega-Lite chart rendering, and SVG and JPEG 2000 decoding.
+Vega-Lite chart rendering, Mermaid diagram rendering, and SVG and JPEG 2000 decoding.
 
 ## Building
 
@@ -554,6 +613,22 @@ plasma (CC0, by Nathaniel J. Smith, Stefan van der Walt, and Eric Firing). The l
 license texts and the record of what was ported from where. The package is not affiliated with or endorsed by the
 Vega project, the Vega-Lite project, the d3 project, or the University of Washington Interactive Data Lab.
 
+The `DemaConsulting.CanvasNet.Mermaid` package (and the `canvasnet` tool, which bundles it) implements the Mermaid
+text language and contains code ported, with attribution, from mermaid (MIT, Copyright (c) 2014 - 2022 Knut
+Sveidqvist), dagre-d3-es and the dagre and graphlib libraries it derives from (MIT, Copyright (c) 2012-2014 Chris
+Pettitt and the dagre-es contributors), js-yaml (MIT, Copyright (C) 2011-2015 by Vitaly Puzrin), khroma (MIT,
+Copyright (c) 2019-present Fabio Spampinato, Andrew Maney), lodash (MIT, Copyright OpenJS Foundation and other
+contributors), marked (MIT, Copyright (c) 2018+, MarkedJS; Copyright (c) 2011-2018, Christopher Jeffrey),
+@mermaid-js/parser (MIT, Copyright (c) 2023 Yokozuna59), Langium (MIT, Copyright 2021 TypeFox GmbH), dayjs (MIT,
+Copyright (c) 2018-present, iamkun), sanitize-url (MIT, Copyright (c) 2017 Braintree), layout-base (MIT, Copyright (c)
+2019 iVis@Bilkent), cose-base (MIT, Copyright (c) 2019 - present, iVis@Bilkent), cytoscape (MIT, Copyright (c)
+2016-2026, The Cytoscape Consortium), cytoscape-cose-bilkent (MIT, Copyright (c) 2016-2018, The Cytoscape Consortium),
+and the d3 modules d3-shape, d3-path, d3-scale, d3-time, d3-time-format, d3-array, d3-interpolate, and d3-axis (ISC,
+Copyright 2010-2023 Mike Bostock). The license texts ship in the packages under `licenses/`; see
+[the third-party notice][link-mermaid-third-party] (`src/DemaConsulting.CanvasNet.Mermaid/third-party`) for the
+record of what was ported from where. The package is not affiliated with or endorsed by the Mermaid project or the
+authors of these libraries.
+
 ## Support
 
 - [Report a bug or request a feature][link-issues]
@@ -581,5 +656,6 @@ Vega project, the Vega-Lite project, the d3 project, or the University of Washin
 [link-contributing]: https://github.com/demaconsulting/CanvasNet/blob/main/CONTRIBUTING.md
 [link-releases]: https://github.com/demaconsulting/CanvasNet/releases
 [link-vegalite-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.VegaLite/third-party
+[link-mermaid-third-party]: https://github.com/demaconsulting/CanvasNet/tree/main/src/DemaConsulting.CanvasNet.Mermaid/third-party
 [link-issues]: https://github.com/demaconsulting/CanvasNet/issues
 [link-discussions]: https://github.com/demaconsulting/CanvasNet/discussions

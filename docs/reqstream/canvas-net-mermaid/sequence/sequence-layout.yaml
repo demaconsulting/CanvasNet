@@ -1,0 +1,155 @@
+---
+# Software Unit Requirements for SequenceLayout
+#
+# These requirements describe the design-level behavior of the SequenceLayout unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Sequence): the port of Mermaid's sequence renderer that places,
+# for each render and under its effective configuration, the participants, messages, notes, activations, blocks,
+# boxes, created and destroyed participants, sequence numbers, menus, and the title, and computes the view box, using
+# the drawing functions of the SequenceRenderer unit. See
+# docs/verification/canvas-net-mermaid/sequence/sequence-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceLayout Requirements
+            requirements:
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-ActorMargins
+                title: >-
+                  The SequenceLayout unit shall place the participants from left to right with Mermaid's widths and
+                  margins, widening the margin between two neighbors so that the text of a message between them fits
+                  with the wrap padding, and leaving the margins unchanged for a message between participants that are
+                  not neighbors.
+                justification: |
+                  The horizontal places of the participants decide the width of the diagram and where every message
+                  and note is drawn.
+                tests:
+                  - SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures
+                  - SequenceLayout_Draw_WideMessage_WidensOnlyTheNeighborsMargin
+                  - SequenceLayout_Draw_WrapAfterMeasuredBreak_KeepsTheLaterBreak
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-MessagePlacement
+                title: >-
+                  The SequenceLayout unit shall place the messages one under another below the participants as
+                  Mermaid's sequence renderer does, a message to another participant as a line between their lifelines
+                  and a message to the same participant as Mermaid's loop to the right of its lifeline.
+                justification: |
+                  The vertical place of every message decides the height of the diagram and the places of the notes,
+                  blocks, and mirrored participants below it.
+                tests:
+                  - SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures
+                  - SequenceLayout_Draw_SelfMessage_IsALoopOrRightAngles
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-NotePlacement
+                title: >-
+                  The SequenceLayout unit shall place each note below the message or note before it as Mermaid's
+                  sequence renderer does: a note left of or right of a participant beside its lifeline, a note over
+                  one participant centered on its lifeline, and a note over two participants, named in either order,
+                  across both lifelines; at least the configured note width and widened for its text, with its text
+                  aligned by the noteAlign setting, and with the margins between the participants widened so that a
+                  wide note fits.
+                justification: |
+                  Notes explain the steps of an interaction; their places and sizes change the width and height of the
+                  diagram and the places of the participants, and must be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_Notes_BesideOverAndAcrossParticipants
+                  - SequenceLayout_Draw_NoteAlign_AnchorsTheNoteText
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Activations
+                title: >-
+                  The SequenceLayout unit shall place an activation from just below its start to its end on the
+                  lifeline of its participant, move each stacked activation right by half the activation width, and end
+                  the line of a message at the side of the activation it reaches.
+                justification: |
+                  Activations show which participant is busy; their places and the ends of the message lines must be
+                  Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_Activations_StackAndMoveTheLines
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-CreateDestroy
+                title: >-
+                  The SequenceLayout unit shall draw a created participant at its creating message, ending that
+                  message's line at the side of its box, and end the lifeline of a destroyed participant at its
+                  destroying message, where its mirrored box is drawn.
+                justification: |
+                  A participant that lives only for part of the interaction is drawn where it starts and ends, as in
+                  Mermaid.
+                tests:
+                  - SequenceLayout_Draw_CreateAndDestroy_MoveTheParticipants
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Blocks
+                title: >-
+                  The SequenceLayout unit shall enclose the messages of a loop, alt, opt, par, par_over, critical, or
+                  break block in a frame divided at each else, and, or option section, and the messages of a rect
+                  block in a background, each block inside the block around it with Mermaid's box margins, as
+                  Mermaid's sequence renderer does.
+                justification: |
+                  Blocks group the steps of an interaction; the bounds of their frames, sections, and backgrounds, and
+                  the room they take, must be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_NestedLoopAndAlt_FramesEncloseTheirSections
+                  - SequenceLayout_Draw_NestedRects_BackgroundsEncloseTheirMessages
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Boxes
+                title: >-
+                  The SequenceLayout unit shall draw each box around its participants with Mermaid's box margins and
+                  its title centered at its top, move the participants down to make room for the box titles and the
+                  participants after a box right by its margin, and widen a box whose title is wider than its
+                  participants with the participants centered in it, as Mermaid's sequence renderer does.
+                justification: |
+                  Boxes group participants; the room a box and its title take moves the participants, and must be
+                  Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_Boxes_EncloseTheirParticipantsBelowTheTitles
+                  - SequenceLayout_Draw_BoxTitleWiderThanParticipants_CentersThem
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Menus
+                title: >-
+                  The SequenceLayout unit shall place the menu of each drawn participant that has links below the
+                  participant, 20 pixels plus 30 for each link high and as wide as the participant or its widest link
+                  label, and grow the view box to hold every menu, whether the forceMenus setting shows it or it stays
+                  hidden.
+                justification: |
+                  Mermaid sizes the diagram for its menus even when they are hidden, which users see as extra room; the
+                  size of the picture must still be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_HiddenMenus_GrowTheViewBox
+                  - SequenceLayout_Draw_ForceMenus_PanelBelowTheParticipant
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-SequenceNumbers
+                title: >-
+                  The SequenceLayout unit shall number the messages from autonumber with its start and step, rounded to
+                  hundredths, not after autonumber off, and every message when the showSequenceNumbers setting is on.
+                justification: |
+                  Readers refer to the steps of an interaction by their numbers, which must be Mermaid's.
+                tests:
+                  - SequenceLayout_Draw_Autonumber_FollowsStartStepAndOff
+                  - SequenceLayout_Draw_ShowSequenceNumbers_NumbersEveryMessage
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-Configuration
+                title: >-
+                  The SequenceLayout unit shall follow the sequence settings of the effective configuration: without
+                  mirrorActors no bottom row of participants and lifelines that run to 2000, with
+                  hideUnusedParticipants no participant that no message uses, and with rightAngles a self message drawn
+                  as a rectangle path.
+                justification: |
+                  Authors change the layout through the sequence settings; the drawing must change as Mermaid's does.
+                tests:
+                  - SequenceLayout_Draw_MirrorActorsOff_LifelinesRunTo2000
+                  - SequenceLayout_Draw_HideUnusedParticipants_LeavesThemOut
+                  - SequenceLayout_Draw_SelfMessage_IsALoopOrRightAngles
+
+              - id: CanvasNetMermaid-Sequence-SequenceLayout-ViewBox
+                title: >-
+                  The SequenceLayout unit shall compute the view box from the bounds of the diagram with Mermaid's
+                  diagram margins, leaving out missing values as Mermaid's maximum and minimum helpers do, and add room
+                  above the diagram for the title of the title statement or of the frontmatter.
+                justification: |
+                  The view box is the natural size of the picture; it must be Mermaid's so that a scale of 1 matches
+                  what an author previews.
+                tests:
+                  - SequenceLayout_Draw_OneMessage_FollowsMermaidsMeasures
+                  - SequenceLayout_Draw_Title_AddsRoomAboveTheDiagram
+                  - SequenceLayout_Draw_MirrorActorsOff_LifelinesRunTo2000
+                  - SequenceLayout_JsMaxAndJsMin_LeaveOutMissingValues

@@ -1,0 +1,5 @@
+%% part.scad and chart.vl.json sit in the same folder as this file
+flowchart LR
+    part@{ img: "part.scad", label: "Part", w: 120, h: 120, constraint: "on" }
+    chart@{ img: "chart.vl.json", label: "Sales", w: 160, h: 120 }
+    part --> chart

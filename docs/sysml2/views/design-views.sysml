@@ -96,6 +96,70 @@ package CanvasNet {
         expose VegaLiteScenegraph;
     }
 
+    view CanvasNetMermaidView {
+        expose CanvasNetMermaidSystem;
+    }
+
+    view MermaidSyntaxView {
+        expose MermaidSyntax;
+    }
+
+    view MermaidConfigurationView {
+        expose MermaidConfiguration;
+    }
+
+    view MermaidGraphlibView {
+        expose MermaidGraphlib;
+    }
+
+    view MermaidDagreView {
+        expose MermaidDagre;
+    }
+
+    view MermaidRenderingView {
+        expose MermaidRendering;
+    }
+
+    view MermaidScenegraphView {
+        expose MermaidScenegraph;
+    }
+
+    view MermaidFlowchartView {
+        expose MermaidFlowchart;
+    }
+
+    view MermaidSequenceView {
+        expose MermaidSequence;
+    }
+
+    view MermaidClassView {
+        expose MermaidClass;
+    }
+
+    view MermaidStateView {
+        expose MermaidState;
+    }
+
+    view MermaidErView {
+        expose MermaidEr;
+    }
+
+    view MermaidPieView {
+        expose MermaidPie;
+    }
+
+    view MermaidGanttView {
+        expose MermaidGantt;
+    }
+
+    view MermaidMindmapView {
+        expose MermaidMindmap;
+    }
+
+    view MermaidCoseView {
+        expose MermaidCose;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

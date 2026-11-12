@@ -1,0 +1,144 @@
+---
+# Software Unit Requirements for SequenceModel
+#
+# These requirements describe the design-level behavior of the SequenceModel unit of the Sequence subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Sequence): Mermaid's sequence database for one parsed text -
+# participants, messages, notes, block markers, boxes, created and destroyed participants, links and properties, and
+# wrap settings with Mermaid's rules and errors - with the metadata of the document, the limits checked when the
+# statements are applied, and the math test of the reports. See
+# docs/verification/canvas-net-mermaid/sequence/sequence-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Sequence Requirements
+        sections:
+          - title: SequenceModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Participants
+                title: >-
+                  The SequenceModel unit shall keep the participants in the order Mermaid's sequence database adds
+                  them, with their previous and next neighbors, replace a participant declared again only when the new
+                  declaration has an alias (the participant then keeping its place), and apply the metadata rules of
+                  Mermaid (an unknown type kept, a missing type keeping the keyword's, an alias after as winning over
+                  the alias of the metadata).
+                justification: |
+                  The order and the neighbors of the participants decide their places from left to right, and the
+                  quirks of a declaration made again change which name and type are drawn.
+                tests:
+                  - SequenceModel_Apply_Participants_KeepInsertionOrderAndNeighbors
+                  - SequenceModel_Apply_Redeclared_ReplacesOnlyWithAlias
+                  - SequenceModel_Apply_Metadata_FollowsMermaid
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Messages
+                title: >-
+                  The SequenceModel unit shall keep the messages of a diagram as Mermaid's sequence database lists
+                  them - signals with their line types, notes with their placement, activations, central connections,
+                  the start, section, and end markers of blocks, and autonumber settings - in the order of the text,
+                  with the participants that a message names added when they were not declared.
+                justification: |
+                  The layout walks this list in order; any difference from Mermaid's list changes the drawing.
+                tests:
+                  - SequenceModel_Apply_Messages_KeepMermaidsListAndAddParticipants
+                  - SequenceParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Activations
+                title: >-
+                  The SequenceModel unit shall accept balanced activations and refuse the deactivation of a participant
+                  that is not active with Mermaid's error as a located MermaidSyntaxException.
+                justification: |
+                  Mermaid fails on an unbalanced deactivation; the document must fail closed at the statement instead.
+                tests:
+                  - SequenceModel_Apply_DeactivateInactive_Throws
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Boxes
+                title: >-
+                  The SequenceModel unit shall split a box statement into a color and a title as Mermaid's parseBoxData
+                  does with the browser's color check, keep the members and the title of each box and the box of each
+                  participant, and refuse a participant declared in two boxes with Mermaid's error located at the
+                  second declaration.
+                justification: |
+                  The color, the title, and the members of a box decide what is drawn behind its participants.
+                tests:
+                  - SequenceModel_ParseBoxData_SplitsColorAndTitle
+                  - SequenceModel_Apply_Boxes_KeepMembers
+                  - SequenceModel_Apply_ParticipantInTwoBoxes_Throws
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-CreateDestroy
+                title: >-
+                  The SequenceModel unit shall record, for each created and each destroyed participant, the index of
+                  the message that follows the statement, and refuse a create or destroy statement that Mermaid's
+                  database refuses with Mermaid's error and a hint that names the participant.
+                justification: |
+                  The created participant is drawn at its creating message and the destroyed one ends at its
+                  destroying message; Mermaid's errors must stay recognizable while the hint says which participant is
+                  wrong.
+                tests:
+                  - SequenceModel_Apply_CreateAndDestroy_RecordMessageIndexes
+                  - SequenceModel_Apply_CreateOrDestroyMisuse_ThrowsMermaidError
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-LinksAndProperties
+                title: >-
+                  The SequenceModel unit shall read the links, link, and properties statements as Mermaid does - link
+                  split at the at sign, links and properties read as JSON with the keys in JavaScript order, the
+                  indexes of an array or string added as keys, and text that is not JSON ignored - and shall keep each
+                  link text only as Mermaid's menu checks it with sanitize-url, never as written.
+                justification: |
+                  The links of a participant make its menu, whose size changes the diagram, and a properties class or
+                  icon changes how the participant is drawn or reported; an unsafe link must never be kept as written.
+                tests:
+                  - SequenceModel_Apply_LinksAndProperties_ReadLikeMermaid
+                  - SequenceModel_Apply_LinksArrayAndString_AddIndexes
+                  - SequenceModel_Apply_UnsafeLinks_KeepOnlyTheCheckedUrls
+                  - SequencePropertyMap_Keys_JavaScriptOrder
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Wrap
+                title: >-
+                  The SequenceModel unit shall read a text as Mermaid does - trimmed, then a wrap: or nowrap: prefix
+                  taken off - and shall wrap a text whose prefix asks for it, else when the effective configuration
+                  asks for it.
+                justification: |
+                  Whether a text is wrapped changes the sizes of messages, notes, participants, and boxes.
+                tests:
+                  - SequenceText_Parse_TakesWrapPrefix
+                  - SequenceModel_EffectiveWrap_ExplicitOrConfiguration
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Limits
+                title: >-
+                  The SequenceModel unit shall refuse more participants and boxes together than MaxNodes, located at
+                  the statement that adds one too many, and a participant metadata type or alias longer than
+                  MaxLabelLength once converted to a string, located at the YAML value, with a MermaidSyntaxException
+                  of code mermaid-limit-exceeded.
+                justification: |
+                  The numbers of participants and boxes bound the work of the layout, and the metadata type and alias
+                  are drawn as labels whose converted text can be far longer than its source, so both must be bounded
+                  for untrusted text as the flowchart bounds its vertices, subgraphs, and shape-data labels.
+                tests:
+                  - SequenceModel_Apply_TooManyParticipants_ThrowsLimitExceeded
+                  - SequenceModel_Apply_TooManyBoxes_ThrowsLimitExceeded
+                  - SequenceModel_Apply_ParticipantAfterBoxes_ThrowsLimitExceeded
+                  - SequenceModel_Apply_ParticipantsAndBoxesAtTheLimit_AreAccepted
+                  - SequenceModel_Apply_LongMetadataAlias_ThrowsLimitExceeded
+                  - SequenceModel_Apply_LongMetadataType_ThrowsLimitExceeded
+                  - SequenceModel_Apply_GrowingMetadataAliasList_ThrowsLimitExceeded
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Metadata
+                title: >-
+                  The SequenceModel unit shall give the document the title of the title statement (none when it has
+                  none, so that the frontmatter title applies), the accessible title, and the numbers of participants,
+                  of messages drawn as arrows, and of boxes.
+                justification: |
+                  Hosts describe a diagram from these facts before they draw it.
+                tests:
+                  - SequenceModel_Metadata_CountsParticipantsMessagesAndBoxes
+                  - SequenceModel_Metadata_NoTitle_IsNull
+
+              - id: CanvasNetMermaid-Sequence-SequenceModel-Math
+                title: >-
+                  The SequenceModel unit shall find math in a text as Mermaid's hasKatex does - two dollar signs
+                  followed by two more on the same line - so that the text can be reported as unsupported.
+                justification: |
+                  Mermaid draws such a text with KaTeX, which this version does not do; only the same test finds
+                  exactly the texts that Mermaid would draw differently.
+                tests:
+                  - SequenceModel_HasKatex_FollowsMermaidsPattern

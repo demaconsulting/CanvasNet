@@ -1,0 +1,27 @@
+---
+# Software Unit Requirements for GraphAlgorithms
+#
+# These requirements describe the design-level behavior of the GraphAlgorithms unit of the Graphlib subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Graphlib): the graphlib traversals of the ported graphlib
+# surface that the dagre ranker uses (preorder and postorder).
+# See docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Graphlib Requirements
+        sections:
+          - title: GraphAlgorithms Requirements
+            requirements:
+              - id: CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
+                title: >-
+                  The GraphAlgorithms unit shall list the nodes reachable from the given roots, each once, in
+                  depth-first preorder or postorder, visiting the roots in the given order and following the
+                  successors of a directed graph or the neighbors of an undirected graph in the graph's key order,
+                  and shall refuse a root that is not a node of the graph.
+                justification: |
+                  The dagre ranker walks its spanning tree with these traversals; the visiting order decides the
+                  ranks.
+                tests:
+                  - GraphAlgorithms_PreorderPostorder_Tree_VisitsInOrder
+                  - GraphAlgorithms_Preorder_UndirectedAndUnknownRoot_FollowsNeighborsOrThrows

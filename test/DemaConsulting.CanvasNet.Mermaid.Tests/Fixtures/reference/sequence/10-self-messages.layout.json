@@ -1,0 +1,459 @@
+{
+  "source": "10-self-messages.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 556.5, 676],
+  "title": null,
+  "actors": [
+    {
+      "name": "Robot",
+      "type": "participant",
+      "description": "Robot",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Robot"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [53.648, 24, 43.25, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 590, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 590, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Robot"],
+            "at": [75, 622.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [53.648, 614, 43.25, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 590], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Station",
+      "type": "participant",
+      "description": "Station",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Station"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [250.094, 24, 49.914, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 590, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 590, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Station"],
+            "at": [275, 622.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [250.094, 614, 49.914, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 590], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Robot",
+      "to": "Robot",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Self check"],
+          "at": [76, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [39.094, 86.219, 74.813, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 76,109 C 136,99 136,139 76,129",
+      "length": 99.683,
+      "points": [
+        [76, 109],
+        [80.93, 108.271],
+        [85.886, 107.741],
+        [90.86, 107.438],
+        [95.843, 107.402],
+        [100.818, 107.686],
+        [105.754, 108.369],
+        [110.588, 109.568],
+        [115.179, 111.489],
+        [119.117, 114.504],
+        [121, 119],
+        [119.117, 123.496],
+        [115.179, 126.511],
+        [110.588, 128.432],
+        [105.754, 129.631],
+        [100.818, 130.314],
+        [95.843, 130.598],
+        [90.86, 130.562],
+        [85.886, 130.259],
+        [80.93, 129.729],
+        [76, 129]
+      ]
+    },
+    {
+      "id": "i1",
+      "from": "Robot",
+      "to": "Station",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Dock"],
+          "at": [174, 154],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [155.773, 160.219, 37.453, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 183, 271, 183]
+    },
+    {
+      "id": "i2",
+      "from": "Station",
+      "to": "Station",
+      "class": "messageLine1",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Charge"],
+          "at": [276, 198],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [249.758, 204.219, 52.578, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 276,227 C 336,217 336,257 276,247",
+      "length": 99.683,
+      "points": [
+        [276, 227],
+        [280.93, 226.272],
+        [285.886, 225.741],
+        [290.86, 225.438],
+        [295.843, 225.402],
+        [300.818, 225.686],
+        [305.754, 226.369],
+        [310.588, 227.568],
+        [315.179, 229.489],
+        [319.117, 232.504],
+        [321, 237],
+        [319.117, 241.496],
+        [315.179, 244.511],
+        [310.588, 246.432],
+        [305.754, 247.631],
+        [300.818, 248.314],
+        [295.843, 248.598],
+        [290.86, 248.562],
+        [285.886, 248.259],
+        [280.93, 247.728],
+        [276, 247]
+      ]
+    },
+    {
+      "id": "i4",
+      "from": "Station",
+      "to": "Station",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["A self message with a label longer than the column"],
+          "at": [276, 319],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [94.891, 325.219, 361.313, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 276,348 C 336,338 336,378 276,368",
+      "length": 99.683,
+      "points": [
+        [276, 348],
+        [280.93, 347.272],
+        [285.886, 346.741],
+        [290.86, 346.438],
+        [295.843, 346.402],
+        [300.818, 346.687],
+        [305.754, 347.369],
+        [310.588, 348.568],
+        [315.179, 350.489],
+        [319.117, 353.504],
+        [321, 358],
+        [319.117, 362.496],
+        [315.179, 365.511],
+        [310.588, 367.432],
+        [305.754, 368.631],
+        [300.818, 369.313],
+        [295.843, 369.598],
+        [290.86, 369.562],
+        [285.886, 369.259],
+        [280.93, 368.728],
+        [276, 368]
+      ]
+    },
+    {
+      "id": "i5",
+      "from": "Station",
+      "to": "Robot",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Ready"],
+          "at": [177, 393],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [153.875, 399.219, 47.25, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [274, 422, 79, 422]
+    },
+    {
+      "id": "i6",
+      "from": "Robot",
+      "to": "Robot",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "crosshead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Reset"],
+          "at": [76, 437],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [55.102, 443.219, 42.352, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 76,466 C 136,456 136,496 76,486",
+      "length": 99.683,
+      "points": [
+        [76, 466],
+        [80.93, 465.272],
+        [85.886, 464.741],
+        [90.86, 464.438],
+        [95.843, 464.402],
+        [100.818, 464.687],
+        [105.754, 465.369],
+        [110.588, 466.568],
+        [115.179, 468.489],
+        [119.117, 471.504],
+        [121, 476],
+        [119.117, 480.496],
+        [115.179, 483.511],
+        [110.588, 485.432],
+        [105.754, 486.631],
+        [100.818, 487.313],
+        [95.843, 487.598],
+        [90.86, 487.562],
+        [85.886, 487.259],
+        [80.93, 486.728],
+        [76, 486]
+      ]
+    },
+    {
+      "id": "i7",
+      "from": "Robot",
+      "to": "Robot",
+      "class": "messageLine1",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "filled-head",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Async to itself"],
+          "at": [76, 511],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [25.648, 517.219, 100.258, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 76,540 C 136,530 136,570 76,560",
+      "length": 99.683,
+      "points": [
+        [76, 540],
+        [80.93, 539.272],
+        [85.886, 538.741],
+        [90.86, 538.438],
+        [95.843, 538.402],
+        [100.818, 538.687],
+        [105.754, 539.369],
+        [110.588, 540.568],
+        [115.179, 542.489],
+        [119.117, 545.504],
+        [121, 550],
+        [119.117, 554.496],
+        [115.179, 557.511],
+        [110.588, 559.432],
+        [105.754, 560.631],
+        [100.818, 561.313],
+        [95.843, 561.598],
+        [90.86, 561.562],
+        [85.886, 561.259],
+        [80.93, 560.728],
+        [76, 560]
+      ]
+    }
+  ],
+  "notes": [
+    {
+      "id": "i3",
+      "box": [200, 267, 150, 37],
+      "paint": { "fill": "rgb(255, 245, 173)", "stroke": "rgb(170, 170, 51)", "strokeWidth": 1 },
+      "texts": [
+        {
+          "class": "noteText",
+          "lines": ["Charging"],
+          "at": [275, 272],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)",
+          "box": [242.531, 278.219, 65.031, 17.016]
+        }
+      ]
+    }
+  ],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Station",
+    "actor-bottom:Robot",
+    "lifeline:Station",
+    "actor-top:Station",
+    "lifeline:Robot",
+    "actor-top:Robot",
+    "note:i3",
+    "message:i0",
+    "message:i1",
+    "message:i2",
+    "message:i4",
+    "message:i5",
+    "message:i6",
+    "message:i7"
+  ]
+}

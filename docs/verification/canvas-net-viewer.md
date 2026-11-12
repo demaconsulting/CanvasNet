@@ -39,10 +39,11 @@ a video frame: it is a plain class in the test project that returns a differentl
 
 **Test**: `CanvasNetViewer_SystemIntegration_ImageSources_ListEveryFormat`
 
-Asserts that the list holds the seven sources in order (`raster`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`),
-that `Extensions` is exactly the sorted union of their claims (the seventeen extensions), and that no built-in source
-claims a URI scheme (so `http` and `https` links stay unresolved). Serves as the shared platform-proof test referenced by
-every `CanvasNetViewer-Platform-*` requirement.
+Asserts that the list holds the eight sources in order (`raster`, `svg`, `pdf`, `pptx`, `vsdx`, `scad`, `vega-lite`,
+`mermaid`), that `Extensions` is exactly the sorted union of their claims (the nineteen extensions, `.mmd` and
+`.mermaid` included), and that no built-in source
+claims a URI scheme (so `http` and `https` links stay unresolved). Serves as the shared platform-proof test referenced
+by every `CanvasNetViewer-Platform-*` requirement.
 
 ### Integration: Svg Embedding Every Format Draws All And Reports Embeds
 
@@ -69,6 +70,18 @@ Writes a 33-byte PNG that only declares 8192 by 8192 pixels (decoding it would f
 raster, renders an SVG that places the first in a 5 by 5 rectangle and the second beside it, and asserts that the
 render succeeds, the normal picture is drawn, the huge placement shows the background, the one note is the warning
 `svg-image-too-large`, and only the normal raster is listed as embedded.
+
+### Integration: Mermaid Diagram Renders Directly And Embedded With Theme
+
+**Test**: `CanvasNetViewer_SystemIntegration_MermaidDiagram_RendersDirectlyAndEmbeddedWithTheme`
+
+Writes a two-node flowchart (`flow.mmd`) and renders it with `Render` by path, then renders an SVG document that links
+it twice, as `flow.mmd#theme=dark` and as `flow.mmd#theme=midnight`, with the resolver of `CreateImageResolver`. Asserts
+that the direct render has the format `mermaid`, a transparent corner (a direct render has no background, as Mermaid's
+own picture), the node fill of the default theme (`#ECECFF`) across its middle, and no note; that the first cell of the
+SVG document has the node fill of the dark theme (`#1F2020`) and is the one embedded image, listed with its link as
+written; and that the second link is refused with the one note `image-fragment-invalid` whose message names the `theme`
+parameter.
 
 ### Integration: Custom Source For New Extension Is Embedded
 
@@ -115,6 +128,16 @@ Writes the SVG fixture, probes it, renders it twice with `ImageRenderer` (once f
 `ImageInspector`, compares the two renders with `ImageComparer`, and puts both on a contact sheet with `MontageBuilder`.
 Asserts that every operation produced its result, that the two renders have the same size and are not identical, and
 that the sheet has two cells and exists.
+
+### Integration: Flatten Composed SVG Becomes Plain SVG
+
+**Test**: `CanvasNetViewer_SystemIntegration_Flatten_ComposedSvgBecomesPlainSvg`
+
+Writes a drawing that links the first page of the PDF of the fixture factory and a nested SVG file that links the
+Mermaid diagram of the fixtures, flattens it with `SvgFlattener`, and draws the original with the loader (which follows
+the links) and both files with the SVG library without a resolver (an SVG reader that follows no links). Asserts that
+both links were replaced, in order, and that the flattened copy, drawn without a resolver, is at least four times closer
+to the drawing of CanvasNet than the original drawn without a resolver.
 
 ### Integration: Failed Operation Is ViewerException With Stable Code
 

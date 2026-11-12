@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant Shop
+    participant Order
+    Shop->>Order: Open
+    create participant Invoice
+    Order->>Invoice: Issue
+    create actor Clerk
+    Invoice->>Clerk: Review
+    destroy Clerk
+    Clerk-->>Invoice: Approved
+    create participant Archive@{ "type": "database" }
+    Invoice->>Archive: Store
+    destroy Invoice
+    Order-xInvoice: Close
+    Shop->>Order: Done

@@ -2388,9 +2388,9 @@ the number `format`), the `Transforms` unit
     identifier `vl-scale-invalid-value`). Delivered by the gallery and tooling package: the **documentation gallery**
     (18 original specifications under `docs/user_guide/examples/gallery`, drawn by the Pandoc filter, rendered strictly
     by `VegaLiteGalleryTests`, and shown in one montage image that `docs/images/render-images.ps1 -Check` keeps
-    current), the **benchmark harness** (`benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks`, a Stopwatch console
+    current), the **benchmark harness** (`tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks`, a Stopwatch console
     project that the solution build compiles and that nothing runs automatically; it also checks how long the default
-    limits take to stop a runaway specification), and the **visual-diff harness** (`benchmarks/visual-diff`, developer
+    limits take to stop a runaway specification), and the **visual-diff harness** (`tools/visual-diff`, developer
     tooling that draws a specification with CanvasNet and with Vega and Vega-Lite in Node and reports the RMSE). None of
     the three is a software item: they add no unit and no requirement of their own. What is deferred is listed in the
     deviations and in the user guide's list of unsupported features.

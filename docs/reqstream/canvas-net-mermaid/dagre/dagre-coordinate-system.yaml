@@ -1,0 +1,34 @@
+---
+# Software Unit Requirements for DagreCoordinateSystem
+#
+# These requirements describe the design-level behavior of the DagreCoordinateSystem unit of the Dagre subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's rank-direction changes
+# (coordinate-system.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-coordinate-system.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreCoordinateSystem Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreCoordinateSystem-Adjust
+                title: >-
+                  The DagreCoordinateSystem unit shall swap the width and height of every node and edge label before
+                  positioning when the rank direction is left to right or right to left, and change nothing for top
+                  to bottom or bottom to top.
+                justification: |
+                  dagre positions every layout top to bottom; a horizontal layout is positioned on its side.
+                tests:
+                  - DagreCoordinateSystem_Adjust_RankDir_SwapsSizesWhenHorizontal
+
+              - id: CanvasNetMermaid-Dagre-DagreCoordinateSystem-Undo
+                title: >-
+                  The DagreCoordinateSystem unit shall, after positioning, mirror the vertical coordinates of nodes,
+                  routes, and labels for bottom to top and right to left, and transpose them and swap the sizes back
+                  for left to right and right to left.
+                justification: |
+                  This turns the top-to-bottom layout into the direction the flowchart asks for.
+                tests:
+                  - DagreCoordinateSystem_Undo_RankDir_MirrorsAndTransposes

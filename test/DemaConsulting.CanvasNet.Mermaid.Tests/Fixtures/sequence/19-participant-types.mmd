@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant Page@{ "type": "participant" }
+    participant Person@{ "type": "actor" }
+    participant Gateway@{ "type": "boundary" }
+    participant Router@{ type: control }
+    participant Record@{ "type": "entity" } as Customer record
+    participant Store@{ "type": "database" }
+    participant Items@{ "type": "collections" }
+    participant Jobs@{ "type": "queue" }
+    participant Edge@{ "type": "boundary", "alias": "Edge proxy" }
+    actor Inbox@{ "type": "queue" }
+    Page->>Person: Show
+    Person->>Gateway: Submit
+    Gateway->>Router: Route
+    Router->>Record: Update
+    Record->>Store: Persist
+    Store->>Items: Index
+    Items->>Jobs: Enqueue
+    Jobs->>Edge: Publish
+    Edge->>Inbox: Deliver

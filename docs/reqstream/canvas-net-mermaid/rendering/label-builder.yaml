@@ -1,0 +1,184 @@
+---
+# Software Unit Requirements for LabelBuilder
+#
+# These requirements describe the design-level behavior of the LabelBuilder unit of the Rendering subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the label text of Mermaid's createText - plain
+# and markdown strings, HTML labels, and SVG labels - laid out and measured with the bundled fonts, and the test for a
+# Font Awesome icon in a label.
+# See docs/verification/canvas-net-mermaid/rendering/label-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: LabelBuilder Requirements
+            requirements:
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-HtmlLayout
+                title: >-
+                  The LabelBuilder unit shall lay out an HTML label as Mermaid's label element lays it out - centered
+                  lines one and a half font sizes high, unwrapped while narrower than the wrapping width, else wrapped
+                  in a box of exactly that width (wider for an unbreakable word) - with the same line breaks as the
+                  pinned Mermaid, an empty box for an empty label, and the text drawn on its baselines.
+                justification: |
+                  HTML labels are the default; their box decides the size of the nodes and the space of the edge
+                  labels.
+                tests:
+                  - LabelBuilder_Build_UpstreamVectorHtml_MatchesLines
+                  - LabelBuilder_Build_HtmlLabelWiderThanWrappingWidth_WrapsAtWidth
+                  - LabelBuilder_Build_HtmlLabelWithLongWord_WidensToTheWord
+                  - LabelBuilder_Build_EmptyLabel_HasEmptyBox
+                  - LabelBuilder_ToScene_HtmlLabel_GivesTextLines
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-SvgLayout
+                title: >-
+                  The LabelBuilder unit shall lay out an SVG label as Mermaid's text lines - words split to fit the
+                  wrapping width (a word wider than it at characters), lines 1.1 font sizes apart, tags drawn as
+                  text - with the same lines as the pinned Mermaid and the box of the browser's text measurement,
+                  grown by two pixels on every side for a background.
+                justification: |
+                  With HTML labels turned off Mermaid draws text lines whose box sizes the nodes; the same lines and
+                  box give the same layout.
+                tests:
+                  - LabelBuilder_Build_UpstreamVectorSvg_MatchesLines
+                  - LabelBuilder_Build_SvgLabel_FollowsTspanRules
+                  - LabelBuilder_Build_SvgLabelWithLongWord_SplitsAtCharacters
+                  - LabelBuilder_Build_SvgLabelWithBackground_GrowsTheBox
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-Markdown
+                title: >-
+                  The LabelBuilder unit shall turn a markdown string and a plain string into the HTML and the lines
+                  of styled words that Mermaid makes of them - strong and emphasis, escapes, line breaks, the common
+                  indentation removed, and no-break spaces when markdown does not wrap automatically.
+                justification: |
+                  Markdown strings are part of the flowchart syntax; their text and styling must match Mermaid's.
+                tests:
+                  - LabelBuilder_MarkdownToHtml_Markdown_GivesMermaidHtml
+                  - LabelBuilder_MarkdownToHtml_NoAutoWrap_UsesNoBreakSpaces
+                  - LabelBuilder_MarkdownToLines_StyledText_GivesStyledWords
+                  - LabelBuilder_NonMarkdownToHtml_PlainText_GivesParagraph
+                  - LabelBuilder_NonMarkdownToLines_TagsAndBreaks_SplitAsMermaid
+                  - LabelBuilder_Dedent_IndentedLines_RemovesCommonIndentation
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-HtmlSubset
+                title: >-
+                  The LabelBuilder unit shall style the text of an HTML label by its bold, strong, italic, emphasis,
+                  and styled span elements, drop any element it does not support with its text kept and report it
+                  once, and remove icon names without a report.
+                justification: |
+                  Labels may carry HTML; what is not drawn as Mermaid draws it must be reported, and icons are
+                  reported once by the diagram model.
+                tests:
+                  - LabelBuilder_Build_StyledElements_StyleTheRuns
+                  - LabelBuilder_Build_UnsupportedElement_ReportsAndKeepsText
+                  - LabelBuilder_Build_HtmlIcon_IsRemovedSilently
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-Entities
+                title: >-
+                  The LabelBuilder unit shall decode Mermaid's entity placeholders and the character references of a
+                  label before measuring it.
+                justification: |
+                  Mermaid's parser encodes entities that the label must show as characters.
+                tests:
+                  - LabelBuilder_DecodeEntities_Placeholders_BecomeReferences
+                  - LabelBuilder_Build_HtmlLabelWithReferences_DecodesThem
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-MissingGlyphs
+                title: >-
+                  The LabelBuilder unit shall report a character that no bundled font can draw once for the label,
+                  located at the element the label belongs to.
+                justification: |
+                  Only the bundled fonts are used, so a character they lack is drawn differently from a browser and
+                  the user must be told.
+                tests:
+                  - LabelBuilder_Build_MissingGlyph_ReportsOnce
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-LabelImages
+                title: >-
+                  The LabelBuilder unit shall draw a picture alone in an HTML label five times the configured font
+                  size wide with the aspect ratio of its natural size, as part of the label.
+                justification: |
+                  Mermaid sizes a label picture by that rule; the picture comes through the caller's resolver.
+                tests:
+                  - LabelBuilder_Build_LoneImage_IsFiveEmWide
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-TextDimensions
+                title: >-
+                  The LabelBuilder unit shall measure a text as Mermaid's text utilities measure it in the browser -
+                  split at break tags as Mermaid's splitBreaks splits it, each line the SVG text box of the browser
+                  rounded to whole pixels (the advance grown to the boxes of the first and last glyphs), the widest
+                  line's width and the sum of the line heights - with Mermaid's font-size parsing and the browser's
+                  pixel size of a CSS font size, shall fail a text of font size zero as Mermaid's render fails, and
+                  shall charge the work to the layout work meter.
+                justification: |
+                  The sizes of the participants, messages, notes, and frames of a sequence diagram come from these
+                  measures; they must be the browser's for the same layout.
+                tests:
+                  - LabelBuilder_ParseFontSize_Number_IsPixels
+                  - LabelBuilder_ParseFontSize_Text_FollowsParseInt
+                  - LabelBuilder_FontPixels_CssSize_GivesBrowserPixels
+                  - LabelBuilder_SplitBreaks_SplitsAtBreakTags
+                  - LabelBuilder_CalculateTextDimensions_OneLine_IsRoundedSvgBox
+                  - LabelBuilder_SvgLineExtent_GlyphBoxesAtTheEnds_GrowTheAdvance
+                  - LabelBuilder_XHeight_IsTheTopOfTheX
+                  - LabelBuilder_CalculateTextDimensions_Lines_WidestAndSummed
+                  - LabelBuilder_CalculateTextDimensions_ZeroSizeAndMeter_FailAndCharge
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-WrapLabel
+                title: >-
+                  The LabelBuilder unit shall wrap a text as Mermaid's wrapLabel does - broken at the words before a
+                  line would reach the width, a word wider than the width hyphenated at code points, and Mermaid's
+                  stateful test for an existing break emulated - and shall stop hyphenating at the layout work limit.
+                justification: |
+                  Wrapped texts decide the sizes of a sequence diagram's messages, notes, and participants; a long word
+                  in untrusted text must not cost unbounded work.
+                tests:
+                  - LabelBuilder_WrapLabel_Words_BreakBeforeWidth
+                  - LabelBuilder_WrapLabel_LongWord_Hyphenated
+                  - LabelBuilder_BreakString_SurrogatePairs_KeptWhole
+                  - LabelBuilder_WrapLabel_LineBreakRegexState_FollowsMermaid
+                  - LabelBuilder_CalculateTextDimensions_FirstMeasurement_ResetsLineBreakSearch
+                  - LabelBuilder_WrapLabel_LongWord_StopsAtWorkLimit
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-InheritedWeight
+                title: >-
+                  The LabelBuilder unit shall draw an SVG label in the font weight of its element when the label
+                  inherits it, as the bold name of a class box is drawn in an SVG label.
+                justification: |
+                  Mermaid's SVG class names inherit the bold weight of their group; the weight changes the width of
+                  the name and so the size of the class box.
+                tests:
+                  - LabelBuilder_Build_SvgInheritsWeight_DrawsTheLabelBold
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-SvgRunGrid
+                title: >-
+                  The LabelBuilder unit shall advance each run of SVG text by its width rounded up to a 64th of a
+                  pixel, as the browser lays out SVG text runs, so that a label whose words are runs of their own and a
+                  text measured as one run have the widths Mermaid measures.
+                justification: |
+                  Mermaid writes each word of an SVG label as its own run; the rounding of each run changes the width
+                  of the label and so the size of the node and the place of the title.
+                tests:
+                  - LabelBuilder_SvgRunAdvance_RoundsUpToTheLayoutUnit
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-SvgBackgroundSize
+                title: >-
+                  The LabelBuilder unit shall measure the background rectangle of an SVG label in the font size the
+                  label inherits when its own font size differs, and draw the text in its own size, as Mermaid measures
+                  the text before the label takes its own size.
+                justification: |
+                  The background decides the size of the label in the layout; an entity relationship role is measured
+                  by Mermaid at the diagram's size and drawn at its own.
+                tests:
+                  - LabelBuilder_Build_SvgBackgroundInAnInheritedSize_IsMeasuredInThatSize
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-FontAwesome
+                title: >-
+                  The LabelBuilder unit shall tell whether a label holds a Font Awesome icon as Mermaid's expression
+                  finds one - a prefix of fa, fab, fak, fal, far, or fas, then :fa- and an icon name of word characters
+                  and dashes - so that every diagram that reports such icons finds the same ones.
+                justification: |
+                  Font Awesome icons are not drawn and must be reported; flowcharts and mindmaps must agree on which
+                  labels hold one, and an ordinary text must not be reported.
+                tests:
+                  - LabelBuilder_ContainsFontAwesome_Label_FindsIcons

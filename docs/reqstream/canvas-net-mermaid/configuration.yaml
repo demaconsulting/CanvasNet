@@ -1,0 +1,168 @@
+---
+# Software Subsystem Requirements for Configuration
+#
+# These requirements decompose the CanvasNetMermaid system's configuration and theme responsibilities into the
+# Configuration subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the effective
+# configuration of a call from the site configuration, the frontmatter, and the directives (MermaidConfigResolver), the
+# five built-in themes and the diagram, chart, and mindmap style sheets built from them (ThemeResolver), the khroma
+# color functions the themes derive their colors with (ColorMath), and the CSS subset of style statements and themeCSS
+# (StyleDeclarations). Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/configuration.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Configuration Requirements
+        requirements:
+          - id: CanvasNetMermaid-Configuration-Precedence
+            title: >-
+              The Configuration subsystem shall resolve the effective configuration of a measure or render call
+              from Mermaid's defaults, the theme option and the site configuration of the caller, the frontmatter
+              config, and the init directives of the text, each layer over the one before it, with the same values
+              as the pinned Mermaid computes for the same layers.
+            justification: |
+              Mermaid lets a diagram text change the configuration that the host gives it, in a fixed order; a
+              drawing that matches Mermaid needs the same effective configuration from the same layers.
+            children:
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-Precedence
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-MermaidFidelity
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-Directives
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-TypedView
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-SequenceSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-PieSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-GanttSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapLayout
+            tests:
+              - Configuration_ResolveThemeAndStyles_FullText
+              - Configuration_ThemeOption_NodeFill
+              - Configuration_ResolveSequenceSectionAndStyles_FullText
+              - Configuration_ResolveClassSectionAndStyles_FullText
+              - Configuration_ResolveStateAndErSectionsAndStyles_FullText
+              - Configuration_ResolvePieAndGanttSectionsAndStyles_FullText
+              - Configuration_ResolveMindmapSectionAndStyles_FullText
+
+          - id: CanvasNetMermaid-Configuration-Reports
+            title: >-
+              The Configuration subsystem shall ignore a secure key, an unknown key, and an invalid value set by the
+              text, report each as a located warning with a stable mermaid-config code, deliver the warnings of a
+              drawn diagram type with the render call, and report nothing about the configuration of a diagram type
+              that is not drawn.
+            justification: |
+              Untrusted text must not raise the settings the host secured, and an author needs to know which part of
+              the configuration had no effect and where it is written.
+            children:
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-SecureKeys
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-UnknownKeys
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-InvalidValues
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ThemeRecovery
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-SilentResolution
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ClassSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-StateSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-ErSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-PieSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-GanttSection
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection
+            tests:
+              - Configuration_ResolveThemeAndStyles_FullText
+              - Configuration_ResolveClassSectionAndStyles_FullText
+              - Configuration_ResolveStateAndErSectionsAndStyles_FullText
+              - Configuration_ResolvePieAndGanttSectionsAndStyles_FullText
+              - Configuration_ResolveMindmapSectionAndStyles_FullText
+              - Configuration_Document_RenderDeliversConfigurationWarnings
+              - Configuration_Document_UnsupportedType_ConfigurationSilent
+
+          - id: CanvasNetMermaid-Configuration-Themes
+            title: >-
+              The Configuration subsystem shall provide the five themes default, base, dark, forest, and neutral with
+              every theme variable equal to the pinned Mermaid's, including the colors derived from the theme
+              variables that the caller or the text overrides, within a bounded amount of work for any input.
+            justification: |
+              The theme decides the paint of every element of a diagram; Mermaid derives most theme colors from a few
+              base colors, so the derivation must be reproduced to the last character of each color text.
+            children:
+              - CanvasNetMermaid-Configuration-ThemeResolver-FiveThemes
+              - CanvasNetMermaid-Configuration-ThemeResolver-Overrides
+              - CanvasNetMermaid-Configuration-ThemeResolver-JavaScriptSemantics
+              - CanvasNetMermaid-Configuration-ThemeResolver-ThemeNames
+              - CanvasNetMermaid-Configuration-ThemeResolver-Bounded
+              - CanvasNetMermaid-Configuration-ColorMath-KhromaFidelity
+              - CanvasNetMermaid-Configuration-ColorMath-WrittenForm
+              - CanvasNetMermaid-Configuration-ColorMath-Numbers
+              - CanvasNetMermaid-Configuration-ColorMath-Parsing
+              - CanvasNetMermaid-Configuration-ColorMath-NotAColor
+            tests:
+              - Configuration_ThemeOption_NodeFill
+              - Configuration_ResolveThemeAndStyles_FullText
+
+          - id: CanvasNetMermaid-Configuration-StyleSheet
+            title: >-
+              The Configuration subsystem shall resolve the paint and fonts of the element classes of flowcharts,
+              sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie charts, gantt
+              charts, and mindmaps from the style sheets Mermaid writes for them (for a gantt chart through the cascade
+              of the classes of an element and its ancestors, and for a mindmap node through the cascade of its own
+              classes on the element that draws it) with the theme variables of the configuration, apply the themeCSS
+              rules of the diagram's own selectors after them, report every other themeCSS rule as the unsupported
+              feature mermaid-theme-css-unsupported, and give the rendering the text facts of each sheet (whether it
+              centers the SVG text of a node and the root font).
+            justification: |
+              Mermaid paints a diagram through CSS rules built from the theme; reproducing those rules and the
+              user's overrides of them gives the same paint without a browser, and a rule that cannot be applied
+              must be reported rather than silently lost.
+            children:
+              - CanvasNetMermaid-Configuration-ThemeResolver-FlowchartStyles
+              - CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-StateStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-ErStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-PieStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-GanttStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-MindmapStyleSheet
+              - CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses
+              - CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
+              - CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
+              - CanvasNetMermaid-Configuration-ThemeResolver-InvalidDeclarations
+              - CanvasNetMermaid-Configuration-StyleDeclarations-StyleSheets
+            tests:
+              - Configuration_ResolveThemeAndStyles_FullText
+              - Configuration_ThemeOption_NodeFill
+              - Configuration_ResolveSequenceSectionAndStyles_FullText
+              - Configuration_ResolveClassSectionAndStyles_FullText
+              - Configuration_ResolveStateAndErSectionsAndStyles_FullText
+              - Configuration_ResolvePieAndGanttSectionsAndStyles_FullText
+              - Configuration_ResolveMindmapSectionAndStyles_FullText
+
+          - id: CanvasNetMermaid-Configuration-Declarations
+            title: >-
+              The Configuration subsystem shall read the CSS declarations of style, classDef, and linkStyle
+              statements and of themeCSS rules - a fixed set of paint, stroke, font, and opacity properties with
+              !important and the cascade - and report every other declaration as mermaid-style-ignored and leave it
+              out.
+            justification: |
+              Authors restyle nodes, subgraphs, and links with CSS; the properties that change pixels must take
+              effect as a browser applies them, and the ones this version does not draw must be reported.
+            children:
+              - CanvasNetMermaid-Configuration-StyleDeclarations-SupportedProperties
+              - CanvasNetMermaid-Configuration-StyleDeclarations-Ignored
+              - CanvasNetMermaid-Configuration-StyleDeclarations-Blocks
+              - CanvasNetMermaid-Configuration-StyleDeclarations-Cascade
+              - CanvasNetMermaid-Configuration-StyleDeclarations-Values
+              - CanvasNetMermaid-Configuration-StyleDeclarations-FontSizes
+            tests:
+              - Configuration_ResolveThemeAndStyles_FullText
+
+          - id: CanvasNetMermaid-Configuration-Detection
+            title: >-
+              The Configuration subsystem shall provide the diagram detection with the default renderers that the
+              configuration of the text selects, so that a flowchart whose default renderer is elk is detected as
+              Mermaid's ELK flowchart and still drawn as a flowchart.
+            justification: |
+              Mermaid's detectors read the configuration, so the detected diagram type and its metadata depend on
+              the frontmatter and the directives of the text.
+            children:
+              - CanvasNetMermaid-Configuration-MermaidConfigResolver-TypedView
+            tests:
+              - Configuration_Document_TextConfigurationDrivesDetection

@@ -25,7 +25,8 @@ internal static class DiscoveryCommands
     /// <remarks>
     ///     <c>Kind</c> is <c>raster</c> (decoded at its own size), <c>vector</c> (a drawing rendered at any
     ///     requested size), <c>document</c> (pages or slides rendered at any requested size), <c>model</c>
-    ///     (a 3D model rendered from a viewpoint), or <c>chart</c> (a Vega-Lite chart rendered at any requested size).
+    ///     (a 3D model rendered from a viewpoint), <c>chart</c> (a Vega-Lite chart rendered at any requested size), or
+    ///     <c>diagram</c> (a Mermaid diagram rendered at any requested size).
     /// </remarks>
     internal static readonly IReadOnlyList<InputFormat> InputFormats =
     [
@@ -40,7 +41,8 @@ internal static class DiscoveryCommands
         new("pptx", "document", [".pptx"], true, true, "pptx"),
         new("vsdx", "document", [".vsdx"], true, true, "vsdx"),
         new("scad", "model", [".scad"], false, true, "scad"),
-        new("vega-lite", "chart", [".vl.json", ".vl"], false, true, "vega-lite")
+        new("vega-lite", "chart", [".vl.json", ".vl"], false, true, "vega-lite"),
+        new("mermaid", "diagram", [".mmd", ".mermaid"], false, true, "mermaid")
     ];
 
     /// <summary>
@@ -58,7 +60,7 @@ internal static class DiscoveryCommands
     ///     Describes an input format.
     /// </summary>
     /// <param name="Name">The format name, which is also its name in JSON output.</param>
-    /// <param name="Kind">The kind: <c>raster</c>, <c>vector</c>, <c>document</c>, <c>model</c>, or <c>chart</c>.</param>
+    /// <param name="Kind">The kind: <c>raster</c>, <c>vector</c>, <c>document</c>, <c>model</c>, <c>chart</c>, or <c>diagram</c>.</param>
     /// <param name="Extensions">The file name extensions, including the dot, in lower case.</param>
     /// <param name="MultiPage"><see langword="true"/> when one file holds several pages or slides that can be chosen.</param>
     /// <param name="Vector"><see langword="true"/> when the content is rendered at the requested size rather than decoded at its own size.</param>
@@ -112,7 +114,10 @@ internal static class DiscoveryCommands
             + "rotation of a PDF page, and the name of a VSDX page. An OpenSCAD model is parsed (not evaluated) and" + Environment.NewLine
             + "reports the modules and functions it defines and its include and use directives. A Vega-Lite chart" + Environment.NewLine
             + "(.vl.json or .vl) is parsed and measured (not drawn) and reports the size it is laid out at, and the" + Environment.NewLine
-            + "marks, data references, parameters, title, and schema version of its specification. The input may end in a" + Environment.NewLine
+            + "marks, data references, parameters, title, and schema version of its specification. A Mermaid diagram" + Environment.NewLine
+            + "(.mmd or .mermaid) is parsed and measured (not drawn) and reports the size it is laid out at, its type" + Environment.NewLine
+            + "(and whether this version draws it), direction, titles, and numbers of nodes, edges, and subgraphs (participants," + Environment.NewLine
+            + "messages, and boxes for a sequence diagram). The input may end in a" + Environment.NewLine
             + "fragment (report.pdf#page=2) as for 'render'; only the page is used here (the other parameters are checked" + Environment.NewLine
             + "and ignored), and a warning about the fragment is written to standard error." + Environment.NewLine
             + Environment.NewLine
@@ -121,6 +126,7 @@ internal static class DiscoveryCommands
             + "  canvasnet info report.pdf --all-pages" + Environment.NewLine
             + "  canvasnet info part.scad --json" + Environment.NewLine
             + "  canvasnet info chart.vl.json --json" + Environment.NewLine
+            + "  canvasnet info flow.mmd --json" + Environment.NewLine
             + "  canvasnet info drawing.svg --json";
 
         /// <inheritdoc />
@@ -207,6 +213,50 @@ internal static class DiscoveryCommands
             {
                 WriteChart(writer, chart);
             }
+
+            if (info.Diagram is { } diagram)
+            {
+                WriteDiagram(writer, diagram);
+            }
+        }
+
+        /// <summary>
+        ///     Writes the <c>diagram</c> object of a Mermaid file.
+        /// </summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="diagram">What the diagram declares.</param>
+        /// <remarks>
+        ///     The object has the diagram <c>type</c> (for example <c>flowchart</c> or <c>sequence</c>), whether this version
+        ///     draws it (<c>supported</c>; a type that is not drawn is an empty picture with the note
+        ///     <c>mermaid-diagram-unsupported</c>), and the numbers of <c>nodes</c>, <c>edges</c>, and <c>subgraphs</c> (the
+        ///     participants, messages, and boxes of a sequence diagram); the
+        ///     <c>direction</c>, the <c>title</c>, and the accessible title <c>accTitle</c> are present when the diagram has
+        ///     them. The diagram is parsed and measured but not drawn, and no picture of it is loaded.
+        /// </remarks>
+        private static void WriteDiagram(Utf8JsonWriter writer, DiagramFacts diagram)
+        {
+            writer.WriteStartObject("diagram");
+            writer.WriteString("type", diagram.Type);
+            writer.WriteBoolean("supported", diagram.Supported);
+            if (diagram.Direction != null)
+            {
+                writer.WriteString("direction", diagram.Direction);
+            }
+
+            if (diagram.Title != null)
+            {
+                writer.WriteString("title", diagram.Title);
+            }
+
+            if (diagram.AccTitle != null)
+            {
+                writer.WriteString("accTitle", diagram.AccTitle);
+            }
+
+            writer.WriteNumber("nodes", diagram.NodeCount);
+            writer.WriteNumber("edges", diagram.EdgeCount);
+            writer.WriteNumber("subgraphs", diagram.SubgraphCount);
+            writer.WriteEndObject();
         }
 
         /// <summary>
@@ -395,7 +445,8 @@ internal static class DiscoveryCommands
         /// <returns>The text, for example <c>1 module</c> or <c>2 modules</c>.</returns>
         private static string Count(int count, string noun)
         {
-            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : "s")}");
+            var plural = noun.EndsWith('x') ? "es" : "s";
+            return string.Create(CultureInfo.InvariantCulture, $"{count} {noun}{(count == 1 ? string.Empty : plural)}");
         }
 
         /// <summary>
@@ -423,6 +474,24 @@ internal static class DiscoveryCommands
             var builder = new StringBuilder();
             builder.Append(CultureInfo.InvariantCulture, $"{info.Path}: {info.Format.ToFormatName()}, {info.Width}x{info.Height} px");
             builder.Append(info.Format == SourceKind.Svg ? " (intrinsic size)" : string.Empty);
+            if (info.Diagram is { } diagram)
+            {
+                builder.Append(" (laid out)");
+                builder.Append(CultureInfo.InvariantCulture, $", {diagram.Type}");
+                builder.Append(diagram.Direction is { } direction ? $" {direction}" : string.Empty);
+                builder.Append(diagram.Supported ? string.Empty : " (not drawn by this version)");
+
+                // A sequence diagram counts participants, messages and boxes
+                var sequence = diagram.Type == "sequence";
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.NodeCount, sequence ? "participant" : "node")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.EdgeCount, sequence ? "message" : "edge")}");
+                builder.Append(CultureInfo.InvariantCulture, $", {Count(diagram.SubgraphCount, sequence ? "box" : "subgraph")}");
+                builder.Append(diagram.Title is { } title ? string.Create(CultureInfo.InvariantCulture, $", title \"{title.ReplaceLineEndings(" ")}\"") : string.Empty);
+                builder.Append(diagram.AccTitle is { } accTitle ? string.Create(CultureInfo.InvariantCulture, $", accTitle \"{accTitle.ReplaceLineEndings(" ")}\"") : string.Empty);
+                builder.Append(CultureInfo.InvariantCulture, $", {info.Bytes} bytes");
+                return builder.ToString();
+            }
+
             if (info.Chart is { } chart)
             {
                 builder.Append(" (laid out)");
@@ -490,7 +559,8 @@ internal static class DiscoveryCommands
         /// </summary>
         internal const string HelpFooter =
             "Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite')."
-            + " An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'.";
+            + " An SVG drawing can embed files of these formats with <image href>, and #page=N chooses a page of a document; see 'canvasnet help svg'."
+            + " 'canvasnet flatten' writes a copy of such a drawing that any SVG reader can show.";
 
         /// <summary>The smallest JPEG quality setting.</summary>
         internal const int MinQuality = ImageWriter.MinQuality;

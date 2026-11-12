@@ -181,10 +181,12 @@ public class InputSelectionTests
     [InlineData("part.scad", "def.2x=1")]
     [InlineData("chart.vl.json", "param.cutoff={bad")]
     [InlineData("source.pdf", "page=x")]
+    [InlineData("flow.mmd", "theme=midnight")]
     public void SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid(string name, string fragment)
     {
         // Arrange
         using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath(Path.Combine("mermaid", "flow.mmd")), directory.Combine("flow.mmd"));
         FixtureFactory.WriteText(directory.Path, "part.scad", Model);
         FixtureFactory.WriteText(directory.Path, "chart.vl.json", Chart);
         FixtureFactory.WriteSource(directory.Path, "pdf");
@@ -284,6 +286,34 @@ public class InputSelectionTests
         Assert.Equal(3.0, merged.VegaLite.Parameters["other"]);
         Assert.False(merged.VegaLite.WarnOnUnknownParameters);
         Assert.Equal(2.0, selection.ApplyTo(new SourceOptions()).VegaLite!.Parameters["cutoff"]);
+    }
+
+    /// <summary>
+    ///     Test that the theme of the fragment of a diagram input is read (without regard to case), replaces the theme of the
+    ///     command, is drawn, and that a parameter a diagram does not take is the warning of an unknown parameter.
+    /// </summary>
+    [Fact]
+    public void InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var diagram = directory.Combine("flow.mmd");
+        File.Copy(FixtureFactory.FixturePath(Path.Combine("mermaid", "flow.mmd")), diagram);
+
+        // Act
+        var info = SourceLoader.Probe(InputReference.Parse(diagram + "#theme=Dark&page=2"));
+        var merged = info.Selection!.ApplyTo(new SourceOptions { Mermaid = new DiagramOptions { Theme = "forest" } });
+        var kept = SourceLoader.Probe(InputReference.Parse(diagram + "#page=2")).Selection!.ApplyTo(new SourceOptions { Mermaid = new DiagramOptions { Theme = "forest" } });
+        using var loaded = SourceLoader.Load(info, new SourceOptions());
+
+        // Assert: the canonical name of the fragment wins, a fragment without a theme keeps the command's, and page is not a parameter of a diagram
+        Assert.Equal("dark", info.Selection.Mermaid!.Theme);
+        Assert.Equal("dark", merged.Mermaid!.Theme);
+        Assert.Equal("forest", kept.Mermaid!.Theme);
+        Assert.Null(info.Selection.Page);
+        Assert.Equal([FolderImageResolver.FragmentUnknownParameterCode], info.Selection.Diagnostics.Select(d => d.Code));
+        Assert.Contains(loaded.Operations, o => o.Op == "render" && o.Fields.Any(f => f.Key == "theme" && (string)f.Value == "dark"));
+        Assert.Contains(loaded.Diagnostics, d => d.Code == FolderImageResolver.FragmentUnknownParameterCode);
     }
 
     /// <summary>

@@ -9,7 +9,7 @@
 #
 # CanvasNetViewer is an independent software system, distributed as its own NuGet package. It
 # aggregates the image sources of every CanvasNet format package (CanvasNetSvg, CanvasNetPdf,
-# CanvasNetPptx, CanvasNetVsdx, CanvasNetScad, CanvasNetVegaLite) and of the core ImageSources
+# CanvasNetPptx, CanvasNetVsdx, CanvasNetScad, CanvasNetVegaLite, CanvasNetMermaid) and of the core ImageSources
 # subsystem (the raster source and the folder resolver), so that one call renders any file the
 # library can read and one call creates the resolver that lets an SVG document embed all of them -
 # see docs/design/canvas-net-viewer.md's Dependencies section for details.
@@ -25,8 +25,8 @@ sections:
       - id: CanvasNetViewer-Sources
         title: >-
           The library shall list the image sources it supports, one for each of the raster, SVG, PDF,
-          PowerPoint, Visio, OpenSCAD, and Vega-Lite formats, in a fixed order that an application cannot
-          change, and the file name extensions they claim as one sorted list.
+          PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid formats, in a fixed order that an application
+          cannot change, and the file name extensions they claim as one sorted list.
         tags: [system]
         justification: |
           An application, a document, and the command-line tool must agree on which file types can be linked
@@ -39,9 +39,10 @@ sections:
       - id: CanvasNetViewer-Embedding
         title: >-
           The library shall create, for a folder, a resolver that lets an SVG document embed a raster, a model,
-          a chart, another SVG file, and a page of a document from that folder and below it only (a query after the
-          file name is ignored, and a fragment chooses the page of a document, # page=N or  # slide=N, or the view of
-          a model,  # view=name; def.name=value sets a variable of a model and param.name=value a parameter of a chart),
+          a chart, a diagram, another SVG file, and a page of a document from that folder and below it only (a query
+          after the file name is ignored, and a fragment chooses the page of a document, # page=N or  # slide=N, the
+          view of a model,  # view=name, or the theme of a diagram,  # theme=name; def.name=value sets a variable of a
+          model and param.name=value a parameter of a chart),
           refuse a picture that would take more pixels than the render
           may use before it is decoded (a warning, not an error), and report the
           notes, printed text, and embedded images of the render.
@@ -57,6 +58,29 @@ sections:
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingEveryFormat_DrawsAllAndReportsEmbeds
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingWithQueryAndFragment_DrawsTheFile
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingHugeRasterInTinyPlacement_IsRefusedWithWarning
+
+      - id: CanvasNetViewer-Diagrams
+        title: >-
+          The library shall render a Mermaid diagram (a .mmd or .mermaid file) directly, at the size Mermaid lays it
+          out at and with the fonts bundled with the library, and as a picture of an SVG document, where the theme
+          fragment of the link (flow.mmd#theme=dark) chooses one of Mermaid's themes and a name that is not a theme
+          refuses the link with image-fragment-invalid; shall report what a diagram declares (its type, whether this
+          version draws it, its direction, titles, and numbers of nodes, edges, and subgraphs) without drawing it; and
+          shall show the pictures of the nodes of a diagram through the same sandboxed resolver as the pictures of an
+          SVG document.
+        tags: [system]
+        justification: |
+          Diagrams are written as Mermaid text in documentation and by agents; an application that already shows SVG
+          documents, models, and charts must show a diagram, alone or inside a drawing, with nothing but its file or its
+          link, the same picture on every machine, and under the same sandbox as every other linked file.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidProbe
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidRender
+          - CanvasNetViewer-Imaging-SourceLoader-MermaidErrors
+          - CanvasNetViewer-Imaging-DiagramImages
+        tests:
+          - CanvasNetViewer_SystemIntegration_MermaidDiagram_RendersDirectlyAndEmbeddedWithTheme
 
       - id: CanvasNetViewer-Render
         title: >-
@@ -102,8 +126,9 @@ sections:
           any supported format, render it (a chosen page or every page of a document) through an ordered pipeline of
           crop, resize, fit, rotate, flip, pad, tone, deskew, trim, and grid operations into image files, report the
           dominant colors and the pixels of an image, compare two images with measures and thresholds and write the
-          comparison pictures, and compose a contact sheet, each as one call that takes plain request values and returns
-          plain result values, without a command line.
+          comparison pictures, compose a contact sheet, and write a copy of an SVG drawing that other SVG readers can
+          show, each as one call that takes plain request values and returns plain result values, without a command
+          line.
         tags: [system]
         justification: |
           What an agent can do through the command line, an application should be able to do through the library
@@ -119,8 +144,10 @@ sections:
           - CanvasNetViewer-Imaging-RequestDefaults
           - CanvasNetViewer-Imaging-DiagnosticOrigin
           - CanvasNetViewer-Imaging-ChartImages
+          - CanvasNetViewer-Imaging-Flatten
         tests:
           - CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage
+          - CanvasNetViewer_SystemIntegration_Flatten_ComposedSvgBecomesPlainSvg
 
       - id: CanvasNetViewer-UserGuideExamples
         title: >-

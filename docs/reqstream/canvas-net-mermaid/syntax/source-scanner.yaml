@@ -1,0 +1,120 @@
+---
+# Software Unit Requirements for SourceScanner
+#
+# These requirements describe the design-level behavior of the SourceScanner unit of the Syntax subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Syntax): the lexer infrastructure of the diagram parsers with
+# the semantics of the lexers that jison generates for Mermaid's grammars, the one-token lookahead with its
+# expected-token errors, the matcher building blocks with the JavaScript character classes, and the link check that
+# every diagram applies to the links it keeps (UrlSanitizer, ported from sanitize-url and Mermaid's formatUrl). See
+# docs/verification/canvas-net-mermaid/syntax/source-scanner.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Syntax Requirements
+        sections:
+          - title: SourceScanner Requirements
+            requirements:
+              - id: CanvasNetMermaid-Syntax-SourceScanner-FirstMatch
+                title: >-
+                  The SourceScanner unit shall produce, at each position, the token of the first rule of the active
+                  start condition that matches, even when a later rule would match more text, and skip a match whose
+                  rule produces no token.
+                justification: |
+                  Mermaid's lexers are generated without the longest-match option; the same text must give the same
+                  tokens.
+                tests:
+                  - SourceScanner_Next_FirstMatchingRuleWins
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-StartConditions
+                title: >-
+                  The SourceScanner unit shall keep a stack of start conditions that rules can push, pop (never
+                  below the initial condition), and inspect at any depth, and shall let a rule return the end of its
+                  match to the input.
+                justification: |
+                  Mermaid's grammars switch lexer states inside strings, labels, and shape data, and shorten matches.
+                tests:
+                  - SourceScanner_Next_StartConditions_SwitchRules
+                  - SourceScanner_StateStack_PopAtInitialAndTopStateBeyondDepth
+                  - SourceScanner_Less_ReturnsRestOfMatchToInput
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-EndOfInput
+                title: >-
+                  The SourceScanner unit shall run an end-of-input rule once at the end of the input and then return
+                  the end of input on every further request.
+                justification: |
+                  Mermaid's grammars produce a token at the end of the text that the parser expects exactly once.
+                tests:
+                  - SourceScanner_Next_EndOfInputRule_RunsOnce
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-LexicalErrors
+                title: >-
+                  The SourceScanner unit shall refuse text that no rule of the active start condition matches with a
+                  syntax error located in the original text that describes the character found.
+                justification: |
+                  An author must see where the text stops being the diagram language and what character is there,
+                  including invisible ones.
+                tests:
+                  - SourceScanner_Next_UnrecognizedText_ThrowsLocatedError
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-ExpectedTokens
+                title: >-
+                  The SourceScanner unit shall let a parser decide with one token of lookahead and refuse a token the
+                  grammar does not accept with a located syntax error that lists each expected token once, in the
+                  grammar's words, and the token found.
+                justification: |
+                  Mermaid's parse errors list the expected tokens; the author learns what may come at that place.
+                tests:
+                  - TokenCursor_Expect_WrongToken_ThrowsWithExpected
+                  - TokenCursor_JoinAlternatives_JoinsWithCommasAndOr
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-GrammarDefects
+                title: >-
+                  The SourceScanner unit shall refuse a start-condition table that lacks the initial condition or
+                  names a rule that does not exist, and shall stop with an error instead of looping when the rules
+                  make no progress.
+                justification: |
+                  A defect of a grammar port must fail visibly rather than hang on some input.
+                tests:
+                  - SourceScanner_Constructor_InvalidConditions_Throw
+                  - SourceScanner_Next_NoProgress_ThrowsInvalidOperation
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-JavaScriptClasses
+                title: >-
+                  The SourceScanner unit shall provide matchers of literals, runs, sequences, alternatives, optional
+                  parts, and negative lookahead with the matches of the corresponding regular expression parts, and
+                  classify white space, line terminators, and word characters as JavaScript regular expressions do.
+                justification: |
+                  The ported lexer rules must match exactly what Mermaid's JavaScript expressions match, in linear
+                  time.
+                tests:
+                  - ScanPatterns_Matchers_BehaveAsRegexParts
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-UnicodeLetters
+                title: >-
+                  The SourceScanner unit shall classify the letters outside ASCII that the UNICODE_TEXT rule of
+                  Mermaid's grammars matches, the same letters for every grammar that uses the rule.
+                justification: |
+                  The flowchart and class grammars accept names in every script through the same rule; one shared
+                  definition keeps them accepting the same letters as Mermaid.
+                tests:
+                  - ScanPatterns_IsUnicodeLetter_FollowsTheGrammarLetters
+
+              - id: CanvasNetMermaid-Syntax-SourceScanner-LinkCheck
+                title: >-
+                  The SourceScanner unit shall check a link exactly as the sanitize-url version that the pinned Mermaid
+                  bundles checks it - undoing percent escapes, numeric and named character references, control
+                  characters, and escaped white space until nothing is left to decode, and giving about:blank for a
+                  javascript, data, or vbscript scheme in any case, for no link, and for an http or https link that the
+                  WHATWG URL parser refuses - and shall return the link that sanitize-url returns, which is the only
+                  link a diagram may keep; Mermaid's formatUrl gives no link for an empty one.
+                justification: |
+                  A link whose scheme is javascript, data, or vbscript runs code where the link is used; encodings
+                  (references without semicolons, tabs inside the scheme, nested percent escapes) hide the scheme from
+                  a partial check, so the check must decode exactly as Mermaid's does, and one shared check keeps every
+                  diagram type the same.
+                tests:
+                  - UrlSanitizer_Sanitize_UnsafeScheme_IsBlank
+                  - UrlSanitizer_Sanitize_Url_GivesSanitizeUrlResult
+                  - UrlSanitizer_FormatUrl_EmptyAndUnsafeLinks_FollowMermaid
+                  - UrlSanitizer_Sanitize_DeeplyNestedReference_IsDecodedAndRefused

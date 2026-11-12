@@ -1,0 +1,272 @@
+{
+  "source": "14-labels-backticks.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 447.203, 428],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Order-0",
+      "shape": "classBox",
+      "x": 179.359,
+      "y": 378,
+      "box": [108.664, 336, 141.391, 84],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [108.664, 336, 141.391, 84]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [108.664, 336, 141.391, 84]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [120.664, 348, 117.391, 24],
+          "text": "Purchase order",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [108.664, 384, 141.391, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [108.664, 402, 141.391, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Line-Item-1",
+      "shape": "classBox",
+      "x": 179.359,
+      "y": 202,
+      "box": [131.797, 160, 95.125, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [131.797, 160, 95.125, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [131.797, 160, 95.125, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [143.797, 172, 71.125, 24],
+          "text": "Line-Item",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [131.797, 208, 95.125, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [131.797, 226, 95.125, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Customer-2",
+      "shape": "classBox",
+      "x": 358.063,
+      "y": 202,
+      "box": [276.922, 142, 162.281, 120],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [276.922, 142, 162.281, 120]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [276.922, 142, 162.281, 120]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [315.391, 154, 85.344, 24],
+          "text": "Client (VIP)",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [288.922, 202, 95.609, 24],
+          "text": "+String name"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [276.922, 190, 162.281, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [276.922, 238, 162.281, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Ca-r-3",
+      "shape": "classBox",
+      "x": 358.063,
+      "y": 50,
+      "box": [330.055, 8, 56.016, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [330.055, 8, 56.016, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [330.055, 8, 56.016, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [342.055, 20, 32.016, 24],
+          "text": "Ca-r",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [330.055, 56, 56.016, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [330.055, 74, 56.016, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-order1-4",
+      "shape": "classBox",
+      "x": 44.898,
+      "y": 202,
+      "box": [8, 160, 73.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 160, 73.797, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 160, 73.797, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 172, 49.797, 24],
+          "text": "order1",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 208, 73.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 226, 73.797, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_order1_Order_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 115.658,
+      "points": [
+        [44.898, 244],
+        [44.898, 249.783],
+        [44.903, 255.566],
+        [45.041, 261.347],
+        [45.456, 267.114],
+        [46.222, 272.845],
+        [47.402, 278.505],
+        [49.052, 284.045],
+        [51.229, 289.4],
+        [53.974, 294.486],
+        [57.293, 299.218],
+        [61.072, 303.592],
+        [65.188, 307.653],
+        [69.554, 311.444],
+        [74.11, 315.004],
+        [78.816, 318.365],
+        [83.637, 321.558],
+        [88.548, 324.611],
+        [93.519, 327.566],
+        [98.505, 330.495],
+        [103.491, 333.425]
+      ]
+    },
+    {
+      "id": "id_Line-Item_Order_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 86,
+      "points": [
+        [179.359, 244],
+        [179.359, 248.3],
+        [179.359, 252.6],
+        [179.359, 256.9],
+        [179.359, 261.2],
+        [179.359, 265.5],
+        [179.359, 269.8],
+        [179.359, 274.1],
+        [179.359, 278.4],
+        [179.359, 282.7],
+        [179.359, 287],
+        [179.359, 291.3],
+        [179.359, 295.6],
+        [179.359, 299.9],
+        [179.359, 304.2],
+        [179.359, 308.5],
+        [179.359, 312.8],
+        [179.359, 317.1],
+        [179.359, 321.4],
+        [179.359, 325.7],
+        [179.359, 330]
+      ]
+    },
+    {
+      "id": "id_Customer_Order_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 140.403,
+      "points": [
+        [358.063, 262],
+        [358.061, 269.02],
+        [357.47, 276.005],
+        [355.414, 282.702],
+        [352.008, 288.828],
+        [347.604, 294.286],
+        [342.515, 299.116],
+        [336.967, 303.415],
+        [331.145, 307.335],
+        [325.155, 310.995],
+        [319.051, 314.463],
+        [312.866, 317.783],
+        [306.617, 320.982],
+        [300.32, 324.084],
+        [293.982, 327.104],
+        [287.613, 330.055],
+        [281.217, 332.951],
+        [274.804, 335.805],
+        [268.384, 338.645],
+        [261.963, 341.483],
+        [255.542, 344.321]
+      ]
+    },
+    {
+      "id": "id_Ca-r_Customer_4",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 44,
+      "points": [
+        [358.063, 92],
+        [358.063, 94.2],
+        [358.063, 96.4],
+        [358.063, 98.6],
+        [358.063, 100.8],
+        [358.063, 103],
+        [358.063, 105.2],
+        [358.063, 107.4],
+        [358.063, 109.6],
+        [358.063, 111.8],
+        [358.063, 114],
+        [358.063, 116.2],
+        [358.063, 118.4],
+        [358.063, 120.6],
+        [358.063, 122.8],
+        [358.063, 125],
+        [358.063, 127.2],
+        [358.063, 129.4],
+        [358.063, 131.6],
+        [358.063, 133.8],
+        [358.063, 136]
+      ]
+    }
+  ],
+  "edgeLabels": [{ "id": "id_Customer_Order_3", "box": [334.938, 287, 46.25, 24] }],
+  "terminals": []
+}

@@ -1,0 +1,44 @@
+---
+# Software Unit Requirements for DagreNormalizer
+#
+# These requirements describe the design-level behavior of the DagreNormalizer unit of the Dagre subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's edge normalization (normalize.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-normalizer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreNormalizer Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreNormalizer-Split
+                title: >-
+                  The DagreNormalizer unit shall split every edge that spans more than one rank into a chain of
+                  one-rank edges through dummy nodes of zero size that keep the edge's weight and name, and leave an
+                  edge of one rank unchanged.
+                justification: |
+                  Ordering and positioning work on edges between adjacent ranks; the dummies become the bends of
+                  the route.
+                tests:
+                  - DagreNormalizer_Run_ShortEdge_Unchanged
+                  - DagreNormalizer_Run_LongEdge_SplitThroughDummies
+
+              - id: CanvasNetMermaid-Dagre-DagreNormalizer-LabelNode
+                title: >-
+                  The DagreNormalizer unit shall give the dummy node at the label rank of an edge the size and label
+                  position of the edge's label.
+                justification: |
+                  The label takes space in its rank like a node, so that nothing overlaps it.
+                tests:
+                  - DagreNormalizer_Run_LongEdge_SplitThroughDummies
+
+              - id: CanvasNetMermaid-Dagre-DagreNormalizer-Restore
+                title: >-
+                  The DagreNormalizer unit shall replace each chain with its original edge and label after
+                  positioning, with the positions of the dummies as the route and the position and size of the label
+                  dummy as the label's.
+                justification: |
+                  The caller reads one route and one label position per edge.
+                tests:
+                  - DagreNormalizer_Undo_Chain_RestoresEdgeWithRoute

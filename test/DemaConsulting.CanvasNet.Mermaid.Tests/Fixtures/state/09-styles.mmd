@@ -1,0 +1,13 @@
+stateDiagram-v2
+    classDef warm fill:#f96,stroke:#333,stroke-width:2px
+    classDef cool fill:#9cf,color:#036
+    classDef faded fill:#eee,font-style:italic
+    [*] --> Hot:::warm
+    Hot --> Cold
+    Cold --> Mild
+    Mild --> Calm
+    Calm --> [*]
+    class Cold cool
+    class Mild,Calm faded
+    style Mild fill:#ffd,stroke:#c00
+    style Calm stroke:#090,stroke-width:3px

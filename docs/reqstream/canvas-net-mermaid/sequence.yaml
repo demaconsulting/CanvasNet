@@ -1,0 +1,143 @@
+---
+# Software Subsystem Requirements for Sequence
+#
+# These requirements decompose the CanvasNetMermaid system's sequence diagram responsibility into the Sequence
+# subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Sequence): reading the sequence diagram language
+# exactly as the pinned Mermaid release reads it (SequenceParser), keeping what it declares as Mermaid's sequence
+# database keeps it (SequenceModel), placing the participants, messages, notes, blocks, and boxes for each render as
+# Mermaid's sequence renderer places them (SequenceLayout), and drawing them as Mermaid's sequence drawing functions
+# draw them (SequenceRenderer). Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/sequence.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Sequence Requirements
+        requirements:
+          - id: CanvasNetMermaid-Sequence-Language
+            title: >-
+              The Sequence subsystem shall open every sequence diagram text (the sequenceDiagram keyword) that the
+              sequence grammar of the pinned Mermaid release accepts - participants of the eight types with aliases,
+              metadata, links, and properties, messages with every arrow, activations, notes, the loop, alt, opt, par,
+              par_over, critical, break, and rect blocks, boxes, created and destroyed participants, autonumber, and
+              the title and accessibility statements - into the same participants, messages, notes, and boxes that
+              Mermaid's sequence database records for it.
+            justification: |
+              A sequence diagram can only be drawn the way Mermaid draws it when its text means exactly what it means
+              to Mermaid; the language is defined by Mermaid's grammar and database, not by a description of them.
+            children:
+              - CanvasNetMermaid-Sequence-SequenceParser-Tokens
+              - CanvasNetMermaid-Sequence-SequenceParser-Grammar
+              - CanvasNetMermaid-Sequence-SequenceParser-LinearTime
+              - CanvasNetMermaid-Sequence-SequenceParser-ParticipantMetadata
+              - CanvasNetMermaid-Sequence-SequenceParser-InteractionStatements
+              - CanvasNetMermaid-Sequence-SequenceModel-Participants
+              - CanvasNetMermaid-Sequence-SequenceModel-Messages
+              - CanvasNetMermaid-Sequence-SequenceModel-Boxes
+              - CanvasNetMermaid-Sequence-SequenceModel-CreateDestroy
+              - CanvasNetMermaid-Sequence-SequenceModel-LinksAndProperties
+              - CanvasNetMermaid-Sequence-SequenceModel-Wrap
+            tests:
+              - Sequence_Parse_Fixture_GivesParticipantsAndMessages
+              - Sequence_Parse_WholeText_GivesMetadata
+
+          - id: CanvasNetMermaid-Sequence-Metadata
+            title: >-
+              The Sequence subsystem shall give the title, the accessible title, and the numbers of participants (as
+              nodes), messages drawn as arrows (as edges), and boxes (as subgraphs) of an opened sequence diagram, and
+              no direction, without rendering it.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone, and
+              the counts of a sequence diagram must keep the meaning of the document's node, edge, and subgraph
+              counts.
+            children:
+              - CanvasNetMermaid-Sequence-SequenceParser-TitleAndAccessibility
+              - CanvasNetMermaid-Sequence-SequenceModel-Metadata
+            tests:
+              - Sequence_Parse_WholeText_GivesMetadata
+              - Sequence_Document_IsSupportedWithMetadata
+
+          - id: CanvasNetMermaid-Sequence-FailClosed
+            title: >-
+              The Sequence subsystem shall refuse, when the document is opened, a sequence diagram text that its
+              grammar does not accept, that Mermaid's sequence database rejects, or that exceeds the participant, label
+              length, or nesting limits of the open call, with a coded MermaidSyntaxException located in the original
+              text, with a hint, and for a grammar error with the tokens that Mermaid lists as expected.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it.
+            children:
+              - CanvasNetMermaid-Sequence-SequenceParser-Errors
+              - CanvasNetMermaid-Sequence-SequenceParser-Limits
+              - CanvasNetMermaid-Sequence-SequenceModel-Activations
+              - CanvasNetMermaid-Sequence-SequenceModel-Boxes
+              - CanvasNetMermaid-Sequence-SequenceModel-CreateDestroy
+              - CanvasNetMermaid-Sequence-SequenceModel-Limits
+            tests:
+              - Sequence_Parse_DatabaseError_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-Sequence-Layout
+            title: >-
+              The Sequence subsystem shall lay out an opened sequence diagram, for each render, as Mermaid's sequence
+              renderer does under the effective configuration of that render: the participants and their margins, the
+              messages and notes one under another, the notes beside, over, or across their participants, self
+              messages, activations, the frames of the blocks with their sections and the rect backgrounds, nested,
+              the boxes and their titles, created and destroyed participants, the mirrored and the hidden
+              participants, the sequence numbers, the participant menus, which take their room even when hidden, the
+              title, and the view box.
+            justification: |
+              The size of a sequence diagram and the place of every element must be Mermaid's for the same text and
+              configuration, and the configuration of a render is known only when the render starts.
+            children:
+              - CanvasNetMermaid-Sequence-SequenceLayout-ActorMargins
+              - CanvasNetMermaid-Sequence-SequenceLayout-MessagePlacement
+              - CanvasNetMermaid-Sequence-SequenceLayout-NotePlacement
+              - CanvasNetMermaid-Sequence-SequenceLayout-Activations
+              - CanvasNetMermaid-Sequence-SequenceLayout-CreateDestroy
+              - CanvasNetMermaid-Sequence-SequenceLayout-Blocks
+              - CanvasNetMermaid-Sequence-SequenceLayout-Boxes
+              - CanvasNetMermaid-Sequence-SequenceLayout-Menus
+              - CanvasNetMermaid-Sequence-SequenceLayout-SequenceNumbers
+              - CanvasNetMermaid-Sequence-SequenceLayout-Configuration
+              - CanvasNetMermaid-Sequence-SequenceLayout-ViewBox
+            tests:
+              - Sequence_Layout_Fixture_DrawsParticipants
+
+          - id: CanvasNetMermaid-Sequence-Drawing
+            title: >-
+              The Sequence subsystem shall draw a laid-out sequence diagram as Mermaid's sequence drawing functions do:
+              the eight participant types with their lifelines, the messages with their lines and markers, the
+              sequence numbers and central-connection circles, notes, activations, the frames of the blocks, the rect
+              backgrounds, the boxes with the theme's drop shadow, and the participant menus, with the texts placed as
+              Mermaid places them, painted from the theme's sequence style sheet, in Mermaid's paint order.
+            justification: |
+              The pixels of a sequence diagram must be Mermaid's for the same text, configuration, and theme.
+            children:
+              - CanvasNetMermaid-Sequence-SequenceRenderer-ParticipantTypes
+              - CanvasNetMermaid-Sequence-SequenceRenderer-Arrows
+              - CanvasNetMermaid-Sequence-SequenceRenderer-SequenceNumbers
+              - CanvasNetMermaid-Sequence-SequenceRenderer-Frames
+              - CanvasNetMermaid-Sequence-SequenceRenderer-BackgroundsAndBoxes
+              - CanvasNetMermaid-Sequence-SequenceRenderer-Paint
+              - CanvasNetMermaid-Sequence-SequenceRenderer-PaintOrder
+              - CanvasNetMermaid-Sequence-SequenceRenderer-Text
+              - CanvasNetMermaid-Sequence-SequenceRenderer-Menus
+            tests:
+              - Sequence_Layout_Fixture_DrawsParticipants
+
+          - id: CanvasNetMermaid-Sequence-UnsupportedFeatures
+            title: >-
+              The Sequence subsystem shall report, at their locations and in order before drawing, a look other than
+              classic, a participant icon that names an image, and $$ math in a text as unsupported features with their
+              stable mermaid-* codes, and a participant of a type that Mermaid does not define as a warning that names
+              the nearest type; it shall draw the diagram in the classic look, without the icon, with the math as
+              written, and without the participant of the unknown type, as Mermaid leaves it out, and stop at the
+              first unsupported feature in strict mode.
+            justification: |
+              The host must know when the picture differs from what Mermaid would draw, and a strict host must be able
+              to refuse it.
+            children:
+              - CanvasNetMermaid-Sequence-SequenceModel-Math
+              - CanvasNetMermaid-Sequence-SequenceRenderer-ParticipantTypes
+            tests:
+              - Sequence_Render_UnsupportedFeatures_AreReported

@@ -1,0 +1,257 @@
+---
+# Software Unit Requirements for ThemeResolver
+#
+# These requirements describe the design-level behavior of the ThemeResolver unit of the Configuration subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of Mermaid's five built-in themes
+# (with the JavaScript object model their derivations rely on, ThemeObject) and of the style sheet Mermaid writes for
+# a flowchart (FlowchartStyles), with the style sheets of the other diagrams, of pie and gantt charts, and of mindmaps
+# (PieStyles, GanttStyles, MindmapStyles). See docs/verification/canvas-net-mermaid/configuration/theme-resolver.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: ThemeResolver Requirements
+            requirements:
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-FiveThemes
+                title: >-
+                  The ThemeResolver unit shall compute every theme variable of the default, base, dark, forest, and
+                  neutral themes with the same text as the pinned Mermaid, without overrides, with overrides of base
+                  and derived variables, and in dark mode.
+                justification: |
+                  The theme variables are the colors and fonts of every element; Mermaid writes them into its style
+                  sheet as text, so the text must be equal.
+                tests:
+                  - ThemeResolver_GetThemeVariables_MatchesMermaid
+                  - ThemeResolver_GetThemeVariables_DefaultTheme_FlowchartColors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-Overrides
+                title: >-
+                  The ThemeResolver unit shall derive the other colors of a theme from an overridden base color, keep
+                  an overridden derived variable as it was given, and ignore overrides that are not an object.
+                justification: |
+                  Authors customize a theme by overriding a few variables; Mermaid derives the rest from them and
+                  never replaces a value the author set.
+                tests:
+                  - ThemeResolver_GetThemeVariables_BaseOverride_DerivesAndKeepsOverrides
+                  - ThemeResolver_GetThemeVariables_NonObjectOverrides_Ignored
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-JavaScriptSemantics
+                title: >-
+                  The ThemeResolver unit shall evaluate the derivations of a theme with the JavaScript semantics that
+                  Mermaid's theme classes rely on: undefined values, the || and ?? fallbacks, member access on values
+                  that are not objects, insertion order of the keys, and the JSON form without undefined values.
+                justification: |
+                  The derivations of the themes depend on which values are falsy or missing; a different rule changes
+                  which fallback a variable gets.
+                tests:
+                  - ThemeObject_JavaScriptSemantics
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ThemeNames
+                title: >-
+                  The ThemeResolver unit shall recognize exactly the five supported theme names (in their exact letter
+                  case), know the newer Mermaid theme names that this version does not draw, and refuse to compute any
+                  other theme.
+                justification: |
+                  The resolver reports a theme that is not drawn and must tell a newer Mermaid theme from a misspelled
+                  name.
+                tests:
+                  - ThemeResolver_IsTheme_KnowsFiveThemes
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-Bounded
+                title: >-
+                  The ThemeResolver unit shall bound the color-scale iterations of a theme whatever value of
+                  THEME_COLOR_LIMIT is given, and fail with the offending value when a value the theme derives colors
+                  from is not a color.
+                justification: |
+                  A theme variable from untrusted text controls loops; the work must stay bounded, and the caller
+                  needs the offending value to drop it.
+                tests:
+                  - ThemeResolver_GetThemeVariables_HugeColorLimit_IsBounded
+                  - ThemeResolver_GetThemeVariables_NotAColor_ThrowsWithValue
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-FlowchartStyles
+                title: >-
+                  The ThemeResolver unit shall build the global and flowchart style rules that Mermaid writes for a
+                  flowchart from the theme variables of a configuration, and resolve from them the paint of nodes,
+                  subgraphs, edges, and markers, the edge widths, the fonts and colors of node labels, subgraph titles,
+                  and the diagram title, and the edge label background.
+                justification: |
+                  Mermaid paints a flowchart through these rules; resolving them the same way gives the same paint.
+                tests:
+                  - FlowchartStyles_Create_DefaultTheme_ResolvesPaint
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ThemeCss
+                title: >-
+                  The ThemeResolver unit shall apply the themeCSS rules whose selector is one of the flowchart's own
+                  selectors after the theme's rules (an !important theme declaration staying in effect), and report
+                  every other themeCSS rule as mermaid-theme-css-unsupported at the location of themeCSS.
+                justification: |
+                  Mermaid appends the user's CSS after its own, so the user's rules win over the theme's in the
+                  cascade; rules for other elements cannot be applied without a browser.
+                tests:
+                  - FlowchartStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-InvalidDeclarations
+                title: >-
+                  The ThemeResolver unit shall leave out a style declaration whose value is not valid for its property,
+                  such as a theme variable that is not a color, so that the declaration below it in the cascade stays
+                  in effect.
+                justification: |
+                  A browser drops an invalid declaration; the paint must be the one a browser would show.
+                tests:
+                  - FlowchartStyles_Create_InvalidVariable_DropsDeclaration
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-SequenceStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a sequence diagram - the
+                  same global rules as for a flowchart and the sequence rules - from the theme variables of a
+                  configuration, apply the themeCSS rules of the sequence diagram's own selectors after them and report
+                  every other themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade over the
+                  attributes Mermaid gives each element the paint of participants, lifelines, messages and their
+                  markers, sequence numbers, notes, activations, frames and their label boxes, boxes, and menus, the
+                  text colors, and the drop shadow of a CSS filter of none or one drop-shadow().
+                justification: |
+                  Mermaid paints a sequence diagram through these rules; the cascade decides, for example, that a
+                  lifeline is 2 pixels wide and that a box gets the theme's border and shadow, so resolving the rules
+                  the same way gives the same paint.
+                tests:
+                  - DiagramStyles_Create_GlobalRules_SharedByFlowchartAndSequence
+                  - SequenceStyles_Create_DefaultTheme_ResolvesCascade
+                  - SequenceStyles_Create_EachTheme_UsesThemeVariables
+                  - SequenceStyles_Create_ThemeCss_OverridesKnownSelectors
+                  - SequenceStyles_TryParseFilter_ParsesDropShadow
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ClassStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a class diagram - the same
+                  global rules as for a flowchart and the class rules - from the theme variables of a configuration,
+                  apply the themeCSS rules of the class diagram's own selectors after them and report every other
+                  themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the class
+                  boxes and their dividers, the namespaces, the node, note, edge, and terminal labels, the edge label
+                  backgrounds, the relation markers, and the title, the title taking the root font as Mermaid's class
+                  title does.
+                justification: |
+                  Mermaid paints a class diagram through these rules; resolving them the same way gives the same
+                  paint.
+                tests:
+                  - ClassStyles_Create_DefaultTheme_ResolvesClassRules
+                  - ClassStyles_Create_DefaultTheme_ResolvesNoteLabelsAndLabelBackgrounds
+                  - ClassStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-StateStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a state diagram - the same
+                  global rules as for a flowchart and the state rules - from the theme variables of a configuration,
+                  apply the themeCSS rules of the state diagram's own selectors after them and report every other
+                  themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the states,
+                  the corner radii, the composite state and region fills at each depth, the labels of states,
+                  transitions, notes, and composite state titles (an HTML title and an SVG title in their own colors),
+                  the barb marker in the transition color, the dashed links of notes, and the title.
+                justification: |
+                  Mermaid paints a state diagram through these rules, several of them by selectors that only state
+                  elements carry; resolving them the same way gives the same paint.
+                tests:
+                  - StateStyles_Create_DefaultTheme_ResolvesStateRules
+                  - StateStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-ErStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for an entity relationship
+                  diagram - the same global rules as for a flowchart and the ER rules - from the theme variables of a
+                  configuration, apply the themeCSS rules of the diagram's own selectors after them and report every
+                  other themeCSS rule as mermaid-theme-css-unsupported, and resolve from the cascade the paint of the
+                  entities, the node and edge labels and the visible background of an HTML edge label, the subgraph
+                  titles (an HTML title in the page's color and an SVG title in the title color), the marker paint
+                  whose important fill a themeCSS rule cannot replace, the dashed lines, and the title in the root
+                  font.
+                justification: |
+                  Mermaid paints an entity relationship diagram through these rules; resolving them the same way,
+                  important declarations included, gives the same paint.
+                tests:
+                  - ErStyles_Create_DefaultTheme_ResolvesErRules
+                  - ErStyles_Create_ThemeCss_KeepsTheImportantMarkerFill
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-PieStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a pie chart - the same
+                  global rules as for a flowchart and the pie rules - from the theme variables of a configuration, apply
+                  the themeCSS rules of the chart's own selectors after them, and resolve the paint of a slice over its
+                  section color (its opacity folded into the fill and the stroke, a highlighted slice opaque and
+                  larger), of the outer circle without fill, and the fonts and colors of the title, the percentage
+                  labels, and the legend texts.
+                justification: |
+                  Mermaid paints a pie chart through these rules; resolving them the same way, the author's themeCSS
+                  included, gives the same paint.
+                tests:
+                  - PieStyles_Create_DefaultTheme_ResolvesPieRules
+                  - PieStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-GanttStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a gantt chart - the same
+                  global rules as for a flowchart and the gantt rules - from the theme variables of a configuration,
+                  apply the themeCSS rules of the chart's own selectors after them and report every other themeCSS rule
+                  as mermaid-theme-css-unsupported, and compute the style of an element from the classes of the element
+                  and of its ancestors as the browser's cascade does - important declarations first, then the
+                  specificity of compound and descendant selectors, then the order of the rules, over the element's own
+                  attributes - for the section rows, the bars and their states, the milestones, the task texts inside
+                  and beside their bars, the clickable texts, the section titles, the grid and its labels, the excluded
+                  days, the today line, and the title.
+                justification: |
+                  Mermaid paints a gantt chart through compound and descendant class selectors and important
+                  declarations; only the same cascade gives the same paint for every combination of task states.
+                tests:
+                  - GanttStyles_Create_DefaultTheme_CascadesClassSets
+                  - GanttStyles_Create_ThemeCss_OverridesKnownSelectors
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-MindmapStyleSheet
+                title: >-
+                  The ThemeResolver unit shall build the style rules that Mermaid writes for a mindmap - the same global
+                  rules as for a flowchart and the mindmap rules, one set for each section up to the theme's
+                  THEME_COLOR_LIMIT, the root's rules, and, for a theme that uses gradients, the rules that hide the
+                  line under a default node - from the theme variables of a configuration, leave out a declaration that
+                  CSS drops (a negative stroke width), apply after them, in sheet order, the themeCSS rules of the
+                  mindmap's own selectors and of a class of the diagram's nodes with an element a node draws, report
+                  every other themeCSS rule as mermaid-theme-css-unsupported, and resolve from them the
+                  fill of each section and of the root, the line under a default node, the label colors, the edge
+                  color of each section, and the edge width of each depth.
+                justification: |
+                  Mermaid paints a mindmap through these rules in every theme; resolving them the same way, the rules
+                  the browser drops included, gives the same paint.
+                tests:
+                  - MindmapStyles_Create_DefaultTheme_ResolvesSectionRules
+                  - MindmapStyles_Create_EdgeRules_DropNegativeWidths
+                  - MindmapStyles_Create_EachTheme_UsesThemeVariables
+                  - MindmapStyles_Create_GradientThemes_HideTheSectionLines
+                  - MindmapStyles_Create_ThemeCss_OverridesKnownSelectors
+                  - MindmapStyles_Create_ThemeCssNodeClass_CascadesInSheetOrder
+                  - MindmapStyles_Create_ThemeCssOtherClass_IsReported
+                  - MindmapStyles_Create_ColorLimit_BoundsTheSections
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses
+                title: >-
+                  The ThemeResolver unit shall give the paint of a node's part from the node's classes and the element
+                  that draws it (a path, a rectangle, a circle, a polygon, or a line) and the paint of its label from
+                  the node's classes, the mindmap sheet through the cascade of its rules and every other sheet with its
+                  node and node label rules, leaving a line unpainted.
+                justification: |
+                  Mindmap nodes take their colors from their section classes and the element that draws them, while the
+                  nodes of the other diagrams keep the paint they had.
+                tests:
+                  - UnifiedStyles_NodePaintFor_OtherSheets_UseTheNodeRule
+                  - MindmapStyles_Create_DefaultTheme_ResolvesSectionRules
+
+              - id: CanvasNetMermaid-Configuration-ThemeResolver-SheetFacts
+                title: >-
+                  The ThemeResolver unit shall give the rendering, for every diagram drawn by the unified renderer,
+                  whether its style sheet centers the SVG text of a node's label on its anchor (the flowchart and class
+                  sheets do; the state and entity relationship sheets do not) and the root font and text color that a
+                  text inherits where no rule of its own applies.
+                justification: |
+                  The shared shapes and edges place SVG text and measure labels from these facts, which differ between
+                  Mermaid's style sheets.
+                tests:
+                  - UnifiedStyles_Create_EachSheet_CentersSvgNodeTextAndGivesTheRootText

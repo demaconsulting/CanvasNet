@@ -378,7 +378,7 @@ public static partial class SourceLoader
 
                 operations.AddRange(images.Operations());
                 notes.AddRange(images.Notes());
-                return new LoadedSource(surface, info, 1, true, DropDuplicateUnresolved(notes, images.Resolver.Diagnostics), [.. images.Resolver.Echo], operations);
+                return new LoadedSource(surface, info, 1, true, DropDuplicateUnresolved(notes, images.Resolver.Diagnostics, "vl-mark-image-unresolved"), [.. images.Resolver.Echo], operations);
             }
             catch
             {
@@ -506,17 +506,19 @@ public static partial class SourceLoader
     };
 
     /// <summary>
-    ///     Removes the warning of the Vega-Lite library about a picture that the resolver did not give when the resolver has reported the same link itself.
+    ///     Removes the warning of a library (a Vega-Lite chart, a Mermaid diagram) about a picture that the resolver did not give when the resolver has reported
+    ///     the same link itself.
     /// </summary>
     /// <param name="notes">The notes of the render: the library's, then the resolver's.</param>
     /// <param name="reported">The notes of the folder resolver.</param>
+    /// <param name="libraryDetail">The <see cref="ImageDiagnostic.Detail"/> of the library's warning: <c>vl-mark-image-unresolved</c> or <c>mermaid-image-unresolved</c>.</param>
     /// <returns>The notes without the library's duplicates.</returns>
     /// <remarks>
     ///     The folder resolver says why it could not draw a link (<c>svg-image-unresolved</c> names the reason: missing file, a path outside the folder, a remote URL); the
-    ///     library's <c>vl-mark-image-unresolved</c> only says that nothing came back. When both exist for the same link the resolver's is the one that helps the user.
+    ///     library's warning only says that nothing came back. When both exist for the same link the resolver's is the one that helps the user.
     ///     A library warning for a link that the resolver did not report (a resolver that returns nothing without a note) stays.
     /// </remarks>
-    private static List<ImageDiagnostic> DropDuplicateUnresolved(List<ImageDiagnostic> notes, IReadOnlyList<ImageSourceDiagnostic> reported)
+    private static List<ImageDiagnostic> DropDuplicateUnresolved(List<ImageDiagnostic> notes, IReadOnlyList<ImageSourceDiagnostic> reported, string libraryDetail)
     {
         var unresolvedLinks = reported
             .Where(d => d.Code is FolderImageResolver.UnresolvedCode or FolderImageResolver.TooLargeCode or FolderImageResolver.FragmentInvalidCode or FolderImageResolver.PageOutOfRangeCode)
@@ -524,6 +526,6 @@ public static partial class SourceLoader
             .Where(m => m.Success)
             .Select(m => m.Groups["href"].Value)
             .ToHashSet(StringComparer.Ordinal);
-        return [.. notes.Where(n => !(n.Detail == "vl-mark-image-unresolved" && unresolvedLinks.Any(link => n.Message.Contains($"'{link}'", StringComparison.Ordinal))))];
+        return [.. notes.Where(n => !(n.Detail == libraryDetail && unresolvedLinks.Any(link => n.Message.Contains($"'{link}'", StringComparison.Ordinal))))];
     }
 }

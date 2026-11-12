@@ -82,6 +82,7 @@
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Render3D\DemaConsulting.CanvasNet.Render3D.csproj" />
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" />
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" />
+    <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Mermaid\DemaConsulting.CanvasNet.Mermaid.csproj" />
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" />
   </ItemGroup>
 

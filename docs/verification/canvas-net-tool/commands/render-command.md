@@ -6,7 +6,8 @@
 
 `RenderCommand` is verified with unit tests in `RenderCommandTests.cs`, `RenderCommandDocumentTests.cs` (pages,
 resolution, and strict mode of the documents), `RenderCommandScadTests.cs` (the views and options of an OpenSCAD
-model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), and `RenderCommandPipelineTests.cs` (the image
+model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), `RenderCommandMermaidTests.cs` (the Mermaid diagrams,
+the `--theme` option, and the theme of `inspect`), and `RenderCommandPipelineTests.cs` (the image
 pipeline options and the verb commands). The command is run
  in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
@@ -49,6 +50,14 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
+- A diagram (a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship diagram, a pie
+  chart, a gantt chart, or a mindmap) is
+  rendered at the size Mermaid lays it out at over
+  white, in the theme `--theme` names (the theme
+  fragment of the input wins over the option, and a theme the text sets wins over both), with the operation, the natural
+  size, and the diagnostics in the result; a type that is not drawn is the diagnostic `mermaid-diagram-unsupported`
+  or, in strict mode, an error; invalid text is a `mermaid-error` with a hint; a theme that does not exist and
+  `--theme` for another kind of input (`render` and `inspect`) are usage errors; no failure leaves an output.
 - The pipeline operations are applied in the order written, after the source sizing and before the output is written,
   and each is reported with its parameters and result size; a failing operation writes nothing and leaves an
   existing output untouched; a vector source is not scaled twice; the border color default follows the background.
@@ -287,6 +296,13 @@ the detail, the location, and the origin `["part.scad"]`, the nested note the or
 the
 SVG file's own link no extra member; a note without extras has exactly `source`, `severity`, `code`, and `message`.
 
+**InspectCommand_Run_ScadWarning_WritesDetailAndLocation**, **CompareCommand_Run_ScadWarning_WritesDetailAndLocation**,
+and **MontageCommand_Run_ScadWarning_WritesDetailAndLocation** (`RenderCommandDiagnosticDetailTests.cs`): the
+`inspect colors` command on a model with a malformed anchor, the `compare` command of that model against a plain
+`cube(5);`, and the `montage` command with that model as its one cell each succeed with exactly one diagnostic in the
+JSON result, with the `detail` `scad-anchor-invalid` and the `location` line 2, so every command writes the same extra
+members for the notes of the files it reads.
+
 **RenderCommand_Run_VegaLite_WritesPngAndReportsFormat**: the two-bar chart renders to a PNG whose size is the natural
 size in the JSON result, which names the `vega-lite` format and has one `render` operation with the `UTC` time zone
 and no
@@ -460,6 +476,80 @@ the larger canvas.
 **RenderCommand_Run_ScadAnchorOutsideTheCrop_IsNotInside** and
 **RenderCommand_Run_ScadAnchorBehindThePerspectiveEye_HasNullPixel**: a corner that a crop cuts away keeps its position
 and has `inside` false, and a point behind a perspective eye has a `null` pixel, `inside` false, and its world point.
+
+**RenderCommand_Run_Mermaid_WritesTheDiagramAndDescribesIt**: a two-node flowchart rendered with `--strict` and
+`--json` writes a PNG whose size is the `natural` size of the `input` object, which names the `mermaid` format, with a
+white corner and more than 500 pixels of the default node fill; the first operation is `render` with the background
+`#FFFFFF` and no `theme` member, and there is no diagnostic.
+
+**RenderCommand_Run_MermaidTheme_OptionFragmentAndTextPrecedence**: `--theme Forest` (another case) draws the flowchart
+in the forest theme and lists `theme` `forest` in the operation; `flow.mmd#theme=forest` with `--theme dark` draws
+and lists `forest` (the fragment wins); and a flowchart whose frontmatter sets `theme: forest` is drawn in the forest
+theme with `--theme dark` (the text wins, and the operation lists the option, `dark`).
+
+**RenderCommand_Run_MermaidThemeMistakes_AreUsageErrors**: `--theme sunset` is a `usage-error` ("'sunset' is not a
+Mermaid theme") whose hint lists `default, base, dark, forest, neutral`; `--theme dark` on a model is a `usage-error`
+that says that `--theme` only applies to a Mermaid diagram and names the `scad` kind, and writes no output; and
+`inspect colors` of the model with `--theme dark` exits with 1 and the same usage error.
+
+**RenderCommand_Run_MermaidJourney_IsUnsupportedDiagnosticThenStrictError**: a user journey renders with exactly one
+diagnostic (source `mermaid`, severity `unsupported`, code `mermaid-diagram-unsupported`, a message that says journey
+diagrams are not supported, location line 1), and with `--strict` it is `unsupported-feature` and writes no output.
+
+**RenderCommand_Run_MermaidSequence_DrawsTheParticipants**: a two-message sequence diagram rendered with `--strict` and
+`--json` writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000
+pixels of the default participant fill, and there is no diagnostic.
+
+**RenderCommand_Run_MermaidClass_DrawsTheClassBoxes**: a class diagram of the class `Animal` with the attribute
+`+String name` and the method `+eat()` and the inheritance `Animal <|-- Duck`, rendered with `--strict` and `--json`,
+writes a PNG whose size is the `natural` size of the `input` object, with a white corner and more than 2,000 pixels of
+the default node fill (the class boxes), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidState_DrawsTheStates**: a state diagram of a lamp (`[*] --> Off`, `Off --> On : switch`,
+`On --> Off : switch`, and `On --> [*]`), rendered with `--strict` and `--json`, writes a PNG whose size is the
+`natural` size of the `input` object, with a white corner and more than 1,000 pixels of the default node fill (the
+states), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidEr_DrawsTheEntities**: an entity relationship diagram of the relationship
+`CUSTOMER ||--o{ ORDER : places` and the entity `ORDER` with the attributes `int id PK` and `string note`, rendered with
+`--strict` and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner and
+more than 1,000 pixels of the default node fill (the entities), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidPie_DrawsTheSlices**: a pie chart titled `Pets` with three sections, rendered with `--strict`
+and `--json`, writes a PNG whose size is the `natural` size of the `input` object, with a white corner, more than a
+tenth of its pixels not white, and exactly the pixels the library draws for the text over white, and there is no
+diagnostic.
+
+**RenderCommand_Run_MermaidGantt_DrawsTheTasksWithoutATodayLine**: a gantt chart of one section with a dated task and a
+critical task `after` it, rendered with `--strict` and `--json`, writes a PNG of the `natural` size with more than a
+twentieth of its pixels not white, exactly the pixels the library draws without a clock, and not those it draws with a
+clock inside the chart (no today line), and there is no diagnostic.
+
+**RenderCommand_Run_MermaidGanttTodayAndInvalidDate_AreWarningThenError**: a gantt chart with `todayMarker stroke:#f00`
+is drawn, also with `--strict`, with the one diagnostic `mermaid-warning` whose `detail`
+is `mermaid-gantt-today-unavailable` at line 2 (the `todayMarker` statement); a gantt chart with the date `Jan 5 2024`
+returns exit code 1 with an `Error: mermaid-error:` line on standard error that names `Invalid date` and
+`invalid.mmd:2:`, a failure document with the code `mermaid-error`, and no output.
+
+**RenderCommand_Run_MermaidMindmap_DrawsTheNodes**: a mindmap with the circle root `Garden`, the children `Soil` (with
+`Compost`) and `Plants` (with the rectangle `Beans`), rendered with `--strict` and `--json`, writes a PNG of the
+`natural` size with a white corner, more than a twentieth of its pixels not white, and exactly the pixels the library
+draws for the text over white, and there is no diagnostic.
+
+**RenderCommand_Run_MermaidMindmapIcon_IsUnsupportedDiagnosticThenStrictError**: a mindmap whose node `Novels` has
+`::icon(fa fa-book)` is drawn with the one diagnostic of severity `unsupported` and code `mermaid-icon-unsupported`,
+whose message names `fa fa-book`, located at line 4 (the icon), and the picture is written; with `--strict` the render
+fails with the code `unsupported-feature` and writes no picture.
+
+**RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
+supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`
+line after 1; a flowchart with an unclosed bracket returns exit code 1 with the line
+`Error: mermaid-error: Mermaid syntax error: ...` and a `Hint:` line on standard error, a failure document with the
+code `mermaid-error`, and no output.
+
+**InspectCommand_Run_MermaidTheme_ReportsTheThemedColors**: `inspect pixel` of a point a few pixels inside the first
+node (14 and half the height) reports the forest node fill `#CDE498` with `--theme forest` and the default fill
+`#ECECFF` without it, so `inspect` reads a diagram in its theme as `render` does.
 
 **RenderCommand_Run_ParamScalar_SetsTheParameterAndTheNaturalSize**,
 **RenderCommand_Run_ParamSelectionAndRepeat_TakeJsonAndLastWins**,

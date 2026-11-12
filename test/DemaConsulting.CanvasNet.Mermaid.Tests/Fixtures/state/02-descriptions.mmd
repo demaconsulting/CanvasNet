@@ -1,0 +1,14 @@
+stateDiagram-v2
+    state "Waiting for input" as Waiting
+    Waiting : the user has not typed
+    Ready : the form is valid
+    Checked : first line
+    Checked : second line
+    state "Long title" as Titled
+    Titled : one description
+    Titled : two descriptions
+    Plain
+    Waiting --> Ready
+    Ready --> Checked
+    Checked --> Titled
+    Titled --> Plain

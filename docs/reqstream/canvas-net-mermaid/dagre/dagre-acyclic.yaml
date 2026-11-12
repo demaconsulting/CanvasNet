@@ -1,0 +1,48 @@
+---
+# Software Unit Requirements for DagreAcyclic
+#
+# These requirements describe the design-level behavior of the DagreAcyclic unit of the Dagre subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Dagre): dagre's cycle breaking (acyclic.js, greedy-fas.js and
+# data/list.js).
+# See docs/verification/canvas-net-mermaid/dagre/dagre-acyclic.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Dagre Requirements
+        sections:
+          - title: DagreAcyclic Requirements
+            requirements:
+              - id: CanvasNetMermaid-Dagre-DagreAcyclic-BreakCycles
+                title: >-
+                  The DagreAcyclic unit shall reverse a set of edges of a graph so that no cycle remains, leaving an
+                  acyclic graph unchanged, with the edges that a depth-first search finds going back to a node on its
+                  stack by default.
+                justification: |
+                  Ranking needs an acyclic graph, and dagre picks the edges to reverse this way unless told
+                  otherwise.
+                tests:
+                  - DagreAcyclic_Run_AcyclicGraph_Unchanged
+                  - DagreAcyclic_Run_Cycles_Broken
+
+              - id: CanvasNetMermaid-Dagre-DagreAcyclic-Greedy
+                title: >-
+                  The DagreAcyclic unit shall, when the graph's cycle breaker is greedy, pick the edges to reverse
+                  with dagre's greedy heuristic of Eades, Lin, and Smyth, preferring light edges, returning every
+                  parallel edge of a chosen pair, and returning nothing for a graph without cycles.
+                justification: |
+                  dagre offers the greedy breaker as an option; the port must choose the same edges for it.
+                tests:
+                  - DagreAcyclic_Run_Greedy_BreaksAtLowWeightEdge
+                  - DagreAcyclic_GreedyFas_NoCycles_Empty
+                  - DagreAcyclic_GreedyFas_TwoFourNodeCycles_WithinBound
+                  - DagreAcyclic_GreedyFas_WeightedAndMultiEdges_ReturnsLightEdges
+
+              - id: CanvasNetMermaid-Dagre-DagreAcyclic-Restore
+                title: >-
+                  The DagreAcyclic unit shall restore every reversed edge to its original direction, label, and name
+                  after the layout.
+                justification: |
+                  The caller reads the route of each edge by its original ends and name.
+                tests:
+                  - DagreAcyclic_Undo_ReversedEdges_Restored

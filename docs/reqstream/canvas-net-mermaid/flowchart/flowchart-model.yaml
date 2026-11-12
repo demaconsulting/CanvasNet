@@ -1,0 +1,112 @@
+---
+# Software Unit Requirements for FlowchartModel
+#
+# These requirements describe the design-level behavior of the FlowchartModel unit of the Flowchart subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Flowchart): the flowchart database that the parser fills, the
+# diagram metadata it gives the document, its mapping to the layout input of a render, the reports of what is not
+# drawn, and the drawing of the flowchart. See docs/verification/canvas-net-mermaid/flowchart/flowchart-model.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Flowchart Requirements
+        sections:
+          - title: FlowchartModel Requirements
+            requirements:
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Links
+                title: >-
+                  The FlowchartModel unit shall read every link token as Mermaid's flowchart database does - the arrow
+                  type at each end, the stroke (normal, thick, dotted, or invisible), and the length - mark a link whose
+                  start and end do not match as invalid, and give each edge Mermaid's id (a given link id once,
+                  otherwise one that counts the earlier edges between the same two nodes).
+                justification: |
+                  Markers, strokes, edge lengths, and the ids that styles and shape data refer to must be Mermaid's.
+                tests:
+                  - FlowchartModel_DestructLink_Token_GivesTypeStrokeAndLength
+                  - FlowchartModel_AddLink_RepeatedPairsAndIds_GetMermaidIds
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Vertices
+                title: >-
+                  The FlowchartModel unit shall merge a vertex that is declared again into its first declaration as
+                  Mermaid does: the generated DOM id and the place in the order are kept, a new label, label type,
+                  shape, and styles replace or extend the earlier ones, and a plain mention keeps the label.
+                justification: |
+                  Authors declare a node once and refer to it, or restyle it, later; the node must be drawn once with
+                  the result Mermaid shows.
+                tests:
+                  - FlowchartModel_AddVertex_Redeclared_MergesIntoFirst
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Styles
+                title: >-
+                  The FlowchartModel unit shall record classDef styles split at commas (an escaped comma kept) with the
+                  styles that set a color also as text styles, shall give the edges of one linkStyle statement one
+                  shared style list that ends with fill:none unless a style sets the fill, and shall refuse a
+                  linkStyle index that is not a plain index of
+                  an edge declared before it with a located MermaidSyntaxException that names the valid range.
+                justification: |
+                  Styles decide the colors of nodes, labels, and edges; a style aimed at an edge that does not exist is
+                  an error in Mermaid and must fail closed at its statement.
+                tests:
+                  - FlowchartModel_AddClass_Styles_SplitAndTextStyles
+                  - FlowchartModel_UpdateLink_SeveralEdges_ShareOneList
+                  - FlowchartModel_UpdateLink_IndexOutOfRange_ThrowsLocated
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Subgraphs
+                title: >-
+                  The FlowchartModel unit shall give each subgraph Mermaid's id (a generated id for a title with white
+                  space that is also its id), its title and label type, the direction of its last direction statement,
+                  and its members, leaving out the members that an earlier subgraph already has.
+                justification: |
+                  Cluster membership and direction decide the nested layout; they must be Mermaid's.
+                tests:
+                  - FlowchartModel_AddSubgraph_IdsAndMembers_FollowMermaid
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Metadata
+                title: >-
+                  The FlowchartModel unit shall give the document the direction, the accessible title (none when it is
+                  not written), no title of its own, and the numbers of vertices that are not subgraphs, of edges, and
+                  of subgraphs.
+                justification: |
+                  The document reports these facts without rendering; a flowchart has no title statement, so the
+                  document takes the frontmatter title.
+                tests:
+                  - FlowchartModel_Counts_ExcludeSubgraphVertices
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-LayoutData
+                title: >-
+                  The FlowchartModel unit shall map the flowchart, under the effective configuration of each render,
+                  to the layout input that Mermaid's flowchart database and renderer produce: node shapes as Mermaid
+                  derives them from brackets, shape data, images, and icons, the point, circle, and cross markers, the
+                  direction and spacings, collapsed subgraphs that hide their content and take over the edges that
+                  cross them, and the diagram direction for subgraphs without one when inheritDir is set.
+                justification: |
+                  The configuration of a render is known only when it starts, and the same model must serve every
+                  render with that render's settings.
+                tests:
+                  - FlowchartModel_GetData_Shapes_FollowGetTypeFromVertex
+                  - FlowchartModel_GetData_CollapsedSubgraph_RedirectsEdges
+                  - FlowchartModel_GetData_InheritDirection_GivesDiagramDirection
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Unsupported
+                title: >-
+                  The FlowchartModel unit shall report, in this order and each with its location and a hint, a look
+                  other than classic (mermaid-look-unsupported), a layout other than dagre
+                  (mermaid-layout-unsupported), and every node icon and every Font Awesome icon that Mermaid's
+                  expression finds in a node, edge, or subgraph label (mermaid-icon-unsupported).
+                justification: |
+                  The host must learn of each construct whose picture differs from Mermaid's, in a stable order, at the
+                  place where it is written.
+                tests:
+                  - FlowchartModel_ReportUnsupported_LookLayoutAndIcons_AreReportedInOrder
+
+              - id: CanvasNetMermaid-Flowchart-FlowchartModel-Drawing
+                title: >-
+                  The FlowchartModel unit shall, when it is laid out for a render, deliver its reports first and then
+                  draw the flowchart through the shared rendering with the frontmatter title above the drawing and a
+                  view box of the drawn bounds grown by the diagram padding.
+                justification: |
+                  Reports must reach the host (and stop a strict render) before any work is spent on drawing, and the
+                  size of the picture must be Mermaid's.
+                tests:
+                  - FlowchartModel_Layout_IconLabel_ReportsThenRenders

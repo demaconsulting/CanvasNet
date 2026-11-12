@@ -1,28 +1,33 @@
 --[[
-canvasnet.lua - a Pandoc filter that draws models, charts, and document pages as PNG pictures.
+canvasnet.lua - a Pandoc filter that draws models, charts, diagrams, and document pages as PNG pictures.
 
 A document refers to a source file like any picture, and says how to draw it in attributes:
 
     ![Pump mount](pump-mount.scad){view=iso width=60%}
     ![Sales by region](sales.vl.json){scale=2}
     ![The wiring](wiring.vsdx){page=2 dpi=150}
+    ![Order flow](order-flow.mmd){theme=forest}
 
 The filter handles a picture whose file name ends in one of these (any other picture is left alone,
-and the tool is not even started for it, so PNG, JPEG, and SVG pictures behave as they always did):
+and the tool is not even started for it, so PNG and JPEG pictures, and SVG pictures that link none of these,
+behave as they always did):
 
     .scad       an OpenSCAD model (the subset the tool draws)
     .vl.json    a Vega-Lite chart (.vl is the same)
     .vsdx       a page of a Visio drawing
     .pptx       a slide of a PowerPoint presentation
     .pdf        a page of a PDF document
+    .mmd        a Mermaid diagram (.mermaid is the same)
+    .svg        an SVG drawing whose <image> elements link one of the above, directly or through a nested .svg
+                file: flattened with "canvasnet flatten", see below; any other SVG drawing is left alone
 
 Attributes this filter reads (all optional; "all" means every input type above):
 
-    size         all: the picture in pixels, WIDTHxHEIGHT; for a model the default is 1600x1200 (unless
-                 scale is given), the others are drawn at their natural size (dpi and scale apply)
+    size         all but .svg: the picture in pixels, WIDTHxHEIGHT; for a model the default is 1600x1200
+                 (unless scale is given), the others are drawn at their natural size (dpi and scale apply)
     scale        all: multiply the natural size by a number, 0.001 to 8192, for example 2
-                 (not together with size)
-    background   all: a color such as #F0F0F0 or #F0F0F0FF, a name such as white, or transparent
+                 (not together with size); for .svg, the size of the pictures that replace the links
+    background   all but .svg: a color such as #F0F0F0 or #F0F0F0FF, a name such as white, or transparent
                  (default: white; the tool's own default for charts and documents)
     page         .vsdx, .pptx, .pdf: the page or slide, counted from 1 (default 1)
     dpi          .vsdx, .pptx, .pdf: the resolution of the page in dots per inch, above 0 up to 2400
@@ -35,9 +40,57 @@ Attributes this filter reads (all optional; "all" means every input type above):
     define-NAME  .scad: sets a model variable, for example define-bracket_height=60
     param-NAME   .vl.json, .vl: sets a parameter of the chart (--param NAME=VALUE: a number, true, false, null,
                  text, or JSON such as {"x":[2,6]} for a selection), for example param-cutoff=50
+    theme        .mmd, .mermaid: default, base, dark, forest or neutral (as mmdc -t: a theme the diagram's own
+                 configuration sets still wins)
 
 An attribute for another input type (view on a chart, page on a model) is an error, not ignored.
-Every other attribute (width, height, an id or a class) stays on the picture.
+Every other attribute (width, height, an id or a class) stays on the picture. An .svg picture reads only
+scale; every other attribute of it stays on the picture.
+
+SVG drawings. An SVG reader such as WeasyPrint draws nothing for an <image href="flow.mmd"> (or a .scad, .vl.json,
+.pdf, .pptx, or .vsdx link, or a nested .svg file that links one). For an .svg picture the filter reads the drawing
+and the .svg files it links (as the tool does: the href of every image element, or its xlink:href (an href in the
+XLink namespace, under any prefix bound to it) when it has no href,
+entities decoded, a query and a fragment cut off and then the rest percent-decoded, as the tool reads a link, remote and
+data: links skipped; comments, CDATA sections, processing
+instructions and a DOCTYPE hold no links, and a ">" in a quoted attribute does not end a tag); when none of them links
+such a file, the picture is left alone and the tool is not started, so a plain SVG drawing stays a vector picture
+exactly as before. A link to such a file that does not exist counts too, so the tool reports it (svg-image-unresolved)
+instead of the link being left silently broken. Otherwise the tool writes a
+copy ("canvasnet flatten ... --json") in which each such link is a PNG picture of its placement size (times scale)
+as a data: URI, and the picture points at the copy, docs/generated/canvasnet/<name>-<hash>.svg; the tool rewrites the
+relative links that are left (rasters, plain .svg files) so they still find their files from there. When the tool
+finds nothing to flatten (a diagram that the drawing never shows, or a missing file, which it reports as a warning),
+the picture is left alone and a marker (<hash>.plain, holding the tool's warnings, which later builds show again) saves
+later builds from starting the tool again.
+
+A Mermaid diagram can also be written in the document, as a fenced code block of class mermaid:
+
+    ```{.mermaid caption="Order flow" theme=forest width=80%}
+    flowchart LR
+        A[Order] --> B{Paid?} --> C[Ship]
+    ```
+
+The text is written to docs/generated/canvasnet/<hash>.mmd and drawn like a .mmd picture, and the block becomes
+the picture: a figure with the caption when a caption attribute is given, else a paragraph holding the picture.
+The block reads the same attributes as a .mmd picture (size, scale, background, theme); caption is taken
+as the figure's caption, and every other attribute, the id, and any class but mermaid stay on the picture. A
+picture in a node (A@{ img: "part.png" }, <img src="part.png">) is found from the folder the text is written to,
+not from the document's folder, so a diagram that draws pictures must be a .mmd file of its own, used as
+![Parts](parts.mmd); the tool's message about the missing picture is shown as a warning.
+
+Diagram types the tool does not draw. The tool draws flowchart (and graph), sequenceDiagram, classDiagram,
+stateDiagram (and stateDiagram-v2), erDiagram, pie, gantt, and mindmap diagrams (a gantt chart without a today
+line: the tool sets no clock). For any other type (journey, timeline, and so on) the tool reports
+mermaid-diagram-unsupported, and the filter leaves the code block (or the .mmd picture) exactly as written, so the
+document shows the code, and warns with the tool's message ("...; it is left as written and not drawn"). No other
+filter is expected to draw it: the CanvasNet build fails when a generated document still holds such a block or
+picture. A filter given on the command line after "--defaults" still runs after this one (Pandoc runs the filters in
+the order of its command line, a defaults file's filters taking the place of its --defaults option), so it sees only
+the blocks left as written. A marker in the cache folder (<hash>.unsupported, holding the message) saves later
+builds from starting the tool again for that diagram; the warning is shown on every build.
+A flowchart that only embeds a picture of such a type (A@{ img: "pets.mmd" }) is drawn as usual; the tool's report
+about the embedded picture, which names it in its origin, is shown as a warning.
 
 How it works. The filter has two jobs only:
 
@@ -47,13 +100,14 @@ How it works. The filter has two jobs only:
   2. Hash every file the tool will read, so that a change to any of them draws the picture again.
 
 The filter is NOT a security boundary. It runs the author's own documents with the author's permissions,
-and Pandoc itself embeds pictures from any path. What a model or a chart may read is decided by the tool's
+and Pandoc itself embeds pictures from any path. What a model, a chart or a diagram may read is decided by the tool's
 own sandbox when the picture is drawn; the filter does no containment check of its own. A dependency the
 tool refuses still stops the build, with the tool's own message. The filter does not resolve symbolic
 links. Paths are used and compared exactly as written (collapsing "." and ".."), so a file reached through
 two spellings is simply hashed twice, which is harmless.
 
-The picture is drawn by the canvasnet tool ("canvasnet render ... --json"), and the PNG is written to
+The picture is drawn by the canvasnet tool ("canvasnet render ... --json", or "canvasnet flatten ... --json"
+for an SVG drawing), and the PNG (the SVG copy) is written to
 docs/generated/canvasnet/ (git-ignored through **/generated/) under a name made from a SHA-1 of everything
 that decides the picture:
 
@@ -64,10 +118,18 @@ that decides the picture:
     local picture that an image mark names (the "url" of the mark, the literal "value" or "datum" of a "url" channel,
     and the links that the "url" field holds in the inline rows; a model with its includes, a chart with its own
     files, any other file as it is; a fragment such as "#page=2" or "#def.width=20" is dropped, and since the link is part of the
-    specification, a changed fragment draws the chart again). The pictures of a chart that come from a data
-    file or from a transform are not tracked; a chart that names more than 512 different data files or
-    pictures, or a model that with its includes is more than 512 files, stops the build,
-    since a file left out of the hash could change without the picture being drawn again;
+    specification, a changed fragment draws the chart again); for a diagram every local picture that a node
+    names (the img of a shape's data and the src of an <img> tag in a label, relative to the diagram's folder,
+    a fragment such as "#theme=dark" dropped; a model, chart or diagram with its own files, any other file as
+    it is). The pictures of a chart that come from a data file or from a transform are not tracked; a chart
+    that names more than 512 different data files or pictures, a diagram that names more than 512 pictures,
+    or a model that with its includes is more than 512 files, stops the build, since a file left out of the
+    hash could change without the picture being drawn again; for an SVG drawing every local file its image
+    elements link (an .svg file with its own links, a model, chart or diagram with its own files, any other
+    file as it is), and each missing model, chart, diagram or document it links as a "missing" entry, so creating
+    the file later flattens the drawing again;
+  - for an SVG drawing, its folder as seen from docs/generated/canvasnet/, since the links the tool rewrites in the
+    copy lead from there to it;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
     fingerprint of the DLLs beside it; and this filter's version.
@@ -76,9 +138,9 @@ An unchanged source is therefore not drawn again, and a changed one always is. E
 under a temporary name and then renamed, so two builds running at once never read a half-written file.
 Pandoc may run this filter more than once for one document (DocTemplates runs Pandoc first to work out
 the file name); the second run finds the picture already drawn. The filter uses only pandoc.path,
-pandoc.system, pandoc.json, pandoc.sha1 and pandoc.pipe (Pandoc 3.x), and starts the tool with an
-argument list, never through a shell, so it runs the same on Windows and on a Linux build server, and
-no attribute or file name can inject a command.
+pandoc.system, pandoc.json, pandoc.sha1, pandoc.pipe, pandoc.read and pandoc.utils (Pandoc 3.x), and
+starts the tool with an argument list, never through a shell, so it runs the same on Windows and on a
+Linux build server, and no attribute or file name can inject a command.
 
 The tool. The command is "dotnet canvasnet", the tool a repository pins in its .config/dotnet-tools.json:
 
@@ -113,7 +175,9 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "8"
+-- Part of every picture's hash, so a change to what the filter draws or how it treats a diagram draws the pictures
+-- again. 12: a diagram type the tool does not draw is left as written with a warning, no longer for another filter.
+local FILTER_VERSION = "12"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -130,9 +194,17 @@ local SUFFIXES = {
   { ".vsdx", "vsdx" },
   { ".pptx", "pptx" },
   { ".pdf", "pdf" },
+  { ".mmd", "mermaid" },
+  { ".mermaid", "mermaid" },
 }
 
+-- The code a diagram the tool does not draw gets in its --json diagnostics (a 16x16 empty picture is written):
+-- the filter leaves such a diagram as written and warns, so the document shows its code.
+local UNSUPPORTED_DIAGRAM = "mermaid-diagram-unsupported"
+
 local SCAD = { scad = true }
+local MERMAID = { mermaid = true }
+local THEMES = { default = true, base = true, dark = true, forest = true, neutral = true }
 local PAGED = { vsdx = true, pptx = true, pdf = true }
 local VIEWS = { iso = true, front = true, back = true, left = true, right = true, top = true, bottom = true }
 local PROJECTIONS = { ortho = true, orthographic = true, perspective = true }
@@ -387,8 +459,8 @@ end
 
 -- The source file as an absolute path, found the way Pandoc finds a picture: an absolute name is used if
 -- the file opens; a relative name is joined to each resource-path folder in turn and the first file that
--- opens is taken. No containment check: the filter is not a security boundary (see the header).
-local function find_source(src)
+-- opens is taken, or nil. No containment check: the filter is not a security boundary (see the header).
+local function locate_source(src)
   local names = { src }
   local decoded = decode_percent(src)
   if decoded ~= src then
@@ -409,7 +481,12 @@ local function find_source(src)
       end
     end
   end
-  fail("cannot find '" .. src .. "' in the document's resource path")
+  return nil
+end
+
+-- The source file, or an error that stops the build and names the picture when no file is found.
+local function find_source(src)
+  return locate_source(src) or fail("cannot find '" .. src .. "' in the document's resource path")
 end
 
 -- The text a dependency is hashed under: its path from the source's folder, so the picture's name does not
@@ -569,14 +646,17 @@ local function local_image_file(folder, link)
   return local_data_file(folder, (link:gsub("[#?].*$", "")))
 end
 
--- Adds the picture files of a chart to the hash input, so that a changed picture draws the chart again: a
--- model with the files it includes, and a chart that is a picture with its own files, and any other file as
--- it is. The pictures of a chart that come from a data file are not tracked (the documentation says so).
+-- Adds the picture files of a chart, a diagram or an SVG drawing to the hash input, so that a changed picture draws it
+-- again: a model with the files it includes, a chart, a diagram or an SVG file that is a picture with its own files,
+-- and any other file as it is. The pictures of a chart that come from a data file are not tracked (the documentation
+-- says so).
 local add_chart_sources
+local add_mermaid_sources
+local add_svg_sources
 
 local function add_image_files(files, root, parts, seen, depth)
   if depth > MAX_DEPTH then
-    fail("charts are drawn inside charts more than " .. MAX_DEPTH .. " levels deep")
+    fail("charts and diagrams are drawn inside each other more than " .. MAX_DEPTH .. " levels deep")
   end
   for _, file in ipairs(files) do
     if not seen[file] then
@@ -586,13 +666,18 @@ local function add_image_files(files, root, parts, seen, depth)
       elseif lower:match("%.vl%.json$") or lower:match("%.vl$") then
         seen[file] = true
         add_chart_sources(file, pandoc.path.directory(file), parts, seen, depth + 1)
+      elseif lower:match("%.mmd$") or lower:match("%.mermaid$") then
+        add_mermaid_sources(file, root, parts, seen, depth + 1)
+      elseif lower:match("%.svg$") then
+        add_svg_sources(file, root, parts, seen, depth + 1)
       else
         seen[file] = true
         local data = read_file(file)
         if data then
           if #parts >= MAX_DEPENDENCIES then
-            fail("the chart and the files it draws are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
-              .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+            fail("the chart or diagram and the files it draws are more than " .. MAX_DEPENDENCIES
+              .. " files; the limit is " .. MAX_DEPENDENCIES
+              .. " (every file must be hashed so that a changed one is drawn again)")
           end
           table.insert(parts, label(root, file) .. "\n" .. data)
         end
@@ -665,6 +750,313 @@ function add_chart_sources(path, root, parts, seen, depth)
       .. MAX_DEPENDENCIES .. " (every picture must be hashed so that a changed one is drawn again)")
   end
   add_image_files(pictures, root, parts, seen, depth)
+end
+
+-- Collects the links of the pictures that a Mermaid diagram draws in its nodes: the img of a shape's data
+-- (A@{ img: "part.png" }, quoted or not) and the src of an <img> tag in a label. Text that only looks like one (in
+-- a comment, say) can only add a file to the hash.
+local function collect_mermaid_links(content, links)
+  for _, quote in ipairs({ '"', "'" }) do
+    for link in content:gmatch("img%s*:%s*" .. quote .. "([^" .. quote .. "\r\n]*)" .. quote) do
+      links[link] = true
+    end
+  end
+  for link in content:gmatch("img%s*:%s*([^%s\"',}][^,}\r\n]*)") do
+    links[(link:gsub("%s+$", ""))] = true
+  end
+  for tag in content:gmatch("<[iI][mM][gG][^>]*>") do
+    for _, quote in ipairs({ '"', "'" }) do
+      for link in tag:gmatch("[sS][rR][cC]%s*=%s*" .. quote .. "([^" .. quote .. "]*)" .. quote) do
+        links[link] = true
+      end
+    end
+    for link in tag:gmatch("[sS][rR][cC]%s*=%s*([^%s\"'>][^%s>]*)") do
+      links[link] = true
+    end
+  end
+end
+
+-- Adds a Mermaid diagram and the local pictures its nodes name to the hash input: a link is taken from the
+-- diagram's folder without its fragment ("#page=2", "#theme=dark") or query, a remote or absolute link (which
+-- the tool refuses) is skipped, and a linked model, chart or diagram adds its own files. A diagram that names
+-- more than MAX_DEPENDENCIES different local pictures stops the build, as for a chart.
+function add_mermaid_sources(path, root, parts, seen, depth)
+  seen[path] = true
+  local content = read_file(path)
+  if not content then
+    return
+  end
+  if #parts >= MAX_DEPENDENCIES then
+    fail("the diagram and the files it draws are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  table.insert(parts, label(root, path) .. "\n" .. content)
+  local links = {}
+  collect_mermaid_links(content, links)
+  local folder = pandoc.path.directory(path)
+  local pictures = {}
+  local unique = {}
+  for link in pairs(links) do
+    for _, name in ipairs({ link, decode_percent(link) }) do
+      local resolved = local_image_file(folder, name)
+      if resolved and not unique[resolved] and file_exists(resolved) then
+        unique[resolved] = true
+        table.insert(pictures, resolved)
+      end
+    end
+  end
+  -- Sorted, so the order the links are met in cannot change the picture's name.
+  table.sort(pictures)
+  if #pictures > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' names " .. #pictures .. " pictures; the limit is "
+      .. MAX_DEPENDENCIES .. " (every picture must be hashed so that a changed one is drawn again)")
+  end
+  add_image_files(pictures, root, parts, seen, depth)
+end
+
+-- The five predefined XML entities; a character reference (&#N; or &#xN;) is decoded too.
+local XML_ENTITIES = { amp = "&", lt = "<", gt = ">", quot = '"', apos = "'" }
+
+local function decode_entities(text)
+  return (text:gsub("&(#?[%w]+);", function(name)
+    if XML_ENTITIES[name] then
+      return XML_ENTITIES[name]
+    end
+    local code = nil
+    if name:match("^#[xX]%x+$") then
+      code = tonumber(name:sub(3), 16)
+    elseif name:match("^#%d+$") then
+      code = tonumber(name:sub(2))
+    end
+    if code and code < 0x110000 then
+      return utf8.char(code)
+    end
+    return nil
+  end))
+end
+
+-- Reads the attributes of a start tag from "pos" (just after the element name) up to its closing ">", a ">" inside a
+-- quoted value (single or double quotes) being part of the value. Returns the attributes as a list of { name, value }
+-- (an unquoted value, which is not XML, is read up to white space or ">"), the position after the tag, and whether the
+-- tag closes itself ("/>").
+local function read_attributes(content, pos)
+  local attributes = {}
+  local length = #content
+  local closes = false
+  while pos <= length do
+    pos = content:find("[^%s]", pos) or (length + 1)
+    local char = content:sub(pos, pos)
+    if char == ">" then
+      return attributes, pos + 1, closes
+    elseif char == "/" then
+      closes = true
+      pos = pos + 1
+    else
+      closes = false
+      local name = content:match("^[^%s=/>]+", pos)
+      if not name then
+        pos = pos + 1 -- a stray "=", which is not XML
+      else
+        pos = content:find("[^%s]", pos + #name) or (length + 1)
+        local value = ""
+        if content:sub(pos, pos) == "=" then
+          pos = content:find("[^%s]", pos + 1) or (length + 1)
+          local quote = content:sub(pos, pos)
+          if quote == '"' or quote == "'" then
+            local close = content:find(quote, pos + 1, true) or (length + 1)
+            value = content:sub(pos + 1, close - 1)
+            pos = close + 1
+          else
+            value = content:match("^[^%s>]*", pos)
+            pos = pos + #value
+          end
+        end
+        table.insert(attributes, { name, value })
+      end
+    end
+  end
+  return attributes, pos, closes
+end
+
+-- The namespace of the legacy xlink:href attribute.
+local XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
+
+-- The text that ends each kind of markup that holds no elements, by the text that starts it.
+local SKIPPED_MARKUP = { { "<!--", "-->" }, { "<![CDATA[", "]]>" }, { "<?", "?>" } }
+
+-- Collects the links of the image elements of an SVG text, as the tool finds them: for each element whose name is image
+-- (with or without a namespace prefix), the unprefixed href, or the href in the XLink namespace (xlink:href, under any
+-- prefix that is bound to that namespace on the element or an ancestor) when there is none; the value with entities
+-- decoded and white space trimmed. Comments, character data, processing instructions, a DOCTYPE (with its internal
+-- subset) and end tags hold no links, and a ">" inside a quoted attribute value does not end a tag.
+local function collect_svg_links(content, links)
+  local pos = 1
+  local length = #content
+  -- The namespace bindings of the open elements, innermost last: each a table of prefix to namespace
+  local scopes = {}
+  local function namespace_of(prefix, own)
+    if own[prefix] then
+      return own[prefix]
+    end
+    for i = #scopes, 1, -1 do
+      if scopes[i][prefix] then
+        return scopes[i][prefix]
+      end
+    end
+    return nil
+  end
+  while true do
+    local open = content:find("<", pos, true)
+    if not open then
+      return
+    end
+    local skipped = false
+    for _, markup in ipairs(SKIPPED_MARKUP) do
+      if content:sub(open, open + #markup[1] - 1) == markup[1] then
+        local close = content:find(markup[2], open + #markup[1], true)
+        if not close then
+          return
+        end
+        pos = close + #markup[2]
+        skipped = true
+        break
+      end
+    end
+    if not skipped then
+      local next_char = content:sub(open + 1, open + 1)
+      if next_char == "!" then
+        -- A DOCTYPE or another declaration: up to the ">" outside quotes and outside its internal subset "[...]"
+        local depth, quote, i = 0, nil, open + 2
+        while i <= length do
+          local char = content:sub(i, i)
+          if quote then
+            if char == quote then
+              quote = nil
+            end
+          elseif char == '"' or char == "'" then
+            quote = char
+          elseif char == "[" then
+            depth = depth + 1
+          elseif char == "]" then
+            depth = depth - 1
+          elseif char == ">" and depth <= 0 then
+            break
+          end
+          i = i + 1
+        end
+        pos = i + 1
+      elseif next_char == "/" then
+        pos = (content:find(">", open + 2, true) or length) + 1
+        table.remove(scopes)
+      else
+        local name = content:match("^[%w_%.%-:]+", open + 1)
+        if not name then
+          pos = open + 1
+        else
+          local attributes, closes
+          attributes, pos, closes = read_attributes(content, open + 1 + #name)
+          local own = {}
+          for _, attribute in ipairs(attributes) do
+            local prefix = attribute[1]:match("^xmlns:(.+)$")
+            if prefix then
+              own[prefix] = decode_entities(attribute[2])
+            end
+          end
+          if name == "image" or name:match(":image$") then
+            local plain, legacy = nil, nil
+            for _, attribute in ipairs(attributes) do
+              local prefix = attribute[1]:match("^([^:]+):href$")
+              if attribute[1] == "href" then
+                plain = attribute[2]
+              elseif legacy == nil and prefix and namespace_of(prefix, own) == XLINK_NAMESPACE then
+                legacy = attribute[2]
+              end
+            end
+            local link = plain or legacy
+            if link then
+              links[(decode_entities(link):gsub("^%s+", ""):gsub("%s+$", ""))] = true
+            end
+          end
+          if not closes then
+            table.insert(scopes, own)
+          end
+        end
+      end
+    end
+  end
+end
+
+-- Adds an SVG drawing and the local files its image elements link to the hash input, and tells whether it links a
+-- file that only the tool draws (a model, chart, diagram, or document page), directly or through a nested .svg file.
+-- A link is taken from the drawing's folder without its fragment or query, a remote, data: or absolute link (which
+-- the tool never reads) is skipped, a nested .svg file is followed with its own links, and a linked model, chart or
+-- diagram adds its own files. A link to such a file that is missing makes the drawing composite too (the tool reports
+-- it) and adds a "missing" entry to the hash. While a drawing is being read its entry in "seen" is true, and afterwards
+-- "composite" or "plain", so a drawing linked twice is read once and a cycle ends. More than MAX_DEPENDENCIES files
+-- stops the build.
+function add_svg_sources(path, root, parts, seen, depth)
+  if depth > MAX_DEPTH then
+    fail("SVG drawings are linked inside each other more than " .. MAX_DEPTH .. " levels deep")
+  end
+  seen[path] = true
+  local content = read_file(path)
+  if not content then
+    seen[path] = "plain"
+    return false
+  end
+  if #parts >= MAX_DEPENDENCIES then
+    fail("the drawing and the files it links are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  table.insert(parts, label(root, path) .. "\n" .. content)
+  local links = {}
+  collect_svg_links(content, links)
+  local folder = pandoc.path.directory(path)
+  local files = {}
+  local missing = {}
+  local unique = {}
+  for link in pairs(links) do
+    -- The file a link names is read as the tool's resolver reads it: the query and the fragment are cut off first, then
+    -- what is left is percent-decoded (so "flow%2Emmd" is flow.mmd and "a%23b.mmd" is the file a#b.mmd); a remote or
+    -- data: link is skipped. A link to a file only the tool draws that is missing still makes the drawing one to
+    -- flatten, so the tool reports the link instead of leaving it broken
+    local reference = link:gsub("[#?].*$", "")
+    local resolved = local_data_file(folder, reference) and local_data_file(folder, decode_percent(reference))
+    if resolved and not unique[resolved] then
+      if file_exists(resolved) then
+        unique[resolved] = true
+        table.insert(files, resolved)
+      elseif kind_of(resolved) ~= nil then
+        unique[resolved] = true
+        table.insert(missing, resolved)
+      end
+    end
+  end
+  -- Sorted, so the order the links are met in cannot change the picture's name.
+  table.sort(files)
+  table.sort(missing)
+  if #files + #missing > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' links " .. (#files + #missing) .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+  end
+  -- A missing file cannot be hashed, so the hash notes it as missing: creating it later changes the hash
+  for _, file in ipairs(missing) do
+    table.insert(parts, "missing " .. label(root, file))
+  end
+  local composite = #missing > 0
+  for _, file in ipairs(files) do
+    if file:lower():match("%.svg$") then
+      if not seen[file] then
+        add_svg_sources(file, root, parts, seen, depth + 1)
+      end
+      composite = composite or seen[file] == "composite"
+    else
+      composite = composite or kind_of(file) ~= nil
+      add_image_files({ file }, root, parts, seen, depth + 1)
+    end
+  end
+  seen[path] = composite and "composite" or "plain"
+  return composite
 end
 
 -- Attribute checks. Each returns the normalized value, or stops the build with a message that names the
@@ -759,6 +1151,17 @@ local OPTIONS = {
         fail("'" .. src .. "' has projection=" .. value .. "; write ortho or perspective")
       end
       return projection
+    end,
+  },
+  theme = {
+    kinds = MERMAID,
+    applies = "Mermaid diagrams",
+    check = function(src, value)
+      local theme = value:lower()
+      if not THEMES[theme] then
+        fail("'" .. src .. "' has theme=" .. value .. "; write default, base, dark, forest or neutral")
+      end
+      return theme
     end,
   },
 }
@@ -862,14 +1265,34 @@ end
 
 math.randomseed(os.time() + math.floor(os.clock() * 1000000))
 
-function Image(img)
-  local kind = kind_of(img.src)
-  if not kind then
-    return nil
+-- Writes a text file under a temporary name and then renames it, so a build running at the same time never reads
+-- a half-written file. A file that is there already holds the same text (its name is a hash of it).
+local function write_atomically(path, content)
+  if file_exists(path) then
+    return
   end
+  local partial = path .. "." .. tostring(math.random(100000000, 999999999)) .. ".partial"
+  local handle = io.open(partial, "wb")
+  if not handle then
+    fail("could not write " .. partial)
+  end
+  handle:write(content)
+  handle:close()
+  if not os.rename(partial, path) then
+    -- Another build wrote the same file first.
+    os.remove(partial)
+    if not file_exists(path) then
+      fail("could not write " .. path)
+    end
+  end
+end
 
-  local source = find_source(img.src)
-  local options, keep = build_options(img.src, kind, img.attributes)
+-- Draws a source file into the cache folder, unless it is there already, and returns the picture's file and the
+-- attributes that stay on the picture. A diagram of a type the tool does not draw returns nil (it is left as
+-- written): the tool's message is a warning, and a marker in the cache that holds it saves
+-- later builds from starting the tool for it again.
+local function draw(name, source, kind, attributes, stem)
+  local options, keep = build_options(name, kind, attributes)
   local command = find_tool()
 
   local root = pandoc.path.directory(source)
@@ -878,10 +1301,12 @@ function Image(img)
     add_scad_sources(root, source, {}, sources, 0)
   elseif kind == "vegalite" then
     add_chart_sources(source, root, sources)
+  elseif kind == "mermaid" then
+    add_mermaid_sources(source, root, sources, {}, 0)
   else
     local content = read_file(source)
     if not content then
-      fail("cannot read '" .. img.src .. "'")
+      fail("cannot read '" .. name .. "'")
     end
     table.insert(sources, pandoc.path.filename(source) .. "\n" .. content)
   end
@@ -894,48 +1319,175 @@ function Image(img)
     table.concat(sources, "\n\0\n"),
   }, "\n\0\n"))
 
-  local stem = pandoc.path.split_extension(pandoc.path.filename(source))
-  stem = stem:gsub("%.vl$", ""):gsub("[^%w_-]", "-")
   pandoc.system.make_directory(out_dir, true)
   local out_file = pandoc.path.join({ out_dir, stem .. "-" .. key .. ".png" })
+  local marker = pandoc.path.join({ out_dir, key .. ".unsupported" })
+  local left_alone = "; it is left as written and not drawn"
 
+  if file_exists(out_file) then
+    return out_file, keep
+  end
+  local known = read_file(marker)
+  if known then
+    warn("canvasnet.lua: " .. name .. ": " .. known .. left_alone)
+    return nil
+  end
+
+  local suffix = tostring(math.random(100000000, 999999999))
+  local partial = pandoc.path.join({ out_dir, key .. "." .. suffix .. ".partial.png" })
+  local args = {}
+  for _, part in ipairs(command.leading) do
+    table.insert(args, part)
+  end
+  table.insert(args, "render")
+  table.insert(args, source)
+  for _, option in ipairs(options) do
+    table.insert(args, option)
+  end
+  table.insert(args, "--output")
+  table.insert(args, partial)
+  table.insert(args, "--json")
+
+  local ok, result = pcall(pandoc.pipe, command.program, args, "")
+  if not ok then
+    os.remove(partial)
+    fail("drawing '" .. name .. "' failed: " .. describe_failure(result))
+  end
+
+  local doc = decode(result) or {}
+  for _, diagnostic in ipairs(doc.diagnostics or {}) do
+    -- Only the diagram itself being a type the tool does not draw leaves the picture alone; the same report about
+    -- a picture embedded in it (which carries the chain of embedding files in "origin") is an ordinary note.
+    local embedded = type(diagnostic.origin) == "table" and #diagnostic.origin > 0
+    if kind == "mermaid" and diagnostic.code == UNSUPPORTED_DIAGRAM and not embedded then
+      os.remove(partial)
+      local message = tostring(diagnostic.message)
+      write_atomically(marker, message)
+      warn("canvasnet.lua: " .. name .. ": " .. message .. left_alone)
+      return nil
+    end
+  end
+  for _, diagnostic in ipairs(doc.diagnostics or {}) do
+    warn("canvasnet.lua: " .. name .. ": " .. tostring(diagnostic.message))
+  end
+  for _, line in ipairs(doc.echo or {}) do
+    warn("canvasnet.lua: " .. name .. ": " .. tostring(line))
+  end
+
+  if not os.rename(partial, out_file) then
+    -- Another build drew the same picture first; its copy is identical.
+    os.remove(partial)
+    if not file_exists(out_file) then
+      fail("could not write the picture of '" .. name .. "' to " .. out_file)
+    end
+  end
+  return out_file, keep
+end
+
+-- The stem of a cache file name: the source's file name without its extension (and .vl), with every character that
+-- is not a letter, a digit, "_" or "-" made a "-".
+local function stem_of(source)
+  local stem = pandoc.path.split_extension(pandoc.path.filename(source))
+  return (stem:gsub("%.vl$", ""):gsub("[^%w_-]", "-"))
+end
+
+-- Whether a picture is a local SVG drawing.
+local function is_svg(src)
+  return not src:match("^%a[%w+.-]+:") and src:lower():match("%.svg$") ~= nil
+end
+
+-- An SVG drawing: left alone when it links no file only the tool draws; else the tool writes a flattened copy into
+-- the cache folder, unless it is there already, and the picture points at it. Only scale is read; every other
+-- attribute stays. When the tool finds nothing to flatten (a link the drawing never shows), a marker in the cache
+-- saves later builds from starting it again and the picture is left alone.
+local function flatten_svg(img)
+  local name = img.src
+  -- A drawing Pandoc cannot find is left to Pandoc, as before (it reports it)
+  local source = locate_source(name)
+  if not source then
+    return nil
+  end
+  local root = pandoc.path.directory(source)
+  local sources = {}
+  if not add_svg_sources(source, root, sources, {}, 0) then
+    return nil
+  end
+
+  local options = {}
+  local keep = {}
+  for key, value in pairs(img.attributes) do
+    if key == "scale" then
+      plain_text(name, key, value)
+      table.insert(options, "--scale=" .. OPTIONS.scale.check(name, value))
+    else
+      keep[key] = value
+    end
+  end
+
+  local command = find_tool()
+  -- The links the tool rebases in the copy lead from the cache folder to the drawing's folder, so the same drawing in
+  -- another folder (or a renamed folder) is another copy. The folder is taken relative to the cache folder, so the
+  -- name does not depend on where the repository is checked out (the full path when there is no relative one).
+  local key = pandoc.sha1(table.concat({
+    "canvasnet.lua " .. FILTER_VERSION,
+    "svg",
+    command.identity,
+    table.concat(options, ";"),
+    "folder " .. (relative_path(out_dir, root) or root),
+    table.concat(sources, "\n\0\n"),
+  }, "\n\0\n"))
+
+  pandoc.system.make_directory(out_dir, true)
+  local out_file = pandoc.path.join({ out_dir, stem_of(source) .. "-" .. key .. ".svg" })
+  local marker = pandoc.path.join({ out_dir, key .. ".plain" })
+  local known = read_file(marker)
+  if known then
+    -- The tool's warnings are kept in the marker, so a broken link is reported on every build, not only the first
+    for line in known:gmatch("[^\n]+") do
+      warn("canvasnet.lua: " .. name .. ": " .. line)
+    end
+    return nil
+  end
   if not file_exists(out_file) then
-    local suffix = tostring(math.random(100000000, 999999999))
-    local partial = pandoc.path.join({ out_dir, key .. "." .. suffix .. ".partial.png" })
+    -- The copy is written in the cache folder itself, so the links the tool rebases are right after the rename
+    local partial = pandoc.path.join({ out_dir, key .. "." .. tostring(math.random(100000000, 999999999)) .. ".partial.svg" })
     local args = {}
     for _, part in ipairs(command.leading) do
       table.insert(args, part)
     end
-    table.insert(args, "render")
-    table.insert(args, source)
-    for _, option in ipairs(options) do
-      table.insert(args, option)
+    for _, arg in ipairs({ "flatten", source, table.unpack(options) }) do
+      table.insert(args, arg)
     end
-    table.insert(args, "--output")
-    table.insert(args, partial)
-    table.insert(args, "--json")
+    for _, arg in ipairs({ "--output", partial, "--json" }) do
+      table.insert(args, arg)
+    end
 
     local ok, result = pcall(pandoc.pipe, command.program, args, "")
     if not ok then
       os.remove(partial)
-      fail("drawing '" .. img.src .. "' failed: " .. describe_failure(result))
+      fail("flattening '" .. name .. "' failed: " .. describe_failure(result))
     end
 
-    local doc = decode(result)
-    if doc then
-      for _, diagnostic in ipairs(doc.diagnostics or {}) do
-        warn("canvasnet.lua: " .. img.src .. ": " .. tostring(diagnostic.message))
-      end
-      for _, line in ipairs(doc.echo or {}) do
-        warn("canvasnet.lua: " .. img.src .. ": " .. tostring(line))
-      end
+    local doc = decode(result) or {}
+    local warnings = {}
+    for _, diagnostic in ipairs(doc.diagnostics or {}) do
+      local message = tostring(diagnostic.message):gsub("[\r\n]+", " ")
+      table.insert(warnings, message)
+      warn("canvasnet.lua: " .. name .. ": " .. message)
     end
-
+    for _, line in ipairs(doc.echo or {}) do
+      warn("canvasnet.lua: " .. name .. ": " .. tostring(line))
+    end
+    if doc.flattened ~= true then
+      os.remove(partial)
+      write_atomically(marker, table.concat(warnings, "\n") .. "\n")
+      return nil
+    end
     if not os.rename(partial, out_file) then
-      -- Another build drew the same picture first; its copy is identical.
+      -- Another build wrote the same copy first; it is identical.
       os.remove(partial)
       if not file_exists(out_file) then
-        fail("could not write the picture of '" .. img.src .. "' to " .. out_file)
+        fail("could not write the flattened copy of '" .. name .. "' to " .. out_file)
       end
     end
   end
@@ -943,4 +1495,84 @@ function Image(img)
   img.src = picture_src(out_file)
   img.attributes = keep
   return img
+end
+
+function Image(img)
+  if is_svg(img.src) then
+    return flatten_svg(img)
+  end
+  local kind = kind_of(img.src)
+  if not kind then
+    return nil
+  end
+
+  local source = find_source(img.src)
+  local out_file, keep = draw(img.src, source, kind, img.attributes, stem_of(source))
+  if not out_file then
+    return nil
+  end
+
+  img.src = picture_src(out_file)
+  img.attributes = keep
+  return img
+end
+
+-- The name a message gives a code block: its identifier, else its first line.
+local function block_name(block)
+  if block.identifier ~= "" then
+    return "mermaid block #" .. block.identifier
+  end
+  local first = (block.text:match("^%s*([^\r\n]*)") or ""):gsub("%s+$", "")
+  local length = utf8.len(first)
+  if length and length > 40 then
+    first = first:sub(1, utf8.offset(first, 41) - 1) .. "..."
+  end
+  return "mermaid block (" .. first .. ")"
+end
+
+-- A fenced code block of class mermaid: the text is written to the cache folder as <hash>.mmd and drawn like a
+-- .mmd picture, and the block becomes the picture (a figure when it has a caption attribute). A diagram type the
+-- tool does not draw leaves the block as it is, with a warning.
+function CodeBlock(block)
+  if not block.classes:includes("mermaid") then
+    return nil
+  end
+
+  local name = block_name(block)
+  local attributes = {}
+  local caption = nil
+  for key, value in pairs(block.attributes) do
+    if key == "caption" then
+      caption = value
+    else
+      attributes[key] = value
+    end
+  end
+
+  pandoc.system.make_directory(out_dir, true)
+  local text = block.text .. "\n"
+  local source = pandoc.path.join({ out_dir, pandoc.sha1("canvasnet.lua mermaid block\n" .. text) .. ".mmd" })
+  write_atomically(source, text)
+
+  local out_file, keep = draw(name, source, "mermaid", attributes, "mermaid")
+  if not out_file then
+    return nil
+  end
+
+  local classes = {}
+  for _, class in ipairs(block.classes) do
+    if class ~= "mermaid" then
+      table.insert(classes, class)
+    end
+  end
+  local description = {}
+  if caption then
+    description = pandoc.utils.blocks_to_inlines(pandoc.read(caption, "markdown").blocks)
+  end
+  local src = picture_src(out_file)
+  if caption then
+    local image = pandoc.Image(description, src, "", pandoc.Attr("", classes, keep))
+    return pandoc.Figure({ pandoc.Plain({ image }) }, { pandoc.Plain(description) }, pandoc.Attr(block.identifier))
+  end
+  return pandoc.Para({ pandoc.Image(description, src, "", pandoc.Attr(block.identifier, classes, keep)) })
 end

@@ -1,0 +1,347 @@
+{
+  "source": "13-config-theme-br-sections.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "gantt",
+  "viewBox": [0, 0, 900, 196],
+  "excludes": [],
+  "axes": [
+    {
+      "origin": [75, 146],
+      "ticks": [
+        {
+          "at": [75.5, 146],
+          "end": [75.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-02",
+            "at": [75.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [49.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [138.5, 146],
+          "end": [138.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-03",
+            "at": [138.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [112.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [200.5, 146],
+          "end": [200.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-04",
+            "at": [200.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [174.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [263.5, 146],
+          "end": [263.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-05",
+            "at": [263.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [237.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [325.5, 146],
+          "end": [325.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-06",
+            "at": [325.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [299.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [388.5, 146],
+          "end": [388.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-07",
+            "at": [388.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [362.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [450.5, 146],
+          "end": [450.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-08",
+            "at": [450.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [424.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [513.5, 146],
+          "end": [513.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-09",
+            "at": [513.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [487.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [575.5, 146],
+          "end": [575.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-10",
+            "at": [575.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [549.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [638.5, 146],
+          "end": [638.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-11",
+            "at": [638.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [613.289, 150, 50.849, 11]
+          }
+        },
+        {
+          "at": [700.5, 146],
+          "end": [700.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-12",
+            "at": [700.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [674.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [763.5, 146],
+          "end": [763.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-13",
+            "at": [763.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [737.922, 150, 51.591, 11]
+          }
+        },
+        {
+          "at": [825.5, 146],
+          "end": [825.5, 35],
+          "tick": { "opacity": 0.8 },
+          "line": { "fill": "none", "stroke": "rgb(0, 0, 0)", "strokeWidth": 1, "opacity": 1 },
+          "text": {
+            "text": "2024-09-14",
+            "at": [825.5, 149],
+            "dy": "1em",
+            "anchor": "middle",
+            "fontSize": 10,
+            "fontWeight": "400",
+            "fontStyle": "normal",
+            "fill": "rgb(204, 204, 204)",
+            "box": [799.922, 150, 51.591, 11]
+          }
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "class": "section section0",
+      "corners": [[0, 48], [862.5, 48], [862.5, 80], [0, 80]],
+      "paint": { "fill": "rgb(180, 172, 118)", "stroke": "none", "strokeWidth": 1, "opacity": 0.2 }
+    },
+    {
+      "class": "section section0",
+      "corners": [[0, 80], [862.5, 80], [862.5, 112], [0, 112]],
+      "paint": { "fill": "rgb(180, 172, 118)", "stroke": "none", "strokeWidth": 1, "opacity": 0.2 }
+    },
+    {
+      "class": "section section1",
+      "corners": [[0, 112], [862.5, 112], [862.5, 144], [0, 144]],
+      "paint": { "fill": "rgb(51, 51, 51)", "stroke": "none", "strokeWidth": 1, "opacity": 0.2 }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "b",
+      "class": "task task0",
+      "rx": 3,
+      "corners": [[75, 50], [450, 50], [450, 76], [75, 76]],
+      "paint": { "fill": "rgb(89, 92, 92)", "stroke": "rgb(255, 255, 255)", "strokeWidth": 2, "opacity": 1 }
+    },
+    {
+      "id": "t",
+      "class": "task task0",
+      "rx": 3,
+      "corners": [[450, 82], [700, 82], [700, 108], [450, 108]],
+      "paint": { "fill": "rgb(89, 92, 92)", "stroke": "rgb(255, 255, 255)", "strokeWidth": 2, "opacity": 1 }
+    },
+    {
+      "id": "d",
+      "class": "task task1",
+      "rx": 3,
+      "corners": [[700, 114], [825, 114], [825, 140], [700, 140]],
+      "paint": { "fill": "rgb(89, 92, 92)", "stroke": "rgb(255, 255, 255)", "strokeWidth": 2, "opacity": 1 }
+    }
+  ],
+  "texts": [
+    {
+      "id": "b-text",
+      "class": "taskText taskText0",
+      "text": "Build           ",
+      "at": [262.5, 67.5],
+      "dy": null,
+      "anchor": "middle",
+      "fontSize": 13,
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "fill": "rgb(226, 220, 214)",
+      "box": [248.039, 55.5, 28.922, 15]
+    },
+    {
+      "id": "t-text",
+      "class": "taskText taskText0",
+      "text": "Test            ",
+      "at": [575, 99.5],
+      "dy": null,
+      "anchor": "middle",
+      "fontSize": 13,
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "fill": "rgb(226, 220, 214)",
+      "box": [563.078, 87.5, 24.23, 15]
+    },
+    {
+      "id": "d-text",
+      "class": "taskText taskText1",
+      "text": "Deploy          ",
+      "at": [762.5, 131.5],
+      "dy": null,
+      "anchor": "middle",
+      "fontSize": 13,
+      "fontWeight": "400",
+      "fontStyle": "normal",
+      "fill": "rgb(226, 220, 214)",
+      "box": [742.266, 119.5, 40.966, 15]
+    }
+  ],
+  "sectionTitles": [
+    {
+      "class": "sectionTitle sectionTitle0",
+      "fill": "rgb(249, 255, 254)",
+      "fontSize": 14,
+      "lines": [{ "text": "Line one", "box": [10, 67, 53.931, 16] }, { "text": "and two", "box": [10, 81, 49.248, 16] }]
+    },
+    {
+      "class": "sectionTitle sectionTitle1",
+      "fill": "rgb(249, 255, 254)",
+      "fontSize": 14,
+      "lines": [{ "text": "Ship", "box": [10, 122, 28.234, 16] }]
+    }
+  ],
+  "today": {
+    "start": [-5023, 25],
+    "end": [-5023, 171],
+    "paint": { "fill": "none", "stroke": "rgb(219, 87, 87)", "strokeWidth": 2, "opacity": 1 }
+  },
+  "title": {
+    "text": "Release train",
+    "at": [450, 25],
+    "dy": null,
+    "anchor": "middle",
+    "fontSize": 18,
+    "fontWeight": "400",
+    "fontStyle": "normal",
+    "fill": "rgb(249, 255, 254)",
+    "box": [396.969, 9, 106.063, 20]
+  }
+}

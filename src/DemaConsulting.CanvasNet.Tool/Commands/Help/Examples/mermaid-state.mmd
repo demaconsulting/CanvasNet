@@ -1,0 +1,17 @@
+---
+title: Order
+---
+stateDiagram-v2
+    [*] --> Placed
+    Placed --> Paid : pay
+    Placed --> Cancelled : cancel
+    state Shipping {
+        [*] --> Packed
+        Packed --> Sent
+        Sent --> [*]
+    }
+    Paid --> Shipping : ship
+    Shipping --> Delivered
+    Delivered --> [*]
+    Cancelled --> [*]
+    note right of Paid : confirmed by the bank

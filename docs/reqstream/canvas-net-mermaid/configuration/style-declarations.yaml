@@ -1,0 +1,95 @@
+---
+# Software Unit Requirements for StyleDeclarations
+#
+# These requirements describe the design-level behavior of the StyleDeclarations unit of the Configuration subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the CSS subset of the style, classDef, and
+# linkStyle statements and of themeCSS (declarations, the cascade with !important, style sheets of known selectors,
+# and the value parsers). See docs/verification/canvas-net-mermaid/configuration/style-declarations.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: StyleDeclarations Requirements
+            requirements:
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-SupportedProperties
+                title: >-
+                  The StyleDeclarations unit shall read the declarations of fill, stroke, stroke-width,
+                  stroke-dasharray, color, font-weight, font-style, font-size, font-family, and opacity in the items
+                  of a style statement, with the property name in any letter case and an optional !important.
+                justification: |
+                  These are the properties that change the pixels of a flowchart element; CSS property names are not
+                  case-sensitive.
+                tests:
+                  - StyleDeclarations_ParseItems_SupportedProperties
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-Ignored
+                title: >-
+                  The StyleDeclarations unit shall report a declaration of another property, a declaration without a
+                  colon, and a value that its property cannot have as mermaid-style-ignored at the location of the
+                  statement, and leave it out.
+                justification: |
+                  A browser drops such declarations; the author must learn which part of a style had no effect.
+                tests:
+                  - StyleDeclarations_ParseItems_Ignored_Reported
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-Blocks
+                title: >-
+                  The StyleDeclarations unit shall split a declaration block at the semicolons that are outside quotes
+                  and parentheses, skipping empty declarations.
+                justification: |
+                  Font family lists and color functions contain the separators of CSS, which must not split them.
+                tests:
+                  - StyleDeclarations_ParseBlock_QuotesAndFunctions
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-Cascade
+                title: >-
+                  The StyleDeclarations unit shall let a later declaration of a property replace an earlier one, except
+                  that an !important declaration is replaced only by another !important one.
+                justification: |
+                  This is the CSS cascade for rules of equal specificity, which decides between a class, an inline
+                  style, and the theme.
+                tests:
+                  - StyleDeclarationSet_Cascade_HonorsImportant
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-StyleSheets
+                title: >-
+                  The StyleDeclarations unit shall read a style sheet with its comments removed, keep the rules whose
+                  selector (each of a selector list, with its white space normalized) is one of the given known
+                  selectors, report every other selector, at-rule, and nested rule as mermaid-theme-css-unsupported,
+                  and throw at the first such rule in strict mode.
+                justification: |
+                  A themeCSS rule can be applied only to the element classes that this version draws; the rest must be
+                  reported, and strict mode must stop at the first.
+                tests:
+                  - StyleDeclarations_ParseSheet_KnownAndUnsupported
+                  - StyleDeclarations_ParseSheet_Strict_Throws
+                  - StyleDeclarations_NormalizeSelector
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-Values
+                title: >-
+                  The StyleDeclarations unit shall read CSS lengths (pixels, unitless numbers, em, rem, and points,
+                  refusing negative lengths), dash arrays (an odd list repeated, zero meaning solid), opacities
+                  (numbers and percentages), font weights, font styles, and paints (colors and none).
+                justification: |
+                  The drawing needs the values of the declarations as numbers and colors, read as a browser reads
+                  them.
+                tests:
+                  - StyleDeclarations_TryParseLength
+                  - StyleDeclarations_ValueParsers
+
+              - id: CanvasNetMermaid-Configuration-StyleDeclarations-FontSizes
+                title: >-
+                  The StyleDeclarations unit shall accept a font size only when text can be drawn at it - above zero
+                  also in single precision and at most 32768 pixels - and shall report any other font-size value of
+                  a style statement as mermaid-style-ignored, with a hint naming the range, so that the inherited size
+                  stays in effect.
+                justification: |
+                  The text renderer works in single precision and refuses a size that is zero or infinite there; a
+                  font size outside the drawable range must fall back to the inherited size instead of failing the
+                  render with an undocumented exception.
+                tests:
+                  - StyleDeclarations_TryParseFontSize
+                  - StyleDeclarations_ParseItems_FontSizeNotDrawable_IsIgnoredWithHint

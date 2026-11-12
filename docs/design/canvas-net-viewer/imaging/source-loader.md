@@ -12,7 +12,8 @@ size policy and the options that belong to reading (page, resolution, orientatio
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
-`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.SvgImages.cs`, and `SourceLoader.Input.cs`),
+`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.Mermaid.cs`, `SourceLoader.SvgImages.cs`, and
+`SourceLoader.Input.cs`),
 the input types `InputReference` and `InputSelection` (`InputReference.cs`, `InputSelection.cs`),
 and the supporting types in `SourceModels.cs`. The EXIF orientation is read by the core `JpegCodec.ReadExifOrientation`
 and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that used to be part of this unit
@@ -22,15 +23,15 @@ and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that u
 #### Data Model
 
 **SourceKind** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`, `Gif`, `Jpeg2000`, `Svg`, `Pdf`, `Pptx`, `Vsdx`, `Scad`,
-`VegaLite`, in the
+`VegaLite`, `Mermaid`, in the
 order the `formats` command lists them; `ToFormatName` gives the lower-case member name used in output and JSON
 (`vega-lite` for `VegaLite`, the one name that is not the lower-case member name). `IsChart(kind)` is true for
-`VegaLite`.
+`VegaLite`, and `IsDiagram(kind)` is true for `Mermaid`.
 **OutputFormat** (enum): `Png`, `Jpeg`, `Bmp`, `Tiff`.
 
 **SourceInfo** (record): `Path`, `Format`, `Bytes`, `Width`, `Height` (stored size; for a document the size of page 1
-at 96 dots per inch; for a model 800 by 800, the natural size of a view; for a chart the size the library lays it
-out at), `Channels`, `HasAlpha`, `CanDecode`,
+at 96 dots per inch; for a model 800 by 800, the natural size of a view; for a chart or a diagram the size the library
+lays it out at), `Channels`, `HasAlpha`, `CanDecode`,
 `FrameCount`, `PageCount` (1 for a single image or a model),
 `ExifOrientation` (JPEG only), and the lists `Pages` (the pages of a document; empty for a single image or a model),
 `Modules`, and `Functions` (the names a model defines at file scope, in source order; empty for every other kind),
@@ -38,13 +39,23 @@ out at), `Channels`, `HasAlpha`, `CanDecode`,
 kind, path, and line; empty for every other kind), and `Chart` (an `init` property: a `ChartFacts` record - the `Marks`
 as written, the `DataReferences` as `ChartDataReference` records of `Kind` (`inline`, `url`, `name`, or `sequence`),
 `Url`, `Rows`, and `Line`, the `Parameters` names, the `Title`, and the `SchemaMajorVersion` - for a Vega-Lite chart;
-`null` for every other kind), `Selection` (an `init` property: what the fragment of the input chose, an
-`InputSelection`; `null` for an input without a fragment) and `Specifier` (computed: the path, and `#` and the fragment
-when there is a selection).
+`null` for every other kind), `Diagram` (an `init` property: a `DiagramFacts` record - the `Type` such as `flowchart`,
+`sequence`, or `mindmap`, `Supported` (whether this version draws the type), the `Direction`, the `Title` and the
+`AccTitle` when the diagram has them, and the `NodeCount`, `EdgeCount`, and `SubgraphCount` (for a mindmap its nodes,
+one edge fewer than its nodes, and no subgraphs), which are 0 for a type that is not drawn - for
+a Mermaid diagram; `null` for every other kind), `Selection` (an `init` property: what the fragment of the input chose,
+an `InputSelection`; `null` for an input without a fragment) and `Specifier` (computed: the path, and `#` and the
+fragment when there is a selection).
 
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
 `Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
-(default `true`), and `Scad` (a nullable `ScadViewOptions`; the defaults when absent).
+(default `true`), `Scad` (a nullable `ScadViewOptions`; the defaults when absent), `VegaLite` (a nullable
+`ChartOptions`, see *Chart parameters* below), and `Mermaid` (a nullable `DiagramOptions`).
+
+**DiagramOptions** (record, `init`): `Theme`, the site-level theme of a Mermaid diagram - `default`, `base`, `dark`,
+`forest`, or `neutral` (`MermaidRenderOptions.ThemeNames`) - or `null` for `default`; it is what the `--theme` option of
+the tool and the `theme=` fragment of a link or an input set, and a theme the text of the diagram sets itself (in its
+frontmatter or a directive) still wins, as with the Mermaid command line.
 
 **ScadViewOptions** (record, all properties `init`): `View` (a name from `ScadViews`, `iso` by default), `ViewGiven`
 (`true` when `--view` was written, even `--view iso`, which is how the command line asks for the isometric view of a
@@ -80,16 +91,17 @@ what `OpenPages` returns.
 
 **ExtensionKinds**: the read-only table (it cannot be changed, not even through a cast) of file name extensions (lower
 case, with the dot) and their kinds (`.vl` is the
-chart extension); the `formats` command lists the same extensions and a test keeps the two consistent. The two-part
-suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an extension (the extension of such a file is `.json`),
-so it is checked on the file name and the `formats` listing adds it to the extensions of the `vega-lite` row.
+chart extension, and `.mmd` and `.mermaid` are the diagram extensions); the `formats` command lists the same extensions
+and a test keeps the two consistent. The two-part suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an
+extension (the extension of such a file is `.json`), so it is checked on the file name and the `formats` listing adds it
+to the extensions of the `vega-lite` row.
 
 The extensions an SVG `image` `href` may link are not a table of the tool: they are `CanvasNetViewer.Extensions`, the
 union of what the image sources of the core and format libraries claim (the raster extensions, `.svg`, `.pdf`,
-`.pptx`, `.vsdx`, `.scad`, `.vl`, and `.vl.json`; a plain `.json` is not linkable). The list is documented in the `svg`
-help topic, and a unit test compares it with the topic in both directions (and with the `formats` table). The
-resolver decides by the file name, not by the content, unlike `Detect`, which is what the tool's own commands use
-for the file they are given.
+`.pptx`, `.vsdx`, `.scad`, `.vl`, `.vl.json`, `.mmd`, and `.mermaid`; a plain `.json` is not linkable). The list is
+documented in the `svg` help topic, and a unit test compares it with the topic in both directions (and with the
+`formats` table). The resolver decides by the file name, not by the content, unlike `Detect`, which is what the tool's
+own commands use for the file they are given.
 
 #### Key Methods
 
@@ -120,9 +132,14 @@ with a hint that a chart is recognized by the suffix `.vl.json` (or `.vl`) or by
 cut off by the end of the header is not an error; nested values are skipped; comments, trailing commas, and a byte order
 mark are tolerated), so the schema address in another property, in a nested object, or in an array element never
 makes a chart.
-The content wins over the extension, but a file whose content says nothing keeps its extension's kind, so that an
-empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise throws
-`unsupported-format` with a hint to run `canvasnet formats`.
+A Mermaid diagram has no signature either and is recognized by its extension only: `.mmd` and `.mermaid` (in any case)
+are a diagram by the extension table, and such a file is never taken for an SVG, whatever its text mentions (a label can
+hold SVG markup); the extensions of the text formats that the SVG sniff skips are one list, `NamedTextExtensions`
+(`.scad`, `.vl`, `.mmd`, and `.mermaid`). There is no content sniffing for a diagram, because the first keyword of
+Mermaid text (`flowchart`, `graph`) is too common: a Markdown or text file that holds a diagram stays
+`unsupported-format`. The content wins over the extension, but a file whose content says nothing keeps its extension's
+kind, so that an empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise
+throws `unsupported-format` with a hint to run `canvasnet formats`.
 
 **Probe(path)**: `Detect`, then reads the header with the codec's `GetInfo` (and, for a JPEG, the EXIF orientation
 with `JpegCodec.ReadExifOrientation`) or, for an SVG, the intrinsic size with `SvgCodec.GetInfo`. A PDF, PPTX, or VSDX
@@ -139,8 +156,23 @@ measured with `Measure()` (the library lays the chart out, which reads its data 
 draws no pixel): the size is
 `Width` and `Height`, there are 4 channels with transparency, one page, and no `Pages`, and the `ChartFacts` come from
 the document (`MarkTypes`, `DataReferences`, `ParameterNames`, `Title`, `SchemaMajorVersion`). A chart that lays out
-larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. No
-pixels
+larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. A
+Mermaid diagram is parsed with `MermaidDocument.Open(stream, options)` (`SourceName` is the name of the input, so the
+locations of the library start with it) and measured with `Measure` (`ProbeMermaid`, `MeasureDiagram`): the library lays
+the diagram out with the default theme and **without a picture resolver or report handlers**, so the probe reads no
+other file (a fresh resolver in the probe could also recurse into a diagram that shows itself) and draws no pixel. The
+size is the library's view box rounded up to whole pixels, there are 4 channels with transparency, one page, and no
+`Pages`, and the `DiagramFacts` come from the document (`DiagramType`, `IsSupported`, `Direction`, `Title`, `AccTitle`,
+`NodeCount`, `EdgeCount`, `SubgraphCount`). Unlike a chart, a diagram whose natural size is larger than
+`Surface.MaxDimension` is **not** a probe error: the library refuses such a measure with an
+`ArgumentOutOfRangeException` for the parameter `scale` whose message gives the size ("gives a size of W by H;"), and
+`MeasureDiagram` reads the natural size from that message (`MermaidOversizeMessage`; a test pins the text), so that
+`info` reports it and a smaller scale, width, or height can still draw the diagram, while a load without a size option
+gets the standard `size-limit` of `ComputeTargetSize`. A message that does not match is `size-limit` itself, and any
+other `ArgumentException` of the measure is `mermaid-error` ("Mermaid measure error: ..."). A node that shows a picture
+without its own `w` and `h` takes the size of the picture when it is drawn, so the drawn diagram can be a little larger
+or smaller than the probed size; the `mermaid` help topic documents this, and a load at the natural size charges and
+reports the size it drew (see the Mermaid load). No pixels
 are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
@@ -326,6 +358,66 @@ asks for more pictures than `VegaLiteLimits.MaxImages` (256) is `budget-exceeded
 limit).
 The tests are in `SourceLoaderVegaLiteImageTests.cs`.
 
+A *Mermaid diagram* load (`MermaidPageSource`, `SourceLoader.Mermaid.cs`) opens the diagram once. When
+`SourceOptions.Mermaid` names a theme, the page source **measures the diagram again in that theme** (a theme can change
+the font or the spacing, and the probe measured the default one) and the `SourceInfo` of the result carries that size.
+The target size is `ComputeTargetSize` of the natural size. The placement depends on the size options:
+
+- **Exact.** Without `Width` and `Height` the diagram is drawn with `MermaidDocument.Render(options)` at the natural
+  size times `Scale` (`MermaidRenderOptions.Scale`), so every node, edge, and label is placed exactly where Mermaid
+  places it (the library rounds the size the same way as `ComputeTargetSize`); this is what keeps a picture comparable
+  with one drawn by Mermaid itself.
+- **Fitted.** With a width, a height, or both, it is drawn with `MermaidDocument.Render(width, height, options)`:
+  sharply at the target size, scaled uniformly and centered when both sides are given, never stretched.
+
+The `MermaidRenderOptions` (`CreateMermaidOptions`) are fixed except for what the options say: the `Theme`, the
+`Background` (the background option, white when none was given, because Mermaid's own SVG is transparent; a background
+with zero alpha is passed as `null` and keeps the transparency), the `ImageResolver` of the pictures (below),
+`ThrowOnUnsupportedFeature` from `Strict`, and the handlers that collect the notes. No clock (`Now`) is set, so a gantt
+chart is drawn without a today line and reports, as a warning, what needs today. The library uses only its bundled fonts
+and reads nothing from the network, so the picture is the same for the same diagram and options. A warning becomes a
+note (`mermaid`, `warning`, the generic code `mermaid-warning` (`MermaidImageSource.WarningCode`), the library's
+one-line text, with the specific `mermaid-*` code as `Detail` and the file, line, and column as `Location`); a construct
+the library recognizes but does not draw becomes a note (`mermaid`, `unsupported`, the feature identifier as the code,
+such as `mermaid-icon-unsupported`, and `file:line:column: message (hint)`, `DescribeUnsupported`). A diagram type that
+is recognized but not drawn (a user journey, for example) is one such note, `mermaid-diagram-unsupported`, whose hint
+says that the type is not supported and which types are drawn (flowchart, graph, sequenceDiagram, classDiagram,
+stateDiagram, erDiagram, pie, gantt, and mindmap), and the picture is the background alone; in strict mode the
+library throws instead (see *Error Handling*). The surface is charged to the `LoadContext` before the library draws it.
+Without a size option the pictures of the nodes can enlarge the drawn diagram (a picture node without its `w` and `h`
+takes the size of its picture, and the probe measured the diagram without them), and that size is known only after the
+draw: a surface larger than the charge is charged the rest (as one row of the excess pixels, through the same `Charge`
+hook) before it is returned, and is disposed and refused when the rest does not fit. The surface is therefore allocated
+before the excess is validated, bounded by `Surface.MaxDimension` squared, as the resolver already accepts for a source
+that under-charges; measuring with the pictures first would resolve every picture a third time and lay the diagram out
+once more. A refusal reports the pixels of the whole surface and the budget left once the charge before the draw is
+refunded. When the pictures make the diagram smaller than the probe, the larger probed size stays charged: `LoadContext`
+has no way to give pixels back, and that over-charge, bounded by the probed size, only makes the budget stricter. The
+`SourceInfo` of the result then carries the natural size of the drawn diagram (the drawn size over the scale, rounded,
+at least one pixel; exact at a scale of 1 or more), so the loaded picture's size and charge are the drawn size while
+`info` still reports the size without the pictures. The operation recorded is `render` with the `width` and the `height`
+of the surface that was drawn, the `background`, and, when one is set, the `theme`.
+
+*Diagram pictures.* A node written `@{ img: "part.png", ... }` shows a file that lies beside the diagram, through the
+same wiring as the pictures of a chart: unless the caller supplied the resolver of an embedding document
+(`LoadContext.UseScopedResolver`, then that one is used and it collects what the nested pictures report), the loader
+creates `SvgImages(path, options)` for the folder of the diagram and gives its resolver to the library as
+`MermaidRenderOptions.ImageResolver`. A link may therefore name a raster, an SVG file, a model, a chart, a page of a
+document, or another diagram, always inside the folder of the diagram; a remote URL, an absolute path, a link through a
+symbolic link, a path that leaves the folder, a missing file, and a diagram that shows itself are the resolver's warning
+`svg-image-unresolved` and draw nothing. The resolver is only given to the render: the probe measures without one. The
+library asks for every picture twice, once at a probe size to learn its natural size and once to draw it, so the loader
+keeps one `embed` operation per link (`LastPerLink`: the last request, at the size that was drawn, in the order of those
+last requests) and each note of the resolver once (`Distinct`), and drops the library's own warning
+`mermaid-image-unresolved` for a link the resolver reported itself (`DropDuplicateUnresolved` with that detail, shared
+with the chart path, which passes `vl-mark-image-unresolved`). With the strict option the first link that was not drawn
+is an `unsupported-feature` error that names the diagram and the link (`SvgImages.ThrowForUnresolved`), a file that is
+found but cannot be loaded is the error of its own failure naming both files (`SvgImages.Map`), and a diagram with more
+pictures than `MermaidLimits.MaxImages` is `budget-exceeded`. A raster that the resolver returns at its own size is
+stretched to the box of its node by the Mermaid library's painter (Mermaid sets `preserveAspectRatio="none"` on the
+picture of a node). The tests are in `SourceLoaderMermaidImageTests.cs`; the other tests of the diagram source are in
+`SourceLoaderMermaidTests.cs`.
+
 *Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
 from the folder of the file that names it, nothing outside the folder of the model (the base directory, which is the
 folder of the file that was opened) is ever read, a link below that folder is not followed, and no library path or
@@ -344,33 +436,35 @@ disposed, including when a step throws.
 
 **Input fragments** (`InputReference.cs`, `InputSelection.cs`; the types are public). An input path of the command line
 may end in a URL fragment, the syntax of a link of an SVG image (`assembly.scad#def.explode=0.5`, `report.pdf#page=3`).
-`InputReference.Parse(text)` splits it: a text without a `#`, or one that names a file as written (`File.Exists`), is the
-path (so a real file `chart#2.png` keeps working and wins over `chart` with the fragment `2.png`); otherwise the path is
-the longest start of the text, ending before a `#`, that names an existing file (the last such `#` is tried first, so a
-`#` in a folder name or in the file name is not a problem, and the fragment may itself hold a `#`), and when no start
-names a file the first `#` splits, so that the missing file reported is the one before it. `Probe(InputReference)` is
-`Probe(path)` plus, when there is a fragment, `InputSelection.Create`, which parses the fragment with the core
-`ImageFragment` (over its limits: `image-fragment-invalid`) and reads it with the **built-in image source of the kind**
-of the file (`CanvasNetViewer.FindBuiltIn(kind)`, the `LoaderImageSource` that draws a link of that kind): its
-`ReadPage` (`page`, and `slide` for a presentation), `ReadScad` (`view`, and the `def.` variables with
-`ImageParameterValues.ReadVariables`, vectors included, checked by constructing `ScadEvaluationOptions`) and `ReadChart`
-(the `param.` parameters), so a link and an input accept exactly the same parameters with the same values; a value that
-cannot be used is a `ViewerException` with the code `image-fragment-invalid` (`ErrorCodes.ImageFragmentInvalid`) whose
-message names the input, and a page the file does not have is `page-out-of-range` (`CheckPage`, at probe time). The
-notes are the `ReviewParameters` notes of the core `ImageFragment` (`image-fragment-unknown-parameter`,
-`image-fragment-duplicate-parameter`; the same code that reports them for a link) and, for a chart, one
-`vl-param-unknown` warning for each `param.` name the chart does not declare (the names are compared with
-`SourceInfo.Chart.Parameters`; the unknown names are dropped from the selection, so the loader never sees them and the
-`--param` error of an unknown name stays an error); they are warnings of the source `input`, never errors, not even in
-strict mode. The result is `SourceInfo.Selection` (an `InputSelection`: `Fragment`, `Page`, `Scad`, `VegaLite`,
-`Diagnostics`) and `SourceInfo.Specifier` (the path, `#` and the fragment). **`InputSelection.ApplyTo(options)`** lays it
-over the options of a command: the page replaces the page, the view of the fragment (only when it names one) replaces the
-view while the azimuth, elevation and projection of the command still refine it, the variables and the chart parameters
-are merged by name with the fragment winning, and applying it twice gives the same options. `Load(info, options)`,
+`InputReference.Parse(text)` splits it: a text without a `#`, or one that names a file as written (`File.Exists`), is
+the path (so a real file `chart#2.png` keeps working and wins over `chart` with the fragment `2.png`); otherwise the
+path is the longest start of the text, ending before a `#`, that names an existing file (the last such `#` is tried
+first, so a `#` in a folder name or in the file name is not a problem, and the fragment may itself hold a `#`), and when
+no start names a file the first `#` splits, so that the missing file reported is the one before it.
+`Probe(InputReference)` is `Probe(path)` plus, when there is a fragment, `InputSelection.Create`, which parses the
+fragment with the core `ImageFragment` (over its limits: `image-fragment-invalid`) and reads it with the **built-in
+image source of the kind** of the file (`CanvasNetViewer.FindBuiltIn(kind)`, the `LoaderImageSource` that draws a link
+of that kind): its `ReadPage` (`page`, and `slide` for a presentation), `ReadScad` (`view`, and the `def.` variables
+with `ImageParameterValues.ReadVariables`, vectors included, checked by constructing `ScadEvaluationOptions`) and
+`ReadChart` (the `param.` parameters) and `ReadDiagram` (the `theme` of a diagram, compared with the Mermaid themes
+without regard to case and kept by its canonical name), so a link and an input accept exactly the same parameters with
+the same values; a value that cannot be used is a `ViewerException` with the code `image-fragment-invalid`
+(`ErrorCodes.ImageFragmentInvalid`) whose message names the input, and a page the file does not have is
+`page-out-of-range` (`CheckPage`, at probe time). The notes are the `ReviewParameters` notes of the core `ImageFragment`
+(`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`; the same code that reports them for a link)
+and, for a chart, one `vl-param-unknown` warning for each `param.` name the chart does not declare (the names are
+compared with `SourceInfo.Chart.Parameters`; the unknown names are dropped from the selection, so the loader never sees
+them and the `--param` error of an unknown name stays an error); they are warnings of the source `input`, never errors,
+not even in strict mode. The result is `SourceInfo.Selection` (an `InputSelection`: `Fragment`, `Page`, `Scad`,
+`VegaLite`, `Mermaid`, `Diagnostics`) and `SourceInfo.Specifier` (the path, `#` and the fragment).
+**`InputSelection.ApplyTo(options)`** lays it over the options of a command: the page replaces the page, the view of the
+fragment (only when it names one) replaces the view while the azimuth, elevation and projection of the command still
+refine it, the variables and the chart parameters are merged by name with the fragment winning, the theme of the
+fragment replaces the theme of the options, and applying it twice gives the same options. `Load(info, options)`,
 `OpenPages`, and so every operation, apply it (`ApplySelection`), `PageSource.ReadPage` adds the `Diagnostics` to the
-notes of the first page that is loaded from the source (once, not for every page), and the operations take the page
-from it (see the units of the operations). Embedded links never go through this path: `LoaderImageSource` is given the
-link's own fragment by the resolver. The tests are in `InputSelectionTests.cs`.
+notes of the first page that is loaded from the source (once, not for every page), and the operations take the page from
+it (see the units of the operations). Embedded links never go through this path: `LoaderImageSource` is given the link's
+own fragment by the resolver. The tests are in `InputSelectionTests.cs`.
 
 **Viewport variables.** The camera of a model is `$vpt` (the target, a vector), `$vpr` (the rotation, a vector), `$vpd`
 (the distance) and `$vpf` (the field of view). `ScadEvaluationOptions.Variables` overrides them (an explicit view or
@@ -398,18 +492,16 @@ height for 5 to 8.
 **Surface.HasTransparency()** (core) says whether any pixel is not opaque; the loader flattens with the first when a
 background was given, and `ImageWriter` uses both for JPEG output.
 
-**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite, the kinds that are
-rendered at the
-size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options that load a
-source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and `Scale`
-cleared, so the source is rendered sharply at the box (a document page and a chart are fitted inside it and centered
-over the
-background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
-unchanged, because the caller fits the decoded pixels with the core `Surface.FitInto`. The loader keeps its own
-private center helper for documents (a page rendered smaller than the box is centered over the background); the fitted
-size comes from the core `Surface.FitInside` (the smaller of the two box ratios scales both sides, so a small image is
-enlarged, and each side is rounded half away from zero and limited to 1 and the box; the algorithm is documented in
-*SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
+**SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite, and Mermaid, the kinds that
+are rendered at the size they are asked for. **SourceLoader.BoxOptions(info, options, width, height)** gives the options
+that load a source into a box: for a vector kind a copy of the options with `Width` and `Height` set to the box and
+`Scale` cleared, so the source is rendered sharply at the box (a document page, a chart, and a diagram are fitted inside
+it and centered over the background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster
+kind the options unchanged, because the caller fits the decoded pixels with the core `Surface.FitInto`. The loader keeps
+its own private center helper for documents (a page rendered smaller than the box is centered over the background); the
+fitted size comes from the core `Surface.FitInside` (the smaller of the two box ratios scales both sides, so a small
+image is enlarged, and each side is rounded half away from zero and limited to 1 and the box; the algorithm is
+documented in *SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
 
 **SourceInput and LoadContext** (`SourceLoader.Input.cs`): the loader reads a file through a `SourceInput`, not a path.
 `SourceInput.FromFile(path)` opens a new `FileStream` for every use, and `SourceInput.FromMemory(bytes, name,
@@ -431,7 +523,8 @@ render parses a document once. A per-thread counter (`DocumentParseCount`) count
 `LoadContext` carries the hooks of a render that embeds the file: a `CancellationToken` (checked before each load, and
 passed to the model and chart renderers), `Charge(width, height)` (called once for every surface before it is
 allocated, so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size
-check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error), `ScopedResolver` (used
+check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error; a Mermaid diagram that its
+pictures enlarge is charged the rest right after the draw, before it is returned), `ScopedResolver` (used
 instead of building an `SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget
 limits of the embedding render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document
 page
@@ -446,7 +539,8 @@ is a defined value, and for a model a known `View`, a finite `Azimuth`, a finite
 `Time` within 1e9, `MaxTriangles` at least 1, and `Defines` that the model library accepts, and for a chart `VegaLite`
 parameters that
 `VegaLiteRenderOptions.Parameters` accepts (an empty name, a value nested too deeply or holding too many values;
-`FindChartProblem`).
+`FindChartProblem`), and for a diagram a `Mermaid.Theme` that is one of
+`MermaidRenderOptions.ThemeNames` as written (the canonical name; the tool canonicalizes what the user typed).
 A violation is a
 `ViewerException` with the code `usage-error`; `CanvasNetViewer.Render` calls the same validator and reports the problem
 as
@@ -456,16 +550,17 @@ whole-number rule of the Visio `Dpi` stays in `ValidateDpi` because it depends o
 
 **Diagnostic detail** (`ImageDiagnostic.Detail` and `.Location`): the generic `Code` of a note is unchanged
 (`scad-warning`,
-`vega-lite-warning`, the feature of an unsupported construct). `Detail` is the finer identifier of the library: for a
-model
+`vega-lite-warning`, `mermaid-warning`, the feature of an unsupported construct). `Detail` is the finer identifier of
+the library: for a model
 warning the `ScadDiagnostic.Code` when it differs from `scad-warning` (`scad-anchor-invalid`), for a chart warning the
-documented `vl-*` prefix of the message. `Location` is `(File, Line, Column)` of a model (left out when the line is 0)
-and `(File, Pointer, Line, Column)` of a chart when the position is known; a note about a page of a document has the
-`Page` and no location. For the notes of embedded files `SvgImages` copies `Detail`, `Location`, `Page`, and `Origin`
-unchanged. `SvgImages.ThrowForUnresolved` also treats `image-fragment-invalid` and `image-page-out-of-range`
-(besides `svg-image-unresolved` and `svg-image-too-large`) as an image that was not drawn, so `Strict` fails with
-`unsupported-feature`; the warnings `image-fragment-unknown-parameter` and `image-fragment-duplicate-parameter` stay
-warnings.
+documented `vl-*` prefix of the message, and for a diagram warning the `mermaid-*` code of the library. `Location` is
+`(File, Line, Column)` of a model (left out when the line is 0) and `(File, Pointer, Line, Column)` of a chart when the
+position is known, and `(File, Line, Column)` of a diagram (no column when the library gives none); a note about a page
+of a document has the `Page` and no location. For the notes of embedded files `SvgImages` copies `Detail`, `Location`,
+`Page`, and `Origin` unchanged. `SvgImages.ThrowForUnresolved` also treats `image-fragment-invalid` and
+`image-page-out-of-range` (besides `svg-image-unresolved` and `svg-image-too-large`) as an image that was not drawn, so
+`Strict` fails with `unsupported-feature`; the warnings `image-fragment-unknown-parameter` and
+`image-fragment-duplicate-parameter` stay warnings.
 
 #### Error Handling
 
@@ -505,12 +600,27 @@ library names every limit in the message, either as "the limit of N", as "the li
 name of the limit ("VegaLiteLimits.MaxSceneItems", "VegaLiteLimits.MaxPaintedPixels"), which `MapVegaLiteRender`
 recognizes; the library gives no other way
 to tell a limit from another failure, so a test pins the texts by provoking real limit failures with small limits.
-A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. An
-`ArgumentException` of the library is not on the allow-list of `Read`, because the library throws it for arguments
-that the caller chose; the two places that call the library with arguments the tool chose handle it themselves:
-`RenderChart` maps any `ArgumentException` of a render (the target size was validated by `ComputeTargetSize` before)
-to `vega-lite-error` ("Vega-Lite render error: ..."), and `MeasureChart` maps an `ArgumentOutOfRangeException` for
-the parameter `options` (the library's check that the laid-out size is between 1 and 8192 pixels on a side) to
+A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. The Mermaid
+library adds three more, also caught before the generic list: `MermaidUnsupportedFeatureException` (an `IOException`,
+thrown in strict mode) to `unsupported-feature` ("The Mermaid diagram uses a feature that is not supported (feature):
+file:line:column: ...", with the hint of the library followed by "Without --strict the feature is left out and reported
+in the diagnostics."); `MermaidSyntaxException` (a `FormatException`: text that is not a valid diagram, an unknown
+diagram keyword, a shape that does not exist, invalid YAML) and `MermaidRenderException` (a diagram that cannot be laid
+out or drawn) to `MapMermaid`, which maps the stable code of the library: `mermaid-limit-exceeded` (a limit on nodes,
+edges, nesting, label length, layout work, pictures, or painted pixels) is `budget-exceeded` ("The Mermaid diagram
+exceeds a limit: ..."), and every other code is `mermaid-error` ("Mermaid syntax error: ..." or "Mermaid render error:
+..."), each keeping the hint of the library (the suggested fix, for example the nearest diagram keyword or shape name).
+A message of the library starts with its location, and so with the file name; a message without a location is prefixed
+with the quoted path and a colon (`Named`), so every message names the file. A diagram text longer than
+`MermaidLimits.MaxTextSize` is an `InvalidDataException`, so `corrupt-input`. `RenderDiagram` maps an
+`ArgumentOutOfRangeException` for the parameter `scale` of a render (the pictures of the nodes made the scaled diagram
+larger than the largest image) to `size-limit` and any other `ArgumentException` of a render to `mermaid-error`
+("Mermaid render error: ..."), and `MeasureDiagram` maps the measure as described under *Probe*; neither is ever a usage
+error. An `ArgumentException` of the library is not on the allow-list of `Read`, because the library throws it for
+arguments that the caller chose; the two places that call the library with arguments the tool chose handle it
+themselves: `RenderChart` maps any `ArgumentException` of a render (the target size was validated by `ComputeTargetSize`
+before) to `vega-lite-error` ("Vega-Lite render error: ..."), and `MeasureChart` maps an `ArgumentOutOfRangeException`
+for the parameter `options` (the library's check that the laid-out size is between 1 and 8192 pixels on a side) to
 `size-limit` with a hint and every other `ArgumentException` to `vega-lite-error` ("Vega-Lite measure error: ...").
 Neither is ever reported as a usage error or as an unexpected exception. Every
 other exception - a null reference, an index out of range, an out-of-memory failure - is a defect and propagates to
@@ -519,13 +629,16 @@ truncated and garbage files to prove that the allow-list covers the failures the
 documents also every byte-prefix length of a sample, overwritten and zeroed middles, a valid archive with a broken
 part, malformed PDF content, and an unsupported PDF encryption handler; for a chart a cut after every kind of damage
 of the shared sweep (the garbage and truncated files of a chart are
-`vega-lite-error`, and a cut that leaves valid JSON may still load); for models a cut after every seventh
-character of a model with several kinds of statement, garbage of several sizes, and some forty stress models - huge
-numbers, degenerate or empty shapes, unsupported constructs, runaway recursion and loops, bad arguments, a deep nest of
-parentheses, and unusual text); a gap found that way is closed by extending the list, and none was found for any
-format. Size problems are `size-limit`; a page that does not exist is `page-out-of-range`. A source kind that the
-loader has no case for - which cannot happen while every kind of `SourceKind` is handled - is an
-`InvalidOperationException`, a defect, not a `ViewerException`. Null arguments throw `ArgumentNullException`.
+`vega-lite-error`, and a cut that leaves valid JSON may still load); for diagrams a cut after every character of a
+diagram with frontmatter, an accessible title, a subgraph, and a class (the first cut is the empty file) (each a
+`mermaid-error`, `corrupt-input`, or a shorter diagram that still loads; the garbage file of the shared sweep is a
+`mermaid-error`); for models a cut after every seventh character of a model with several kinds of statement, garbage of
+several sizes, and some forty stress models - huge numbers, degenerate or empty shapes, unsupported constructs, runaway
+recursion and loops, bad arguments, a deep nest of parentheses, and unusual text); a gap found that way is closed by
+extending the list, and none was found for any format. Size problems are `size-limit`; a page that does not exist is
+`page-out-of-range`. A source kind that the loader has no case for - which cannot happen while every kind of
+`SourceKind` is handled - is an `InvalidOperationException`, a defect, not a `ViewerException`. Null arguments throw
+`ArgumentNullException`.
 
 #### Dependencies
 
@@ -545,11 +658,18 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
   `SceneRenderOptions` give the camera convention, the projection, and the background and default colors.
 - **CanvasNet Vega-Lite system** - `VegaLiteDocument` parses, measures, and draws a chart, with the render options,
   the diagnostics, and the exceptions that the loader maps.
+- **CanvasNet Mermaid system** - `MermaidDocument` parses, measures, and draws a diagram, with `MermaidOpenOptions`,
+  `MermaidRenderOptions` (and its `ThemeNames`), `MermaidLimits`, the warnings and unsupported features, the stable
+  `MermaidDiagnosticCodes`, and the exceptions that the loader maps; `MermaidImageSource` names the theme fragment
+  parameter and the generic warning code.
 
 #### Callers
 
 - **ImageRenderer**, **ImageInspector**, **ImageComparer**, and **MontageBuilder** - probe (or take the probed facts),
   load, and report the operations.
+- **SvgFlattener** - draws the links of an SVG drawing with `SvgImages` (the resolver of render, its notes, the
+  `--strict` policy, the error mapping, and `KindOfName`, which is `internal` for this use), and validates the scale
+  with `FindOptionProblem`.
 - **DiscoveryCommands** (of the tool) - the `info` command probes.
 - **Library users** - call `Probe`, `Load`, and `OpenPages` directly.
 - **ImageWriter** - uses the core `Surface.FlattenOver` and `Surface.HasTransparency` for JPEG output.

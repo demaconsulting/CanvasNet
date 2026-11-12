@@ -1,0 +1,309 @@
+{
+  "source": "05-annotations.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 480.59, 408],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Shape-0",
+      "shape": "classBox",
+      "x": 67.137,
+      "y": 83,
+      "box": [8, 8, 118.273, 150],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 118.273, 150] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 118.273, 150] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "annotation-group text",
+          "box": [27.551, 20, 79.172, 24],
+          "text": "«interface»"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [43.129, 44, 48.016, 24],
+          "text": "Shape",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "g", "class": "label", "group": "methods-group text", "box": [20, 122, 54.688, 24], "text": "+draw()" },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 80, 118.273, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 104, 118.273, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Color-1",
+      "shape": "classBox",
+      "x": 405.449,
+      "y": 304,
+      "box": [338.309, 208, 134.281, 192],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [338.309, 208, 134.281, 192]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [338.309, 208, 134.281, 192]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "annotation-group text",
+          "box": [352.074, 220, 106.75, 24],
+          "text": "«enumeration»"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [384.559, 244, 41.781, 24],
+          "text": "Color",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [350.309, 292, 33.781, 24],
+          "text": "RED"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [350.309, 316, 56.906, 24],
+          "text": "GREEN"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "members-group text",
+          "box": [350.309, 340, 41.797, 24],
+          "text": "BLUE"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [338.309, 280, 134.281, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [338.309, 376, 134.281, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Service-2",
+      "shape": "classBox",
+      "x": 316.982,
+      "y": 83,
+      "box": [270.74, 29, 92.484, 108],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [270.74, 29, 92.484, 108] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [270.74, 29, 92.484, 108] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "annotation-group text",
+          "box": [282.74, 41, 68.484, 24],
+          "text": "«service»"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [288.514, 65, 56.938, 24],
+          "text": "Service",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [270.74, 101, 92.484, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [270.74, 119, 92.484, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Repository-3",
+      "shape": "classBox",
+      "x": 228.516,
+      "y": 304,
+      "box": [168.723, 229, 119.586, 150],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [168.723, 229, 119.586, 150]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [168.723, 229, 119.586, 150]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "annotation-group text",
+          "box": [191.156, 241, 74.719, 24],
+          "text": "«abstract»"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [186.727, 265, 83.578, 24],
+          "text": "Repository",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [180.723, 343, 53.797, 24],
+          "text": "+save()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [168.723, 301, 119.586, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [168.723, 325, 119.586, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Marker-4",
+      "shape": "classBox",
+      "x": 67.137,
+      "y": 304,
+      "box": [15.551, 250, 103.172, 108],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [15.551, 250, 103.172, 108]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [15.551, 250, 103.172, 108]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "annotation-group text",
+          "box": [27.551, 262, 79.172, 24],
+          "text": "«interface»"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [40.895, 286, 52.484, 24],
+          "text": "Marker",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [15.551, 322, 103.172, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [15.551, 340, 103.172, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Service_Repository_1",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 100.77,
+      "points": [
+        [270.74, 135.271],
+        [267.402, 139.045],
+        [264.063, 142.819],
+        [260.731, 146.598],
+        [257.436, 150.409],
+        [254.196, 154.268],
+        [251.027, 158.185],
+        [247.943, 162.169],
+        [244.961, 166.231],
+        [242.106, 170.382],
+        [239.41, 174.638],
+        [236.92, 179.017],
+        [234.706, 183.542],
+        [232.827, 188.216],
+        [231.296, 193.015],
+        [230.113, 197.912],
+        [229.273, 202.879],
+        [228.759, 207.89],
+        [228.54, 212.923],
+        [228.516, 217.961],
+        [228.516, 223]
+      ]
+    },
+    {
+      "id": "id_Shape_Marker_2",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": "classDiagram-extensionStart",
+      "markerEnd": null,
+      "length": 74.75,
+      "points": [
+        [67.137, 175.25],
+        [67.137, 178.988],
+        [67.137, 182.725],
+        [67.137, 186.462],
+        [67.137, 190.2],
+        [67.137, 193.938],
+        [67.137, 197.675],
+        [67.137, 201.413],
+        [67.137, 205.15],
+        [67.137, 208.887],
+        [67.137, 212.625],
+        [67.137, 216.363],
+        [67.137, 220.1],
+        [67.137, 223.837],
+        [67.137, 227.575],
+        [67.137, 231.313],
+        [67.137, 235.05],
+        [67.137, 238.788],
+        [67.137, 242.525],
+        [67.137, 246.262],
+        [67.137, 250]
+      ]
+    },
+    {
+      "id": "id_Service_Color_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 80.844,
+      "points": [
+        [363.225, 135.271],
+        [365.903, 138.299],
+        [368.581, 141.326],
+        [371.259, 144.354],
+        [373.932, 147.387],
+        [376.592, 150.43],
+        [379.234, 153.489],
+        [381.854, 156.567],
+        [384.449, 159.667],
+        [387.012, 162.793],
+        [389.536, 165.949],
+        [392.013, 169.144],
+        [394.426, 172.387],
+        [396.754, 175.691],
+        [398.954, 179.082],
+        [400.964, 182.588],
+        [402.721, 186.227],
+        [404.139, 190.01],
+        [405.092, 193.935],
+        [405.444, 197.958],
+        [405.449, 202]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

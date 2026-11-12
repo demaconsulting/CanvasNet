@@ -328,6 +328,7 @@ Viewer user guide has the grammar and the table of parameters. The core package 
 has
 `SvgImageSource` for `.svg` files; and the `Scad`, `VegaLite`, `Pdf`, `Pptx` and `Vsdx` packages have
 one each. The `DemaConsulting.CanvasNet.Viewer` package lists them all.
+The Mermaid user guide, *Example 56*, shows an SVG that embeds Mermaid diagrams next to a model and a chart.
 
 ```csharp
 // SVG files that embed raster images and other SVG files from the folder of the document
@@ -370,6 +371,9 @@ allowed": the element then draws nothing.
   `ImageSourceException` for a file that exists but cannot be drawn, and only warns for a link it cannot
   resolve.
 - **Scope.** `feImage` does not use the resolver; an external `feImage` `href` still draws nothing.
+- **Other SVG readers.** A browser or WeasyPrint draws nothing for an `image` that links a model, a chart, a diagram,
+  or a page of a document. `SvgFlattener` of the Viewer package (the `canvasnet flatten` command) writes a copy of such
+  a drawing in which those links are PNG pictures of their placement size, so any SVG reader shows it.
 
 To write your own resolver, implement `IImageResolver`; to add a format or a live source to
 `FolderImageResolver`, implement `IImageSource` (see the core user guide, *Linked Images*):

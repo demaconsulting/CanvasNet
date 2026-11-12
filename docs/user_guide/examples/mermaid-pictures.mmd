@@ -1,0 +1,7 @@
+%% bracket.scad, swatch.svg, and stall-sales.vl.json lie beside this file
+flowchart LR
+    model@{ img: "bracket.scad", label: "Bracket", pos: "b", w: 140, h: 110, constraint: "on" }
+    swatch@{ img: "swatch.svg", label: "Finish", w: 80, h: 80, constraint: "on" }
+    sales@{ img: "stall-sales.vl.json", label: "Sales", w: 180, h: 150, constraint: "on" }
+    model --> paint[Paint] --> swatch
+    swatch --> sell[Sell] --> sales

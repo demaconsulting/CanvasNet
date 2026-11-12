@@ -1,0 +1,32 @@
+---
+title: Nightly backup
+---
+sequenceDiagram
+    participant Timer
+    participant Agent as Backup agent
+    participant Disk
+    participant Cloud as Cloud storage
+    Timer->>+Agent: Start at 02:00
+    loop Every volume
+        Agent->>Disk: Take a snapshot
+        Disk-->>Agent: Snapshot ready
+        rect rgb(225, 240, 255)
+            Agent->>Cloud: Upload the changed blocks
+            Cloud-->>Agent: Stored
+        end
+    end
+    alt All volumes stored
+        Agent->>Cloud: Write the catalog
+    else An upload failed
+        Agent->>Timer: Retry in an hour
+    end
+    opt The disk is nearly full
+        Agent->>Disk: Delete the oldest snapshots
+    end
+    par Report
+        Agent-)Timer: Summary
+    and Clean up
+        Agent->>Disk: Release the snapshots
+    end
+    Note over Agent,Disk: Snapshots are kept for 7 days
+    deactivate Agent

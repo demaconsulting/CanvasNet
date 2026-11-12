@@ -10,11 +10,11 @@ This document provides the system-level design for CanvasNetViewer.
 
 CanvasNetViewer is a .NET library that aggregates the image sources of every CanvasNet format package, distributed as
 its own NuGet package (`DemaConsulting.CanvasNet.Viewer`, namespace `DemaConsulting.CanvasNet.Viewer`). It exists so
-that an application (or the command-line tool) can draw "any file CanvasNet can read" and let an SVG diagram embed models,
-charts, other SVG files, document pages, and pictures with one call, without referencing and wiring each format
-package itself. It is also the library form of the `canvasnet` command-line tool: everything the tool does with
-images - report the facts of a file, render it with an ordered pipeline of transformations, inspect its colors and
-pixels, compare two images, and compose a contact sheet - is a call of the `Imaging` subsystem, and the tool is a
+that an application (or the command-line tool) can draw "any file CanvasNet can read" and let an SVG diagram embed
+models, charts, Mermaid diagrams, other SVG files, document pages, and pictures with one call, without referencing and
+wiring each format package itself. It is also the library form of the `canvasnet` command-line tool: everything the tool
+does with images - report the facts of a file, render it with an ordered pipeline of transformations, inspect its colors
+and pixels, compare two images, and compose a contact sheet - is a call of the `Imaging` subsystem, and the tool is a
 thin shell that parses a command line into the requests of those calls and prints their results. The system consists
 of two units and one subsystem:
 
@@ -28,8 +28,8 @@ of two units and one subsystem:
   (`canvas-net-viewer/viewer-exception.md`).
 - **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Viewer.Imaging`, folder `Imaging/`): `SourceLoader`,
   `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay`, and the operation units
-  `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`. See _Imaging Subsystem Design_
-  (`canvas-net-viewer/imaging.md`).
+  `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`. See _Imaging Subsystem
+  Design_ (`canvas-net-viewer/imaging.md`).
 
 `CanvasNetViewer` is modeled as its own top-level software system because it is distributed as its own NuGet package,
 per `software-items.md`'s rule that a software package contains exactly one software system. The `CanvasNetViewer` unit
@@ -41,19 +41,19 @@ so the embedding is the same for both.
 
 The dependency direction is one-way. The core `ImageSources` subsystem defines the contract (`IImageSource`,
 `IImageResolver`) and the resolver; each format package ships a small source that references only the core package
-(`SvgImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`, `ScadImageSource`, `VegaLiteImageSource`); the
-viewer is the one place that knows all of them. No package references the viewer except the command-line tool, and the
-viewer has no plug-in mechanism: the built-in list is fixed and explicit (no reflection, no discovery, no global
-registry). A **library user** who needs another format, an override, or a live source passes extra sources for one
-render.
+(`SvgImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`, `ScadImageSource`, `VegaLiteImageSource`,
+`MermaidImageSource`); the viewer is the one place that knows all of them. No package references the viewer except the
+command-line tool, and the viewer has no plug-in mechanism: the built-in list is fixed and explicit (no reflection, no
+discovery, no global registry). A **library user** who needs another format, an override, or a live source passes extra
+sources for one render.
 
 ## External Interfaces
 
 The system exposes the following public API:
 
-- **`CanvasNetViewer.ImageSources`** / **`CanvasNetViewer.Extensions`**: the fixed, read-only list of the built-in sources
-  (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite) and the sorted union of the file name extensions they
-  claim. The command-line tool's `svg` help topic is checked against `Extensions`.
+- **`CanvasNetViewer.ImageSources`** / **`CanvasNetViewer.Extensions`**: the fixed, read-only list of the built-in
+  sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, Vega-Lite, Mermaid) and the sorted union of the file name
+  extensions they claim. The command-line tool's `svg` help topic is checked against `Extensions`.
 - **`CanvasNetViewer.CreateImageResolver(folder, options)`** / **`CreateImageResolver(folder, extraSources, options)`**:
   a new `FolderImageResolver` for one render, over the built-in sources followed by the extra ones; assign it to
   `SvgLoadOptions.ImageResolver`. Throws `ArgumentException` for a null, empty or white-space folder and
@@ -67,11 +67,12 @@ The system exposes the following public API:
 - **`ViewerRenderOptions`**: `Width`, `Height`, `Folder`, `ThrowOnUnsupportedFeature`, `MaxDecodedPixels`,
   `ExtraSources`, and `CancellationToken`.
 - **The `Imaging` operations** (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`): `SourceLoader.Probe` /
-  `Load` / `OpenPages` (the facts of a file, and its pixels, with pages, resolution, and options), `ImageRenderer.Execute`
-  (load, transform, and write), `ImageInspector.Execute` (colors and pixels), `ImageComparer.Execute` (measures,
-  thresholds, and pictures), `MontageBuilder.Execute` (a contact sheet), and the lower-level `ImagePipeline.Apply`,
-  `ImageWriter.Write`, `ContactSheet`, and `GridOverlay.Draw`. Each takes plain request values and returns plain result
-  values; see _Imaging Subsystem Design_ for the signatures.
+  `Load` / `OpenPages` (the facts of a file, and its pixels, with pages, resolution, and options),
+  `ImageRenderer.Execute` (load, transform, and write), `ImageInspector.Execute` (colors and pixels),
+  `ImageComparer.Execute` (measures, thresholds, and pictures), `MontageBuilder.Execute` (a contact sheet),
+  `SvgFlattener.Execute` (a copy of an SVG drawing that other SVG readers can show), and the
+  lower-level `ImagePipeline.Apply`, `ImageWriter.Write`, `ContactSheet`, and `GridOverlay.Draw`. Each takes plain
+  request values and returns plain result values; see _Imaging Subsystem Design_ for the signatures.
 - **`ViewerException`** / **`ErrorCodes`**: the failure of an expected kind, with a stable code, a message, and a hint.
 
 <!-- markdownlint-disable MD013 -->
@@ -96,10 +97,11 @@ format systems, each through a project reference from
 - The core `ImageSources` subsystem: `IImageSource`, `ImageSourceSet`, `FolderImageResolver`,
   `FolderImageResolverOptions`, `ImageSourceDiagnostic`, `EmbeddedImage`, `ImageSourceException`, and the
   `RasterImageSource`; and the `Canvas` subsystem's `Surface` and `Rgba32` (the fit of a raster into a box).
-- The `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, and `CanvasNetVegaLite` systems:
-  the `SvgImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`, `ScadImageSource`, and
-  `VegaLiteImageSource` of each package, and for the `Imaging` operations the codecs and documents of the same
-  packages (`SvgCodec`, `PdfDocument`, `PptxDocument`, `VsdxDocument`, `ScadDocument`, `VegaLiteDocument`).
+- The `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetVegaLite`, and
+  `CanvasNetMermaid` systems: the `SvgImageSource`, `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`,
+  `ScadImageSource`, `VegaLiteImageSource`, and `MermaidImageSource` of each package, and for the `Imaging` operations
+  the codecs and documents of the same packages (`SvgCodec`, `PdfDocument`, `PptxDocument`, `VsdxDocument`,
+  `ScadDocument`, `VegaLiteDocument`, `MermaidDocument`).
 - The `CanvasNetRender3D` system (`SceneRendering`, used by the OpenSCAD view loading of `SourceLoader`), referenced
   explicitly. `CanvasNetCharts` arrives transitively.
 
@@ -115,12 +117,12 @@ are never loaded; depth, count, size, and the pixels allocated in total are boun
 pixel budget being refused before it is decoded), which the viewer inherits unchanged by building every render on
 it. The viewer adds no file access of its own on the render path. The `Imaging` operations read the files that a caller
 names and write the files that a caller names (the tool's own file access is the same), and the files that an SVG
-document, an OpenSCAD model, or a Vega-Lite chart refers to are read through the same sandboxed resolver, the folder
-of the model and below it, and never from the network. A source that a **library user** adds is trusted code of the
-application: a source that claims a URI scheme receives the link as written, with no sandbox, and alone owns what the
-link may reach (for example, a source that claims `http` must decide which hosts it fetches); no built-in source
-claims `http` or `https`, so such links stay unresolved. A viewer never caches a picture, so a live source is asked
-again on every render. The shape contains this risk control inherently (IEC 62304 §5.3.3).
+document, an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram refers to are read through the same sandboxed
+resolver, the folder of the model and below it, and never from the network. A source that a **library user** adds is
+trusted code of the application: a source that claims a URI scheme receives the link as written, with no sandbox, and
+alone owns what the link may reach (for example, a source that claims `http` must decide which hosts it fetches); no
+built-in source claims `http` or `https`, so such links stay unresolved. A viewer never caches a picture, so a live
+source is asked again on every render. The shape contains this risk control inherently (IEC 62304 §5.3.3).
 
 ## Data Flow
 

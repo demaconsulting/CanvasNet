@@ -1,0 +1,67 @@
+---
+# Software Unit Requirements for ColorMath
+#
+# These requirements describe the design-level behavior of the ColorMath unit of the Configuration subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Configuration): the port of the subset of the khroma color
+# library that Mermaid's themes derive their colors with, including its parsers, channel model, rounding, and output
+# formats. See docs/verification/canvas-net-mermaid/configuration/color-math.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Configuration Requirements
+        sections:
+          - title: ColorMath Requirements
+            requirements:
+              - id: CanvasNetMermaid-Configuration-ColorMath-KhromaFidelity
+                title: >-
+                  The ColorMath unit shall give the same result as khroma - the same color text, the same number, or
+                  the same error - for every color function the themes use (adjust, darken, lighten, invert, rgba,
+                  channel, luminance, and is-dark) on hexadecimal, keyword, rgb, rgba, hsl, and hsla inputs.
+                justification: |
+                  The text of a derived color reaches the style sheet; a different format or rounding changes the
+                  theme variable that is compared with Mermaid's.
+                tests:
+                  - ColorMath_Function_MatchesKhroma
+
+              - id: CanvasNetMermaid-Configuration-ColorMath-WrittenForm
+                title: >-
+                  The ColorMath unit shall return a color that a function did not change in the form it was written,
+                  and a keyword color as its hexadecimal form.
+                justification: |
+                  khroma keeps an unchanged color's text, which Mermaid's themes rely on for their base colors.
+                tests:
+                  - ColorMath_Adjust_NoChange_KeepsWrittenForm
+
+              - id: CanvasNetMermaid-Configuration-ColorMath-Numbers
+                title: >-
+                  The ColorMath unit shall round channel values to ten decimals with JavaScript's rounding of halves
+                  toward positive infinity, and write numbers as JavaScript writes them.
+                justification: |
+                  The numbers of an hsl or rgba color are part of its text and must be written as Mermaid writes them.
+                tests:
+                  - ColorMath_Round_TenDecimalsHalfUp
+                  - ColorMath_FormatNumber_FollowsJavaScript
+
+              - id: CanvasNetMermaid-Configuration-ColorMath-Parsing
+                title: >-
+                  The ColorMath unit shall read exactly the color texts that khroma reads (its hexadecimal, rgb, rgba,
+                  hsl, hsla, and keyword forms, with khroma's own keyword table) in time linear in the length of the
+                  text.
+                justification: |
+                  Whether a theme variable is a color decides whether a theme can be computed; the parser must accept
+                  and refuse what khroma does, and untrusted text must not cost more than its length.
+                tests:
+                  - ColorMath_IsColor_ParserEdges
+                  - ColorMath_Function_MatchesKhroma
+
+              - id: CanvasNetMermaid-Configuration-ColorMath-NotAColor
+                title: >-
+                  The ColorMath unit shall fail with an error that carries the offending value when a color function
+                  is given a value that is not a string or a string that is not a color.
+                justification: |
+                  The configuration resolver drops the theme variable that caused the failure and needs to know which
+                  value it was.
+                tests:
+                  - ColorMath_Invert_NotAString_ThrowsWithValue
+                  - ColorMath_Function_MatchesKhroma

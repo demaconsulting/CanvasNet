@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def MermaidSceneModel {
+        doc /* The internal immutable scene records of a laid-out Mermaid diagram, in Mermaid's SVG user units: SceneRect (with Union and Offset), SceneSegment (move, line, quadratic, cubic, elliptical arc, and close in absolute units, created through factories), SceneStroke (color with opacity folded in, width, dash pattern and offset, cap, join), SceneFont (CSS family list, size, bold, italic), SceneTextRun (with an underline flag), and the items derived from SceneItem (a role, Mermaid's element id, and the location of the construct): SceneGroup (children translated together), ScenePath (fill, fill rule, stroke, and an optional SceneShadow drop shadow of an offset, a blur, and a color), SceneText (one line of runs at a start, middle, or end anchor with its measured box and an optional stroke), and SceneImage (a picture filling a box with an opacity). Scene holds the view box (the natural size of the diagram), the items in paint order, and the picture loader of its pictures; Scene.Walk enumerates the items depth first with their accumulated offsets, Scene.BoundsOf gives the bounds of items as an SVG bounding box does (curves rather than control points, strokes and shadows excluded, text and picture boxes, group translations applied, null when nothing is drawn), and Scene.ToPath converts segments to a core Path at a scale and offset (a path that does not begin with a move starts at the origin). Depends on the core Rgba32, FillRule, LineCap, LineJoin, Path, and PathBuilder and on MermaidLocation. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/SceneModel.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/SceneModelTests.cs */
+        comment designRef /* Design: docs/design/canvas-net-mermaid/scenegraph/scene-model.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net-mermaid/scenegraph/scene-model.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml */
+    }
+}

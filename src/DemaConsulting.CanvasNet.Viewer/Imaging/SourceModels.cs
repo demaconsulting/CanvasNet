@@ -48,7 +48,10 @@ public enum SourceKind
     Scad,
 
     /// <summary>A Vega-Lite chart specification.</summary>
-    VegaLite
+    VegaLite,
+
+    /// <summary>A Mermaid diagram (<c>.mmd</c>, <c>.mermaid</c>).</summary>
+    Mermaid
 }
 
 /// <summary>
@@ -120,10 +123,11 @@ public static class SourceKindExtensions
     ///     being resampled from pixels.
     /// </summary>
     /// <param name="kind">The kind.</param>
-    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, and Vega-Lite.</returns>
+    /// <returns><see langword="true"/> for SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, and Mermaid.</returns>
     public static bool IsVector(this SourceKind kind)
     {
-        return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad or SourceKind.VegaLite;
+        return kind is SourceKind.Svg or SourceKind.Pdf or SourceKind.Pptx or SourceKind.Vsdx or SourceKind.Scad or SourceKind.VegaLite
+            or SourceKind.Mermaid;
     }
 
     /// <summary>
@@ -134,6 +138,16 @@ public static class SourceKindExtensions
     public static bool IsChart(this SourceKind kind)
     {
         return kind == SourceKind.VegaLite;
+    }
+
+    /// <summary>
+    ///     Determines whether a source kind is a diagram written as text, which is described by a <see cref="DiagramFacts"/>.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    /// <returns><see langword="true"/> for a Mermaid diagram.</returns>
+    public static bool IsDiagram(this SourceKind kind)
+    {
+        return kind == SourceKind.Mermaid;
     }
 }
 
@@ -291,6 +305,12 @@ public sealed record SourceInfo(
     public ChartFacts? Chart { get; init; }
 
     /// <summary>
+    ///     Gets what a Mermaid diagram declares (its type, direction, titles, and the numbers of nodes, edges, and
+    ///     subgraphs), or <see langword="null"/> for every other kind.
+    /// </summary>
+    public DiagramFacts? Diagram { get; init; }
+
+    /// <summary>
     ///     Gets what the fragment of the input chose (<c>part.scad#def.width=20</c>), or <see langword="null"/> when the input
     ///     had none; set by <see cref="SourceLoader.Probe(InputReference)"/>. Every operation that loads the source applies it
     ///     over its options (see <see cref="InputSelection.ApplyTo(SourceOptions)"/>), and <see cref="Path"/> is still the file.
@@ -318,6 +338,30 @@ public sealed record ChartFacts(
     IReadOnlyList<string> Parameters,
     string? Title,
     int? SchemaMajorVersion);
+
+/// <summary>
+///     What a Mermaid diagram declares, read by parsing it (the diagram is laid out for its size but not drawn).
+/// </summary>
+/// <param name="Type">The diagram type, for example <c>flowchart</c> (a <c>graph</c> is a flowchart too), <c>sequence</c>, <c>class</c>, <c>pie</c>, <c>gantt</c> or <c>mindmap</c>.</param>
+/// <param name="Supported">
+///     <see langword="true"/> when this version draws the type; a diagram of a type that is recognized but not drawn
+///     (for example <c>journey</c>) is an empty picture with the unsupported note <c>mermaid-diagram-unsupported</c>.
+/// </param>
+/// <param name="Direction">The direction of a flowchart, a class, state or entity relationship diagram (<c>TB</c>, <c>TD</c>, <c>BT</c>, <c>LR</c>, or <c>RL</c>), or <see langword="null"/>.</param>
+/// <param name="Title">The title from the frontmatter or the diagram itself, or <see langword="null"/> when there is none.</param>
+/// <param name="AccTitle">The accessible title (<c>accTitle</c>), or <see langword="null"/> when there is none.</param>
+/// <param name="NodeCount">The number of nodes (the participants of a sequence diagram, the classes of a class diagram, the states of a state diagram, the entities of an entity relationship diagram, the slices of a pie chart, the tasks of a gantt chart, the nodes of a mindmap); 0 for a type that is not drawn.</param>
+/// <param name="EdgeCount">The number of edges (links; the messages of a sequence diagram, the relations of a class diagram, the transitions of a state diagram, the relationships of an entity relationship diagram, the edges of a mindmap, one fewer than its nodes; 0 for a pie or gantt chart); 0 for a type that is not drawn.</param>
+/// <param name="SubgraphCount">The number of subgraphs (the boxes of a sequence diagram, the namespaces of a class diagram, the composite states of a state diagram, the subgraphs of an entity relationship diagram, the sections of a gantt chart; 0 for a pie chart or a mindmap); 0 for a type that is not drawn.</param>
+public sealed record DiagramFacts(
+    string Type,
+    bool Supported,
+    string? Direction,
+    string? Title,
+    string? AccTitle,
+    int NodeCount,
+    int EdgeCount,
+    int SubgraphCount);
 
 /// <summary>
 ///     A data source named by a Vega-Lite chart.
@@ -502,8 +546,8 @@ public sealed record SourceOptions
     ///         </item>
     ///         <item>
     ///             <description>
-    ///                 An OpenSCAD model is framed to the box (not stretched), and a Vega-Lite chart is scaled
-    ///                 uniformly and centered over its background.
+    ///                 An OpenSCAD model is framed to the box (not stretched), and a Vega-Lite chart or a Mermaid diagram
+    ///                 is scaled uniformly and centered over its background.
     ///             </description>
     ///         </item>
     ///     </list>
@@ -551,6 +595,26 @@ public sealed record SourceOptions
     ///     defaults of the specification. The other kinds ignore it.
     /// </summary>
     public ChartOptions? VegaLite { get; init; }
+
+    /// <summary>
+    ///     Gets how a Mermaid diagram is drawn (its theme), or <see langword="null"/> for Mermaid's defaults. The other kinds
+    ///     ignore it.
+    /// </summary>
+    public DiagramOptions? Mermaid { get; init; }
+}
+
+/// <summary>
+///     How a Mermaid diagram is drawn: what the <c>--theme</c> option of the tool or the <c>theme=</c> fragment of a link
+///     (<c>flow.mmd#theme=dark</c>) sets.
+/// </summary>
+public sealed record DiagramOptions
+{
+    /// <summary>
+    ///     Gets the site-level theme - <c>default</c>, <c>base</c>, <c>dark</c>, <c>forest</c>, or <c>neutral</c> - or
+    ///     <see langword="null"/> for <c>default</c>. As with <c>mmdc -t</c>, a theme the text sets in its frontmatter or in a
+    ///     directive still wins. Any other name is refused (<c>usage-error</c>, or <c>image-fragment-invalid</c> in a fragment).
+    /// </summary>
+    public string? Theme { get; init; }
 }
 
 /// <summary>

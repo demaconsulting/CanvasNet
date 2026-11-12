@@ -1,0 +1,5 @@
+flowchart TD
+    a@{ shape: delay, label: Wait } --> b@{ shape: curv-trap, label: Display }
+    b --> c@{ shape: sl-rect, label: Input }
+    c --> d@{ shape: notch-pent, label: Loop }
+    d --> e@{ shape: hourglass, label: Collate }

@@ -1,0 +1,9 @@
+flowchart TB
+    subgraph outer [Outer]
+        o1
+        subgraph inner [Inner]
+            i1 --> i2
+        end
+        o1 --> i1
+    end
+    i2 --> after

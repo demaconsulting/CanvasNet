@@ -1,0 +1,173 @@
+---
+# Software Unit Requirements for EdgeBuilder
+#
+# These requirements describe the design-level behavior of the EdgeBuilder unit of the Rendering subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): Mermaid's edges - the route of the layout cut at
+# the node outlines and subgraph borders, drawn with a d3-shape curve, stroked, and marked - and the measuring,
+# placing, and drawing of edge labels.
+# See docs/verification/canvas-net-mermaid/rendering/edge-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: EdgeBuilder Requirements
+            requirements:
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Curves
+                title: >-
+                  The EdgeBuilder unit shall draw the points of an edge with every curve Mermaid offers for edges
+                  exactly as d3-shape's line generator writes them to three decimals, drawing the basis curve for a
+                  name Mermaid does not list, rounding the corners of the rounded curve, and ending the path at a
+                  number that is not finite.
+                justification: |
+                  The curve decides the shape of every edge; the same path data gives the same pixels as Mermaid.
+                tests:
+                  - EdgeBuilder_Line_UpstreamVector_MatchesD3
+                  - EdgeBuilder_Line_UnknownCurve_DrawsBasis
+                  - EdgeBuilder_Line_NotFiniteNumber_EndsTheDrawnPath
+                  - EdgeBuilder_RoundedPath_Corner_IsAQuadraticCurve
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Route
+                title: >-
+                  The EdgeBuilder unit shall end the route of an edge on the outlines of its nodes, cut it where it
+                  enters or leaves a subgraph's box with the arithmetic of Mermaid, round off its right-angle corners,
+                  and pull its ends back so that the tip of an arrowhead touches the node.
+                justification: |
+                  Mermaid changes the layout's route before drawing it; the same changes give the same end points
+                  and arrowheads.
+                tests:
+                  - EdgeBuilder_CutPathAtIntersect_RouteIntoBox_EndsOnTheBorder
+                  - EdgeBuilder_Intersection_TopSide_KeepsMermaidsArithmetic
+                  - EdgeBuilder_FixCorners_RightAngle_IsRoundedOff
+                  - EdgeBuilder_Draw_ArrowPoint_TipTouchesTheNode
+                  - EdgeBuilder_Draw_EndsAndSubgraph_CutTheRoute
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Markers
+                title: >-
+                  The EdgeBuilder unit shall draw the point, circle, and cross markers of a flowchart and their start
+                  variants at the ends of an edge with the size, reference point, and stroke of Mermaid's markers,
+                  turned along the direction of the path at that end.
+                justification: |
+                  Arrowheads show the direction and kind of a link and must look and sit as in Mermaid.
+                tests:
+                  - EdgeBuilder_MarkerOf_ArrowTypes_GiveMermaidsMarkers
+                  - EdgeBuilder_DrawMarker_PointEnd_TipIsFourPixelsAhead
+                  - EdgeBuilder_DrawMarker_CircleAndCross_ArePlacedBeforeTheVertex
+                  - EdgeBuilder_StartOfAndEndOf_Curve_TakeTheTangents
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-Stroke
+                title: >-
+                  The EdgeBuilder unit shall stroke an edge by the thickness and pattern of its link and the edge's
+                  own styles, color its markers with the stroke color of those styles, and draw an animated edge as
+                  the first frame of its animation.
+                justification: |
+                  The link strokes, linkStyle, and classDef statements style the edges; an animation cannot be drawn
+                  in a still picture, so its first frame is drawn.
+                tests:
+                  - EdgeBuilder_Draw_LinkStroke_FollowsTheClasses
+                  - EdgeBuilder_Draw_LinkStyleStroke_ColorsPathAndMarker
+                  - EdgeBuilder_Draw_AnimatedEdge_IsDashedNineFive
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-LabelPlacement
+                title: >-
+                  The EdgeBuilder unit shall place an edge label at the position the layout gave it, or at the middle
+                  by length of the changed route when the route was cut, moved down by half the subgraph title
+                  margin, and place no label for an edge without text.
+                justification: |
+                  Mermaid moves a label onto a cut route so that it stays on the drawn line; the same rule gives the
+                  same label positions.
+                tests:
+                  - EdgeBuilder_CalcLabelPosition_Route_IsTheMiddleByLength
+                  - EdgeBuilder_IsLabelCoordinateInPath_RoundedText_IsSearched
+                  - EdgeBuilder_LabelPosition_LayoutPosition_IsMovedByHalfTheTitleMargin
+                  - EdgeBuilder_Draw_EndsAndSubgraph_CutTheRoute
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-LabelDrawing
+                title: >-
+                  The EdgeBuilder unit shall measure an edge label as Mermaid creates it, wrapped at 200 pixels, and
+                  draw it centered on its position over the backgrounds of the style sheet - two over the box of an
+                  HTML label, one at half opacity behind an SVG label.
+                justification: |
+                  The measured label sets the space dagre leaves for it, and its background keeps it readable over
+                  the edge as in Mermaid.
+                tests:
+                  - EdgeBuilder_MeasureLabel_Text_IsOneLineBox
+                  - EdgeBuilder_DrawLabel_Html_IsCenteredWithTwoBackgrounds
+                  - EdgeBuilder_DrawLabel_Svg_HasAHalfOpaqueBackground
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-LabelBackgrounds
+                title: >-
+                  The EdgeBuilder unit shall paint the backgrounds of an edge label from the selectors of the
+                  diagram's own style sheet - a class diagram's label background, label span, and label rectangle
+                  rules, a flowchart's paragraph and rectangle rules.
+                justification: |
+                  Each diagram type writes its own edge label rules; a class diagram's labels must have the background
+                  Mermaid's class style sheet gives them.
+                tests:
+                  - EdgeBuilder_DrawLabel_ClassDiagram_UsesTheClassBackgrounds
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-ClassMarkers
+                title: >-
+                  The EdgeBuilder unit shall draw the aggregation, extension, composition, dependency, and lollipop
+                  markers of a class diagram and their start variants in user space with the shape, reference point,
+                  and paint of Mermaid's class markers - the lollipop as an unfilled circle - turned along the
+                  direction of the path at that end, and color them with the relation's stroke color.
+                justification: |
+                  The markers tell the kind of each relation and must look and sit as in Mermaid.
+                tests:
+                  - EdgeBuilder_UserSpaceMarkerOf_ClassArrowTypes_GiveMermaidsMarkers
+                  - EdgeBuilder_DrawUserSpaceMarker_Extension_TipIsSeventeenPixelsFromTheVertex
+                  - EdgeBuilder_DrawUserSpaceMarker_LollipopStart_IsAnUnfilledCircleBehindTheVertex
+                  - EdgeBuilder_Draw_ClassRelation_MarkersFollowTheClassRules
+                  - EdgeBuilder_Draw_ClassRelationStroke_ColorsTheMarkers
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-TerminalLabels
+                title: >-
+                  The EdgeBuilder unit shall place the cardinality labels of a relation beside the start and the end
+                  of its route as Mermaid's terminal label position does, the start label centered and the end label
+                  not, sized as Mermaid sizes HTML and SVG terminal labels, and shall fail with a mermaid-render-failed
+                  error located at the link when the route is too short to place them, as Mermaid's render fails.
+                justification: |
+                  Cardinalities must stand where Mermaid puts them to read as the multiplicity of the right end.
+                tests:
+                  - EdgeBuilder_CalcTerminalLabelPosition_StraightRoute_IsBesideTheWalkedPart
+                  - EdgeBuilder_DrawTerminals_ShortRoute_FailsLocatedAtTheLink
+                  - EdgeBuilder_DrawTerminals_HtmlLabels_StartCenteredEndNot
+                  - EdgeBuilder_DrawTerminals_SvgLabels_StartCenteredOnItsTextBox
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-StateMarkers
+                title: >-
+                  The EdgeBuilder unit shall end each transition of a state diagram with the barb marker in user space
+                  with the shape and reference point of Mermaid's barb, filled and stroked in the transition color of
+                  the state style sheet.
+                justification: |
+                  The barb marker is the arrowhead of every transition; it has no class, so its paint comes from the
+                  sheet's rules for its id, which may differ from the line color.
+                tests:
+                  - EdgeBuilder_UserSpaceMarkerOf_StateAndErArrowTypes_GiveMermaidsMarkers
+                  - EdgeBuilder_Draw_StateTransition_BarbTakesTheTransitionColor
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-ErMarkers
+                title: >-
+                  The EdgeBuilder unit shall draw the cardinality markers of an entity relationship diagram - zero or
+                  one, exactly one, zero or more, and one or more, at either end - in user space with the shape and
+                  reference point of Mermaid's ER markers, scaled with the stroke width of the line, unfilled with the
+                  zero circles white, without shortening the line, and with no marker for a parent end.
+                justification: |
+                  The markers tell the cardinality of each end of a relationship and must look and sit as in Mermaid.
+                tests:
+                  - EdgeBuilder_UserSpaceMarkerOf_StateAndErArrowTypes_GiveMermaidsMarkers
+                  - EdgeBuilder_DrawUserSpaceMarker_ErMarker_ScalesWithTheStrokeWidth
+                  - EdgeBuilder_Draw_ErRelationship_MarkersAreUnfilledWithWhiteRings
+
+              - id: CanvasNetMermaid-Rendering-EdgeBuilder-SvgLabelCenter
+                title: >-
+                  The EdgeBuilder unit shall center an SVG edge label on the box of its text as drawn in the label's
+                  own font size, its background measured in the diagram's root font size, as Mermaid's edge label
+                  insertion measures and centers it.
+                justification: |
+                  Mermaid measures the background before the label takes its own size and centers the text afterwards;
+                  an entity relationship role drawn as SVG text must stand where Mermaid puts it.
+                tests:
+                  - EdgeBuilder_DrawLabel_SvgInASmallerSize_IsCenteredOnItsDrawnText

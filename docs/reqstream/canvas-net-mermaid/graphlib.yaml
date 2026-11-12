@@ -1,0 +1,78 @@
+---
+# Software Subsystem Requirements for Graphlib
+#
+# These requirements decompose the CanvasNetMermaid system's layout-fidelity and determinism responsibilities into
+# the Graphlib subsystem (internal namespace DemaConsulting.CanvasNet.Mermaid.Graphlib): the graph data structure
+# that the dagre layout and Mermaid's dagre wrapper build and query (Graph, with GraphEdge and the JavaScript
+# key-order map ObjectKeyMap) and the graph traversals they use (GraphAlgorithms), both ported from the graphlib
+# that dagre-d3-es bundles. Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/graphlib.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Graphlib Requirements
+        requirements:
+          - id: CanvasNetMermaid-Graphlib-GraphStructure
+            title: >-
+              The Graphlib subsystem shall hold the graphs of a diagram layout as graphlib holds them: directed or
+              undirected, simple or multigraph, flat or compound graphs with labels on the graph, its nodes, and its
+              edges, with the queries and changes of nodes, edges, parents, children, and neighbors that the dagre
+              layout and Mermaid's dagre wrapper make.
+            justification: |
+              The layout of a flowchart, with its subgraphs and parallel links, is computed on graphlib graphs;
+              the port must offer the same graph model and answers for the layout to be the same as Mermaid's.
+            children:
+              - CanvasNetMermaid-Graphlib-Graph-Kinds
+              - CanvasNetMermaid-Graphlib-Graph-Nodes
+              - CanvasNetMermaid-Graphlib-Graph-Edges
+              - CanvasNetMermaid-Graphlib-Graph-Adjacency
+              - CanvasNetMermaid-Graphlib-Graph-Compound
+              - CanvasNetMermaid-Graphlib-Graph-Filter
+            tests:
+              - Graphlib_Traversal_NumericNames_FollowJavaScriptKeyOrder
+              - Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph
+
+          - id: CanvasNetMermaid-Graphlib-KeyOrder
+            title: >-
+              The Graphlib subsystem shall list nodes, children, predecessors, successors, and the nodes visited by
+              a traversal in the order in which JavaScript lists the keys of graphlib's objects (names that are array
+              indexes first in ascending numeric order, then the other names in the order they were added, a name
+              that is removed and added again moving to the end) and edges in the order they were added, for any
+              node names.
+            justification: |
+              Every dagre stage iterates these collections and breaks ties by their order, so the order decides the
+              ranks, orders, and coordinates; keeping JavaScript's order makes the layout match Mermaid's and
+              repeatable for node names such as 1, 2, and 10.
+            children:
+              - CanvasNetMermaid-Graphlib-Graph-KeyOrder
+              - CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
+            tests:
+              - Graphlib_Traversal_NumericNames_FollowJavaScriptKeyOrder
+
+          - id: CanvasNetMermaid-Graphlib-Traversals
+            title: >-
+              The Graphlib subsystem shall give the same depth-first preorder and postorder of a graph as graphlib's
+              traversals.
+            justification: |
+              The dagre ranker walks its spanning tree in preorder and postorder; identical traversals are needed
+              for identical ranks.
+            children:
+              - CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
+
+            tests:
+              - Graphlib_Traversal_NumericNames_FollowJavaScriptKeyOrder
+              - Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph
+
+          - id: CanvasNetMermaid-Graphlib-Consistency
+            title: >-
+              The Graphlib subsystem shall keep a graph consistent while nodes and edges are removed and added
+              again, so that every later query and traversal sees only the current nodes and edges.
+            justification: |
+              The layout removes and restores edges and helper nodes between its stages (self loops, edge-label
+              proxies, border nodes, reversed edges); a stale entry would change the layout or fail it.
+            children:
+              - CanvasNetMermaid-Graphlib-Graph-Removal
+              - CanvasNetMermaid-Graphlib-GraphAlgorithms-DepthFirst
+            tests:
+              - Graphlib_Mutation_RemoveAndAdd_TraversalsSeeCurrentGraph

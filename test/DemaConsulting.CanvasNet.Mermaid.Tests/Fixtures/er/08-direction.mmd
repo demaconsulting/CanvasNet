@@ -1,0 +1,11 @@
+erDiagram
+    direction LR
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ ITEM : contains
+    CUSTOMER {
+        string name
+        string email
+    }
+    ITEM {
+        int quantity
+    }

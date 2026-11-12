@@ -1,0 +1,142 @@
+---
+# Software Unit Requirements for ClusterLayout
+#
+# These requirements describe the design-level behavior of the ClusterLayout unit of the Rendering subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): Mermaid's dagre renderer, which turns the layout
+# data of a diagram into compound graphs, lays out the subgraphs without links to the outside on their own, sizes
+# every node and edge label, runs the dagre layout, and draws the subgraphs, edges, edge labels, and nodes.
+# See docs/verification/canvas-net-mermaid/rendering/cluster-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: ClusterLayout Requirements
+            requirements:
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-IsolatedSubgraphs
+                title: >-
+                  The ClusterLayout unit shall lay out each subgraph without links to the outside as a graph of its
+                  own - in the direction the subgraph declares, else in the other one of top-to-bottom and
+                  left-to-right, recursively for nested subgraphs - and draw it as one group that stands in for its
+                  contents in the graph around it.
+                justification: |
+                  Mermaid extracts such subgraphs and lays them out separately, which changes their direction and
+                  their size; the same extraction gives the same layout.
+                tests:
+                  - ClusterLayout_Render_IsolatedSubgraph_IsLaidOutOnItsOwnInTheOtherDirection
+                  - ClusterLayout_Render_DeclaredDirection_Wins
+                  - ClusterLayout_Render_NestedIsolatedSubgraph_IsANestedGroup
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-SubgraphLinks
+                title: >-
+                  The ClusterLayout unit shall attach a link to or from a subgraph that has links to the outside to a
+                  node inside that subgraph and cut its route where it crosses the subgraph's rectangle, and shall
+                  end a link to a subgraph without links to the outside on the box of the laid-out subgraph.
+                justification: |
+                  Dagre cannot route to a compound node; Mermaid's anchors and cuts decide where such links start
+                  and end.
+                tests:
+                  - ClusterLayout_Render_LinksToIsolatedSubgraph_EndOnItsBox
+                  - ClusterLayout_Render_LinkFromSubgraphWithOutsideLinks_StartsOutsideIt
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-LinkAtSubgraph
+                title: >-
+                  The ClusterLayout unit shall fail with a mermaid-render-failed error located at the link when a link
+                  other than a self-edge still ends at a subgraph that holds other nodes when its graph is laid out.
+                justification: |
+                  Dagre ranks a flat copy of the graph without such subgraphs, so Mermaid 11.17.2's render fails on
+                  these diagrams (for example a subgraph used as a node of another subgraph, or a self-loop on a
+                  subgraph); the port must fail as clearly, at the link to change, instead of with a defect.
+                tests:
+                  - ClusterLayout_Render_LinkStillAtSubgraph_FailsLocatedAtTheLink
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-SelfLoops
+                title: >-
+                  The ClusterLayout unit shall lay out a link from a node to itself through two hidden nodes beside
+                  the node and draw it as one compact loop with its label outside the node, on the side the layout
+                  put the loop.
+                justification: |
+                  Dagre does not lay out self-loops the way Mermaid draws them; Mermaid's workaround decides the
+                  space the loop takes and its route.
+                tests:
+                  - ClusterLayout_Render_SelfLoop_IsOneLoopBesideItsNode
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-SubgraphRectangles
+                title: >-
+                  The ClusterLayout unit shall draw each subgraph laid out with its graph as a rectangle around its
+                  contents, made taller by the subgraph title margins with its nodes moved down accordingly, and
+                  widened around the same center when its title is wider than its contents.
+                justification: |
+                  The subgraph title margins and a wide title change the size of the subgraph and the position of
+                  everything in it, as in Mermaid.
+                tests:
+                  - ClusterLayout_Render_WideTitle_WidensTheRectangle
+                  - ClusterLayout_Render_SubgraphTitleMargins_MoveNodesDown
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-DrawingOrder
+                title: >-
+                  The ClusterLayout unit shall draw a graph in Mermaid's layers - subgraph rectangles (top level
+                  first, then each subtree), edges, edge labels, then nodes - give the box of everything drawn, and
+                  draw nothing and give no box for an empty diagram.
+                justification: |
+                  The drawing order decides what is painted over what, and the box of the drawing becomes the view
+                  box of the picture.
+                tests:
+                  - ClusterLayout_SortNodesByHierarchy_TopLevelFirst
+                  - ClusterLayout_Render_EmptyDiagram_DrawsNothing
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-WorkLimit
+                title: >-
+                  The ClusterLayout unit shall charge every stage of its work to the layout work budget of the call
+                  and stop with a located limit failure when the budget is spent.
+                justification: |
+                  The subgraph handling repeats over the nodes and edges of the diagram; untrusted input must not
+                  make it run without bound.
+                tests:
+                  - ClusterLayout_Render_TinyWorkBudget_ThrowsLimitExceeded
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-SelfLoopMergeByType
+                title: >-
+                  The ClusterLayout unit shall merge the segments of a self-loop into one loop only for the diagram
+                  types whose Mermaid renderer merges them (among them flowcharts, class diagrams, state diagrams, and
+                  entity relationship diagrams, but not the legacy class id), and otherwise draw each segment on its
+                  own with the first keeping the start terminal label and the last the end terminal label.
+                justification: |
+                  Mermaid draws a self-loop differently by diagram type; the same type must give the same loop.
+                tests:
+                  - ClusterLayout_Render_SelfLoop_IsMergedOnlyForMergingTypes
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-TerminalLabels
+                title: >-
+                  The ClusterLayout unit shall draw the terminal labels of an edge after the edge's label, in Mermaid's
+                  layer of edge labels.
+                justification: |
+                  The drawing order decides what is painted over what.
+                tests:
+                  - ClusterLayout_Render_RelationWithCardinalities_DrawsTerminalLabelsAfterItsLabel
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-DiagramViewBox
+                title: >-
+                  The ClusterLayout unit shall frame a drawn diagram as Mermaid's unified diagrams frame it: the
+                  diagram title centered above the drawing at the diagram's title margin, its box the box of its glyphs
+                  as the browser measures SVG text, and a view box of the drawn bounds and the title grown by the
+                  diagram's padding.
+                justification: |
+                  The view box is the natural size of the picture; it must be Mermaid's for every diagram type that
+                  draws through the unified renderer.
+                tests:
+                  - ClusterLayout_RenderDiagram_Title_IsAboveTheDrawingInsideThePaddedViewBox
+                  - ClusterLayout_RenderDiagram_TitleBox_IsTheGlyphBoxOfItsText
+
+              - id: CanvasNetMermaid-Rendering-ClusterLayout-EdgeEnds
+                title: >-
+                  The ClusterLayout unit shall fail with a mermaid-render-failed error located at the edge when an end
+                  of an edge is not a node of the diagram (in an entity relationship diagram, an entity named like a
+                  subgraph declared after the relationship), after the parents of the nodes are set, so that a
+                  subgraph inside itself fails first, as in Mermaid.
+                justification: |
+                  Mermaid's render fails on such a diagram; the port must fail as clearly, at the edge to change,
+                  instead of drawing a guess or failing with a defect.
+                tests:
+                  - ClusterLayout_Render_EdgeEndNotDrawn_FailsLocatedAtTheEdge

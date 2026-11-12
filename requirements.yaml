@@ -169,6 +169,72 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/symbol-path-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
+  - docs/reqstream/canvas-net-mermaid.yaml
+  - docs/reqstream/canvas-net-mermaid/platform-requirements.yaml
+  - docs/reqstream/canvas-net-mermaid/mermaid-document.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/preprocessor.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/diagram-detector.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/yaml-subset-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/source-scanner.yaml
+  - docs/reqstream/canvas-net-mermaid/syntax/html-sanitizer.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/mermaid-config-resolver.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/theme-resolver.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/color-math.yaml
+  - docs/reqstream/canvas-net-mermaid/configuration/style-declarations.yaml
+  - docs/reqstream/canvas-net-mermaid/graphlib.yaml
+  - docs/reqstream/canvas-net-mermaid/graphlib/graph.yaml
+  - docs/reqstream/canvas-net-mermaid/graphlib/graph-algorithms.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-layout.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-acyclic.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-nesting.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-normalizer.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-ordering.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-positioning.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/dagre-coordinate-system.yaml
+  - docs/reqstream/canvas-net-mermaid/dagre/layout-work-meter.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/edge-builder.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/label-builder.yaml
+  - docs/reqstream/canvas-net-mermaid/rendering/node-images.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml
+  - docs/reqstream/canvas-net-mermaid/scenegraph/scene-painter.yaml
+  - docs/reqstream/canvas-net-mermaid/flowchart.yaml
+  - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/flowchart/flowchart-model.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-model.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-layout.yaml
+  - docs/reqstream/canvas-net-mermaid/sequence/sequence-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/class.yaml
+  - docs/reqstream/canvas-net-mermaid/class/class-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/class/class-model.yaml
+  - docs/reqstream/canvas-net-mermaid/state.yaml
+  - docs/reqstream/canvas-net-mermaid/state/state-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/state/state-model.yaml
+  - docs/reqstream/canvas-net-mermaid/er.yaml
+  - docs/reqstream/canvas-net-mermaid/er/er-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/er/er-model.yaml
+  - docs/reqstream/canvas-net-mermaid/pie.yaml
+  - docs/reqstream/canvas-net-mermaid/pie/pie-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/pie/pie-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/gantt-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/gantt-model.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/gantt-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/gantt/time-axis.yaml
+  - docs/reqstream/canvas-net-mermaid/mindmap.yaml
+  - docs/reqstream/canvas-net-mermaid/mindmap/mindmap-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/mindmap/mindmap-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/cose.yaml
+  - docs/reqstream/canvas-net-mermaid/cose/cose-layout.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml
@@ -184,6 +250,7 @@ includes:
   - docs/reqstream/canvas-net-viewer/imaging/image-inspector.yaml
   - docs/reqstream/canvas-net-viewer/imaging/image-comparer.yaml
   - docs/reqstream/canvas-net-viewer/imaging/montage-builder.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/svg-flattener.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml
@@ -199,6 +266,7 @@ includes:
   - docs/reqstream/canvas-net-tool/commands/render-command.yaml
   - docs/reqstream/canvas-net-tool/commands/compare-command.yaml
   - docs/reqstream/canvas-net-tool/commands/montage-command.yaml
+  - docs/reqstream/canvas-net-tool/commands/flatten-command.yaml
   - docs/reqstream/canvas-net-tool/commands/inspect-command.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml

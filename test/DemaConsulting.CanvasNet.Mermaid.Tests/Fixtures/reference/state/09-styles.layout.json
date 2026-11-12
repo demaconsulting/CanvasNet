@@ -1,0 +1,257 @@
+{
+  "source": "09-styles.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "stateDiagram",
+  "viewBox": [0, 0, 69.344, 454],
+  "title": null,
+  "nodes": [
+    {
+      "id": "state-root_start-0",
+      "shape": "stateStart",
+      "x": 34.672,
+      "y": 15,
+      "box": [27.672, 8, 14, 14],
+      "class": "node default",
+      "parts": [{ "tag": "circle", "class": "state-start", "group": null, "box": [27.672, 8, 14, 14] }]
+    },
+    {
+      "id": "state-Hot-1",
+      "shape": "rect",
+      "x": 34.672,
+      "y": 92,
+      "box": [14.219, 72, 40.906, 40],
+      "class": "node warm statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [14.219, 72, 40.906, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [22.219, 80, 24.906, 24], "text": "Hot" }
+      ]
+    },
+    {
+      "id": "state-Cold-2",
+      "shape": "rect",
+      "x": 34.672,
+      "y": 182,
+      "box": [10.219, 162, 48.906, 40],
+      "class": "node cool statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [10.219, 162, 48.906, 40] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [18.219, 170, 32.906, 24],
+          "text": "Cold",
+          "style": "color:#036 !important"
+        }
+      ]
+    },
+    {
+      "id": "state-Mild-3",
+      "shape": "rect",
+      "x": 34.672,
+      "y": 272,
+      "box": [12, 252, 45.344, 40],
+      "class": "node faded statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [12, 252, 45.344, 40] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [20, 260, 29.344, 24],
+          "text": "Mild",
+          "style": "font-style:italic !important"
+        }
+      ]
+    },
+    {
+      "id": "state-Calm-4",
+      "shape": "rect",
+      "x": 34.672,
+      "y": 362,
+      "box": [8, 342, 53.344, 40],
+      "class": "node faded statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [8, 342, 53.344, 40] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [16, 350, 37.344, 24],
+          "text": "Calm",
+          "style": "font-style:italic !important"
+        }
+      ]
+    },
+    {
+      "id": "state-root_end-4",
+      "shape": "stateEnd",
+      "x": 34.672,
+      "y": 439,
+      "box": [27.672, 432, 14.013, 14],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [27.672, 432, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [27.672, 432, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [32.172, 436.5, 5.005, 5] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [32.172, 436.5, 5.005, 5] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "edge0",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [34.672, 22],
+        [34.672, 24.5],
+        [34.672, 27],
+        [34.672, 29.5],
+        [34.672, 32],
+        [34.672, 34.5],
+        [34.672, 37],
+        [34.672, 39.5],
+        [34.672, 42],
+        [34.672, 44.5],
+        [34.672, 47],
+        [34.672, 49.5],
+        [34.672, 52],
+        [34.672, 54.5],
+        [34.672, 57],
+        [34.672, 59.5],
+        [34.672, 62],
+        [34.672, 64.5],
+        [34.672, 67],
+        [34.672, 69.5],
+        [34.672, 72]
+      ]
+    },
+    {
+      "id": "edge1",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [34.672, 112],
+        [34.672, 114.5],
+        [34.672, 117],
+        [34.672, 119.5],
+        [34.672, 122],
+        [34.672, 124.5],
+        [34.672, 127],
+        [34.672, 129.5],
+        [34.672, 132],
+        [34.672, 134.5],
+        [34.672, 137],
+        [34.672, 139.5],
+        [34.672, 142],
+        [34.672, 144.5],
+        [34.672, 147],
+        [34.672, 149.5],
+        [34.672, 152],
+        [34.672, 154.5],
+        [34.672, 157],
+        [34.672, 159.5],
+        [34.672, 162]
+      ]
+    },
+    {
+      "id": "edge2",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [34.672, 202],
+        [34.672, 204.5],
+        [34.672, 207],
+        [34.672, 209.5],
+        [34.672, 212],
+        [34.672, 214.5],
+        [34.672, 217],
+        [34.672, 219.5],
+        [34.672, 222],
+        [34.672, 224.5],
+        [34.672, 227],
+        [34.672, 229.5],
+        [34.672, 232],
+        [34.672, 234.5],
+        [34.672, 237],
+        [34.672, 239.5],
+        [34.672, 242],
+        [34.672, 244.5],
+        [34.672, 247],
+        [34.672, 249.5],
+        [34.672, 252]
+      ]
+    },
+    {
+      "id": "edge3",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [34.672, 292],
+        [34.672, 294.5],
+        [34.672, 297],
+        [34.672, 299.5],
+        [34.672, 302],
+        [34.672, 304.5],
+        [34.672, 307],
+        [34.672, 309.5],
+        [34.672, 312],
+        [34.672, 314.5],
+        [34.672, 317],
+        [34.672, 319.5],
+        [34.672, 322],
+        [34.672, 324.5],
+        [34.672, 327],
+        [34.672, 329.5],
+        [34.672, 332],
+        [34.672, 334.5],
+        [34.672, 337],
+        [34.672, 339.5],
+        [34.672, 342]
+      ]
+    },
+    {
+      "id": "edge4",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 49.993,
+      "points": [
+        [34.672, 382],
+        [34.672, 384.5],
+        [34.672, 386.999],
+        [34.672, 389.499],
+        [34.672, 391.999],
+        [34.672, 394.498],
+        [34.672, 396.998],
+        [34.672, 399.498],
+        [34.672, 401.997],
+        [34.672, 404.497],
+        [34.672, 406.997],
+        [34.672, 409.496],
+        [34.672, 411.996],
+        [34.672, 414.495],
+        [34.672, 416.995],
+        [34.672, 419.495],
+        [34.672, 421.994],
+        [34.672, 424.494],
+        [34.672, 426.994],
+        [34.672, 429.493],
+        [34.672, 431.993]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

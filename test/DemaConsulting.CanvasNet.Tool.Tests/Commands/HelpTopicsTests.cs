@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
@@ -13,6 +14,7 @@ using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -33,13 +35,23 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a topic may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|pptx|vsdx|pdf|svg|image-fragment|image-page)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|pptx|vsdx|pdf|svg|image-fragment|image-page)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
     /// </summary>
     private static readonly Regex ExtensionToken =
         new(@"(?<=^|[\s(,])\.[a-z0-9]+(?:\.json)?(?=$|[\s),;.])", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    ///     Splits a markdown table row at the cell bars that are not escaped (<c>\|</c> is a bar inside a cell).
+    /// </summary>
+    private static readonly Regex TableCellSplit = new(@"(?<!\\)\|", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    ///     Matches the <c>Area: </c> prefix of a help item that mirrors a row of a syntax table of the guide.
+    /// </summary>
+    private static readonly Regex AreaPrefix = new(@"^[^:]{1,40}: (?=.)", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     The names of the global options, which every command accepts.
@@ -100,6 +112,7 @@ public partial class HelpTopicsTests
             ["openscad"] = "scad",
             ["vegalite"] = "vega-lite",
             ["vl"] = "vega-lite",
+            ["mmd"] = "mermaid",
             ["powerpoint"] = "pptx",
             ["visio"] = "vsdx",
             ["png"] = "raster",
@@ -164,6 +177,10 @@ public partial class HelpTopicsTests
         Assert.Contains($"{Surface.MaxDimension} pixels", limits);
         Assert.Contains($"Default {ScadLimits.Default.MaxTriangles} triangles", limits);
         Assert.Contains($"At most {VegaLiteLimits.Default.MaxDataFiles} files", limits);
+        Assert.Equal(MermaidLimits.Default.MaxEdges.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["mmdMaxEdges"]);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxNodes} nodes and {MermaidLimits.Default.MaxEdges} edges", limits);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxTextSize} characters", limits);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxImages} pictures", limits);
         Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
@@ -200,6 +217,7 @@ public partial class HelpTopicsTests
         {
             ["scad"] = ".scad",
             ["vega-lite"] = ".vl.json",
+            ["mermaid"] = ".mmd",
             ["svg"] = ".svg"
         };
 
@@ -230,6 +248,7 @@ public partial class HelpTopicsTests
 
         Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "scad");
         Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "vega-lite");
+        Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "mermaid");
         Assert.Contains(HelpTopics.SourceExamples(), e => e.Topic.Name == "svg");
     }
 
@@ -382,6 +401,128 @@ public partial class HelpTopicsTests
         Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         Assert.Equal(links.Count, document.RootElement.GetProperty("operations").EnumerateArray().Count(o => o.GetProperty("op").GetString() == "embed"));
         Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that the <c>pictures</c> snippet of the <c>mermaid</c> topic, which the render drift test skips because it links
+    ///     sibling files, renders under <c>--strict</c> without a diagnostic once its model and chart exist (the examples of the
+    ///     <c>scad</c> and <c>vega-lite</c> topics), and draws one <c>embed</c> operation for each picture.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_MermaidTopic_PicturesSnippet_RendersStrictWithItsSiblingFiles()
+    {
+        // Arrange: the snippet, which is not a source example, and the model and the chart it shows
+        var topic = HelpTopics.Find("mermaid")!;
+        var snippet = Assert.Single(topic.Examples, e => e.Kind == HelpTopics.SnippetKind);
+        Assert.DoesNotContain(HelpTopics.SourceExamples(), e => e.Example == snippet);
+        using var directory = new TempDirectory();
+        var input = directory.Combine(snippet.FileName!);
+        File.WriteAllText(input, snippet.Content);
+        File.WriteAllText(directory.Combine("part.scad"), HelpTopics.RenderExample(HelpTopics.Find("scad")!, "plate"));
+        File.WriteAllText(directory.Combine("chart.vl.json"), HelpTopics.RenderExample(HelpTopics.Find("vega-lite")!, "bar"));
+
+        // Act: render with --strict
+        var output = directory.Combine("out.png");
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "--json", "-o", output);
+
+        // Assert: it succeeded without a diagnostic and listed each picture once
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        var embeds = document.RootElement.GetProperty("operations").EnumerateArray()
+            .Where(o => o.GetProperty("op").GetString() == "embed")
+            .Select(o => o.GetProperty("href").GetString())
+            .ToList();
+        Assert.Equal(["part.scad", "chart.vl.json"], embeds);
+        Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that the <c>mermaid</c> topic says, word for word, what the tables of the Mermaid user guide say: the
+    ///     <c>class</c>, <c>state</c>, <c>er</c>, <c>pie</c>, <c>gantt</c>, and <c>mindmap</c> sections hold exactly the rows of the
+    ///     guide's class, state, entity relationship, pie, gantt, and mindmap syntax, relation, tag, and settings tables, in order, and every
+    ///     row of the guide's table of unsupported features and warnings is an item of the <c>unsupported</c> or
+    ///     <c>diagnostics</c> section. Backticks are dropped, <c>\|</c> is read as <c>|</c>, and the first letter of a text
+    ///     (after an <c>Area: </c> prefix) is compared ignoring case.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_MermaidTopic_DiagramSyntaxItems_MatchUserGuide()
+    {
+        // Arrange: the guide and the topic, each item in its canonical form
+        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-mermaid.md"));
+        var topic = HelpTopics.Find("mermaid")!;
+        var help = topic.Sections.ToDictionary(s => s.Id, s => s.Items.Select(i => Canonical(i.Term, i.Text)).ToList());
+        (string Section, string Heading, int MinimumRows)[] diagrams =
+        [
+            ("class", "### Supported Class Syntax", 30),
+            ("state", "### Supported State Syntax", 18),
+            ("er", "### Supported Entity Relationship Syntax", 24),
+            ("pie", "### Supported Pie Syntax", 12),
+            ("gantt", "### Supported Gantt Syntax", 35),
+            ("mindmap", "### Supported Mindmap Syntax", 16),
+        ];
+
+        // Act: the items that the rows of the guide's tables promise
+        var codeRows = GuideTableRows(guide, "### Mermaid Unsupported Features and Strict Mode").ToList();
+        var differences = new List<string>();
+        var counts = new Dictionary<string, int>();
+        foreach (var (section, heading, _) in diagrams)
+        {
+            var rows = GuideTableRows(guide, heading).Select(ExpectedDiagramItem).ToList();
+            var items = help[section];
+            counts[section] = rows.Count;
+            for (var i = 0; i < Math.Max(rows.Count, items.Count); i++)
+            {
+                var expected = i < rows.Count ? rows[i] : "(nothing)";
+                var actual = i < items.Count ? items[i] : "(nothing)";
+                if (expected != actual)
+                {
+                    differences.Add($"{section} item {i + 1}:{Environment.NewLine}  guide: {expected}{Environment.NewLine}  help:  {actual}");
+                }
+            }
+        }
+
+        foreach (var (header, cells) in codeRows)
+        {
+            Assert.Equal(["Code", "Kind", "Reported when"], header);
+            var (section, text) = cells[1] == "Unsupported" ? ("unsupported", cells[2]) : ("diagnostics", $"{cells[1]}: {cells[2]}");
+            var expected = Canonical(cells[0], text + ".");
+            if (!help[section].Contains(expected))
+            {
+                differences.Add($"{section} item missing:{Environment.NewLine}  guide: {expected}");
+            }
+        }
+
+        // Assert: the guide has the tables, and nothing differs
+        foreach (var (section, _, minimumRows) in diagrams)
+        {
+            Assert.True(counts[section] >= minimumRows, $"Only {counts[section]} rows were found in the {section} tables of the guide.");
+        }
+
+        Assert.True(codeRows.Count >= 18, $"Only {codeRows.Count} rows were found in the code table of the guide.");
+        Assert.True(differences.Count == 0, string.Join(Environment.NewLine, differences));
+    }
+
+    /// <summary>
+    ///     Test that the <c>flatten</c> section of the <c>svg</c> topic says, word for word and in order, what the
+    ///     flatten reference table of the tool's user guide says (backticks are dropped, and the first letter of a text is
+    ///     compared ignoring case).
+    /// </summary>
+    [Fact]
+    public void HelpTopics_SvgTopic_FlattenItems_MatchUserGuide()
+    {
+        // Arrange: the guide and the topic
+        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"));
+        var items = HelpTopics.Find("svg")!.Sections.Single(s => s.Id == "flatten").Items.Select(i => Canonical(i.Term, i.Text)).ToList();
+
+        // Act: the items the rows of the guide's table promise
+        var rows = GuideTableRows(guide, "#### Flatten Reference").ToList();
+        var expected = rows.Select(row => Canonical(row.Cells[0], row.Cells[1])).ToList();
+
+        // Assert: the table has the documented header and the same items in the same order
+        Assert.All(rows, row => Assert.Equal(["Term", "Meaning"], row.Header));
+        Assert.True(rows.Count >= 7, $"Only {rows.Count} rows were found in the flatten reference table of the guide.");
+        Assert.Equal(expected, items);
     }
 
     /// <summary>
@@ -555,13 +696,14 @@ public partial class HelpTopicsTests
     /// <summary>
     ///     Test that every diagnostic identifier a topic cites exists: it is covered by the trigger table (which
     ///     the trigger test proves), is an error code, is a warning code that a render test triggers
-    ///     (<c>svg-image-unresolved</c> and <c>svg-image-too-large</c> by <c>RenderCommandSvgEmbedTests</c>), or is a literal in one of the libraries.
+    ///     (<c>svg-image-unresolved</c> and <c>svg-image-too-large</c> by <c>RenderCommandSvgEmbedTests</c>, and
+    ///     <c>svg-flatten-image-not-drawn</c> of the Viewer library by <c>FlattenCommandTests</c>), or is a literal in one of the libraries.
     /// </summary>
     [Fact]
     public void HelpTopics_CitedDiagnosticIds_ExistInTheLibraries()
     {
         // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
-        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
+        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, SvgFlattener.ImageNotDrawnCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
         var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
         var cited = HelpTopics.All.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
 
@@ -712,6 +854,104 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
+    ///     Finds the folder that contains the solution file by walking up from the test output folder.
+    /// </summary>
+    /// <returns>The repository root.</returns>
+    private static string FindRepositoryRoot()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder != null; folder = folder.Parent)
+        {
+            if (File.Exists(Path.Combine(folder.FullName, "CanvasNet.slnx")))
+            {
+                return folder.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"The repository root (the folder with CanvasNet.slnx) was not found above {AppContext.BaseDirectory}.");
+    }
+
+    /// <summary>
+    ///     Gets the rows of every markdown table in one section of a guide, from its heading to the next heading of the
+    ///     same or a higher level, each with the header of its table. Cells lose their backticks and read <c>\|</c> as
+    ///     <c>|</c>.
+    /// </summary>
+    /// <param name="lines">The lines of the guide.</param>
+    /// <param name="heading">The heading line of the section.</param>
+    /// <returns>The header and the cells of each body row, in order.</returns>
+    private static IEnumerable<(string[] Header, string[] Cells)> GuideTableRows(string[] lines, string heading)
+    {
+        var start = Array.IndexOf(lines, heading);
+        Assert.True(start >= 0, $"The guide has no heading '{heading}'.");
+        string[]? header = null;
+        var separator = false;
+        for (var i = start + 1; i < lines.Length && !lines[i].StartsWith("## ", StringComparison.Ordinal)
+                                && !lines[i].StartsWith("### ", StringComparison.Ordinal); i++)
+        {
+            if (!lines[i].StartsWith('|'))
+            {
+                header = null;
+                continue;
+            }
+
+            var cells = TableCellSplit.Split(lines[i].Trim().Trim('|'))
+                .Select(c => c.Replace("`", "", StringComparison.Ordinal).Replace("\\|", "|", StringComparison.Ordinal).Trim())
+                .ToArray();
+            if (header == null)
+            {
+                (header, separator) = (cells, true);
+            }
+            else if (separator)
+            {
+                separator = false;
+            }
+            else
+            {
+                yield return (header, cells);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets the help item, in canonical form, that a row of a diagram table of the guide promises: an <c>Area: text.</c>
+    ///     item for a syntax row, a term and its text for a relation, cardinality, or tag row, and a key with its meaning
+    ///     and default for a settings row.
+    /// </summary>
+    /// <param name="row">The header and the cells of the row.</param>
+    /// <returns>The canonical item.</returns>
+    private static string ExpectedDiagramItem((string[] Header, string[] Cells) row)
+    {
+        var (header, cells) = row;
+        return string.Join("|", header) switch
+        {
+            "Area|Supported" => Canonical(null, $"{cells[0]}: {cells[1]}."),
+            "Relation|Drawn as" or "Tag|Drawn as" => Canonical(cells[0], $"{cells[1]}."),
+            "Key|Default|Meaning" => Canonical(cells[0], $"{cells[2]} (default {cells[1]})."),
+            _ => throw new InvalidOperationException($"The guide has a diagram table with the unknown header '{string.Join(" | ", header)}'."),
+        };
+    }
+
+    /// <summary>
+    ///     Gets the canonical form of a help item for the guide comparison: the term and the text, with the first letter of
+    ///     the text, and the first letter after a leading <c>Area: </c> prefix, in lower case.
+    /// </summary>
+    /// <param name="term">The term, or <see langword="null"/>.</param>
+    /// <param name="text">The text.</param>
+    /// <returns>The canonical form.</returns>
+    private static string Canonical(string? term, string text)
+    {
+        var lowered = text.Length == 0 ? text : char.ToLowerInvariant(text[0]) + text[1..];
+        var prefix = AreaPrefix.Match(lowered);
+        if (prefix.Success)
+        {
+            var at = prefix.Length;
+            lowered = lowered[..at] + char.ToLowerInvariant(lowered[at]) + lowered[(at + 1)..];
+        }
+
+        return term == null ? lowered : $"{term} => {lowered}";
+    }
+
+    /// <summary>
     ///     Gets the values of every error code constant of the tool.
     /// </summary>
     /// <returns>The code strings.</returns>
@@ -762,6 +1002,7 @@ public partial class HelpTopicsTests
     [
         typeof(ScadDocument).Assembly,
         typeof(VegaLiteDocument).Assembly,
+        typeof(MermaidDocument).Assembly,
         typeof(PdfDocument).Assembly,
         typeof(PptxDocument).Assembly,
         typeof(VsdxDocument).Assembly,

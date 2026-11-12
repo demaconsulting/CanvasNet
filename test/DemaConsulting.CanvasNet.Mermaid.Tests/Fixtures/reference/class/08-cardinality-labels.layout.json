@@ -1,0 +1,435 @@
+{
+  "source": "08-cardinality-labels.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 429.629, 416],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Customer-0",
+      "shape": "classBox",
+      "x": 341.617,
+      "y": 50,
+      "box": [292.273, 8, 98.688, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [292.273, 8, 98.688, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [292.273, 8, 98.688, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [304.273, 20, 74.688, 24],
+          "text": "Customer",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [292.273, 56, 98.688, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [292.273, 74, 98.688, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Order-1",
+      "shape": "classBox",
+      "x": 208.258,
+      "y": 208,
+      "box": [174.469, 166, 67.578, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [174.469, 166, 67.578, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [174.469, 166, 67.578, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [186.469, 178, 43.578, 24],
+          "text": "Order",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [174.469, 214, 67.578, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [174.469, 232, 67.578, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-LineItem-2",
+      "shape": "classBox",
+      "x": 75.125,
+      "y": 366,
+      "box": [30.227, 324, 89.797, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [30.227, 324, 89.797, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [30.227, 324, 89.797, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [42.227, 336, 65.797, 24],
+          "text": "LineItem",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [30.227, 372, 89.797, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [30.227, 390, 89.797, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Product-3",
+      "shape": "classBox",
+      "x": 50.227,
+      "y": 208,
+      "box": [8, 166, 84.453, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 166, 84.453, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 166, 84.453, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [20, 178, 60.453, 24],
+          "text": "Product",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 214, 84.453, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [8, 232, 84.453, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Address-4",
+      "shape": "classBox",
+      "x": 375.629,
+      "y": 208,
+      "box": [331.613, 166, 88.031, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [331.613, 166, 88.031, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [331.613, 166, 88.031, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [343.613, 178, 64.031, 24],
+          "text": "Address",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [331.613, 214, 88.031, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [331.613, 232, 88.031, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Payment-5",
+      "shape": "classBox",
+      "x": 233.156,
+      "y": 366,
+      "box": [187.805, 324, 90.703, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [187.805, 324, 90.703, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [187.805, 324, 90.703, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [199.805, 336, 66.703, 24],
+          "text": "Payment",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [187.805, 372, 90.703, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [187.805, 390, 90.703, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Invoice-6",
+      "shape": "classBox",
+      "x": 179.805,
+      "y": 50,
+      "box": [140.234, 8, 79.141, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [140.234, 8, 79.141, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [140.234, 8, 79.141, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [152.234, 20, 55.141, 24],
+          "text": "Invoice",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [140.234, 56, 79.141, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [140.234, 74, 79.141, 0.001] }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_Customer_Order_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 95.598,
+      "points": [
+        [307.644, 92],
+        [304.638, 95.716],
+        [301.632, 99.433],
+        [298.622, 103.146],
+        [295.607, 106.855],
+        [292.585, 110.558],
+        [289.554, 114.255],
+        [286.514, 117.943],
+        [283.464, 121.623],
+        [280.402, 125.293],
+        [277.327, 128.953],
+        [274.237, 132.6],
+        [271.134, 136.236],
+        [268.02, 139.863],
+        [264.896, 143.48],
+        [261.763, 147.09],
+        [258.622, 150.693],
+        [255.474, 154.29],
+        [252.321, 157.882],
+        [249.165, 161.472],
+        [246.009, 165.062]
+      ]
+    },
+    {
+      "id": "id_Order_LineItem_2",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-compositionStart",
+      "markerEnd": null,
+      "length": 84.798,
+      "points": [
+        [163.017, 258.966],
+        [160.202, 262.137],
+        [157.388, 265.308],
+        [154.58, 268.485],
+        [151.781, 271.67],
+        [148.994, 274.865],
+        [146.219, 278.071],
+        [143.458, 281.288],
+        [140.71, 284.517],
+        [137.978, 287.759],
+        [135.262, 291.015],
+        [132.561, 294.283],
+        [129.872, 297.561],
+        [127.192, 300.847],
+        [124.523, 304.141],
+        [121.86, 307.441],
+        [119.206, 310.747],
+        [116.556, 314.057],
+        [113.91, 317.37],
+        [111.267, 320.685],
+        [108.623, 324]
+      ]
+    },
+    {
+      "id": "id_Product_LineItem_3",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 75.388,
+      "points": [
+        [50.227, 250],
+        [50.227, 253.769],
+        [50.228, 257.539],
+        [50.251, 261.308],
+        [50.322, 265.077],
+        [50.451, 268.844],
+        [50.648, 272.608],
+        [50.918, 276.368],
+        [51.271, 280.121],
+        [51.716, 283.863],
+        [52.265, 287.593],
+        [52.923, 291.304],
+        [53.677, 294.997],
+        [54.514, 298.672],
+        [55.424, 302.33],
+        [56.397, 305.972],
+        [57.426, 309.598],
+        [58.505, 313.21],
+        [59.622, 316.81],
+        [60.755, 320.405],
+        [61.888, 324]
+      ]
+    },
+    {
+      "id": "id_Customer_Address_4",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": "classDiagram-aggregationStart",
+      "markerEnd": null,
+      "length": 59.488,
+      "points": [
+        [366.521, 107.844],
+        [367.697, 110.576],
+        [368.864, 113.312],
+        [369.964, 116.075],
+        [370.968, 118.875],
+        [371.867, 121.71],
+        [372.658, 124.577],
+        [373.338, 127.472],
+        [373.904, 130.392],
+        [374.357, 133.332],
+        [374.711, 136.285],
+        [374.987, 139.246],
+        [375.2, 142.213],
+        [375.361, 145.183],
+        [375.477, 148.155],
+        [375.557, 151.129],
+        [375.604, 154.103],
+        [375.625, 157.077],
+        [375.629, 160.051],
+        [375.629, 163.026],
+        [375.629, 166]
+      ]
+    },
+    {
+      "id": "id_Order_Payment_5",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 69.424,
+      "points": [
+        [221.495, 250],
+        [222.539, 253.311],
+        [223.582, 256.621],
+        [224.617, 259.935],
+        [225.627, 263.255],
+        [226.604, 266.586],
+        [227.54, 269.929],
+        [228.431, 273.284],
+        [229.268, 276.652],
+        [230.043, 280.036],
+        [230.744, 283.435],
+        [231.356, 286.852],
+        [231.866, 290.286],
+        [232.282, 293.732],
+        [232.609, 297.187],
+        [232.853, 300.65],
+        [233.02, 304.117],
+        [233.117, 307.587],
+        [233.153, 311.058],
+        [233.156, 314.529],
+        [233.156, 318]
+      ]
+    },
+    {
+      "id": "id_Invoice_Order_6",
+      "class": "edge-thickness-normal edge-pattern-dashed relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 69.845,
+      "points": [
+        [179.805, 92],
+        [179.805, 95.492],
+        [179.805, 98.985],
+        [179.82, 102.477],
+        [179.872, 105.969],
+        [179.972, 109.459],
+        [180.129, 112.948],
+        [180.349, 116.433],
+        [180.643, 119.913],
+        [181.02, 123.385],
+        [181.494, 126.845],
+        [182.081, 130.287],
+        [182.779, 133.709],
+        [183.577, 137.108],
+        [184.464, 140.486],
+        [185.432, 143.841],
+        [186.472, 147.175],
+        [187.576, 150.488],
+        [188.732, 153.783],
+        [189.915, 157.069],
+        [191.098, 160.355]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_Customer_Order_1", "box": [254.59, 117, 46.25, 24] },
+    { "id": "id_Order_LineItem_2", "box": [110.795, 272.23, 59.594, 24] },
+    { "id": "id_Customer_Address_4", "box": [350.73, 117, 49.797, 24] },
+    { "id": "id_Invoice_Order_6", "box": [166.023, 117, 27.563, 24] }
+  ],
+  "terminals": [
+    {
+      "edge": "id_Customer_Order_1",
+      "end": "start",
+      "text": "1",
+      "x": 284.976,
+      "y": 96.172,
+      "box": [281.913, 87.922, 9, 12]
+    },
+    {
+      "edge": "id_Order_LineItem_2",
+      "end": "start",
+      "text": "1",
+      "x": 151.633,
+      "y": 249.195,
+      "box": [148.571, 240.945, 9, 12]
+    },
+    {
+      "edge": "id_Product_LineItem_3",
+      "end": "start",
+      "text": "0..1",
+      "x": 35.227,
+      "y": 267.5,
+      "box": [26.047, 259.25, 36, 12]
+    },
+    {
+      "edge": "id_Customer_Address_4",
+      "end": "start",
+      "text": "1",
+      "x": 352.842,
+      "y": 114.005,
+      "box": [349.78, 105.755, 9, 12]
+    },
+    {
+      "edge": "id_Order_Payment_5",
+      "end": "end",
+      "text": "1",
+      "x": 243.156,
+      "y": 301.5,
+      "box": [243.156, 301.5, 9, 12]
+    },
+    {
+      "edge": "id_Invoice_Order_6",
+      "end": "start",
+      "text": "2",
+      "x": 164.805,
+      "y": 109.5,
+      "box": [161.742, 101.25, 9, 12]
+    },
+    {
+      "edge": "id_Customer_Order_1",
+      "end": "end",
+      "text": "*",
+      "x": 259.867,
+      "y": 161.33,
+      "box": [259.867, 161.33, 9, 12]
+    },
+    {
+      "edge": "id_Order_LineItem_2",
+      "end": "end",
+      "text": "1..*",
+      "x": 126.262,
+      "y": 314.672,
+      "box": [126.262, 314.672, 36, 12]
+    },
+    {
+      "edge": "id_Product_LineItem_3",
+      "end": "end",
+      "text": "many",
+      "x": 65.934,
+      "y": 297.8,
+      "box": [65.934, 297.8, 36, 12]
+    },
+    {
+      "edge": "id_Customer_Address_4",
+      "end": "end",
+      "text": "0..n",
+      "x": 385.629,
+      "y": 143.5,
+      "box": [385.629, 143.5, 36, 12]
+    }
+  ]
+}

@@ -1,0 +1,310 @@
+{
+  "source": "13-config-title.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "stateDiagram",
+  "viewBox": [0, -49, 447.617, 825],
+  "title": { "class": "statediagramTitleText", "text": "Configured state diagram", "box": [122.746, -41, 202.125, 20] },
+  "nodes": [
+    {
+      "id": "state-root_start-0",
+      "shape": "stateStart",
+      "x": 237.066,
+      "y": 15,
+      "box": [230.066, 8, 14, 14],
+      "class": "node default",
+      "parts": [{ "tag": "circle", "class": "state-start", "group": null, "box": [230.066, 8, 14, 14] }]
+    },
+    {
+      "id": "state-Placed-5",
+      "shape": "rect",
+      "x": 237.066,
+      "y": 108.5,
+      "box": [204.555, 92, 65.023, 33],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [204.555, 92, 65.023, 33] },
+        { "tag": "g", "class": "label", "group": null, "box": [212.555, 102, 49.023, 17], "text": "Placed" }
+      ]
+    },
+    {
+      "id": "state-Paid-3",
+      "shape": "rectWithTitle",
+      "x": 354.883,
+      "y": 276.5,
+      "box": [280.5, 251, 148.766, 51],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "outer title-state", "group": null, "box": [280.5, 251, 148.766, 51] },
+        { "tag": "line", "class": "divider", "group": null, "box": [280.5, 272, 148.766, 0] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [283.5, 256, 140.766, 43],
+          "text": "waiting for the bank confirmed by mail",
+          "items": [
+            { "tag": "text", "box": [283.5, 256, 140.766, 17], "text": "waiting for the bank" },
+            { "tag": "text", "box": [292.195, 282, 125.375, 17], "text": "confirmed by mail" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "state-Packed-2",
+      "shape": "rect",
+      "x": 354.883,
+      "y": 492,
+      "box": [320.148, 475.5, 69.469, 33],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [320.148, 475.5, 69.469, 33] },
+        { "tag": "g", "class": "label", "group": null, "box": [328.148, 485.5, 53.469, 17], "text": "Packed" }
+      ]
+    },
+    {
+      "id": "state-Sent-2",
+      "shape": "rect",
+      "x": 354.883,
+      "y": 620,
+      "box": [330.148, 603.5, 49.469, 33],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [330.148, 603.5, 49.469, 33] },
+        { "tag": "g", "class": "label", "group": null, "box": [338.148, 613.5, 33.469, 17], "text": "Sent" }
+      ]
+    },
+    {
+      "id": "state-root_end-4",
+      "shape": "stateEnd",
+      "x": 354.883,
+      "y": 761,
+      "box": [347.883, 754, 14.013, 14],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "outer-path", "box": [347.883, 754, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [347.883, 754, 14.013, 14] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [352.383, 758.5, 5.005, 5] },
+        { "tag": "path", "class": null, "group": "outer-path", "box": [352.383, 758.5, 5.005, 5] }
+      ]
+    },
+    {
+      "id": "state-Placed----note-5",
+      "shape": "note",
+      "x": 119.25,
+      "y": 276.5,
+      "box": [58, 253, 122.5, 47],
+      "class": "node statediagram-note",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [58, 253, 122.5, 47] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [58, 253, 122.5, 47] },
+        { "tag": "g", "class": "label noteLabel", "group": null, "box": [73, 268, 92.5, 17], "text": "online orders" }
+      ]
+    }
+  ],
+  "clusters": [
+    {
+      "id": "state-Placed----parent-5",
+      "shape": "noteGroup",
+      "box": [8, 216, 222.5, 121],
+      "class": "note-cluster",
+      "inner": null,
+      "label": null
+    },
+    {
+      "id": "state-Shipping-4",
+      "shape": "roundedWithTitle",
+      "box": [270.148, 428, 169.469, 256],
+      "class": "statediagram-state statediagram-cluster",
+      "inner": [270.148, 447, 169.469, 233],
+      "label": { "text": "Shipping", "box": [323.695, 428, 62.375, 17] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge0",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 70,
+      "points": [
+        [237.066, 22],
+        [237.066, 25.5],
+        [237.066, 29],
+        [237.066, 32.5],
+        [237.066, 36],
+        [237.066, 39.5],
+        [237.066, 43],
+        [237.066, 46.5],
+        [237.066, 50],
+        [237.066, 53.5],
+        [237.066, 57],
+        [237.066, 60.5],
+        [237.066, 64],
+        [237.066, 67.5],
+        [237.066, 71],
+        [237.066, 74.5],
+        [237.066, 78],
+        [237.066, 81.5],
+        [237.066, 85],
+        [237.066, 88.5],
+        [237.066, 92]
+      ]
+    },
+    {
+      "id": "edge1",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 169.769,
+      "points": [
+        [268.421, 125],
+        [275.933, 128.953],
+        [283.445, 132.906],
+        [290.942, 136.886],
+        [298.389, 140.959],
+        [305.761, 145.168],
+        [313.03, 149.55],
+        [320.165, 154.148],
+        [327.114, 159.022],
+        [333.787, 164.265],
+        [340.017, 170.026],
+        [345.471, 176.52],
+        [349.8, 183.809],
+        [352.752, 191.756],
+        [354.323, 200.089],
+        [354.844, 208.558],
+        [354.883, 217.046],
+        [354.883, 225.535],
+        [354.883, 234.023],
+        [354.883, 242.512],
+        [354.883, 251]
+      ]
+    },
+    {
+      "id": "Placed-Placed----note-5",
+      "class": "edge-thickness-normal edge-pattern-solid transition note-edge",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 171.765,
+      "points": [
+        [205.712, 125],
+        [198.112, 128.999],
+        [190.512, 132.999],
+        [182.927, 137.027],
+        [175.395, 141.153],
+        [167.942, 145.421],
+        [160.594, 149.866],
+        [153.388, 154.537],
+        [146.378, 159.498],
+        [139.661, 164.847],
+        [133.426, 170.748],
+        [128.032, 177.419],
+        [123.833, 184.898],
+        [121.065, 193.015],
+        [119.674, 201.483],
+        [119.268, 210.059],
+        [119.25, 218.647],
+        [119.25, 227.235],
+        [119.25, 235.823],
+        [119.25, 244.412],
+        [119.25, 253]
+      ]
+    },
+    {
+      "id": "edge3",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 126,
+      "points": [
+        [354.883, 302],
+        [354.883, 308.3],
+        [354.883, 314.6],
+        [354.883, 320.9],
+        [354.883, 327.2],
+        [354.883, 333.5],
+        [354.883, 339.8],
+        [354.883, 346.1],
+        [354.883, 352.4],
+        [354.883, 358.7],
+        [354.883, 365],
+        [354.883, 371.3],
+        [354.883, 377.6],
+        [354.883, 383.9],
+        [354.883, 390.2],
+        [354.883, 396.5],
+        [354.883, 402.8],
+        [354.883, 409.1],
+        [354.883, 415.4],
+        [354.883, 421.7],
+        [354.883, 428]
+      ]
+    },
+    {
+      "id": "edge4",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 70,
+      "points": [
+        [354.883, 684],
+        [354.883, 687.5],
+        [354.883, 691],
+        [354.883, 694.5],
+        [354.883, 698],
+        [354.883, 701.5],
+        [354.883, 705],
+        [354.883, 708.5],
+        [354.883, 712],
+        [354.883, 715.5],
+        [354.883, 719],
+        [354.883, 722.5],
+        [354.883, 726],
+        [354.883, 729.5],
+        [354.883, 733],
+        [354.883, 736.5],
+        [354.883, 740],
+        [354.883, 743.5],
+        [354.883, 747],
+        [354.883, 750.5],
+        [354.883, 754]
+      ]
+    },
+    {
+      "id": "edge2",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 95,
+      "points": [
+        [354.882, 508.5],
+        [354.882, 513.25],
+        [354.882, 518],
+        [354.882, 522.75],
+        [354.882, 527.5],
+        [354.882, 532.25],
+        [354.882, 537],
+        [354.882, 541.75],
+        [354.882, 546.5],
+        [354.882, 551.25],
+        [354.882, 556],
+        [354.882, 560.75],
+        [354.882, 565.5],
+        [354.882, 570.25],
+        [354.882, 575],
+        [354.882, 579.75],
+        [354.882, 584.5],
+        [354.882, 589.25],
+        [354.882, 594],
+        [354.882, 598.75],
+        [354.882, 603.5]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "edge1", "box": [339.484, 160, 30.797, 21] },
+    { "id": "edge3", "box": [338.156, 372, 33.453, 21] }
+  ],
+  "terminals": []
+}

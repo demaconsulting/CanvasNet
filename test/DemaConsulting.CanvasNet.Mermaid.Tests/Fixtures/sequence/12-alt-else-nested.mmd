@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Gate
+    participant Auth
+    participant Audit
+    Gate->>Auth: Check the badge
+    alt Badge valid
+        Auth-->>Gate: Open
+        alt After hours
+            Gate->>Audit: Log a late entry
+        else During the day
+            Gate->>Audit: Log an entry
+        end
+    else Badge expired
+        Auth-->>Gate: Deny
+    else Badge unknown
+        Auth-->>Gate: Deny and alert
+        Gate->>Audit: Raise an alarm
+    end

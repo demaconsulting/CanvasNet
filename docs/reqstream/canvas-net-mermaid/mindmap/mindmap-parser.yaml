@@ -1,0 +1,149 @@
+---
+# Software Unit Requirements for MindmapParser
+#
+# These requirements describe the design-level behavior of the MindmapParser unit of the Mindmap subsystem (internal
+# namespace DemaConsulting.CanvasNet.Mermaid.Mindmap): the lexer and the grammar of the mindmap language of the pinned
+# Mermaid release, the node shapes, the tree that the indentation makes, the texts, the icon and class decorations, the
+# sections and edges of Mermaid's mindmap database, the metadata of the diagram, the located errors with Mermaid's
+# expected tokens, and the limits checked while the text is read. See
+# docs/verification/canvas-net-mermaid/mindmap/mindmap-parser.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Mindmap Requirements
+        sections:
+          - title: MindmapParser Requirements
+            requirements:
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Tokens
+                title: >-
+                  The MindmapParser unit shall split a mindmap text into the tokens that Mermaid's mindmap lexer
+                  produces, the first rule that matches at a position winning in Mermaid's order and with Mermaid's
+                  quirks - the keyword in any letter case, an id that runs to the first bracket or the end of its line,
+                  a quoted or markdown string inside brackets that may hold brackets and line breaks, a tab counted as
+                  one character of indentation, comment lines and indented blank lines skipped, and a blank line right
+                  after a statement that a node at the start of the next line may not follow - while keeping every
+                  token located in the original text.
+                justification: |
+                  Mermaid's lexer decides what a text means in the corner cases that authors rely on; locations must
+                  still point into the file as written.
+                tests:
+                  - MindmapParser_Parse_UpstreamVector_MatchesMermaid
+                  - MindmapParser_Vectors_FileHasEnoughCases_AtLeast200
+                  - MindmapParser_Parse_Tabs_CountOneEach
+                  - MindmapParser_Parse_TextAfterId_IsPartOfTheId
+                  - MindmapParser_Parse_Strings_KeepTheirText
+                  - MindmapParser_Parse_CommentsAndBlankLines_AreSkipped
+                  - MindmapParser_Parse_BlankLineThenUnindentedNode_FailsAsMermaidDoes
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Shapes
+                title: >-
+                  The MindmapParser unit shall give each node the shape of its brackets as Mermaid's mindmap database
+                  does - square brackets a rectangle, parentheses a rounded rectangle, double parentheses a circle, a
+                  closing and an opening parenthesis a cloud, two of each a bang, double braces a hexagon, and no
+                  brackets the default node.
+                justification: |
+                  The shape of each node is part of what the author wrote and decides its size and outline in the
+                  drawing.
+                tests:
+                  - MindmapParser_Parse_Brackets_GiveMermaidsType
+                  - MindmapParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Tree
+                title: >-
+                  The MindmapParser unit shall make the first node the root and each other node a child of the last
+                  node above it whose indentation is smaller, the levels counted from the root's indentation; shall
+                  open a mindmap of the keyword alone with no nodes; and shall refuse a second root, or a node that no
+                  node can take as its parent, with a MermaidSyntaxException of code mermaid-syntax-error located at the
+                  node, with Mermaid's message and a hint.
+                justification: |
+                  The indentation is the structure of a mindmap; the tree must be the one Mermaid builds, and a text
+                  Mermaid refuses must not be drawn as a guess.
+                tests:
+                  - MindmapParser_Parse_Indentation_BuildsTreeRelativeToRoot
+                  - MindmapParser_Parse_KeywordOnly_IsEmpty
+                  - MindmapParser_Parse_SecondRoot_FailsWithMermaidsMessage
+                  - MindmapParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Texts
+                title: >-
+                  The MindmapParser unit shall keep the id and the text of each node, a node without brackets taking its
+                  id as its text, a quoted text without its quotes, and a markdown string without its quotes and
+                  backticks, and shall sanitize the ids, texts, icons, and classes as Mermaid's sanitizeText does.
+                justification: |
+                  The texts of the nodes are what the mindmap shows; they must be the texts Mermaid shows for the same
+                  statements, and untrusted markup must be cleaned as Mermaid cleans it.
+                tests:
+                  - MindmapParser_Parse_IdsAndDescriptions_AreKept
+                  - MindmapParser_Parse_Strings_KeepTheirText
+                  - MindmapParser_Parse_Texts_AreSanitized
+                  - MindmapParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Decorations
+                title: >-
+                  The MindmapParser unit shall give an icon decoration and a class decoration to the last node added,
+                  whatever their indentation, keeping the location of the icon, and shall refuse a decoration before any
+                  node with a located MermaidSyntaxException of code mermaid-syntax-error, where Mermaid fails with a
+                  JavaScript error.
+                justification: |
+                  Icons are reported where they are written, and classes style the node they follow; a decoration of no
+                  node must fail closed rather than be lost.
+                tests:
+                  - MindmapParser_Parse_Decorations_ApplyToLastNode
+                  - MindmapParser_Parse_DecorationBeforeNode_FailsLocated
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Sections
+                title: >-
+                  The MindmapParser unit shall give the sections, classes, and edges of Mermaid's mindmap database - the
+                  root no section, each child of the root the next of eleven sections in turn, every deeper node the
+                  section of its parent - and one edge from each node to each of its children whose depth is the
+                  parent's indentation level plus one.
+                justification: |
+                  The sections decide the colors of the nodes and the edges, and the depth decides the width of each
+                  edge; both must be Mermaid's for the drawing to look the same.
+                tests:
+                  - MindmapParser_Parse_Sections_CycleThroughElevenAndInherit
+                  - MindmapParser_Parse_EdgeDepth_UsesIndentationLevel
+                  - MindmapParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Metadata
+                title: >-
+                  The MindmapParser unit shall give, for the parsed mindmap, the number of its nodes and of its edges,
+                  one fewer than the nodes, and none for a mindmap without nodes.
+                justification: |
+                  The counts must keep the meaning of the document's node and edge counts and describe the mindmap that
+                  is drawn.
+                tests:
+                  - MindmapParser_Parse_Indentation_BuildsTreeRelativeToRoot
+                  - MindmapParser_Parse_KeywordOnly_IsEmpty
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Errors
+                title: >-
+                  The MindmapParser unit shall refuse the first token that the grammar does not accept with a
+                  MermaidSyntaxException of code mermaid-syntax-error, located at the token in the original text, that
+                  names the token found and lists as expected the token names that Mermaid's jison parser lists, with a
+                  hint; and shall refuse text that no lexer rule matches with a located error of the same code at the
+                  first character that is not matched.
+                justification: |
+                  Authors compare messages with Mermaid's; the expected tokens and the location tell them what to write
+                  and where.
+                tests:
+                  - MindmapParser_Parse_GrammarError_ListsJisonExpectedTokens
+                  - MindmapParser_Parse_LoneBrace_FailsLexically
+                  - MindmapParser_Parse_UpstreamVector_MatchesMermaid
+
+              - id: CanvasNetMermaid-Mindmap-MindmapParser-Limits
+                title: >-
+                  The MindmapParser unit shall refuse, with a MermaidSyntaxException of code mermaid-limit-exceeded
+                  located at the element that breaches it, more nodes than MaxNodes, a node deeper in the tree than
+                  MaxNestingDepth, and every id, text, icon, class, sanitized text, or class list that a node derives
+                  that is longer than MaxLabelLength.
+                justification: |
+                  The size and depth of the tree, and so the cost of the layout, must be bounded while untrusted text is
+                  read; the class list of a node is joined from shorter texts and can pass the limit when none of them
+                  does.
+                tests:
+                  - MindmapParser_Parse_TooManyNodes_FailsWithLimitExceeded
+                  - MindmapParser_Parse_TooDeep_FailsWithLimitExceeded
+                  - MindmapParser_Parse_LongText_FailsWithLimitExceeded
+                  - MindmapParser_Parse_LongClassList_FailsWithLimitExceeded

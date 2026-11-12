@@ -100,17 +100,35 @@ constituent software items, specifically:
   `ArcGeometry`, the d3-shape arc, `CssPaint`, and `SymbolPathParser`, the custom symbol paths) — see
   _CanvasNetVegaLite System Verification_
   (`canvas-net-vega-lite.md`)
+- **CanvasNetMermaid (System)** — A separate software system providing a Mermaid diagram renderer that parses Mermaid
+  text, describes, measures, and renders flowcharts, sequence diagrams, class diagrams, state diagrams, and entity
+  relationship diagrams with Mermaid's own layout and look, and
+  reports the other diagram types as unsupported, containing a single direct unit, `MermaidDocument` (the public parse,
+  open, measure, and render API, options, limits, locations, report codes, exceptions, and the image source), and
+  fifteen internal subsystems:
+  `Syntax` (units `Preprocessor`, `DiagramDetector`, `YamlSubsetParser`, `SourceScanner`, and `HtmlSanitizer`),
+  `Configuration` (units `MermaidConfigResolver`, `ThemeResolver`, `ColorMath`, and `StyleDeclarations`), `Graphlib`
+  (units `Graph` and `GraphAlgorithms`), `Dagre` (units `DagreLayout`, `DagreAcyclic`, `DagreRanker`, `DagreNesting`,
+  `DagreNormalizer`, `DagreOrdering`, `DagrePositioning`, `DagreCoordinateSystem`, and `LayoutWorkMeter`),
+  `Rendering` (units `ClusterLayout`, `ShapeLibrary`, `EdgeBuilder`, `LabelBuilder`, and `NodeImages`), `Scenegraph`
+  (units `SceneModel` and `ScenePainter`), `Flowchart` (units `FlowchartParser` and `FlowchartModel`), `Sequence`
+  (units `SequenceParser`, `SequenceModel`, `SequenceLayout`, and `SequenceRenderer`), `Class` (units `ClassParser`
+  and `ClassModel`), `State` (units `StateParser` and `StateModel`), `Er` (units `ErParser` and `ErModel`), `Pie`
+  (units `PieParser` and `PieRenderer`), `Gantt` (units `GanttParser`, `GanttModel`, `GanttRenderer`, and
+  `TimeAxis`), `Mindmap` (units `MindmapParser` and `MindmapRenderer`), and `Cose` (unit `CoseLayout`) — see
+  _CanvasNetMermaid System Verification_ (`canvas-net-mermaid.md`)
 - **CanvasNetViewer (System)** — A separate software system, distributed as the `DemaConsulting.CanvasNet.Viewer`
   package, that lists the image sources of every format, creates the image resolver that lets an SVG document embed
   them, renders any file as a picture, and is the library form of the `canvasnet` tool, containing two direct units,
   `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) and `ViewerException` (with `ErrorCodes`), and an
   `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
-  `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder` units — see _CanvasNetViewer
-  System Verification_ (`canvas-net-viewer.md`)
+  `GridOverlay`, `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener` units — see
+  _CanvasNetViewer System Verification_ (`canvas-net-viewer.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, and a `Commands` subsystem with the `CommandRegistry`, `HelpTopics`,
-  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units; the tool is a
+  `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, `InspectCommand`, and `FlattenCommand`
+  units; the tool is a
   thin shell over the `Imaging` subsystem of the Viewer — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 
@@ -198,6 +216,26 @@ has `scenegraph/arc-geometry.md` and `Scenegraph/ArcGeometryTests.cs`, `SymbolPa
 expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs`. Only
 original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is
 copied.
+
+For example, the unit `DagreRanker` of the `Dagre` subsystem of the CanvasNetMermaid system has the requirements
+`docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml`, the design
+`docs/design/canvas-net-mermaid/dagre/dagre-ranker.md`, this verification design
+`docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md`, the source
+`src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.cs`, and the tests
+`test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreRankerTests.cs`. Each subsystem of that system has a
+subsystem test class `{Subsystem}Tests.cs` in its test folder; the system tests are `MermaidSystemIntegrationTests.cs`,
+`MermaidFlowchartIntegrationTests.cs`, `MermaidReferenceLayoutTests.cs`, `MermaidSequenceIntegrationTests.cs`,
+`MermaidSequenceReferenceLayoutTests.cs`, `MermaidClassIntegrationTests.cs`, `MermaidStateIntegrationTests.cs`,
+`MermaidErIntegrationTests.cs`, `MermaidPieIntegrationTests.cs`, `MermaidGanttIntegrationTests.cs`,
+`MermaidChartReferenceLayoutTests.cs`, `MermaidMindmapIntegrationTests.cs`, `MermaidMindmapReferenceLayoutTests.cs`,
+`MermaidGalleryTests.cs`, `MermaidHardeningTests.cs`, and
+`MermaidUnsupportedDiagramTests.cs` in the root of its test project. Its original flowchart, sequence, class, state,
+entity relationship, pie, gantt, and mindmap fixtures are in `Fixtures/flowchart/`, `Fixtures/sequence/`,
+`Fixtures/class/`, `Fixtures/state/`, `Fixtures/er/`, `Fixtures/pie/`, `Fixtures/gantt/`, and `Fixtures/mindmap/`, the
+expected results of the pinned upstream
+packages for original inputs in `Fixtures/upstream-vectors/`, and the mermaid-cli reference layouts with their
+provenance README in `Fixtures/reference/`; they are generated by the developer scripts in `tools/visual-diff/`
+and never in CI.
 
 OTS items have parallel artifacts in:
 

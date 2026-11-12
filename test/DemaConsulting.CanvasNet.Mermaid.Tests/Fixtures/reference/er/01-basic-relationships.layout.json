@@ -1,0 +1,200 @@
+{
+  "source": "01-basic-relationships.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "er",
+  "viewBox": [0, 0, 715.172, 470],
+  "title": null,
+  "nodes": [
+    {
+      "id": "entity-CUSTOMER-0",
+      "shape": "erBox",
+      "x": 203.016,
+      "y": 50,
+      "box": [137.383, 8, 131.266, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [137.383, 8, 131.266, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [157.383, 38, 91.266, 24], "text": "CUSTOMER" }
+      ]
+    },
+    {
+      "id": "entity-ORDER-1",
+      "shape": "erBox",
+      "x": 58,
+      "y": 235,
+      "box": [8, 193, 100, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [8, 193, 100, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [29.109, 223, 57.781, 24], "text": "ORDER" }
+      ]
+    },
+    {
+      "id": "entity-LINE-ITEM-2",
+      "shape": "erBox",
+      "x": 352.809,
+      "y": 420,
+      "box": [293.246, 378, 119.125, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [293.246, 378, 119.125, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [313.246, 408, 79.125, 24], "text": "LINE-ITEM" }
+      ]
+    },
+    {
+      "id": "entity-DELIVERY-ADDRESS-3",
+      "shape": "erBox",
+      "x": 348.031,
+      "y": 235,
+      "box": [248, 193, 200.063, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [248, 193, 200.063, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [268, 223, 160.063, 24], "text": "DELIVERY-ADDRESS" }
+      ]
+    },
+    {
+      "id": "entity-PRODUCT-4",
+      "shape": "erBox",
+      "x": 647.617,
+      "y": 235,
+      "box": [588.063, 193, 119.109, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [588.063, 193, 119.109, 84] },
+        { "tag": "g", "class": "label", "group": null, "box": [608.063, 223, 79.109, 24], "text": "PRODUCT" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 137.142,
+      "points": [
+        [137.383, 91.865],
+        [131.602, 95.552],
+        [125.821, 99.24],
+        [120.043, 102.932],
+        [114.294, 106.671],
+        [108.597, 110.487],
+        [102.968, 114.402],
+        [97.422, 118.435],
+        [91.982, 122.609],
+        [86.675, 126.95],
+        [81.541, 131.495],
+        [76.644, 136.293],
+        [72.084, 141.412],
+        [68.026, 146.936],
+        [64.596, 152.869],
+        [61.868, 159.156],
+        [59.882, 165.715],
+        [58.638, 172.455],
+        [58.076, 179.287],
+        [58, 186.143],
+        [58, 193]
+      ]
+    },
+    {
+      "id": "id_entity-ORDER-1_entity-LINE-ITEM-2_1",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 280.581,
+      "points": [
+        [58, 277],
+        [58.26, 291.019],
+        [63.077, 304.067],
+        [72.238, 314.638],
+        [83.34, 323.193],
+        [95.37, 330.401],
+        [107.906, 336.695],
+        [120.713, 342.421],
+        [133.679, 347.776],
+        [146.752, 352.865],
+        [159.903, 357.749],
+        [173.113, 362.474],
+        [186.369, 367.066],
+        [199.663, 371.547],
+        [212.988, 375.937],
+        [226.337, 380.249],
+        [239.707, 384.501],
+        [253.089, 388.712],
+        [266.475, 392.912],
+        [279.86, 397.111],
+        [293.246, 401.311]
+      ]
+    },
+    {
+      "id": "id_entity-CUSTOMER-0_entity-DELIVERY-ADDRESS-3_2",
+      "class": "edge-thickness-normal edge-pattern-dashed relationshipLine",
+      "markerStart": "er-oneOrMoreStart",
+      "markerEnd": "er-oneOrMoreEnd",
+      "length": 137.142,
+      "points": [
+        [268.648, 91.865],
+        [274.429, 95.552],
+        [280.211, 99.24],
+        [285.988, 102.933],
+        [291.737, 106.671],
+        [297.434, 110.487],
+        [303.063, 114.402],
+        [308.609, 118.435],
+        [314.049, 122.609],
+        [319.356, 126.95],
+        [324.49, 131.495],
+        [329.387, 136.293],
+        [333.947, 141.412],
+        [338.005, 146.936],
+        [341.434, 152.869],
+        [344.163, 159.156],
+        [346.149, 165.715],
+        [347.393, 172.455],
+        [347.954, 179.287],
+        [348.031, 186.143],
+        [348.031, 193]
+      ]
+    },
+    {
+      "id": "id_entity-PRODUCT-4_entity-LINE-ITEM-2_3",
+      "class": "edge-thickness-normal edge-pattern-solid relationshipLine",
+      "markerStart": "er-onlyOneStart",
+      "markerEnd": "er-zeroOrMoreEnd",
+      "length": 280.581,
+      "points": [
+        [647.617, 277],
+        [647.357, 291.019],
+        [642.54, 304.067],
+        [633.379, 314.638],
+        [622.277, 323.193],
+        [610.247, 330.401],
+        [597.711, 336.695],
+        [584.905, 342.421],
+        [571.938, 347.776],
+        [558.864, 352.864],
+        [545.714, 357.749],
+        [532.504, 362.474],
+        [519.248, 367.065],
+        [505.954, 371.547],
+        [492.629, 375.937],
+        [479.28, 380.249],
+        [465.91, 384.5],
+        [452.528, 388.712],
+        [439.142, 392.912],
+        [425.757, 397.111],
+        [412.371, 401.311]
+      ]
+    }
+  ],
+  "edgeLabels": [
+    { "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0", "box": [37.766, 132, 40.469, 21] },
+    { "id": "id_entity-ORDER-1_entity-LINE-ITEM-2_1", "box": [31.922, 317, 52.156, 21] },
+    { "id": "id_entity-CUSTOMER-0_entity-DELIVERY-ADDRESS-3_2", "box": [333.242, 132, 29.578, 21] },
+    { "id": "id_entity-PRODUCT-4_entity-LINE-ITEM-2_3", "box": [616.094, 317, 63.047, 21] }
+  ],
+  "terminals": []
+}

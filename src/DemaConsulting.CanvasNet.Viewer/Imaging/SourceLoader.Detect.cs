@@ -42,8 +42,16 @@ public static partial class SourceLoader
             [".pptx"] = SourceKind.Pptx,
             [".vsdx"] = SourceKind.Vsdx,
             [".scad"] = SourceKind.Scad,
-            [".vl"] = SourceKind.VegaLite
+            [".vl"] = SourceKind.VegaLite,
+            [".mmd"] = SourceKind.Mermaid,
+            [".mermaid"] = SourceKind.Mermaid
         });
+
+    /// <summary>
+    ///     The extensions of the text formats that have no signature and are never taken for an SVG drawing, whatever
+    ///     their text mentions: an OpenSCAD model, a Vega-Lite chart named <c>.vl</c>, and a Mermaid diagram.
+    /// </summary>
+    private static readonly string[] NamedTextExtensions = [".scad", ".vl", ".mmd", ".mermaid"];
 
     /// <summary>
     ///     The file name suffix of a Vega-Lite chart that <see cref="ExtensionKinds"/> cannot express, because the
@@ -77,7 +85,9 @@ public static partial class SourceLoader
     ///     an OpenSCAD model (and is never taken for an SVG, whatever its text mentions). A chart has no signature either:
     ///     a file named <c>.vl.json</c> or <c>.vl</c> is a Vega-Lite chart, and so is a <c>.json</c> file whose top-level
     ///     <c>$schema</c> string property (read from the first 4 KiB) names a Vega-Lite schema; the address in any other
-    ///     property or nested value does not count. A JSON file is never taken for an SVG.
+    ///     property or nested value does not count. A JSON file is never taken for an SVG. A diagram has no signature either:
+    ///     a file named <c>.mmd</c> or <c>.mermaid</c> is a Mermaid diagram (and is never taken for an SVG, even when a
+    ///     label holds SVG text); there is no content sniffing, so a Markdown file is never a diagram.
     ///     Only when the content says nothing does the file name extension decide, so that a damaged or empty file
     ///     with a known extension is reported as corrupt (by the load that follows) rather than as unsupported. A
     ///     damaged ZIP package is distinguished by its extension.
@@ -245,7 +255,7 @@ public static partial class SourceLoader
             return ReadTopLevelSchema(header)?.Contains(VegaLiteSchemaMarker, StringComparison.Ordinal) == true ? SourceKind.VegaLite : null;
         }
 
-        if (LooksLikeSvg(header) && !extension.Equals(".scad", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".vl", StringComparison.OrdinalIgnoreCase))
+        if (LooksLikeSvg(header) && !NamedTextExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
         {
             return SourceKind.Svg;
         }

@@ -1,0 +1,18 @@
+---
+config:
+  fontSize: 12
+  sequence:
+    actorFontWeight: bold
+    noteFontWeight: bold
+    messageAlign: right
+    noteAlign: left
+    showSequenceNumbers: true
+---
+sequenceDiagram
+    participant Sensor
+    participant Controller
+    Sensor->>Controller: Reading
+    Note over Sensor,Controller: Twelve pixel text everywhere
+    loop Sampling
+        Controller->>()Sensor: Next
+    end

@@ -21,8 +21,12 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
 `CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments`, and the
-chart self-test `CanvasNetTool_RenderVegaLite`, and the help self-test `CanvasNetTool_HelpExamples` (sixteen in
-total; the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests).
+chart self-test `CanvasNetTool_RenderVegaLite`, and the diagram self-test `CanvasNetTool_RenderMermaid`, and the help
+self-test `CanvasNetTool_HelpExamples` (seventeen in total; the suite is deliberately kept small, so further coverage
+belongs in the unit and subsystem tests). They run in a fixed, documented order: `VersionDisplay`, `HelpDisplay`,
+`Formats`, `RenderPng`, `ConvertFormats`, `Info`, `RenderSvg`, `PdfMinimal`, `RenderScad`, `RenderVegaLite`,
+`RenderMermaid`, `CropResize`, `RotateFlipPad`, `Compare`, `Montage`, `Adjustments`, and `HelpExamples` (each with the
+prefix `CanvasNetTool_`).
 Each is
 recorded as a `TestResult` with
 `ClassName` "Validation" and `CodeBase` "CanvasNetTool".
@@ -96,7 +100,7 @@ and in the file, white padding at the corner, the image fitted and centered in t
 label strip. These exercise the comparison, the
 contact sheet with its bundled-font labels, the picture creators, and the commands together.
 
-**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 14th self-test).
+**RunAdjustmentsTest**: the photo self-test, one smoke test for every photo operation (the 16th self-test).
 It generates a 160x100 PNG sketch with `CreateSketchSurface` (light-gray paper `#C8C8C8` with four dark two-pixel lines
 tilted 3 degrees clockwise, drawn with plain arithmetic, so that the pixel at 80,19 is ink and the pixel at 0,0 is
 paper) and runs the checks of four helpers in turn, stopping at the first failure. `CheckToneOperations` runs
@@ -111,22 +115,34 @@ and `inspect pixel 0,0` with `--json` and requires that the first dominant color
 This exercises the tone operations, the skew estimation, the arbitrary-angle rotation, the trim, the grid with its
 bundled-font labels, the analysis, and the commands together.
 
-**RunRenderVegaLiteTest**: the chart self-test (the 15th self-test, `CanvasNetTool_RenderVegaLite`), run
+**RunRenderVegaLiteTest**: the chart self-test (the 10th self-test, `CanvasNetTool_RenderVegaLite`), run
 through `RunSelfTest` and `RunCommand`. It writes an original bar chart to `chart.vl.json` in its temporary directory: a
 schema, a 200x100 data rectangle, two inline rows (`a` is 3 and `b` is 5), a `bar` mark, a nominal x field and a
 quantitative y field. It runs `info --json` and requires the `vega-lite` format, one `bar` mark, one data reference, and
 a laid-out size larger than the data rectangle (the axes and the padding add to it); then it renders the chart to a PNG
-and requires that the file has exactly the size `info` reported, that the corner is white, and, at positions computed from
-the layout (the padding is 5 pixels at the top and the right, the two bands are 100 pixels wide with a 90-pixel bar in
-each), that the second bar (the full height) and the first bar (three fifths of it) have the default mark color `#4c78a8`
-and that the pixel above the first bar is white. This exercises the bundled Vega-Lite library, the detection of a chart
-by its file name, the source loader, the `chart` object of `info`, and the `render` command together; it needs no data
-file, no network, and no installed font.
+and requires that the file has exactly the size `info` reported, that the corner is white, and, at positions computed
+from the layout (the padding is 5 pixels at the top and the right, the two bands are 100 pixels wide with a 90-pixel bar
+in each), that the second bar (the full height) and the first bar (three fifths of it) have the default mark color
+`#4c78a8` and that the pixel above the first bar is white. This exercises the bundled Vega-Lite library, the detection
+of a chart by its file name, the source loader, the `chart` object of `info`, and the `render` command together; it
+needs no data file, no network, and no installed font.
 
-**RunHelpExamplesTest**: the help self-test (the 16th and last self-test, `CanvasNetTool_HelpExamples`), run through
+**RunRenderMermaidTest**: the diagram self-test (the 11th self-test, right after the chart self-test,
+`CanvasNetTool_RenderMermaid`), run through `RunSelfTest` and `RunCommand`. It writes an original three-node flowchart
+to `flow.mmd` in its temporary directory (`flowchart LR` with the nodes `One`, `Two`, and `Three` linked in a row). It
+runs `info --json` and requires the `mermaid` format of the `input` object and, in the `diagram` object, the type
+`flowchart`, `supported` true, three `nodes`, and two `edges`, and reads the laid-out size of the `image` object; then
+it renders the diagram to a PNG and requires that the file has exactly the size `info` reported, that it is wider than
+it is high (the nodes are in a row), that the corner pixel (0, 0) is white (the default background), and that the pixel
+at (14, h/2), a few pixels inside the border of the first node (which starts at the diagram padding of 8 pixels) and
+left of its label, has the node fill `#ECECFF` of Mermaid's default theme. This exercises the bundled Mermaid library
+and its fonts, the detection of a diagram by its file name, the source loader, the `diagram` object of `info`, and the
+`render` command together; it needs no other file, no network, and no installed font.
+
+**RunHelpExamplesTest**: the help self-test (the 17th and last self-test, `CanvasNetTool_HelpExamples`), run through
 `RunSelfTest` and `RunCommand`, with three checks in turn that stop at the first failure. `CheckHelpExamplesRender`
 writes every source example of the help topics (`HelpTopics.SourceExamples`: the OpenSCAD models, the Vega-Lite charts,
-and the SVG drawings) to a file named `<topic>-<file name>` and runs
+the Mermaid diagrams, and the SVG drawings) to a file named `<topic>-<file name>` and runs
 `render <file> --strict --json -o <topic>-<example>.png` (with `--size 64x64` for a model, which only needs to render),
 requiring `ok` true and no diagnostic: the documented examples are accepted by the shipped renderers even under
 `--strict`. `CheckHelpExamplePrint` runs `help scad --example plate` and requires that the output, apart from its final

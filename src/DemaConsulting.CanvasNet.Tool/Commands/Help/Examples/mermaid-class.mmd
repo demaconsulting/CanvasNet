@@ -1,0 +1,29 @@
+---
+title: Library
+---
+classDiagram
+    class Item {
+        <<abstract>>
+        +String title
+        +int year
+        +isAvailable() bool
+        +describe()* String
+    }
+    class Book {
+        +String isbn
+        +int pages
+    }
+    class Member {
+        +String name
+        -List~Loan~ loans
+        +borrow(Item item) Loan
+    }
+    class Loan {
+        +Date due
+        +renew(int days) bool
+        +count()$ int
+    }
+    Item <|-- Book
+    Member "1" --> "*" Loan : holds
+    Loan "*" --> "1" Item : lends
+    note for Loan "Due in three weeks"

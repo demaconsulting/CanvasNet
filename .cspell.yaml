@@ -840,6 +840,253 @@ words:
   - mousemove
   - denormal
   - slnx
+  # Mermaid / diagram terms
+  - acyclicer
+  - barycenters
+  - bilayer
+  - Brandes
+  - Colours
+  - composit
+  - cyanaqua
+  - cynefin
+  - dagre
+  - dasharray
+  - dashoffset
+  - Eades
+  - ebnf
+  - edgesep
+  - eventmodeling
+  - Fabio
+  - frontmatter
+  - Gansner
+  - gantt
+  - graphlib
+  - horiz
+  - indegree
+  - ishikawa
+  - jison
+  - Juenger
+  - katex
+  - keyify
+  - khroma
+  - Knut
+  - Koepf
+  - labeloffset
+  - labelpos
+  - labelposes
+  - LALR
+  - Maney
+  - marginx
+  - marginy
+  - mindmap
+  - minlen
+  - mmdc
+  - multigraph
+  - Mutzel
+  - nodesep
+  - Pettitt
+  - postorder
+  - preds
+  - preorder
+  - Puzrin
+  - rankdir
+  - rankdirs
+  - ranksep
+  - reparents
+  - sankey
+  - selfedge
+  - selfloop
+  - Smyth
+  - Spampinato
+  - sucs
+  - Sveidqvist
+  - tarjan
+  - treemap
+  - Vitaly
+  - wardley
+  - xychart
+  - yytext
+  # Mermaid flowchart grammar (jison terminals, shape names) and HTML label terms (DOMPurify allow lists, entities)
+  - apos
+  - autocapitalize
+  - autopictureinpicture
+  - autoplay
+  - basefont
+  - bgcolor
+  - bgsound
+  - Brkt
+  - callbackargs
+  - callbackname
+  - callto
+  - cellspacing
+  - colgroup
+  - commandfor
+  - controlslist
+  - curv
+  - CYLINDEREND
+  - CYLINDERSTART
+  - darr
+  - datalist
+  - Descr
+  - disablepictureinpicture
+  - disableremoteplayback
+  - DOUBLECIRCLEEND
+  - DOUBLECIRCLESTART
+  - enctype
+  - enterkeyhint
+  - exportparts
+  - fieldset
+  - figcaption
+  - foreignobject
+  - harr
+  - hellip
+  - hgroup
+  - hreflang
+  - inputmode
+  - INVTRAPEND
+  - INVTRAPSTART
+  - keygen
+  - laquo
+  - larr
+  - ldquo
+  - LINKSTYLE
+  - lsquo
+  - maxlength
+  - middot
+  - mtext
+  - Mult
+  - ndash
+  - nobr
+  - NODIR
+  - noembed
+  - noframes
+  - noopener
+  - noscript
+  - noshade
+  - novalidate
+  - onclick
+  - optgroup
+  - playsinline
+  - plusmn
+  - popovertarget
+  - popovertargetaction
+  - pubdate
+  - raquo
+  - rarr
+  - rdquo
+  - rowspan
+  - rsquo
+  - samp
+  - selectedcontent
+  - srclang
+  - STADIUMEND
+  - STADIUMSTART
+  - subproc
+  - SUBROUTINEEND
+  - SUBROUTINESTART
+  - tabindex
+  - TAGEND
+  - TAGSTART
+  - TESTSTR
+  - TRAPEND
+  - TRAPSTART
+  - uarr
+  - xmpp
+  # Mermaid label and shape rendering terms (SVG text, HTML blocks, test strings of the shape vectors)
+  - AVAWAY
+  - bbox
+  - cious
+  - eacute
+  - frameset
+  - Größe
+  - Supercalifragilisticexpialido
+  - tspan
+  - tspans
+  # Mermaid edge and subgraph rendering terms (d3 curves, the cluster layout)
+  - hypot
+  - Steffen's
+  - tridiagonal
+  # Mermaid sequence diagram terms (text prefixes, style sheet selectors, marker ids, jison terminals, color keywords)
+  - currentcolor
+  - LINETYPE
+  - nowrap
+  - sequencenumber
+  - signaltype
+  - startx
+  - starty
+  - stopx
+  - stopy
+  # Mermaid class diagram terms (jison terminals, the texts of mermaid's class parser specs, the sanitize-url author)
+  - backticked
+  - BQUOTE
+  - bqstring
+  - Città
+  - CSSCLASS
+  - GENERICTYPE
+  - braintree
+  # Mermaid state and entity relationship diagram terms (style sheet classes, the texts of mermaid's ER parser specs,
+  # jison terminals of the state grammar)
+  - statediagram
+  - CLASSDEFID
+  - CLASSENTITY
+  - STYLECLASS
+  - STYLEDEF
+  - STYLEOPTS
+  - Blorf
+  - firstname
+  - lastname
+  - MYBOOKSUBTITLE
+  - nvarchar
+  - varchar
+  # The link check (the vbscript scheme sanitize-url refuses, IDNA host names of the WHATWG URL parser)
+  - vbscript
+  - IDNA
+  # Mermaid pie and gantt chart terms (the date algorithms of the d3 time port, the pie grammar's Langium port, its
+  # authors and its fixture names)
+  - Hinnant
+  - Langium
+  - Yokozuna
+  - Accessibilities
+  - showdata
+  - textposition
+  - themevariables
+  # The gantt chart port (its jison token names, dayjs and the vector cases' texts)
+  - dayjs
+  - iamkun
+  - Mdhmswy
+  - Gantts
+  - ganttx
+  - axisformat
+  - tickinterval
+  - topaxis
+  - mermaidjs
+  # The mindmap layout port (cytoscape-cose-bilkent over cose-base and layout-base, cytoscape's edge points) and its
+  # correctly rounded math (Machin's formula for pi, ECMAScript's exponentiate)
+  - cose
+  - bilkent
+  - cytoscape
+  - rscratch
+  - allpts
+  - embedder
+  - mindmaps
+  - significand
+  - Machin
+  - exponentiate
+  # The mindmap grammar's terminal names (mindmap.jison)
+  - SPACELINE
+  - SPACELIST
+  - DSTART
+  - DEND
+  - NSTR
+  # The mindmap harness (cose-base's findPlaceforPrunedNode) and fixture names
+  - Placefor
+  - htmllabels
+  - maxwidth
+  # Mermaid documentation terms (user guide, design, and requirements)
+  - acyclicity
+  - multigraphs
+  - recomputations
+  - unloadable
 
   # SVG / CSS length and font terms
   - vmin
@@ -847,10 +1094,12 @@ words:
   - rlh
   - longhand
   - longhands
-  - dasharray
-  - dashoffset
-  - tspan
   - FFFD
+  - xlink
+# Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
+# glued to it are not words
+ignoreRegExpList:
+  - "/%[0-9A-Fa-f]{2}[A-Za-z]*/g"
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"
@@ -869,3 +1118,38 @@ ignorePaths:
   - "**/PngSuite/**"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/OFL.txt"
   - "src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt"
+  - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlEntities.cs"
+
+# The link-check test vectors: string literals that spell unsafe URL schemes in encoded, split or truncated
+# forms (such as "&#106;avascript:" or "java\tscript:"), which are deliberately not words
+overrides:
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassModelTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassParserTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceModelTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateModelTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs"
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SyntaxTests.cs"
+    ignoreRegExpList:
+      - "/\"(?:[^\"\\\\\\n]|\\\\.)*\"/g"
+  - filename:
+      - "docs/verification/canvas-net-mermaid/state/state-model.md"
+    ignoreRegExpList:
+      - "/`[^`\\n]*`/g"
+  # The math vectors: every value is the 16 hexadecimal digits of a double
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json"
+    ignoreRegExpList:
+      - "/\"[0-9a-f]{16}\"/g"
+  # The gantt vectors: Mermaid's entity-encoding markers around encoded text
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"
+    ignoreRegExpList:
+      - "/ﬂ°°?|¶ß/g"
+  # The mindmap vectors: Mermaid's entity-encoding markers, and the escaped line feeds of the JSON texts
+  - filename:
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/mindmap-parser.json"
+    ignoreRegExpList:
+      - "/ﬂ°°?|¶ß/g"
+      - "/\\\\n/g"

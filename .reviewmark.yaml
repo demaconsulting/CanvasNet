@@ -949,6 +949,7 @@ reviews:
       - "docs/verification/canvas-net/image-sources/folder-image-resolver.md"  # unit verification
       - "docs/sysml2/model/canvas-net/image-sources/folder-image-resolver.sysml"  # unit model
       - "src/DemaConsulting.CanvasNet/ImageSources/FolderImageResolver*.cs"  # unit source (resolver, options)
+      - "src/DemaConsulting.CanvasNet/ImageSources/RequestedImage.cs"  # unit source (requested link)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverHrefTests.cs"    # unit tests (links)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)
@@ -1643,6 +1644,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/InputReference.cs"  # unit source (an input path with a fragment)
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/InputSelection.cs"  # unit source (what the fragment chose)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/mermaid/**"  # original Mermaid fixtures
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
 
   # CanvasNetViewer-Imaging-ImageWriter Review (one per unit)
@@ -1791,6 +1793,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Viewer/Imaging/MontageBuilder.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/MontageBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/InputSelectionTests.cs"  # unit tests (input fragments)
+
+  # CanvasNetViewer-Imaging-SvgFlattener Review (one per unit)
+  - id: CanvasNetViewer-Imaging-SvgFlattener
+    title: Review that CanvasNetViewer Imaging SvgFlattener Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/svg-flattener.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/svg-flattener.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/svg-flattener.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/svg-flattener.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SvgFlattener*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SvgFlattener*Tests.cs"  # unit tests
 
   # CanvasNetRender3D-Architecture Review (one per system)
   - id: CanvasNetRender3D-Architecture
@@ -2616,8 +2634,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteBrushIntegrationTests.cs"  # brush mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteSelectionExtentIntegrationTests.cs"  # extent tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteGalleryTests.cs"  # documentation gallery tests
-      - "benchmarks/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
-      - "benchmarks/visual-diff/README.md"                            # developer visual-diff harness documentation
+      - "tools/README.md"                                        # developer tools overview
+      - "tools/DemaConsulting.CanvasNet.VegaLite.Benchmarks/**"  # developer benchmark harness
+      - "tools/visual-diff/README.md"                            # developer visual-diff harness documentation
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/FuzzRandom.cs"  # seeded random source of the fuzz suite
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/HangGuard.cs"  # generous wall-clock hang guard
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Hardening/VegaLiteFuzzGenerator.cs"  # specification generator
@@ -3718,6 +3737,1220 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/CssPaint.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/CssPaintTests.cs"  # unit tests
 
+  # ---------------------------------------------------------------------------------------------
+  # CanvasNetMermaid review-sets (static Mermaid renderer, derived with attribution)
+  # Provenance check for every CanvasNetMermaid set: reviewers confirm that no source, test, example,
+  # or documentation text of Mermaid, the Mermaid parser package, Langium, dagre, graphlib, d3, dayjs,
+  # khroma, js-yaml, lodash, or marked was copied
+  # beyond the ported behavior, that every file containing ported logic carries the "Portions derived
+  # from" header, and that the attribution is recorded in
+  # src/DemaConsulting.CanvasNet.Mermaid/third-party/README.md (see the Third-Party Provenance and
+  # Attribution section of docs/design/canvas-net-mermaid.md).
+  # ---------------------------------------------------------------------------------------------
+
+  # CanvasNetMermaid-Architecture Review (one per system)
+  - id: CanvasNetMermaid-Architecture
+    title: Review that CanvasNetMermaid Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid.yaml"                      # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-mermaid.md"                           # system design (provenance, known differences)
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-mermaid.md"                     # system verification
+      - "docs/sysml2/model/canvas-net-mermaid.sysml"                  # system SysML2 model
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSystemIntegrationTests.cs"  # system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidFlowchartIntegrationTests.cs"  # flowchart system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReferenceLayoutTests.cs"  # reference layout goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceIntegrationTests.cs"  # sequence system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidSequenceReferenceLayoutTests.cs"  # sequence goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidClassIntegrationTests.cs"  # class system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidStateIntegrationTests.cs"  # state system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidErIntegrationTests.cs"  # ER system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidPieIntegrationTests.cs"  # pie system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGanttIntegrationTests.cs"  # gantt system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidChartReferenceLayoutTests.cs"  # pie and gantt goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidMindmapIntegrationTests.cs"  # mindmap system tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidMindmapReferenceLayoutTests.cs"  # mindmap goldens
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidHardeningTests.cs"  # limits and mutation fuzzer
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidUnsupportedDiagramTests.cs"  # unsupported diagram types
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidGalleryTests.cs"  # documentation gallery tests
+      - "docs/user_guide/examples/mermaid-*.mmd"                      # documentation gallery diagrams
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidTestHelpers.cs"  # shared test helpers
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/SceneQuery.cs"   # shared scene queries of the layout tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/UpstreamVectors.cs"  # shared upstream-vector loader
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/**"  # mermaid-cli goldens and provenance
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/DemaConsulting.CanvasNet.Mermaid.Tests.csproj"  # test project
+      - "src/DemaConsulting.CanvasNet.Mermaid/DemaConsulting.CanvasNet.Mermaid.csproj"  # project file
+      - "src/DemaConsulting.CanvasNet.Mermaid/third-party/**"         # license texts and provenance record
+
+  # CanvasNetMermaid-Design Review (one per system)
+  - id: CanvasNetMermaid-Design
+    title: Review that CanvasNetMermaid Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/platform-requirements.yaml"  # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-mermaid.md"                           # system design
+      - "docs/design/canvas-net-mermaid/**/*.md"                      # all system design documents
+
+  # CanvasNetMermaid-Verification Review (one per system)
+  - id: CanvasNetMermaid-Verification
+    title: Review that CanvasNetMermaid Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-mermaid.md"                     # system verification
+      - "docs/verification/canvas-net-mermaid/**/*.md"                # all verification documents
+
+  # CanvasNetMermaid-AllRequirements Review (one per system)
+  - id: CanvasNetMermaid-AllRequirements
+    title: Review that All CanvasNetMermaid Requirements are Complete
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/**/*.yaml"                 # all requirements files
+
+  # CanvasNetMermaid-MermaidDocument Review (one per direct unit)
+  - id: CanvasNetMermaid-MermaidDocument
+    title: Review that CanvasNetMermaid MermaidDocument Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/mermaid-document.yaml"     # unit requirements
+      - "docs/design/canvas-net-mermaid/mermaid-document.md"          # unit design
+      - "docs/verification/canvas-net-mermaid/mermaid-document.md"    # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/mermaid-document.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/NamespaceDoc.cs"        # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidDocument*.cs"    # unit source (partial files)
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidOpenOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidRenderOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidLimits.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidLocation.cs"     # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidDiagnostic.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidDiagnosticCodes.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeature.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidSize.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidSyntaxException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidRenderException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidUnsupportedFeatureException.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidReportSink.cs"   # unit source (internal report sink)
+      - "src/DemaConsulting.CanvasNet.Mermaid/MermaidImageSource.cs"  # unit source (image source)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRenderOptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidLimitsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidRecordsAndExceptionsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidReportSinkTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/MermaidImageSourceTests.cs"  # unit tests (image source)
+  # CanvasNetMermaid-Syntax Review (one per subsystem)
+  - id: CanvasNetMermaid-Syntax
+    title: Review that CanvasNetMermaid Syntax Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/syntax.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-mermaid/syntax.md"  # subsystem design
+      - "docs/verification/canvas-net-mermaid/syntax.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/syntax.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SyntaxTests.cs"  # subsystem tests
+
+  # CanvasNetMermaid-Syntax-Preprocessor Review (one per unit)
+  - id: CanvasNetMermaid-Syntax-Preprocessor
+    title: Review that CanvasNetMermaid Syntax Preprocessor Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/syntax.md"
+      - "docs/reqstream/canvas-net-mermaid/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/syntax/preprocessor.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/syntax/preprocessor.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/syntax/preprocessor.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/syntax/preprocessor.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/Preprocessor.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/Preprocessor.MappedText.cs"  # unit source (location map)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/PreprocessorTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Syntax-DiagramDetector Review (one per unit)
+  - id: CanvasNetMermaid-Syntax-DiagramDetector
+    title: Review that CanvasNetMermaid Syntax DiagramDetector Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/syntax.md"
+      - "docs/reqstream/canvas-net-mermaid/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/syntax/diagram-detector.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/syntax/diagram-detector.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/syntax/diagram-detector.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/syntax/diagram-detector.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/DiagramDetector.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/DiagramDetectorTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Syntax-YamlSubsetParser Review (one per unit)
+  - id: CanvasNetMermaid-Syntax-YamlSubsetParser
+    title: Review that CanvasNetMermaid Syntax YamlSubsetParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/syntax.md"
+      - "docs/reqstream/canvas-net-mermaid/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/syntax/yaml-subset-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/syntax/yaml-subset-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/syntax/yaml-subset-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/syntax/yaml-subset-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/YamlSubsetParser.cs"  # unit source (loader)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/YamlSubsetParser.Values.cs"  # unit source (value tree, types)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/YamlSubsetParserTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Syntax-SourceScanner Review (one per unit)
+  - id: CanvasNetMermaid-Syntax-SourceScanner
+    title: Review that CanvasNetMermaid Syntax SourceScanner Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/syntax.md"
+      - "docs/reqstream/canvas-net-mermaid/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/syntax/source-scanner.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/syntax/source-scanner.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/syntax/source-scanner.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/syntax/source-scanner.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Patterns.cs"  # unit source (ScanPatterns)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Tokens.cs"  # unit source (TokenCursor)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/SourceScanner.Urls.cs"  # unit source (UrlSanitizer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/SourceScannerTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Syntax-HtmlSanitizer Review (one per unit)
+  - id: CanvasNetMermaid-Syntax-HtmlSanitizer
+    title: Review that CanvasNetMermaid Syntax HtmlSanitizer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/syntax.md"
+      - "docs/reqstream/canvas-net-mermaid/syntax.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/syntax/html-sanitizer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/syntax/html-sanitizer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/syntax/html-sanitizer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/syntax/html-sanitizer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlSanitizer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Syntax/HtmlEntities.cs"  # unit source (named references table)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Syntax/HtmlSanitizerTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Configuration Review (subsystem)
+  - id: CanvasNetMermaid-Configuration
+    title: Review that CanvasNetMermaid Configuration Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/configuration.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-mermaid/configuration.md"              # subsystem design
+      - "docs/verification/canvas-net-mermaid/configuration.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/configuration.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/ConfigurationTests.cs"  # subsystem tests
+
+  # CanvasNetMermaid-Configuration-MermaidConfigResolver Review (one per unit)
+  - id: CanvasNetMermaid-Configuration-MermaidConfigResolver
+    title: Review that CanvasNetMermaid Configuration MermaidConfigResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/configuration.md"
+      - "docs/reqstream/canvas-net-mermaid/configuration.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/configuration/mermaid-config-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/configuration/mermaid-config-resolver.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/configuration/mermaid-config-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/configuration/mermaid-config-resolver.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/MermaidConfigResolver*.cs"  # unit source (partial files)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/MermaidConfig.cs"  # unit source (typed view)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/MermaidConfigResolverTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/MermaidConfigResolverVectorTests.cs"  # vector tests
+
+  # CanvasNetMermaid-Configuration-ThemeResolver Review (one per unit)
+  - id: CanvasNetMermaid-Configuration-ThemeResolver
+    title: Review that CanvasNetMermaid Configuration ThemeResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/configuration.md"
+      - "docs/reqstream/canvas-net-mermaid/configuration.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/configuration/theme-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/configuration/theme-resolver.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/configuration/theme-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/configuration/theme-resolver.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/ThemeResolver*.cs"  # unit source (partials, MindmapStyles)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/ThemeResolverTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/themes.json"  # shared vectors
+
+  # CanvasNetMermaid-Configuration-ColorMath Review (one per unit)
+  - id: CanvasNetMermaid-Configuration-ColorMath
+    title: Review that CanvasNetMermaid Configuration ColorMath Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/configuration.md"
+      - "docs/reqstream/canvas-net-mermaid/configuration.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/configuration/color-math.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/configuration/color-math.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/configuration/color-math.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/configuration/color-math.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/ColorMath*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/ColorMathTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Configuration-StyleDeclarations Review (one per unit)
+  - id: CanvasNetMermaid-Configuration-StyleDeclarations
+    title: Review that CanvasNetMermaid Configuration StyleDeclarations Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/configuration.md"
+      - "docs/reqstream/canvas-net-mermaid/configuration.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/configuration/style-declarations.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/configuration/style-declarations.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/configuration/style-declarations.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/configuration/style-declarations.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Configuration/StyleDeclarations.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/StyleDeclarationsTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Graphlib Review (subsystem)
+  - id: CanvasNetMermaid-Graphlib
+    title: Review that CanvasNetMermaid Graphlib Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/graphlib.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-mermaid/graphlib.md"              # subsystem design
+      - "docs/verification/canvas-net-mermaid/graphlib.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/graphlib.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/GraphlibTests.cs"  # subsystem tests
+
+  # CanvasNetMermaid-Graphlib-Graph Review (one per unit)
+  - id: CanvasNetMermaid-Graphlib-Graph
+    title: Review that CanvasNetMermaid Graphlib Graph Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/graphlib.md"
+      - "docs/reqstream/canvas-net-mermaid/graphlib.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/graphlib/graph.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/graphlib/graph.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/graphlib/graph.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/graphlib/graph.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/Graph.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/GraphEdge.cs"  # unit source (edge identity)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/ObjectKeyMap.cs"  # unit source (JavaScript key order)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/GraphTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/ObjectKeyMapTests.cs"  # unit tests (key order)
+
+  # CanvasNetMermaid-Graphlib-GraphAlgorithms Review (one per unit)
+  - id: CanvasNetMermaid-Graphlib-GraphAlgorithms
+    title: Review that CanvasNetMermaid Graphlib GraphAlgorithms Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/graphlib.md"
+      - "docs/reqstream/canvas-net-mermaid/graphlib.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/graphlib/graph-algorithms.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/graphlib/graph-algorithms.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/graphlib/graph-algorithms.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/graphlib/graph-algorithms.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Graphlib/GraphAlgorithms.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Graphlib/GraphAlgorithmsTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre Review (one per subsystem)
+  - id: CanvasNetMermaid-Dagre
+    title: Review that CanvasNetMermaid Dagre Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-mermaid/dagre.md"  # subsystem design
+      - "docs/verification/canvas-net-mermaid/dagre.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreGoldens.cs"  # subsystem test helper (golden reader)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreTestGraphs.cs"  # test helper (meters, graph builders)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/dagre-layouts.json"  # 224 dagre goldens
+
+  # CanvasNetMermaid-Dagre-DagreLayout Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreLayout
+    title: Review that CanvasNetMermaid Dagre DagreLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-layout.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreLayout.Util.cs"  # unit source (util.js helpers)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreGraph.cs"  # unit source (input labels)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/LayoutModel.cs"  # unit source (layout labels)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/Lodash.cs"  # unit source (lodash and V8 sort semantics)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/LodashTests.cs"  # unit tests (Lodash)
+
+  # CanvasNetMermaid-Dagre-DagreAcyclic Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreAcyclic
+    title: Review that CanvasNetMermaid Dagre DagreAcyclic Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-acyclic.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-acyclic.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-acyclic.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-acyclic.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreAcyclic.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreAcyclicTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-DagreRanker Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreRanker
+    title: Review that CanvasNetMermaid Dagre DagreRanker Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-ranker.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-ranker.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-ranker.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-ranker.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.FeasibleTree.cs"  # unit source (partial file)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreRanker.NetworkSimplex.cs"  # unit source (partial file)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreRankerTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-DagreNesting Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreNesting
+    title: Review that CanvasNetMermaid Dagre DagreNesting Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-nesting.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-nesting.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-nesting.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-nesting.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreNesting.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreNestingTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-DagreNormalizer Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreNormalizer
+    title: Review that CanvasNetMermaid Dagre DagreNormalizer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-normalizer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-normalizer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-normalizer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-normalizer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreNormalizer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreNormalizerTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-DagreOrdering Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreOrdering
+    title: Review that CanvasNetMermaid Dagre DagreOrdering Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-ordering.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-ordering.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-ordering.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-ordering.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.Sort.cs"  # unit source (partial file)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.CrossCount.cs"  # unit source (partial file)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreOrdering.Constraints.cs"  # unit source (partial file)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreOrderingTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-DagrePositioning Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagrePositioning
+    title: Review that CanvasNetMermaid Dagre DagrePositioning Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-positioning.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-positioning.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-positioning.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-positioning.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagrePositioning.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagrePositioning.BrandesKoepf.cs"  # unit source (partial file)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagrePositioningTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-DagreCoordinateSystem Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-DagreCoordinateSystem
+    title: Review that CanvasNetMermaid Dagre DagreCoordinateSystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/dagre-coordinate-system.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/dagre-coordinate-system.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/dagre-coordinate-system.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/dagre-coordinate-system.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/DagreCoordinateSystem.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/DagreCoordinateSystemTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Dagre-LayoutWorkMeter Review (one per unit)
+  - id: CanvasNetMermaid-Dagre-LayoutWorkMeter
+    title: Review that CanvasNetMermaid Dagre LayoutWorkMeter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/dagre.md"
+      - "docs/reqstream/canvas-net-mermaid/dagre.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/dagre/layout-work-meter.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/dagre/layout-work-meter.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/dagre/layout-work-meter.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/dagre/layout-work-meter.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Dagre/LayoutWorkMeter.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Dagre/LayoutWorkMeterTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Rendering Review (one per subsystem)
+  - id: CanvasNetMermaid-Rendering
+    title: Review that CanvasNetMermaid Rendering Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/rendering.yaml"  # subsystem requirements
+      - "docs/design/canvas-net-mermaid/rendering.md"  # subsystem design
+      - "docs/verification/canvas-net-mermaid/rendering.md"  # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/rendering.sysml"  # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/RenderingTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/RenderingTestContext.cs"  # subsystem test helper
+
+  # CanvasNetMermaid-Rendering-ClusterLayout Review (one per unit)
+  - id: CanvasNetMermaid-Rendering-ClusterLayout
+    title: Review that CanvasNetMermaid Rendering ClusterLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/rendering.md"
+      - "docs/reqstream/canvas-net-mermaid/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/rendering/cluster-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/rendering/cluster-layout.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/rendering/cluster-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/rendering/cluster-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.Extractor.cs"  # unit source (subgraph extraction)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.SelfLoops.cs"  # unit source (self-loops)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ClusterLayout.Diagram.cs"  # unit source (title and view box)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LayoutData.cs"  # unit source (layout data records)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ClusterLayoutTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Rendering-ShapeLibrary Review (one per unit)
+  - id: CanvasNetMermaid-Rendering-ShapeLibrary
+    title: Review that CanvasNetMermaid Rendering ShapeLibrary Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/rendering.md"
+      - "docs/reqstream/canvas-net-mermaid/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/rendering/shape-library.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/rendering/shape-library.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/rendering/shape-library.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/rendering/shape-library.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Basic.cs"  # unit source (classic shapes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Extended.cs"  # unit source (extended shapes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Images.cs"  # unit source (image and icon shapes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Intersect.cs"  # unit source (intersect functions)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Parts.cs"  # unit source (path parts and drafts)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Clusters.cs"  # unit source (subgraph rectangle)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.ClassBox.cs"  # unit source (class box)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.States.cs"  # unit source (state shapes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.ErBox.cs"  # unit source (entity box)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeLibrary.Mindmap.cs"  # unit source (mindmap shapes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/ShapeNames.cs"  # unit source (shape registry)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeLibraryTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeLibraryVectorTests.cs"  # unit tests (vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeVectors.cs"  # unit test helper (vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/ShapeNamesTests.cs"  # unit tests (registry)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/shapes.json"  # upstream vectors
+
+  # CanvasNetMermaid-Rendering-EdgeBuilder Review (one per unit)
+  - id: CanvasNetMermaid-Rendering-EdgeBuilder
+    title: Review that CanvasNetMermaid Rendering EdgeBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/rendering.md"
+      - "docs/reqstream/canvas-net-mermaid/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/rendering/edge-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/rendering/edge-builder.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/rendering/edge-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/rendering/edge-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.Curves.cs"  # unit source (d3-shape curves)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.Markers.cs"  # unit source (markers)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/EdgeBuilder.Terminals.cs"  # unit source (terminal labels)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/EdgeBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/curves.json"  # upstream vectors
+
+  # CanvasNetMermaid-Rendering-LabelBuilder Review (one per unit)
+  - id: CanvasNetMermaid-Rendering-LabelBuilder
+    title: Review that CanvasNetMermaid Rendering LabelBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/rendering.md"
+      - "docs/reqstream/canvas-net-mermaid/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/rendering/label-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/rendering/label-builder.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/rendering/label-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/rendering/label-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.Html.cs"  # unit source (HTML labels)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.Markdown.cs"  # unit source (markdown strings)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.MarkdownLexer.cs"  # unit source (markdown lexer)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.Svg.cs"  # unit source (SVG labels)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/LabelBuilder.TextDimensions.cs"  # unit source (text utilities)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/LabelBuilderTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Rendering-NodeImages Review (one per unit)
+  - id: CanvasNetMermaid-Rendering-NodeImages
+    title: Review that CanvasNetMermaid Rendering NodeImages Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/rendering.md"
+      - "docs/reqstream/canvas-net-mermaid/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/rendering/node-images.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/rendering/node-images.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/rendering/node-images.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/rendering/node-images.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Rendering/NodeImages.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Rendering/NodeImagesTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Scenegraph Review (subsystem)
+  - id: CanvasNetMermaid-Scenegraph
+    title: Review that CanvasNetMermaid Scenegraph Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/scenegraph.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-mermaid/scenegraph.md"              # subsystem design
+      - "docs/verification/canvas-net-mermaid/scenegraph.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/scenegraph.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenegraphTests.cs"  # subsystem tests
+
+  # CanvasNetMermaid-Scenegraph-SceneModel Review (one per unit)
+  - id: CanvasNetMermaid-Scenegraph-SceneModel
+    title: Review that CanvasNetMermaid Scenegraph SceneModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/scenegraph.md"
+      - "docs/reqstream/canvas-net-mermaid/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/scenegraph/scene-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/scenegraph/scene-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/scenegraph/scene-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/scenegraph/scene-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/SceneModel.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/SceneModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Scenegraph-ScenePainter Review (one per unit)
+  - id: CanvasNetMermaid-Scenegraph-ScenePainter
+    title: Review that CanvasNetMermaid Scenegraph ScenePainter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/scenegraph.md"
+      - "docs/reqstream/canvas-net-mermaid/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/scenegraph/scene-painter.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/scenegraph/scene-painter.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/scenegraph/scene-painter.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/scenegraph/scene-painter.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.cs"  # unit source (painter, placement, loader)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Text.cs"  # unit source (text partial)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Images.cs"  # unit source (pictures partial)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Scenegraph/ScenePainter.Shadow.cs"  # unit source (drop shadow partial)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Flowchart Review (subsystem)
+  - id: CanvasNetMermaid-Flowchart
+    title: Review that CanvasNetMermaid Flowchart Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/flowchart.yaml"         # subsystem requirements
+      - "docs/design/canvas-net-mermaid/flowchart.md"              # subsystem design
+      - "docs/verification/canvas-net-mermaid/flowchart.md"        # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/flowchart.sysml"     # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/flowchart/*.mmd"  # original flowchart fixtures
+
+  # CanvasNetMermaid-Flowchart-FlowchartParser Review (one per unit)
+  - id: CanvasNetMermaid-Flowchart-FlowchartParser
+    title: Review that CanvasNetMermaid Flowchart FlowchartParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/flowchart.md"
+      - "docs/reqstream/canvas-net-mermaid/flowchart.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/flowchart/flowchart-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/flowchart/flowchart-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/flowchart/flowchart-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/flowchart/flowchart-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartParser.Lexer.cs"  # unit source (lexer)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartParser.Statements.cs"  # unit source (statements)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartParser.Links.cs"  # unit source (links)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/flowchart-parser.json"  # vectors
+
+  # CanvasNetMermaid-Flowchart-FlowchartModel Review (one per unit)
+  - id: CanvasNetMermaid-Flowchart-FlowchartModel
+    title: Review that CanvasNetMermaid Flowchart FlowchartModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/flowchart.md"
+      - "docs/reqstream/canvas-net-mermaid/flowchart.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/flowchart/flowchart-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/flowchart/flowchart-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/flowchart/flowchart-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/flowchart/flowchart-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartModel.Elements.cs"  # unit source (element types)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartModel.LayoutData.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Flowchart/FlowchartModel.Render.cs"  # unit source (drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Flowchart/FlowchartModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Sequence Review (subsystem)
+  - id: CanvasNetMermaid-Sequence
+    title: Review that CanvasNetMermaid Sequence Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"          # subsystem requirements
+      - "docs/design/canvas-net-mermaid/sequence.md"               # subsystem design
+      - "docs/verification/canvas-net-mermaid/sequence.md"         # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence.sysml"      # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/sequence/*.mmd"  # original sequence fixtures
+
+  # CanvasNetMermaid-Sequence-SequenceParser Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceParser
+    title: Review that CanvasNetMermaid Sequence SequenceParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceParser.Lexer.cs"  # unit source (lexer)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceParser.Statements.cs"  # unit source (statements)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/sequence-parser.json"  # vectors
+
+  # CanvasNetMermaid-Sequence-SequenceModel Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceModel
+    title: Review that CanvasNetMermaid Sequence SequenceModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.Elements.cs"  # unit source (element types)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.Statements.cs"  # unit source (statements)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceModel.Render.cs"  # unit source (reports, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Sequence-SequenceLayout Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceLayout
+    title: Review that CanvasNetMermaid Sequence SequenceLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-layout.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.Bounds.cs"  # unit source (layout state)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.Messages.cs"  # unit source (messages)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceLayout.Blocks.cs"  # unit source (blocks, menus)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceLayoutTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Sequence-SequenceRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Sequence-SequenceRenderer
+    title: Review that CanvasNetMermaid Sequence SequenceRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/sequence.md"
+      - "docs/reqstream/canvas-net-mermaid/sequence.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/sequence/sequence-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/sequence/sequence-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/sequence/sequence-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/sequence/sequence-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Actors.cs"  # unit source (participants)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Messages.cs"  # unit source (messages)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Blocks.cs"  # unit source (frames, boxes)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Sequence/SequenceRenderer.Text.cs"  # unit source (text placement)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Sequence/SequenceRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Class Review (subsystem)
+  - id: CanvasNetMermaid-Class
+    title: Review that CanvasNetMermaid Class Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/class.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-mermaid/class.md"                  # subsystem design
+      - "docs/verification/canvas-net-mermaid/class.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/class.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/class/*.mmd"  # original class fixtures
+
+  # CanvasNetMermaid-Class-ClassParser Review (one per unit)
+  - id: CanvasNetMermaid-Class-ClassParser
+    title: Review that CanvasNetMermaid Class ClassParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/class.md"
+      - "docs/reqstream/canvas-net-mermaid/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/class/class-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/class/class-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/class/class-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/class/class-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/class-parser.json"  # vectors
+
+  # CanvasNetMermaid-Class-ClassModel Review (one per unit)
+  - id: CanvasNetMermaid-Class-ClassModel
+    title: Review that CanvasNetMermaid Class ClassModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/class.md"
+      - "docs/reqstream/canvas-net-mermaid/class.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/class/class-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/class/class-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/class/class-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/class/class-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Class/ClassModel.LayoutData.cs"  # unit source (layout data, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Class/ClassModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-State Review (subsystem)
+  - id: CanvasNetMermaid-State
+    title: Review that CanvasNetMermaid State Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/state.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-mermaid/state.md"                  # subsystem design
+      - "docs/verification/canvas-net-mermaid/state.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/state.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/state/*.mmd"  # original state fixtures
+
+  # CanvasNetMermaid-State-StateParser Review (one per unit)
+  - id: CanvasNetMermaid-State-StateParser
+    title: Review that CanvasNetMermaid State StateParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/state.md"
+      - "docs/reqstream/canvas-net-mermaid/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/state/state-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/state/state-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/state/state-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/state/state-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/state-parser.json"  # vectors
+
+  # CanvasNetMermaid-State-StateModel Review (one per unit)
+  - id: CanvasNetMermaid-State-StateModel
+    title: Review that CanvasNetMermaid State StateModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/state.md"
+      - "docs/reqstream/canvas-net-mermaid/state.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/state/state-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/state/state-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/state/state-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/state/state-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/State/StateModel.LayoutData.cs"  # unit source (data fetcher, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/State/StateModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Er Review (subsystem)
+  - id: CanvasNetMermaid-Er
+    title: Review that CanvasNetMermaid Er Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/er.yaml"                # subsystem requirements
+      - "docs/design/canvas-net-mermaid/er.md"                     # subsystem design
+      - "docs/verification/canvas-net-mermaid/er.md"               # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/er.sysml"            # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/er/*.mmd"  # original ER fixtures
+
+  # CanvasNetMermaid-Er-ErParser Review (one per unit)
+  - id: CanvasNetMermaid-Er-ErParser
+    title: Review that CanvasNetMermaid Er ErParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/er.md"
+      - "docs/reqstream/canvas-net-mermaid/er.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/er/er-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/er/er-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/er/er-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/er/er-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErFacts.cs"  # test helper (vector facts)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/er-parser.json"  # vectors
+
+  # CanvasNetMermaid-Er-ErModel Review (one per unit)
+  - id: CanvasNetMermaid-Er-ErModel
+    title: Review that CanvasNetMermaid Er ErModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/er.md"
+      - "docs/reqstream/canvas-net-mermaid/er.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/er/er-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/er/er-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/er/er-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/er/er-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErModel.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Er/ErModel.LayoutData.cs"  # unit source (layout data, drawing)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Er/ErModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Pie Review (subsystem)
+  - id: CanvasNetMermaid-Pie
+    title: Review that CanvasNetMermaid Pie Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/pie.yaml"               # subsystem requirements
+      - "docs/design/canvas-net-mermaid/pie.md"                    # subsystem design
+      - "docs/verification/canvas-net-mermaid/pie.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/pie.sysml"           # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/pie/*.mmd"  # original pie fixtures
+
+  # CanvasNetMermaid-Pie-PieParser Review (one per unit)
+  - id: CanvasNetMermaid-Pie-PieParser
+    title: Review that CanvasNetMermaid Pie PieParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/pie.md"
+      - "docs/reqstream/canvas-net-mermaid/pie.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/pie/pie-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/pie/pie-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/pie/pie-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/pie/pie-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieParser.cs"  # unit source (grammar, database, PieDiagram)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/pie-parser.json"  # vectors
+
+  # CanvasNetMermaid-Pie-PieRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Pie-PieRenderer
+    title: Review that CanvasNetMermaid Pie PieRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/pie.md"
+      - "docs/reqstream/canvas-net-mermaid/pie.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/pie/pie-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/pie/pie-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/pie/pie-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/pie/pie-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Pie/PieRenderer.Arcs.cs"  # unit source (d3 pie, arc, and path)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Pie/PieRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Gantt Review (subsystem)
+  - id: CanvasNetMermaid-Gantt
+    title: Review that CanvasNetMermaid Gantt Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"             # subsystem requirements
+      - "docs/design/canvas-net-mermaid/gantt.md"                  # subsystem design
+      - "docs/verification/canvas-net-mermaid/gantt.md"            # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt.sysml"         # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/gantt/*.mmd"  # original gantt fixtures
+
+  # CanvasNetMermaid-Gantt-GanttParser Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-GanttParser
+    title: Review that CanvasNetMermaid Gantt GanttParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/gantt-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/gantt-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/gantt-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/gantt-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttParser.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/gantt-parser.json"  # vectors
+
+  # CanvasNetMermaid-Gantt-GanttModel Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-GanttModel
+    title: Review that CanvasNetMermaid Gantt GanttModel Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/gantt-model.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/gantt-model.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/gantt-model.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/gantt-model.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttModel.cs"  # unit source (database)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttModel.Tasks.cs"  # unit source (task dates, clock)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttModel.Dayjs.cs"  # unit source (dayjs subset)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttModelTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Gantt-GanttRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-GanttRenderer
+    title: Review that CanvasNetMermaid Gantt GanttRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/gantt-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/gantt-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/gantt-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/gantt-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttRenderer.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttRenderer.Tasks.cs"  # unit source (bars, texts, today)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/GanttRenderer.Axis.cs"  # unit source (d3-axis, ticks)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/GanttRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Gantt-TimeAxis Review (one per unit)
+  - id: CanvasNetMermaid-Gantt-TimeAxis
+    title: Review that CanvasNetMermaid Gantt TimeAxis Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/gantt.md"
+      - "docs/reqstream/canvas-net-mermaid/gantt.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/gantt/time-axis.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/gantt/time-axis.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/gantt/time-axis.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/gantt/time-axis.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/TimeAxis.cs"  # unit source (JsDate, intervals)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/TimeAxis.Scale.cs"  # unit source (ticks, time scale)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Gantt/TimeAxis.Format.cs"  # unit source (time format)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Gantt/TimeAxisTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/time-axis.json"  # vectors
+
+  # CanvasNetMermaid-Mindmap Review (one per subsystem)
+  - id: CanvasNetMermaid-Mindmap
+    title: Review that CanvasNetMermaid Mindmap Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/mindmap.yaml"           # subsystem requirements
+      - "docs/design/canvas-net-mermaid/mindmap.md"                # subsystem design
+      - "docs/verification/canvas-net-mermaid/mindmap.md"          # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/mindmap.sysml"       # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Mindmap/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Mindmap/MindmapTests.cs"  # subsystem tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/mindmap/*.mmd"  # original mindmap fixtures
+
+  # CanvasNetMermaid-Mindmap-MindmapParser Review (one per unit)
+  - id: CanvasNetMermaid-Mindmap-MindmapParser
+    title: Review that CanvasNetMermaid Mindmap MindmapParser Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/mindmap.md"
+      - "docs/reqstream/canvas-net-mermaid/mindmap.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/mindmap/mindmap-parser.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/mindmap/mindmap-parser.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/mindmap/mindmap-parser.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/mindmap/mindmap-parser.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Mindmap/MindmapParser.cs"  # unit source (grammar, database, diagram)
+      - "src/DemaConsulting.CanvasNet.Mermaid/Mindmap/MindmapParser.Lexer.cs"  # unit source (lexer)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Mindmap/MindmapParserTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Mindmap/MindmapVectorTests.cs"  # unit tests (upstream vectors)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/mindmap-parser.json"  # vectors
+
+  # CanvasNetMermaid-Mindmap-MindmapRenderer Review (one per unit)
+  - id: CanvasNetMermaid-Mindmap-MindmapRenderer
+    title: Review that CanvasNetMermaid Mindmap MindmapRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/mindmap.md"
+      - "docs/reqstream/canvas-net-mermaid/mindmap.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/mindmap/mindmap-renderer.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/mindmap/mindmap-renderer.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/mindmap/mindmap-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/mindmap/mindmap-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Mindmap/MindmapRenderer.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Mindmap/MindmapRendererTests.cs"  # unit tests
+
+  # CanvasNetMermaid-Cose Review (one per subsystem)
+  - id: CanvasNetMermaid-Cose
+    title: Review that CanvasNetMermaid Cose Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/cose.yaml"              # subsystem requirements
+      - "docs/design/canvas-net-mermaid/cose.md"                   # subsystem design
+      - "docs/verification/canvas-net-mermaid/cose.md"             # subsystem verification
+      - "docs/sysml2/model/canvas-net-mermaid/cose.sysml"          # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Cose/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Cose/CoseTests.cs"  # subsystem tests
+
+  # CanvasNetMermaid-Cose-CoseLayout Review (one per unit)
+  - id: CanvasNetMermaid-Cose-CoseLayout
+    title: Review that CanvasNetMermaid Cose CoseLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-mermaid.md"
+      - "docs/reqstream/canvas-net-mermaid.yaml"
+      - "docs/design/canvas-net-mermaid/cose.md"
+      - "docs/reqstream/canvas-net-mermaid/cose.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-mermaid/cose/cose-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-mermaid/cose/cose-layout.md"  # unit design
+      - "docs/verification/canvas-net-mermaid/cose/cose-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-mermaid/cose/cose-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Mermaid/Cose/CoseLayout*.cs"  # unit source (partial files)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Cose/CoseLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Cose/CoseGoldenTests.cs"  # unit tests (browser goldens)
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/cose-layouts.json"  # layout vectors
+      - "test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/upstream-vectors/js-math.json"  # math vectors
+
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture
     title: Review that CanvasNetTool Architecture Satisfies Requirements
@@ -3988,6 +5221,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InputFragmentTests.cs"  # unit tests (input fragments)
+
+  # CanvasNetTool-Commands-FlattenCommand Review (one per unit)
+  - id: CanvasNetTool-Commands-FlattenCommand
+    title: Review that CanvasNetTool Commands FlattenCommand Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/flatten-command.yaml"  # unit requirements
+      - "docs/design/canvas-net-tool/commands/flatten-command.md"     # unit design
+      - "docs/verification/canvas-net-tool/commands/flatten-command.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/flatten-command.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/FlattenCommand.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/FlattenCommandTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

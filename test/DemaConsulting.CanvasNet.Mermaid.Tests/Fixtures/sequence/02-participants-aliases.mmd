@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant Web as Web Shop
+    actor Buyer
+    participant Pay as Payment Gateway
+    participant Ledger
+    actor Courier as Delivery Courier
+    Buyer->>Web: Place an order
+    Web->>Pay: Charge the card
+    Pay-->>Web: Approved
+    Web->>Stock: Reserve the items
+    Stock-->>Web: Reserved
+    Web-->>Buyer: Order confirmed
+    Web->>Courier: Collect the parcel

@@ -31,7 +31,8 @@ of `DiscoveryCommands`, which holds the two commands that never decode pixels.
 **OptionTable** (`IReadOnlyList<OptionSpec>`, also the `Options` of the command): every option of
 `RenderCommand.OptionTable` except `--output`, `--format`, `--quality`, `--no-clobber`, and `--all-pages` (the same
 declarations, so the grammar and the help text are those of `render`: the source options, the options of an OpenSCAD
-model, and the image pipeline with the photo tools), then `--count <N>` (the description starts `colors:`) and
+model, `--param` of a Vega-Lite chart, `--theme` of a Mermaid diagram, and the image pipeline with the photo tools),
+then `--count <N>` (the description starts `colors:`) and
 `--radius <R>` (the description starts `pixel:`). An output option is therefore an unknown option.
 
 **Settings** (record): the subcommand, the input path, the `SourceOptions`, the `Operations` of the image pipeline, the
@@ -48,8 +49,9 @@ pipeline with `ImagePipelineParser.Parse(reader, null, null)` (so a malformed op
 decoded). The point is not checked against the image here; that needs the pixels.
 
 **Run(context, args)**: parses the arguments with the table, reads the settings, then reports every mistake about the
-input before decoding: `SourceLoader.Probe` and the check that model options were given only for a model (the message of
-`render`). It then calls `ImageInspector.Execute(info, request)` of the Viewer library with an `InspectRequest` built
+input before decoding: `SourceLoader.Probe` and the checks that model options were given only for a model, `--param`
+only for a chart, and `--theme` only for a diagram (the messages of `render`). It then calls
+`ImageInspector.Execute(info, request)` of the Viewer library with an `InspectRequest` built
 from the settings (the kind is the positional member; the `SourceOptions`, the operations, the count, the radius, and
 the point are set explicitly as `init` properties), which checks the page, loads it (`SourceLoader.Load`, which honors
 `--page`, the size options, the background,
@@ -104,8 +106,8 @@ result names the input with it, and `WriteCommonFields` writes the `fragment` me
 #### Error Handling
 
 `ToolException` with `usage-error` (subcommand, operands, options of the other subcommand, an unknown option, a
-malformed value, a point that is malformed or outside the image, a setting without its operation, a model option for
-another kind of input), the input codes of `SourceLoader` (`input-not-found`, `input-unreadable`,
+malformed value, a point that is malformed or outside the image, a setting without its operation, a model option,
+`--param`, or `--theme` for another kind of input), the input codes of `SourceLoader` (`input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature` with `--strict`, `page-out-of-range`, `size-limit`,
 `scad-error`, `budget-exceeded`), and `size-limit` from the pipeline. No new error code and no new exit code. Null
 arguments throw `ArgumentNullException`. The registry records the command name on every `ToolException`.
@@ -116,7 +118,8 @@ arguments throw `ArgumentNullException`. The registry records the command name o
 - **ResultWriter** - the JSON document.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
-- **RenderCommand** - the option table, `ReadSourceOptions`, `ScadOptionNames`, and `WriteField`.
+- **RenderCommand** - the option table, `ReadSourceOptions`, `ScadOptionNames`, `ChartOptionNames`,
+  `DiagramOptionNames`, and `WriteField`.
 - **ImageInspector**, **SourceLoader**, and **ImagePipeline** (Imaging, of the Viewer library) and the core **Surface**
   (`Analyze`, `Sample`) - loading,
   transforming, and measuring.

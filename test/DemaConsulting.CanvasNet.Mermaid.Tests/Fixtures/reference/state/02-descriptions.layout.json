@@ -1,0 +1,228 @@
+{
+  "source": "02-descriptions.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "stateDiagram",
+  "viewBox": [0, 0, 182.328, 515],
+  "title": null,
+  "nodes": [
+    {
+      "id": "state-Waiting-0",
+      "shape": "rectWithTitle",
+      "x": 91.164,
+      "y": 40.5,
+      "box": [8, 8, 166.328, 65],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "outer title-state", "group": null, "box": [8, 8, 166.328, 65] },
+        { "tag": "line", "class": "divider", "group": null, "box": [8, 36, 166.328, 0] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [12, 11, 158.328, 57],
+          "text": "Waiting for input the user has not typed",
+          "items": [
+            { "tag": "foreignObject", "box": [33.656, 11, 115.016, 24], "text": "Waiting for input" },
+            { "tag": "foreignObject", "box": [12, 44, 158.328, 24], "text": "the user has not typed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "state-Ready-1",
+      "shape": "rect",
+      "x": 91.164,
+      "y": 143,
+      "box": [27.141, 123, 128.047, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [27.141, 123, 128.047, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [35.141, 131, 112.047, 24], "text": "the form is valid" }
+      ]
+    },
+    {
+      "id": "state-Checked-2",
+      "shape": "rectWithTitle",
+      "x": 91.164,
+      "y": 245.5,
+      "box": [46.688, 213, 88.953, 65],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "outer title-state", "group": null, "box": [46.688, 213, 88.953, 65] },
+        { "tag": "line", "class": "divider", "group": null, "box": [46.688, 241, 88.953, 0] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [50.688, 216, 80.953, 57],
+          "text": "first line second line",
+          "items": [
+            { "tag": "foreignObject", "box": [63.602, 216, 55.125, 24], "text": "first line" },
+            { "tag": "foreignObject", "box": [50.688, 249, 80.953, 24], "text": "second line" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "state-Titled-3",
+      "shape": "rectWithTitle",
+      "x": 91.164,
+      "y": 372.5,
+      "box": [29.805, 328, 122.719, 89],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "outer title-state", "group": null, "box": [29.805, 328, 122.719, 89] },
+        { "tag": "line", "class": "divider", "group": null, "box": [29.805, 356, 122.719, 0] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [33.805, 331, 114.719, 81],
+          "text": "Long title one description two descriptions",
+          "items": [
+            { "tag": "foreignObject", "box": [58.695, 331, 64.938, 24], "text": "Long title" },
+            { "tag": "foreignObject", "box": [33.805, 364, 114.719, 48], "text": "one description two descriptions" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "state-Plain-3",
+      "shape": "rect",
+      "x": 91.164,
+      "y": 487,
+      "box": [65.375, 467, 51.578, 40],
+      "class": "node  statediagram-state",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [65.375, 467, 51.578, 40] },
+        { "tag": "g", "class": "label", "group": null, "box": [73.375, 475, 35.578, 24], "text": "Plain" }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "edge0",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [91.164, 73],
+        [91.164, 75.5],
+        [91.164, 78],
+        [91.164, 80.5],
+        [91.164, 83],
+        [91.164, 85.5],
+        [91.164, 88],
+        [91.164, 90.5],
+        [91.164, 93],
+        [91.164, 95.5],
+        [91.164, 98],
+        [91.164, 100.5],
+        [91.164, 103],
+        [91.164, 105.5],
+        [91.164, 108],
+        [91.164, 110.5],
+        [91.164, 113],
+        [91.164, 115.5],
+        [91.164, 118],
+        [91.164, 120.5],
+        [91.164, 123]
+      ]
+    },
+    {
+      "id": "edge1",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [91.164, 163],
+        [91.164, 165.5],
+        [91.164, 168],
+        [91.164, 170.5],
+        [91.164, 173],
+        [91.164, 175.5],
+        [91.164, 178],
+        [91.164, 180.5],
+        [91.164, 183],
+        [91.164, 185.5],
+        [91.164, 188],
+        [91.164, 190.5],
+        [91.164, 193],
+        [91.164, 195.5],
+        [91.164, 198],
+        [91.164, 200.5],
+        [91.164, 203],
+        [91.164, 205.5],
+        [91.164, 208],
+        [91.164, 210.5],
+        [91.164, 213]
+      ]
+    },
+    {
+      "id": "edge2",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [91.164, 278],
+        [91.164, 280.5],
+        [91.164, 283],
+        [91.164, 285.5],
+        [91.164, 288],
+        [91.164, 290.5],
+        [91.164, 293],
+        [91.164, 295.5],
+        [91.164, 298],
+        [91.164, 300.5],
+        [91.164, 303],
+        [91.164, 305.5],
+        [91.164, 308],
+        [91.164, 310.5],
+        [91.164, 313],
+        [91.164, 315.5],
+        [91.164, 318],
+        [91.164, 320.5],
+        [91.164, 323],
+        [91.164, 325.5],
+        [91.164, 328]
+      ]
+    },
+    {
+      "id": "edge3",
+      "class": "edge-thickness-normal edge-pattern-solid transition",
+      "markerStart": null,
+      "markerEnd": "stateDiagram-barbEnd",
+      "length": 50,
+      "points": [
+        [91.164, 417],
+        [91.164, 419.5],
+        [91.164, 422],
+        [91.164, 424.5],
+        [91.164, 427],
+        [91.164, 429.5],
+        [91.164, 432],
+        [91.164, 434.5],
+        [91.164, 437],
+        [91.164, 439.5],
+        [91.164, 442],
+        [91.164, 444.5],
+        [91.164, 447],
+        [91.164, 449.5],
+        [91.164, 452],
+        [91.164, 454.5],
+        [91.164, 457],
+        [91.164, 459.5],
+        [91.164, 462],
+        [91.164, 464.5],
+        [91.164, 467]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

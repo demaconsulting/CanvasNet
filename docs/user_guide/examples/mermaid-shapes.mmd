@@ -1,0 +1,14 @@
+---
+title: Shapes of a release
+---
+flowchart LR
+    commit([Commit]) --> build[[Build]]
+    build --> tests{Tests pass?}
+    tests -- yes --> store[(Artifact store)]
+    tests -- no --> fix>Fix the build]
+    fix --> build
+    store --> sign[/Sign/] --> stage[\Stage\] --> ship((Ship))
+    ship --> notes@{ shape: doc, label: "Release notes" }
+    ship --> notify{{Notify}}
+    notify --> wait@{ shape: delay, label: "Wait a day" }
+    wait --> done(((Done)))

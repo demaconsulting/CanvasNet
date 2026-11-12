@@ -29,8 +29,8 @@ constructor are the ones the properties return, and the type is an `InvalidOpera
 **ViewerException_Constructor_HintAndCauseAreOptional**: with only a code and a message, the hint and the inner exception
 are `null`.
 
-**ErrorCodes_Constants_AreTheDocumentedStableStrings**: each of the 18 constants equals its string
+**ErrorCodes_Constants_AreTheDocumentedStableStrings**: each of the 19 constants equals its string
 (`usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`,
-`unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`, `size-limit`, `same-input-output`, `output-exists`,
-`output-write-failed`,
-`scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`, `threshold-failed`).
+`unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`, `size-limit`, `same-input-output`,
+`output-exists`, `output-write-failed`,
+`scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`, `size-mismatch`, `threshold-failed`).

@@ -1,0 +1,594 @@
+{
+  "source": "07-activation-shorthand.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -10, 655, 759],
+  "title": null,
+  "actors": [
+    {
+      "name": "User",
+      "type": "participant",
+      "description": "User",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["User"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [58.109, 24, 34.453, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 673, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 673, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["User"],
+            "at": [75, 705.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [58.109, 697, 34.453, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 673], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Api",
+      "type": "participant",
+      "description": "Api",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Api"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [262.438, 24, 24.125, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 673, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 673, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Api"],
+            "at": [275, 705.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [262.438, 697, 24.125, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 673], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Db",
+      "type": "participant",
+      "description": "Database",
+      "top": {
+        "box": [405, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [405, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Database"],
+            "at": [480, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [445.75, 24, 68.594, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [405, 673, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [405, 673, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Database"],
+            "at": [480, 705.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [445.75, 697, 68.594, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [480, 65, 480, 673], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "User",
+      "to": "Api",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Fetch the profile"],
+          "at": [172, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [114.633, 86.219, 114.828, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 267, 109]
+    },
+    {
+      "id": "i2",
+      "from": "Api",
+      "to": "Db",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Query"],
+          "at": [376, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [354.211, 130.219, 44.57, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [280, 153, 472, 153]
+    },
+    {
+      "id": "i4",
+      "from": "Db",
+      "to": "Api",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Rows"],
+          "at": [379, 168],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [358.992, 174.219, 40.016, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [475, 197, 283, 197]
+    },
+    {
+      "id": "i6",
+      "from": "Api",
+      "to": "User",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Profile"],
+          "at": [175, 212],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [152.32, 218.219, 45.453, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [270, 241, 79, 241]
+    },
+    {
+      "id": "i8",
+      "from": "User",
+      "to": "Api",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Update the profile"],
+          "at": [172, 256],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [108.844, 262.219, 126.406, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 285, 267, 285]
+    },
+    {
+      "id": "i10",
+      "from": "Api",
+      "to": "Api",
+      "class": "messageLine0",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Validate"],
+          "at": [280, 300],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [250.68, 306.219, 57.734, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 280,329 C 340,319 340,359 280,349",
+      "length": 99.683,
+      "points": [
+        [280, 329],
+        [284.93, 328.272],
+        [289.886, 327.741],
+        [294.86, 327.438],
+        [299.843, 327.402],
+        [304.818, 327.686],
+        [309.754, 328.369],
+        [314.588, 329.568],
+        [319.179, 331.489],
+        [323.117, 334.504],
+        [325, 339],
+        [323.117, 343.496],
+        [319.179, 346.511],
+        [314.588, 348.432],
+        [309.754, 349.631],
+        [304.818, 350.314],
+        [299.843, 350.598],
+        [294.86, 350.562],
+        [289.886, 350.259],
+        [284.93, 349.728],
+        [280, 349]
+      ]
+    },
+    {
+      "id": "i12",
+      "from": "Api",
+      "to": "Api",
+      "class": "messageLine1",
+      "tag": "path",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "fill": "none", "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Valid"],
+          "at": [285, 374],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [266.805, 380.219, 35.492, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "d": "M 285,403 C 345,393 345,433 285,423",
+      "length": 99.683,
+      "points": [
+        [285, 403],
+        [289.93, 402.272],
+        [294.886, 401.741],
+        [299.86, 401.438],
+        [304.843, 401.402],
+        [309.818, 401.687],
+        [314.754, 402.369],
+        [319.588, 403.568],
+        [324.179, 405.489],
+        [328.117, 408.504],
+        [330, 413],
+        [328.117, 417.496],
+        [324.179, 420.511],
+        [319.588, 422.432],
+        [314.754, 423.631],
+        [309.818, 424.313],
+        [304.843, 424.598],
+        [299.86, 424.562],
+        [294.886, 424.259],
+        [289.93, 423.728],
+        [285, 423]
+      ]
+    },
+    {
+      "id": "i14",
+      "from": "Api",
+      "to": "Db",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Write"],
+          "at": [376, 448],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [356.477, 454.219, 38.141, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [280, 477, 472, 477]
+    },
+    {
+      "id": "i16",
+      "from": "Api",
+      "to": "Db",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Write the audit row"],
+          "at": [376, 492],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [308.453, 498.219, 134.539, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [280, 521, 472, 521]
+    },
+    {
+      "id": "i18",
+      "from": "Db",
+      "to": "Api",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Written"],
+          "at": [379, 536],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [352.805, 542.219, 51.484, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [475, 565, 283, 565]
+    },
+    {
+      "id": "i20",
+      "from": "Db",
+      "to": "Api",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Audited"],
+          "at": [379, 580],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [350.867, 586.219, 55.367, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [475, 609, 283, 609]
+    },
+    {
+      "id": "i22",
+      "from": "Api",
+      "to": "User",
+      "class": "messageLine1",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5, "dash": "3px, 3px" },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Saved"],
+          "at": [175, 624],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [152.313, 630.219, 45.469, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [270, 653, 79, 653]
+    }
+  ],
+  "notes": [],
+  "activations": [
+    {
+      "class": "activation0",
+      "box": [270, 109, 10, 132],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation0",
+      "box": [475, 155, 10, 42],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation0",
+      "box": [270, 285, 10, 368],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation1",
+      "box": [275, 361, 10, 72],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation0",
+      "box": [475, 479, 10, 130],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    },
+    {
+      "class": "activation1",
+      "box": [480, 523, 10, 42],
+      "paint": { "fill": "rgb(244, 244, 244)", "stroke": "rgb(102, 102, 102)", "strokeWidth": 1 }
+    }
+  ],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [],
+  "order": [
+    "actor-bottom:Db",
+    "actor-bottom:Api",
+    "actor-bottom:User",
+    "lifeline:Db",
+    "actor-top:Db",
+    "lifeline:Api",
+    "actor-top:Api",
+    "lifeline:User",
+    "actor-top:User",
+    "activation:0",
+    "activation:1",
+    "activation:2",
+    "activation:3",
+    "activation:4",
+    "activation:5",
+    "message:i0",
+    "message:i2",
+    "message:i4",
+    "message:i6",
+    "message:i8",
+    "message:i10",
+    "message:i12",
+    "message:i14",
+    "message:i16",
+    "message:i18",
+    "message:i20",
+    "message:i22"
+  ]
+}

@@ -1,0 +1,11 @@
+sequenceDiagram
+    autonumber
+    participant Hub
+    participant Node
+    participant Store
+    Hub->>()Node: to the center of Node
+    Node()->>Store: from the center of Node
+    Hub()->>()Store: center to center
+    Store()-->>Hub: dotted from the center
+    Hub-)()Node: async to the center
+    Node()-xHub: cross from the center

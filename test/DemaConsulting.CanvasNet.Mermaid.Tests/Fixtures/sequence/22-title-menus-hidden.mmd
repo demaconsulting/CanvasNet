@@ -1,0 +1,18 @@
+---
+config:
+  sequence:
+    hideUnusedParticipants: true
+---
+sequenceDiagram
+    title Order lifecycle
+    accTitle: Order lifecycle diagram
+    accDescr: An order moves from the cart to the warehouse
+    participant Cart
+    participant Unused
+    participant Checkout
+    participant Warehouse
+    link Checkout: Dashboard @ https://example.com/dashboard
+    link Checkout: Runbook @ https://example.com/runbook
+    links Warehouse: {"Inventory": "https://example.com/inventory", "Shipping": "https://example.com/shipping", "Returns": "https://example.com/returns"}
+    Cart->>Checkout: Pay
+    Checkout->>Warehouse: Ship

@@ -1,0 +1,11 @@
+sequenceDiagram
+    participant Robot
+    participant Station
+    Robot->>Robot: Self check
+    Robot->>Station: Dock
+    Station-->>Station: Charge
+    Note over Station: Charging
+    Station->>Station: A self message with a label longer than the column
+    Station-->>Robot: Ready
+    Robot-xRobot: Reset
+    Robot--)Robot: Async to itself

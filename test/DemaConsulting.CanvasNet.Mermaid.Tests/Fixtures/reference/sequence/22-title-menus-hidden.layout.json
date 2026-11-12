@@ -1,0 +1,320 @@
+{
+  "source": "22-title-menus-hidden.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "sequence",
+  "viewBox": [-50, -50, 650, 299],
+  "title": {
+    "class": null,
+    "lines": ["Order lifecycle"],
+    "at": [175, -25],
+    "anchor": "start",
+    "baseline": null,
+    "fontSize": 16,
+    "fontWeight": "400",
+    "fill": "rgb(51, 51, 51)",
+    "box": [175, -39, 102.352, 17]
+  },
+  "actors": [
+    {
+      "name": "Cart",
+      "type": "participant",
+      "description": "Cart",
+      "top": {
+        "box": [0, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Cart"],
+            "at": [75, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [59.883, 24, 30.781, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [0, 173, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [0, 173, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Cart"],
+            "at": [75, 205.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [59.883, 197, 30.781, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [75, 65, 75, 173], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    { "name": "Unused", "type": "participant", "description": "Unused", "top": null, "bottom": null, "lifeline": null },
+    {
+      "name": "Checkout",
+      "type": "participant",
+      "description": "Checkout",
+      "top": {
+        "box": [200, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Checkout"],
+            "at": [275, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [241.203, 24, 68.148, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [200, 173, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [200, 173, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Checkout"],
+            "at": [275, 205.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [241.203, 197, 68.148, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [275, 65, 275, 173], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    },
+    {
+      "name": "Warehouse",
+      "type": "participant",
+      "description": "Warehouse",
+      "top": {
+        "box": [400, 0, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 0, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Warehouse"],
+            "at": [475, 32.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [433.383, 24, 82.328, 17]
+          }
+        ]
+      },
+      "bottom": {
+        "box": [400, 173, 150, 65],
+        "parts": [
+          {
+            "tag": "rect",
+            "box": [400, 173, 150, 65],
+            "paint": { "fill": "rgb(236, 236, 255)", "stroke": "rgb(147, 112, 219)", "strokeWidth": 1 }
+          }
+        ],
+        "texts": [
+          {
+            "class": "actor actor-box",
+            "lines": ["Warehouse"],
+            "at": [475, 205.5],
+            "anchor": "middle",
+            "baseline": "central",
+            "fontSize": 16,
+            "fontWeight": "400",
+            "fill": "rgb(0, 0, 0)",
+            "box": [433.383, 197, 82.328, 17]
+          }
+        ]
+      },
+      "lifeline": { "line": [475, 65, 475, 173], "paint": { "stroke": "rgb(147, 112, 219)", "strokeWidth": 2 } }
+    }
+  ],
+  "messages": [
+    {
+      "id": "i0",
+      "from": "Cart",
+      "to": "Checkout",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Pay"],
+          "at": [174, 80],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [160.211, 86.219, 28.57, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [76, 109, 271, 109]
+    },
+    {
+      "id": "i1",
+      "from": "Checkout",
+      "to": "Warehouse",
+      "class": "messageLine0",
+      "tag": "line",
+      "markerStart": null,
+      "markerEnd": "arrowhead",
+      "paint": { "stroke": "rgb(51, 51, 51)", "strokeWidth": 1.5 },
+      "texts": [
+        {
+          "class": "messageText",
+          "lines": ["Ship"],
+          "at": [374, 124],
+          "anchor": "middle",
+          "baseline": "middle",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(51, 51, 51)",
+          "box": [357.984, 130.219, 32.125, 17.016]
+        }
+      ],
+      "number": null,
+      "circles": [],
+      "line": [276, 153, 471, 153]
+    }
+  ],
+  "notes": [],
+  "activations": [],
+  "frames": [],
+  "rects": [],
+  "boxes": [],
+  "menus": [
+    {
+      "id": "actor1_popup",
+      "displayed": false,
+      "panel": [200, 65, 150, 80],
+      "texts": [
+        {
+          "class": "actor",
+          "lines": ["Dashboard"],
+          "at": [210, 95],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)"
+        },
+        {
+          "class": "actor",
+          "lines": ["Runbook"],
+          "at": [210, 125],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)"
+        }
+      ]
+    },
+    {
+      "id": "actor2_popup",
+      "displayed": false,
+      "panel": [400, 65, 150, 110],
+      "texts": [
+        {
+          "class": "actor",
+          "lines": ["Inventory"],
+          "at": [410, 95],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)"
+        },
+        {
+          "class": "actor",
+          "lines": ["Shipping"],
+          "at": [410, 125],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)"
+        },
+        {
+          "class": "actor",
+          "lines": ["Returns"],
+          "at": [410, 155],
+          "anchor": "start",
+          "baseline": "central",
+          "fontSize": 16,
+          "fontWeight": "400",
+          "fill": "rgb(0, 0, 0)"
+        }
+      ]
+    }
+  ],
+  "order": [
+    "actor-bottom:Warehouse",
+    "actor-bottom:Checkout",
+    "actor-bottom:Cart",
+    "lifeline:Warehouse",
+    "actor-top:Warehouse",
+    "lifeline:Checkout",
+    "actor-top:Checkout",
+    "lifeline:Cart",
+    "actor-top:Cart",
+    "message:i0",
+    "message:i1",
+    "actor-bottom:null",
+    "menu:actor1_popup",
+    "actor-bottom:null",
+    "menu:actor2_popup",
+    "title"
+  ]
+}

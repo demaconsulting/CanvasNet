@@ -8,19 +8,20 @@
 
 `CanvasNetViewer` is distributed via the separate `DemaConsulting.CanvasNet.Viewer` NuGet package (namespace
 `DemaConsulting.CanvasNet.Viewer`), which references the core `DemaConsulting.CanvasNet` package and the Svg, Pdf, Pptx,
-Vsdx, Scad, and VegaLite packages - see the Installation section of the project README.
+Vsdx, Scad, VegaLite, and Mermaid packages - see the Installation section of the project README.
 
 The viewer is the one place that knows every file format of CanvasNet. It does three things without you wiring each
 format package yourself:
 
-- it creates the **image resolver** that lets an SVG document embed 3D models, charts, other SVG files, document pages,
-  and pictures with `<image href="...">` (`CreateImageResolver`),
+- it creates the **image resolver** that lets an SVG document embed 3D models, charts, diagrams, other SVG files,
+  document pages, and pictures with `<image href="...">` (`CreateImageResolver`),
 - it **renders any file** of those formats as a picture in one call (`Render`), and
 - it does **everything the `canvasnet` command-line tool does** with images, from code (`ImageRenderer`,
   `ImageInspector`,
-  `ImageComparer`, `MontageBuilder`, and `SourceLoader` of the `DemaConsulting.CanvasNet.Viewer.Imaging` namespace):
-  probe a file, render it through an ordered pipeline of transformations, inspect colors and pixels, compare two images,
-  and compose a contact sheet - see *Doing what the canvasnet commands do, from code* below.
+  `ImageComparer`, `MontageBuilder`, `SvgFlattener`, and `SourceLoader` of the
+  `DemaConsulting.CanvasNet.Viewer.Imaging` namespace): probe a file, render it through an ordered pipeline of
+  transformations, inspect colors and pixels, compare two images, compose a contact sheet, and flatten an SVG drawing -
+  see *Doing what the canvasnet commands do, from code* below.
 
 Every example in this guide is a complete program (top-level statements, then any types): copy it into a console
 project that references the `DemaConsulting.CanvasNet.Viewer` package and has implicit usings enabled (the .NET
@@ -32,7 +33,8 @@ can see where each type lives:
 - `DemaConsulting.CanvasNet.Viewer` holds `CanvasNetViewer`, `ViewerRenderOptions`, `ViewerImage`, and the exception
   `ViewerException` with its `ErrorCodes`;
 - `DemaConsulting.CanvasNet.Viewer.Imaging` holds the operations (`SourceLoader`, `ImageRenderer`, `ImageInspector`,
-  `ImageComparer`, `MontageBuilder`), their requests and results, and the image operations (`CropOperation`, ...);
+  `ImageComparer`, `MontageBuilder`, `SvgFlattener`), their requests and results, and the image operations
+  (`CropOperation`, ...);
 - `DemaConsulting.CanvasNet.Canvas` holds `Surface`, `Rgba32`, `FitMode`, and `ResamplingMode`;
 - `DemaConsulting.CanvasNet.Codecs` reads and writes the image files (`PngCodec`), and `DemaConsulting.CanvasNet.Svg`
   holds `SvgCodec` and `SvgLoadOptions`.
@@ -45,7 +47,8 @@ An example that catches a `ViewerException` therefore needs both `using DemaCons
 ```csharp
 public static class CanvasNetViewer
 {
-    public static IReadOnlyList<IImageSource> ImageSources { get; }   // raster, svg, pdf, pptx, vsdx, scad, vega-lite
+    public static IReadOnlyList<IImageSource> ImageSources { get; }   // raster, svg, pdf, pptx, vsdx, scad, vega-lite,
+                                                                      // mermaid
     public static IReadOnlyList<string> Extensions { get; }           // every extension they claim, sorted
 
     public static FolderImageResolver CreateImageResolver(string folder, FolderImageResolverOptions? options = null);
@@ -64,7 +67,8 @@ extensions, and order listed above, and they are not the stand-alone `PdfImageSo
 the format packages (which stay public for use without the viewer). The file types a link can point to are the
 extensions in `CanvasNetViewer.Extensions`: `.png`, `.jpg`, `.jpeg`, `.bmp`,
 `.tif`, `.tiff`, `.gif`, `.jp2`, `.j2k`, `.j2c` (rasters), `.svg`, `.scad` (an OpenSCAD model), `.vl.json` and `.vl`
-(a Vega-Lite chart), and `.pdf`, `.pptx`, and `.vsdx` (a page of the document: page 1, or the page the fragment of the
+(a Vega-Lite chart), `.mmd` and `.mermaid` (a Mermaid diagram), and `.pdf`, `.pptx`, and `.vsdx` (a page of the
+document: page 1, or the page the fragment of the
 link names, see *Choosing a page, slide, or view with a fragment* below). The type is decided by the
 file name; a chart in a plain `.json` file is not linked.
 
@@ -106,9 +110,9 @@ network URL (`http:`, `https:`) are never read or fetched. A link that is not dr
 may use (`FolderImageResolverOptions.MaxDecodedPixels`, 64 million by default, counted before anything is decoded, so a
 huge raster in a tiny placement is refused and not decoded), with the code `svg-image-too-large`. A file that is found
 but is broken throws `ImageSourceException`, which names the link and the embedding file and keeps the original
-exception as its `InnerException`. Models and charts are drawn at the size of their placement over a transparent
-background (a chart keeps its own background); a raster keeps its natural size and the SVG codec resamples it. See the
-core user guide, *Linked Images*, for every rule.
+exception as its `InnerException`. Models, charts, and diagrams are drawn at the size of their placement over a
+transparent background (a chart keeps its own background); a raster keeps its natural size and the SVG codec resamples
+it. See the core user guide, *Linked Images*, for every rule.
 
 **A chart can link pictures too.** The `image` mark of a Vega-Lite chart (`"url": "part.scad"`, `"url": "icon.png"`,
 `"url": "report.pdf#page=2"`) is drawn through the same sandboxed resolver: a chart loaded by `SourceLoader` shows the
@@ -120,6 +124,11 @@ warning for a picture that was not drawn (`vl-mark-image-unresolved`) is dropped
 a
 picture that is found but is broken fails with the error of its own format. Measuring a chart (the probe) loads no
 picture.
+
+**So can a diagram.** The nodes of a Mermaid diagram (`A@{ img: "part.scad", w: 120, h: 120 }`, `<img src="logo.png">`
+in a label) load their pictures through the same sandboxed resolver, rooted at the folder of the diagram, or the
+resolver of the document that embeds the diagram. A link that is not drawn is `svg-image-unresolved`, the pictures that
+were drawn are listed in `Embedded`, and probing a diagram lays it out without loading any picture.
 
 Every note carries an `Origin`, the chain of embedded files that it is about, outermost first: for a link that was not
 drawn it is the file that contains the link, and for a note that an embedded model or chart reported it is the embedding
@@ -147,6 +156,9 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
 - `chart.vl.json#param.threshold=5` sets the parameter `threshold` of a chart, exactly like `--param threshold=5` (a
   number,
   `true`, `false`, `null`, text, or JSON, so `param.brush={"x":[2,6]}` sets the initial state of an interval selection);
+- `flow.mmd#theme=dark` draws a Mermaid diagram in one of Mermaid's themes (`default`, `base`, `dark`, `forest`, or
+  `neutral`, in any letter case), like `--theme dark` of the tool; a theme that the diagram sets itself still wins, and
+  another name is `image-fragment-invalid`;
 - a raster and an SVG file take no parameter.
 
 The `def.` and `param.` prefixes keep the names a link author chooses from colliding with `view=` and `page=`; the
@@ -237,43 +249,34 @@ PngCodec.Save(image.Surface, "part.png");
 `ViewerRenderOptions` has `Width` and `Height` (none: natural size; one: keep the aspect ratio; both: a box - a vector
 file is drawn at that size and a raster is fitted into it; when given, each must be from 1 to 8192, otherwise `Render`
 throws `ArgumentOutOfRangeException` before it reads anything), `Page` (the 1-based page or slide of a PDF, PPTX, or
-VSDX
-file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a value
-below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is sized
-at,
-96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color transparent areas
-are
-flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box, whose anchors follow
-the picture; null keeps the transparency of a document, a model, and an SVG file, and the own background of a chart),
-`Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time, and triangle limit), `VegaLite`
-(the
-`ChartOptions` of a Vega-Lite chart: the values of its parameters, the option behind `--param`; see below), `Folder`
-(the sandbox for the files the rendered file itself
-includes or embeds; by default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an
-unsupported
-feature fails instead of being drawn without it and reported; for an SVG file it also fails on a link that is not
-drawn, as `--strict` does: a missing file, a picture too large, an unusable fragment, or a page that does not exist is a
-`ViewerException` with the code `unsupported-feature`, while an unknown fragment parameter stays a warning),
-`MaxDecodedPixels` (the most pixels the render may decode
-in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192 picture, so set it to render
-one larger image; when a raster is resized to the requested size, the final picture is a second buffer that counts
-against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that does not fit throws
-`ImageSourceBudgetException`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?* below), and
-`CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries `Format`,
-`Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document), `Diagnostics`,
-`Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their pixels; empty
-for
-every other file), and `Embedded`. `Render` throws `FileNotFoundException`
-for a missing file, `NotSupportedException` when no source claims the extension (the message lists them),
-`SandboxException` when the sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn
-(a mistake of the caller or a limit - `page-out-of-range`, a size above 8192 pixels, a model whose `include` is
-missing - is a `ViewerException` instead). Render
-a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source. With both
-`Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas `SourceOptions.Width` and
-`Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model that the rendered file
-embeds chooses its own page or view, and sets its own variables or parameters, with the fragment of its link; it never
-inherits
-`Page`, `Dpi`, `Scad`, or `VegaLite`.
+VSDX file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a
+value below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is
+sized at, 96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color
+transparent areas are flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box,
+whose anchors follow the picture; null keeps the transparency of a document, a model, an SVG file, and a diagram, and
+the own background of a chart), `Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time,
+and triangle limit), `VegaLite` (the `ChartOptions` of a Vega-Lite chart: the values of its parameters, the option
+behind `--param`; see below), `Folder` (the sandbox for the files the rendered file itself includes or embeds; by
+default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an unsupported feature fails instead
+of being drawn without it and reported; for an SVG file it also fails on a link that is not drawn, as `--strict` does: a
+missing file, a picture too large, an unusable fragment, or a page that does not exist is a `ViewerException` with the
+code `unsupported-feature`, while an unknown fragment parameter stays a warning), `MaxDecodedPixels` (the most pixels
+the render may decode in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192
+picture, so set it to render one larger image; when a raster is resized to the requested size, the final picture is a
+second buffer that counts against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that
+does not fit throws `ImageSourceBudgetException`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?*
+below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries
+`Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document),
+`Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their
+pixels; empty for every other file), and `Embedded`. `Render` throws `FileNotFoundException` for a missing file,
+`NotSupportedException` when no source claims the extension (the message lists them), `SandboxException` when the
+sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn (a mistake of the caller or a
+limit - `page-out-of-range`, a size above 8192 pixels, a model whose `include` is missing - is a `ViewerException`
+instead). Render a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the
+source. With both `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas
+`SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model
+that the rendered file embeds chooses its own page or view, and sets its own variables or parameters, with the fragment
+of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
 
 To render page 2 of a PDF document at 192 dpi, over white, in memory:
 
@@ -516,7 +519,8 @@ height)`, `fit` is `FitOperation(width, height)` (add `allowUpscale: true` to en
 `ThresholdOperation`, `LevelsOperation`, `BrightnessOperation`, `ContrastOperation`, `AutoLevelsOperation` (the default
 clips 1 percent at each end of the histogram, as the command does), `DeskewOperation`, `TrimOperation`, and
 `GridOperation`. `SourceOptions` holds what the command-line options of a source hold (`Page`, `Dpi`, `Scale`, `Width`,
-`Height`, `Background`, `Strict`, `AutoOrient`, `Filter`, and `Scad` for a model's view and variables). The view of a
+`Height`, `Background`, `Strict`, `AutoOrient`, `Filter`, `Scad` for a model's view and variables, `VegaLite` for a
+chart's parameters, and `Mermaid`, a `DiagramOptions` whose `Theme` is the option behind `--theme`). The view of a
 model is `ScadViewOptions.View`, one of `iso` (the default), `front`, `back`, `left`, `right`, `top`, or `bottom` (any
 case; `SourceLoader.ScadViews` lists them with their angles; another name is a `usage-error`), and `Azimuth` and
 `Elevation` replace its angles. Naming a view other than `iso`, or setting an angle, is all it takes: you do **not**
@@ -539,8 +543,8 @@ per kind:
 - an **SVG** is drawn at that size and fitted by its own `preserveAspectRatio` (by default the aspect ratio is kept and
   the drawing is centered);
 - a **PDF, PPTX, or VSDX** page is fitted inside the box and centered, never stretched, with `Background` in the margin;
-- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart is scaled uniformly and centered
-  over its background.
+- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart or a **Mermaid** diagram is
+  scaled uniformly and centered over its background.
 
 `Scale` takes precedence: when it is set, `Width` and `Height` are ignored (the command line rejects the combination).
 `CanvasNetViewer.Render` is different for a raster: with both sizes it fits the picture inside the box over a
@@ -749,6 +753,50 @@ catch (ViewerException ex)
 }
 ```
 
+**`flatten` - an SVG drawing for other SVG readers.** A browser or WeasyPrint shows nothing for an
+`<image href="flow.mmd">` (or a model, a chart, a page of a document, or a nested SVG file that links one).
+`SvgFlattener.Execute` writes a copy of the drawing in which each such link is a PNG picture of its placement size
+times `Scale`, as a `data:` URI, drawn with the resolver of `render` (the folder of the drawing is the sandbox, with the
+same limits); only those attribute values change. When the drawing links no such picture nothing is written and
+`Flattened` is false, so the original can be used as it is. A link to such a file that the drawing, or an SVG file it shows,
+never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`):
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+try
+{
+    var info = SourceLoader.Probe("dashboard.svg");
+    var result = SvgFlattener.Execute(info, new FlattenRequest("print/dashboard.svg") { Scale = 2 });
+    if (!result.Flattened)
+    {
+        Console.WriteLine("nothing to flatten; use dashboard.svg as it is");
+    }
+
+    foreach (var image in result.Replaced)
+    {
+        Console.WriteLine($"{image.Href}: {image.Width}x{image.Height} {image.Format}");
+    }
+
+    foreach (var link in result.Rebased)                       // relative links rewritten for the folder of the copy
+    {
+        Console.WriteLine($"{link.Href} -> {link.NewHref}");
+    }
+
+    foreach (var note in result.Diagnostics)
+    {
+        Console.WriteLine($"{note.Severity} {note.Code}: {note.Message}");
+    }
+}
+catch (ViewerException ex)
+{
+    Console.Error.WriteLine($"{ex.Code}: {ex.Message}");
+}
+```
+
 **Inputs with a fragment - `part.scad#def.width=20`, `report.pdf#page=3`.** The command line accepts the syntax of a
 link of an SVG image after the file name, and so does the library: `InputReference.Parse(text)` splits the text (a `#`
 starts a fragment only when no file has the name as written; the longest existing file before a `#` is the path), and
@@ -845,7 +893,8 @@ foreach (var note in image.Diagnostics)
 ```
 
 **Diagnostics: `Code`, `Detail`, `Location`, and `Origin`.** Test the `Code` of a note, never its message. The code of a
-note for a model warning is the generic `scad-warning` (a chart warning is `vega-lite-warning`); the finer identifier of
+note for a model warning is the generic `scad-warning` (a chart warning is `vega-lite-warning`, a diagram warning
+`mermaid-warning`); the finer identifier of
 the library's own warning, such as `scad-anchor-invalid` or `scad-include-not-found`, or the `vl-*` identifier of a
 chart
 warning, is in `Detail` (it is `null` when the `Code` is already the most specific). `Location` is where the note
@@ -867,8 +916,8 @@ is `["a.svg"]`. A file link is shown as its folder-relative file name and a sche
   is a record and is **not** `IDisposable`, so it cannot be in a `using`.
 - **Nothing to dispose**: a `FolderImageResolver` (not `IDisposable`; it holds no open files, so no `using`), the
   results
-  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`, a `WriteResult`, and a `SourceInfo`
-  (plain
+  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, `MontageBuilder`, and `SvgFlattener`, a `WriteResult`, and a
+  `SourceInfo` (plain
   values, no pixels).
 - `ImagePipeline.Apply` returns a **new** surface that you dispose; its input is neither changed nor disposed.
 
@@ -877,9 +926,9 @@ beyond 8192 pixels, an output that cannot be written, inputs that cannot be comp
 stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints), a message, and a hint. Anything else
 is a defect and is not caught. The codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
-`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`, and
-`threshold-failed`. `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations are in
-`DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
+`output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
+`size-mismatch`, and `threshold-failed`. `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
+are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
 
 <!-- compile -->
 

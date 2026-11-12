@@ -1,0 +1,226 @@
+{
+  "source": "11-notes.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "classDiagram",
+  "viewBox": [0, 0, 338.156, 362],
+  "title": null,
+  "nodes": [
+    {
+      "id": "classId-Account-0",
+      "shape": "classBox",
+      "x": 238.773,
+      "y": 157,
+      "box": [174.977, 94, 127.594, 126],
+      "class": "node default",
+      "parts": [
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [174.977, 94, 127.594, 126]
+        },
+        {
+          "tag": "path",
+          "class": null,
+          "group": "basic label-container outer-path",
+          "box": [174.977, 94, 127.594, 126]
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [206.773, 106, 64, 24],
+          "text": "Account",
+          "style": "font-weight: bolder"
+        },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "methods-group text",
+          "box": [186.977, 184, 71.594, 24],
+          "text": "+deposit()"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [174.977, 142, 127.594, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [174.977, 166, 127.594, 0.001] }
+      ]
+    },
+    {
+      "id": "classId-Audit-1",
+      "shape": "classBox",
+      "x": 170.199,
+      "y": 312,
+      "box": [137.762, 270, 64.875, 84],
+      "class": "node default",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [137.762, 270, 64.875, 84] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [137.762, 270, 64.875, 84] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": "label-group text",
+          "box": [149.762, 282, 40.875, 24],
+          "text": "Audit",
+          "style": "font-weight: bolder"
+        },
+        { "tag": "path", "class": null, "group": "divider", "box": [137.762, 318, 64.875, 0.001] },
+        { "tag": "path", "class": null, "group": "divider", "box": [137.762, 336, 64.875, 0.001] }
+      ]
+    },
+    {
+      "id": "note0",
+      "shape": "note",
+      "x": 52.695,
+      "y": 26,
+      "box": [8, 8, 89.391, 36],
+      "class": "node undefined",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 89.391, 36] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [8, 8, 89.391, 36] },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [14, 14, 77.391, 24],
+          "text": "A free note",
+          "style": "text-align:left !important;white-space:nowrap !important"
+        }
+      ]
+    },
+    {
+      "id": "note1",
+      "shape": "note",
+      "x": 238.773,
+      "y": 26,
+      "box": [147.391, 8, 182.766, 36],
+      "class": "node undefined",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [147.391, 8, 182.766, 36] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [147.391, 8, 182.766, 36] },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [153.391, 14, 170.766, 24],
+          "text": "Notes attach\\nto a class",
+          "style": "text-align:left !important;white-space:nowrap !important"
+        }
+      ]
+    },
+    {
+      "id": "note2",
+      "shape": "note",
+      "x": 101.625,
+      "y": 157,
+      "box": [78.273, 127, 46.703, 60],
+      "class": "node undefined",
+      "parts": [
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [78.273, 127, 46.703, 60] },
+        { "tag": "path", "class": null, "group": "basic label-container outer-path", "box": [78.273, 127, 46.703, 60] },
+        {
+          "tag": "g",
+          "class": "label noteLabel",
+          "group": null,
+          "box": [84.273, 133, 34.703, 48],
+          "text": "Notebook",
+          "style": "text-align:left !important;white-space:nowrap !important"
+        }
+      ]
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "edgeNote1",
+      "class": "edge-thickness-normal edge-pattern-dotted relation",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 50,
+      "points": [
+        [238.773, 44],
+        [238.773, 46.5],
+        [238.773, 49],
+        [238.773, 51.5],
+        [238.773, 54],
+        [238.773, 56.5],
+        [238.773, 59],
+        [238.773, 61.5],
+        [238.773, 64],
+        [238.773, 66.5],
+        [238.773, 69],
+        [238.773, 71.5],
+        [238.773, 74],
+        [238.773, 76.5],
+        [238.773, 79],
+        [238.773, 81.5],
+        [238.773, 84],
+        [238.773, 86.5],
+        [238.773, 89],
+        [238.773, 91.5],
+        [238.773, 94]
+      ]
+    },
+    {
+      "id": "edgeNote2",
+      "class": "edge-thickness-normal edge-pattern-dotted relation",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 104.652,
+      "points": [
+        [101.625, 187],
+        [101.625, 192.233],
+        [101.626, 197.465],
+        [101.66, 202.698],
+        [101.8, 207.928],
+        [102.084, 213.153],
+        [102.541, 218.365],
+        [103.2, 223.556],
+        [104.096, 228.71],
+        [105.271, 233.809],
+        [106.776, 238.819],
+        [108.671, 243.695],
+        [110.96, 248.398],
+        [113.591, 252.92],
+        [116.511, 257.261],
+        [119.678, 261.426],
+        [123.052, 265.425],
+        [126.599, 269.271],
+        [130.279, 272.991],
+        [134.019, 276.65],
+        [137.762, 280.307]
+      ]
+    },
+    {
+      "id": "id_Account_Audit_1",
+      "class": "edge-thickness-normal edge-pattern-solid relation",
+      "markerStart": null,
+      "markerEnd": "classDiagram-dependencyEnd",
+      "length": 67.184,
+      "points": [
+        [238.773, 220],
+        [238.773, 223.359],
+        [238.745, 226.718],
+        [238.532, 230.07],
+        [238.065, 233.396],
+        [237.326, 236.671],
+        [236.311, 239.873],
+        [235.03, 242.977],
+        [233.497, 245.965],
+        [231.739, 248.827],
+        [229.818, 251.582],
+        [227.777, 254.249],
+        [225.644, 256.845],
+        [223.44, 259.379],
+        [221.177, 261.862],
+        [218.865, 264.299],
+        [216.515, 266.699],
+        [214.134, 269.068],
+        [211.734, 271.419],
+        [209.331, 273.766],
+        [206.928, 276.114]
+      ]
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

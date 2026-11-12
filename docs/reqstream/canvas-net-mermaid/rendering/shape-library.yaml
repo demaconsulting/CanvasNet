@@ -1,0 +1,256 @@
+---
+# Software Unit Requirements for ShapeLibrary
+#
+# These requirements describe the design-level behavior of the ShapeLibrary unit of the Rendering subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the node shapes of Mermaid's
+# rendering-elements/shapes in the classic look, their intersect functions, the subgraph rectangle, the class box,
+# the state shapes and clusters, the entity box, the mindmap shapes, and the shape registry ShapeNames.
+# See docs/verification/canvas-net-mermaid/rendering/shape-library.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: ShapeLibrary Requirements
+            requirements:
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-Registry
+                title: >-
+                  The ShapeLibrary unit shall know Mermaid's 53 documented shapes by their short names, aliases, and
+                  internal aliases and the undocumented shapes a diagram uses, each naming the shape it stands for,
+                  with a case-sensitive test of a name and a suggestion of the nearest name a flowchart accepts for a
+                  misspelled one.
+                justification: |
+                  The flowchart syntax accepts exactly the names of Mermaid's registry, and a typo deserves a useful
+                  hint.
+                tests:
+                  - ShapeNames_ShortNames_AreTheFiftyThreeDocumentedShapes
+                  - ShapeNames_HandlerOf_Alias_GivesItsShape
+                  - ShapeNames_IsKnown_UnknownOrWrongCase_IsFalse
+                  - ShapeNames_Nearest_Typo_SuggestsAcceptedName
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-EveryShape
+                title: >-
+                  The ShapeLibrary unit shall draw every shape name that a flowchart accepts, and shall fail with a
+                  located render failure that suggests a documented shape for a name it does not draw.
+                justification: |
+                  A flowchart may name any documented shape; a shape that only other diagram types use must fail
+                  clearly instead of drawing something else.
+                tests:
+                  - ShapeLibrary_Draw_EveryDocumentedName_IsDrawn
+                  - ShapeLibrary_Vectors_CoverEveryDocumentedShape
+                  - ShapeLibrary_Draw_UndrawnShape_ThrowsRenderFailed
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-Geometry
+                title: >-
+                  The ShapeLibrary unit shall give each shape, for the label box Mermaid measured, the node size,
+                  drawn box, label place, and outline intersections that the pinned Mermaid gives it, within 0.02
+                  pixel (0.06 pixel for the circles Mermaid draws through rough.js), in the direction of the graph the
+                  node is laid out in.
+                justification: |
+                  The geometry of the shapes is the basis of layout fidelity; checking it with Mermaid's own label
+                  box separates it from the text measurement.
+                tests:
+                  - ShapeLibrary_Draw_UpstreamVectorWithMermaidLabel_MatchesGeometry
+                  - ShapeLibrary_Draw_State_SizesToTheLabel
+                  - ShapeLibrary_Draw_ForkInLeftToRight_IsUpright
+                  - ShapeLibrary_SegmentBounds_Arcs_IncludeTheirExtremes
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-NodeSize
+                title: >-
+                  The ShapeLibrary unit shall give each shape, with the label measured by this library, the label box
+                  and node size of the pinned Mermaid within 0.02 pixel for HTML labels and within 2 pixels for SVG
+                  labels.
+                justification: |
+                  The node size that the layout uses is what the user sees; the tolerance for SVG labels covers the
+                  glyph rounding of the browser's text box.
+                tests:
+                  - ShapeLibrary_Draw_UpstreamVector_MatchesNodeSize
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-Intersections
+                title: >-
+                  The ShapeLibrary unit shall compute where a line from a node's center leaves its rectangle,
+                  ellipse, circle, or polygon outline with the arithmetic of Mermaid's intersect functions, including
+                  their quirks.
+                justification: |
+                  Edges end where the intersect functions say; the same arithmetic gives the same end points.
+                tests:
+                  - ShapeLibrary_IntersectRect_Point_LeavesThroughTheRightSide
+                  - ShapeLibrary_IntersectEllipse_Points_LieOnTheEllipse
+                  - ShapeLibrary_IntersectLine_Crossing_KeepsTheRoundingOffset
+                  - ShapeLibrary_IntersectLine_NoCrossing_GivesNull
+                  - ShapeLibrary_IntersectPolygon_Square_GivesNearestCrossing
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-Paint
+                title: >-
+                  The ShapeLibrary unit shall paint the parts of each shape with the colors and stroke widths that
+                  Mermaid's elements compute to, the node's own class and inline styles winning over the style sheet
+                  and its text properties applying to the label.
+                justification: |
+                  The look of a node follows the theme, classDef, class, and style statements exactly as in Mermaid.
+                tests:
+                  - ShapeLibrary_Draw_UpstreamVector_MatchesPaint
+                  - ShapeLibrary_SplitStyles_Styles_SplitsLabelFromNode
+                  - ShapeLibrary_Draw_UserStyles_PaintTheShape
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-LegacyEllipse
+                title: >-
+                  The ShapeLibrary unit shall draw the legacy ellipse shape of the A(-text-) syntax as an ellipse
+                  around the padded label with an elliptical outline for the edges.
+                justification: |
+                  The pinned Mermaid accepts the syntax but fails to draw it; the library draws what earlier Mermaid
+                  versions drew instead of failing.
+                tests:
+                  - ShapeLibrary_Draw_LegacyEllipse_IsAnEllipse
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-Images
+                title: >-
+                  The ShapeLibrary unit shall size an image node from the natural size of its picture, its width and
+                  height, and its aspect constraint, and shall keep the frame, report the picture, and draw no
+                  picture when the picture cannot be loaded.
+                justification: |
+                  Image nodes are sized as Mermaid sizes them; a picture that cannot be loaded must not stop the
+                  render or go unreported.
+                tests:
+                  - ShapeLibrary_Draw_ImageWithoutResolver_ReportsAndDrawsNoPicture
+                  - ShapeLibrary_Draw_UpstreamVectorWithMermaidLabel_MatchesGeometry
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-ClassBox
+                title: >-
+                  The ShapeLibrary unit shall draw a class box as Mermaid's class box shape does - the annotation, the
+                  name, the members, and the methods stacked with the dividers between them, the extra compartment of
+                  an empty class unless class.hideEmptyMembersBox is set, each text wrapped at Mermaid's width, bold
+                  names, underlined static and italic abstract members, HTML labels unless the top-level htmlLabels
+                  setting is false and SVG labels spaced by Mermaid's text padding otherwise - painted by the style
+                  sheet with the class's own styles winning, and sized and intersected by its rectangle.
+                justification: |
+                  The class box decides the size of every class, and so the whole layout of a class diagram; its parts
+                  must be where Mermaid puts them.
+                tests:
+                  - ShapeLibrary_Draw_ClassBoxWithMembers_StacksGroupsAndDividers
+                  - ShapeLibrary_Draw_EmptyClassBox_DrawsTheExtraCompartment
+                  - ShapeLibrary_Draw_EmptyClassBoxHidden_DrawsTheNameAlone
+                  - ShapeLibrary_Draw_ClassBoxSvgLabels_SpacesTheMembersByTheTextPadding
+                  - ShapeLibrary_ClassHtmlLabels_FollowsMermaidsEvaluate
+                  - ShapeLibrary_Draw_ClassBoxStyles_PaintTheDividersAsTheOutline
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-TrustedStyles
+                title: >-
+                  The ShapeLibrary unit shall apply the styles that a diagram writes for its own nodes (the alignment,
+                  the white space, and the paint of a class diagram's notes and the hidden lollipop interfaces) without
+                  reports, while still reporting the properties it does not draw when they come from the user.
+                justification: |
+                  A diagram-generated style is not the author's choice; reporting it would warn about every note.
+                tests:
+                  - ShapeLibrary_Draw_TrustedNodeStyles_ApplyWithoutReports
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-StateShapes
+                title: >-
+                  The ShapeLibrary unit shall draw the shapes of a state diagram as Mermaid's state shapes do - a state
+                  as a rounded rectangle with the padding around its label and the corner radius of the style sheet, a
+                  state with descriptions as its title above a line and the descriptions below it, the start state as
+                  a circle, the end state as the rough.js outline Mermaid draws with its exact size, the fork and join
+                  bars without the padding Mermaid's measuring overwrites, the choice diamond, and the note - each
+                  painted through the selectors of the state style sheet, and in a sheet without those selectors (a
+                  flowchart's) by the node rule as before, the node's own styles winning.
+                justification: |
+                  The state shapes decide the size of every state, and so the whole layout of a state diagram; their
+                  parts and paint must be where and as Mermaid draws them.
+                tests:
+                  - ShapeLibrary_Draw_StateRect_IsARoundedRectWithTheCssRadius
+                  - ShapeLibrary_Draw_RectWithTitle_PlacesTitleDescriptionAndDivider
+                  - ShapeLibrary_Draw_StateEnd_IsTheRoughJsOutline
+                  - ShapeLibrary_Draw_StateFork_IsTheBarWithoutThePadding
+                  - ShapeLibrary_Draw_StateShapes_PaintThroughTheStateSheet
+                  - ShapeLibrary_Draw_StateShapesInAFlowchart_TakeTheNodeRule
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-StateClusters
+                title: >-
+                  The ShapeLibrary unit shall draw the clusters of a state diagram as Mermaid does - a composite state
+                  as an outer rounded rectangle with its title band and an inner area filled with the background or,
+                  at alternate depths, the alternate background, widened to its title when the title is wider; a
+                  concurrent region as a dashed rectangle; and a note group as an outline that is not painted.
+                justification: |
+                  Composite states, regions, and notes are the structure of a state diagram; their rectangles must be
+                  where and as Mermaid draws them.
+                tests:
+                  - ShapeLibrary_DrawCluster_RoundedWithTitle_DrawsOuterTitleAndInner
+                  - ShapeLibrary_DrawCluster_RoundedWithTitleNarrow_IsWidenedToTheTitle
+                  - ShapeLibrary_DrawCluster_DividerAndNoteGroup_AreDashedAndInvisible
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-ErBox
+                title: >-
+                  The ShapeLibrary unit shall draw an entity as Mermaid's entity box shape does - without attributes,
+                  a rectangle around its name at least the minimum entity width; with attributes, a table of the name
+                  row and one row per attribute in type, name, keys, and comment columns as wide as their widest text
+                  and the padding, a keys or comment column that no attribute uses left out, the rows filled in turn,
+                  and the dividers - growing the paddings by a quarter unless the top-level htmlLabels setting is set,
+                  drawing SVG text when it is false, and counting an empty SVG cell in the size of the box as Mermaid's
+                  measuring does.
+                justification: |
+                  The entity box decides the size of every entity, and so the whole layout of an entity relationship
+                  diagram; its rows and cells must be where Mermaid puts them.
+                tests:
+                  - ShapeLibrary_Draw_ErBoxWithAttributes_LaysOutTheTable
+                  - ShapeLibrary_Draw_ErBoxWithoutAttributes_IsAtLeastTheMinimumWidth
+                  - ShapeLibrary_Draw_ErBoxSvgEmptyCell_WidensTheBox
+                  - ShapeLibrary_ErHtmlLabels_FollowsTheTopLevelSetting
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-SvgTextAnchor
+                title: >-
+                  The ShapeLibrary unit shall center the SVG text of a node's label on its anchor only when the
+                  diagram's style sheet centers it, and otherwise start the text at its anchor, as the state and entity
+                  relationship style sheets of Mermaid do.
+                justification: |
+                  Without the centering rule the browser starts the text at its anchor; the labels of state and entity
+                  relationship diagrams drawn as SVG text must stand where Mermaid's do.
+                tests:
+                  - ShapeLibrary_Draw_SvgNodeText_IsCenteredOnlyWhenTheSheetCentersIt
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-MindmapShapes
+                title: >-
+                  The ShapeLibrary unit shall draw the two shapes of a mindmap as Mermaid's mindmap shapes do - the
+                  default node as a box with rounded corners four paddings wider and one padding taller than its label,
+                  with the label centered, the line along its bottom edge painted only by a style sheet that has a rule
+                  for it, and the outline of a rectangle for the edges; and the mindmap circle as a circle that pads its
+                  label by the whole padding.
+                justification: |
+                  The mindmap shapes decide the size of every mindmap node, and so the whole layout of a mindmap; their
+                  parts must be where and as Mermaid draws them.
+                tests:
+                  - ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel
+                  - ShapeLibrary_Draw_DefaultMindmapNodeInAFlowchart_DrawsNoLine
+                  - ShapeLibrary_Draw_MindmapCircle_TakesTheWholePadding
+                  - ShapeLibrary_Draw_UpstreamVectorWithMermaidLabel_MatchesGeometry
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-ClassPaint
+                title: >-
+                  The ShapeLibrary unit shall paint the body of each shape by the element that draws it and the node's
+                  classes, and its label by the node's classes, through the diagram's style sheet, so that a mindmap
+                  node takes the colors of its section.
+                justification: |
+                  Mermaid paints a mindmap node through rules for the classes of the node and the element of the shape;
+                  the same lookup gives the same colors.
+                tests:
+                  - ShapeLibrary_Draw_MindmapSheet_PaintsByElementAndClasses
+                  - ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-WrapWidth
+                title: >-
+                  The ShapeLibrary unit shall wrap a node's label at the node's own width when it has one that is not
+                  zero, and at flowchart.wrappingWidth otherwise, as Mermaid's label helper does.
+                justification: |
+                  A mindmap node wraps at mindmap.maxNodeWidth while the other nodes keep the flowchart's width; the
+                  wrapping decides the size of the node.
+                tests:
+                  - ShapeLibrary_Draw_NodeWidth_IsTheWrappingWidthWhenTruthy
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-LabelBackground
+                title: >-
+                  The ShapeLibrary unit shall give the SVG label of a node its background when the node has an icon or
+                  an image, whatever its shape, as Mermaid's label helper does.
+                justification: |
+                  The background changes the size of the label, and so of the node, of a mindmap node with an icon
+                  drawn with SVG labels.
+                tests:
+                  - ShapeLibrary_Draw_IconOrImage_GivesTheLabelItsBackground

@@ -11,8 +11,8 @@ sections:
     requirements:
       - id: CanvasNetTool-Validation-Qualification
         title: >-
-          The Validation class shall run the self-validation tests, name them as the platform
-          evidence tests, and print a summary.
+          The Validation class shall run the seventeen self-validation tests in their documented order (the help
+          examples self-test last), name them as the platform evidence tests, and print a summary.
         justification: |
           Provides a built-in mechanism to verify the tool is functioning correctly in the
           deployment environment. The names of the version and help self-tests are contractual:
@@ -22,6 +22,7 @@ sections:
           - Validation_Run_NotSilent_PrintsSummary
           - Validation_Run_WithSilentContext_ExitCodeIsZero
           - Validation_Run_NullContext_ThrowsArgumentNullException
+          - Validation_Run_SeventeenSelfTests_RunInTheDocumentedOrder
 
       - id: CanvasNetTool-Validation-Header
         title: >-
@@ -137,17 +138,34 @@ sections:
           - Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded
           - CanvasNetTool_RenderVegaLite
 
+      - id: CanvasNetTool-Validation-MermaidSelfTest
+        title: >-
+          The Validation class shall run the Mermaid self-test, right after the Vega-Lite self-test, which writes a
+          three-node flowchart to a temporary folder, runs the info command on it (checking the mermaid format, the
+          flowchart type, that it is drawn by this version, three nodes, and two edges) and the render command to a PNG
+          in-process, and checks that the decoded size is the size info reported, that the corner is white, and that the
+          first node has the node fill of the default theme.
+        justification: |
+          The Mermaid self-test proves, in the deployment environment, that the Mermaid library bundled with the tool,
+          its fonts, the source loader, and the commands work together on an original diagram; its name is a contract
+          with the qualification evidence. It is a smoke test of one diagram: the detailed coverage is in the unit and
+          subsystem tests, and the self-validation suite is kept small.
+        tests:
+          - Validation_Run_MermaidSelfTest_PassesAndIsRecorded
+          - Validation_Run_SeventeenSelfTests_RunInTheDocumentedOrder
+          - CanvasNetTool_RenderMermaid
+
       - id: CanvasNetTool-Validation-HelpExamplesSelfTest
         title: >-
           The Validation class shall run the help examples self-test, which renders every source example of the help
           topics in-process with the strict option, checking that it succeeds without a diagnostic, that the help
           command prints the source of an example exactly as it ships, and that the help topics JSON document lists
-          all ten topics.
+          every topic in order.
         justification: |
           The help examples self-test proves, in the deployment environment, that the help content shipped inside the
-          tool is present and that its examples render through the SVG, OpenSCAD, and Vega-Lite renderers bundled
-          with the tool; its name is a contract with the qualification evidence. It is a smoke test: the detailed
-          coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
+          tool is present and that its examples render through the SVG, OpenSCAD, Vega-Lite, and Mermaid renderers
+          bundled with the tool; its name is a contract with the qualification evidence. It is a smoke test: the
+          detailed coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
         tests:
           - Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded
           - CanvasNetTool_HelpExamples
