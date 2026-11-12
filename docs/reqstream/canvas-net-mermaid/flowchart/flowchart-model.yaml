@@ -99,7 +99,6 @@ sections:
                   place where it is written.
                 tests:
                   - FlowchartModel_ReportUnsupported_LookLayoutAndIcons_AreReportedInOrder
-                  - FlowchartModel_ContainsFontAwesome_Label_FindsIcons
 
               - id: CanvasNetMermaid-Flowchart-FlowchartModel-Drawing
                 title: >-

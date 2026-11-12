@@ -4,7 +4,7 @@
 # These requirements describe the design-level behavior of the ShapeLibrary unit of the Rendering subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the node shapes of Mermaid's
 # rendering-elements/shapes in the classic look, their intersect functions, the subgraph rectangle, the class box,
-# the state shapes and clusters, the entity box, and the shape registry ShapeNames.
+# the state shapes and clusters, the entity box, the mindmap shapes, and the shape registry ShapeNames.
 # See docs/verification/canvas-net-mermaid/rendering/shape-library.md for the test-evidence mapping.
 
 sections:
@@ -206,3 +206,51 @@ sections:
                   relationship diagrams drawn as SVG text must stand where Mermaid's do.
                 tests:
                   - ShapeLibrary_Draw_SvgNodeText_IsCenteredOnlyWhenTheSheetCentersIt
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-MindmapShapes
+                title: >-
+                  The ShapeLibrary unit shall draw the two shapes of a mindmap as Mermaid's mindmap shapes do - the
+                  default node as a box with rounded corners four paddings wider and one padding taller than its label,
+                  with the label centered, the line along its bottom edge painted only by a style sheet that has a rule
+                  for it, and the outline of a rectangle for the edges; and the mindmap circle as a circle that pads its
+                  label by the whole padding.
+                justification: |
+                  The mindmap shapes decide the size of every mindmap node, and so the whole layout of a mindmap; their
+                  parts must be where and as Mermaid draws them.
+                tests:
+                  - ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel
+                  - ShapeLibrary_Draw_DefaultMindmapNodeInAFlowchart_DrawsNoLine
+                  - ShapeLibrary_Draw_MindmapCircle_TakesTheWholePadding
+                  - ShapeLibrary_Draw_UpstreamVectorWithMermaidLabel_MatchesGeometry
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-ClassPaint
+                title: >-
+                  The ShapeLibrary unit shall paint the body of each shape by the element that draws it and the node's
+                  classes, and its label by the node's classes, through the diagram's style sheet, so that a mindmap
+                  node takes the colors of its section.
+                justification: |
+                  Mermaid paints a mindmap node through rules for the classes of the node and the element of the shape;
+                  the same lookup gives the same colors.
+                tests:
+                  - ShapeLibrary_Draw_MindmapSheet_PaintsByElementAndClasses
+                  - ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-WrapWidth
+                title: >-
+                  The ShapeLibrary unit shall wrap a node's label at the node's own width when it has one that is not
+                  zero, and at flowchart.wrappingWidth otherwise, as Mermaid's label helper does.
+                justification: |
+                  A mindmap node wraps at mindmap.maxNodeWidth while the other nodes keep the flowchart's width; the
+                  wrapping decides the size of the node.
+                tests:
+                  - ShapeLibrary_Draw_NodeWidth_IsTheWrappingWidthWhenTruthy
+
+              - id: CanvasNetMermaid-Rendering-ShapeLibrary-LabelBackground
+                title: >-
+                  The ShapeLibrary unit shall give the SVG label of a node its background when the node has an icon or
+                  an image, whatever its shape, as Mermaid's label helper does.
+                justification: |
+                  The background changes the size of the label, and so of the node, of a mindmap node with an icon
+                  drawn with SVG labels.
+                tests:
+                  - ShapeLibrary_Draw_IconOrImage_GivesTheLabelItsBackground

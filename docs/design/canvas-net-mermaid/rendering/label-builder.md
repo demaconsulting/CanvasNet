@@ -90,6 +90,10 @@ wrap, and the width of an entity box text and of a narrow entity name. The unit'
   `ts-dedent` does, and no-break spaces when `markdownAutoWrap` is off; any other block is kept as written.
 - `DecodeEntities(text)` and `DecodeHtmlEntities(text)` - Mermaid's entity placeholders and the character references
   (through the sanitizer's table).
+- `ContainsFontAwesome(text)` (static) - whether a label holds a Font Awesome icon as Mermaid finds one: the prefix
+  `fa`, `fab`, `fak`, `fal`, `far`, or `fas`, then `:fa-` and a word character or a dash; null holds none. The diagrams
+  that report such icons (the flowchart and the mindmap) share this test, which moved here from `FlowchartModel` so
+  that the `Mindmap` subsystem does not depend on the `Flowchart` subsystem.
 - `Face`, `Advance`, and `VerticalMetrics` - the face of a family list, the advance of a text with the core
   `TextRenderer`, and the ascent and descent rounded to whole pixels as the browser uses them.
 - `LabelLayout.ToScene(dx, dy, role, id, location)` - the text lines (anchored at their start) and the pictures of the
@@ -167,8 +171,11 @@ builder for each render (charged to the render's work meter) and measures and wr
 of the `Gantt` subsystem create a builder for each render (charged to the render's work meter) and measure their SVG
 texts with `SvgLineExtent` and `VerticalMetrics` (the title, the percentage labels, and the legend texts of a pie chart;
 the task texts, section titles, tick labels, and title of a gantt chart) and `ParseFontSize`, split texts at `<br>` with
-`SplitBreaks`, and decode the texts they draw with `DecodeEntities` and `CollapseSvgWhiteSpace`. The tests in
-`LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
+`SplitBreaks`, and decode the texts they draw with `DecodeEntities` and `CollapseSvgWhiteSpace`. `MindmapRenderer` of
+the `Mindmap` subsystem creates a builder for each render (charged to the render's work meter) and sets its `Build` as
+the `ShapeContext.MeasureLabel` of the mindmap's nodes, decodes each label with `DecodeEntities` before it checks the
+label's length, and reports Font Awesome labels with `ContainsFontAwesome`, which `FlowchartModel` also uses. The tests
+in `LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
 

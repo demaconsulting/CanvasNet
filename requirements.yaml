@@ -230,6 +230,11 @@ includes:
   - docs/reqstream/canvas-net-mermaid/gantt/gantt-model.yaml
   - docs/reqstream/canvas-net-mermaid/gantt/gantt-renderer.yaml
   - docs/reqstream/canvas-net-mermaid/gantt/time-axis.yaml
+  - docs/reqstream/canvas-net-mermaid/mindmap.yaml
+  - docs/reqstream/canvas-net-mermaid/mindmap/mindmap-parser.yaml
+  - docs/reqstream/canvas-net-mermaid/mindmap/mindmap-renderer.yaml
+  - docs/reqstream/canvas-net-mermaid/cose.yaml
+  - docs/reqstream/canvas-net-mermaid/cose/cose-layout.yaml
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml

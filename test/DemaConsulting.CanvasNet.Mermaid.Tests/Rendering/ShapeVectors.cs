@@ -57,7 +57,10 @@ internal static class ShapeVectors
     ///     Gets the node and the configuration of a case.
     /// </summary>
     /// <param name="vector">The case.</param>
-    /// <returns>The node (the first vertex) and the effective configuration.</returns>
+    /// <returns>
+    ///     The node (the first vertex, with the case's node fields: the shape, padding and width the probe gave Mermaid's
+    ///     node before drawing it) and the effective configuration.
+    /// </returns>
     public static (LayoutNode Node, MermaidConfig Config) NodeOf(JsonObject vector)
     {
         var text = (string)vector["text"]!;
@@ -66,7 +69,18 @@ internal static class ShapeVectors
         var model = Assert.IsType<FlowchartModel>(document.Diagram);
         var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site, text);
         var data = model.GetData(config, document.Detected.MermaidId);
-        return (data.Nodes.First(node => !node.IsGroup), config);
+        var node = data.Nodes.First(node => !node.IsGroup);
+        if (vector["node"] is JsonObject fields)
+        {
+            node = node with
+            {
+                Shape = (string?)fields["shape"] ?? node.Shape,
+                Padding = (double?)fields["padding"] ?? node.Padding,
+                Width = (double?)fields["width"] ?? node.Width,
+            };
+        }
+
+        return (node, config);
     }
 
     /// <summary>

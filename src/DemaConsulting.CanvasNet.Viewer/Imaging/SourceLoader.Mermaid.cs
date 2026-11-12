@@ -28,8 +28,8 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         A render is static and offline and uses only the fonts bundled with the libraries, so the same diagram gives the
 ///         same pixels on every machine. A warning of the library is the note <c>mermaid-warning</c> with the specific
 ///         <c>mermaid-*</c> code in <see cref="ImageDiagnostic.Detail"/>; a construct the library recognizes but does not
-///         draw is the unsupported note named by its feature (a diagram type that is not drawn yet, such as a class
-///         diagram, is <c>mermaid-diagram-unsupported</c> and an empty picture); with <see cref="SourceOptions.Strict"/> it
+///         draw is the unsupported note named by its feature (a diagram type that is not drawn, such as a user
+///         journey, is <c>mermaid-diagram-unsupported</c> and an empty picture); with <see cref="SourceOptions.Strict"/> it
 ///         is an <c>unsupported-feature</c> error instead. Text that is not a valid diagram, and a diagram that cannot be
 ///         laid out, is a <c>mermaid-error</c> with the hint of the library; a limit of the library (nodes, edges, layout
 ///         work, pictures, painted pixels) is <c>budget-exceeded</c>; a text longer than the text limit is
@@ -277,7 +277,7 @@ public static partial class SourceLoader
     /// <param name="unsupported">The report.</param>
     /// <returns>
     ///     One line, for example <c>flow.mmd:1:1: 'journey' diagrams (journey) are not drawn by this version; the
-    ///     picture is empty (journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt)</c>.
+    ///     picture is empty (journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap)</c>.
     /// </returns>
     private static string DescribeUnsupported(MermaidUnsupportedFeature unsupported)
     {

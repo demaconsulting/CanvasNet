@@ -1,0 +1,69 @@
+---
+# Software Subsystem Requirements for Cose
+#
+# These requirements decompose the CanvasNetMermaid system's mindmap layout responsibility into the Cose subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Cose): the port of the cose-bilkent force-directed layout that
+# Mermaid uses for a mindmap, with the cytoscape edge points and the correctly rounded math it needs to give the
+# browser's numbers (CoseLayout). Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-mermaid/cose.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Cose Requirements
+        requirements:
+          - id: CanvasNetMermaid-Cose-Layout
+            title: >-
+              The Cose subsystem shall lay out a tree of node sizes as the cose-bilkent layout of the pinned Mermaid
+              does in the browser - nodes that start overlapping pushed apart into a finite layout, the top-left corner
+              of the drawing at the margin of 15 pixels, and each edge given as a start point 15 pixels from its source
+              center, an end point 15 pixels from its target center, and the middle between them - with the same node
+              centers, edge points, and number of iterations as Mermaid's layout in the browser, and shall refuse an
+              input that is not one tree.
+            justification: |
+              Mermaid lays out every mindmap with cose-bilkent; a drawing that matches Mermaid needs the same layout,
+              so the port is checked against layouts recorded from Mermaid's own libraries in the browser.
+            children:
+              - CanvasNetMermaid-Cose-CoseLayout-Tree
+              - CanvasNetMermaid-Cose-CoseLayout-StartPlacement
+              - CanvasNetMermaid-Cose-CoseLayout-Forces
+              - CanvasNetMermaid-Cose-CoseLayout-JavaScriptNumbers
+              - CanvasNetMermaid-Cose-CoseLayout-EdgePoints
+              - CanvasNetMermaid-Cose-CoseLayout-BrowserFidelity
+            tests:
+              - Cose_Layout_MindmapTree_EdgesBetweenCenters
+              - Cose_Layout_OverlappingStart_FiniteLayout
+
+          - id: CanvasNetMermaid-Cose-Determinism
+            title: >-
+              The Cose subsystem shall give the same layout, bit for bit, for the same tree every time, on every thread,
+              and on every platform, making no random choice and computing its sines, cosines, logarithms, and powers
+              without the math library of the host.
+            justification: |
+              Identical pixels on every render and every machine start with an identical layout; a chaotic layout
+              magnifies the last-bit differences between math libraries, so the math must not depend on the host.
+            children:
+              - CanvasNetMermaid-Cose-CoseLayout-Math
+              - CanvasNetMermaid-Cose-CoseLayout-Forces
+            tests:
+              - Cose_Layout_SameTree_Deterministic
+
+          - id: CanvasNetMermaid-Cose-Limits
+            title: >-
+              The Cose subsystem shall charge the work of a layout, deterministically, to the MaxLayoutWork budget of
+              the call and stop a layout that would pass it with a located MermaidRenderException of code
+              mermaid-limit-exceeded; shall fail a layout of sizes it cannot lay out (a repulsion grid that cannot be
+              built or a node outside it) with mermaid-limit-exceeded or mermaid-render-failed before it allocates the
+              grid, never hanging; shall stop a canceled layout with an OperationCanceledException; and shall lay out a
+              tree of 400 nodes within the default budget.
+            justification: |
+              Untrusted text decides the number and the sizes of the nodes; the layout must fail early, at a
+              documented limit, with an error the caller can act on, and a caller that cancels must not wait for it.
+            children:
+              - CanvasNetMermaid-Cose-CoseLayout-Work
+              - CanvasNetMermaid-Cose-CoseLayout-Failures
+              - CanvasNetMermaid-Cose-CoseLayout-Cancellation
+            tests:
+              - Cose_Layout_HugeSizes_LimitOrRenderFailure
+              - Cose_Layout_FourHundredNodes_WithinDefaultLimit
+              - Cose_Layout_SmallBudgetOrCanceled_Stops

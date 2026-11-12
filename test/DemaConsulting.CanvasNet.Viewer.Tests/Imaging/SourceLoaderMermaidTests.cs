@@ -264,6 +264,34 @@ public class SourceLoaderMermaidTests
     }
 
     /// <summary>
+    ///     Test that a mindmap is probed as a supported diagram with its nodes and edges, and drawn strictly at its natural
+    ///     size over white, as the library draws it, with no note.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidMindmap_ProbesAndDraws()
+    {
+        // Arrange
+        const string Text = "mindmap\n  root((Garden))\n    Soil\n      Compost\n    Plants\n      beans[Beans]\n";
+        using var directory = new TempDirectory();
+        var path = directory.Combine("garden.mmd");
+        File.WriteAllText(path, Text);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the facts, the size, the white corner, the library's pixels, and no note
+        Assert.Equal(new DiagramFacts("mindmap", true, null, null, null, 5, 4, 0), info.Diagram);
+        Assert.Equal((info.Width, info.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(White, loaded.Surface[0, 0]);
+        Assert.Equal((expected.Width, expected.Height), (loaded.Surface.Width, loaded.Surface.Height));
+        Assert.Equal(0, CountDifferences(expected, loaded.Surface));
+        Assert.True(CountNot(loaded.Surface, White) > loaded.Surface.Width * loaded.Surface.Height / 20);
+        Assert.Empty(loaded.Diagnostics);
+    }
+
+    /// <summary>
     ///     Test that a diagram type this version does not draw (a user journey) is probed with <c>Supported</c> false and
     ///     drawn as an empty picture with one unsupported note that says it is not supported, and that strict mode makes it an
     ///     <c>unsupported-feature</c> error with the library's hint.
@@ -285,7 +313,7 @@ public class SourceLoaderMermaidTests
         Assert.Equal((16, 16), (loaded.Surface.Width, loaded.Surface.Height));
         Assert.Equal(White, loaded.Surface[8, 8]);
 
-        // Assert: one note, located at the keyword, that says the type is not drawn yet and which types are
+        // Assert: one note, located at the keyword, that says the type is not drawn and which types are
         var note = Assert.Single(loaded.Diagnostics);
         Assert.Equal(("mermaid", "unsupported", MermaidDiagnosticCodes.DiagramUnsupported), (note.Source, note.Severity, note.Code));
         Assert.Contains("not drawn by this version", note.Message, StringComparison.Ordinal);

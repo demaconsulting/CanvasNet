@@ -222,3 +222,24 @@ warning; that a frontmatter with a top-level `displayMode: compact` and `gantt.b
 `gantt.tickInterval: 1week`, `gantt.topAxis: true`, and `gantt.useWidth: 900` gives those values (the display mode
 `compact` moved from the frontmatter) without a warning; and that a directive with a text `gantt.barHeight` and a number
 `gantt.topAxis` gives two `mermaid-config-invalid` warnings and leaves the typed `gantt` section at its defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection: The Mindmap Section
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_MindmapSection_DefaultsValuesAndInvalidValues`
+
+Asserts, for a mindmap without configuration, that the effective `mindmap` section holds the 4 keys of Mermaid's schema
+and that the typed `mindmap` section is the default `MindmapConfig`: a padding of 10, a maximum node width of 200, the
+layout algorithm `cose-bilkent`, and `useMaxWidth` true, without a warning; that a frontmatter with
+`mindmap.padding: 4`, `mindmap.maxNodeWidth: 120`, `mindmap.layoutAlgorithm: other`, and `mindmap.useMaxWidth: false`
+gives those values without a warning; and that a directive with a text `mindmap.padding` and a Boolean
+`mindmap.maxNodeWidth` gives two `mermaid-config-invalid` warnings, one naming `mindmap.padding`, and leaves the typed
+`mindmap` section at its defaults.
+
+##### CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapLayout: Cose-Bilkent Unless The User Sets A Layout
+
+**Tests**: `MermaidConfigResolverTests.MermaidConfigResolver_Resolve_MindmapLayout_IsCoseBilkentUnlessUserDefined`
+
+Asserts that a mindmap without configuration, and one whose frontmatter sets only `mindmap.layoutAlgorithm: elk`, are
+laid out with `cose-bilkent`, as the mindmap database's `getData` sets it; that a frontmatter `layout: elk`, a directive
+`layout: tidy-tree`, and a site configuration `layout: dagre` are kept as the mindmap's layout (the user's layout wins,
+even `dagre`); and that a flowchart keeps the default `dagre`.

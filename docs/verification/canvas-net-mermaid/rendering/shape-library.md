@@ -21,15 +21,19 @@ use the `ShapeContext` of a default state diagram (`stateDiagram-v2` with the st
 measurement gives a box chosen by the text of the request (and records the requests where a test needs them), and the
 entity box tests the `ShapeContext` of an entity relationship diagram text (its frontmatter `htmlLabels` and the
 entity relationship style sheet) whose labels measure 40 by 24 pixels, or nothing for an empty text, with a fixed text
-width where a test needs one.
+width where a test needs one. The mindmap shape tests use the `ShapeContext` of a mindmap text with the mindmap's style
+sheet (and, where a test needs it, a site configuration with a `themeCSS` rule or a `flowchart.wrappingWidth`) whose
+labels measure 40 by 24 pixels and whose label requests are recorded.
 
 The vector tests in `ShapeLibraryVectorTests.cs` compare every case of the upstream vectors
-`Fixtures/upstream-vectors/shapes.json` (286 cases) with this library. The vectors were recorded from the pinned Mermaid
+`Fixtures/upstream-vectors/shapes.json` (296 cases) with this library. The vectors were recorded from the pinned Mermaid
 in headless Chrome with the bundled Liberation Sans by `tools/visual-diff/mermaid/gen-shape-vectors.mjs`, which
 inserts every node with Mermaid's own `insertNode` and records the node's size, its drawn box, the label's translation
 and measured box, the computed paint of every drawn element, and 48 intersections (24 directions at two radii). The
 cases cover the 53 documented shapes with a short HTML label, a wrapping HTML label, and an SVG label, the undocumented
-shapes, the bracket shapes, label, font, padding, style, image, and icon variants. The helper `ShapeVectors` reads the
+shapes, the bracket shapes, label, font, padding, style, image, and icon variants, and the two mindmap shapes
+(`defaultMindmapNode` and `mindmapCircle`) with short, long, and SVG labels and with the mindmap's padding of 10 and a
+width of 100, the node's own fields applied as Mermaid's mindmap renderer gives them. The helper `ShapeVectors` reads the
 vectors and draws a case's node, either with Mermaid's measured label box (to check the geometry alone) or with this
 library's label measurement (to check the node size). No mocking is required; the internal types are reached through
 the test assembly's `InternalsVisibleTo` access.
@@ -252,3 +256,43 @@ Draws a state node with the state diagram's sheet and a rectangle node with a fl
 requests, and asserts that the state's label is requested with its SVG text starting at its anchor (`CenterSvgText`
 false), as the state sheet has no centering rule, and the flowchart's with its SVG text centered on its anchor
 (`CenterSvgText` true), as its `.node .label text` rule centers it.
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-MindmapShapes: The Mindmap Shapes Are Mermaid's
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel`,
+`ShapeLibraryTests.ShapeLibrary_Draw_DefaultMindmapNodeInAFlowchart_DrawsNoLine`,
+`ShapeLibraryTests.ShapeLibrary_Draw_MindmapCircle_TakesTheWholePadding`,
+`ShapeLibraryVectorTests.ShapeLibrary_Draw_UpstreamVectorWithMermaidLabel_MatchesGeometry`
+
+Asserts that `defaultMindmapNode` around a label of 40 by 24 with a padding of 10 is drawn by its own handler as a box
+of 80 by 34 from (-40, -17) (four half paddings beside the label and one half padding above and below), its body a path
+with four quadratic corners filled with the section color `#ffff78` and not stroked, its line along the bottom edge
+from (-40, 17), 80 wide, stroked `#ababff` 3 pixels wide, its label offset (-20, -12), and the rectangle's intersection
+(a point at (200, 0) gives (40, 0)); that in a flowchart's sheet, which has no line rule, the same node is the same size
+with its body in the node colors and no line; that `mindmapCircle` is a circle of 60 by 60 (the whole padding) where
+`circle` is 50 by 50 (half of it), with an intersection at x 30; and that the mindmap vector cases of both shapes
+(short, long, and SVG labels, the mindmap padding and width) give Mermaid's node size, drawn box, and label place.
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-ClassPaint: A Mindmap's Sheet Paints By Element And Classes
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_MindmapSheet_PaintsByElementAndClasses`,
+`ShapeLibraryTests.ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel`
+
+Asserts that with a `themeCSS` rule `.section-1 circle { fill: #ff0000 }` the `mindmapCircle` of a node of section 1 is
+red while its `rect`, `rounded`, `hexagon`, `cloud`, and `bang` take the section color `cScale2`, none of them stroked,
+that the root's `defaultMindmapNode` takes `git0`, and that the labels are requested in the section's `cScaleLabel2`
+and the root's `gitBranchLabel0`; and the line paint of the scenario above.
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-WrapWidth: The Node's Width Is The Wrapping Width
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_NodeWidth_IsTheWrappingWidthWhenTruthy`
+
+Asserts that with a `flowchart.wrappingWidth` of 150 the labels of nodes whose width is 100, 0, NaN, and unset are
+requested with the wrapping widths 100, 150, 150, and 150 (the node's width when JavaScript finds it truthy).
+
+##### CanvasNetMermaid-Rendering-ShapeLibrary-LabelBackground: An Icon Or An Image Gives The Label Its Background
+
+**Tests**: `ShapeLibraryTests.ShapeLibrary_Draw_IconOrImage_GivesTheLabelItsBackground`
+
+Asserts that the label of a node with the icon `fa fa-book` or the image `a.png` is requested with a background, and
+the label of a node with an empty icon or neither is not, as JavaScript's `!!` tests them.

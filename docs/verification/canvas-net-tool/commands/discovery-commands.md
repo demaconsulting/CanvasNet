@@ -35,8 +35,9 @@ console.
   describes a chart as one text line and as the `image` and `chart` objects.
 - The listing names the `mermaid` format (kind `diagram`, extensions `.mmd` and `.mermaid`, help topic `mermaid`) in
   text and JSON, and `info` describes a diagram as one text line and as the `image` and `diagram` objects, with
-  `supported` false for a type that is not drawn yet and the counts named participants, messages, and boxes for a
-  sequence diagram (a class diagram counts its classes, relations, and namespaces as nodes, edges, and subgraphs); a
+  `supported` false for a type that is not drawn and the counts named participants, messages, and boxes for a
+  sequence diagram (a class diagram counts its classes, relations, and namespaces as nodes, edges, and subgraphs, and a
+  mindmap its nodes, the edges to them, and no subgraphs); a
   theme fragment is checked and does not change the description.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
@@ -188,6 +189,12 @@ legend entries; the repeated label is not counted), 0 edges, and 0 subgraphs, an
 section without tasks is described with the type `gantt`, `supported` true, no `direction`, and 3 nodes (the tasks, the
 marker included), 0 edges, and 2 subgraphs (the drawn sections), laid out 784 pixels wide, the width Mermaid takes in
 the page of `mmdc`, and its text line has the same facts.
+
+**DiscoveryCommands_Info_Mindmap_ReportsNodesAndEdges**: a mindmap under the frontmatter title `Garden`, with the circle
+root `Garden`, the child `Soil` (with `Compost`), and the child `Plants`, is described with the type `mindmap`,
+`supported` true, no `direction`, the title `Garden` (the frontmatter title, as a mindmap declares none of its own), 4
+nodes, 3 edges, and 0 subgraphs, and its text line is exactly `<path>: mermaid, WxH px (laid out), mindmap, 4 nodes, 3
+edges, 0 subgraphs, title "Garden", <bytes> bytes`.
 
 **DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and

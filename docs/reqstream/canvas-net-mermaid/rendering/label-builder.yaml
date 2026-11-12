@@ -3,7 +3,8 @@
 #
 # These requirements describe the design-level behavior of the LabelBuilder unit of the Rendering subsystem
 # (internal namespace DemaConsulting.CanvasNet.Mermaid.Rendering): the label text of Mermaid's createText - plain
-# and markdown strings, HTML labels, and SVG labels - laid out and measured with the bundled fonts.
+# and markdown strings, HTML labels, and SVG labels - laid out and measured with the bundled fonts, and the test for a
+# Font Awesome icon in a label.
 # See docs/verification/canvas-net-mermaid/rendering/label-builder.md for the test-evidence mapping.
 
 sections:
@@ -170,3 +171,14 @@ sections:
                   by Mermaid at the diagram's size and drawn at its own.
                 tests:
                   - LabelBuilder_Build_SvgBackgroundInAnInheritedSize_IsMeasuredInThatSize
+
+              - id: CanvasNetMermaid-Rendering-LabelBuilder-FontAwesome
+                title: >-
+                  The LabelBuilder unit shall tell whether a label holds a Font Awesome icon as Mermaid's expression
+                  finds one - a prefix of fa, fab, fak, fal, far, or fas, then :fa- and an icon name of word characters
+                  and dashes - so that every diagram that reports such icons finds the same ones.
+                justification: |
+                  Font Awesome icons are not drawn and must be reported; flowcharts and mindmaps must agree on which
+                  labels hold one, and an ordinary text must not be reported.
+                tests:
+                  - LabelBuilder_ContainsFontAwesome_Label_FindsIcons

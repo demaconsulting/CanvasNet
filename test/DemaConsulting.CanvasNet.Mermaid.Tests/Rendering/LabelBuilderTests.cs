@@ -212,6 +212,29 @@ public sealed class LabelBuilderTests
     }
 
     /// <summary>
+    ///     Checks the detection of Font Awesome icons in labels, as Mermaid's expression finds them.
+    /// </summary>
+    /// <param name="text">The label.</param>
+    /// <param name="expected">Whether it holds an icon.</param>
+    [Theory]
+    [InlineData("fa:fa-car Car", true)]
+    [InlineData("fab:fa-github", true)]
+    [InlineData("see fas:fa-x-y here", true)]
+    [InlineData("fa:fa-", false)]
+    [InlineData("fax:fa-car", false)]
+    [InlineData("fa:car", false)]
+    [InlineData("plain text", false)]
+    [InlineData(null, false)]
+    public void LabelBuilder_ContainsFontAwesome_Label_FindsIcons(string? text, bool expected)
+    {
+        // Act
+        var result = LabelBuilder.ContainsFontAwesome(text);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    /// <summary>
     ///     Checks that an HTML label's characters are decoded and measured, one line of 24 pixels.
     /// </summary>
     [Fact]

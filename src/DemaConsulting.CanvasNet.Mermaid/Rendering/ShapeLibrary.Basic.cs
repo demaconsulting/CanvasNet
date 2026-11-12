@@ -242,11 +242,20 @@ internal static partial class ShapeLibrary
     /// </summary>
     /// <param name="input">The node.</param>
     /// <returns>The drawn node.</returns>
-    private static ShapeResult Circle(ShapeInput input)
+    private static ShapeResult Circle(ShapeInput input) => Circle(input, input.Padding / 2);
+
+    /// <summary>
+    ///     <c>circle</c> with the padding its caller passes (<c>options.padding</c>, else half the node padding): a circle
+    ///     whose radius is half the label's width plus the padding.
+    /// </summary>
+    /// <param name="input">The node.</param>
+    /// <param name="padding">The padding.</param>
+    /// <returns>The drawn node.</returns>
+    private static ShapeResult Circle(ShapeInput input, double padding)
     {
         var draft = new Draft(input);
         var label = input.MeasureLabel();
-        var radius = (label.Width / 2) + (input.Padding / 2);
+        var radius = (label.Width / 2) + padding;
         draft.Part(new PathData().Oval(0, 0, radius, radius), Body(input.Paint));
         draft.PlaceLabel(label, ShapeInput.DefaultLabelOffset(label));
         return draft.Finish((node, point) => IntersectCircle(node, radius, point));

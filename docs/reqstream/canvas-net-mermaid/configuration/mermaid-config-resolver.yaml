@@ -225,3 +225,26 @@ sections:
                   use must not change the picture, and the author must know it had no effect.
                 tests:
                   - MermaidConfigResolver_Resolve_GanttSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapSection
+                title: >-
+                  The MermaidConfigResolver unit shall keep the mindmap section with Mermaid's effective defaults (a
+                  padding of 10, a maximum node width of 200, the cose-bilkent layout algorithm, and useMaxWidth), give
+                  typed access to the padding and the maximum node width that the mindmap renderer reads, and report as
+                  mermaid-config-invalid, and leave without effect, a mindmap value of the wrong type.
+                justification: |
+                  The size of every mindmap node and the margin of the picture follow these settings; a value Mermaid
+                  would not use must not change the picture, and the author must know it had no effect.
+                tests:
+                  - MermaidConfigResolver_Resolve_MindmapSection_DefaultsValuesAndInvalidValues
+
+              - id: CanvasNetMermaid-Configuration-MermaidConfigResolver-MindmapLayout
+                title: >-
+                  The MermaidConfigResolver unit shall give a mindmap the layout that the site configuration or the text
+                  sets, and cose-bilkent when neither sets one, as Mermaid's mindmap initialization does, whatever the
+                  mindmap section's layout algorithm says.
+                justification: |
+                  Mermaid lays out a mindmap with cose-bilkent unless the author chose another layout; the layout that
+                  is not drawn must be the one the author chose, so that it can be reported.
+                tests:
+                  - MermaidConfigResolver_Resolve_MindmapLayout_IsCoseBilkentUnlessUserDefined

@@ -2,7 +2,7 @@
   "topic": "mermaid",
   "aliases": ["mmd"],
   "title": "Mermaid diagrams (.mmd, .mermaid)",
-  "summary": "A Mermaid flowchart, sequence diagram, class diagram, state diagram, entity relationship diagram, pie chart, or gantt chart is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
+  "summary": "A Mermaid flowchart, sequence diagram, class diagram, state diagram, entity relationship diagram, pie chart, gantt chart, or mindmap is laid out like Mermaid 11 and drawn as one still picture with the bundled fonts.",
   "sections": [
     {
       "id": "supported",
@@ -38,7 +38,8 @@
         { "text": "Entity relationship diagrams: an entity relationship diagram starts with erDiagram. It is laid out with the same port of Mermaid's dagre layout as a flowchart, so the entities, relationships, and subgraphs land where Mermaid 11 puts them; its syntax, cardinalities, and settings are listed under Entity relationship diagrams." },
         { "text": "Pie charts: a pie chart starts with pie. It is drawn by a port of Mermaid's pie renderer, so the slices, the percentage labels, the legend, and the title land where Mermaid 11 puts them; its syntax and settings are listed under Pie charts." },
         { "text": "Gantt charts: a gantt chart starts with gantt. It is drawn by a port of Mermaid's gantt renderer, with the time scale and the axis of d3, so the bars, the texts, the section rows, and the ticks land where Mermaid 11 puts them, with the dates in UTC; its syntax, tags, and settings are listed under Gantt charts." },
-        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity relationship diagram; the slices of a pie chart (its legend entries) as nodes; the tasks and the sections of a gantt chart as nodes and subgraphs) without drawing the diagram." }
+        { "text": "Mindmaps: a mindmap starts with mindmap. It is drawn by a port of Mermaid's mindmap renderer and laid out with a port of cose-bilkent, the force-directed layout Mermaid uses for a mindmap, so the nodes and the branches land where Mermaid 11 puts them; its syntax and settings are listed under Mindmaps." },
+        { "text": "info reports the type, direction, titles, and the numbers of nodes, edges, and subgraphs (participants, messages, and boxes for a sequence diagram; classes, relations, and namespaces for a class diagram; states, transitions, and composite states for a state diagram; entities, relationships, and subgraphs for an entity relationship diagram; the slices of a pie chart (its legend entries) as nodes; the tasks and the sections of a gantt chart as nodes and subgraphs; the nodes of a mindmap, and its edges, one fewer than its nodes) without drawing the diagram." }
       ]
     },
     {
@@ -203,15 +204,37 @@
       ]
     },
     {
+      "id": "mindmap",
+      "title": "Mindmaps",
+      "items": [
+        { "text": "Header: mindmap on its own line." },
+        { "text": "Nodes: one node per line; the first node is the root, and each other node is a child of the nearest node above it that is indented less; a node that no node can take as its parent (a second root) is a mermaid-syntax-error, as in Mermaid." },
+        { "text": "Shapes: id[text] a rectangle, id(text) a rounded rectangle, id((text)) a circle, id)text( a cloud, id))text(( a bang, the text between two braces on each side a hexagon, and a node without brackets the default shape, a box with a line under it." },
+        { "text": "Texts: a node's text is its id when it has no brackets; in brackets it can be quoted (id[\"text\"]), also as a Markdown string (a backtick inside each quote); every text is Markdown (**bold**, *italic*) and wraps at mindmap.maxNodeWidth." },
+        { "text": "Icons: ::icon(fa fa-book) on the line after a node is read and reported (mermaid-icon-unsupported), and the node keeps its shape and text; Mermaid 11 does not draw it either." },
+        { "text": "Classes: :::urgent large on the line after a node gives it classes, which only themeCSS can style, with a rule for one of them and an element the node draws (rect, path, circle, or polygon for its shape, line for the line under a default node, text or span for its text), such as .urgent rect." },
+        { "text": "Sections: each child of the root starts a section that its whole branch shares; the sections take the theme's section colors in turn, eleven before they repeat, and the root has a color of its own." },
+        { "text": "Edges: a curve from each node to each of its children, in the color of the section, thinner the further its node is indented, as in Mermaid." },
+        { "text": "Layout: cose-bilkent, Mermaid's default for a mindmap: the root's children around it, and each branch pushed away from the others; a layout other than cose-bilkent is reported (mermaid-layout-unsupported), and the mindmap is laid out with cose-bilkent." },
+        { "text": "Comments: %% comments on their own line." },
+        { "text": "Colors: the theme variables cScale0 to cScale11 (the section fills and edges), cScaleLabel0 to cScaleLabel11 (the section texts), cScaleInv0 to cScaleInv11 (the line under a default node, which the base, dark, forest, and neutral themes leave out), git0 (the root's fill), and gitBranchLabel0 (the root's text)." },
+        { "text": "Configuration: YAML frontmatter, %%{init: ...}%% directives, the five themes, themeVariables, themeCSS, and the mindmap settings below, with Mermaid's precedence." },
+        { "term": "mindmap.padding", "text": "The space between a node's text and its outline (twice as much in a hexagon; a rectangle and a rounded rectangle keep Mermaid's own space), and the margin around the mindmap (default 10)." },
+        { "term": "mindmap.maxNodeWidth", "text": "The width at which a node's text wraps (a rectangle, a rounded rectangle, and a hexagon wrap at flowchart.wrappingWidth, as in Mermaid) (default 200)." },
+        { "term": "mindmap.layoutAlgorithm", "text": "Accepted, and without effect as in Mermaid; the top-level layout selects the layout (default cose-bilkent)." },
+        { "term": "mindmap.useMaxWidth", "text": "No meaning for a picture (default true)." }
+      ]
+    },
+    {
       "id": "unsupported",
       "title": "Not supported (reported, never silently dropped)",
       "items": [
-        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, and gantt); the picture is empty." },
-        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure). Mindmap diagrams are planned later." },
-        { "term": "mermaid-icon-unsupported", "text": "An icon (fa:fa-car in a label, an @{ icon: ... } node, an icon in the properties of a sequence participant); the node or participant keeps its shape and label without the icon." },
+        { "term": "mermaid-diagram-unsupported", "text": "The diagram type is not drawn by this version (every type but flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, and mindmap); the picture is empty." },
+        { "text": "Every other diagram type is recognized: info reports it with \"supported\": false, and render writes an empty picture of 16 by 16 pixels with the diagnostic mermaid-diagram-unsupported (--strict makes it an unsupported-feature failure)." },
+        { "term": "mermaid-icon-unsupported", "text": "An icon (fa:fa-car in a label, an @{ icon: ... } node, an icon in the properties of a sequence participant, an ::icon(...) of a mindmap node); the node or participant keeps its shape and label without the icon." },
         { "term": "mermaid-math-unsupported", "text": "Math ($$...$$, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written." },
         { "term": "mermaid-look-unsupported", "text": "A look other than classic (handDrawn, neo); the diagram is drawn classic." },
-        { "term": "mermaid-layout-unsupported", "text": "A layout other than dagre (elk, also the flowchart-elk keyword), or a state.defaultRenderer that selects Mermaid's legacy state renderer; the diagram is laid out with dagre, and a legacy state diagram is drawn as a stateDiagram-v2." },
+        { "term": "mermaid-layout-unsupported", "text": "A layout other than dagre (elk, also the flowchart-elk keyword) or, for a mindmap, other than cose-bilkent, or a state.defaultRenderer that selects Mermaid's legacy state renderer; the diagram is laid out with dagre (a mindmap with cose-bilkent), and a legacy state diagram is drawn as a stateDiagram-v2." },
         { "term": "mermaid-theme-css-unsupported", "text": "A themeCSS rule whose selector is not one of the diagram's own (such as .node rect in a flowchart), an at-rule, or a nested rule; the rule is not applied." }
       ]
     },
@@ -286,7 +309,13 @@
         { "text": "A gantt chart is 784 pixels wide, the width Mermaid takes in the page of mmdc, unless gantt.useWidth is set (in a browser it takes the width of the page), and its ticks keep d3's half-pixel offset at every scale." },
         { "text": "The opacity of a pie slice, a gantt section row, and the gantt grid is folded into its colors, so where two of them overlap the colors can differ slightly; the turn of a milestone and the enlargement of a highlighted slice are applied to the outline, and the crisp edges of the gantt grid are drawn antialiased." },
         { "text": "A character that no bundled font has is drawn as the missing-glyph box in a pie or gantt text without the warning mermaid-text-missing-glyph." },
-        { "text": "The links of a gantt chart (click ... href) are always checked as at Mermaid's strict level and kept only as data." }
+        { "text": "The links of a gantt chart (click ... href) are always checked as at Mermaid's strict level and kept only as data." },
+        { "text": "A mindmap is laid out exactly as Mermaid's cose-bilkent lays it out when its node sizes are Mermaid's, up to 1,016 nodes (above that, a few node counts differ where Chrome's pow is not correctly rounded). The layout is chaotic: a node whose size differs slightly from Chrome's (such as a cloud or a bang, whose arcs Chrome measures in single precision) can move other nodes far. The layout is the same on every machine." },
+        { "text": "The icons of a mindmap (::icon(...)) are not drawn, as in Mermaid 11, and are reported (mermaid-icon-unsupported)." },
+        { "text": "Another mindmap layout (dagre, elk, tidy-tree, and others that mmdc can load) is reported (mermaid-layout-unsupported), and the mindmap is laid out with cose-bilkent." },
+        { "text": "A mindmap of the keyword alone has no view box in Mermaid; here it is an empty picture of the margin, 20 by 20 pixels at the default padding." },
+        { "text": "An ::icon(...) or a ::: class before the first node of a mindmap, which Mermaid fails on with a script error, is a located mermaid-syntax-error." },
+        { "text": "The depth of a mindmap is bounded by MaxNestingDepth, where Mermaid has no limit, and a mindmap of about 1,000 nodes or more can reach the layout work limit (MaxLayoutWork)." }
       ]
     }
   ],
@@ -298,6 +327,7 @@
     { "name": "er", "kind": "source", "language": "mermaid", "fileName": "er.mmd", "description": "A small entity relationship diagram with tables of attributes, keys, comments, and three relationships with their cardinalities." },
     { "name": "pie", "kind": "source", "language": "mermaid", "fileName": "pie.mmd", "description": "A small pie chart with a title and the values in the legend (showData)." },
     { "name": "gantt", "kind": "source", "language": "mermaid", "fileName": "gantt.mmd", "description": "A small gantt chart with two sections, done, active, and critical tasks, after references, a milestone, and excluded weekends." },
+    { "name": "mindmap", "kind": "source", "language": "mermaid", "fileName": "mindmap.mmd", "description": "A small mindmap with three sections and every node shape: a circle root, default nodes, a rectangle, a rounded rectangle, a bang, a hexagon, a cloud, and a Markdown string." },
     { "name": "pictures", "kind": "snippet", "language": "mermaid", "fileName": "pictures.mmd", "description": "Nodes that show a model (part.scad) and a chart (chart.vl.json) lying beside the diagram." },
     { "name": "render", "kind": "command", "language": "shell", "description": "Draw flowchart.mmd and print the JSON result.", "content": "canvasnet render flowchart.mmd -o flowchart.png --json" },
     { "name": "theme", "kind": "command", "language": "shell", "description": "Draw at twice the size in the dark theme over a transparent background.", "content": "canvasnet render flowchart.mmd --theme dark --scale 2 --background transparent -o flowchart-dark.png" },

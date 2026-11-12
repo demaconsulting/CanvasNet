@@ -3,11 +3,12 @@
 This document describes the subsystem-level verification strategy for the `Rendering` subsystem (internal namespace
 `DemaConsulting.CanvasNet.Mermaid.Rendering`), containing five units: `ClusterLayout` (Mermaid's dagre renderer, with
 the layout data records and the framing of a whole diagram), `ShapeLibrary` (the node shapes, the class box, the state
-shapes and clusters, and the entity box, their intersect functions, the subgraph rectangle, and the shape registry
+shapes and clusters, the entity box, and the mindmap shapes, their intersect functions, the subgraph rectangle, and the
+shape registry
 `ShapeNames`), `EdgeBuilder` (edge routes, curves, the flowchart, class, state, and entity relationship markers, edge
 labels, and terminal labels), `LabelBuilder` (label text layout and
-measurement, and the text utilities of sequence diagrams), and `NodeImages` (the pictures loaded through the caller's
-resolver).
+measurement, the text utilities of sequence diagrams, and the Font Awesome test), and `NodeImages` (the pictures loaded
+through the caller's resolver).
 
 ### Verification Approach
 
@@ -21,7 +22,11 @@ subsystem, so that the class boxes, the class markers, the relation labels, and 
 cardinalities go through the same units. A state diagram fixture (mapped to layout data by the `State` subsystem) and
 an entity relationship diagram fixture (mapped by the `Er` subsystem) are laid out the same way, so that the state
 shapes, the composite state and concurrent region clusters, the `barb` marker, the entity tables, the cardinality
-markers, and the SVG role labels go through the same units. The test helper `SceneQuery` reads the nodes, subgraph
+markers, and the SVG role labels go through the same units. A mindmap fixture is drawn through `ShapeLibrary` and
+`LabelBuilder` with the mindmap's style sheet and its edges through `EdgeBuilder`, placed by the `Cose` subsystem, so
+that the mindmap shapes, the paint by classes, and the wrapping width of a node go through the same units; and a Font
+Awesome label in a flowchart and in a mindmap goes through the shared test of the `LabelBuilder`. The test helper
+`SceneQuery` reads the nodes, subgraph
 rectangles (and the inner areas of composite states), edge paths, edge labels, terminal labels, and markers of the
 scene by their Mermaid DOM ids in absolute coordinates.
 
@@ -47,8 +52,8 @@ through the test assembly's `InternalsVisibleTo` access.
   caller's resolver in the picture scenarios
 - **Fonts**: The bundled Liberation fonts, resolved through the rendering's font resolver
 - **Files**: The flowchart fixtures in `Fixtures/flowchart/`, the class diagram fixtures in `Fixtures/class/`, the
-  state diagram fixtures in `Fixtures/state/`, and the entity relationship diagram fixtures in `Fixtures/er/` of the
-  test project (copied to the output folder)
+  state diagram fixtures in `Fixtures/state/`, the entity relationship diagram fixtures in `Fixtures/er/`, and the
+  mindmap fixtures in `Fixtures/mindmap/` of the test project (copied to the output folder)
 - **Isolation**: Each test lays out its own document; no shared state
 
 ### Acceptance Criteria
@@ -93,7 +98,8 @@ view box of 879.313 by 587.25 pixels, the entities `entity-ACCOUNT-0` at (189.5,
 `RenderingTests.Rendering_Flowchart_PicturesBeyondMaxImages_FailAtTheNode`,
 `RenderingTests.Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid`,
 `RenderingTests.Rendering_StateDiagram_CompositeWithRegions_MatchesMermaid`,
-`RenderingTests.Rendering_ErDiagram_EntityTablesAndMarkers_MatchMermaid`
+`RenderingTests.Rendering_ErDiagram_EntityTablesAndMarkers_MatchMermaid`,
+`RenderingTests.Rendering_Mindmap_Shapes_MatchMermaid`
 
 Asserts that the boxes of the drawn nodes (rectangles sized from their measured labels and padding, for example 77.797
 by 54 pixels) and the subgraph rectangles built around them are Mermaid's, in a top-to-bottom diagram and in a
@@ -110,7 +116,12 @@ by 40 pixels (a rounded rectangle with the padding of 8 around its label), the e
 exact rough.js outline), the composite state's titled rectangle with its inner area `state-Active-9` at (8, 98),
 657.648 by 463 pixels, and the dashed region of 169.25 by 418 pixels. In the entity relationship fixture, asserts the
 entity tables at Mermaid's sizes: `entity-ACCOUNT-0` 373.938 by 342 pixels (the name row and the attribute rows with
-their keys and comments), and `entity-PLAIN-1` and `entity-COMMENTED-3` 140.719 and 267.094 by 128.25 pixels.
+their keys and comments), and `entity-PLAIN-1` and `entity-COMMENTED-3` 140.719 and 267.094 by 128.25 pixels. In the
+mindmap fixture `03-root-shapes`, drawn through the shared shapes with the mindmap's style sheet and laid out by the
+`Cose` subsystem, asserts the view box (5, 5, 656.514, 378.522) and the boxes Mermaid gives its nodes, within 0.002
+pixel: the bang root at (317.406, 170.899), 165.918 by 80 pixels, the rectangle at (144.391, 158.435), 116.469 by 44,
+the default node with its line at (15, 230.483), 156.531 by 34, the hexagon at (525.378, 101.554), 87.391 by 44, and
+the circle at (519.168, 261.341), 56.453 by 56.453, with 6 edges.
 
 #### CanvasNetMermaid-Rendering-Edges: Edges And Their Labels Are Where Mermaid Draws Them
 
@@ -142,7 +153,8 @@ centers it.
 `RenderingTests.Rendering_TextUtilities_WrapAtWordsAndMeasurePerLine`,
 `RenderingTests.Rendering_ClassDiagram_RelationsWithCardinalities_MatchMermaid`,
 `RenderingTests.Rendering_StateDiagram_CompositeWithRegions_MatchesMermaid`,
-`RenderingTests.Rendering_ErDiagram_EntityTablesAndMarkers_MatchMermaid`
+`RenderingTests.Rendering_ErDiagram_EntityTablesAndMarkers_MatchMermaid`,
+`RenderingTests.Rendering_FontAwesomeLabel_IsReportedAsAnIcon`
 
 Asserts the sizes that follow from the measured labels: the node widths of the subgraph fixture, which are the HTML
 label widths with the padding, and the positions of the edge labels and the width of the view box of the labeled
@@ -161,3 +173,6 @@ state's rectangle, and the view box follow from the measured state labels and th
 entity relationship fixture, the widths of the entity tables (373.938, 140.719, and 267.094 pixels) follow from the
 measured cell texts, and the center of the role label at (376.469, 400.5) follows from the measured role `has` in the
 14 pixel edge label font of the entity relationship sheet, so the same assertions verify the labels of both diagrams.
+For a flowchart and a mindmap (a theory with two cases), each with a label `fa:fa-car Car` on its second node at line
+3, asserts that both nodes are drawn and that the label gives exactly one `mermaid-icon-unsupported` report at line 3,
+found by the shared Font Awesome test of the `LabelBuilder`.

@@ -180,6 +180,19 @@ internal static partial class ShapeLibrary
         public PathData RelativeA(double rx, double ry, double rotation, bool large, bool sweep, double dx, double dy) =>
             A(rx, ry, rotation, large, sweep, _x + dx, _y + dy);
 
+        /// <summary>Draws a quadratic Bézier curve by offsets from the current point (<c>q</c>).</summary>
+        /// <param name="dcx">The control point's x offset.</param>
+        /// <param name="dcy">The control point's y offset.</param>
+        /// <param name="dx">The end point's x offset.</param>
+        /// <param name="dy">The end point's y offset.</param>
+        /// <returns>This path.</returns>
+        public PathData RelativeQ(double dcx, double dcy, double dx, double dy)
+        {
+            _segments.Add(SceneSegment.Quadratic(_x + dcx, _y + dcy, _x + dx, _y + dy));
+            (_x, _y) = (_x + dx, _y + dy);
+            return this;
+        }
+
         /// <summary>Closes the subpath (<c>Z</c>).</summary>
         /// <returns>This path.</returns>
         public PathData Z()

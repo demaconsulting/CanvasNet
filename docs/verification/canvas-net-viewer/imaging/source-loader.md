@@ -100,7 +100,7 @@ N/A - standard test environment; the tests need no network and write only to tem
   reported rather than refused; it is drawn at its natural size times the scale or fitted into the size given, over
   white, the background given, or transparent, in the theme of the options (a theme fragment of the input wins, and a
   name that is not a theme is a `usage-error`), with each warning a `mermaid-warning` note with its detail and location
-  and each construct it does not draw an unsupported note (a type that is not drawn yet is one note and an empty
+  and each construct it does not draw an unsupported note (a type that is not drawn is one note and an empty
   picture), or, in strict mode, `unsupported-feature`; invalid text is `mermaid-error` with the location and the hint of
   the library, a limit of the library `budget-exceeded`, an overlong text `corrupt-input`, and a target size above the
   maximum `size-limit`; a cut or damaged diagram is an expected error or a shorter diagram that loads.
@@ -306,6 +306,12 @@ over white, more than a tenth of its pixels not white, and no note.
 critical task `after` it is probed with the facts `gantt`, supported, no direction, no titles, two nodes (the tasks),
 no edge, and two subgraphs (the sections), 784 pixels wide; loaded in strict mode it is drawn with exactly the pixels
 the library draws without a clock (no today line), and no note.
+
+**SourceLoader_Load_MermaidMindmap_ProbesAndDraws**: a mindmap with the circle root `Garden`, the children `Soil` (with
+`Compost`) and `Plants` (with the rectangle `Beans`) is probed with the facts `mindmap`, supported, no direction, no
+titles, five nodes, four edges, and no subgraph; loaded in strict mode it is drawn at the probed size, which is the
+library's size, with a white corner, exactly the pixels the library draws over white, more than a twentieth of its
+pixels not white, and no note.
 
 **SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
 the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the

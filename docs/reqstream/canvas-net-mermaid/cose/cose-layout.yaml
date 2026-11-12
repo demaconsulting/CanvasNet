@@ -1,0 +1,138 @@
+---
+# Software Unit Requirements for CoseLayout
+#
+# These requirements describe the design-level behavior of the CoseLayout unit of the Cose subsystem (internal namespace
+# DemaConsulting.CanvasNet.Mermaid.Cose): the port of the parts of layout-base, cose-base, and cytoscape-cose-bilkent
+# that Mermaid's mindmap layout reaches, the cytoscape points of a straight edge, the correctly rounded math, the work
+# charges, and the failures of a layout. See docs/verification/canvas-net-mermaid/cose/cose-layout.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Cose Requirements
+        sections:
+          - title: CoseLayout Requirements
+            requirements:
+              - id: CanvasNetMermaid-Cose-CoseLayout-Tree
+                title: >-
+                  The CoseLayout unit shall lay out only one tree - as many edges as nodes less one, every edge between
+                  two of the nodes, and every node connected - refusing any other input with an ArgumentException, and
+                  shall give no nodes an empty layout without iterations.
+                justification: |
+                  A mindmap is always one tree, and the layout's tree paths are the only ones the port keeps; any other
+                  input is a defect of the caller that must not be laid out as a guess.
+                tests:
+                  - CoseLayout_Run_NotOneTree_ThrowsArgumentException
+                  - CoseLayout_Run_NoNodes_ReturnsEmpty
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-StartPlacement
+                title: >-
+                  The CoseLayout unit shall start the layout of a tree from the radial placement that cose-bilkent
+                  gives it - the center of the tree chosen as cose-bilkent chooses it, a lone node with its corner at
+                  the margin, and two nodes on a horizontal line - before the forces move the nodes.
+                justification: |
+                  The forces only refine the start; a different start gives a different, equally valid, layout that no
+                  longer matches Mermaid.
+                tests:
+                  - CoseLayout_Run_SingleNode_CornerAtMargin
+                  - CoseLayout_Run_TwoNodes_HorizontalFromMargin
+                  - CoseLayout_FindCenterOfTree_Lists_KeepsOddPositions
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-Forces
+                title: >-
+                  The CoseLayout unit shall move the nodes by the spring, repulsion, and overlap forces of cose-bilkent,
+                  cooling them and stopping by the iteration limit and the cooling factor that cose-bilkent adapts to
+                  the number of nodes, with the same arithmetic in the same order.
+                justification: |
+                  The forces and the cooling decide where every node ends; a chaotic layout reproduces Mermaid's
+                  positions only when every step is the same.
+                tests:
+                  - CoseLayout_CoolingStart_NodeCounts_FollowsAdaptation
+                  - CoseLayout_Run_GoldenTree_MatchesChrome
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-JavaScriptNumbers
+                title: >-
+                  The CoseLayout unit shall compute with the number semantics of the JavaScript that cose-bilkent runs
+                  on - parseInt of a whole number keeping only the first digit from 1e21 on, and a corner beyond the
+                  world boundary clamped to it when the nodes are moved.
+                justification: |
+                  These rules change the layout of large or wide nodes; the same rules give the same positions.
+                tests:
+                  - CoseLayout_ParseInt_WholeNumbers_FollowsJavaScript
+                  - CoseLayout_Run_BeyondWorldBoundary_ClampsCorner
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-EdgePoints
+                title: >-
+                  The CoseLayout unit shall give each edge the points of a straight cytoscape edge - the start and the
+                  end 15 pixels from the centers of its nodes toward each other and the middle point between them - and
+                  points that are not numbers when the centers are 15 pixels apart or closer.
+                justification: |
+                  Mermaid draws each mindmap edge through these points; the renderer leaves out the edges cytoscape
+                  cannot draw.
+                tests:
+                  - CoseLayout_StraightEdgePoints_ApartCenters_EndsOnCircles
+                  - CoseLayout_StraightEdgePoints_CloseCenters_NaN
+                  - CoseLayout_Run_GoldenTree_MatchesChrome
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-BrowserFidelity
+                title: >-
+                  The CoseLayout unit shall give, for every tree laid out by Mermaid's cose-bilkent in the browser, the
+                  same node centers, edge points, and number of iterations bit for bit, and shall fail where the
+                  browser's layout throws.
+                justification: |
+                  Comparing with the layouts of Mermaid's own libraries in the browser is the only objective measure
+                  that the port is complete.
+                tests:
+                  - CoseLayout_Run_GoldenTree_MatchesChrome
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-Math
+                title: >-
+                  The CoseLayout unit shall compute the sine, cosine, logarithm, and power that the layout uses rounded
+                  correctly to the nearest double - with JavaScript's and V8's special cases, deciding a value near a
+                  rounding midpoint at a higher precision - equal bit for bit to the browser's on every value the
+                  layout and its vectors use, and shall refuse an argument outside the domain the layout uses.
+                justification: |
+                  A correctly rounded result is the same on every platform and, for the values the layout uses, equal to
+                  the browser's; a host math library may differ in the last bit, which a chaotic layout magnifies.
+                tests:
+                  - CoseLayout_SinCos_SpecialCases_FollowJavaScriptAndDomain
+                  - CoseLayout_Log_SpecialCases_FollowJavaScriptAndDomain
+                  - CoseLayout_Pow_SpecialCases_FollowV8AndDomain
+                  - CoseLayout_RoundToDouble_Values_RoundToNearestEven
+                  - CoseLayout_RoundCorrectly_NearMidpoint_Escalates
+                  - CoseLayout_SinCos_ChromeVectors_BitEqual
+                  - CoseLayout_Log_ChromeVectors_BitEqual
+                  - CoseLayout_Pow_ChromeCoolingPairs_BitEqual
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-Work
+                title: >-
+                  The CoseLayout unit shall charge the work of every step of a layout - the tree, the placement, each
+                  iteration, each repulsion pair, the cells of each grid before the grid is built, and each math call -
+                  deterministically to the work meter, and shall stop with a located MermaidRenderException of code
+                  mermaid-limit-exceeded when the work passes the limit.
+                justification: |
+                  The work of a layout grows with the square of the nodes and with their sizes; it must be bounded the
+                  same way on every machine.
+                tests:
+                  - CoseLayout_Run_SmallTrees_ChargesPinnedWork
+                  - CoseLayout_Run_SmallBudget_LimitExceeded
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-Failures
+                title: >-
+                  The CoseLayout unit shall fail with a MermaidRenderException of code mermaid-render-failed a repulsion
+                  grid that JavaScript cannot build and a node outside the grid, where Mermaid's layout throws a
+                  JavaScript error.
+                justification: |
+                  A layout Mermaid cannot complete must fail closed with the documented code rather than give a guess.
+                tests:
+                  - CoseLayout_Run_GridFailures_ThrowsRenderFailed
+
+              - id: CanvasNetMermaid-Cose-CoseLayout-Cancellation
+                title: >-
+                  The CoseLayout unit shall observe the cancellation token of the call at every charge of work and stop
+                  a canceled layout with an OperationCanceledException.
+                justification: |
+                  A large layout can take noticeable time; a caller that cancels must not wait for it to finish.
+                tests:
+                  - CoseLayout_Run_Canceled_ThrowsOperationCanceled

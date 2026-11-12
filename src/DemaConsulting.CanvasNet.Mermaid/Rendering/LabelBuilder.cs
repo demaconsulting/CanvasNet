@@ -290,6 +290,48 @@ internal sealed partial class LabelBuilder
             .Replace("\u00b6\u00df", ";", StringComparison.Ordinal);
 
     /// <summary>
+    ///     Gets a value indicating whether a label contains a Font Awesome icon as Mermaid finds it: a prefix (<c>fa</c>,
+    ///     <c>fab</c>, <c>fak</c>, <c>fal</c>, <c>far</c> or <c>fas</c>), <c>:fa-</c> and an icon name of word characters and
+    ///     dashes. The diagrams that report such icons (they are not drawn) share this test.
+    /// </summary>
+    /// <param name="text">The label, or null.</param>
+    /// <returns>Whether it does.</returns>
+    internal static bool ContainsFontAwesome(string? text)
+    {
+        if (text is null)
+        {
+            return false;
+        }
+
+        for (var i = text.IndexOf("fa", StringComparison.Ordinal); i >= 0; i = text.IndexOf("fa", i + 1, StringComparison.Ordinal))
+        {
+            var colon = i + 2;
+            if (colon < text.Length && text[colon] is 'b' or 'k' or 'l' or 'r' or 's' && !StartsWithIcon(text, colon))
+            {
+                colon++;
+            }
+
+            if (StartsWithIcon(text, colon))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether <c>:fa-</c> and an icon-name character follow a position.
+    /// </summary>
+    /// <param name="text">The label.</param>
+    /// <param name="position">The position.</param>
+    /// <returns>Whether they do.</returns>
+    private static bool StartsWithIcon(string text, int position) =>
+        position + 4 < text.Length
+        && string.CompareOrdinal(text, position, ":fa-", 0, 4) == 0
+        && (ScanPatterns.IsJsWordChar(text[position + 4]) || text[position + 4] == '-');
+
+    /// <summary>
     ///     Gets the face of a family list, weight and style.
     /// </summary>
     /// <param name="family">The CSS family list.</param>

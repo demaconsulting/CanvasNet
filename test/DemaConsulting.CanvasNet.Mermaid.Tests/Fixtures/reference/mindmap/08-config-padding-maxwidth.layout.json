@@ -1,0 +1,371 @@
+{
+  "source": "08-config-padding-maxwidth.mmd",
+  "mermaid": "11.17.2",
+  "mermaidCli": "11.16.0",
+  "diagram": "mindmap",
+  "viewBox": [2, 2, 500.346, 403.839],
+  "title": null,
+  "nodes": [
+    {
+      "id": "node_0",
+      "shape": "defaultMindmapNode",
+      "x": 250.816,
+      "y": 199.956,
+      "box": [195.91, 181.456, 109.813, 37],
+      "class": "node mindmap-node section-root section--1",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [195.91, 181.456, 109.813, 37] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [195.91, 218.456, 109.813, 0] },
+        { "tag": "g", "class": "label", "group": null, "box": [221.91, 187.956, 57.813, 24], "text": "Settings" }
+      ],
+      "center": [250.81634602643385, 199.95635475367703],
+      "size": [109.8125, 37],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(0, 0, 236)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(255, 255, 185)",
+          "strokeWidth": 3
+        }
+      ],
+      "labelColor": "rgb(255, 255, 255)"
+    },
+    {
+      "id": "node_1",
+      "shape": "defaultMindmapNode",
+      "x": 233.972,
+      "y": 69.5,
+      "box": [147.972, 15, 172, 109],
+      "class": "node mindmap-node section-0",
+      "parts": [
+        { "tag": "path", "class": "node-bkg node-0", "group": null, "box": [147.972, 15, 172, 109] },
+        { "tag": "line", "class": "node-line-", "group": null, "box": [147.972, 124, 172, 0] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [173.972, 21.5, 120, 96],
+          "text": "A default node with a label that wraps at the maximum width"
+        }
+      ],
+      "center": [233.97191403239026, 69.5],
+      "size": [172, 109],
+      "paint": [
+        { "tag": "path", "class": "node-bkg node-0", "fill": "rgb(255, 255, 120)", "stroke": "none", "strokeWidth": 1 },
+        {
+          "tag": "line",
+          "class": "node-line-",
+          "fill": "rgb(51, 51, 51)",
+          "stroke": "rgb(171, 171, 255)",
+          "strokeWidth": 3
+        }
+      ],
+      "labelColor": "rgb(0, 0, 0)"
+    },
+    {
+      "id": "node_2",
+      "shape": "rect",
+      "x": 424.346,
+      "y": 138.001,
+      "box": [359.346, 44.001, 130, 188],
+      "class": "node mindmap-node section-1",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [359.346, 44.001, 130, 188] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [379.346, 54.001, 90, 168],
+          "text": "A square node that wraps at the flowchart wrapping width"
+        }
+      ],
+      "center": [424.34603439518105, 138.00143524587838],
+      "size": [130, 188],
+      "paint": [
+        {
+          "tag": "rect",
+          "class": "basic label-container",
+          "fill": "rgb(215, 255, 134)",
+          "stroke": "none",
+          "strokeWidth": 1
+        }
+      ],
+      "labelColor": "rgb(0, 0, 0)"
+    },
+    {
+      "id": "node_3",
+      "shape": "rounded",
+      "x": 75,
+      "y": 187.667,
+      "box": [15, 148.667, 120, 78],
+      "class": "node mindmap-node section-2",
+      "parts": [
+        { "tag": "rect", "class": "basic label-container", "group": null, "box": [15, 148.667, 120, 78] },
+        { "tag": "g", "class": "label", "group": null, "box": [30, 163.667, 90, 48], "text": "Rounded node" }
+      ],
+      "center": [75, 187.66722632319545],
+      "size": [120, 78],
+      "paint": [
+        {
+          "tag": "rect",
+          "class": "basic label-container",
+          "fill": "rgb(195, 134, 255)",
+          "stroke": "none",
+          "strokeWidth": 1
+        }
+      ],
+      "labelColor": "rgb(255, 255, 255)"
+    },
+    {
+      "id": "node_4",
+      "shape": "hexagon",
+      "x": 325.24,
+      "y": 331.839,
+      "box": [236.74, 270.839, 177, 122],
+      "class": "node mindmap-node section-3",
+      "parts": [
+        { "tag": "polygon", "class": "label-container", "group": null, "box": [236.74, 270.839, 177, 122] },
+        {
+          "tag": "g",
+          "class": "label",
+          "group": null,
+          "box": [280.24, 283.839, 90, 96],
+          "text": "Hexagon with a long label that wraps"
+        }
+      ],
+      "center": [325.2396577111422, 331.83898594965103],
+      "size": [177, 122],
+      "paint": [
+        {
+          "tag": "polygon",
+          "class": "label-container",
+          "fill": "rgb(255, 134, 255)",
+          "stroke": "none",
+          "strokeWidth": 1
+        }
+      ],
+      "labelColor": "rgb(0, 0, 0)"
+    },
+    {
+      "id": "node_5",
+      "shape": "mindmapCircle",
+      "x": 163.341,
+      "y": 293.833,
+      "box": [129.895, 260.387, 66.891, 66.891],
+      "class": "node mindmap-node section-4",
+      "parts": [
+        { "tag": "circle", "class": "basic label-container", "group": null, "box": [129.895, 260.387, 66.891, 66.891] },
+        { "tag": "g", "class": "label", "group": null, "box": [142.895, 281.833, 40.891, 24], "text": "Circle" }
+      ],
+      "center": [163.3406334974709, 293.832685900177],
+      "size": [66.890625, 66.890625],
+      "paint": [
+        {
+          "tag": "circle",
+          "class": "basic label-container",
+          "fill": "rgb(255, 134, 195)",
+          "stroke": "none",
+          "strokeWidth": 1
+        }
+      ],
+      "labelColor": "rgb(0, 0, 0)"
+    }
+  ],
+  "clusters": [],
+  "edges": [
+    {
+      "id": "edge_0_1",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-0 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 101.539,
+      "points": [
+        [248.896, 185.08],
+        [248.246, 180.045],
+        [247.595, 175.01],
+        [246.945, 169.975],
+        [246.295, 164.939],
+        [245.645, 159.904],
+        [244.995, 154.869],
+        [244.344, 149.834],
+        [243.694, 144.799],
+        [243.044, 139.764],
+        [242.394, 134.729],
+        [241.744, 129.693],
+        [241.094, 124.658],
+        [240.444, 119.623],
+        [239.793, 114.588],
+        [239.143, 109.553],
+        [238.493, 104.518],
+        [237.843, 99.483],
+        [237.193, 94.447],
+        [236.543, 89.412],
+        [235.893, 84.377]
+      ],
+      "dataPoints": [
+        [248.895502431135, 185.0798511361465],
+        [242.39413002941205, 134.72817737683852],
+        [235.89275762768912, 84.37650361753053]
+      ],
+      "fill": "none",
+      "stroke": "rgb(255, 255, 120)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_0_2",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-1 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 154.258,
+      "points": [
+        [264.943, 194.913],
+        [272.207, 192.319],
+        [279.47, 189.726],
+        [286.734, 187.132],
+        [293.998, 184.539],
+        [301.262, 181.946],
+        [308.526, 179.352],
+        [315.789, 176.759],
+        [323.053, 174.166],
+        [330.317, 171.572],
+        [337.581, 168.979],
+        [344.845, 166.386],
+        [352.109, 163.792],
+        [359.372, 161.199],
+        [366.636, 158.605],
+        [373.9, 156.012],
+        [381.164, 153.418],
+        [388.428, 150.825],
+        [395.691, 148.232],
+        [402.955, 145.638],
+        [410.219, 143.045]
+      ],
+      "dataPoints": [
+        [264.9429895370239, 194.91275057365823],
+        [337.58119021080745, 168.9788949997777],
+        [410.219390884591, 143.0450394258972]
+      ],
+      "fill": "none",
+      "stroke": "rgb(215, 255, 134)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_0_3",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-2 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 146.246,
+      "points": [
+        [235.853, 198.91],
+        [228.558, 198.401],
+        [221.264, 197.891],
+        [213.969, 197.381],
+        [206.675, 196.871],
+        [199.38, 196.361],
+        [192.086, 195.852],
+        [184.791, 195.342],
+        [177.497, 194.832],
+        [170.202, 194.322],
+        [162.908, 193.812],
+        [155.613, 193.302],
+        [148.319, 192.792],
+        [141.024, 192.282],
+        [133.73, 191.772],
+        [126.435, 191.263],
+        [119.141, 190.753],
+        [111.846, 190.243],
+        [104.552, 189.733],
+        [97.257, 189.223],
+        [89.963, 188.713]
+      ],
+      "dataPoints": [
+        [235.85285478948794, 198.91044366670923],
+        [162.90817301321692, 193.81179053843624],
+        [89.96349123694591, 188.71313741016326]
+      ],
+      "fill": "none",
+      "stroke": "rgb(195, 134, 255)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_0_4",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-3 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 121.432,
+      "points": [
+        [258.188, 213.02],
+        [261.172, 218.308],
+        [264.156, 223.595],
+        [267.14, 228.883],
+        [270.124, 234.171],
+        [273.108, 239.459],
+        [276.092, 244.746],
+        [279.076, 250.034],
+        [282.06, 255.322],
+        [285.044, 260.61],
+        [288.028, 265.898],
+        [291.012, 271.185],
+        [293.996, 276.473],
+        [296.98, 281.761],
+        [299.964, 287.049],
+        [302.948, 292.336],
+        [305.931, 297.624],
+        [308.915, 302.912],
+        [311.899, 308.2],
+        [314.883, 313.488],
+        [317.868, 318.775]
+      ],
+      "dataPoints": [
+        [258.18826632133755, 213.01984552626868],
+        [288.028001868788, 265.89767035166403],
+        [317.86773741623847, 318.7754951770594]
+      ],
+      "fill": "none",
+      "stroke": "rgb(255, 134, 255)",
+      "strokeWidth": 11
+    },
+    {
+      "id": "edge_0_5",
+      "class": "edge-thickness-normal edge-pattern-solid edge section-edge-4 edge-depth-1",
+      "markerStart": null,
+      "markerEnd": null,
+      "length": 98.315,
+      "points": [
+        [240.59, 210.93],
+        [237.239, 214.527],
+        [233.888, 218.123],
+        [230.537, 221.719],
+        [227.185, 225.316],
+        [223.834, 228.912],
+        [220.483, 232.509],
+        [217.132, 236.105],
+        [213.781, 239.702],
+        [210.43, 243.298],
+        [207.078, 246.894],
+        [203.727, 250.491],
+        [200.376, 254.087],
+        [197.025, 257.684],
+        [193.674, 261.28],
+        [190.323, 264.877],
+        [186.972, 268.473],
+        [183.62, 272.07],
+        [180.269, 275.666],
+        [176.918, 279.263],
+        [173.567, 282.859]
+      ],
+      "dataPoints": [
+        [240.59045951486664, 210.93047180483643],
+        [207.07848976195237, 246.89452032692702],
+        [173.5665200090381, 282.8585688490176]
+      ],
+      "fill": "none",
+      "stroke": "rgb(255, 134, 195)",
+      "strokeWidth": 11
+    }
+  ],
+  "edgeLabels": [],
+  "terminals": []
+}

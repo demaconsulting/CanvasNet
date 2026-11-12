@@ -41,8 +41,8 @@ expected, constitutes a failure.
 Asserts the detector id, public type, and support of 39 keywords (from `flowchart` and `graph` to `cynefin-beta:` and
 `Error`), including `classDiagram` and `classDiagram-v2` as the supported `class` type, `stateDiagram` and
 `stateDiagram-v2` as the supported `state` type (Mermaid's `stateDiagram` detector), `erDiagram` as the supported `er`
-type, and `gantt` and `pie showData` as the supported `gantt` and `pie` types, while `mindmap` stays planned, and that
-the detector table has all 40 detectors.
+type, and `gantt`, `pie showData`, and `mindmap` as the supported `gantt`, `pie`, and `mindmap` types, every other
+type unsupported, and that the detector table has all 40 detectors.
 
 ##### CanvasNetMermaid-Syntax-DiagramDetector-MermaidOrder: Detection Follows Mermaid's Order And Quirks
 
@@ -83,11 +83,11 @@ Asserts that `hello world` is `mermaid-unknown-diagram` quoting `hello` without 
 that it has no keyword, that `SequenceDiagram` gets the hint "did you mean 'sequenceDiagram'? ..." at line 1,
 column 1, and that a text that starts with `---` is `mermaid-syntax-error` with Mermaid's message.
 
-##### CanvasNetMermaid-Syntax-DiagramDetector-UnsupportedHint: Unsupported Types Get A Planned Or Unsupported Hint
+##### CanvasNetMermaid-Syntax-DiagramDetector-UnsupportedHint: Unsupported Types Get An Unsupported Hint
 
-**Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesPlanAndSupportedKeywords`
+**Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesSupportedKeywords`
 
-Asserts the exact hints for a planned type (`mindmap`: "mindmap diagrams are planned; supported in this version:
-flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt") and a type that is not planned
-(`gitGraph`: "gitGraph diagrams are not supported; ..." with the same list), and that the supported keywords are exactly
-`flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, and `gantt`, in that order.
+Asserts the exact hints for two types that are not drawn (`journey`: "journey diagrams are not supported; supported in
+this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap", and
+`gitGraph` with the same list), and that the supported keywords are exactly `flowchart`, `graph`, `sequenceDiagram`,
+`classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, and `mindmap`, in that order.

@@ -131,7 +131,15 @@ data, the percentage labels, the title and the legend entries, with the computed
 fonts. A gantt chart (`aria-roledescription="gantt"`) gets the gantt layout (`extractGantt`): the excluded days, the
 axes and their ticks, the section rows, the tasks and their texts, the section titles, the today line and the title.
 Gantt charts read the clock, so every page runs in the UTC time zone with its clock fixed at 2024-06-12T10:30:00Z
-(`FIXED_NOW`), and the script checks the page clock before it reads a diagram back. The format is described in
+(`FIXED_NOW`), and the script checks the page clock before it reads a diagram back. A mindmap
+(`aria-roledescription="mindmap"`) gets the extended layout plus, at full precision, each node's `size` (the
+`getBBox` of its group: the size the cose-bilkent layout was given, in Chrome's single precision) and `center` (parsed
+from its `transform`, which holds the layout's position as JavaScript writes the number), the computed paint of its
+shapes and the color of its label, and each edge's `dataPoints` (cytoscape's start, middle and end points, decoded from
+the path's `data-points`) and computed paint. A mindmap is drawn twice, and the script fails when the two layouts
+differ. Every page also wraps `Math.random`: the script fails when it is called from cose-base's
+`findPlaceforPrunedNode`, the only place where the layout could use a random number (it is reached only by a graph that
+is not a tree, which a mindmap never is). The format is described in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/README.md`.
 
 ### Layout Goldens
@@ -142,15 +150,17 @@ pwsh tools/visual-diff/update-mermaid-goldens.ps1 [-Diagram <type>...] [-Fixture
 
 This regenerates the goldens under `test/DemaConsulting.CanvasNet.Mermaid.Tests/Fixtures/reference/`: the flowchart
 fixtures (`Fixtures/flowchart`) give `reference/*.layout.json`, the sequence fixtures (`Fixtures/sequence`) give
-`reference/sequence/*.layout.json`, and the class, state, ER, pie and gantt fixtures (`Fixtures/class`,
-`Fixtures/state`, `Fixtures/er`, `Fixtures/pie` and `Fixtures/gantt`) give `reference/class`, `reference/state`,
-`reference/er`, `reference/pie` and `reference/gantt`. `-Diagram` picks the types (`flowchart`, `sequence`, `class`,
-`state`, `er`, `pie` and `gantt`; default: all). The script refuses to run unless the installed mermaid is the pinned
-11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws with a system font) get no golden; no sequence,
-class, state, ER, pie or gantt fixture is excluded. `MermaidReferenceLayoutTests` compares CanvasNet's flowchart
-layout with the goldens, and `MermaidChartReferenceLayoutTests` its pie and gantt layouts. The tolerance is 0.01 px,
-or 0.1 px for the two flowchart fixtures with rough.js circles; text boxes, and the slice boxes of a pie, are compared
-at 0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A golden change is reviewed like code.
+`reference/sequence/*.layout.json`, and the class, state, ER, pie, gantt and mindmap fixtures (`Fixtures/class`,
+`Fixtures/state`, `Fixtures/er`, `Fixtures/pie`, `Fixtures/gantt` and `Fixtures/mindmap`) give `reference/class`,
+`reference/state`, `reference/er`, `reference/pie`, `reference/gantt` and `reference/mindmap`. `-Diagram` picks the
+types (`flowchart`, `sequence`, `class`, `state`, `er`, `pie`, `gantt` and `mindmap`; default: all). The script refuses
+to run unless the installed mermaid is the pinned 11.17.2. Excluded fixtures (`38-unicode`, whose CJK text Chrome draws
+with a system font) get no golden; no sequence, class, state, ER, pie, gantt or mindmap fixture is excluded.
+`MermaidReferenceLayoutTests` compares CanvasNet's flowchart layout with the goldens, `MermaidChartReferenceLayoutTests`
+its pie and gantt layouts, and `MermaidMindmapReferenceLayoutTests` its mindmap layouts (the node sizes, the layout
+given the golden's sizes bit for bit, and the whole drawing). The tolerance is 0.01 px, or 0.1 px for the two flowchart
+fixtures with rough.js circles; text boxes, the slice boxes of a pie and the node sizes of a mindmap are compared at
+0.02 px (see the Tolerances sections of `Fixtures/reference/README.md`). A golden change is reviewed like code.
 
 ### Upstream Vector Generators
 
@@ -204,6 +214,12 @@ is their vector file.
   time zone with its clock fixed at 2024-06-12T10:30:00Z, so "today" is that day. The inputs are those of mermaid's
   gantt parser and database specs (MIT; the database calls written as gantt texts), original texts and the gantt
   fixtures.
+- `gen-diagram-vectors.mjs --type mindmap` writes `mindmap-parser.json`: the MindmapDB nodes in the order `addNode`
+  added them (id, node id, level, description, type, icon, class, section, padding, width and children) and the nodes
+  and edges of `getData()` (shapes, classes, paddings, widths, edge ids, classes and depths) of the cases in
+  `mindmap-vector-cases.mjs`, or the error (jison's lexer and parse errors, the database's "only one root" error, or the
+  TypeError of a decoration before any node). The inputs are those of mermaid's mindmap parser and `getData` specs
+  (MIT; the database calls written as mindmap texts), original texts and the mindmap fixtures.
 - `gen-shape-vectors.mjs` writes `shapes.json`: node shape sizes, label boxes, drawn elements, paint and intersections
   (mermaid in Chrome with Liberation Sans). `--probe <file>` prints the results instead.
 - `gen-curve-vectors.mjs` writes `curves.json`: d3-shape's path text for each edge curve on original point sets (Node).
@@ -212,3 +228,14 @@ is their vector file.
   `tickStep`, the `rangeRound` time scale and `timeFormat` with every directive and pad) on original inputs (Node).
   The script sets the time zone to UTC and refuses to run when it is not UTC or when an installed d3 package is not
   the version in mermaid's source map.
+- `gen-cose-goldens.mjs` writes `cose-layouts.json` and `js-math.json` (`--layouts <file>` and `--math <file>` instead
+  of `--out`). It runs only in Chrome, never in Node: the cose layout of mindmaps is chaotic, so its results depend on
+  the last bit of every sine, cosine, logarithm and power, and Node's `Math` differs from Chrome's. The script extracts
+  cytoscape, layout-base, cose-base and cytoscape-cose-bilkent from mermaid's source map (it checks their paths and
+  versions), runs Mermaid's `createCytoscapeInstance` on seeded trees and on three mindmaps that the pinned mermaid draws
+  in the same browser (the replay must give what mermaid drew), and records every node center, every edge's start,
+  middle and end point, and the iteration count, or the error. It fails when `Math.random` is called during a layout or
+  when a layout does not take the radial (flat forest) path. `js-math.json` holds Chrome's `Math.sin` and `Math.cos` of
+  seeded angles and of every angle the layouts used, `Math.log` of seeded values and of the layouts' arguments, and
+  `Math.pow` of every pair the cooling schedule makes for 1 to 1,016 nodes, each double as 16 hexadecimal digits.
+  Regenerate both files together whenever puppeteer's Chrome changes.

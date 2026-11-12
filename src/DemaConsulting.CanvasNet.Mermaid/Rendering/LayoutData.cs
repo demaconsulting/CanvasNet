@@ -165,6 +165,14 @@ internal sealed record LayoutNode
     /// <summary>Gets the padding around the label.</summary>
     public double Padding { get; init; }
 
+    /// <summary>
+    ///     Gets the width Mermaid gives the node before its shape is drawn (<c>node.width</c>: a mindmap node's
+    ///     <c>mindmap.maxNodeWidth</c>, or zero where Mermaid's mindmap renderer clears it), or null when it is not set.
+    ///     When it is truthy (not zero and not NaN), <c>labelHelper</c> wraps the label at it instead of
+    ///     <c>flowchart.wrappingWidth</c>.
+    /// </summary>
+    public double? Width { get; init; }
+
     /// <summary>Gets the inline styles of the node (<c>style</c> statements), or null for a cluster.</summary>
     public IReadOnlyList<string>? CssStyles { get; init; }
 

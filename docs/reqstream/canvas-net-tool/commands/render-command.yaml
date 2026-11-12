@@ -217,16 +217,17 @@ sections:
           the background, and the theme when one is set) in the render operation and the natural size and the mermaid
           format in the input of the result; shall report the warnings of the diagram (mermaid-warning with the
           specific code in detail and the line and column in location) and the constructs it does not draw (a diagram
-          type that is not drawn yet is the diagnostic mermaid-diagram-unsupported with an empty picture, and a gantt
-          chart, drawn without a today line because the command sets no clock, reports what needs today as the warning
+          type that this version does not draw is the diagnostic mermaid-diagram-unsupported with an empty picture, the
+          icon of a mindmap node is the unsupported feature mermaid-icon-unsupported, and a gantt chart, drawn without a
+          today line because the command sets no clock, reports what needs today as the warning
           mermaid-gantt-today-unavailable) in the
           diagnostics of the result (and, without the JSON option, on standard error) and, with the strict switch, fail
           with unsupported-feature and write no output; shall report invalid text as mermaid-error with the hint of the
           library; and shall name Mermaid diagrams in its usage text.
         justification: |
           A diagram is rendered like any other vector source; the result must say what picture was drawn so that an
-          agent can reproduce it, the diagram types that are not drawn yet must be reported rather than silently left
-          empty, and a bad diagram must be a concise, coded error that says how to fix it.
+          agent can reproduce it, the diagram types that this version does not draw must be reported rather than
+          silently left empty, and a bad diagram must be a concise, coded error that says how to fix it.
         tests:
           - RenderCommand_Run_Mermaid_WritesTheDiagramAndDescribesIt
           - RenderCommand_Run_MermaidJourney_IsUnsupportedDiagnosticThenStrictError
@@ -237,6 +238,8 @@ sections:
           - RenderCommand_Run_MermaidPie_DrawsTheSlices
           - RenderCommand_Run_MermaidGantt_DrawsTheTasksWithoutATodayLine
           - RenderCommand_Run_MermaidGanttTodayAndInvalidDate_AreWarningThenError
+          - RenderCommand_Run_MermaidMindmap_DrawsTheNodes
+          - RenderCommand_Run_MermaidMindmapIcon_IsUnsupportedDiagnosticThenStrictError
           - RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract
           - RenderCommand_Metadata_DescribesCommandAndOptions
 

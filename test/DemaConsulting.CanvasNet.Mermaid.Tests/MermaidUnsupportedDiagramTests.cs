@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.Tests;
 public class MermaidUnsupportedDiagramTests
 {
     /// <summary>
-    ///     Validates that rendering a user journey delivers one report, located at the keyword, with the not-planned hint,
+    ///     Validates that rendering a user journey delivers one report, located at the keyword, with the unsupported hint,
     ///     and returns a transparent 16 by 16 surface.
     /// </summary>
     [Fact]
@@ -30,7 +30,7 @@ public class MermaidUnsupportedDiagramTests
         var report = Assert.Single(unsupported);
         Assert.Equal(MermaidDiagnosticCodes.DiagramUnsupported, report.Feature);
         Assert.Equal(new MermaidLocation("journey.mmd", 2, 1), report.Location);
-        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt", report.Hint);
+        Assert.Equal("journey diagrams are not supported; supported in this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap", report.Hint);
     }
 
     /// <summary>
@@ -91,17 +91,17 @@ public class MermaidUnsupportedDiagramTests
     }
 
     /// <summary>
-    ///     Validates that every other known type behaves the same way, with the hint of a type that is not planned.
+    ///     Validates that every other known type that is not drawn behaves the same way, with the hint of a type that is
+    ///     not supported.
     /// </summary>
     /// <param name="text">The diagram text.</param>
     /// <param name="type">The expected type.</param>
-    /// <param name="planned">Whether the type is planned.</param>
     [Theory]
-    [InlineData("mindmap\n root", "mindmap", true)]
-    [InlineData("journey\n title x", "journey", false)]
-    [InlineData("gitGraph\n commit", "gitGraph", false)]
-    [InlineData("timeline\n title x", "timeline", false)]
-    public void CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint(string text, string type, bool planned)
+    [InlineData("journey\n title x", "journey")]
+    [InlineData("gitGraph\n commit", "gitGraph")]
+    [InlineData("timeline\n title x", "timeline")]
+    [InlineData("kanban\n todo", "kanban")]
+    public void CanvasNetMermaid_Render_OtherKnownTypes_AreUnsupportedWithHint(string text, string type)
     {
         // Arrange
         var document = MermaidDocument.Parse(text);
@@ -114,7 +114,7 @@ public class MermaidUnsupportedDiagramTests
         Assert.Equal(type, document.DiagramType);
         Assert.False(document.IsSupported);
         var report = Assert.Single(unsupported);
-        Assert.StartsWith(planned ? $"{type} diagrams are planned" : $"{type} diagrams are not supported", report.Hint, StringComparison.Ordinal);
+        Assert.StartsWith($"{type} diagrams are not supported", report.Hint, StringComparison.Ordinal);
     }
 
     /// <summary>

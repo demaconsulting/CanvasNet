@@ -14,15 +14,17 @@ rendering units draw with, the flowchart style sheet `FlowchartStyles`, and its 
 `ThemeResolver.SequenceStyles.cs`, which holds the sequence style sheet `SequenceStyles` and its typed paints
 `StrokePaint` and `ShadowPaint`, and `ThemeResolver.ChartStyles.cs`, which holds the chart style sheets `PieStyles` with
 its typed paint `SlicePaint` and `GanttStyles` with the element description `GanttElement`, the computed style
-`GanttComputedStyle`, and the selector `GanttSelector` of its cascade.
+`GanttComputedStyle`, and the selector `GanttSelector` of its cascade, and `ThemeResolver.MindmapStyles.cs`, which
+holds the mindmap style sheet `MindmapStyles`.
 
 #### Purpose
 
 `ThemeResolver` reproduces Mermaid's five built-in themes - `default`, `base`, `dark`, `forest`, and `neutral` - and the
 style sheets that Mermaid writes for a flowchart, a sequence diagram, a class diagram, a state diagram, an entity
-relationship diagram, a pie chart, and a gantt chart from them. Given a theme name and the user's theme variable
-overrides, it computes every theme variable of every diagram type with the same text as Mermaid's `getThemeVariables`,
-and `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`, and `GanttStyles` turn
+relationship diagram, a pie chart, a gantt chart, and a mindmap from them. Given a theme name and the user's theme
+variable overrides, it computes every theme variable of every diagram type with the same text as Mermaid's
+`getThemeVariables`, and `FlowchartStyles`, `SequenceStyles`, `ClassStyles`, `StateStyles`, `ErStyles`, `PieStyles`,
+`GanttStyles`, and `MindmapStyles` turn
 the theme variables and the `themeCSS` of a configuration into the paint and fonts the diagram is drawn with.
 
 The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeResolver-*` requirements in
@@ -48,8 +50,8 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   read the color), which the flowchart's and the entity relationship diagram's sheets use and which therefore lives in
   the shared base rather than in `FlowchartStyles`.
 - **`UnifiedStyles`** - the abstract base of the sheets of the diagrams that Mermaid draws with its unified renderer
-  (the flowchart and the class, state, and entity relationship diagrams), whose shapes, clusters, edges, labels, and
-  title the shared rendering units
+  (the flowchart, the class, state, and entity relationship diagrams, and the mindmap), whose shapes, clusters, edges,
+  labels, and title the shared rendering units
   draw. It gives those units every selector they read, whichever diagram's sheet wrote it: `Node` and `Cluster`
   (`ShapePaint`: fill, stroke, and stroke width, from `.node rect` and `.cluster rect`), `NodeLabel` (abstract: each
   sheet names the rule its labels are colored by), `EdgeLabel` and `NoteLabel` (the node label's paint unless the
@@ -63,7 +65,11 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `TerminalLabel(html)`, the paint of a relation's terminal label (the size of `.edgeTerminals` on the root font, and
   the edge label's color for an HTML label or the root's fill for an SVG label), and `CentersNodeSvgText` (virtual,
   true by default: whether the sheet centers the SVG text of a node's label on its anchor, as a flowchart's
-  `.node .label text { text-anchor: middle }` does; without such a rule the text starts at its anchor).
+  `.node .label text { text-anchor: middle }` does; without such a rule the text starts at its anchor), and the
+  virtual `NodePaintFor(cssClasses, element)` and `NodeLabelFor(cssClasses, html)`, the paint of a node's shape element
+  (`rect`, `circle`, `polygon`, `path`, or `line`) and of its label by the node's classes: by default `Node` for a body
+  and the `.node line` rule (which no such sheet has) for a line, and `NodeLabel` for a label, because only a mindmap's
+  sheet paints by classes and elements.
 - **`FlowchartStyles`** - the rules of the flowchart's style sheet, a `UnifiedStyles`. `KnownSelectors` is the
   set of selectors of the sheet, which `themeCSS` may use. Its labels are colored by `.label`, and its title selector
   is `.flowchartTitleText`. Its own typed properties `EdgeColor`, `EdgeWidth`, `ThickEdgeWidth`, and `MarkerColor`,
@@ -161,6 +167,33 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   root to the element (tag, classes, attributes, inline style) and gives a `GanttComputedStyle` (fill, stroke, stroke
   width and dashes, opacity, font, weight, style, text anchor, and transform); `Faded` folds the opacity into a
   color. An instance is used by one render on one thread, because it caches the rules that match a chain.
+- **`MindmapStyles`** - the rules of the mindmap's style sheet (`mindmap/styles.ts`) after the global rules, a
+  `UnifiedStyles` with its own `KnownSelectors`. The rules are those of `styles.ts` in their order, with the
+  declarations that change pixels and the values of the classic look: `.edge` with a stroke width of 3; then, for each
+  of the `THEME_COLOR_LIMIT` section colors `i` (12 in every theme, capped by `MaxColorLimit`), with `k = i - 1`, the
+  fill `cScale<i>` of the `rect`, `path`, `circle`, and `polygon` elements under `.section-k`, the label color
+  `cScaleLabel<i>` of its `text` (fill) and `span` (color), the stroke `cScale<i>` of `.section-edge-k`, the stroke width
+  `17 - 3i` of `.edge-depth-k`, and the stroke `cScaleInv<i>` 3 pixels wide of the `line` under `.section-k`; then the
+  root's fill `git0` and label color `gitBranchLabel0` under `.section-root`, and `.edge`'s fill of none. A negative
+  stroke width (`.edge-depth-5` onward) is not valid CSS, so it is left out as a browser drops it, and such an edge
+  keeps `.edge`'s 3. No rule strokes a node's shape. **The gradient rule:** when the theme variables `useGradient` and
+  `mainBkg` are both truthy (the `base`, `dark`, `forest`, and `neutral` themes; `default` sets `useGradient` false),
+  Mermaid's `genGradient` rules come last, and of them only `.section-k line { stroke-width: 0 }` applies to the
+  classic look, so those themes draw the line under a default node 0 pixels wide; a theme variable
+  `useGradient: false` keeps the 3 pixels. The rules of the `neo` look, the values of the `redux` themes, and the
+  `disabled` rules are left out (the look is drawn classic, those themes are not built in, and no node is disabled).
+  `NodePaintFor` and `NodeLabelFor` cascade, in sheet order, the `.class element` rules whose class is one of the
+  node's classes (`mindmap-node`, `section-k` or `section-root section--1`, and the node's own class): the root's
+  `.section-root` rules come after `.section--1`'s, so the root takes `git0`, and a node class that names a later
+  section takes that section's color. A node's own class can be styled only by `themeCSS`, so `Create` also accepts a
+  `themeCSS` rule `.class element` for each class of the diagram's nodes that is a plain CSS identifier and each
+  element a node draws (`rect`, `path`, `circle`, `polygon`, `line`, `text`, and `span`): `.urgent rect` paints a
+  `:::urgent` node's rectangle in its place in the sheet, as Mermaid does, while a class no node has, or one that CSS
+  would read as another selector (`a.b`), stays reported. The label is the root font with the `span` rules (an HTML
+  label's color) or the
+  `text` rules (SVG text's fill); `NodeLabel` is the root font and fill, the title selector is the root (a mindmap has
+  no title), and `CentersNodeSvgText` is false. An edge's paint comes from the single-class rules of its classes,
+  which the edge builder cascades. An instance is immutable.
 
 #### Key Methods
 
@@ -213,6 +246,13 @@ The unit's behavior is specified by the `CanvasNetMermaid-Configuration-ThemeRes
   `themeCSS` rules of the pie or gantt selectors as `FlowchartStyles.Create` does.
 - `GanttStyles.Compute(IReadOnlyList<GanttElement> chain)` - the computed style of the last element of the chain by the
   cascade above; the matched rules of a chain are cached.
+- `MindmapStyles.Create(MermaidConfig config, MermaidReportSink? sink, IEnumerable<string>? nodeClasses = null)` -
+  builds the same global rules and then the rules of the mindmap's `styles.ts` from the theme variables, in their
+  order, with the gradient rules last when `useGradient` and `mainBkg` are truthy, and appends the `themeCSS` rules of
+  the mindmap selectors and of the node classes (`nodeClasses`, each node's classes separated by spaces) as
+  `FlowchartStyles.Create` does.
+- `MindmapStyles.NodePaintFor(string cssClasses, string element)` and `NodeLabelFor(string cssClasses, bool html)` -
+  the cascades above: a body's fill, stroke, and stroke width, and a label's font and color.
 
 **Preconditions and postconditions**: `GetThemeVariables` requires a supported theme name; it returns a new JSON object
 of string, number, and Boolean values. The methods are pure functions of their arguments and safe for concurrent use.
@@ -224,7 +264,7 @@ of string, number, and Boolean values. The methods are pure functions of their a
 is not a color; the exception carries the offending value, so that `MermaidConfigResolver` can drop the variable and
 compute the theme again. A hostile `THEME_COLOR_LIMIT` cannot make the loops unbounded; khroma then fails on the
 missing scale colors, as in Mermaid. `FlowchartStyles.Create`, `ClassStyles.Create`, `StateStyles.Create`,
-`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, and `SequenceStyles.Create`
+`ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, `MindmapStyles.Create`, and `SequenceStyles.Create`
 report each `themeCSS` rule of another selector, at-rule, or nested rule as `mermaid-theme-css-unsupported` at the
 location of `themeCSS` and do not apply it; in strict mode the sink throws `MermaidUnsupportedFeatureException` at the
 first one.
@@ -248,6 +288,8 @@ first one.
   a milestone and the `scale` of a highlighted slice are given to the renderers, which apply them to the geometry.
 - The gantt cascade knows only the selectors of Mermaid's gantt sheet (classes, compound classes, and the three
   descendant selectors); a `themeCSS` rule with any other selector is reported.
+- The mindmap sheet is built for the classic look only: the gradient fills, filters, and node strokes of the `neo`
+  look and the shapes and colors of the `redux` themes are not built.
 
 #### Dependencies
 
@@ -256,8 +298,8 @@ first one.
 - **`StyleDeclarations`** (this subsystem) - `ParseSheet`, `ParseBlock`, `NormalizeSelector`, the value parsers, and
   `StyleDeclarationSet`
 - **`MermaidConfigResolver`** (this subsystem) - the `MermaidConfig` that `FlowchartStyles.Create`,
-  `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`, and
-  `SequenceStyles.Create` read
+  `ClassStyles.Create`, `StateStyles.Create`, `ErStyles.Create`, `PieStyles.Create`, `GanttStyles.Create`,
+  `MindmapStyles.Create`, and `SequenceStyles.Create` read, and `IsTruthy` for the gradient rule
 - **System root** - `MermaidReportSink` and `MermaidLocation`
 - **Core `CanvasNet`** - `Rgba32` and `CssColor` (the `Canvas` subsystem), through the public API
 - **.NET base class library** - `System.Text.Json` and `System.Collections.Frozen`
@@ -267,11 +309,13 @@ first one.
 `MermaidConfigResolver` computes the theme variables of the site theme and of a theme named by the text; the `Flowchart`
 subsystem (`FlowchartModel`) builds the `FlowchartStyles` of a call, the `Class` subsystem (`ClassModel`) the
 `ClassStyles`, the `State` subsystem (`StateModel`) the `StateStyles`, and the `Er` subsystem (`ErModel`) the `ErStyles`
-of a call, the `Pie` subsystem (`PieRenderer`) the `PieStyles`, and the `Gantt` subsystem (`GanttRenderer`) the
-`GanttStyles` of a render, which they draw with; the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through
+of a call, the `Pie` subsystem (`PieRenderer`) the `PieStyles`, the `Gantt` subsystem (`GanttRenderer`) the
+`GanttStyles`, and the `Mindmap` subsystem (`MindmapRenderer`) the `MindmapStyles` of a render, which they draw with;
+the `Rendering` subsystem (`ShapeLibrary`, `EdgeBuilder`, and through
 them and for the diagram title `ClusterLayout`) draws with the resolved paints, the rules, and `DiagramStyles.Root` of
-any of these sheets through `UnifiedStyles` (`ShapeLibrary` reads `ClusterTitle(html)` and `CentersNodeSvgText`,
-`EdgeBuilder` the font size of `RootText`); and in the `Sequence` subsystem `SequenceLayout` builds the `SequenceStyles`
+any of these sheets through `UnifiedStyles` (`ShapeLibrary` reads `ClusterTitle(html)`, `CentersNodeSvgText`,
+`NodePaintFor`, and `NodeLabelFor`, `EdgeBuilder` the font size of `RootText`); and in the `Sequence` subsystem
+`SequenceLayout` builds the `SequenceStyles`
 of a render and `SequenceRenderer` draws with its resolvers. The tests in
 `test/DemaConsulting.CanvasNet.Mermaid.Tests/Configuration/ThemeResolverTests.cs` call the unit directly through
 `InternalsVisibleTo`, against the vectors of `Fixtures/upstream-vectors/themes.json`.

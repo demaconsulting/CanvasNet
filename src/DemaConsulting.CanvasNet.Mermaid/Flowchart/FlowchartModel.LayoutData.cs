@@ -196,55 +196,14 @@ internal sealed partial class FlowchartModel
     }
 
     /// <summary>
-    ///     Gets a value indicating whether a label contains a Font Awesome icon as Mermaid finds it: a prefix (<c>fa</c>,
-    ///     <c>fab</c>, <c>fak</c>, <c>fal</c>, <c>far</c> or <c>fas</c>), <c>:fa-</c> and an icon name of word characters and dashes.
-    /// </summary>
-    /// <param name="text">The label.</param>
-    /// <returns>Whether it does.</returns>
-    internal static bool ContainsFontAwesome(string? text)
-    {
-        if (text is null)
-        {
-            return false;
-        }
-
-        for (var i = text.IndexOf("fa", StringComparison.Ordinal); i >= 0; i = text.IndexOf("fa", i + 1, StringComparison.Ordinal))
-        {
-            var colon = i + 2;
-            if (colon < text.Length && text[colon] is 'b' or 'k' or 'l' or 'r' or 's' && !StartsWithIcon(text, colon))
-            {
-                colon++;
-            }
-
-            if (StartsWithIcon(text, colon))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Gets a value indicating whether <c>:fa-</c> and an icon-name character follow a position.
-    /// </summary>
-    /// <param name="text">The label.</param>
-    /// <param name="position">The position.</param>
-    /// <returns>Whether they do.</returns>
-    private static bool StartsWithIcon(string text, int position) =>
-        position + 4 < text.Length
-        && string.CompareOrdinal(text, position, ":fa-", 0, 4) == 0
-        && (ScanPatterns.IsJsWordChar(text[position + 4]) || text[position + 4] == '-');
-
-    /// <summary>
-    ///     Reports a label that contains a Font Awesome icon.
+    ///     Reports a label that contains a Font Awesome icon (<see cref="LabelBuilder.ContainsFontAwesome"/>).
     /// </summary>
     /// <param name="sink">The sink.</param>
     /// <param name="text">The label.</param>
     /// <param name="location">The location of its element.</param>
     private static void ReportFontAwesome(MermaidReportSink sink, string? text, MermaidLocation location)
     {
-        if (ContainsFontAwesome(text))
+        if (LabelBuilder.ContainsFontAwesome(text))
         {
             sink.Unsupported(
                 MermaidDiagnosticCodes.IconUnsupported,

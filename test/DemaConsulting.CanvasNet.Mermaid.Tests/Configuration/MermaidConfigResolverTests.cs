@@ -735,6 +735,61 @@ public class MermaidConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the mindmap section: the schema's defaults without configuration, the values a frontmatter sets, and a
+    ///     value of the wrong type reported at its key and ignored.
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_MindmapSection_DefaultsValuesAndInvalidValues()
+    {
+        // Arrange
+        const string Set = "---\nconfig:\n  mindmap:\n    padding: 4\n    maxNodeWidth: 120\n    layoutAlgorithm: other\n    useMaxWidth: false\n---\nmindmap\n  root\n";
+        const string Wrong = "%%{init: {\"mindmap\": {\"padding\": \"wide\", \"maxNodeWidth\": true}}}%%\nmindmap\n  root\n";
+
+        // Act
+        var (defaults, defaultWarnings) = Resolve("mindmap\n  root\n", diagramId: "mindmap");
+        var (set, setWarnings) = Resolve(Set, diagramId: "mindmap");
+        var (wrong, wrongWarnings) = Resolve(Wrong, diagramId: "mindmap");
+
+        // Assert
+        Assert.Empty(defaultWarnings);
+        Assert.Empty(setWarnings);
+        Assert.Equal(4, defaults.Raw["mindmap"]!.AsObject().Count);
+        Assert.Equal(new MindmapConfig(), defaults.Mindmap);
+        Assert.Equal((10.0, 200.0, "cose-bilkent", true), (defaults.Mindmap.Padding, defaults.Mindmap.MaxNodeWidth, defaults.Mindmap.LayoutAlgorithm, defaults.Mindmap.UseMaxWidth));
+        Assert.Equal((4.0, 120.0, "other", false), (set.Mindmap.Padding, set.Mindmap.MaxNodeWidth, set.Mindmap.LayoutAlgorithm, set.Mindmap.UseMaxWidth));
+        Assert.Equal(2, wrongWarnings.Count);
+        Assert.All(wrongWarnings, warning => Assert.Equal(MermaidDiagnosticCodes.ConfigInvalid, warning.Code));
+        Assert.Contains(wrongWarnings, warning => warning.Message.Contains("mindmap.padding", StringComparison.Ordinal));
+        Assert.Equal(new MindmapConfig(), wrong.Mindmap);
+    }
+
+    /// <summary>
+    ///     Validates the mindmap's layout as its database's <c>getData</c> sets it: <c>cose-bilkent</c> unless the site
+    ///     configuration, the frontmatter or a directive sets a layout (which is kept, even <c>dagre</c>), and only for a
+    ///     mindmap (a flowchart keeps the default <c>dagre</c>; <c>mindmap.layoutAlgorithm</c> changes nothing).
+    /// </summary>
+    [Fact]
+    public void MermaidConfigResolver_Resolve_MindmapLayout_IsCoseBilkentUnlessUserDefined()
+    {
+        // Arrange
+        const string Mindmap = "mindmap\n  root\n";
+        var site = new MermaidRenderOptions { Config = "{\"layout\": \"dagre\"}" };
+
+        // Act
+        var (plain, _) = Resolve(Mindmap, diagramId: "mindmap");
+        var (algorithm, _) = Resolve("---\nconfig:\n  mindmap:\n    layoutAlgorithm: elk\n---\n" + Mindmap, diagramId: "mindmap");
+        var (frontmatter, _) = Resolve("---\nconfig:\n  layout: elk\n---\n" + Mindmap, diagramId: "mindmap");
+        var (directive, _) = Resolve("%%{init: {\"layout\": \"tidy-tree\"}}%%\n" + Mindmap, diagramId: "mindmap");
+        var (siteDagre, _) = Resolve(Mindmap, site, diagramId: "mindmap");
+        var (flowchart, _) = Resolve(Flow);
+
+        // Assert
+        Assert.Equal(("cose-bilkent", "cose-bilkent"), (plain.Layout, algorithm.Layout));
+        Assert.Equal(("elk", "tidy-tree", "dagre"), (frontmatter.Layout, directive.Layout, siteDagre.Layout));
+        Assert.Equal("dagre", flowchart.Layout);
+    }
+
+    /// <summary>
     ///     Validates that state and entity relationship values of the wrong type are reported at the key and ignored.
     /// </summary>
     [Fact]

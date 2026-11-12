@@ -220,6 +220,31 @@ internal sealed record GanttConfig
 }
 
 /// <summary>
+///     The mindmap section of the effective configuration, as Mermaid's mindmap database and renderer read it
+///     (<c>conf.mindmap?.key ?? defaultConfig.mindmap.key</c>).
+/// </summary>
+/// <remarks>
+///     The defaults are those of the schema's <c>MindmapDiagramConfig</c>. The database gives every node the padding
+///     (doubled for the rectangle, rounded rectangle and hexagon nodes) and the width <c>maxNodeWidth</c>, which a label
+///     wraps at; the renderer grows the view box by the padding. <c>layoutAlgorithm</c> is read by nothing: the layout is
+///     the top-level <c>layout</c>, which a mindmap sets to <c>cose-bilkent</c> unless the user set it.
+/// </remarks>
+internal sealed record MindmapConfig
+{
+    /// <summary>Gets the padding of the nodes and around the drawing (<c>mindmap.padding</c>).</summary>
+    public double Padding { get; init; } = 10;
+
+    /// <summary>Gets the width a node's label wraps at (<c>mindmap.maxNodeWidth</c>).</summary>
+    public double MaxNodeWidth { get; init; } = 200;
+
+    /// <summary>Gets the layout algorithm named in the section, which Mermaid does not read (<c>mindmap.layoutAlgorithm</c>).</summary>
+    public string LayoutAlgorithm { get; init; } = "cose-bilkent";
+
+    /// <summary>Gets a value indicating whether the picture may shrink to the page width (<c>mindmap.useMaxWidth</c>).</summary>
+    public bool UseMaxWidth { get; init; } = true;
+}
+
+/// <summary>
 ///     A configuration value that Mermaid accepts as a number or a string (a font size or a font weight), kept as
 ///     JavaScript holds it, because Mermaid's <c>parseFontSize</c> and its memoization keys treat the two kinds
 ///     differently.
@@ -448,6 +473,7 @@ internal sealed class MermaidConfig
         Er = ReadEr(raw);
         Pie = ReadPie(raw);
         Gantt = ReadGantt(raw);
+        Mindmap = ReadMindmap(raw);
     }
 
     /// <summary>Gets the effective configuration as JSON (Mermaid's <c>getConfig()</c>).</summary>
@@ -471,7 +497,10 @@ internal sealed class MermaidConfig
     /// <summary>Gets the look (<c>classic</c>, or another look that is drawn classic).</summary>
     public string Look => Text(Raw, "look") ?? "classic";
 
-    /// <summary>Gets the layout (<c>dagre</c>, or another layout that falls back to dagre).</summary>
+    /// <summary>
+    ///     Gets the layout: <c>dagre</c> by default, <c>cose-bilkent</c> for a mindmap unless the user set one, or another
+    ///     layout that a diagram reports and does not use.
+    /// </summary>
     public string Layout => Text(Raw, "layout") ?? "dagre";
 
     /// <summary>Gets the user style sheet (<c>themeCSS</c>), or null.</summary>
@@ -518,6 +547,9 @@ internal sealed class MermaidConfig
 
     /// <summary>Gets the gantt section, as the gantt renderer reads it.</summary>
     public GanttConfig Gantt { get; }
+
+    /// <summary>Gets the mindmap section, as the mindmap database and renderer read it.</summary>
+    public MindmapConfig Mindmap { get; }
 
     /// <summary>
     ///     Gets the detector settings of this configuration: the <c>defaultRenderer</c> of the flowchart, class and
@@ -721,6 +753,25 @@ internal sealed class MermaidConfig
             TopAxis = Boolean(section, "topAxis", defaults.TopAxis),
             DisplayMode = Text(section, "displayMode") ?? defaults.DisplayMode,
             UseWidth = section["useWidth"] is JsonValue width && width.TryGetValue<double>(out var value) && double.IsFinite(value) ? value : null,
+        };
+    }
+
+    /// <summary>
+    ///     Reads the mindmap section as the mindmap database and renderer see it: the section's values over the schema's
+    ///     defaults.
+    /// </summary>
+    /// <param name="raw">The effective configuration.</param>
+    /// <returns>The mindmap section.</returns>
+    private static MindmapConfig ReadMindmap(JsonObject raw)
+    {
+        var section = raw["mindmap"] as JsonObject ?? [];
+        var defaults = new MindmapConfig();
+        return new MindmapConfig
+        {
+            Padding = Number(section, "padding", defaults.Padding),
+            MaxNodeWidth = Number(section, "maxNodeWidth", defaults.MaxNodeWidth),
+            LayoutAlgorithm = Text(section, "layoutAlgorithm") ?? defaults.LayoutAlgorithm,
+            UseMaxWidth = Boolean(section, "useMaxWidth", defaults.UseMaxWidth),
         };
     }
 

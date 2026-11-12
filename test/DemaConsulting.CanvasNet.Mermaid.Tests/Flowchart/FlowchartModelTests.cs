@@ -277,29 +277,6 @@ public class FlowchartModelTests
     }
 
     /// <summary>
-    ///     Validates the detection of Font Awesome icons in labels, as Mermaid's expression finds them.
-    /// </summary>
-    /// <param name="text">The label.</param>
-    /// <param name="expected">Whether it holds an icon.</param>
-    [Theory]
-    [InlineData("fa:fa-car Car", true)]
-    [InlineData("fab:fa-github", true)]
-    [InlineData("see fas:fa-x-y here", true)]
-    [InlineData("fa:fa-", false)]
-    [InlineData("fax:fa-car", false)]
-    [InlineData("fa:car", false)]
-    [InlineData("plain text", false)]
-    [InlineData(null, false)]
-    public void FlowchartModel_ContainsFontAwesome_Label_FindsIcons(string? text, bool expected)
-    {
-        // Act
-        var result = FlowchartModel.ContainsFontAwesome(text);
-
-        // Assert
-        Assert.Equal(expected, result);
-    }
-
-    /// <summary>
     ///     Validates that laying the model out delivers its reports and then draws the diagram.
     /// </summary>
     [Fact]

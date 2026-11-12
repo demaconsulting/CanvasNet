@@ -508,6 +508,7 @@ sections:
           - SourceLoader_Load_MermaidClass_ProbesAndDraws
           - SourceLoader_Load_MermaidPie_ProbesAndDraws
           - SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock
+          - SourceLoader_Load_MermaidMindmap_ProbesAndDraws
 
       - id: CanvasNetViewer-Imaging-SourceLoader-MermaidRender
         title: >-
@@ -522,7 +523,8 @@ sections:
           describe the drawn size, the background, and the theme when one is set in the render operation; shall
           return each warning of the library as the note mermaid-warning (the specific code as Detail, the line and
           column as Location) and each construct it does not draw as an unsupported note named by its feature (a
-          diagram type that is not drawn yet is one note mermaid-diagram-unsupported, with the hint of the library,
+          diagram type that this version does not draw is one note mermaid-diagram-unsupported, with the hint of the
+          library,
           and an empty picture); and, in strict mode, shall report the first unsupported construct as an
           unsupported-feature error that names the feature and keeps the hint of the library.
         justification: |
@@ -536,6 +538,7 @@ sections:
           - SourceLoader_Load_MermaidClass_ProbesAndDraws
           - SourceLoader_Load_MermaidPie_ProbesAndDraws
           - SourceLoader_Load_MermaidGantt_ProbesAndDrawsWithoutAClock
+          - SourceLoader_Load_MermaidMindmap_ProbesAndDraws
           - SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions
           - SourceLoader_Load_MermaidTheme_IsAppliedAndValidated
           - InputSelection_ApplyTo_Diagram_FragmentThemeReplacesTheCommandTheme

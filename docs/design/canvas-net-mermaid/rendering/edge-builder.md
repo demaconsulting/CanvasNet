@@ -186,8 +186,13 @@ labels with `LabelPosition` and `DrawLabel`, and draws the terminal labels of ev
 `EndLabelLeft`. The transitions of a state diagram come from the layout data of `StateModel` (the `State` subsystem),
 each ending in `arrow_barb` with the class `transition`; the relationships of an entity relationship diagram come
 from `ErModel` (the `Er` subsystem), with the cardinality arrow types at their ends (or `md_parent`, which draws no
-marker), the class `relationshipLine`, and their roles as labels. The tests in `EdgeBuilderTests.cs` call the unit
-directly through `InternalsVisibleTo`.
+marker), the class `relationshipLine`, and their roles as labels. `MindmapRenderer` (the `Mindmap` subsystem) calls
+`Draw` itself for every edge of a mindmap, without `ClusterLayout`: the route is the start, middle, and end points of
+the `Cose` layout, the curve `basis`, the thickness `normal`, no arrow type, and the classes `edge`,
+`section-edge-k`, and `edge-depth-n`, whose single-class rules of the mindmap sheet give the edge its color and width;
+both ends are given without an intersect function, so the route is not cut at the node outlines, as in Mermaid, and a
+point that is not a number (cytoscape's bad line) is dropped by the same filter as any other route. The tests in
+`EdgeBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
 

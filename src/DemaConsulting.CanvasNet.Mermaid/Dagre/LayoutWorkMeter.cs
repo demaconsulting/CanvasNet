@@ -110,5 +110,5 @@ internal sealed class LayoutWorkMeter
                 CultureInfo.InvariantCulture,
                 $"laying the diagram out needs more than the limit of {MaxWork} steps (MermaidLimits.MaxLayoutWork)"),
             _location,
-            "simplify the diagram (fewer edges or subgraphs), or raise MermaidLimits.MaxLayoutWork");
+            "simplify the diagram, or raise MermaidLimits.MaxLayoutWork");
 }

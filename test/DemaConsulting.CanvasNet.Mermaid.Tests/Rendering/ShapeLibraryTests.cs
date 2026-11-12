@@ -749,6 +749,187 @@ public sealed class ShapeLibraryTests
         : throw new ArgumentException($"not a color: {text}", nameof(text));
 
     /// <summary>
+    ///     Checks <c>defaultMindmapNode</c> on a 40 by 24 label with a padding of 10: the path 80 by 34 (four times the
+    ///     padding beside the label, half of it above and below) with four quadratic corners, filled by the mindmap
+    ///     sheet's section rule and not stroked; the line along its bottom edge in the section's inverse color, 3 wide;
+    ///     the label centered; and the rectangle's intersection.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_DefaultMindmapNode_DrawsPathLineAndCenteredLabel()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "1", Shape = "defaultMindmapNode", Label = "a", Padding = 10, CssClasses = "mindmap-node section-0" };
+        var context = MindmapContext(_ => new SceneRect(0, 0, 40, 24));
+
+        // Act
+        var result = ShapeLibrary.Draw(node, context);
+
+        // Assert
+        Assert.Equal("defaultMindmapNode", result.Handler);
+        Assert.Equal(new SceneRect(-40, -17, 80, 34), result.Bounds);
+        var body = Assert.IsType<ScenePath>(result.Items[0]);
+        Assert.Equal(4, body.Segments.Count(s => s.Kind == SceneSegmentKind.QuadraticTo));
+        Assert.Equal(new SceneRect(-40, -17, 80, 34), Scene.BoundsOf([body]));
+        Assert.Equal(Color("#ffff78"), body.Fill);
+        Assert.Null(body.Stroke);
+        var line = Assert.IsType<ScenePath>(result.Items[1]);
+        Assert.Equal(new SceneRect(-40, 17, 80, 0), Scene.BoundsOf([line]));
+        Assert.Equal((Color("#ababff"), 3.0), (line.Stroke!.Color, line.Stroke.Width));
+        Assert.Equal(new ShapePoint(-20, -12), result.LabelOffset);
+        Assert.Equal(new ShapePoint(40, 0), result.Intersect(new NodeBox(0, 0, 80, 34), new ShapePoint(200, 0)));
+    }
+
+    /// <summary>
+    ///     Checks that in a flowchart's sheet, which has no rule for a line, <c>defaultMindmapNode</c> draws its body in
+    ///     the node colors and no line, at the same size.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_DefaultMindmapNodeInAFlowchart_DrawsNoLine()
+    {
+        // Arrange
+        var node = new LayoutNode { Id = "A", Shape = "defaultMindmapNode", Label = "a", Padding = 10, CssClasses = "default" };
+        var context = Context(new SceneRect(0, 0, 40, 24));
+
+        // Act
+        var result = ShapeLibrary.Draw(node, context);
+
+        // Assert
+        Assert.Equal(new SceneRect(-40, -17, 80, 34), result.Bounds);
+        var body = Assert.IsType<ScenePath>(Assert.Single(result.Items));
+        Assert.Equal((context.Styles.Node.Fill, context.Styles.Node.Stroke), (body.Fill, body.Stroke!.Color));
+    }
+
+    /// <summary>
+    ///     Checks that <c>mindmapCircle</c> pads the label by the whole node padding, where <c>circle</c> pads it by half.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_MindmapCircle_TakesTheWholePadding()
+    {
+        // Arrange
+        var context = MindmapContext(_ => new SceneRect(0, 0, 40, 24));
+        LayoutNode Node(string shape) => new() { Id = "1", Shape = shape, Label = "a", Padding = 10, CssClasses = "mindmap-node section-0" };
+
+        // Act
+        var mindmap = ShapeLibrary.Draw(Node("mindmapCircle"), context);
+        var circle = ShapeLibrary.Draw(Node("circle"), context);
+
+        // Assert
+        Assert.Equal("mindmapCircle", mindmap.Handler);
+        Assert.Equal(new SceneRect(-30, -30, 60, 60), mindmap.Bounds);
+        Assert.Equal(new SceneRect(-25, -25, 50, 50), circle.Bounds);
+        Assert.Equal(30, mindmap.Intersect(new NodeBox(0, 0, 60, 60), new ShapePoint(300, 0)).X, 9);
+    }
+
+    /// <summary>
+    ///     Checks that a mindmap's sheet paints each shape by the element it draws and the node's classes: a
+    ///     <c>themeCSS</c> rule for <c>.section-1 circle</c> fills the circle only, the rectangle, hexagon, cloud and bang
+    ///     keep the section's color, the root takes <c>git0</c>, and no shape is stroked; the label's color is the
+    ///     section's span rule.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_MindmapSheet_PaintsByElementAndClasses()
+    {
+        // Arrange
+        var site = new JsonObject { ["themeCSS"] = ".section-1 circle { fill: #ff0000 }" };
+        var requests = new List<LabelRequest>();
+        var context = MindmapContext(
+            request =>
+            {
+                requests.Add(request);
+                return new SceneRect(0, 0, 40, 24);
+            },
+            site);
+        var section = Color(context.Config.ThemeVariable("cScale2")!);
+        ScenePath Body(string shape, string classes = "mindmap-node section-1") =>
+            Assert.IsType<ScenePath>(ShapeLibrary.Draw(new LayoutNode { Id = "1", Shape = shape, Label = "a", Padding = 10, CssClasses = classes }, context).Items[0]);
+
+        // Act
+        var bodies = new[] { "mindmapCircle", "rect", "rounded", "hexagon", "cloud", "bang" }.Select(shape => Body(shape)).ToList();
+        var root = Body("defaultMindmapNode", "mindmap-node section-root section--1");
+
+        // Assert
+        Assert.Equal(Color("#ff0000"), bodies[0].Fill);
+        Assert.All(bodies.Skip(1), body => Assert.Equal(section, body.Fill));
+        Assert.All(bodies, body => Assert.Null(body.Stroke));
+        Assert.Equal(Color(context.Config.ThemeVariable("git0")!), root.Fill);
+        Assert.Equal(Color(context.Config.ThemeVariable("cScaleLabel2")!), requests[0].Font.Color);
+        Assert.Equal(Color(context.Config.ThemeVariable("gitBranchLabel0")!), requests[^1].Font.Color);
+    }
+
+    /// <summary>
+    ///     Checks <c>labelHelper</c>'s wrapping width: the node's width when it is truthy (a mindmap node's
+    ///     <c>maxNodeWidth</c>), else <c>flowchart.wrappingWidth</c> (for a zero, NaN or unset width).
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_NodeWidth_IsTheWrappingWidthWhenTruthy()
+    {
+        // Arrange
+        var requests = new List<LabelRequest>();
+        var site = new JsonObject { ["flowchart"] = new JsonObject { ["wrappingWidth"] = 150 } };
+        var context = MindmapContext(
+            request =>
+            {
+                requests.Add(request);
+                return new SceneRect(0, 0, 40, 24);
+            },
+            site);
+
+        // Act
+        foreach (var width in new double?[] { 100, 0, double.NaN, null })
+        {
+            ShapeLibrary.Draw(new LayoutNode { Id = "1", Shape = "defaultMindmapNode", Label = "a", Width = width, CssClasses = "mindmap-node section-0" }, context);
+        }
+
+        // Assert
+        Assert.Equal([100.0, 150.0, 150.0, 150.0], requests.Select(request => request.Width));
+    }
+
+    /// <summary>
+    ///     Checks <c>labelHelper</c>'s background rule: an SVG label gets its background when the node has an icon or an
+    ///     image (a non-empty one, as JavaScript's <c>!!</c> tests it), whatever the shape.
+    /// </summary>
+    [Fact]
+    public void ShapeLibrary_Draw_IconOrImage_GivesTheLabelItsBackground()
+    {
+        // Arrange
+        var requests = new List<LabelRequest>();
+        var context = MindmapContext(request =>
+        {
+            requests.Add(request);
+            return new SceneRect(0, 0, 40, 24);
+        });
+        LayoutNode Node(string? icon, string? img) => new() { Id = "1", Shape = "defaultMindmapNode", Label = "a", Icon = icon, Img = img, CssClasses = "mindmap-node section-0" };
+
+        // Act
+        foreach (var node in new[] { Node("fa fa-book", null), Node(null, "a.png"), Node(string.Empty, null), Node(null, null) })
+        {
+            ShapeLibrary.Draw(node, context);
+        }
+
+        // Assert
+        Assert.Equal([true, true, false, false], requests.Select(request => request.AddBackground));
+    }
+
+    /// <summary>
+    ///     Creates the context of a mindmap whose labels all measure a given box.
+    /// </summary>
+    /// <param name="box">The box of a label request.</param>
+    /// <param name="site">The site configuration, or null for none.</param>
+    /// <returns>The context.</returns>
+    private static ShapeContext MindmapContext(Func<LabelRequest, SceneRect> box, JsonObject? site = null)
+    {
+        var reports = new MermaidReportSink(100, false);
+        var config = MermaidConfigResolverVectorTests.ResolveLikeMermaid(site ?? new JsonObject(), "mindmap\n  root\n");
+        return new ShapeContext
+        {
+            Config = config,
+            Styles = MindmapStyles.Create(config, reports),
+            MeasureLabel = request => LabelLayout.Of(request.HtmlLabels, box(request)),
+            Sink = reports,
+        };
+    }
+
+    /// <summary>
     ///     Creates the context of a default state diagram whose labels measure a box chosen by their text.
     /// </summary>
     /// <param name="box">The box of a label request.</param>

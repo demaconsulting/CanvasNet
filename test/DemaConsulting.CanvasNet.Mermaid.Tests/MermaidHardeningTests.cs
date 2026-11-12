@@ -44,6 +44,17 @@ public class MermaidHardeningTests
     ];
 
     /// <summary>
+    ///     Gets the texts of the mindmap fixtures (every shape, wrapped, markdown and SVG labels, icons and classes,
+    ///     themes and settings, a single node, a wide and a deep tree), in name order.
+    /// </summary>
+    public static string[] MindmapFixtures =>
+    [
+        .. Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "mindmap"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText),
+    ];
+
+    /// <summary>
     ///     Validates the hostile corpus through the public API: each diagram renders, or fails with a located
     ///     <see cref="MermaidRenderException"/> of the expected code at the expected line, and never with another
     ///     exception.
@@ -1842,6 +1853,203 @@ public class MermaidHardeningTests
         // Assert
         Assert.Empty(unexpected);
     }
+
+    /// <summary>
+    ///     Validates that every mindmap fixture renders the same pixels twice, and the same pixels on parallel threads.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MindmapFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = MindmapFixtures.Select(text => MermaidDocument.Parse(text)).ToList();
+
+        // Act
+        var differing = documents.AsParallel().Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile mindmaps through the public API, fitted to 400 by 300 pixels: huge, zero and negative paddings
+    ///     and widths, a huge font size, a wide root, long cloud and bang labels, markup and entities, and decorations
+    ///     with odd texts each render, or end in a located render failure or limit, never a hang.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  mindmap:\n    padding: 1e300\n---\nmindmap\nroot\n  a\n  b[B]\n  c((C))\n")]
+    [InlineData("---\nconfig:\n  mindmap:\n    maxNodeWidth: 1e300\n    padding: 1e300\n---\nmindmap\nroot)cloud(\n  a))bang((\n  b{{hex}}\n")]
+    [InlineData("---\nconfig:\n  mindmap:\n    padding: -40\n    maxNodeWidth: 0\n---\nmindmap\nroot\n  a\n  b(B)\n")]
+    [InlineData("---\nconfig:\n  mindmap:\n    padding: 0\n    maxNodeWidth: -5\n---\nmindmap\nroot\n  a\n    b\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': '1e300px'}}}%%\nmindmap\nroot\n  a\n")]
+    [InlineData("%%{init: {'themeVariables': {'fontSize': '1e-300px'}}}%%\nmindmap\nroot\n  a\n")]
+    [InlineData("mindmap\nroot\n  a\n  b\n  c\n  d\n  e\n  f\n  g\n  h\n  i\n  j\n  k\n  l\n  m\n  n\n  o\n  p\n")]
+    [InlineData("mindmap\nroot)a very long cloud label that wraps over several lines of text(\n  b))and an equally long bang label that wraps too((\n")]
+    [InlineData("mindmap\nroot[\"<b>x</b> #amp; <script>y</script> #35;\"]\n  ::icon(  )\n  :::  \n  a\n")]
+    [InlineData("mindmap\nroot\n")]
+    [InlineData("mindmap\n")]
+    public void CanvasNetMermaid_Hardening_HostileMindmap_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("mindmap", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that more nodes than the default <see cref="MermaidLimits.MaxNodes"/> fail at open, located at the
+    ///     first one over the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MindmapManyNodes_IsALocatedNodeLimit()
+    {
+        // Arrange: a root and 2,000 children
+        var text = "mindmap\nroot\n" + string.Concat(Enumerable.Repeat("  n\n", 2_000));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a node nested deeper than the default <see cref="MermaidLimits.MaxNestingDepth"/> fails at open,
+    ///     located at it, and that a chain at the limit renders.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MindmapDeepNesting_IsALocatedNestingLimit()
+    {
+        // Arrange: chains of 33 and 32 levels under the root, each node one column deeper than its parent
+        static string Chain(int depth) => "mindmap\nr\n" + string.Concat(Enumerable.Range(1, depth).Select(i => new string(' ', i) + "n\n"));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(Chain(33)));
+        var size = MermaidDocument.Parse(Chain(32)).Measure(Tenth, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(35, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNestingDepth", exception.Message, StringComparison.Ordinal);
+        Assert.True(size.Width > 0 && size.Height > 0);
+    }
+
+    /// <summary>
+    ///     Validates that every text of a mindmap that is longer than the default <see cref="MermaidLimits.MaxLabelLength"/>
+    ///     fails at open, located: an id, a description, a quoted and a markdown string, an icon, a class, and a class
+    ///     that only the class list Mermaid derives for its node (<c>mindmap-node section-root section--1</c> and the class)
+    ///     makes too long, located at that node.
+    /// </summary>
+    /// <param name="statement">The statement on line 3, after the root on line 2.</param>
+    /// <param name="line">The line of the failure.</param>
+    [Theory]
+    [InlineData("  {0}", 3)]
+    [InlineData("  a[{0}]", 3)]
+    [InlineData("  a(\"{0}\")", 3)]
+    [InlineData("  a[\"`{0}`\"]", 3)]
+    [InlineData("  ::icon({0})", 3)]
+    [InlineData("  :::{0}", 3)]
+    [InlineData("  :::{1}", 2)]
+    public void CanvasNetMermaid_Hardening_MindmapLongTexts_AreALocatedLabelLimit(string statement, int line)
+    {
+        // Arrange: a text one over the limit, and a class that only the derived class list makes too long
+        var text = "mindmap\nroot\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, statement, new string('x', 4_097), new string('y', 4_080)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(line, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates the pinned outcomes of large mindmaps under the default <see cref="MermaidLimits.MaxLayoutWork"/>: a
+    ///     tree of 301 nodes (a root, 20 children and 14 grandchildren of each) is laid out, and one of 1,961 nodes (a
+    ///     root, 40 children and 48 grandchildren of each) stops at the work limit, located at the keyword, instead of
+    ///     running on.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MindmapLargeTree_RendersOrHitsTheWorkLimit()
+    {
+        // Arrange
+        static string Tree(int children, int grandchildren) =>
+            "mindmap\nroot\n" + string.Concat(Enumerable.Range(0, children).Select(i => $"  c{i}\n" + string.Concat(Enumerable.Range(0, grandchildren).Select(j => $"    g{i}x{j}\n"))));
+        var medium = MermaidDocument.Parse(Tree(20, 14));
+        var large = MermaidDocument.Parse(Tree(40, 48));
+
+        // Act
+        var size = medium.Measure(Tenth, TestContext.Current.CancellationToken);
+        var exception = Assert.Throws<MermaidRenderException>(() => large.Measure(Tenth, TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal((301, 1_961), (medium.NodeCount, large.NodeCount));
+        Assert.True(size.Width > 0 && size.Height > 0);
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, 1), (exception.Code, exception.Location.Line));
+        Assert.Contains("MermaidLimits.MaxLayoutWork", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the mindmap fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedMindmapFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "mindmap", "  ", "\t", "\n", "(", ")", "((", "))", "[", "]", "{{", "}}", "(-", "-)", "\"", "`", "::icon(fa x)",
+            ":::cls", "%%", "%% c\n", "<br/>", "#35;", "**", "*", "fa:fa-x ", "---\n",
+        ];
+        var random = new Random(20261111);
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var seed in MindmapFixtures)
+        {
+            for (var round = 0; round < 12; round++)
+            {
+                var text = Mutate(seed, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
     /// <summary>
     ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
     ///     state, so each adds two nesting levels.

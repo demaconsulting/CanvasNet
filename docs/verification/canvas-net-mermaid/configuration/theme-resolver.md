@@ -3,8 +3,8 @@
 This document describes the unit-level verification strategy for the `ThemeResolver` unit in the
 `DemaConsulting.CanvasNet.Mermaid.Configuration` namespace: the internal static `ThemeResolver` (`GetThemeVariables`
 and `IsTheme`), its JavaScript object model `ThemeObject`, and the style sheets `FlowchartStyles`, `ClassStyles`,
-`StateStyles`, `ErStyles`, and `SequenceStyles` with their shared bases `DiagramStyles` and (for the flowchart, class,
-state, and entity relationship sheets) `UnifiedStyles`.
+`StateStyles`, `ErStyles`, `SequenceStyles`, `PieStyles`, `GanttStyles`, and `MindmapStyles` with their shared bases
+`DiagramStyles` and (for the flowchart, class, state, entity relationship, and mindmap sheets) `UnifiedStyles`.
 
 #### Verification Approach
 
@@ -24,7 +24,11 @@ entity relationship style sheets are verified the same way with `StateStyles` an
 rules, the paints of the default theme as Mermaid's state and ER CSS give them (the label and title colors, the CSS
 corner radii and cluster fills that the state shapes read by selector, the `barb` marker paint, the important marker
 paint of the ER sheet, and the subgraph titles), and `themeCSS`; and the facts every unified sheet gives the rendering
-(whether it centers the SVG text of a node, and its root text) are compared across the four sheets. The
+(whether it centers the SVG text of a node, and its root text) are compared across the four sheets. The mindmap style
+sheet is verified with `MindmapStyles`: the shared global rules, the paint of each node by its classes and the element
+its shape draws, as Chrome computes Mermaid's mindmap CSS, the edge widths with the negative ones dropped, every theme's
+variables, the gradient rule of the themes with `useGradient`, `themeCSS`, and the bound of `THEME_COLOR_LIMIT`; and
+the default `NodePaintFor` of the other sheets is checked on the flowchart's. The
 unit is reached through the test assembly's `InternalsVisibleTo` access; `ColorMath`,
 `StyleDeclarations`, and `MermaidConfigResolver` are real, so no mocking or stubbing is required.
 
@@ -219,3 +223,45 @@ Asserts, for the default theme's flowchart, class, state, and entity relationshi
 first two center the SVG text of a node's label on its anchor (true, true, false, false); that the entity relationship
 sheet's root text is the root font family at 16 pixels in the theme's `textColor`; and that the root text of every
 sheet is 16 pixels.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-MindmapStyleSheet: Mermaid's Mindmap Paint
+
+**Tests**: `ThemeResolverTests.MindmapStyles_Create_DefaultTheme_ResolvesSectionRules`,
+`ThemeResolverTests.MindmapStyles_Create_EdgeRules_DropNegativeWidths`,
+`ThemeResolverTests.MindmapStyles_Create_EachTheme_UsesThemeVariables`,
+`ThemeResolverTests.MindmapStyles_Create_GradientThemes_HideTheSectionLines`,
+`ThemeResolverTests.MindmapStyles_Create_ThemeCss_OverridesKnownSelectors`,
+`ThemeResolverTests.MindmapStyles_Create_ThemeCssNodeClass_CascadesInSheetOrder`,
+`ThemeResolverTests.MindmapStyles_Create_ThemeCssOtherClass_IsReported`,
+`ThemeResolverTests.MindmapStyles_Create_ColorLimit_BoundsTheSections`
+
+Asserts, with the values Chrome computes for Mermaid's mindmap, that the mindmap sheet starts with the same global
+rules as the flowchart's, selector for selector; that in the default theme the root's path is filled `#0000ec` (`git0`)
+and a node of section 0 `#ffff78` whatever its element (`path`, `rect`, `circle`, or `polygon`), neither stroked; that
+the line under the root is `#ffffb9` and under a node of section 0 `#ababff`, 3 pixels wide; that the root's HTML label
+is white and a section 0 label black, an SVG label of section 0 takes `cScaleLabel1`, the label font is 16 pixels, and
+SVG text is not centered on its anchor; that the depth rules `.edge-depth--1` to `.edge-depth-4` give the widths 17, 14,
+11, 8, 5, and 2 while the negative widths from `.edge-depth-5` on are dropped, so `.edge` (3, no fill) applies, and
+that `.section-edge-0` strokes `#ffff78`; that in each of the five themes (a theory) a node of section 3 takes
+`cScale4`, `cScaleLabel4`, and `cScaleInv4`, a node of section 10 `cScale11`, and the root `git0` and
+`gitBranchLabel0`; that the line under a default node is 3 pixels wide in the default theme and 0 in the `base`,
+`dark`, `forest`, and `neutral` themes, whose `useGradient` brings the gradient rules, and 3 again in `forest` with the
+theme variable `useGradient: false` (a theory with six cases); that a directive's `themeCSS` rules
+`.section-0 rect { fill: #ff0000 }` and `.section--1 span { color: #0000ff }` fill a section 0 rectangle red (not its
+path) and color the root's HTML label blue, a later `.section--1` rule winning over `.section-root`, while
+`.bogus { fill: red }` is reported once; that, with the node classes of a root, a `:::urgent` node of section 0, and a
+node of section 1, the `themeCSS` rules `.urgent rect` (red, stroked `#00ff00` 4 pixels wide), a later
+`.section-0 rect { fill: #0000ff }`, `.urgent circle`, and `.urgent span` fill the classed rectangle blue (the later
+rule wins, as mmdc draws it) with the class's stroke, fill its circle `#ffa500`, and color its HTML label white,
+leave the node of section 1 unchanged, and report `.urgent p` once; that a rule for a class no node has (`.urgent`)
+and for a node class that is not a plain CSS identifier (`a.b`) are both reported and not applied; and that a
+`THEME_COLOR_LIMIT` of 3 styles sections 0 and 1 and leaves section 2 without a fill.
+
+##### CanvasNetMermaid-Configuration-ThemeResolver-NodePaintByClasses: A Node's Paint By Its Classes And Element
+
+**Tests**: `ThemeResolverTests.UnifiedStyles_NodePaintFor_OtherSheets_UseTheNodeRule`,
+`ThemeResolverTests.MindmapStyles_Create_DefaultTheme_ResolvesSectionRules`
+
+Asserts that the flowchart's sheet paints every body element (`rect`, `circle`, `polygon`, and `path`) of a node with
+its node rule whatever the node's classes, leaves a `line` unpainted, and colors the label with its node label rule;
+and that the mindmap's sheet paints a node by its classes and element, as in the scenario above.

@@ -227,7 +227,7 @@ internal static class DiscoveryCommands
         /// <param name="diagram">What the diagram declares.</param>
         /// <remarks>
         ///     The object has the diagram <c>type</c> (for example <c>flowchart</c> or <c>sequence</c>), whether this version
-        ///     draws it (<c>supported</c>; a type that is not drawn yet is an empty picture with the note
+        ///     draws it (<c>supported</c>; a type that is not drawn is an empty picture with the note
         ///     <c>mermaid-diagram-unsupported</c>), and the numbers of <c>nodes</c>, <c>edges</c>, and <c>subgraphs</c> (the
         ///     participants, messages, and boxes of a sequence diagram); the
         ///     <c>direction</c>, the <c>title</c>, and the accessible title <c>accTitle</c> are present when the diagram has

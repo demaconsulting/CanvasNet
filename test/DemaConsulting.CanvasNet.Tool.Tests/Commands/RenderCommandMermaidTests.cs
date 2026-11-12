@@ -303,6 +303,60 @@ public class RenderCommandMermaidTests
     }
 
     /// <summary>
+    ///     Test that a mindmap is drawn strictly at its natural size, pixel for pixel as the library draws it over white,
+    ///     with no diagnostic.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidMindmap_DrawsTheNodes()
+    {
+        // Arrange
+        const string Text = "mindmap\n  root((Garden))\n    Soil\n      Compost\n    Plants\n      beans[Beans]\n";
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "garden.mmd", Text);
+        var output = directory.Combine("garden.png");
+
+        // Act
+        using var document = RunJson(input, "-o", output, "--strict");
+        using var expected = MermaidDocument.Parse(Text).Render(new MermaidRenderOptions { Background = White }, TestContext.Current.CancellationToken);
+
+        // Assert: the natural size, a white corner, a picture that is not blank and is the library's, and no diagnostic
+        var root = document.RootElement;
+        var natural = root.GetProperty("input").GetProperty("natural");
+        using var image = PngCodec.Load(output);
+        Assert.Equal((natural.GetProperty("width").GetInt32(), natural.GetProperty("height").GetInt32()), (image.Width, image.Height));
+        Assert.Equal(White, image[0, 0]);
+        Assert.True(CountOther(image, White) > image.Width * image.Height / 20);
+        Assert.True(SamePixels(expected, image), "The tool's mindmap differs from the library's.");
+        Assert.Empty(root.GetProperty("diagnostics").EnumerateArray());
+    }
+
+    /// <summary>
+    ///     Test that the icon of a mindmap node is the diagnostic <c>mermaid-icon-unsupported</c>, located at the icon, while
+    ///     the mindmap is still drawn, and that <c>--strict</c> makes it an <c>unsupported-feature</c> error without a picture.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_MermaidMindmapIcon_IsUnsupportedDiagnosticThenStrictError()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "books.mmd", "mindmap\n  root(Books)\n    Novels\n    ::icon(fa fa-book)\n");
+
+        // Act
+        using var document = RunJson(input, "-o", directory.Combine("books.png"));
+        var strict = RunFailing(input, "--strict", "-o", directory.Combine("strict.png"));
+
+        // Assert: one unsupported diagnostic at the icon's line, the picture, and the strict failure without a picture
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("unsupported", diagnostic.GetProperty("severity").GetString());
+        Assert.Equal("mermaid-icon-unsupported", diagnostic.GetProperty("code").GetString());
+        Assert.Contains("fa fa-book", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Equal(4, diagnostic.GetProperty("location").GetProperty("line").GetInt32());
+        Assert.True(File.Exists(directory.Combine("books.png")));
+        Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
+        Assert.False(File.Exists(directory.Combine("strict.png")));
+    }
+
+    /// <summary>
     ///     Test that <c>--theme</c> draws the diagram in that theme (without regard to the case of the name) and records it, that
     ///     the theme of a fragment of the input wins over the option, and that a theme the text sets wins over both.
     /// </summary>
