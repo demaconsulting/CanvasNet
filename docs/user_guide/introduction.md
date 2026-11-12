@@ -13,7 +13,8 @@ This user guide covers:
 - Basic usage and examples
 - API reference
 - Rendering Mermaid flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship diagrams, pie
-  charts, gantt charts, and mindmaps (`DemaConsulting.CanvasNet.Mermaid`), with a gallery of original diagrams
+  charts, gantt charts, mindmaps, and packet diagrams (`DemaConsulting.CanvasNet.Mermaid`), with a gallery of original
+  diagrams
 - The `canvasnet` command-line tool: its commands, options, JSON output, error codes, and self-validation
 
 ## References

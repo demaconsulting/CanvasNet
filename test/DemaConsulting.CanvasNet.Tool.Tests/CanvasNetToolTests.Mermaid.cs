@@ -117,6 +117,37 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that the tool, run as a real process, describes and draws a packet diagram strictly, at the size info reports
+    ///     (the width of 32 bits of 32 pixels plus 2, the height of two rows of blocks) and without a diagnostic.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Mermaid_PacketAsProcess_IsDrawn()
+    {
+        // Arrange: a packet diagram of three blocks over two rows
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "frame.mmd", "packet\n    0-15: \"Source\"\n    +16: \"Target\"\n    +8: \"Flags\"\n");
+        var output = directory.Combine("frame.png");
+
+        // Act: run info and a strict render as real processes
+        var infoExitCode = Runner.Run(out var info, "dotnet", _dllPath, "info", input, "--json");
+        var renderExitCode = Runner.Run(out var render, "dotnet", _dllPath, "render", input, "-o", output, "--strict", "--json");
+
+        // Assert: info names the supported type and its blocks; render writes that size without a diagnostic
+        Assert.Equal(0, infoExitCode);
+        using var infoDocument = JsonDocument.Parse(info);
+        var diagram = infoDocument.RootElement.GetProperty("diagram");
+        Assert.Equal(("packet", true, 3, 0), (diagram.GetProperty("type").GetString(), diagram.GetProperty("supported").GetBoolean(), diagram.GetProperty("nodes").GetInt32(), diagram.GetProperty("edges").GetInt32()));
+        var size = infoDocument.RootElement.GetProperty("image");
+        Assert.Equal((1026, 109), (size.GetProperty("width").GetInt32(), size.GetProperty("height").GetInt32()));
+        Assert.Equal(0, renderExitCode);
+        using var renderDocument = JsonDocument.Parse(render);
+        Assert.Empty(renderDocument.RootElement.GetProperty("diagnostics").EnumerateArray());
+        using var image = PngCodec.Load(output);
+        Assert.Equal((1026, 109), (image.Width, image.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), image[0, 0]);
+    }
+
+    /// <summary>
     ///     Test that an unknown diagram keyword is a <c>mermaid-error</c> with a hint, that a diagram type this version does not
     ///     draw is a diagnostic and an <c>unsupported-feature</c> error with <c>--strict</c>, and that <c>--theme</c> on another
     ///     kind of input is a usage error, each with the documented exit code.

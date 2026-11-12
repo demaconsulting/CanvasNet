@@ -10,13 +10,14 @@ package - see the Installation section of the project README. It reads diagrams 
 language and draws them as **static pictures** with Mermaid's own layout: a flowchart, a class diagram, a state
 diagram, and an entity relationship diagram are laid out by a port of the dagre layout that Mermaid uses, a sequence
 diagram by a port of Mermaid's sequence renderer, a pie chart and a gantt chart by ports of Mermaid's pie and gantt
-renderers, and a mindmap by a port of Mermaid's mindmap renderer and of the cose-bilkent layout it uses, so the nodes,
-edges, classes, states, entities, participants, messages, slices, tasks, and labels land where Mermaid 11 puts them.
+renderers, a mindmap by a port of Mermaid's mindmap renderer and of the cose-bilkent layout it uses, and a packet
+diagram by a port of Mermaid's packet renderer, so the nodes, edges, classes, states, entities, participants, messages,
+slices, tasks, blocks, and labels land where Mermaid 11 puts them.
 This version draws **flowcharts** (the `flowchart` and `graph` keywords), **sequence diagrams** (the `sequenceDiagram`
 keyword), **class diagrams** (the `classDiagram` keyword), **state diagrams** (the `stateDiagram-v2` and `stateDiagram`
 keywords), **entity relationship diagrams** (the `erDiagram` keyword), **pie charts** (the `pie` keyword), **gantt
-charts** (the `gantt` keyword), and **mindmaps** (the `mindmap` keyword). Every other diagram type that Mermaid knows
-is recognized and reported, never drawn wrongly. The
+charts** (the `gantt` keyword), **mindmaps** (the `mindmap` keyword), and **packet diagrams** (the `packet` and
+`packet-beta` keywords). Every other diagram type that Mermaid knows is recognized and reported, never drawn wrongly. The
 package is derived with attribution from the Mermaid project and the libraries it uses,
 and it is **not affiliated with or endorsed by** the Mermaid project (see *Mermaid Third-Party Attribution*). A document
 is **immutable and thread-safe**: it is read and validated once and can then be measured and rendered any number of
@@ -30,12 +31,12 @@ public sealed partial class MermaidDocument
     public static MermaidDocument Open(Stream stream, MermaidOpenOptions? options = null);
 
     public string? SourceName { get; }
-    public string DiagramType { get; }      // "flowchart" (also graph), "sequence", "er", "pie", "mindmap", ...
+    public string DiagramType { get; }      // "flowchart" (also graph), "sequence", "er", "pie", "packet", ...
     public bool IsSupported { get; }        // true when this version draws the type
     public string? Title { get; }           // the title statement, else the frontmatter title
     public string? AccTitle { get; }        // accTitle, metadata only
     public string? Direction { get; }       // TB, TD, BT, LR, or RL; null for a sequence, chart, or mindmap
-    public int NodeCount { get; }           // the participants, classes, states, entities, slices, or tasks
+    public int NodeCount { get; }           // the participants, classes, states, entities, slices, tasks, or blocks
     public int EdgeCount { get; }           // the messages, relations, transitions, or relationships
     public int SubgraphCount { get; }       // the boxes, namespaces, composite states, subgraphs, or gantt sections
 
@@ -74,8 +75,10 @@ public sealed partial class MermaidDocument
   slices (the legend entries, a label seen before not counted), and `EdgeCount` and `SubgraphCount` are zero. For a
   gantt chart, `NodeCount` is the number of tasks (vertical markers included), `SubgraphCount` the number of sections
   drawn (a section without tasks is not drawn), and `EdgeCount` is zero. For a mindmap, `NodeCount` is the number of
-  nodes, `EdgeCount` one fewer (zero for a mindmap without nodes), and `SubgraphCount` zero. A pie chart, a gantt
-  chart, or a mindmap has no `Direction`. For a type that is not drawn, `IsSupported` is `false`, the counts are zero,
+  nodes, `EdgeCount` one fewer (zero for a mindmap without nodes), and `SubgraphCount` zero. For a packet diagram,
+  `NodeCount` is the number of blocks as written (a block split across two rows counts once), and `EdgeCount` and
+  `SubgraphCount` are zero. A pie chart, a gantt chart, a mindmap, or a packet diagram has no `Direction`. For a type
+  that is not drawn, `IsSupported` is `false`, the counts are zero,
   and `Direction` and `AccTitle` are `null`.
 - `Measure` lays the diagram out and returns the size that `Render` produces for the same options, without drawing. It
   delivers the same reports as `Render`.
@@ -155,11 +158,11 @@ wall-clock bound.
 | -------- | ------- | -------------- | ------------------- |
 | `MaxTextSize` | 50,000 | The diagram text without frontmatter, directives, and comments (Mermaid's `maxTextSize`); the whole text may be four times as long | `InvalidDataException` |
 | `MaxEdges` | 500 | The links of a flowchart (Mermaid's `maxEdges`, which Mermaid checks for a flowchart only), the relations of a class diagram, the transitions of a state diagram, or the relationships of an entity relationship diagram | `MermaidSyntaxException` |
-| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram, the slices of a pie chart (every slice statement), or the task and section statements of a gantt chart | `MermaidSyntaxException` |
-| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, the descriptions of a state joined with line breaks, the legend text of a pie slice with its value, and every text of a gantt chart included; an axis label of a gantt chart, which is only known when it is laid out, is checked then) | `MermaidSyntaxException` (`MermaidRenderException` for a gantt axis label) |
+| `MaxNodes` | 2,000 | The nodes, subgraphs included, the participants and boxes of a sequence diagram, the classes, notes, lollipop interfaces, and namespaces (implicit dotted parents included) of a class diagram, the states, composite states, concurrent regions, notes, and note groups of a state diagram, the entities (those named after a subgraph included) and subgraphs of an entity relationship diagram, the slices of a pie chart (every slice statement), the task and section statements of a gantt chart, or the block statements of a packet diagram and, when it is drawn, the parts its rows split them into | `MermaidSyntaxException` (`MermaidRenderException` for the parts of a packet diagram) |
+| `MaxLabelLength` | 4,096 | One label or member, in UTF-16 characters (a sequence participant's metadata type and alias once converted to text, a class label with its generic type, the dotted name of a nested class namespace, the CSS classes and styles a class, a state, an entity, or a style class collects, joined, the descriptions of a state joined with line breaks, the legend text of a pie slice with its value, every text of a gantt chart, and every label, title, and accessibility text of a packet diagram included; an axis label of a gantt chart, which is only known when it is laid out, is checked then) | `MermaidSyntaxException` (`MermaidRenderException` for a gantt axis label) |
 | `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), composite states inside composite states (a concurrent region counts as a level too), subgraphs of an entity relationship diagram, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` (`MermaidRenderException` for namespaces, composite states, or entity relationship subgraphs nested through their names, found when laid out) |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
-| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram and a pie chart; the date passes, the days of the excluded-day loops, and the ticks of a gantt chart) | `MermaidRenderException` |
+| `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram and a pie chart; the date passes, the days of the excluded-day loops, and the ticks of a gantt chart; the blocks, the parts of the rows, and the texts of a packet diagram) | `MermaidRenderException` |
 | `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |
 | `MaxPaintedPixels` | 250,000,000 | The device pixels one render paints (after `Scale`) | `MermaidRenderException` |
 | `MaxDiagnostics` | 1,000 | The reports kept per call; the rest become one `mermaid-diagnostics-suppressed` warning | (rendering continues) |
@@ -210,7 +213,8 @@ The flowchart settings follow Mermaid: `nodeSpacing`, `rankSpacing`, `curve` (`b
 `inheritDir`, with the global `fontFamily`, `fontSize`, and `markdownAutoWrap`. The sequence settings are listed under
 *Supported Sequence Syntax*, the class settings under *Supported Class Syntax*, the state settings under *Supported
 State Syntax*, the entity relationship settings under *Supported Entity Relationship Syntax*, the pie settings under
-*Supported Pie Syntax*, and the gantt settings under *Supported Gantt Syntax*.
+*Supported Pie Syntax*, the gantt settings under *Supported Gantt Syntax*, the mindmap settings under *Supported
+Mindmap Syntax*, and the packet settings under *Supported Packet Syntax*.
 
 ### Supported Flowchart Syntax
 
@@ -642,6 +646,47 @@ Other behaviors that follow Mermaid:
 - The layout makes no random choice, so a mindmap is laid out the same way on every machine and in every render.
 - A mindmap of the keyword alone draws nothing.
 
+### Supported Packet Syntax
+
+A packet diagram starts with `packet` or `packet-beta`. It is drawn by a port of Mermaid's packet renderer, so the
+blocks, the bit numbers, and the title land where Mermaid 11 puts them.
+
+<!-- markdownlint-disable MD013 -->
+| Area | Supported |
+| ---- | --------- |
+| Header | `packet` or `packet-beta`; the first statement can follow on the same line |
+| Blocks | `0-15: "label"` (the bits 0 to 15), `16: "label"` (one bit), or `+8: "label"` (the next 8 bits), one per line; each block starts at the bit after the block before it, the first at bit 0, and a gap, an overlap, an end before the start, or `+0` is a `mermaid-syntax-error` with Mermaid's message |
+| Labels | In double or single quotes, with backslash escapes; a label is SVG text, so entity codes (`#35;`) are drawn as their characters, HTML tags as written, and every run of white space as one space |
+| Rows | `packet.bitsPerRow` bits to a row; a block that crosses the end of a row is split there, and both parts show its label |
+| Bit numbers | The first and the last bit of each block above its left and right edges (one number in the middle of a block of one bit), unless `packet.showBits` is `false` |
+| Titles | `title`, else the frontmatter `title`, is drawn centered in a row of its own below the blocks; `accTitle` and `accDescr` (on one line, or in braces over several lines) are read as metadata |
+| Comments | `%%` comments, on their own line or after a block |
+| Colors | The theme variable `packet`, an object with `startByteColor`, `endByteColor`, `byteFontSize`, `labelColor`, `labelFontSize`, `titleColor`, `titleFontSize`, `blockStrokeColor`, `blockStrokeWidth`, and `blockFillColor`; it replaces the object of the dark and forest themes, so a key it leaves out takes the default black or `#efefef`; the frontmatter and a directive keep only `labelColor`, `titleColor`, `labelFontSize`, and `titleFontSize`, as Mermaid does, and report the others as `mermaid-config-unknown-key` |
+| Configuration | YAML frontmatter, `%%{init: ...}%%` directives, the five themes, `themeVariables`, `themeCSS` (the selectors `.packetBlock`, `.packetLabel`, `.packetTitle`, `.packetByte`, `.packetByte.start`, and `.packetByte.end`), and the packet settings below, with Mermaid's precedence |
+<!-- markdownlint-enable MD013 -->
+
+The packet settings follow Mermaid (`config.packet` in the frontmatter, a directive, or `MermaidRenderOptions.Config`):
+
+<!-- markdownlint-disable MD013 -->
+| Key | Default | Meaning |
+| --- | ------- | ------- |
+| `packet.rowHeight` | 32 | The height of a row of blocks |
+| `packet.bitWidth` | 32 | The width of one bit |
+| `packet.bitsPerRow` | 32 | The number of bits in a row |
+| `packet.showBits` | `true` | `false` draws no bit numbers and takes away the 10 pixels above each row that they need |
+| `packet.paddingX` | 5 | The space between two blocks of a row |
+| `packet.paddingY` | 5 | The space above each row (10 pixels more when the bit numbers are drawn) |
+| `packet.useMaxWidth` | `true` | No meaning for a picture |
+<!-- markdownlint-enable MD013 -->
+
+Other behaviors that follow Mermaid:
+
+- The diagram is `bitWidth` times `bitsPerRow` wide, plus 2 pixels; each row is `rowHeight` plus the padding above it
+  high, and a title adds one more row.
+- A packet diagram of the keyword alone draws no block: an empty picture as high as the padding of one row, 1026 by 15
+  pixels at the default settings.
+- A block that is not wider than `paddingX` (its bits times `bitWidth`) draws its texts without a rectangle.
+
 ### Mermaid Unsupported Features and Strict Mode
 
 A construct that Mermaid defines but this package does not draw is reported as a `MermaidUnsupportedFeature` with a
@@ -653,7 +698,7 @@ fail on a warning.
 <!-- markdownlint-disable MD013 -->
 | Code | Kind | Reported when |
 | ---- | ---- | ------------- |
-| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, and `mindmap`); the picture is empty |
+| `mermaid-diagram-unsupported` | Unsupported | The diagram type is not drawn by this version (every type but `flowchart`, `graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, `mindmap`, and `packet`); the picture is empty |
 | `mermaid-icon-unsupported` | Unsupported | An icon (`fa:fa-car` in a label, an `@{ icon: ... }` node, an `icon` in the `properties` of a sequence participant, an `::icon(...)` of a mindmap node); the node or participant keeps its shape and label without the icon |
 | `mermaid-math-unsupported` | Unsupported | Math (`$$...$$`, drawn by KaTeX in Mermaid) in a sequence diagram; the text is drawn as written |
 | `mermaid-look-unsupported` | Unsupported | A `look` other than `classic` (`handDrawn`, `neo`); the diagram is drawn classic |
@@ -712,9 +757,10 @@ as does every participant, message, note, activation, block, and box of a sequen
 hundredths), every class box with its compartments, relation, cardinality, namespace, and note of a class diagram
 drawn with HTML labels, every state, transition, composite state, concurrent region, and note of a state diagram, and
 every entity with its rows and cells, relationship, and subgraph of an entity relationship diagram, with HTML or SVG
-labels, every slice, percentage label, legend entry, and title of a pie chart, and every bar, task text, section row
+labels, every slice, percentage label, legend entry, and title of a pie chart, every bar, task text, section row
 and title, axis tick, excluded day, and today line of a gantt chart (drawn with `Now` set to the clock of the
-reference renderer, `tools/visual-diff/`). A mindmap is laid out bit for bit as Mermaid lays it out when it is given
+reference renderer, `tools/visual-diff/`), and every block, label, bit number, and title of a packet diagram. A
+mindmap is laid out bit for bit as Mermaid lays it out when it is given
 Mermaid's node sizes, and its drawing is checked against Mermaid's in the same way (see *Mindmaps: layout* below).
 The known differences from Mermaid are:
 
@@ -832,21 +878,32 @@ The known differences from Mermaid are:
   is a located `mermaid-render-failed`.
 - **Mindmaps: limits.** The depth of a mindmap is bounded by `MaxNestingDepth`, where Mermaid has no limit, and the
   work of its layout by `MaxLayoutWork`: a mindmap of about 1,000 nodes or more can reach the default limit.
+- **Packet diagrams: limits.** `MaxNodes` bounds the blocks and the parts that the rows split them into, so a range
+  that Mermaid splits into thousands of rows (such as `0-99999999`) fails with `mermaid-limit-exceeded` at the default
+  limits; with a raised limit, Mermaid's own cap of 10,000 rows is kept.
+- **Packet diagrams: settings.** A packet setting of the wrong type is `mermaid-config-invalid` and ignored, where
+  Mermaid computes with it (a string `paddingY` is joined as text). A fractional, zero, or negative `bitsPerRow` splits
+  the blocks exactly as Mermaid splits them, and where Mermaid then fails with "Block start ... is greater than block
+  end ...", the render is a located `mermaid-render-failed`. Every block is checked when the text is read, so an
+  invalid block is always the `mermaid-syntax-error`, where Mermaid, which checks each block just before it splits
+  it, can fail at an earlier split first.
+- **Packet diagrams: texts.** A character that no bundled font has is drawn as the missing-glyph box without the
+  warning `mermaid-text-missing-glyph`.
 - **Pictures.** A picture that cannot be loaded leaves the node's frame (Mermaid fails the whole render).
 - **Background and size.** The background is transparent by default (as the SVG is), and `useMaxWidth` has no meaning
   for a picture of a fixed size.
 - **Themes.** `neo`, `neo-dark`, and `redux` are not available.
 - **Limits.** `MaxNodes`, `MaxNestingDepth`, `MaxLabelLength`, `MaxLayoutWork`, `MaxImages`, and `MaxPaintedPixels`
-  have no Mermaid equivalent; a gantt chart's date passes, excluded days, and ticks and a mindmap's layout steps are
-  charged to `MaxLayoutWork`.
+  have no Mermaid equivalent; a gantt chart's date passes, excluded days, and ticks, a mindmap's layout steps, and a
+  packet diagram's blocks, row parts, and texts are charged to `MaxLayoutWork`.
 - **Version.** The target is Mermaid 11.17.2; later Mermaid versions are not followed automatically.
 
 ### Mermaid Third-Party Attribution
 
 `DemaConsulting.CanvasNet.Mermaid` is **derived with attribution**: to draw diagrams the way Mermaid draws them, its
-preprocessing, diagram detection, flowchart, sequence, class, state, entity relationship, pie, gantt, and mindmap
-parsers and models, configuration defaults, themes, shapes, edges, labels, time axes, and layouts are ports of these
-projects (all MIT unless stated):
+preprocessing, diagram detection, flowchart, sequence, class, state, entity relationship, pie, gantt, mindmap, and
+packet parsers and models, configuration defaults, themes, shapes, edges, labels, time axes, and layouts are ports of
+these projects (all MIT unless stated):
 
 - **mermaid** (Copyright (c) 2014 - 2022 Knut Sveidqvist): the preprocessing, detectors, flowchart grammar and
   database, configuration and the five themes, the shapes, clusters, edges, markers, and label rules of its renderer,
@@ -854,9 +911,10 @@ projects (all MIT unless stated):
   markers, and style sheet, the state grammar, database, data fetcher, state shapes, and style sheet, the entity
   relationship grammar, database, entity box, markers, and style sheet, the pie database, renderer, and style sheet,
   the gantt grammar, database, renderer, and style sheet, the mindmap grammar, database, renderer, shapes, style sheet,
-  and cose-bilkent setup, and the text utilities they use;
-- **@mermaid-js/parser** (Copyright (c) 2023 Yokozuna59): the pie grammar and its value converters;
-- **Langium** (Copyright 2021 TypeFox GmbH): the token order and the string and number conversion of the pie parser;
+  and cose-bilkent setup, the packet database, renderer, and style sheet, and the text utilities they use;
+- **@mermaid-js/parser** (Copyright (c) 2023 Yokozuna59): the pie and packet grammars and their value converters;
+- **Langium** (Copyright 2021 TypeFox GmbH): the token order and the string and number conversion of the pie and
+  packet parsers;
 - **dagre-d3-es**, derived from **dagre** and **graphlib** (Copyright (c) 2012-2014 Chris Pettitt and the dagre-es
   contributors): the graph and the layered layout;
 - **layout-base** (Copyright (c) 2019 iVis@Bilkent) and **cose-base** (Copyright (c) 2019 - present, iVis@Bilkent):
@@ -1102,7 +1160,7 @@ left as written, so the document shows its code, and the tool's message is a Pan
 ### Example 58: The Mermaid Gallery
 
 The gallery is a set of small flowcharts, sequence diagrams, class diagrams, state diagrams, entity relationship
-diagrams, pie charts, gantt charts, and mindmaps that together use the major features of the package.
+diagrams, pie charts, gantt charts, mindmaps, and packet diagrams that together use the major features of the package.
 Every diagram is **original to this repository**, lies in `docs/user_guide/examples` as `mermaid-*.mmd`, and is drawn
 below by the Pandoc filter, so the pictures are always those of the version of the library that built this guide. A
 test (`MermaidGalleryTests`) renders every file with `ThrowOnUnsupportedFeature = true` and fails on any warning, so a
@@ -1214,6 +1272,11 @@ three levels of indentation, and a Markdown label in bold:
 bang, and a default node), with a Markdown string in a rectangle:
 
 ![Mindmap shapes](examples/mermaid-mindmap-shapes.mmd){scale=2 width=90%}
+
+*A packet diagram.* A message header of sixteen bits to a row, from the frontmatter: ranges, `+N` blocks, single bits,
+a block split across two rows, a comment, accessibility texts, and the frontmatter title drawn below the rows:
+
+![A packet diagram](examples/mermaid-packet.mmd){scale=2 width=60%}
 
 ### Example 59: Rendering a Mermaid Sequence Diagram
 
@@ -1663,4 +1726,60 @@ mindmap
       pkg{{Package}}
       news)Announce(
       party["`**Celebrate**`"]
+```
+
+### Example 66: Rendering a Mermaid Packet Diagram
+
+A packet diagram is opened, measured, and drawn exactly like a flowchart. Its node count is the number of blocks as
+written (a block split across two rows counts once), and it has no direction, edges, or subgraphs:
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Mermaid;
+
+var diagram = MermaidDocument.Parse("""
+    packet
+        title A sensor frame
+        0-7: "Start"
+        8-15: "Device"
+        16-23: "Command"
+        24-27: "Flags"
+        28: "A"
+        29: "B"
+        30-31: "Spare"
+        +16: "Length"
+        +24: "Payload"
+        +16: "Checksum"
+        +8: "End"
+    """);
+
+Console.WriteLine($"{diagram.DiagramType} {diagram.Direction ?? "-"}");   // Output: packet -
+Console.WriteLine($"{diagram.NodeCount} blocks");                         // Output: 11 blocks
+
+MermaidSize natural = diagram.Measure();
+Console.WriteLine($"{natural.Width}x{natural.Height}");                   // Output: 1026x188
+var white = new Rgba32(255, 255, 255, 255);
+using var picture = diagram.Render(new MermaidRenderOptions { Scale = 2, Background = white });
+PngCodec.Save(picture, "sensor-frame.png");                               // 2052x376 pixels
+```
+
+The 96 bits fill three rows of 32: the `Payload` block, bits 48 to 71, crosses the end of the second row, so it is
+drawn in two parts, each with its label, and the title takes a fourth row. The same text is the `packet` example of the
+tool's help (`canvasnet help mermaid --example packet`), and the Pandoc filter draws it from a code block:
+
+```{.mermaid caption="A sensor frame, drawn from a code block" scale=2 width=100%}
+packet
+    title A sensor frame
+    0-7: "Start"
+    8-15: "Device"
+    16-23: "Command"
+    24-27: "Flags"
+    28: "A"
+    29: "B"
+    30-31: "Spare"
+    +16: "Length"
+    +24: "Payload"
+    +16: "Checksum"
+    +8: "End"
 ```
