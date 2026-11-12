@@ -1,0 +1,10 @@
+%% A flowchart whose nodes show pictures: hull.scad (an OpenSCAD model) and output.vl.json (a Vega-Lite chart) lie
+%% beside this file. composition.svg embeds this diagram. Every picture node has its w and h.
+flowchart LR
+    req[/Requirements/] --> part
+    part@{ img: "hull.scad", label: "Enclosure (OpenSCAD)", pos: "b", w: 150, h: 130, constraint: "off" }
+    part --> review{Approved?}
+    review -- no --> part
+    review -- yes --> make[[Manufacture]]
+    make --> chart
+    chart@{ img: "output.vl.json", label: "Output (Vega-Lite)", pos: "b", w: 240, h: 140, constraint: "off" }

@@ -55,14 +55,15 @@ internal sealed partial class MontageCommand : ICommand
         + "cell size) and --labels writes its file name below it (with its fragment, so cells of one file differ). The" + Environment.NewLine
         + "sheet is at most 8192 pixels on a side." + Environment.NewLine
         + "An input may end in a fragment that overrides the shared options for that input: part.scad#def.explode=0.5," + Environment.NewLine
-        + "report.pdf#page=3, chart.vl.json#param.t=5 (quote it in a shell; add def.$vpd=200 to a model so that every" + Environment.NewLine
-        + "cell keeps one scale). A '#' is a fragment only when no file has that exact name." + Environment.NewLine
+        + "report.pdf#page=3, chart.vl.json#param.t=5, flow.mmd#theme=dark (quote it in a shell; add def.$vpd=200 to a" + Environment.NewLine
+        + "model so that every cell keeps one scale). A fragment is the only way to set a chart parameter or a Mermaid" + Environment.NewLine
+        + "theme here (montage has no --param or --theme). A '#' is a fragment only when no file has that exact name." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet montage a.png b.png c.png -o sheet.png" + Environment.NewLine
         + "  canvasnet montage \"part.scad#def.explode=0\" \"part.scad#def.explode=1\" --labels -o explode.png" + Environment.NewLine
         + "  canvasnet montage deck.pptx --all-pages --labels -o deck-sheet.png" + Environment.NewLine
-        + "  canvasnet montage *.png --columns 4 --cell 200x150 --background #333333 --labels -o gallery.png" + Environment.NewLine
+        + "  canvasnet montage *.png --columns 4 --cell 200x150 --background \"#333333\" --labels -o gallery.png" + Environment.NewLine
         + "  canvasnet montage report.pdf part.scad logo.svg --labels -o overview.jpg --json";
 
     /// <inheritdoc />

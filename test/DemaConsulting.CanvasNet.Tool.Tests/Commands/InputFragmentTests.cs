@@ -683,7 +683,7 @@ public class InputFragmentTests
         // Assert: the rules of the svg topic
         foreach (var expected in new[]
                  {
-                     "no file has that exact name", "Quote the input", "overrides --page, --view, -D, and --param",
+                     "no file has that exact name", "Quote the input", "overrides --page, --view, --theme, -D, and --param",
                      "image-fragment-invalid", "page-out-of-range", "vl-param-unknown", "also with --strict", "Labels of montage"
                  })
         {

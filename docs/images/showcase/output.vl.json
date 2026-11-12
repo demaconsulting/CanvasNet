@@ -1,0 +1,26 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 187,
+  "height": 112,
+  "background": "transparent",
+  "padding": 8,
+  "data": {
+    "values": [
+      {"week": "W1", "units": 120},
+      {"week": "W2", "units": 165},
+      {"week": "W3", "units": 150},
+      {"week": "W4", "units": 210},
+      {"week": "W5", "units": 240}
+    ]
+  },
+  "mark": {"type": "bar", "color": "#4a90d9", "cornerRadiusEnd": 3},
+  "encoding": {
+    "x": {"field": "week", "type": "ordinal", "title": null, "axis": {"labelAngle": 0, "labelFontSize": 12}},
+    "y": {
+      "field": "units",
+      "type": "quantitative",
+      "title": "Units",
+      "axis": {"labelFontSize": 11, "titleFontSize": 12, "tickCount": 4}
+    }
+  }
+}

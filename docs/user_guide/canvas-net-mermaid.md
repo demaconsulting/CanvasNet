@@ -166,7 +166,7 @@ wall-clock bound.
 | `MaxNestingDepth` | 32 | Subgraphs inside subgraphs, namespaces inside namespaces (each dotted part of a namespace name, such as `a.b.c`, counts as a level), composite states inside composite states (a concurrent region counts as a level too), subgraphs of an entity relationship diagram, or the blocks and boxes of a sequence diagram (at most 256) | `MermaidSyntaxException` (`MermaidRenderException` for flowchart subgraphs, namespaces, composite states, or entity relationship subgraphs nested through their names, found when laid out) |
 | `MaxYamlDepth` | 32 | Nested YAML collections of the frontmatter and the shape data (at most 256) | `MermaidSyntaxException` |
 | `MaxLayoutWork` | 50,000,000 | The metered steps of the layout (ranking, ordering, positioning; the text measurement of a class box; the text measurement and placement of a sequence diagram and a pie chart; the date passes, the days of the excluded-day loops, and the ticks of a gantt chart; the blocks, the parts of the rows, and the texts of a packet diagram; the branches, the commits of both passes, the arrows with their search for a free lane, and the texts of a git graph) | `MermaidRenderException` |
-| `MaxImages` | 256 | The pictures one render loads through the resolver | `MermaidRenderException` |
+| `MaxImages` | 256 | The calls of the resolver in one render (a picture counts when measured and again when drawn) | `MermaidRenderException` |
 | `MaxPaintedPixels` | 250,000,000 | The device pixels one render paints (after `Scale`) | `MermaidRenderException` |
 | `MaxDiagnostics` | 1,000 | The reports kept per call; the rest become one `mermaid-diagnostics-suppressed` warning | (rendering continues) |
 <!-- markdownlint-enable MD013 -->
@@ -785,7 +785,9 @@ text, to `MermaidRenderOptions.ImageResolver`, and the resolver decides what it 
 picture is drawn and the warning `mermaid-image-unresolved` is reported. `CanvasNetViewer.CreateImageResolver(folder)`
 of the `DemaConsulting.CanvasNet.Viewer` package confines the links to one folder and draws every CanvasNet format, so a
 node can show a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or
-another diagram. `MaxImages` bounds the pictures of one render.
+another diagram. A link may carry the fragments of an SVG link, such as `part.scad#def.width=20` or
+`flow.mmd#theme=dark`. `MaxImages` bounds the calls of the resolver in one render: a picture counts when it is
+measured and again when it is drawn.
 
 The size of a picture node follows Mermaid: `w` and `h` set the picture size, and with `constraint: "on"` the picture
 keeps its aspect ratio. Give a picture node its `w` and `h` so that the layout does not depend on the picture: the

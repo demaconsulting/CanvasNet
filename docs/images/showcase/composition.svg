@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  docs/images/composition.png: one SVG page whose pictures are other files, drawn by CanvasNet at the size of their
+  boxes. The top panel embeds a Mermaid flowchart (pipeline.mmd) whose nodes show an OpenSCAD model (hull.scad) and a
+  Vega-Lite chart (output.vl.json). The bottom left panel shows one OpenSCAD model twice, chosen by the def. fragment
+  of each link; the bottom right panel shows a Mermaid sequence diagram with the theme chosen by its link. Text uses
+  only the generic font families, which are always the bundled fonts. Original, authored for this repository (MIT).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720">
+  <rect width="960" height="720" fill="#eef1f5"/>
+
+  <!-- Header -->
+  <g font-family="sans-serif">
+    <text x="24" y="46" font-size="28" font-weight="bold" fill="#1f2937">System overview</text>
+    <text x="24" y="72" font-size="15" fill="#4b5563">One SVG page: every picture on it is another file, drawn at the size of its box.</text>
+  </g>
+
+  <!-- 1: the page embeds a Mermaid flowchart whose nodes show an OpenSCAD model and a Vega-Lite chart -->
+  <rect x="16" y="88" width="928" height="272" rx="8" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="32" y="116" font-family="sans-serif" font-size="16" font-weight="bold" fill="#1f2937">A Mermaid diagram in the page, with a model and a chart in its nodes</text>
+  <image href="pipeline.mmd" x="32" y="128" width="896" height="164"/>
+  <g font-family="monospace" font-size="13" fill="#374151" xml:space="preserve">
+    <text x="32" y="318">composition.svg: &lt;image href="pipeline.mmd"/&gt;</text>
+    <text x="32" y="340">pipeline.mmd:    part@{ img: "hull.scad" }  chart@{ img: "output.vl.json" }</text>
+  </g>
+
+  <!-- 2: one OpenSCAD model twice, chosen by the fragment of each link; one fixed camera gives both one scale -->
+  <rect x="16" y="376" width="456" height="328" rx="8" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="32" y="404" font-family="sans-serif" font-size="16" font-weight="bold" fill="#1f2937">One OpenSCAD model, two fragments</text>
+  <image href="explode.scad#def.explode=0&amp;def.$vpd=330&amp;def.$vpt=[0,0,46]"
+    x="28" y="416" width="210" height="230"/>
+  <image href="explode.scad#def.explode=1&amp;def.$vpd=330&amp;def.$vpt=[0,0,46]"
+    x="250" y="416" width="210" height="230"/>
+  <g font-family="monospace" font-size="12" fill="#374151" text-anchor="middle">
+    <text x="133" y="666">explode.scad#def.explode=0</text>
+    <text x="355" y="666">explode.scad#def.explode=1</text>
+  </g>
+  <text x="244" y="690" font-family="sans-serif" font-size="12" fill="#6b7280" text-anchor="middle">Both links also fix the camera (def.$vpd, def.$vpt): one scale.</text>
+
+  <!-- 3: a Mermaid sequence diagram with the theme chosen by its link -->
+  <rect x="488" y="376" width="456" height="328" rx="8" fill="#1f2937"/>
+  <text x="504" y="404" font-family="sans-serif" font-size="16" font-weight="bold" fill="#f9fafb">A Mermaid diagram with a theme fragment</text>
+  <image href="release.mmd#theme=dark" x="504" y="416" width="424" height="250"/>
+  <text x="716" y="690" font-family="monospace" font-size="13" fill="#cbd5e1"
+    text-anchor="middle">&lt;image href="release.mmd#theme=dark"/&gt;</text>
+</svg>

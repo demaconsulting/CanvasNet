@@ -104,7 +104,7 @@ internal sealed partial class RenderCommand
             + "--pad-color sets its color; by default it is the --background color, else white for a drawing or document, else transparent.",
             [
                 "canvasnet pad logo.png 16 -o padded.png",
-                "canvasnet pad logo.png 0,0,32,32 --pad-color #336699 -o padded.png"
+                "canvasnet pad logo.png 0,0,32,32 --pad-color \"#336699\" -o padded.png"
             ])
     };
 

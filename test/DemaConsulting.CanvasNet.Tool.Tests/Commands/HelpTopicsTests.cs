@@ -180,7 +180,7 @@ public partial class HelpTopicsTests
         Assert.Equal(MermaidLimits.Default.MaxEdges.ToString(System.Globalization.CultureInfo.InvariantCulture), HelpTopics.Tokens["mmdMaxEdges"]);
         Assert.Contains($"At most {MermaidLimits.Default.MaxNodes} nodes and {MermaidLimits.Default.MaxEdges} edges", limits);
         Assert.Contains($"At most {MermaidLimits.Default.MaxTextSize} characters", limits);
-        Assert.Contains($"At most {MermaidLimits.Default.MaxImages} pictures", limits);
+        Assert.Contains($"At most {MermaidLimits.Default.MaxImages} picture loads", limits);
         Assert.Contains($"{ImageWriter.MinQuality} to {ImageWriter.MaxQuality}, default {ImageWriter.DefaultQuality}", limits);
     }
 
