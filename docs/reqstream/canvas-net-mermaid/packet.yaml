@@ -1,0 +1,105 @@
+---
+# Software Subsystem Requirements for Packet
+#
+# These requirements decompose the CanvasNetMermaid system's packet diagram responsibility into the Packet subsystem
+# (internal namespace DemaConsulting.CanvasNet.Mermaid.Packet): reading the packet diagram language exactly as the
+# pinned Mermaid release reads it, checking its blocks as Mermaid's packet database checks them, and splitting them
+# into rows as Mermaid's packet parser does (PacketParser), and drawing the rows of blocks, the bit numbers, and the
+# title as Mermaid's packet renderer draws them (PacketRenderer). Each requirement here links down to the unit
+# requirements that implement it. See docs/verification/canvas-net-mermaid/packet.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetMermaid Requirements
+    sections:
+      - title: Packet Requirements
+        requirements:
+          - id: CanvasNetMermaid-Packet-Language
+            title: >-
+              The Packet subsystem shall open every packet diagram text (the packet and packet-beta keywords) that the
+              packet grammar of the pinned Mermaid release accepts - blocks of a bit range, of one bit, or of a number
+              of bits, with a quoted label, the title, the accessible title and description in one line or in braces,
+              blank lines, comments, and directives - into the same blocks and texts that Mermaid's packet database
+              records for it.
+            justification: |
+              A packet diagram can only be drawn the way Mermaid draws it when its text means exactly what it means to
+              Mermaid; the language is defined by Mermaid's grammar, value converters, and database, not by a
+              description of them.
+            children:
+              - CanvasNetMermaid-Packet-PacketParser-Tokens
+              - CanvasNetMermaid-Packet-PacketParser-Grammar
+              - CanvasNetMermaid-Packet-PacketParser-Values
+              - CanvasNetMermaid-Packet-PacketParser-Database
+            tests:
+              - CanvasNetMermaid_Packet_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Packet_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Packet-Metadata
+            title: >-
+              The Packet subsystem shall give the title, the accessible title, and the number of blocks as written (as
+              nodes) of an opened packet diagram, with no edges, no subgraphs, and no direction, without rendering it.
+            justification: |
+              Hosts list and check diagrams before they draw them; the facts must come from the parsed text alone,
+              whatever row size a later render sets, and the counts must keep the meaning of the document's node, edge,
+              and subgraph counts.
+            children:
+              - CanvasNetMermaid-Packet-PacketParser-Metadata
+            tests:
+              - CanvasNetMermaid_Packet_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Packet-FailClosed
+            title: >-
+              The Packet subsystem shall refuse, when the document is opened, a packet diagram text that its grammar or
+              its lexer does not accept, a block that does not start at the bit after the block before it (the first at
+              bit 0), a block whose end is before its start, a block of zero bits, and a text that exceeds the node or
+              label length limits of the open call, with a coded MermaidSyntaxException located in the original text,
+              with a hint, with Mermaid's message for a refused block, and for a grammar error with the tokens that
+              Mermaid lists as expected; every block statement counts as a node.
+            justification: |
+              Invalid or oversized untrusted text must never produce a partial diagram or unbounded work; the author
+              needs the place of the problem in the file as written and a way to fix it.
+            children:
+              - CanvasNetMermaid-Packet-PacketParser-Errors
+              - CanvasNetMermaid-Packet-PacketParser-Database
+              - CanvasNetMermaid-Packet-PacketParser-Limits
+            tests:
+              - CanvasNetMermaid_Packet_InvalidText_FailsClosedWithLocation
+
+          - id: CanvasNetMermaid-Packet-Rows
+            title: >-
+              The Packet subsystem shall split the blocks of a packet diagram into rows of the row size of the render's
+              configuration exactly as Mermaid's packet parser splits them, a block that crosses the end of a row drawn
+              as a part on each row with its label, and shall fail the render, located at the block, with
+              mermaid-render-failed where Mermaid's split fails and with mermaid-limit-exceeded when the parts exceed
+              MaxNodes.
+            justification: |
+              The rows decide where every block is drawn and depend on the configuration of each render; a row size
+              Mermaid cannot split must not be drawn as a guess, and a range that Mermaid splits into thousands of rows
+              must not cost unbounded work.
+            children:
+              - CanvasNetMermaid-Packet-PacketParser-Rows
+            tests:
+              - CanvasNetMermaid_Packet_Rows_FollowTheConfiguredRowSize
+              - CanvasNetMermaid_Packet_Text_GivesTheDiagramAndTheScene
+
+          - id: CanvasNetMermaid-Packet-Drawing
+            title: >-
+              The Packet subsystem shall draw a packet diagram as Mermaid's packet renderer draws it under the effective
+              configuration and theme of the render - a rectangle and a centered label for each part of a row, the
+              first and last bit numbers above it when the configuration shows them, the title in a row of its own
+              below the blocks, the paint and fonts of the packet theme variables, and the view box of Mermaid's packet
+              renderer - and shall charge the work of the drawing to the layout work limit.
+            justification: |
+              The pixels and the size of a packet diagram must be Mermaid's for the same text, configuration, and
+              theme, and the work of a render must be bounded.
+            children:
+              - CanvasNetMermaid-Packet-PacketRenderer-Blocks
+              - CanvasNetMermaid-Packet-PacketRenderer-BitNumbers
+              - CanvasNetMermaid-Packet-PacketRenderer-Title
+              - CanvasNetMermaid-Packet-PacketRenderer-ViewBox
+              - CanvasNetMermaid-Packet-PacketRenderer-Paint
+              - CanvasNetMermaid-Packet-PacketRenderer-Texts
+              - CanvasNetMermaid-Packet-PacketRenderer-Cost
+            tests:
+              - CanvasNetMermaid_Packet_Fixture_ParsesAndLaysOutConsistently
+              - CanvasNetMermaid_Packet_Text_GivesTheDiagramAndTheScene
+              - CanvasNetMermaid_Packet_Themes_PaintTheBlocksAndTexts

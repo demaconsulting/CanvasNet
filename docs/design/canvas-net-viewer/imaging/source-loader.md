@@ -42,10 +42,10 @@ as written, the `DataReferences` as `ChartDataReference` records of `Kind` (`inl
 `null` for every other kind), `Diagram` (an `init` property: a `DiagramFacts` record - the `Type` such as `flowchart`,
 `sequence`, or `mindmap`, `Supported` (whether this version draws the type), the `Direction`, the `Title` and the
 `AccTitle` when the diagram has them, and the `NodeCount`, `EdgeCount`, and `SubgraphCount` (for a mindmap its nodes,
-one edge fewer than its nodes, and no subgraphs), which are 0 for a type that is not drawn - for
-a Mermaid diagram; `null` for every other kind), `Selection` (an `init` property: what the fragment of the input chose,
-an `InputSelection`; `null` for an input without a fragment) and `Specifier` (computed: the path, and `#` and the
-fragment when there is a selection).
+one edge fewer than its nodes, and no subgraphs; for a packet diagram its blocks, no edges, and no subgraphs), which are
+0 for a type that is not drawn - for a Mermaid diagram; `null` for every other kind), `Selection` (an `init` property:
+what the fragment of the input chose, an `InputSelection`; `null` for an input without a fragment) and `Specifier`
+(computed: the path, and `#` and the fragment when there is a selection).
 
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
 `Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
@@ -382,7 +382,7 @@ the library recognizes but does not draw becomes a note (`mermaid`, `unsupported
 such as `mermaid-icon-unsupported`, and `file:line:column: message (hint)`, `DescribeUnsupported`). A diagram type that
 is recognized but not drawn (a user journey, for example) is one such note, `mermaid-diagram-unsupported`, whose hint
 says that the type is not supported and which types are drawn (flowchart, graph, sequenceDiagram, classDiagram,
-stateDiagram, erDiagram, pie, gantt, and mindmap), and the picture is the background alone; in strict mode the
+stateDiagram, erDiagram, pie, gantt, mindmap, and packet), and the picture is the background alone; in strict mode the
 library throws instead (see *Error Handling*). The surface is charged to the `LoadContext` before the library draws it.
 Without a size option the pictures of the nodes can enlarge the drawn diagram (a picture node without its `w` and `h`
 takes the size of its picture, and the probe measured the diagram without them), and that size is known only after the

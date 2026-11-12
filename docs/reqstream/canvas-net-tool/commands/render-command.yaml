@@ -240,6 +240,7 @@ sections:
           - RenderCommand_Run_MermaidGanttTodayAndInvalidDate_AreWarningThenError
           - RenderCommand_Run_MermaidMindmap_DrawsTheNodes
           - RenderCommand_Run_MermaidMindmapIcon_IsUnsupportedDiagnosticThenStrictError
+          - RenderCommand_Run_MermaidPacket_DrawsTheBlocksInTheTheme
           - RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract
           - RenderCommand_Metadata_DescribesCommandAndOptions
 

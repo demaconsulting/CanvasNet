@@ -37,7 +37,7 @@ console.
   text and JSON, and `info` describes a diagram as one text line and as the `image` and `diagram` objects, with
   `supported` false for a type that is not drawn and the counts named participants, messages, and boxes for a
   sequence diagram (a class diagram counts its classes, relations, and namespaces as nodes, edges, and subgraphs, and a
-  mindmap its nodes, the edges to them, and no subgraphs); a
+  mindmap its nodes, the edges to them, and no subgraphs, and a packet diagram its blocks as written); a
   theme fragment is checked and does not change the description.
 - `info` describes every readable kind as one text line and as JSON, reports the EXIF orientation only when the file
   has one, describes the pages of a document, and reports a bad input as an expected error.
@@ -195,6 +195,13 @@ root `Garden`, the child `Soil` (with `Compost`), and the child `Plants`, is des
 `supported` true, no `direction`, the title `Garden` (the frontmatter title, as a mindmap declares none of its own), 4
 nodes, 3 edges, and 0 subgraphs, and its text line is exactly `<path>: mermaid, WxH px (laid out), mindmap, 4 nodes, 3
 edges, 0 subgraphs, title "Garden", <bytes> bytes`.
+
+**DiscoveryCommands_Info_Packet_ReportsBlocks**: a packet diagram titled `Frame` with `accTitle: A frame` and the blocks
+`0-23`, `+16` (split across the end of the first row), and `+8` is described with the type `packet`, `supported` true, no
+`direction`, the title `Frame`, the accessible title `A frame`, 3 nodes (the block split across two rows counted once),
+0 edges, and 0 subgraphs, laid out at 1026 by 141 pixels (two rows and the title row), and its text line is exactly
+`<path>: mermaid, WxH px (laid out), packet, 3 nodes, 0 edges, 0 subgraphs, title "Frame", accTitle "A frame", <bytes>
+bytes`.
 
 **DiscoveryCommands_Info_ThemeFragment_IsCheckedAndIgnored**: `info` of the flowchart with `#theme=forest` gives the
 same `diagram` object as without the fragment and echoes `theme=forest` as the `fragment` of the `input` object, and

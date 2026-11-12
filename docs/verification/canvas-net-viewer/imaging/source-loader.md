@@ -313,6 +313,12 @@ titles, five nodes, four edges, and no subgraph; loaded in strict mode it is dra
 library's size, with a white corner, exactly the pixels the library draws over white, more than a twentieth of its
 pixels not white, and no note.
 
+**SourceLoader_Load_MermaidPacket_ProbesAndDraws**: a `packet-beta` diagram titled `Frame` with the blocks `0-15`, `16`,
+`+24` (split across the end of the first row), and `+7` is probed with the facts `packet`, supported, no direction, the
+title `Frame`, no accessible title, four nodes (the blocks as written), no edge, and no subgraph, at 1026 by 141 pixels;
+loaded in strict mode it is drawn at the probed size, which is the library's size, with a white corner, exactly the
+pixels the library draws over white, more than a quarter of its pixels not white, and no note.
+
 **SourceLoader_Load_MermaidSizeAndBackground_FollowTheOptions**: a scale of 2 doubles both sides, a width of 300 keeps
 the aspect ratio (the height rounded half away from zero), a 400 by 400 box is exactly that size with white above the
 fitted diagram, and a background with zero alpha leaves the corner transparent while the nodes keep the default fill.

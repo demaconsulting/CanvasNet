@@ -38,10 +38,11 @@ expected, constitutes a failure.
 **Tests**: `DiagramDetectorTests.DiagramDetector_Detect_KnownKeyword_GivesTypeAndSupport`,
 `DiagramDetectorTests.DiagramDetector_DetectorIds_FollowMermaidRegistrationOrder`
 
-Asserts the detector id, public type, and support of 39 keywords (from `flowchart` and `graph` to `cynefin-beta:` and
+Asserts the detector id, public type, and support of 40 keywords (from `flowchart` and `graph` to `cynefin-beta:` and
 `Error`), including `classDiagram` and `classDiagram-v2` as the supported `class` type, `stateDiagram` and
 `stateDiagram-v2` as the supported `state` type (Mermaid's `stateDiagram` detector), `erDiagram` as the supported `er`
-type, and `gantt`, `pie showData`, and `mindmap` as the supported `gantt`, `pie`, and `mindmap` types, every other
+type, `gantt`, `pie showData`, and `mindmap` as the supported `gantt`, `pie`, and `mindmap` types, and `packet-beta` and
+`packet` as the supported `packet` type, every other
 type unsupported, and that the detector table has all 40 detectors.
 
 ##### CanvasNetMermaid-Syntax-DiagramDetector-MermaidOrder: Detection Follows Mermaid's Order And Quirks
@@ -88,6 +89,7 @@ column 1, and that a text that starts with `---` is `mermaid-syntax-error` with 
 **Tests**: `DiagramDetectorTests.DiagramDetector_UnsupportedHint_NamesSupportedKeywords`
 
 Asserts the exact hints for two types that are not drawn (`journey`: "journey diagrams are not supported; supported in
-this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap", and
+this version: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, erDiagram, pie, gantt, mindmap, packet",
+and
 `gitGraph` with the same list), and that the supported keywords are exactly `flowchart`, `graph`, `sequenceDiagram`,
-`classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, and `mindmap`, in that order.
+`classDiagram`, `stateDiagram`, `erDiagram`, `pie`, `gantt`, `mindmap`, and `packet`, in that order.

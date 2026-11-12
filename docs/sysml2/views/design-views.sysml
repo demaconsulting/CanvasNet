@@ -160,6 +160,10 @@ package CanvasNet {
         expose MermaidCose;
     }
 
+    view MermaidPacketView {
+        expose MermaidPacket;
+    }
+
     view CanvasNetToolView {
         expose CanvasNetToolSystem;
     }

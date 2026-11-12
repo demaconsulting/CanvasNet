@@ -51,7 +51,7 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   errors; no
   failure leaves an output.
 - A diagram (a flowchart, a sequence diagram, a class diagram, a state diagram, an entity relationship diagram, a pie
-  chart, a gantt chart, or a mindmap) is
+  chart, a gantt chart, a mindmap, or a packet diagram) is
   rendered at the size Mermaid lays it out at over
   white, in the theme `--theme` names (the theme
   fragment of the input wins over the option, and a theme the text sets wins over both), with the operation, the natural
@@ -540,6 +540,12 @@ draws for the text over white, and there is no diagnostic.
 `::icon(fa fa-book)` is drawn with the one diagnostic of severity `unsupported` and code `mermaid-icon-unsupported`,
 whose message names `fa fa-book`, located at line 4 (the icon), and the picture is written; with `--strict` the render
 fails with the code `unsupported-feature` and writes no picture.
+
+**RenderCommand_Run_MermaidPacket_DrawsTheBlocksInTheTheme**: a packet diagram titled `Frame` with the blocks `0-15`,
+`+24`, and `+8`, rendered with `--strict` and `--json` and again with `--theme dark`, writes a PNG of the `natural` size
+with a white corner and exactly the pixels the library draws for the text over white, more than a quarter of them in
+the default block fill `#efefef`, and a dark PNG of exactly the pixels the library draws in the `dark` theme, more than
+a quarter of them in the dark block fill `#333333`, and neither render has a diagnostic.
 
 **RenderCommand_Run_MermaidWarningAndSyntaxError_FollowTheContract**: a flowchart with a style declaration outside the
 supported subset has the one diagnostic `mermaid-warning` with the `detail` `mermaid-style-ignored` and a `location`

@@ -382,6 +382,11 @@ children `Soil` and `Plants`) is described and rendered by real processes: `info
 with the type `mindmap`, `supported` true, three `nodes`, and two `edges`; `render --strict --json` exits with 0 without
 a diagnostic and writes a PNG of exactly the size `info` reported with a white corner.
 
+**CanvasNetTool_Mermaid_PacketAsProcess_IsDrawn**: a packet diagram of three blocks over two rows (`0-15`, `+16`, and
+`+8`) is described and rendered by real processes: `info --json` gives the `diagram` object with the type `packet`,
+`supported` true, three `nodes`, and no `edges`, and the size 1026 by 109 pixels; `render --strict --json` exits with 0
+without a diagnostic and writes a PNG of exactly that size with a white corner.
+
 **CanvasNetTool_Mermaid_ErrorsAndDiagnostics_FollowTheContract**: in-process through the entry point, a diagram whose
 first keyword is not a Mermaid keyword (`drawing LR`) returns exit code 1 with an `Error: mermaid-error:` line that
 names `mermaid-unknown-diagram` and a `Hint:` line; a user journey diagram (`journey` titled `Ducks`, not supported)

@@ -174,7 +174,11 @@ the task texts, section titles, tick labels, and title of a gantt chart) and `Pa
 `SplitBreaks`, and decode the texts they draw with `DecodeEntities` and `CollapseSvgWhiteSpace`. `MindmapRenderer` of
 the `Mindmap` subsystem creates a builder for each render (charged to the render's work meter) and sets its `Build` as
 the `ShapeContext.MeasureLabel` of the mindmap's nodes, decodes each label with `DecodeEntities` before it checks the
-label's length, and reports Font Awesome labels with `ContainsFontAwesome`, which `FlowchartModel` also uses. The tests
+label's length, and reports Font Awesome labels with `ContainsFontAwesome`, which `FlowchartModel` also uses.
+`PacketRenderer` of the `Packet` subsystem creates a builder for each render (charged to the render's work meter),
+measures its SVG texts (the block labels, the bit numbers, and the title) with `SvgLineExtent` and `VerticalMetrics`,
+places a `middle` baseline with `XHeight`, and decodes the texts it draws with `DecodeEntities` and
+`CollapseSvgWhiteSpace`. The tests
 in `LabelBuilderTests.cs` call the unit directly through `InternalsVisibleTo`.
 
 #### Known Differences From Mermaid
