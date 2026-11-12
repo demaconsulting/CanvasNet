@@ -2051,6 +2051,179 @@ public class MermaidHardeningTests
     }
 
     /// <summary>
+    ///     Validates that every packet fixture renders the same pixels twice.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_PacketFixtures_RenderDeterministically()
+    {
+        // Arrange
+        var documents = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "packet"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(path => MermaidDocument.Open(path))
+            .ToList();
+
+        // Act
+        var differing = documents.Where(document =>
+        {
+            using var first = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            using var second = document.Render(cancellationToken: TestContext.Current.CancellationToken);
+            return !MermaidTestHelpers.PixelsEqual(first, second);
+        }).ToList();
+
+        // Assert
+        Assert.Empty(differing);
+    }
+
+    /// <summary>
+    ///     Validates hostile packet diagrams through the public API, fitted to 400 by 300 pixels: zero, negative, fractional
+    ///     and huge row sizes, negative and huge heights, widths and paddings, huge font sizes, no bit numbers, and markup
+    ///     in the texts each render, or end in a located render failure.
+    /// </summary>
+    /// <param name="text">The diagram.</param>
+    [Theory]
+    [InlineData("---\nconfig:\n  packet:\n    bitsPerRow: 0\n---\npacket\n0-3: \"a\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    bitsPerRow: -3\n---\npacket\n0-3: \"a\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    bitsPerRow: 1.5\n---\npacket\n0: \"a\"\n1: \"b\"\n2-3: \"c\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    bitsPerRow: 1000000000\n---\npacket\n0-99: \"a\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    rowHeight: -10\n    paddingY: -40\n---\npacket title T\n0-40: \"a\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    paddingX: 1e300\n---\npacket\n0-40: \"a\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    bitWidth: 1e300\n    rowHeight: 1e300\n---\npacket title T\n0-40: \"a\"\n")]
+    [InlineData("---\nconfig:\n  packet:\n    showBits: false\n---\npacket\n0-40: \"a\"\n")]
+    [InlineData("%%{init: {'themeVariables': {'packet': {'labelFontSize': '1e300px', 'titleFontSize': '1e300px', 'labelColor': 'nonsense'}}}}%%\npacket title T\n0-7: \"a\"\n")]
+    [InlineData("packet title <b>x</b> #amp; <script>y</script>\n0: \"<i>a</i> #35;\"\n1: 'b \\t c'\n")]
+    [InlineData("packet\n0: \"a\"\n+1" + "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" + ": \"b\"\n")]
+    public void CanvasNetMermaid_Hardening_HostilePacketDiagram_RendersOrFailsLocated(string text)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse(text);
+
+        // Act
+        var exception = Record.Exception(() =>
+        {
+            using var surface = document.Render(400, 300, cancellationToken: TestContext.Current.CancellationToken);
+        });
+
+        // Assert
+        Assert.Equal("packet", document.DiagramType);
+        if (exception is not null)
+        {
+            var failure = Assert.IsType<MermaidRenderException>(exception);
+            Assert.True(failure.Location.Line > 0, failure.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a bit range or a bit count that Mermaid splits into 10,000 rows fails with the node limit at its
+    ///     statement, at the default limits.
+    /// </summary>
+    /// <param name="block">The block statement.</param>
+    [Theory]
+    [InlineData("0-99999999: \"huge\"")]
+    [InlineData("+99999999999999999999: \"huge\"")]
+    public void CanvasNetMermaid_Hardening_PacketHugeBlock_IsALocatedNodeLimit(string block)
+    {
+        // Arrange
+        var document = MermaidDocument.Parse("packet\n" + block + "\n");
+
+        // Act
+        var exception = Assert.Throws<MermaidRenderException>(() => document.Measure(cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal((MermaidDiagnosticCodes.LimitExceeded, 2), (exception.Code, exception.Location.Line));
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that more block statements than the default <see cref="MermaidLimits.MaxNodes"/> fail at open,
+    ///     located at the first one over the limit.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_PacketManyBlocks_IsALocatedNodeLimit()
+    {
+        // Arrange: 2,001 one-bit blocks
+        var text = "packet\n" + string.Concat(Enumerable.Repeat("+1: \"a\"\n", 2_001));
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(2_002, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxNodes", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that every text of a packet diagram that is longer than the default
+    ///     <see cref="MermaidLimits.MaxLabelLength"/> fails at open, located at its statement: the title, the accessible
+    ///     title, both forms of the accessible description, and a label.
+    /// </summary>
+    /// <param name="statement">The statement.</param>
+    [Theory]
+    [InlineData("title {0}")]
+    [InlineData("accTitle: {0}")]
+    [InlineData("accDescr: {0}")]
+    [InlineData("accDescr {{\n{0}\n}}")]
+    [InlineData("1: \"{0}\"")]
+    public void CanvasNetMermaid_Hardening_PacketLongTexts_AreALocatedLabelLimit(string statement)
+    {
+        // Arrange: a text one over the limit
+        var text = "packet\n0: \"x\"\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, statement, new string('x', 4_097)) + "\n";
+
+        // Act
+        var exception = Assert.Throws<MermaidSyntaxException>(() => MermaidDocument.Parse(text));
+
+        // Assert
+        Assert.Equal(MermaidDiagnosticCodes.LimitExceeded, exception.Code);
+        Assert.Equal(3, exception.Location.Line);
+        Assert.Contains("MermaidLimits.MaxLabelLength", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates with a seeded mutation fuzzer over the packet fixtures that opening and measuring only ever throw the
+    ///     documented exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetMermaid_Hardening_MutatedPacketFixtures_ThrowOnlyDocumentedExceptions()
+    {
+        // Arrange
+        string[] tokens =
+        [
+            "packet", "packet-beta", "title ", "accTitle: t", "accDescr: d", "accDescr {", "}", "\"label\"", "'q'", ":", "-",
+            "+", "+0", "0", "05", "1.5", "99999999", "%%", "%%{x}%%", "---\n", "\n", "  ", "\\", "\"", "#35;", "<br>",
+        ];
+        var random = new Random(20261112);
+        var fixtures = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "Fixtures", "packet"), "*.mmd")
+            .Order(StringComparer.Ordinal)
+            .Select(File.ReadAllText)
+            .ToList();
+        var unexpected = new List<string>();
+
+        // Act
+        foreach (var fixture in fixtures)
+        {
+            for (var round = 0; round < 12; round++)
+            {
+                var text = Mutate(fixture, tokens, random);
+                try
+                {
+                    MermaidDocument.Parse(text).Measure(cancellationToken: TestContext.Current.CancellationToken);
+                }
+                catch (Exception ex) when (ex is MermaidSyntaxException or MermaidRenderException or InvalidDataException or ArgumentOutOfRangeException)
+                {
+                    // A documented failure
+                }
+                catch (Exception ex)
+                {
+                    unexpected.Add($"{ex.GetType().Name}: {ex.Message}\n{text}");
+                }
+            }
+        }
+
+        // Assert
+        Assert.Empty(unexpected);
+    }
+
+    /// <summary>
     ///     Builds composite states nested through their concurrent regions: each holds the next one, then a divider and a
     ///     state, so each adds two nesting levels.
     /// </summary>

@@ -611,7 +611,9 @@ and its `box` (`null` for an empty text).
 `MermaidChartReferenceLayoutTests` compares every packet golden at **0.01 px**: the view box, every block rectangle
 and its paint, and every text's content, anchor point, anchor, font size and fill. Text boxes are compared at 0.02 px,
 as for the other goldens. An empty text (an empty label, or the title of a diagram without one) draws nothing and is
-not an item of CanvasNet's scene. Two browser rules make this possible:
+not an item of CanvasNet's scene. The y of a text with a `middle` baseline is checked through its box, because the
+scene holds the baseline. Every rectangle and anchor agrees within 0.001 px; the largest difference is 0.016 px, a
+text box of `10-theme-variables` (Chrome's 1/64 px baseline snapping). Two browser rules make this possible:
 
 - **A middle baseline is x-height/2 down.** Chrome places a text with `dominant-baseline: middle` half the x-height of
   the font below its `y`, rounded to 1/64 px; `auto` is the alphabetic baseline at `y`.
