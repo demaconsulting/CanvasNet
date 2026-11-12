@@ -35,7 +35,7 @@ sections:
               - id: CanvasNetMermaid-GitGraph-GitGraphRenderer-Arrows
                 title: >-
                   The GitGraphRenderer unit shall draw an arrow from each parent to its commit between the places of
-                  the first pass, rerouted on a lane that Mermaid's lane search finds, with its cut after five tries,
+                  the first pass, rerouted on a lane that Mermaid's lane search finds, with its cut after six tries,
                   when a commit lies between them on the branch the arrow bends to, otherwise bent once or straight,
                   each in the color of the branch Mermaid paints it with.
                 justification: |

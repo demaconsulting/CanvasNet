@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.GitGraph;
 /// </content>
 internal sealed partial class GitGraphRenderer
 {
-    /// <summary>The most tries of the lane search before it takes the last candidate.</summary>
+    /// <summary>The last depth the lane search tries (Mermaid's <c>depth &gt; 5</c>): six tries, depths 0 to 5.</summary>
     private const int MaxLaneDepth = 5;
 
     /// <summary>The space a lane keeps from the lanes before it.</summary>
@@ -209,8 +209,8 @@ internal sealed partial class GitGraphRenderer
 
     /// <summary>
     ///     Mermaid's <c>findLane</c>: the middle between two coordinates when it is at least 10 pixels from every lane
-    ///     taken (it is then taken), else the middle with the far end moved a fifth closer, up to five times; the sixth
-    ///     candidate is used without being taken.
+    ///     taken (it is then taken), else the middle with the far end moved a fifth closer; six candidates are tried
+    ///     (depths 0 to 5, as Mermaid's <c>depth &gt; 5</c> cut), and the seventh is used without being tried or taken.
     /// </summary>
     /// <param name="y1">The near end.</param>
     /// <param name="y2">The far end.</param>

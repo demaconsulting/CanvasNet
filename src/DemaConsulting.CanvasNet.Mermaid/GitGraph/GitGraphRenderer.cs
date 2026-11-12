@@ -30,7 +30,7 @@ namespace DemaConsulting.CanvasNet.Mermaid.GitGraph;
 ///         bottom to top), 10 pixels from its start; with <c>parallelCommits</c> it is 40 pixels after its closest parent
 ///         (bottom to top, after the three loops of Mermaid's <c>setParallelBTPos</c>). An arrow that would cross a commit
 ///         of the branch it bends to is rerouted on a lane (Mermaid's <c>findLane</c>, which keeps lanes 10 pixels apart
-///         and gives up after five tries).
+///         and gives up after six tries).
 ///     </para>
 ///     <para>
 ///         <b>Texts.</b> A text is measured as the browser's <c>getBBox</c> measures it while Mermaid draws (the ink-extended

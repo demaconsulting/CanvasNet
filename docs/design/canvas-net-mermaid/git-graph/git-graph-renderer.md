@@ -25,7 +25,7 @@ The unit's behavior is specified by the `CanvasNetMermaid-GitGraph-GitGraphRende
 **The constants of Mermaid's renderer**: the offset of a commit from its place (`LAYOUT_OFFSET`, 10), the step from a
 parent with `parallelCommits` (`COMMIT_STEP`, 40), the paddings of labels and tags (`PX` 4 and `PY` 2), the number of
 branch colors (`THEME_COLOR_LIMIT` of the renderer, 8), the first place top to bottom and bottom to top (`defaultPos`,
-30), and, for the lane search, the spacing of 10 pixels between lanes and its cut after five tries.
+30), and, for the lane search, the spacing of 10 pixels between lanes and its cut after six tries (depths 0 to 5).
 
 **A renderer instance** draws one render on one thread and holds the diagram, the `DiagramRenderContext` of the render,
 the `GitGraphConfig` section of its configuration, the `GitGraphStyles` built from its configuration (reporting the
@@ -89,7 +89,7 @@ and commit items at the statement that made the commit.
   of commits. **`ShouldReroute`** is Mermaid's `shouldRerouteArrow`: a commit made between the parent and the commit on
   the branch the arrow bends to. A rerouted arrow runs on a lane with bends of radius 10; **`FindLane`** is Mermaid's
   `findLane`, which takes the middle between two coordinates when it is at least 10 pixels from every lane taken (and
-  then takes it), else moves the far end a fifth closer and tries again, and after five tries returns the candidate
+  then takes it), else moves the far end a fifth closer and tries again, and after six tries returns the next candidate
   without taking it, each try charging the meter 1 and the number of lanes; as in Mermaid, both the horizontal and the
   vertical lane are searched for each rerouted arrow. Any other arrow bends once with radius 20 (at the commit's end,
   or at the parent's end for the second parent of a merge) or is straight. The arrow is painted with the classes

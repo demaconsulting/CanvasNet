@@ -89,7 +89,7 @@ public sealed class GitGraphRendererTests
 
     /// <summary>
     ///     Validates the rerouting lanes of the reference fixture: each rerouted arrow runs on a new lane 10 pixels from
-    ///     the others, the fifth try's candidate used without being taken (Mermaid's <c>findLane</c>), and the bends of
+    ///     the others, the candidate after the sixth try used without being taken (Mermaid's <c>findLane</c>), and the bends of
     ///     radius 10.
     /// </summary>
     [Fact]
