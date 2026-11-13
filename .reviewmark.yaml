@@ -943,7 +943,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Files/SandboxFailureKind.cs"      # unit source (failure kinds)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverTests.cs"      # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverLinkTests.cs"  # unit tests (link walk)
-      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverRaceTests.cs"  # unit tests (post-open verification)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverRaceTests.cs"  # unit tests (post-open check)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxExceptionTests.cs"           # unit tests (exception)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxTestSupport.cs"              # shared test support
 
