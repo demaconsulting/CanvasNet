@@ -341,7 +341,8 @@ chart is
 `page-out-of-range`; `-D x=1` with a chart is a usage error that names the kind; the usage text names Vega-Lite
 charts and has
 a chart example, and says that the local CSV, TSV, DSV (`format.delimiter`), and JSON data files of a chart are read
-relative to the folder of the specification, that delimited text is not type-inferred unless `format.parse` is `"auto"`, that a missing file is an error, that
+relative to the folder of the specification, that delimited text is not type-inferred unless `format.parse` is `"auto"`,
+that a missing file is an error, that
 there is no data-folder option, and that nothing is read from the network.
 
 **RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder**: a chart whose rows are in a CSV file in a sub

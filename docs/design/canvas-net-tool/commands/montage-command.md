@@ -24,7 +24,8 @@ declaration: the one of `render` talks about output names), the declarations of 
 `RenderCommand.OptionTable` with `RenderCommand.SpecsFor`.
 
 **Settings** (record): the input paths in the order given, the output path, the page, `AllPages`, the resolution, the
-shared `ScadViewOptions`, strict, the `FileAccessPolicy` of every input, auto-orient, the `SheetOptions` (columns, cell size, spacing, padding, background,
+shared `ScadViewOptions`, strict, the `FileAccessPolicy` of every input, auto-orient, the `SheetOptions` (columns, cell
+size, spacing, padding, background,
 labels, fit, and filter), and the `WriteOptions`.
 
 **PlannedCell** and **PlacedCell** (the planning is private to `MontageBuilder`; the placed cell is its public
@@ -50,7 +51,8 @@ input is opened (the refusal mentions the options of the tool, which is why the 
 input (`SourceLoader.Probe` under the policy), checks that model options were given only when an
 input is a model, and calls `MontageBuilder.Execute(infos, request)` of the Viewer library with a `MontageRequest`
 built from the settings (the output is the positional member; every other value, with the `SheetOptions`, the
-`WriteOptions`, and `FileAccess`, is set explicitly, so the defaults of the records do not matter to the command). The library plans the
+`WriteOptions`, and `FileAccess`, is set explicitly, so the defaults of the records do not matter to the command). The
+library plans the
 cells, calculates the layout (again, with the real count, so that with
 `--all-pages` the check happens after the page counts were read from the headers), checks the output against every input,
 composes the sheet one input at a time, and publishes it (see _MontageBuilder Unit Design_). The command reports the

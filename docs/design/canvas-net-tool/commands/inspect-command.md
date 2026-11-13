@@ -35,7 +35,8 @@ model, `--param` of a Vega-Lite chart, `--theme` of a Mermaid diagram, and the i
 then `--count <N>` (the description starts `colors:`) and
 `--radius <R>` (the description starts `pixel:`). An output option is therefore an unknown option.
 
-**Settings** (record): the subcommand, the input path, the `SourceOptions` (with the `FileAccess` policy), the `Operations` of the image pipeline, the
+**Settings** (record): the subcommand, the input path, the `SourceOptions` (with the `FileAccess` policy), the
+`Operations` of the image pipeline, the
 count (default `InspectCommand.DefaultColors`, 8), the radius (default 0), and the point (`null` for `colors`).
 
 #### Key Methods
@@ -44,13 +45,15 @@ count (default `InspectCommand.DefaultColors`, 8), the radius (default 0), and t
 `--count` for `pixel` (`The option --radius only applies to 'inspect pixel'.`), requires the operands that follow
 (`colors`: one input file; `pixel`: an input file and a point, with an example in the hint), parses the point with
 `ParsePoint` (`x,y`: two whole numbers separated by a comma; otherwise `Invalid value '...' for <x,y>`), reads `--count`
-(1 to 32) and `--radius` (0 to 8), reads the source options with `RenderCommand.ReadSourceOptions` (with the input, so the file-access options of
+(1 to 32) and `--radius` (0 to 8), reads the source options with `RenderCommand.ReadSourceOptions` (with the input, so
+the file-access options of
 `render` apply with the same defaults), and parses the
 pipeline with `ImagePipelineParser.Parse(reader, null, null)` (so a malformed operation is reported before anything is
 decoded). The point is not checked against the image here; that needs the pixels.
 
 **Run(context, args)**: parses the arguments with the table, reads the settings, then reports every mistake about the
-input before decoding: `SourceLoader.Probe` (under the file-access policy of the source options) and the checks that model options were given only for a model, `--param`
+input before decoding: `SourceLoader.Probe` (under the file-access policy of the source options) and the checks that
+model options were given only for a model, `--param`
 only for a chart, and `--theme` only for a diagram (the messages of `render`). It then calls
 `ImageInspector.Execute(info, request)` of the Viewer library with an `InspectRequest` built
 from the settings (the kind is the positional member; the `SourceOptions`, the operations, the count, the radius, and

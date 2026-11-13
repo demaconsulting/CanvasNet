@@ -26,7 +26,8 @@ wrapping). The content is embedded in the tool assembly, so an installed tool ne
 immutable, so the catalog is safe to share between threads.
 
 **TopicNames**: the canonical names in the order the topics are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
-`pptx`, `vsdx`, `raster`, `json`, `errors`, `limits`, `files` (twelve topics). A topic is added or removed only by changing this
+`pptx`, `vsdx`, `raster`, `json`, `errors`, `limits`, `files` (twelve topics). A topic is added or removed only by
+changing this
 list together with the embedded files, and a unit test proves that the embedded topic files are exactly this set.
 **FormatTopicNames** is the first eight names, the topics that describe one format.
 
@@ -91,7 +92,8 @@ the size rule, the link rule (a query after the file name is ignored; a fragment
 files may be read is the file-access mode of `--file-access`), the page
 fragment (grammar, the parameter of each format, limits, the `&amp;` of an XML attribute), the unknown-parameter note,
 and
-the warnings `svg-image-unresolved`, `svg-image-too-large`, and `image-access-denied`, and an `example`, which points to the `embed`
+the warnings `svg-image-unresolved`, `svg-image-too-large`, and `image-access-denied`, and an `example`, which points to
+the `embed`
 snippet, and the file types of the `href file types` item are compared by a unit test, in both directions, with
 `CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in, so a type added to the Viewer is
 caught) and with the `formats` table, so the list cannot

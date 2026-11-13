@@ -30,7 +30,8 @@ transparency), `--resize-to <a|b|WxH>`, `--fit <mode>`, `--tolerance <0-255>`, `
 
 **Settings** (record): the two `SideSettings` (the label `a` or `b`, the path, and the page, resolution, view, and
 variables chosen for that input alone), the shared page and resolution, the shared `ScadViewOptions`, the opaque
-background, strict, the `FileAccessPolicy` of both inputs, auto-orient, the filter, the `ResizeTarget` (`a`, `b`, or an explicit size) or `null`, the
+background, strict, the `FileAccessPolicy` of both inputs, auto-orient, the filter, the `ResizeTarget` (`a`, `b`, or an
+explicit size) or `null`, the
 `FitMode`, the tolerance, the grid, the thresholds in the order written, the three picture paths, the `DiffStyle`, the
 gain, the overlay weight, and the `WriteOptions` (the background is also the color a JPEG picture is flattened over).
 The `ScadViewOptions` of one input is the shared options with that input's own view and variables; a view chosen
@@ -62,7 +63,8 @@ file-access policy, checks that shared
 model options were given only when an input is a model, and runs `PrepareSide` for each input (a per-side option
 given for an input of the wrong kind is a `usage-error` naming the kind, in terms of the options of the tool; shared
 options are skipped for an input they do not concern; `SourceLoader.CheckPage`, whose `page-out-of-range` is
-re-thrown with `Input a:` or `Input b:` in front, and the `SourceOptions` of the side, which carry the policy). It then calls
+re-thrown with `Input a:` or `Input b:` in front, and the `SourceOptions` of the side, which carry the policy). It then
+calls
 `ImageComparer.Execute(request)` of the Viewer library with a `CompareRequest` built from the settings and the two
 `CompareInput` values (the inputs are the positional members; every other value is set explicitly as an `init`
 property, so the result does not depend on the defaults of the record), and reports the result (the metrics are

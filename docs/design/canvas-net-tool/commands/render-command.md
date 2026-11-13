@@ -57,7 +57,8 @@ combine, and says how an OpenSCAD model is drawn (the views, a model that is ent
 view is chosen, the 800 by 800 default size, `-D`) and where its
 `include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
 background, with UTC dates and the bundled fonts; its local CSV, TSV, DSV (`format.delimiter`), and JSON data files are
-read relative to the folder of the specification under the file-access mode, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
+read relative to the folder of the specification under the file-access mode, a missing one is an error, delimited text
+is not type-inferred unless `format.parse` is `"auto"`,
 there is no data-folder option, and nothing is read from the network; its only option is `--param`, which sets the
 parameters of the chart, and the usage text shows the option and the `param.` fragment of a link), and how a Mermaid
 diagram is drawn (a flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart,
@@ -106,7 +107,8 @@ of the `--allow-root` folders (each taken from the working directory and require
 `roots+no-symlinks`). Every check is made while the options are read, before any input is opened.
 
 **ParseFileAccessMode(text)**: splits the value at commas, trims and lower-cases each token, and accepts `any` alone,
-or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` " of the model options was given, returns `null` (the loader then uses the
+or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` " of the model options was
+given, returns `null` (the loader then uses the
 defaults: the view is chosen by the library - isometric, a flat top view for a model that is entirely 2D, or the
 view the model sets - and the projection is orthographic). Otherwise reads `--view` (one of the names in
 `SourceLoader.ScadViews`, in any case; another name is a `usage-error` whose hint lists the views; `ViewGiven` is set

@@ -5,7 +5,8 @@
 # The HelpTopics class is the catalog of help topics of the tool: the quick reference for each input format (what is
 # supported and what is not, the options that apply, the diagnostics and how --strict treats them, and the known
 # differences from the original program), for the --json result documents, for errors and exit codes, for the
-# limits, and for the files a document may reference, with tiny examples that are verified to render without a diagnostic. The content ships inside the tool,
+# limits, and for the files a document may reference, with tiny examples that are verified to render without a
+# diagnostic. The content ships inside the tool,
 # so it works offline, and it is verified against the code so that it cannot drift from what the tool does. The
 # class resolves a topic by name or alias and renders it, and its examples, as plain text or as a JSON document.
 
@@ -15,8 +16,9 @@ sections:
       - id: CanvasNetTool-Commands-HelpTopics-Catalog
         title: >-
           The HelpTopics class shall provide the twelve help topics scad, vega-lite, mermaid, svg, pdf, pptx, vsdx,
-          raster, json, errors, limits, and files from content shipped inside the tool, in that fixed order, each with a title,
-          a summary, and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and shall
+          raster, json, errors, limits, and files from content shipped inside the tool, in that fixed order, each with a
+          title, a summary, and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and
+          shall
           give no topic a name or alias that is the name or alias of another topic, of a command, or of the help
           subjects help and topics.
         justification: |
@@ -102,10 +104,11 @@ sections:
           may link (the list shall be exactly the file name extensions the SVG image resolver of the tool accepts, and
           the same extensions the formats command lists), that a linked model, chart, document page, or SVG file is
           drawn at the size of the placement, the link rule (relative to the folder of the SVG file; any local file
-          under the file-access mode, never a network URL; a query after the file name is ignored), the page fragment (its
-          grammar, the parameter of each format, that page 1 is drawn without one, the limits, the &amp; of an XML
+          under the file-access mode, never a network URL; a query after the file name is ignored), the page fragment
+          (its grammar, the parameter of each format, that page 1 is drawn without one, the limits, the &amp; of an XML
           attribute, and the change that a fragment on a file that takes no parameter is now a warning), the
-          diagnostic codes svg-image-unresolved, svg-image-too-large, image-access-denied, image-fragment-unknown-parameter,
+          diagnostic codes svg-image-unresolved, svg-image-too-large, image-access-denied,
+          image-fragment-unknown-parameter,
           image-fragment-duplicate-parameter, image-fragment-invalid, and image-page-out-of-range with the effect of the
           strict option on each, and an example (a snippet of pages that renders under the strict option once its
           sibling files exist), and

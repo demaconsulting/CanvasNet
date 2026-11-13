@@ -20,7 +20,8 @@ alias.
 #### Key Methods
 
 **Run(context, args)**: parses the arguments with `ArgumentReader`, requires exactly one input (`usage-error`
-otherwise) and an output (`usage-error` with a hint), reads `--scale` from 0.001 to 8192 (default 1), builds the file-access policy with
+otherwise) and an output (`usage-error` with a hint), reads `--scale` from 0.001 to 8192 (default 1), builds the
+file-access policy with
 `RenderCommand.ReadFileAccess` (the default folders of `roots` are the working directory and the folder of the
 drawing), probes the input with `SourceLoader.Probe` under it, and calls `SvgFlattener.Execute` with it as
 `FlattenRequest.FileAccess`. Without `--json` it writes one line, `wrote <output>

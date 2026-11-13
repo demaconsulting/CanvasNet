@@ -234,7 +234,8 @@ A model (`.scad`) is drawn from a named view (`--view iso|front|back|left|right|
 `--projection perspective`) at 800x800 pixels unless a size is given, with `-D name=value` setting its variables, for
 example `canvasnet render part.scad --view top -D width=30 -o part-top.png --json`. The files its `include` and `use`
 directives name are read relative to the file that names them (any local file, as in OpenSCAD, unless
-`--file-access` confines them), and a model whose include cannot be found is an error. `canvasnet info part.scad` lists the modules, functions, and directives of a model without drawing it.
+`--file-access` confines them), and a model whose include cannot be found is an error. `canvasnet info part.scad` lists
+the modules, functions, and directives of a model without drawing it.
 
 A Vega-Lite chart is read from a file named `.vl.json` or `.vl`, or from a `.json` file whose `$schema` is a Vega-Lite
 schema, and is drawn at the size its specification lays out (`--scale`, `--width`, `--height`, and `--size` change it),
@@ -248,7 +249,8 @@ marks; position, color,
 size, shape, and opacity encodings with legends, color schemes, and time scales and axes), draws only the bundled
 fonts, and never reads the
 network; a chart's CSV, TSV, DSV, or JSON data file is read relative to the folder of its specification, under the
-mode of `--file-access` (there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other marks,
+mode of `--file-access` (there is no data-folder option, and a missing file is a `vega-lite-error`); everything else
+(other marks,
 remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
 such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
 

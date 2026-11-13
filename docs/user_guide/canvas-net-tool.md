@@ -409,7 +409,7 @@ The options of `render` are listed in the following tables.
 | `--background <color>` | The color that transparency is flattened over (see *Colors* and *Defaults*) |
 | `--no-auto-orient` | Do not turn a JPEG upright by its EXIF orientation |
 | `--strict` | Fail with `unsupported-feature` instead of skipping a picture or shape that cannot be drawn |
-| `--file-access <mode>` | Which local files a document may reference: `any` (default), `roots`, `no-symlinks`, or `roots,no-symlinks` (see *File Access*) |
+| `--file-access <mode>` | Which local files a document may reference: `any` (default), or see *File Access* |
 | `--allow-root <folder>` | A folder the referenced files may be in; repeatable; implies `--file-access roots` |
 | `--theme <name>` | The theme of a Mermaid diagram: `default`, `base`, `dark`, `forest`, or `neutral` |
 
@@ -750,7 +750,8 @@ the pictures of an SVG, relative to the folder of the specification, so the link
 SVG file, an OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), a Mermaid
 diagram (`"url": "flow.mmd#theme=dark"`), or another chart. A network URL is **never fetched**: the picture is not
 drawn and the diagnostic `svg-image-unresolved` names the link (`--strict` makes it an `unsupported-feature` failure).
-A local file the file-access mode denies is the warning `image-access-denied` (`file-access-denied` with `--strict`). A picture that is found but is broken is the error of its own format, naming
+A local file the file-access mode denies is the warning `image-access-denied` (`file-access-denied` with `--strict`). A
+picture that is found but is broken is the error of its own format, naming
 the chart and the picture; more than 256 different pictures (`MaxImages`) in one chart is `budget-exceeded`. The
 pictures that were
 drawn are listed as operations and notes (`(chart.vl.json)`), as for an SVG. `info` measures the chart without loading
@@ -841,7 +842,8 @@ or `<img src="logo.png">` in a label. The tool wires the same folder resolver th
 relative to the folder of the diagram, so the link can name a raster, an SVG file, an OpenSCAD model, a Vega-Lite
 chart, a page of a document, or another diagram, under the mode of `--file-access` (see *File Access*). A link that is
 not drawn (a missing file, a network URL) is the warning `svg-image-unresolved` with the reason, a link the mode denies
-is `image-access-denied`, and `--strict` makes either a failure. The pictures that were drawn are listed as `embed` operations. `info` lays the diagram
+is `image-access-denied`, and `--strict` makes either a failure. The pictures that were drawn are listed as `embed`
+operations. `info` lays the diagram
 out without loading any picture, so give a picture node its `w` and `h`: otherwise the drawn diagram can be a little
 larger or smaller than the size `info` reports. A render without `--width` and `--height` reports the natural size of
 the diagram it drew (`natural` in `render --json`); a library render of the diagram file without a size
@@ -1039,7 +1041,8 @@ reports only
 its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel
 budget, `image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does
 not exist, which `--strict` fails on; the fragment warnings do not; and `image-access-denied` for a link the file-access
-mode denies, which `--strict` turns into the error `file-access-denied`) and the notes of the files it embeds; what the SVG
+mode denies, which `--strict` turns into the error `file-access-denied`) and the notes of the files it embeds; what the
+SVG
 library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
@@ -1531,7 +1534,8 @@ The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 c
 ### flatten
 
 ```text
-canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict] [--file-access <mode>] [--allow-root <folder>] [--no-clobber]
+canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict]
+                  [--file-access <mode>] [--allow-root <folder>] [--no-clobber]
 ```
 
 An SVG drawing that links a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PowerPoint, or
@@ -1550,13 +1554,14 @@ canvasnet flatten dashboard.svg -o print/dashboard.svg --scale 2 --json
 | --- | --- |
 | `-o`, `--output <file>` | The copy (required); it may not be the input, and a missing folder is created |
 | `--scale <factor>` | Multiplies the size of each picture, 0.001 to 8192 (default 1); 2 is sharper in print |
-| `--strict` | A link that is not drawn is an `unsupported-feature` error, as for `render`; a denied link is `file-access-denied` |
-| `--file-access <mode>`, `--allow-root <folder>` | Which local files the links may read, as for `render` (see *File Access*) |
+| `--strict` | A link that is not drawn is an `unsupported-feature` error (a denied link: `file-access-denied`) |
+| `--file-access <mode>`, `--allow-root <folder>` | Which local files the links may read (see *File Access*) |
 | `--no-clobber` | Fail instead of replacing an existing copy |
 
 The drawing is drawn once, as `render` draws it at its natural size, and every link the drawing shows is drawn at the
 size of its placement (through the `viewBox` and every transform) times `--scale`. The links are followed by the
-resolver of `render`, so the link rule, the file-access mode (`--file-access`), the fragments (`#page=2`, `#def.width=20`, `#param.t=5`, `#theme=dark`), the
+resolver of `render`, so the link rule, the file-access mode (`--file-access`), the fragments (`#page=2`,
+`#def.width=20`, `#param.t=5`, `#theme=dark`), the
 limits, and the notes are the same. When the drawing links no such picture, or shows none, nothing is written and the
 exit code is 0, so a script can run `flatten` on every SVG file and use the copy only when there is one.
 
@@ -1705,7 +1710,7 @@ every command. A subject is matched in any letter case, and a topic may be named
 | `json` | | The `--json` result documents |
 | `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
 | `limits` | | The largest sizes and budgets accepted, and the error each one produces |
-| `files` | `file-access`, `links` | Which files a document may reference: the file-access modes, `--allow-root`, and the Pandoc filter |
+| `files` | `file-access`, `links` | Which files a document may reference, `--file-access`, and the Pandoc filter |
 
 `canvasnet help topics` lists the commands and the topics with their aliases and one-line summaries. The topic of a
 format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that apply, the
@@ -2358,7 +2363,8 @@ pictures side by side.
   reported). Vega (as opposed to Vega-Lite) specifications are not read.
 - **Diagrams.** A static picture of one Mermaid flowchart, sequence, class, state, or entity relationship diagram, pie
   chart, gantt chart, mindmap, packet diagram, or git graph: no interaction (`click`, tooltips, and menu links are
-  ignored), no network, pictures read relative to the folder of the diagram under the file-access mode, no clock (a gantt chart has no today line, and its
+  ignored), no network, pictures read relative to the folder of the diagram under the file-access mode, no clock (a
+  gantt chart has no today line, and its
   dates are in UTC), and the other diagram types (journey, timeline, and so on) are recognized but drawn as an empty
   picture with the diagnostic `mermaid-diagram-unsupported`.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported

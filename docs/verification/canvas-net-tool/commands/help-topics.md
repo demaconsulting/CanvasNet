@@ -147,7 +147,8 @@ registered `ImageSources` and does not contain `.json` but does contain `.vl.jso
 **HelpTopics_SvgTopic_ImageLinksSection_StatesSizeLinkRuleDiagnosticAndExample**: the `image-links` section says that
 a linked file is drawn at the size of the image element, that the `href` is relative to the folder of the SVG file,
 what it says of an absolute path and a network URL, that `--strict` applies, and that `--file-access` chooses the
-files, has an item for `svg-image-unresolved`, `svg-image-too-large`, `link rule`, and `image-access-denied`, shows the `part.scad` example, names
+files, has an item for `svg-image-unresolved`, `svg-image-too-large`, `link rule`, and `image-access-denied`, shows the
+`part.scad` example, names
 `canvasnet help svg --example embed`, and the `embed`
 example can be printed.
 
