@@ -206,6 +206,102 @@ public class FolderImageResolverHrefTests
     }
 
     /// <summary>
+    ///     Test that the short form <c>file:/x</c> of a local <c>file:</c> URI names the file under the default policy.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_ShortFormFileUri_NamesTheFile()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        folder.WriteText("a.stub", "x");
+        var href = "file:/" + folder.Combine("a.stub").Replace('\\', '/').TrimStart('/');
+        var stub = new StubImageSource("stub", [Ext]);
+        var resolver = new FolderImageResolver(folder.Path, [stub]);
+
+        // Act
+        using var surface = resolver.Resolve(href, 10, 10);
+
+        // Assert
+        Assert.NotNull(surface);
+        Assert.Equal("a.stub", Assert.Single(stub.Requests).FileName);
+        Assert.Empty(resolver.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that a short-form <c>file:</c> URI without a drive letter is a local path (here a missing file), not a
+    ///     network location or a malformed URI.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_ShortFormFileUriWithoutDrive_IsNotANetworkLocation()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        var stub = new StubImageSource("stub", [Ext]);
+        var resolver = new FolderImageResolver(folder.Path, [stub]);
+
+        // Act
+        var surface = resolver.Resolve("file:/no-such-canvasnet-dir/a.stub", 10, 10);
+
+        // Assert
+        Assert.Null(surface);
+        Assert.Empty(stub.Requests);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        Assert.DoesNotContain("network location", note.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("malformed", note.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a <c>file:</c> URI with a host (<c>localhost</c> included, and the UNC form) is refused as a network
+    ///     location and the source is never called.
+    /// </summary>
+    /// <param name="href">The link.</param>
+    [Theory]
+    [InlineData("file://localhost/a.stub")]
+    [InlineData("file://server/share/a.stub")]
+    [InlineData("file:////server/share/a.stub")]
+    public void FolderImageResolver_Resolve_FileUriWithHost_IsRefusedAsNetworkLocation(string href)
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        var stub = new StubImageSource("stub", [Ext]);
+        var resolver = new FolderImageResolver(folder.Path, [stub]);
+
+        // Act
+        var surface = resolver.Resolve(href, 10, 10);
+
+        // Assert
+        Assert.Null(surface);
+        Assert.Empty(stub.Requests);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        Assert.Contains("network location", note.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that a malformed <c>file:</c> URI is reported as malformed, not as a network location.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_MalformedFileUri_IsReportedAsMalformed()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        var stub = new StubImageSource("stub", [Ext]);
+        var resolver = new FolderImageResolver(folder.Path, [stub]);
+
+        // Act
+        var surface = resolver.Resolve("file://[/a.stub", 10, 10);
+
+        // Assert
+        Assert.Null(surface);
+        Assert.Empty(stub.Requests);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        Assert.Contains("malformed file: URI", note.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("network", note.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that, under a policy confined to the folder, stripping the query and fragment opens no way out of it: an
     ///     escaping path stays refused with any suffix (denied by the policy, or unresolved where the text itself is
     ///     never allowed), a suffix cannot hide a segment, and the source is never called.

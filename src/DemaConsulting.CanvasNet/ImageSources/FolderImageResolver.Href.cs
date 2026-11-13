@@ -17,8 +17,9 @@ public sealed partial class FolderImageResolver
     /// <param name="href">The link as written.</param>
     /// <returns>
     ///     The path (relative to the file that contains the link, or absolute), or <see langword="null"/> and the reason.
-    ///     A local <c>file:</c> URI (no host) becomes its absolute local path; a <c>file:</c> URI with a host (including
-    ///     <c>localhost</c>) or a malformed one has no path, because a network location is never read.
+    ///     A local <c>file:</c> URI (no host; the short form <c>file:/x</c> too) becomes its absolute local path; a
+    ///     <c>file:</c> URI with a host (including <c>localhost</c>) has no path, because a network location is never
+    ///     read, and a malformed <c>file:</c> URI has none either and is reported as malformed.
     /// </returns>
     /// <remarks>
     ///     A relative reference is parsed as RFC 3986 says: the query (from the first <c>?</c>) and the fragment (from the
@@ -102,10 +103,15 @@ public sealed partial class FolderImageResolver
     /// <returns>The local path, or <see langword="null"/> and the reason.</returns>
     private static (string? Path, string? Reason) FileUriToLocalPath(string href)
     {
-        // A URI with a host (a network share, localhost included) and a malformed URI are never read
-        return Uri.TryCreate(href, UriKind.Absolute, out var uri) && uri.IsFile && string.IsNullOrEmpty(uri.Host)
-            ? (uri.LocalPath, null)
-            : (null, "it names a network location (file URIs with a host are never read)");
+        // The short form file:/x is accepted; a URI with a host (a network share, localhost included) and a malformed
+        // URI are never read, and each is reported for what it is
+        return FileReferenceResolver.ParseFileUri(href, out var path) switch
+        {
+            FileReferenceResolver.FileUriKind.Local => (path, null),
+            FileReferenceResolver.FileUriKind.HasHost =>
+                (null, "it names a network location (file URIs with a host are never read)"),
+            _ => (null, "it is a malformed file: URI")
+        };
     }
 
     /// <summary>

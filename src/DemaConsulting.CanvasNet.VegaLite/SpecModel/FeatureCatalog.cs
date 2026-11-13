@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
@@ -307,24 +308,16 @@ internal static class FeatureCatalog
     ///     The local path (<see cref="Uri.LocalPath"/>, percent-decoded) of a well-formed <c>file:</c> URI with an empty
     ///     host; otherwise <see langword="null"/>, also for a URL that is not a <c>file:</c> URI at all.
     /// </returns>
+    /// <remarks>
+    ///     Leading white space is ignored; the rest is the core <see cref="FileReferenceResolver.ParseFileUri"/>, so the
+    ///     short form <c>file:/x</c> is local and a URI with any host (<c>localhost</c> included) has no local path,
+    ///     exactly as for an image link.
+    /// </remarks>
     public static string? LocalPathOfFileUri(string url)
     {
         ArgumentNullException.ThrowIfNull(url);
-        var trimmed = url.TrimStart();
-        if (!trimmed.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        // The short form file:/x has no authority at all; it is written out as file:///x so every platform parses it alike
-        var rest = trimmed[5..];
-        if (rest.StartsWith('/') && !rest.StartsWith("//", StringComparison.Ordinal))
-        {
-            trimmed = "file://" + rest;
-        }
-
-        return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) && uri.IsFile && string.IsNullOrEmpty(uri.Host)
-            ? uri.LocalPath
+        return FileReferenceResolver.ParseFileUri(url.TrimStart(), out var path) == FileReferenceResolver.FileUriKind.Local
+            ? path
             : null;
     }
 

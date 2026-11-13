@@ -228,6 +228,7 @@ public class FeatureCatalogTests
     [InlineData("C:data.csv", false)]
     [InlineData("d:/data/a.csv", false)]
     [InlineData("file:/etc/hosts", false)]
+    [InlineData("file:/C:/data/a.csv", false)]
     [InlineData("FILE://host/share/a.csv", true)]
     [InlineData("file://localhost/a.csv", true)]
     [InlineData("  http://example.org/a.csv", true)]

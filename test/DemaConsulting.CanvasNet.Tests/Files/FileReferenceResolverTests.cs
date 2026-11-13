@@ -1209,4 +1209,49 @@ public class FileReferenceResolverTests
         Assert.Equal(2, opened.Count);
         Assert.Throws<InvalidOperationException>(() => callback.ResolveTopLevel("doc.txt"));
     }
+
+    /// <summary>
+    ///     Validates that a text is classified as a <c>file:</c> URI: not one, local (the long and the short form, in
+    ///     any case of the scheme), with a host (<c>localhost</c>, a server, a UNC form), or malformed.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="expected">The name of the expected kind.</param>
+    [Theory]
+    [InlineData("a.png", "NotFileUri")]
+    [InlineData("http://h/a.png", "NotFileUri")]
+    [InlineData("file:///tmp/a.png", "Local")]
+    [InlineData("file:/tmp/a.png", "Local")]
+    [InlineData("FILE:/tmp/a.png", "Local")]
+    [InlineData("file:/C:/a.png", "Local")]
+    [InlineData("file://localhost/a.png", "HasHost")]
+    [InlineData("file://server/share/a.png", "HasHost")]
+    [InlineData("file:////server/share/a.png", "HasHost")]
+    [InlineData("file://[/a.png", "Malformed")]
+    [InlineData("file:", "Malformed")]
+    public void FileReferenceResolver_ParseFileUri_ClassifiesFileUris(string text, string expected)
+    {
+        // Act
+        var kind = FileReferenceResolver.ParseFileUri(text, out var path);
+
+        // Assert
+        Assert.Equal(expected, kind.ToString());
+        Assert.Equal(kind == FileReferenceResolver.FileUriKind.Local, !string.IsNullOrEmpty(path));
+    }
+
+    /// <summary>
+    ///     Validates that the short form <c>file:/x</c> names the same local path as the long form <c>file:///x</c>.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ParseFileUri_ShortAndLongFormGiveTheSamePath()
+    {
+        // Act
+        var shortKind = FileReferenceResolver.ParseFileUri("file:/tmp/a%20b.png", out var shortPath);
+        var longKind = FileReferenceResolver.ParseFileUri("file:///tmp/a%20b.png", out var longPath);
+
+        // Assert
+        Assert.Equal(FileReferenceResolver.FileUriKind.Local, shortKind);
+        Assert.Equal(FileReferenceResolver.FileUriKind.Local, longKind);
+        Assert.Equal(longPath, shortPath);
+        Assert.EndsWith("a b.png", shortPath, StringComparison.Ordinal);
+    }
 }

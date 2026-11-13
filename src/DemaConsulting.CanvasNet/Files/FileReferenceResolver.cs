@@ -283,6 +283,62 @@ public sealed partial class FileReferenceResolver
     }
 
     /// <summary>
+    ///     Classifies a text as a <c>file:</c> URI and gets the local path of one without a host.
+    /// </summary>
+    /// <remarks>
+    ///     The short form <c>file:/x</c> has no authority and is written out as <c>file:///x</c> first, so every
+    ///     platform parses it alike (<see cref="Uri"/> rejects <c>file:/x</c> on Windows). A URI with any host
+    ///     (<c>localhost</c>, a server, or a UNC form that <see cref="Uri"/> maps to a host) is
+    ///     <see cref="FileUriKind.HasHost"/> and is never read. The text is not trimmed. Shared with the image links of
+    ///     <see cref="ImageSources.FolderImageResolver"/> and the data URLs of the Vega-Lite package, so the rules for
+    ///     both cannot drift apart.
+    /// </remarks>
+    /// <param name="text">The text as written.</param>
+    /// <param name="localPath">The local path (percent-decoded) when the result is <see cref="FileUriKind.Local"/>.</param>
+    /// <returns>How the text reads as a <c>file:</c> URI.</returns>
+    internal static FileUriKind ParseFileUri(string text, out string? localPath)
+    {
+        localPath = null;
+        if (!text.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            return FileUriKind.NotFileUri;
+        }
+
+        var rest = text[5..];
+        var normalized = rest.StartsWith('/') && !rest.StartsWith("//", StringComparison.Ordinal) ? "file://" + rest : text;
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri) || !uri.IsFile)
+        {
+            return FileUriKind.Malformed;
+        }
+
+        if (!string.IsNullOrEmpty(uri.Host))
+        {
+            return FileUriKind.HasHost;
+        }
+
+        localPath = uri.LocalPath;
+        return FileUriKind.Local;
+    }
+
+    /// <summary>
+    ///     How a text reads as a <c>file:</c> URI (see <see cref="ParseFileUri(string, out string?)"/>).
+    /// </summary>
+    internal enum FileUriKind
+    {
+        /// <summary>The text does not start with <c>file:</c>.</summary>
+        NotFileUri,
+
+        /// <summary>A <c>file:</c> URI without a host; it has a local path.</summary>
+        Local,
+
+        /// <summary>A <c>file:</c> URI with a host (<c>localhost</c> included); it is never read.</summary>
+        HasHost,
+
+        /// <summary>A text that starts with <c>file:</c> but does not parse as a file URI.</summary>
+        Malformed
+    }
+
+    /// <summary>
     ///     Loads a file-system candidate: lexical pre-check, cache, file limit, then open, inspect, check and read.
     /// </summary>
     /// <param name="candidate">The candidate.</param>
