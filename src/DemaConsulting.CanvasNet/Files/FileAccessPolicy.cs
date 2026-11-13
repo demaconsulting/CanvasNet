@@ -22,10 +22,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         part to allow the file, and <see cref="FromDelegate"/> wraps a function.
 ///     </para>
 ///     <para>
-///         <b>Always refused.</b> Whatever the policy, the resolver refuses network paths (UNC and <c>//host</c>),
-///         device paths (on Windows also a legacy device name such as <c>NUL</c>), alternate data streams, control
-///         characters, anything that is not a regular file and, on Windows, a link from a local path to a network
-///         share, and keeps every size and count limit. A restrictive policy (any policy other than
+///         <b>Always refused.</b> Whatever the policy, the resolver refuses a referenced file given as a network path
+///         (UNC and <c>//host</c>), a device path (on Windows also a reserved device name such as <c>NUL</c>), an
+///         alternate data stream or a path with control characters, anything that is not a regular file and, on Windows,
+///         a link from a local path to a network share, and keeps every size and count limit. These refusals keep a
+///         document from reaching devices and the network; the top-level file the caller names is opened as given. A
+///         restrictive policy (any policy other than
 ///         <see cref="AllowAll"/>) is never consulted without a real path: where the platform cannot tell the real path
 ///         of an open file, the file is refused with <see cref="FileReferenceFailureKind.RealPathUnavailable"/> (fail
 ///         closed).

@@ -33,7 +33,7 @@ without blocking on Linux and macOS), and it keeps every resource limit: the byt
 (`MaxFileBytes`, 16 MiB by default) and an optional limit on the number of distinct files one resolver opens
 (`MaxFiles`). Any other limit (include depth, cycles, text length) belongs to the caller.
 
-On Windows, `FileReferenceResolver` also refuses, under every policy, a file whose path as written is local but
+On Windows, `FileReferenceResolver` also refuses, under every policy, a referenced file whose path as written is local but
 whose opened file lies on a network share (a symbolic link to a UNC target); a path the host itself placed on a
 mapped network drive or share is not affected. Opening the file is what follows the link, so the open itself may
 already contact the share (and offer the user's credentials) before the check refuses the file; Windows evaluates

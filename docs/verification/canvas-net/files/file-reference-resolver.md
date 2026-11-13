@@ -145,14 +145,18 @@ that has read the same file, while that resolver's own file is accepted.
 
 **Tests**: `FileReferenceResolver_ResolveTopLevel_DenyingPolicy_ReadsTheFileAndChecksItsReferences`,
 `FileReferenceResolver_ResolveTopLevel_Directory_IsNotARegularFile`,
-`FileReferenceResolver_ResolveTopLevel_TakesAFileSlot`
+`FileReferenceResolver_ResolveTopLevel_TakesAFileSlot`,
+`FileReferenceResolver_ResolveTopLevel_PathRefusedAsAReference_IsOpenedAsGiven` (Windows)
 
 The internal `ResolveTopLevel` (reached through `InternalsVisibleTo`) reads a top-level file outside the base directory
 under a policy that denies everything, returns the same instance for its absolute path, and returns `null` for a
 missing file; a reference inside it and a reference back to it are `AccessDenied`, and the policy is asked only for
 those two, with the top-level file's folder as the base directory. A directory is `NotARegularFile`. The top-level file
 takes a slot of the file limit: with `MaxFiles = 2` it and one reference are read and a second reference is
-`TooManyFiles` without being opened; callback mode has no top-level file (`InvalidOperationException`).
+`TooManyFiles` without being opened; callback mode has no top-level file (`InvalidOperationException`). On Windows an
+extended-length spelling (`\\?\` in front of the full path of a file) written as a reference is `InvalidPath` with
+nothing opened, while the same spelling named as the top-level file is opened as given and read: the device and
+network refusals apply to referenced files only.
 
 ##### CanvasNet-Files-FileReferenceResolver-NetworkTarget: A Link to a Share Is Refused
 

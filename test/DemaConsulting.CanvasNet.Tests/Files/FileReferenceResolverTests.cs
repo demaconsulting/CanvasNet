@@ -1299,6 +1299,38 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
+    ///     Validates on Windows that the top-level file the caller names is opened as given even in a spelling that a
+    ///     reference may not use (an extended-length <c>\\?\</c> path), while the same spelling written as a reference is
+    ///     refused as a device path before anything is opened: the refusals that keep a document from reaching devices
+    ///     and the network apply to referenced files only.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ResolveTopLevel_PathRefusedAsAReference_IsOpenedAsGiven()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var extended = @"\\?\" + Path.GetFullPath(directory.Write("a.txt", "a"));
+        var opened = new List<string>();
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Path }, Recording(opened));
+
+        // Act
+        var reference = Assert.Throws<FileReferenceException>(() => resolver.Resolve(extended));
+        var openedByReference = opened.Count;
+        var topLevel = resolver.ResolveTopLevel(extended);
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, reference.Kind);
+        Assert.Equal(0, openedByReference);
+        Assert.Equal("a", Text(topLevel));
+        Assert.Equal([extended], opened);
+    }
+
+    /// <summary>
     ///     Validates that the top-level file takes a slot of the file limit, so one more distinct file is refused before
     ///     it is opened, and that the callback mode has no top-level file.
     /// </summary>

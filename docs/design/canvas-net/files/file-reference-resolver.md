@@ -23,7 +23,10 @@ host-chosen `FileAccessPolicy` approved the file that was actually opened. It fo
 relative paths, dot-dot segments, absolute paths, and symbolic links - and leaves every restriction to the policy,
 except for the references that are never safe (network, device and alternate-data-stream paths, control characters,
 and files that are not regular files; on Windows also reserved device names in any path component and a link from a
-local path to a network share) and the resource limits, which hold under every policy. The decision is made
+local path to a network share) and the resource limits, which hold under every policy. These refusals apply to the
+files a document references; the top-level file a caller names (`ResolveTopLevel`) is opened as given, because the
+threat they address is a document making the host reach a device or an attacker's share, not the operator's own
+choice. The decision is made
 about the open handle, so it cannot be raced by another process that changes the directory tree between a check and
 the open.
 
@@ -154,7 +157,8 @@ it). Invalid options are `ArgumentNullException` / `ArgumentOutOfRangeException`
   a folder the host configured, and its anchor (the deepest folder shared with the path as written) is an
   ancestor-or-self of it, which the threat model trusts. The ownership check in `Resolve` keeps a file from another
   resolver, which carries another resolver's origin, from becoming a starting point.
-- **A link to a share is refused under every policy.** A document reaching the network through a local path is never
+- **A link to a share is refused under every policy for a referenced file.** A document reaching the network through a
+  local path is never
   expected; the open itself follows the link and may already contact the share before the check refuses the file
   (see the subsystem design for the `SymlinkEvaluation` advice). A key that is itself a network location (a UNC base
   directory or a mapped network drive) is exempt, so a host working on a share keeps working.

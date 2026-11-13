@@ -2377,7 +2377,8 @@ and is not detected. On Windows and macOS paths are compared without regard to l
 or directory of those systems, a sibling folder whose name differs from a root only in letter case counts as inside
 it, so do not configure roots next to such folders.
 
-Under **every** policy the resolver refuses a network path (`\\server\share`, `//host`) as `NetworkPath`, a device path
+Under **every** policy the resolver refuses a referenced network path (`\\server\share`, `//host`) as `NetworkPath`, a
+device path
 (`\\?\`, `\\.\`), on Windows a reserved device name in any component (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`,
 `LPT0`-`LPT9` and their superscript-digit forms, `CONIN$`, `CONOUT$`, in any letter case and also with an extension
 such as `NUL.txt`, trailing spaces or dots), or an alternate data stream (any colon other than a Windows drive) as
@@ -2385,7 +2386,8 @@ such as `NUL.txt`, trailing spaces or dots), or an alternate data stream (any co
 character, and anything that is not a regular file (a directory, a device such as `/dev/zero`, a named pipe, which never
 blocks the open) as `NotARegularFile`, and it keeps `MaxFileBytes` and `MaxFiles`. A policy other than `AllowAll` needs
 the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it; elsewhere such a policy
-refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file.
+refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file. These
+refusals are about the files a document references; the top-level file you name yourself is opened as given.
 
 On Windows, a path written as a local path whose opened file lies on a network share (a symbolic link to a UNC
 target) is refused under every policy as `NetworkPath`; files you place on a mapped network drive or share yourself
@@ -2797,8 +2799,9 @@ What changed:
    paths are still remote: reported, never fetched.
 5. **A dangling link is "not found".** It is an OpenSCAD include warning `scad-include-not-found`, a Vega-Lite "was not
    found" error, or an image `svg-image-unresolved`, no longer a link refusal.
-6. **Still refused under every policy:** UNC, network and device paths, alternate data streams, control characters,
-   anything that is not a regular file (new), and `http(s)` and other network schemes.
+6. **Still refused under every policy, for referenced files:** UNC, network and device paths, alternate data streams,
+   control characters, anything that is not a regular file (new), and `http(s)` and other network schemes. The file you
+   name yourself is opened as given.
 7. **Every resource limit is unchanged:** `MaxDepth` 4, cycle detection (now by real path, so a cycle through a link is
    caught), `MaxImages` 64 and the load counts, `MaxDecodedPixels` and the painted-pixel budgets, `MaxFileBytes`
    16 MiB, `MaxDataBytes` and `MaxDataFiles`, `MaxIncludeDepth` and `MaxIncludedFiles`, and the Mermaid `MaxImages`.
