@@ -296,7 +296,8 @@ sections:
               The ScadDocument Evaluate method shall read the files of include and use directives from
               the base directory and library paths of the open options under their file-access policy (by
               default every regular local file), rejecting a file the policy denies with an evaluation
-              error, or, when a resolver is supplied, shall pass the resolver only normalized logical
+              error located without a host directory (a file outside the base directory is named relative to it),
+              or, when a resolver is supplied, shall pass the resolver only normalized logical
               paths, never let a hostile path reach it, and reject a path that escapes its root with an
               evaluation error, and shall reject include cycles and excessive include depth or file
               counts with an evaluation error.
@@ -306,6 +307,7 @@ sections:
               the host and be verifiable.
             tests:
               - ScadDocument_Evaluate_FileSystemRootsPolicy_EscapesAreDenied
+              - ScadDocument_Evaluate_DenialInIncludeOutsideTheBase_IsLocatedRelativeToTheBase
               - ScadDocument_Evaluate_FileSystemDefault_ParentAndAbsoluteIncludesAreRead
               - ScadDocument_Evaluate_FileSystemNoSymlinks_DirectoryLinkEscape_IsDenied
               - ScadDocument_Evaluate_FileSystemRootsPolicy_LibraryPathIsAllowedRoot

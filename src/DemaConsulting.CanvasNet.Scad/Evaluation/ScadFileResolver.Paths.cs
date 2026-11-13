@@ -150,15 +150,32 @@ internal sealed partial class ScadFileResolver
             return ex.Reference;
         }
 
-        var display = DisplayName(requested);
-        return string.Equals(display, requested, StringComparison.Ordinal) && _options.FileResolver is null ? ex.Reference : display;
+        if (_options.FileResolver is not null)
+        {
+            return requested;
+        }
+
+        return TryRelativeToBase(requested, out var relative) && !IsOutside(relative) ? relative : ex.Reference;
     }
+
+    /// <summary>
+    ///     Determines whether a path relative to the base directory leaves it (starts with a <c>..</c> segment).
+    /// </summary>
+    /// <param name="relative">The relative path, with forward slashes.</param>
+    /// <returns><see langword="true"/> when it leaves the base directory.</returns>
+    private static bool IsOutside(string relative) =>
+        relative == ".." || relative.StartsWith("../", StringComparison.Ordinal);
 
     /// <summary>
     ///     Gets the name shown in source locations for a file.
     /// </summary>
+    /// <remarks>
+    ///     A location never shows a host directory: a file outside the base directory is named relative to it with
+    ///     leading <c>..</c> segments (<c>../shared/lib.scad</c>), and a file that has no path relative to the base
+    ///     directory (another drive, or no base directory) by its file name only.
+    /// </remarks>
     /// <param name="key">The file key: a full path, or a logical path in resolver mode.</param>
-    /// <returns>The logical path in resolver mode; the path relative to the base directory (forward slashes) when the file is under it; otherwise the full path.</returns>
+    /// <returns>The logical path in resolver mode; otherwise the path relative to the base directory (forward slashes), or the file name.</returns>
     private string DisplayName(string key)
     {
         if (_options.FileResolver is not null)
@@ -166,6 +183,18 @@ internal sealed partial class ScadFileResolver
             return key;
         }
 
+        return TryRelativeToBase(key, out var relative) ? relative : Path.GetFileName(key);
+    }
+
+    /// <summary>
+    ///     Computes the path of a file relative to the base directory, with forward slashes; a file outside it gets
+    ///     leading <c>..</c> segments.
+    /// </summary>
+    /// <param name="key">The full path of the file.</param>
+    /// <param name="relative">The relative path, when there is one.</param>
+    /// <returns><see langword="false"/> when there is no base directory or the file is on another root (drive).</returns>
+    private bool TryRelativeToBase(string key, out string relative)
+    {
         // The base directory was validated by the engine before any file was found, so computing it here cannot fail
         if (!_baseRootKnown)
         {
@@ -173,14 +202,19 @@ internal sealed partial class ScadFileResolver
             _baseRootKnown = true;
         }
 
+        relative = string.Empty;
         if (_baseRoot is null)
         {
-            return key;
+            return false;
         }
 
-        // A file outside the base directory (or on another drive) has a ".."-leading or rooted relative path and keeps its full path
-        var relative = Path.GetRelativePath(_baseRoot, key);
-        var outside = relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) || Path.IsPathRooted(relative);
-        return outside ? key : relative.Replace('\\', '/');
+        var path = Path.GetRelativePath(_baseRoot, key);
+        if (Path.IsPathRooted(path))
+        {
+            return false;
+        }
+
+        relative = path.Replace('\\', '/');
+        return true;
     }
 }

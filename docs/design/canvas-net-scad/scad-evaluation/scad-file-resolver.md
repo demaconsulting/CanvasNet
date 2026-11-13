@@ -133,8 +133,11 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
   `A configured directory (BaseDirectory or LibraryPaths) is not a valid path` error. `Translate` maps every one of
   the eleven `FileReferenceFailureKind` values, and every located error keeps the `FileReferenceException` as its
   `InnerException`.
-- **Display names** of loaded files are the logical path (resolver mode), the path relative to the base
-  directory with `/` when the file is under it, and the full path otherwise.
+- **Display names** of loaded files are the logical path (resolver mode), otherwise the path relative to the base
+  directory with `/`, with leading `..` segments for a file outside it (`../shared/lib.scad`), and the file name alone
+  when there is no base directory or the file is on another drive. A source location therefore never names a host
+  directory, also when a file-access denial is raised inside such a file. The name of a refused file in a message is
+  the path relative to the base directory when the file is under it, and otherwise the reference as written.
 
 ##### Limits
 

@@ -336,6 +336,7 @@ the overrides fixture matches its checked-in overridden expectation.
 #### CanvasNetScad-ScadDocument-IncludeUse: Include And Use Follow The File-Access Policy
 
 **Tests**: `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemRootsPolicy_EscapesAreDenied`,
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_DenialInIncludeOutsideTheBase_IsLocatedRelativeToTheBase`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemDefault_ParentAndAbsoluteIncludesAreRead`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemRootsPolicy_LibraryPathIsAllowedRoot`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemNoSymlinks_DirectoryLinkEscape_IsDenied`,
@@ -347,7 +348,9 @@ the overrides fixture matches its checked-in overridden expectation.
 Asserts, in a temporary directory tree, that under the default policy an include of `../outside.scad`,
 `sub/../../outside.scad`, `..\outside.scad`, and the absolute path of the file is read (echo `outside`); that under
 `UnderRoots(project)` each is a located `ScadEvaluationException` naming the include as written and the `roots`
-policy, the outside file never runs, and an include inside the project works; that a library path that is a root of
+policy, the outside file never runs, and an include inside the project works; that a denial raised inside an allowed
+include outside the base directory (`../shared/lib.scad` including `../private/secret.scad`) is located at
+`../shared/lib.scad` and its message names no host directory; that a library path that is a root of
 the policy is allowed; that under `NoSymlinks` an include through a directory link (a junction on Windows) that leaves
 the project is denied naming `no-symlinks` and never runs; that hostile paths in resolver mode are rejected before the
 callback is invoked and that the callback only ever sees normalized logical paths; that include cycles, excessive

@@ -107,7 +107,9 @@ library's includes are expanded inside the library, and that a long chain of lib
 `ScadFileResolverFileSystemTests.ScadFileResolver_Load_FileNameCase_FollowsPlatform`
 
 Asserts that backslashes become forward slashes and dot segments collapse in the path handed to the callback, that
-the including directory is searched before the library paths, that an explicit base directory overrides an opened
+the including directory is searched before the library paths, and that a file found in a library path outside the base
+directory (an include and a use) is named relative to the base directory (`../lib/shared.scad`), never by a host
+directory, that an explicit base directory overrides an opened
 file's folder and a string document uses the base directory option, that two spellings of a path are one file, and
 that file-name case follows the platform.
 
