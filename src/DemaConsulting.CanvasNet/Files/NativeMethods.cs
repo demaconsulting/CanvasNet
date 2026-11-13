@@ -259,26 +259,37 @@ internal static class NativeMethods
     }
 
     /// <summary>
-    ///     Gets the mode (type and permission bits) of an open descriptor on Linux.
+    ///     Gets the mode (type and permission bits) and the hard-link count of an open descriptor on Linux.
     /// </summary>
     /// <param name="handle">The open handle.</param>
-    /// <returns>The mode, or <see langword="null"/> when it cannot be read (for example on an architecture whose <c>struct stat</c> layout is not known here).</returns>
+    /// <returns>
+    ///     The mode and the link count (zero for a file that was deleted while open), or <see langword="null"/> when they
+    ///     cannot be read (for example on an architecture whose <c>struct stat</c> layout is not known here).
+    /// </returns>
     [SupportedOSPlatform("linux")]
-    internal static int? TryGetLinuxMode(SafeFileHandle handle)
+    internal static (int Mode, long LinkCount)? TryGetLinuxStat(SafeFileHandle handle)
     {
-        // st_mode follows the device and inode numbers and (on x64 only) the 64-bit link count; other architectures are
-        // not known here
+        // The two layouts of struct stat known here (glibc and musl agree on both):
+        // - x64 (the kernel's x86_64 stat): st_dev u64 @0, st_ino u64 @8, st_nlink u64 @16, st_mode u32 @24
+        // - Arm64 (the generic stat): st_dev u64 @0, st_ino u64 @8, st_mode u32 @16, st_nlink u32 @20
+        // Other architectures are not known here
         var architecture = RuntimeInformation.ProcessArchitecture;
-        int offset;
+        int modeOffset;
+        int linkOffset;
+        bool wideLinkCount;
         int statVersion;
         if (architecture == Architecture.X64)
         {
-            offset = 24;
+            modeOffset = 24;
+            linkOffset = 16;
+            wideLinkCount = true;
             statVersion = 1;
         }
         else if (architecture == Architecture.Arm64)
         {
-            offset = 16;
+            modeOffset = 16;
+            linkOffset = 20;
+            wideLinkCount = false;
             statVersion = 0;
         }
         else
@@ -288,7 +299,13 @@ internal static class NativeMethods
 
         var buffer = new byte[LinuxStatBufferSize];
         var result = WithDescriptor(handle, descriptor => CallFStat(descriptor, buffer, statVersion));
-        return result == 0 ? BitConverter.ToInt32(buffer, offset) : null;
+        if (result != 0)
+        {
+            return null;
+        }
+
+        var linkCount = wideLinkCount ? BitConverter.ToInt64(buffer, linkOffset) : BitConverter.ToUInt32(buffer, linkOffset);
+        return (BitConverter.ToInt32(buffer, modeOffset), linkCount);
     }
 
     /// <summary>

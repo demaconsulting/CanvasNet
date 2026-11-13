@@ -36,12 +36,17 @@ sections:
               - id: CanvasNet-Files-RealPath-Unavailable
                 title: >-
                   The RealPath unit shall report no real path, rather than a wrong one, when the operating system
-                  cannot tell it, including for a file deleted after it was opened on Linux.
+                  cannot tell it, including for a file deleted after it was opened on Linux, which it shall detect
+                  from the open file rather than from its name.
                 justification: |
                   A caller that needs the real path must be able to fail closed; a stale or invented path would
-                  allow the wrong file.
+                  allow the wrong file. A live file may carry the text Linux appends to a deleted file in its own
+                  name, so the name cannot tell deletion.
                 tests:
                   - "ubuntu@RealPath_Inspect_DeletedFile_IsUnavailable"
+                  - "windows@RealPath_Inspect_LiveFileNamedLikeADeletedOne_ReportsItsRealPath"
+                  - "ubuntu@RealPath_Inspect_LiveFileNamedLikeADeletedOne_ReportsItsRealPath"
+                  - "macos@RealPath_Inspect_LiveFileNamedLikeADeletedOne_ReportsItsRealPath"
 
               - id: CanvasNet-Files-RealPath-RegularFile
                 title: >-

@@ -54,9 +54,12 @@ short names expand; on macOS a temporary file under `/var` or `/tmp` reports its
 
 ##### CanvasNet-Files-RealPath-Unavailable: No Path Rather Than a Wrong One
 
-**Tests**: `RealPath_Inspect_DeletedFile_IsUnavailable` (Linux)
+**Tests**: `RealPath_Inspect_DeletedFile_IsUnavailable` (Linux),
+`RealPath_Inspect_LiveFileNamedLikeADeletedOne_ReportsItsRealPath` (Windows, Linux, macOS)
 
-A file deleted after the open is still a regular file but has no real path.
+A file deleted after the open is still a regular file but has no real path; on Linux deletion is told from the link
+count of the open file (zero). A live file named `x (deleted)`, the text Linux appends to a deleted file's link, reports
+its real path with that name.
 
 ##### CanvasNet-Files-RealPath-RegularFile: The Type of an Open Handle
 

@@ -1118,6 +1118,7 @@ words:
   - IFREG
   - libc
   - mkfifo
+  - nlink
   - NOCTTY
   - NONBLOCK
   - NTFS

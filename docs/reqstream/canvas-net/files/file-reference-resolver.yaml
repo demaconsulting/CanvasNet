@@ -169,13 +169,15 @@ sections:
               - id: CanvasNet-Files-FileReferenceResolver-RegularFile
                 title: >-
                   The FileReferenceResolver class shall refuse, under every policy and without reading it, a
-                  referenced path that is not a regular file - a directory, a device, or a named pipe, which shall
-                  not block the open - with NotARegularFile.
+                  referenced path that is not known to be a regular file - a directory, a device, a named pipe, which
+                  shall not block the open, or a handle whose type the platform cannot tell - with NotARegularFile.
                 justification: |
                   A device can return endless or sensitive data and a named pipe can hang the reader; once absolute
-                  references are allowed, such paths are one reference away.
+                  references are allowed, such paths are one reference away. A handle of unknown type may be either,
+                  so it is refused (fail closed).
                 tests:
                   - FileReferenceResolver_Resolve_DirectoryAtFilePath_IsNotARegularFile
+                  - FileReferenceResolver_Resolve_UnknownFileType_IsNotARegularFileUnderEveryPolicy
                   - "windows@FileReferenceResolver_Resolve_InjectedNulHandle_IsNotARegularFile"
                   - "ubuntu@FileReferenceResolver_Resolve_DevNull_IsNotARegularFile"
                   - "macos@FileReferenceResolver_Resolve_DevNull_IsNotARegularFile"

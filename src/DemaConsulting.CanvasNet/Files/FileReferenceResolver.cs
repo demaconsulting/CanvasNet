@@ -480,7 +480,10 @@ public sealed partial class FileReferenceResolver
                 return Outcome.Failed(FileReferenceFailureKind.NetworkPath, realPath, null);
             }
 
-            if (facts.IsRegularFile == false)
+            // Only a handle known to be a regular file is read: a directory, a device, a pipe, or a handle whose type the
+            // platform cannot tell is refused under every policy (fail closed)
+            var isRegularFile = _hooks?.IsRegularFileOf is { } isRegularFileOf ? isRegularFileOf(handle) : facts.IsRegularFile;
+            if (isRegularFile != true)
             {
                 return Outcome.Failed(FileReferenceFailureKind.NotARegularFile, realPath, null);
             }
