@@ -33,7 +33,10 @@ internal readonly record struct HandleFacts(bool? IsRegularFile, string? FinalPa
 ///         <c>O_CLOEXEC</c>, so the descriptor never leaks into a child process. On Windows a file is opened read-only
 ///         with read, write and delete sharing, so another process can keep writing, renaming or deleting it.
 ///     </para>
-///     <para>All members are stateless and thread-safe.</para>
+///     <para>
+///         All members are thread-safe. The only state is a benign cache in <see cref="NativeMethods"/> of which Linux
+///         <c>stat</c> entry point the C library exports; a race merely repeats the probe.
+///     </para>
 /// </remarks>
 internal static partial class RealPath
 {
@@ -165,7 +168,9 @@ internal static partial class RealPath
 
     /// <summary>
     ///     Gets the real location of a folder (or file) by name: its final path once links, junctions and short names
-    ///     are resolved. Used for folders the host chose (roots and anchors), which are trusted.
+    ///     are resolved. Used for folders the host chose (roots and anchors), which are trusted. A folder that may be
+    ///     searched but not read (execute-only) has a real location too: Linux opens it with <c>O_PATH</c>, and macOS
+    ///     asks <c>realpath(3)</c>, which resolves by name and needs only search permission.
     /// </summary>
     /// <param name="fullPath">The full path.</param>
     /// <returns>The final path, or <see langword="null"/> when it does not exist, cannot be opened, or the platform cannot tell.</returns>
@@ -178,10 +183,15 @@ internal static partial class RealPath
                 return NativeMethods.TryGetFinalPathOfPath(fullPath);
             }
 
-            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            if (OperatingSystem.IsLinux())
             {
                 using var handle = NativeMethods.OpenNonBlocking(fullPath, pathOnly: true);
                 return Inspect(handle).FinalPath;
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                return NativeMethods.TryRealPath(fullPath);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ExternalException

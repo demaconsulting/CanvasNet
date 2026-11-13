@@ -37,7 +37,9 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         are remembered too); the policy is asked again on every <see cref="Resolve(string, FileReference?)"/>,
 ///         because a custom policy may depend on the referrer. A file is never longer than
 ///         <see cref="FileReferenceOptions.MaxFileBytes"/>, and with <see cref="FileReferenceOptions.MaxFiles"/> a new
-///         file beyond the limit is refused before it is opened, whatever the policy.
+///         file beyond the limit is refused before it is opened, whatever the policy. A file reached again through another
+///         chain is the same instance and keeps the origin of the chain that first read it (see
+///         <see cref="FileAccessRequest.BaseDirectory"/>); every origin is host-chosen, so either is trusted.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety.</b> An instance is <b>not</b> thread-safe: it keeps unsynchronized caches and invokes the
@@ -141,14 +143,14 @@ public sealed partial class FileReferenceResolver
     ///     the same on every platform.
     /// </param>
     /// <param name="relativeTo">
-    ///     A file previously returned by this resolver (the referring document) whose directory is searched first, or
-    ///     <see langword="null"/> to start from the base directory.
+    ///     A file previously returned by <b>this</b> resolver instance (the referring document) whose directory is
+    ///     searched first, or <see langword="null"/> to start from the base directory.
     /// </param>
     /// <returns>The file, or <see langword="null"/> when no candidate exists (or no file source is configured).</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="reference"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="relativeTo"/> comes from the other mode (a logical file in file-system mode, or
-    ///     the reverse).
+    ///     Thrown when <paramref name="relativeTo"/> was not returned by this resolver instance (including a file from
+    ///     the other mode: a logical file in file-system mode, or the reverse).
     /// </exception>
     /// <exception cref="FileReferenceException">
     ///     Thrown when the reference is never allowed, a configured directory is invalid, the policy denies the file
@@ -167,6 +169,13 @@ public sealed partial class FileReferenceResolver
         if (relativeTo is not null && relativeTo.IsLogical != UsesCallback)
         {
             throw new ArgumentException("The file was resolved in the other mode (file system or callback).", nameof(relativeTo));
+        }
+
+        // Only a file this instance handed out carries a trusted origin; the cache holds the one instance per key
+        if (relativeTo is not null
+            && !(_outcomes.TryGetValue(relativeTo.Key, out var own) && ReferenceEquals(own?.File, relativeTo)))
+        {
+            throw new ArgumentException("The file was not returned by this resolver.", nameof(relativeTo));
         }
 
         if (!HasSource)
@@ -301,6 +310,16 @@ public sealed partial class FileReferenceResolver
             _hooks?.AfterOpen?.Invoke(key);
             var facts = RealPath.Inspect(handle);
             var realPath = _hooks?.RealPathOf is { } realPathOf ? realPathOf(handle) : facts.FinalPath;
+
+            // A local path that leads to a network share (a link to a UNC target) is refused under every policy; a path
+            // the host placed on a network drive or share itself is not. Where the real path is unknown, a restrictive
+            // policy fails closed below, and the default policy reads the file
+            if (OperatingSystem.IsWindows() && realPath is not null
+                && RealPath.IsNetworkLocation(realPath) && !RealPath.IsNetworkLocation(key))
+            {
+                return Outcome.Failed(FileReferenceFailureKind.NetworkPath, realPath, null);
+            }
+
             if (facts.IsRegularFile == false)
             {
                 return Outcome.Failed(FileReferenceFailureKind.NotARegularFile, realPath, null);
@@ -317,7 +336,7 @@ public sealed partial class FileReferenceResolver
                 CheckPolicy(candidate, shown, relativeTo, realPath);
             }
 
-            return Read(handle, key, realPath);
+            return Read(handle, candidate, realPath);
         }
     }
 
@@ -325,19 +344,24 @@ public sealed partial class FileReferenceResolver
     ///     Reads an approved file from its open handle.
     /// </summary>
     /// <param name="handle">The open handle; disposed by the caller.</param>
-    /// <param name="key">The key.</param>
+    /// <param name="candidate">The candidate: its key and the origin of its chain.</param>
     /// <param name="realPath">The real path, or <see langword="null"/>.</param>
     /// <returns>The outcome.</returns>
-    private Outcome Read(SafeFileHandle handle, string key, string? realPath)
+    private Outcome Read(SafeFileHandle handle, Candidate candidate, string? realPath)
     {
         // Once the file is open it exists: a failure while reading it - even one spelled "not found" - is a read failure
         try
         {
             using var stream = new FileStream(handle, FileAccess.Read, bufferSize: 1);
             var bytes = ReadBounded(stream, _options.MaxFileBytes, _cancellation);
+            var key = candidate.Key;
             return bytes is null
                 ? Outcome.Failed(FileReferenceFailureKind.TooLarge, realPath, null)
-                : new Outcome(new FileReference(key, realPath, Path.GetDirectoryName(key)!, bytes, false), null, realPath, null);
+                : new Outcome(
+                    new FileReference(key, realPath, Path.GetDirectoryName(key)!, bytes, false, candidate.Origin),
+                    null,
+                    realPath,
+                    null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
@@ -359,7 +383,7 @@ public sealed partial class FileReferenceResolver
         {
             Reference = shown,
             Referrer = relativeTo?.Key ?? _options.ReferrerPath,
-            BaseDirectory = candidate.BaseDirectory,
+            BaseDirectory = candidate.Origin,
             RequestedPath = candidate.Key,
             RealPath = realPath,
         };
@@ -423,6 +447,7 @@ public sealed partial class FileReferenceResolver
         {
             FileReferenceFailureKind.RealPathUnavailable => "the real path of the opened file cannot be determined on this system",
             FileReferenceFailureKind.NotARegularFile => "it is not a regular file",
+            FileReferenceFailureKind.NetworkPath => "it leads to a network location",
             _ => null,
         };
         throw new FileReferenceException(kind, shown, reason, outcome.Cause)
@@ -503,7 +528,7 @@ public sealed partial class FileReferenceResolver
         var directory = slash < 0 ? string.Empty : key[..slash];
         return bytes is null
             ? Outcome.Failed(FileReferenceFailureKind.TooLarge, null, null)
-            : new Outcome(new FileReference(key, null, directory, bytes, true), null, null, null);
+            : new Outcome(new FileReference(key, null, directory, bytes, true, origin: null), null, null, null);
     }
 
     /// <summary>

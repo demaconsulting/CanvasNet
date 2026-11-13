@@ -26,4 +26,41 @@ internal static partial class RealPath
 
         return new HandleFacts(true, NativeMethods.TryGetFinalPathName(handle));
     }
+
+    /// <summary>
+    ///     Determines whether a full path is a network location on Windows: a UNC path (<c>\\server\share</c>), or a path
+    ///     on a mapped network drive. A mapped network drive is a network location, so a host working on <c>Z:\</c>
+    ///     keeps working when its files are compared with their real paths (which name the share). A device path
+    ///     (<c>\\.\</c>, <c>\\?\</c>) and a local drive are not. Always <see langword="false"/> on other systems.
+    /// </summary>
+    /// <param name="fullPath">The full path (a real path has no <c>\\?\</c> prefix).</param>
+    /// <returns><see langword="true"/> when the path is a network location.</returns>
+    internal static bool IsNetworkLocation(string fullPath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            return fullPath.Length > 2 && fullPath[2] != '.' && fullPath[2] != '?';
+        }
+
+        // A drive is asked for its type; a drive that cannot be asked is treated as local (the real path then decides)
+        var root = Path.GetPathRoot(fullPath);
+        if (root is not { Length: 3 } || root[1] != ':')
+        {
+            return false;
+        }
+
+        try
+        {
+            return new DriveInfo(root).DriveType == DriveType.Network;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 }

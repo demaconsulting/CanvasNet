@@ -23,10 +23,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     </para>
 ///     <para>
 ///         <b>Always refused.</b> Whatever the policy, the resolver refuses network paths (UNC and <c>//host</c>),
-///         device paths, alternate data streams, control characters and anything that is not a regular file, and keeps
-///         every size and count limit. A restrictive policy (any policy other than <see cref="AllowAll"/>) is never
-///         consulted without a real path: where the platform cannot tell the real path of an open file, the file is
-///         refused with <see cref="FileReferenceFailureKind.RealPathUnavailable"/> (fail closed).
+///         device paths (on Windows also a legacy device name such as <c>NUL</c>), alternate data streams, control
+///         characters, anything that is not a regular file and, on Windows, a link from a local path to a network
+///         share, and keeps every size and count limit. A restrictive policy (any policy other than
+///         <see cref="AllowAll"/>) is never consulted without a real path: where the platform cannot tell the real path
+///         of an open file, the file is refused with <see cref="FileReferenceFailureKind.RealPathUnavailable"/> (fail
+///         closed).
 ///     </para>
 ///     <para>
 ///         <b>Implementing a policy.</b> Derive from this class (or use <see cref="FromDelegate"/>), return a
@@ -55,11 +57,12 @@ public abstract partial class FileAccessPolicy
     ///     Gets the policy that refuses a file reached through a symbolic link or junction (named <c>no-symlinks</c>).
     /// </summary>
     /// <remarks>
-    ///     The folder the reference starts from is the deepest folder shared by the path as written and the base
-    ///     directory of the request; it and every folder above it are trusted (the host chose them). Below it, the real
-    ///     path of the opened file must equal the path as written, so a link anywhere below that folder - a directory
-    ///     or the file itself - is denied, whatever its target. A hard link cannot be told apart from the file itself
-    ///     and is not denied.
+    ///     The folder the reference starts from is the deepest folder shared by the path as written and the trusted base
+    ///     directory of the request (the host-chosen base directory or search path the chain of references started
+    ///     from, never a referring document's folder); it and every folder above it are trusted (the host chose them).
+    ///     Below it, the real path of the opened file must equal the path as written, so a link anywhere below that
+    ///     folder - a directory or the file itself - is denied, whatever its target. A hard link cannot be told apart
+    ///     from the file itself and is not denied.
     /// </remarks>
     public static FileAccessPolicy NoSymlinks { get; } = new NoSymlinksPolicy();
 

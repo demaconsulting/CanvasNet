@@ -7,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Files;
 
 /// <summary>
 ///     The operating-system calls the <see cref="RealPath"/> unit needs and .NET does not offer: the final path and the
-///     type of an <b>open handle</b>, a non-blocking open on Unix, and the long spelling of a short (8.3) Windows path.
+///     type of an <b>open handle</b>, a non-blocking open on Unix, the real location of a macOS path by name, and the long
+///     spelling of a short (8.3) Windows path.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -20,7 +21,8 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         <b>Windows</b> (<c>kernel32.dll</c>, loaded from System32 only): <c>GetFinalPathNameByHandleW</c>,
 ///         <c>GetFileType</c>, <c>CreateFileW</c> and <c>GetLongPathNameW</c>. <b>Linux</b> (<c>libc</c>):
 ///         <c>open</c> and <c>fstat</c> (with <c>__fxstat</c> for C libraries that predate an exported <c>fstat</c>).
-///         <b>macOS</b> (<c>libc</c>, which re-exports <c>libSystem</c>): <c>open</c> and <c>proc_pidfdinfo</c>.
+///         <b>macOS</b> (<c>libc</c>, which re-exports <c>libSystem</c>): <c>open</c>, <c>proc_pidfdinfo</c> (with
+///         <c>fstat</c> as a fallback for the file type) and <c>realpath</c>.
 ///     </para>
 /// </remarks>
 internal static class NativeMethods
@@ -103,6 +105,9 @@ internal static class NativeMethods
 
     /// <summary>The offset of the 16-bit <c>st_mode</c> in the macOS Arm64 <c>struct stat</c>, after the 32-bit <c>st_dev</c>.</summary>
     private const int MacStatModeOffset = 4;
+
+    /// <summary>The macOS <c>PATH_MAX</c>: the size of the buffer <c>realpath</c> fills, including the terminating NUL.</summary>
+    private const int MacPathMax = 1024;
 
     /// <summary>Whether <c>fstat</c> is missing from the C library (so <c>__fxstat</c> is used); null until first needed.</summary>
     private static bool? _linuxUsesFxStat;
@@ -199,7 +204,8 @@ internal static class NativeMethods
     /// <param name="path">The full path.</param>
     /// <param name="pathOnly">
     ///     <see langword="true"/> to open only a reference to the path (Linux <c>O_PATH</c>, which needs no read
-    ///     permission; used for directories), <see langword="false"/> to open it for reading.
+    ///     permission; used for directories), <see langword="false"/> to open it for reading. Ignored on macOS, which
+    ///     has no <c>O_PATH</c>; macOS directories are canonicalized with <c>realpath</c> instead.
     /// </param>
     /// <returns>The handle, which owns the descriptor.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
@@ -331,6 +337,26 @@ internal static class NativeMethods
         var length = (end < 0 ? buffer.Length : end) - MacPathOffset;
         var path = length > 0 ? Encoding.UTF8.GetString(buffer, MacPathOffset, length) : null;
         return (mode, path);
+    }
+
+    /// <summary>
+    ///     Gets the real location of a path on macOS through <c>realpath(3)</c>, which resolves links by name and needs
+    ///     only search permission on the components of the path, never read permission.
+    /// </summary>
+    /// <param name="path">The full path.</param>
+    /// <returns>The resolved path, or <see langword="null"/> when it does not exist or cannot be resolved.</returns>
+    [SupportedOSPlatform("macos")]
+    internal static string? TryRealPath(string path)
+    {
+        // The buffer is owned by the caller (PATH_MAX bytes), so nothing is allocated by the C library or freed here
+        var resolved = new byte[MacPathMax];
+        if (RealPathNative(Encoding.UTF8.GetBytes(path + "\0"), resolved) == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var length = Array.IndexOf(resolved, (byte)0);
+        return length > 0 ? Encoding.UTF8.GetString(resolved, 0, length) : null;
     }
 
     /// <summary>
@@ -498,4 +524,13 @@ internal static class NativeMethods
     [DllImport("libc", EntryPoint = "proc_pidfdinfo", ExactSpelling = true, SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     private static extern int ProcPidFdInfo(int pid, int descriptor, int flavor, [Out] byte[] buffer, int bufferSize);
+
+    /// <summary>The C library <c>realpath</c> function, with a caller-owned buffer of <c>PATH_MAX</c> bytes.</summary>
+    /// <param name="path">The path as NUL-terminated UTF-8.</param>
+    /// <param name="resolvedPath">The buffer that receives the NUL-terminated resolved path.</param>
+    /// <returns>The buffer's address on success, or zero (<c>NULL</c>) with <c>errno</c> set.</returns>
+    [SupportedOSPlatform("macos")]
+    [DllImport("libc", EntryPoint = "realpath", ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern IntPtr RealPathNative(byte[] path, [Out] byte[] resolvedPath);
 }

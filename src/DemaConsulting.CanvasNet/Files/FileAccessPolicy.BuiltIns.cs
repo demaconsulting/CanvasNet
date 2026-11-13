@@ -2,10 +2,62 @@ namespace DemaConsulting.CanvasNet.Files;
 
 /// <summary>
 ///     The built-in policies of <see cref="FileAccessPolicy"/>: allow all, under roots, no symbolic links, combined,
-///     and delegate. They are private so that callers depend only on the factory members and the abstract contract.
+///     and delegate, plus the link match that no-symlinks shares with <see cref="SandboxedFileResolver"/>. The policies
+///     are private so that callers depend only on the factory members and the abstract contract.
 /// </summary>
 public abstract partial class FileAccessPolicy
 {
+    /// <summary>
+    ///     Determines whether the real path of a file is the real location of a trusted anchor followed by the path as
+    ///     written below it, so no link lies below the anchor. Shared by <see cref="NoSymlinks"/> and
+    ///     <see cref="SandboxedFileResolver"/>, which must tell an unknown anchor from a link.
+    /// </summary>
+    /// <param name="anchor">The trusted folder, an ancestor-or-self of <paramref name="requestedPath"/>.</param>
+    /// <param name="requestedPath">The full path as written.</param>
+    /// <param name="realPath">The real path of the opened file.</param>
+    /// <returns>
+    ///     <see langword="true"/> when no link lies below the anchor, <see langword="false"/> when one does, and
+    ///     <see langword="null"/> when the real location of the anchor cannot be determined.
+    /// </returns>
+    internal static bool? MatchesWithoutLinks(string anchor, string requestedPath, string realPath)
+    {
+        var canonicalAnchor = RealPath.TryGetCanonicalDirectory(anchor);
+        if (canonicalAnchor is null)
+        {
+            return null;
+        }
+
+        // Below the anchor the real path must equal the written path: any link there changes the real path
+        if (RealPath.PathsEqual(Expected(canonicalAnchor, anchor, requestedPath), realPath))
+        {
+            return true;
+        }
+
+        // A written path with short (8.3) names is compared in its long spelling too; this only rewrites the expected
+        // text, so a link still shows up as a different real path (Windows only; identity elsewhere)
+        if (!requestedPath.Contains('~', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var longAnchor = RealPath.ExpandShortNames(anchor);
+        var longRequested = RealPath.ExpandShortNames(requestedPath);
+        return RealPath.PathsEqual(Expected(canonicalAnchor, longAnchor, longRequested), realPath);
+    }
+
+    /// <summary>
+    ///     Computes the real path a file must have when no link lies below the anchor.
+    /// </summary>
+    /// <param name="canonicalAnchor">The real location of the anchor.</param>
+    /// <param name="anchor">The anchor as written.</param>
+    /// <param name="requestedPath">The full path as written.</param>
+    /// <returns>The expected real path.</returns>
+    private static string Expected(string canonicalAnchor, string anchor, string requestedPath)
+    {
+        var relative = Path.GetRelativePath(anchor, requestedPath);
+        return relative == "." ? canonicalAnchor : Path.Join(canonicalAnchor, relative);
+    }
+
     /// <summary>
     ///     The policy that allows every file (<see cref="AllowAll"/>).
     /// </summary>
@@ -168,53 +220,22 @@ public abstract partial class FileAccessPolicy
         {
             ArgumentNullException.ThrowIfNull(request);
 
-            // The anchor is the deepest folder shared by the written path and the base directory; it and everything
-            // above it are trusted, so links there (macOS /var, an 8.3 or linked home folder) do not count
+            // The anchor is the deepest folder shared by the written path and the trusted base directory (the origin of
+            // the chain, never a referring document's folder); it and everything above it are trusted, so links there
+            // (macOS /var, an 8.3 or linked home folder) do not count
             var anchor = RealPath.CommonAncestor(request.RequestedPath, request.BaseDirectory)
                 ?? Path.GetPathRoot(request.RequestedPath)
                 ?? request.RequestedPath;
-            var canonicalAnchor = RealPath.TryGetCanonicalDirectory(anchor);
-            if (canonicalAnchor is null)
+            return MatchesWithoutLinks(anchor, request.RequestedPath, request.RealPath) switch
             {
-                return FileAccessDecision.Deny(
+                null => FileAccessDecision.Deny(
                     "the real path of the folder the reference starts from cannot be determined",
-                    "make sure the folder exists and can be opened");
-            }
-
-            // Below the anchor the real path must equal the written path: any link there changes the real path
-            if (RealPath.PathsEqual(Expected(canonicalAnchor, anchor, request.RequestedPath), request.RealPath))
-            {
-                return FileAccessDecision.Allow;
-            }
-
-            // A written path with short (8.3) names is compared in its long spelling too; this only rewrites the
-            // expected text, so a link still shows up as a different real path (Windows only; identity elsewhere)
-            if (request.RequestedPath.Contains('~', StringComparison.Ordinal))
-            {
-                var longAnchor = RealPath.ExpandShortNames(anchor);
-                var longRequested = RealPath.ExpandShortNames(request.RequestedPath);
-                if (RealPath.PathsEqual(Expected(canonicalAnchor, longAnchor, longRequested), request.RealPath))
-                {
-                    return FileAccessDecision.Allow;
-                }
-            }
-
-            return FileAccessDecision.Deny(
-                "its real path differs from the path as written, so the path passes through a symbolic link or junction",
-                "reference the file at its real location, or use a policy that follows links");
-        }
-
-        /// <summary>
-        ///     Computes the real path a file must have when no link lies below the anchor.
-        /// </summary>
-        /// <param name="canonicalAnchor">The real location of the anchor.</param>
-        /// <param name="anchor">The anchor as written.</param>
-        /// <param name="requestedPath">The full path as written.</param>
-        /// <returns>The expected real path.</returns>
-        private static string Expected(string canonicalAnchor, string anchor, string requestedPath)
-        {
-            var relative = Path.GetRelativePath(anchor, requestedPath);
-            return relative == "." ? canonicalAnchor : Path.Join(canonicalAnchor, relative);
+                    "make sure the folder exists and can be opened"),
+                true => FileAccessDecision.Allow,
+                false => FileAccessDecision.Deny(
+                    "its real path differs from the path as written, so the path passes through a symbolic link or junction",
+                    "reference the file at its real location, or use a policy that follows links"),
+            };
         }
     }
 

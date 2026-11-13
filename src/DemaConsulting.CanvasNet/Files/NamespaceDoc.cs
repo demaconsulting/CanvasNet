@@ -19,9 +19,10 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         in or out by another process cannot change what is read after the decision. The built-in policies are
 ///         <see cref="FileAccessPolicy.AllowAll"/> (the default), <see cref="FileAccessPolicy.UnderRoots(string[])"/>,
 ///         <see cref="FileAccessPolicy.NoSymlinks"/>, <see cref="FileAccessPolicy.Combine"/> and
-///         <see cref="FileAccessPolicy.FromDelegate"/>. Network and device paths, alternate data streams, control
-///         characters and files that are not regular files are refused under every policy, and every size and count
-///         limit stays.
+///         <see cref="FileAccessPolicy.FromDelegate"/>. Network and device paths (on Windows also legacy device names
+///         such as <c>NUL</c>), alternate data streams, control characters, files that are not regular files and, on
+///         Windows, a link from a local path to a network share are refused under every policy, and every size and
+///         count limit stays.
 ///     </para>
 ///     <para>
 ///         The sandbox is what <see cref="DemaConsulting.CanvasNet.ImageSources"/> uses to confine the files a document

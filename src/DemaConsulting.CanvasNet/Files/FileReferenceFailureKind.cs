@@ -6,8 +6,8 @@ namespace DemaConsulting.CanvasNet.Files;
 /// <remarks>
 ///     A caller branches on this value (never on the message text) to decide how to report the failure; the
 ///     <see cref="FileReferenceException"/> carries the kind-specific facts. The first four values are problems with the
-///     text of the reference itself and are detected before any file or callback is touched; they are refused under
-///     every policy.
+///     reference itself and are refused under every policy; all of them except a Windows link from a local path to a
+///     network share (<see cref="NetworkPath"/>) are detected before any file or callback is touched.
 /// </remarks>
 public enum FileReferenceFailureKind
 {
@@ -18,13 +18,17 @@ public enum FileReferenceFailureKind
     ControlCharacter,
 
     /// <summary>
-    ///     The reference is not a usable local path: a device path (<c>\\?\</c>, <c>\\.\</c>), a colon other than the
-    ///     drive of an absolute Windows path (an alternate data stream, a drive-relative path, a drive path on Linux or
-    ///     macOS), a path that is not valid, or, with a resolver callback, an absolute path or a <c>..</c> above the root.
+    ///     The reference is not a usable local path: a device path (<c>\\?\</c>, <c>\\.\</c>), a reference that Windows
+    ///     maps to a device (a legacy device name such as <c>NUL</c> in a component), a colon other than the drive of an
+    ///     absolute Windows path (an alternate data stream, a drive-relative path, a drive path on Linux or macOS), a
+    ///     path that is not valid, or, with a resolver callback, an absolute path or a <c>..</c> above the root.
     /// </summary>
     InvalidPath,
 
-    /// <summary>The reference names a network location (a UNC path or <c>//host</c>), which is never read.</summary>
+    /// <summary>
+    ///     The reference names a network location (a UNC path or <c>//host</c>), or, on Windows, the file it opens
+    ///     through a link lies on a network share while the path as written is local; such a file is never read.
+    /// </summary>
     NetworkPath,
 
     /// <summary>The file-access policy denied the opened file; nothing was read.</summary>

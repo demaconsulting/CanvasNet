@@ -22,13 +22,16 @@ public sealed class FileReference
     /// <param name="directory">The directory of the file.</param>
     /// <param name="content">The bytes of the file.</param>
     /// <param name="isLogical">Whether the file came from a resolver callback.</param>
-    internal FileReference(string key, string? realPath, string directory, ReadOnlyMemory<byte> content, bool isLogical)
+    /// <param name="origin">The host-chosen directory the chain of references started from, or <see langword="null"/> in resolver-callback mode.</param>
+    internal FileReference(
+        string key, string? realPath, string directory, ReadOnlyMemory<byte> content, bool isLogical, string? origin)
     {
         Key = key;
         RealPath = realPath;
         Directory = directory;
         Content = content;
         IsLogical = isLogical;
+        Origin = origin;
     }
 
     /// <summary>
@@ -63,4 +66,11 @@ public sealed class FileReference
     ///     system.
     /// </summary>
     internal bool IsLogical { get; }
+
+    /// <summary>
+    ///     Gets the full path of the host-chosen base directory or search path where the chain of references that
+    ///     reached this file started (file-system mode), or <see langword="null"/> in resolver-callback mode. It is
+    ///     trusted: it never comes from a document.
+    /// </summary>
+    internal string? Origin { get; }
 }

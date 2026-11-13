@@ -42,7 +42,8 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         read: it must be a regular file whose real path (asked of the operating system for the handle, not the name)
 ///         is the canonical root followed by the path below the root. A link that another process swaps into the tree
 ///         between the walk and the open is therefore refused as well, and where the platform cannot tell the real path
-///         of an open file the file is refused (<see cref="SandboxFailureKind.LinkCheckFailed"/>, fail closed).
+///         of an open file or the real location of its root the file is refused
+///         (<see cref="SandboxFailureKind.LinkCheckFailed"/>, fail closed).
 ///     </para>
 ///     <para>
 ///         <b>Rules.</b> An empty path, a control character, a colon and a leading slash are refused, a <c>..</c> that
@@ -336,8 +337,9 @@ public sealed partial class SandboxedFileResolver
     /// <returns>What was read, or <see langword="null"/> when the candidate does not exist.</returns>
     /// <exception cref="SandboxException">
     ///     Thrown with <see cref="SandboxFailureKind.CannotRead"/> when the open or the read fails or the file is not a
-    ///     regular file, <see cref="SandboxFailureKind.LinkCheckFailed"/> when the real path cannot be determined, and
-    ///     <see cref="SandboxFailureKind.ThroughLink"/> when the real path shows a link below the root.
+    ///     regular file, <see cref="SandboxFailureKind.LinkCheckFailed"/> when the real path of the file or the real
+    ///     location of its root cannot be determined, and <see cref="SandboxFailureKind.ThroughLink"/> when the real
+    ///     path shows a link below the root.
     /// </exception>
     private Content? ReadVerified(Candidate candidate)
     {
@@ -377,18 +379,15 @@ public sealed partial class SandboxedFileResolver
             }
 
             // Anchored at the root, the no-symlinks rule is exactly the walk's rule: the real path must be the canonical
-            // root followed by the path below the root
+            // root followed by the path below the root. A root whose real location cannot be determined is a failed
+            // check (fail closed), not a link
             var relative = Path.GetRelativePath(candidate.Root, candidate.Key).Replace('\\', '/');
-            var decision = FileAccessPolicy.NoSymlinks.Check(new FileAccessRequest
+            switch (FileAccessPolicy.MatchesWithoutLinks(candidate.Root, candidate.Key, realPath))
             {
-                Reference = relative,
-                BaseDirectory = candidate.Root,
-                RequestedPath = candidate.Key,
-                RealPath = realPath,
-            });
-            if (!decision.IsAllowed)
-            {
-                throw new SandboxException(SandboxFailureKind.ThroughLink, candidate.Key, relative);
+                case null:
+                    throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key);
+                case false:
+                    throw new SandboxException(SandboxFailureKind.ThroughLink, candidate.Key, relative);
             }
 
             return ReadFromStream(candidate, _ => new FileStream(handle, FileAccess.Read, bufferSize: 1));

@@ -34,8 +34,8 @@ public enum SandboxFailureKind
     ThroughLink,
 
     /// <summary>
-    ///     The link check itself failed, or the real path of the open file cannot be determined, so the file is refused
-    ///     rather than trusted.
+    ///     The link check itself failed, or the real path of the open file or the real location of its root cannot be
+    ///     determined, so the file is refused rather than trusted.
     /// </summary>
     LinkCheckFailed,
 

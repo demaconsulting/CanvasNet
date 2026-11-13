@@ -15,6 +15,8 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     </para>
 ///     <para>
 ///         <b>File-system candidates</b> are full paths with <c>.</c> and <c>..</c> collapsed and links not resolved.
+///         On Windows a reference that the system maps to a device (a legacy device name such as <c>NUL</c> in a
+///         component) is refused before the open as well.
 ///         <b>Logical candidates</b> (resolver callback) are normalized logical paths: forward slashes, no leading slash,
 ///         <c>.</c> and <c>..</c> collapsed; an absolute reference and a <c>..</c> above the logical root are refused,
 ///         because there is no real path to judge them by. Search paths that are valid logical paths are prefixes.
@@ -35,8 +37,12 @@ public sealed partial class FileReferenceResolver
     ///     A place a referenced file may be found.
     /// </summary>
     /// <param name="Key">The full path as written (or the logical path in callback mode).</param>
-    /// <param name="BaseDirectory">The directory the reference was resolved against.</param>
-    private sealed record Candidate(string Key, string BaseDirectory);
+    /// <param name="Origin">
+    ///     The host-chosen directory the lookup chain started from: the base directory or the search path of this
+    ///     candidate, or the origin of the referring file. In callback mode it holds the logical directory, which is
+    ///     never given to a policy (callback mode never asks the policy).
+    /// </param>
+    private sealed record Candidate(string Key, string Origin);
 
     /// <summary>
     ///     Gets the reference as it may be shown in a message: control characters replaced by <c>?</c>.
@@ -133,23 +139,30 @@ public sealed partial class FileReferenceResolver
             yield break;
         }
 
-        // An absolute reference names one file; it is resolved against the starting directory only for its drive
+        // An absolute reference names one file; it is resolved against the starting directory only for its drive. Its
+        // chain keeps the origin of the referring file, or starts at the first configured directory
         if (Path.IsPathRooted(text))
         {
             var start = relativeTo?.Directory ?? _baseDirectory ?? _searchDirectories![0];
-            yield return FullCandidate(start, text, shown);
+            var origin = relativeTo?.Origin ?? _baseDirectory ?? _searchDirectories![0];
+            yield return FullCandidate(start, origin, text, shown);
             yield break;
         }
 
-        var first = relativeTo?.Directory ?? _baseDirectory;
-        if (first is not null)
+        // A reference relative to a referring file is combined with that file's directory, but the chain keeps the
+        // trusted origin of the referring file: the referrer's folder may have been swapped for a link since it was read
+        if (relativeTo is not null)
         {
-            yield return FullCandidate(first, text, shown);
+            yield return FullCandidate(relativeTo.Directory, relativeTo.Origin!, text, shown);
+        }
+        else if (_baseDirectory is not null)
+        {
+            yield return FullCandidate(_baseDirectory, _baseDirectory, text, shown);
         }
 
         foreach (var directory in _searchDirectories!)
         {
-            yield return FullCandidate(directory, text, shown);
+            yield return FullCandidate(directory, directory, text, shown);
         }
     }
 
@@ -157,21 +170,41 @@ public sealed partial class FileReferenceResolver
     ///     Combines a directory and a reference into a file-system candidate.
     /// </summary>
     /// <param name="directory">The full path of the directory.</param>
+    /// <param name="origin">The host-chosen directory the lookup chain started from.</param>
     /// <param name="text">The validated text.</param>
     /// <param name="shown">The printable reference.</param>
     /// <returns>The candidate.</returns>
-    /// <exception cref="FileReferenceException">Thrown when the result is not a valid path.</exception>
-    private static Candidate FullCandidate(string directory, string text, string shown)
+    /// <exception cref="FileReferenceException">Thrown when the result is not a valid path or names a device.</exception>
+    private static Candidate FullCandidate(string directory, string origin, string text, string shown)
     {
+        string full;
         try
         {
-            return new Candidate(Path.GetFullPath(text, directory), directory);
+            full = Path.GetFullPath(text, directory);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
             throw new FileReferenceException(FileReferenceFailureKind.InvalidPath, shown, "the path is not a valid path", ex);
         }
+
+        // Windows maps a legacy device name in a component (NUL, and on older versions CON, COM1, LPT1 and others) to a
+        // device path; such a path is refused before the open, under every policy. A host that configured an
+        // extended-length directory (\\?\C:\docs) keeps working: there no device names are mapped
+        if (OperatingSystem.IsWindows() && IsDevicePath(full) && !IsDevicePath(directory))
+        {
+            throw new FileReferenceException(FileReferenceFailureKind.InvalidPath, shown, "the path names a device");
+        }
+
+        return new Candidate(full, origin);
     }
+
+    /// <summary>
+    ///     Determines whether a full path is in the Windows device namespace (<c>\\.\</c> or <c>\\?\</c>).
+    /// </summary>
+    /// <param name="path">The full path.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsDevicePath(string path) =>
+        path.StartsWith(@"\\.\", StringComparison.Ordinal) || path.StartsWith(@"\\?\", StringComparison.Ordinal);
 
     /// <summary>
     ///     Combines a logical directory and a reference into a logical candidate.

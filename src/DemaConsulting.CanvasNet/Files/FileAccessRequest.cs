@@ -31,8 +31,11 @@ public sealed record FileAccessRequest
     public string? Referrer { get; init; }
 
     /// <summary>
-    ///     Gets the full path of the directory the reference was resolved against: the referrer's directory, the base
-    ///     directory, or the search path the file was found under.
+    ///     Gets the full path of the host-chosen directory this lookup chain started from: the configured base
+    ///     directory, or the search path under which the first file of the chain was found. It is trusted: it never
+    ///     comes from a document, not even when the reference was resolved relative to a referring document (that
+    ///     document is <see cref="Referrer"/>; the directory the reference was combined with is the referrer's
+    ///     directory).
     /// </summary>
     public required string BaseDirectory { get; init; }
 
