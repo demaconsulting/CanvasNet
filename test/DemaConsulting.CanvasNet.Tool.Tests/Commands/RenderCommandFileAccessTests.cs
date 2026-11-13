@@ -251,10 +251,11 @@ public class RenderCommandFileAccessTests
     [Fact]
     public void RenderCommand_ReadFileAccess_RootsWithoutAllowRoot_UsesTheDefaultRoots()
     {
-        // Arrange: the input outside the working directory
+        // Arrange: the input outside the working directory (the roots are taken when the policy is made, so the folders exist)
         using var directory = new TempDirectory();
         var work = directory.Combine("work");
         Directory.CreateDirectory(work);
+        Directory.CreateDirectory(directory.Combine("site"));
         var input = directory.Combine("site", "in.svg");
 
         // Act
