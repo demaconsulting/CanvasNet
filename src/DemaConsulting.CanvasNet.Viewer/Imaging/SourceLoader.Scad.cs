@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad;
@@ -24,9 +25,10 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     </para>
 ///     <para>
 ///         The <c>include</c> and <c>use</c> directives of the model are resolved by the SCAD library: a relative path is
-///         looked up from the folder of the file that names it, and no file outside the folder of the model (and its
-///         folders below it) is read; a link below that folder is not followed. A directive whose file cannot be found is an
-///         error (<c>scad-error</c>), because the model would otherwise be drawn without what it asked for.
+///         looked up from the folder of the file that names it, and the file is read under
+///         <see cref="SourceOptions.FileAccess"/> (every regular local file by default, like OpenSCAD). A directive whose
+///         file cannot be found is an error (<c>scad-error</c>), because the model would otherwise be drawn without what it
+///         asked for; a file the policy denies is the error <c>file-access-denied</c>.
 ///         Warnings, unsupported features, and <c>echo</c> output of the model are returned as diagnostics and echo
 ///         lines; with <see cref="SourceOptions.Strict"/> an unsupported feature is an <c>unsupported-feature</c>
 ///         error instead. The anchors the model declares with <c>echo("anchor", "name", [x, y, z])</c> are collected
@@ -70,14 +72,15 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
+    /// <param name="fileAccess">The file-access policy of the files the source reads beside it.</param>
     /// <returns>
     ///     The facts about the file: the names of its modules and functions, its <c>include</c> and <c>use</c>
     ///     directives, and <see cref="DefaultScadSize"/> as its natural size.
     /// </returns>
     /// <exception cref="ViewerException">Thrown with code <c>scad-error</c> when the source has a syntax error.</exception>
-    private static SourceInfo ProbeScad(SourceInput input, long bytes)
+    private static SourceInfo ProbeScad(SourceInput input, long bytes, FileAccessPolicy fileAccess)
     {
-        var document = Read(input.Name, SourceKind.Scad, () => OpenScad(input));
+        var document = Read(input.Name, SourceKind.Scad, () => OpenScad(input, fileAccess));
         var directives = document.Directives
             .Select(d => new SourceDirective(d.Kind == ScadDirectiveKind.Use ? "use" : "include", d.Path, d.Location.Line))
             .ToList();
@@ -102,25 +105,44 @@ public static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Parses a model from its source: the name of the source is the name of the library's messages, and the folder
-    ///     of the source is where its includes are looked up (nowhere else).
+    ///     Parses a model from its source: the name of the source is the name of the library's messages, the folder of
+    ///     the source is where its relative includes are looked up, and the policy decides which files they may read.
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
+    /// <param name="fileAccess">The file-access policy of the includes.</param>
     /// <returns>The parsed model.</returns>
-    private static ScadDocument OpenScad(SourceInput input)
+    private static ScadDocument OpenScad(SourceInput input, FileAccessPolicy fileAccess)
     {
         using var stream = input.Open();
-        return ScadDocument.Open(stream, new ScadOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name });
+        return ScadDocument.Open(
+            stream,
+            new ScadOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name, FileAccess = fileAccess });
     }
+
+    /// <summary>
+    ///     Determines whether a failure of a library was caused by a denial of the file-access policy (or a policy that
+    ///     could not be applied).
+    /// </summary>
+    /// <param name="exception">The failure.</param>
+    /// <returns><see langword="true"/> when its inner exception is such a denial.</returns>
+    private static bool IsFileAccessDenial(Exception exception) =>
+        exception.InnerException is FileReferenceException
+        {
+            Kind: FileReferenceFailureKind.AccessDenied or FileReferenceFailureKind.RealPathUnavailable
+        };
+
+    /// <summary>The hint of the error <c>file-access-denied</c>.</summary>
+    private const string FileAccessDeniedHint = "Allow the file in the file-access policy, or reference a file it allows.";
 
     /// <summary>
     ///     Maps a failure of the evaluation of a model to a <see cref="ViewerException"/>.
     /// </summary>
     /// <param name="exception">The failure.</param>
     /// <returns>
-    ///     The exception to throw: <c>budget-exceeded</c> when the model exceeded a limit (a limit of the SCAD library,
-    ///     such as the triangle limit, or the fragment budget of the renderer), otherwise <c>scad-error</c> (a failed
-    ///     <c>assert</c>, an include cycle, an include outside the folder of the model, and so on).
+    ///     The exception to throw: <c>file-access-denied</c> when the file-access policy denied an include,
+    ///     <c>budget-exceeded</c> when the model exceeded a limit (a limit of the SCAD library, such as the triangle
+    ///     limit, or the fragment budget of the renderer), otherwise <c>scad-error</c> (a failed <c>assert</c>, an
+    ///     include cycle, an include that cannot be read, and so on).
     /// </returns>
     /// <remarks>
     ///     The library names every limit failure with the text <c>(limit N)</c> and reports the renderer's budget with the
@@ -130,6 +152,11 @@ public static partial class SourceLoader
     internal static ViewerException MapScadEvaluation(ScadEvaluationException exception)
     {
         var message = OneLine(exception.Message);
+        if (IsFileAccessDenial(exception))
+        {
+            return new ViewerException(ErrorCodes.FileAccessDenied, $"SCAD include denied: {message}", FileAccessDeniedHint, exception);
+        }
+
         var limit = message.Contains("(limit ", StringComparison.Ordinal) || exception.InnerException is RenderBudgetExceededException;
         if (!limit)
         {
@@ -177,7 +204,7 @@ public static partial class SourceLoader
         /// <exception cref="ViewerException">Thrown when the file cannot be read or has a syntax error.</exception>
         public static ScadPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.Scad, () => OpenScad(input));
+            var document = Read(info.Path, SourceKind.Scad, () => OpenScad(input, options.FileAccess));
             return new ScadPageSource(document, info, options, input, context);
         }
 
@@ -206,7 +233,7 @@ public static partial class SourceLoader
                 throw new ViewerException(
                     ErrorCodes.ScadError,
                     $"SCAD include not found: {OneLine(first.ToString())}",
-                    "A file named by include or use is looked up from the folder of the file that names it, and only inside the folder of the model.");
+                    "A file named by include or use is looked up relative to the folder of the file that names it.");
             }
 
             var operations = new List<AppliedOperation>

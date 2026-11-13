@@ -348,8 +348,8 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
-    ///     Test that a file rendered by path may not embed a file outside its folder, and that an SVG file that embeds
-    ///     itself stops at once.
+    ///     Test that, under a policy confined to its folder, a file rendered by path may not embed a file outside it (an
+    ///     access-denied warning), and that an SVG file that embeds itself stops at once.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings()
@@ -360,20 +360,147 @@ public class CanvasNetViewerTests
         var path = folder.WriteText(
             "site/self.svg",
             ViewerFixtures.Svg(ViewerFixtures.Cell("../secret.png", 0) + ViewerFixtures.Cell("self.svg", 1)));
+        var options = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+
+        // Act
+        using var image = CanvasNetViewer.Render(path, options);
+
+        // Assert
+        Assert.Equal(ViewerFixtures.Gray, image.Surface[50, 50]);
+        Assert.Single(image.Diagnostics, d => d.Code == FolderImageResolver.AccessDeniedCode);
+        var cycle = Assert.Single(image.Diagnostics, d => d.Code == FolderImageResolver.UnresolvedCode);
+        Assert.Contains("cycle", cycle.Message, StringComparison.Ordinal);
+        Assert.Empty(image.Embedded);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a file rendered by path embeds a picture of its parent folder.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_SvgParentFolderLink_IsDrawnByDefault()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("secret.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
+        var path = folder.WriteText("site/doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("../secret.png", 0)));
 
         // Act
         using var image = CanvasNetViewer.Render(path);
 
         // Assert
-        Assert.Equal(ViewerFixtures.Gray, image.Surface[50, 50]);
-        Assert.Equal(2, image.Diagnostics.Count(d => d.Code == FolderImageResolver.UnresolvedCode));
-        Assert.Contains(image.Diagnostics, d => d.Message.Contains("cycle", StringComparison.Ordinal));
-        Assert.Empty(image.Embedded);
+        Assert.Equal(ViewerFixtures.Green, image.Surface[50, 50]);
+        Assert.Empty(image.Diagnostics);
+        Assert.Single(image.Embedded);
+    }
+
+    /// <summary>
+    ///     Test that a link of the rendered file is denied with the error <c>file-access-denied</c> under the strict
+    ///     option, and is a warning without it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_StrictDeniedLink_ThrowsFileAccessDenied()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("secret.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
+        var path = folder.WriteText("site/doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("../secret.png", 0)));
+        var confined = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+
+        // Act
+        var ex = Assert.Throws<ViewerException>(() => CanvasNetViewer.Render(path, confined with { ThrowOnUnsupportedFeature = true }));
+        using var lenient = CanvasNetViewer.Render(path, confined);
+
+        // Assert
+        Assert.Equal(ErrorCodes.FileAccessDenied, ex.Code);
+        Assert.Contains("../secret.png", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(lenient.Diagnostics).Code);
+    }
+
+    /// <summary>
+    ///     Test that the policy of the render reaches the includes of a model an SVG file embeds: a confined policy fails
+    ///     the render with an exception whose chain of inner exceptions holds the denial, and the default draws the model.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_NestedModelInclude_IsCheckedByTheRenderPolicy()
+    {
+        // Arrange: site/doc.svg embeds site/part.scad, which includes lib.scad of the parent folder
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("lib.scad", "module part() { cube(8, center = true); }\n");
+        folder.WriteText("site/part.scad", "include <../lib.scad>\npart();\n");
+        var path = folder.WriteText("site/doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("part.scad", 0)));
+        var confined = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+
+        // Act
+        var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+        using var allowed = CanvasNetViewer.Render(path);
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, FindDenial(ex)?.Kind);
+        Assert.Single(allowed.Embedded);
+    }
+
+    /// <summary>
+    ///     Test that the policy of the render reaches the data of a chart an SVG file embeds: a confined policy fails the
+    ///     render with an exception whose chain of inner exceptions holds the denial, and the default draws the chart.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_NestedChartData_IsCheckedByTheRenderPolicy()
+    {
+        // Arrange: site/doc.svg embeds site/chart.vl.json, whose data is in the parent folder
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("data.csv", "a,b\nA,3\nB,5\n");
+        folder.WriteText(
+            "site/chart.vl.json",
+            "{\"data\":{\"url\":\"../data.csv\"},\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"nominal\"},\"y\":{\"field\":\"b\",\"type\":\"quantitative\"}}}");
+        var path = folder.WriteText("site/doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("chart.vl.json", 0)));
+        var confined = new ViewerRenderOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+
+        // Act
+        var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+        using var allowed = CanvasNetViewer.Render(path);
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, FindDenial(ex)?.Kind);
+        Assert.Single(allowed.Embedded);
+    }
+
+    /// <summary>
+    ///     Test that the file-access option of a render is the allow-all policy by default and refuses null.
+    /// </summary>
+    [Fact]
+    public void ViewerRenderOptions_FileAccess_DefaultsToAllowAllAndRejectsNull()
+    {
+        // Act
+        var options = new ViewerRenderOptions();
+        var confined = options with { FileAccess = FileAccessPolicy.NoSymlinks };
+
+        // Assert
+        Assert.Same(FileAccessPolicy.AllowAll, options.FileAccess);
+        Assert.Same(FileAccessPolicy.NoSymlinks, confined.FileAccess);
+        Assert.Throws<ArgumentNullException>(() => new ViewerRenderOptions { FileAccess = null! });
+    }
+
+    /// <summary>
+    ///     Finds the file-access refusal in the chain of inner exceptions of a failure.
+    /// </summary>
+    /// <param name="exception">The failure.</param>
+    /// <returns>The refusal, or <see langword="null"/> when the chain has none.</returns>
+    private static FileReferenceException? FindDenial(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is FileReferenceException denial)
+            {
+                return denial;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
     ///     Test that a render by path fails for a missing file, an unknown extension, a corrupt file (with the original
-    ///     failure inside), a file outside the folder option, and a null path.
+    ///     failure inside), and a null path, and that a folder option that holds the file works.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions()
@@ -391,10 +518,30 @@ public class CanvasNetViewerTests
         var corrupt = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(bad));
         Assert.IsType<InvalidDataException>(corrupt.InnerException);
         Assert.Null(corrupt.Embedder);
-        Assert.Throws<ArgumentException>(() => CanvasNetViewer.Render(inner, new ViewerRenderOptions { Folder = folder.Combine("other") }));
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.Render((string)null!));
         using var withFolder = CanvasNetViewer.Render(inner, new ViewerRenderOptions { Folder = folder.Path });
         Assert.Equal((2, 2), (withFolder.Surface.Width, withFolder.Surface.Height));
+    }
+
+    /// <summary>
+    ///     Test that a file outside the folder option is rendered (the folder is the base of its links, not a boundary,
+    ///     and the file itself is never judged by the policy), even under a policy that denies everything.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_FileOutsideTheFolderOption_IsRendered()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        var inner = folder.WriteBytes("sub/inner.png", ViewerFixtures.Png(2, 2, ViewerFixtures.Green));
+        Directory.CreateDirectory(folder.Combine("other"));
+        var denyAll = FileAccessPolicy.FromDelegate("deny-all", _ => FileAccessDecision.Deny("nothing may be read"));
+
+        // Act
+        using var image = CanvasNetViewer.Render(inner, new ViewerRenderOptions { Folder = folder.Combine("other"), FileAccess = denyAll });
+
+        // Assert
+        Assert.Equal((2, 2), (image.Surface.Width, image.Surface.Height));
+        Assert.Equal(ViewerFixtures.Green, image.Surface[0, 0]);
     }
 
     /// <summary>
@@ -469,13 +616,14 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
-    ///     Test that an unreadable path outside the sandbox through a symbolic link is refused as a sandbox failure when
-    ///     rendered directly.
+    ///     Test that a file rendered directly through a file symbolic link is rendered whatever the policy, because the
+    ///     rendered file is the caller's choice. The test skips where file links cannot be created (Windows without the
+    ///     privilege for symbolic links; the directory-link test covers links there).
     /// </summary>
     [Fact]
-    public void CanvasNetViewer_Render_PathThroughSymbolicLink_ThrowsSandboxException()
+    public void CanvasNetViewer_Render_PathThroughSymbolicLink_IsRenderedWhateverThePolicy()
     {
-        // Arrange: a link to a picture next to it (links may need privileges on Windows)
+        // Arrange: a link to a picture next to it
         using var folder = new ViewerTestFolder();
         var real = folder.WriteBytes("real.png", ViewerFixtures.Png(2, 2, ViewerFixtures.Green));
         var link = folder.Combine("link.png");
@@ -485,11 +633,39 @@ public class CanvasNetViewerTests
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Assert.Skip("Symbolic links cannot be created here.");
+            Assert.Skip("File symbolic links cannot be created here (on Windows they need a privilege): " + ex.Message);
             return;
         }
 
-        // Act / Assert
-        Assert.Throws<SandboxException>(() => CanvasNetViewer.Render(link));
+        // Act
+        using var byDefault = CanvasNetViewer.Render(link);
+        using var noLinks = CanvasNetViewer.Render(link, new ViewerRenderOptions { FileAccess = FileAccessPolicy.NoSymlinks });
+
+        // Assert
+        Assert.Equal(ViewerFixtures.Green, byDefault.Surface[0, 0]);
+        Assert.Equal(ViewerFixtures.Green, noLinks.Surface[0, 0]);
+    }
+
+    /// <summary>
+    ///     Test that, under the no-symlinks policy, a link of the rendered file through a directory link (a junction on
+    ///     Windows, so the test needs no privilege) is denied, while the default policy draws it.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied()
+    {
+        // Arrange: site/lib is a directory link to a folder beside the site
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("real/a.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
+        var path = folder.WriteText("site/doc.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("lib/a.png", 0)));
+        folder.CreateDirectoryLinkOrSkip("site/lib", "real");
+
+        // Act
+        using var denied = CanvasNetViewer.Render(path, new ViewerRenderOptions { FileAccess = FileAccessPolicy.NoSymlinks });
+        using var followed = CanvasNetViewer.Render(path);
+
+        // Assert
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(denied.Diagnostics).Code);
+        Assert.Equal(ViewerFixtures.Gray, denied.Surface[50, 50]);
+        Assert.Equal(ViewerFixtures.Green, followed.Surface[50, 50]);
     }
 }

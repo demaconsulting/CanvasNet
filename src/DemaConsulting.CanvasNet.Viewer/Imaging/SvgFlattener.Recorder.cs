@@ -45,7 +45,7 @@ public static partial class SvgFlattener
     ///     <para>
     ///         A link that is shown more than once is drawn once, at its largest placement (the most pixels; the first of
     ///         equal ones), so the image count and the pixel budget are charged once for it. The links are drawn in the
-    ///         order the drawing first shows them. The resolver applies its sandbox, its limits (64 pictures, 4 levels,
+    ///         order the drawing first shows them. The resolver applies the file-access policy, its limits (64 pictures, 4 levels,
     ///         cycles, the pixel budget), and reports what it could not draw; the sum of the kept pictures is limited to
     ///         the output limit as they are drawn. Not thread-safe: one per flatten.
     ///     </para>

@@ -63,6 +63,12 @@ public static class ErrorCodes
     /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
     public const string BudgetExceeded = "budget-exceeded";
 
+    /// <summary>
+    ///     A file the rendered document references (a picture with the strict option, a model's include, a chart's
+    ///     data) was denied by the file-access policy of the caller, or the policy could not be applied.
+    /// </summary>
+    public const string FileAccessDenied = "file-access-denied";
+
     /// <summary>The two images to compare have different sizes and no size normalization was requested.</summary>
     public const string SizeMismatch = "size-mismatch";
 

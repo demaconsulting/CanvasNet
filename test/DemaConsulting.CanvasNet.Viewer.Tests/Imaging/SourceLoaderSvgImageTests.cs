@@ -1,6 +1,7 @@
 // cspell:ignore scad svg href vsdx pptx Fsecret embedder
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -204,12 +205,11 @@ public class SourceLoaderSvgImageTests
     }
 
     /// <summary>
-    ///     Test that a reference that leaves the folder, is a network URL, or is an absolute path is a warning, is not
-    ///     drawn, and never reads the file it names.
+    ///     Test that a reference that is a network URL, or a drive path that does not exist (or is not valid on Linux and
+    ///     macOS), is a warning, is not drawn, and never reads the file it names.
     /// </summary>
     /// <param name="href">The reference.</param>
     [Theory]
-    [InlineData("../secret.png")]
     [InlineData("C:/secret.png")]
     [InlineData("https://example.invalid/secret.png")]
     public void SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning(string href)
@@ -232,13 +232,61 @@ public class SourceLoaderSvgImageTests
     }
 
     /// <summary>
-    ///     Test that a reference through a symbolic link is refused.
+    ///     Test that, under a policy confined to the folder of the SVG file, a reference to the parent folder is an
+    ///     access-denied warning, is not drawn, and is the error <c>file-access-denied</c> in strict mode.
     /// </summary>
     [Fact]
-    public void SourceLoader_Load_SvgEmbeddingSymbolicLink_IsUnresolvedWarning()
+    public void SourceLoader_Load_SvgEmbeddingParentReference_UnderRoots_IsAccessDeniedWarning()
     {
-        // Arrange: a picture outside the folder and a link to it inside the folder (links may need privileges on Windows)
+        // Arrange: a valid picture one folder above the folder of the SVG file
         using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("secret.png"), Green);
+        var path = WriteSvg(directory.Combine("site"), "diagram.svg", "<image href='../secret.png' x='10' y='10' width='20' height='20'/>");
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("site"));
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = policy });
+        var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { FileAccess = policy, Strict = true }));
+
+        // Assert
+        Assert.Equal(Red, loaded.Surface[20, 20]);
+        var note = Assert.Single(loaded.Diagnostics);
+        Assert.Equal(("svg", "warning", FolderImageResolver.AccessDeniedCode), (note.Source, note.Severity, note.Code));
+        Assert.Contains("'../secret.png'", note.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(loaded.Operations, o => o.Op == "embed");
+        Assert.Equal(ErrorCodes.FileAccessDenied, strict.Code);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a reference to the parent folder of the SVG file is drawn.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingParentReference_Default_IsDrawn()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("secret.png"), Green);
+        var path = WriteSvg(directory.Combine("site"), "diagram.svg", "<image href='../secret.png' x='10' y='10' width='20' height='20'/>");
+
+        // Act
+        using var loaded = Load(path, strict: true);
+
+        // Assert
+        Assert.Equal(Green, loaded.Surface[20, 20]);
+        Assert.Empty(loaded.Diagnostics);
+        Assert.Contains(loaded.Operations, o => o.Op == "embed");
+    }
+
+    /// <summary>
+    ///     Creates the folder <c>site</c> with a file symbolic link <c>site/link.png</c> to a green picture beside it, or
+    ///     skips the test where file links cannot be created (Windows without the privilege for symbolic links).
+    /// </summary>
+    /// <param name="directory">The test folder.</param>
+    /// <returns>The path of an SVG file in <c>site</c> that shows the link.</returns>
+    private static string CreateSvgWithFileLink(TempDirectory directory)
+    {
         Directory.CreateDirectory(directory.Combine("site"));
         WriteSolidPng(directory.Combine("real.png"), Green);
         try
@@ -247,18 +295,47 @@ public class SourceLoaderSvgImageTests
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Assert.Skip("Symbolic links cannot be created here.");
-            return;
+            Assert.Skip("File symbolic links cannot be created here (on Windows they need a privilege): " + ex.Message);
         }
 
-        var path = WriteSvg(directory.Combine("site"), "diagram.svg", "<image href='link.png' x='10' y='10' width='20' height='20'/>");
+        return WriteSvg(directory.Combine("site"), "diagram.svg", "<image href='link.png' x='10' y='10' width='20' height='20'/>");
+    }
+
+    /// <summary>
+    ///     Test that, under the no-symlinks policy, a reference through a symbolic link is an access-denied warning and
+    ///     is not drawn.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingSymbolicLink_NoSymlinks_IsAccessDeniedWarning()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CreateSvgWithFileLink(directory);
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = FileAccessPolicy.NoSymlinks });
+
+        // Assert
+        Assert.Equal(Red, loaded.Surface[20, 20]);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(loaded.Diagnostics).Code);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a reference through a symbolic link is drawn.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingSymbolicLink_Default_IsDrawn()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = CreateSvgWithFileLink(directory);
 
         // Act
         using var loaded = Load(path);
 
         // Assert
-        Assert.Equal(Red, loaded.Surface[20, 20]);
-        Assert.Equal(FolderImageResolver.UnresolvedCode, Assert.Single(loaded.Diagnostics).Code);
+        Assert.Equal(Green, loaded.Surface[20, 20]);
+        Assert.Empty(loaded.Diagnostics);
     }
 
     /// <summary>

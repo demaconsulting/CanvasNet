@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Mermaid;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
@@ -50,10 +51,28 @@ public static partial class SourceLoader
     /// </exception>
     public static SourceInfo Probe(string path)
     {
+        return Probe(path, FileAccessPolicy.AllowAll);
+    }
+
+    /// <summary>
+    ///     Reads the facts about a file without rendering it, reading the files it references (the data files a chart is
+    ///     measured with) under a file-access policy.
+    /// </summary>
+    /// <param name="path">The path of the file. The file itself is the caller's choice and is not judged by the policy.</param>
+    /// <param name="fileAccess">The policy that decides which referenced files may be read.</param>
+    /// <returns>The facts; for a document they include every page.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ViewerException">
+    ///     Thrown for the failures of <see cref="Probe(string)"/>, and with code <c>file-access-denied</c> when the
+    ///     policy denies a file the probe has to read.
+    /// </exception>
+    public static SourceInfo Probe(string path, FileAccessPolicy fileAccess)
+    {
         ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(fileAccess);
 
         var kind = Detect(path);
-        return ProbeInput(SourceInput.FromFile(path), kind);
+        return ProbeInput(SourceInput.FromFile(path), kind, fileAccess);
     }
 
     /// <summary>
@@ -75,12 +94,30 @@ public static partial class SourceLoader
     /// </exception>
     public static SourceInfo Probe(InputReference input)
     {
+        return Probe(input, FileAccessPolicy.AllowAll);
+    }
+
+    /// <summary>
+    ///     Reads the facts about the file of an input that may have a fragment, reading the files it references under a
+    ///     file-access policy, and checks the fragment against the kind of the file.
+    /// </summary>
+    /// <param name="input">The input, from <see cref="InputReference.Parse(string)"/>.</param>
+    /// <param name="fileAccess">The policy that decides which referenced files may be read.</param>
+    /// <returns>The facts, as <see cref="Probe(InputReference)"/> gives them.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ViewerException">
+    ///     Thrown for the failures of <see cref="Probe(InputReference)"/>, and with code <c>file-access-denied</c> when
+    ///     the policy denies a file the probe has to read.
+    /// </exception>
+    public static SourceInfo Probe(InputReference input, FileAccessPolicy fileAccess)
+    {
         ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(fileAccess);
 
         SourceInfo info;
         try
         {
-            info = Probe(input.Path);
+            info = Probe(input.Path, fileAccess);
         }
         catch (ViewerException ex) when (ex.Code == ErrorCodes.InputNotFound && input.Fragment.Length > 0)
         {
@@ -99,9 +136,10 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes come from.</param>
     /// <param name="kind">The kind of the source, already recognized by the caller.</param>
+    /// <param name="fileAccess">The policy of the files the probe reads beside the source (the data of a chart).</param>
     /// <returns>The facts; for a document they include every page.</returns>
     /// <exception cref="ViewerException">Thrown for an unreadable or corrupt source (see <see cref="Read{T}"/>).</exception>
-    internal static SourceInfo ProbeInput(SourceInput input, SourceKind kind)
+    internal static SourceInfo ProbeInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess)
     {
         var bytes = Read(input.Name, null, () => input.Length);
         return kind switch
@@ -112,8 +150,8 @@ public static partial class SourceLoader
             SourceKind.Pdf => ProbePdf(input, bytes),
             SourceKind.Pptx => ProbePptx(input, bytes),
             SourceKind.Vsdx => ProbeVsdx(input, bytes),
-            SourceKind.Scad => ProbeScad(input, bytes),
-            SourceKind.VegaLite => ProbeVegaLite(input, bytes),
+            SourceKind.Scad => ProbeScad(input, bytes, fileAccess),
+            SourceKind.VegaLite => ProbeVegaLite(input, bytes, fileAccess),
             SourceKind.Mermaid => ProbeMermaid(input, bytes),
             _ => throw UnhandledKind(kind)
         };
@@ -143,9 +181,10 @@ public static partial class SourceLoader
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(options);
 
-        // The options are checked first, so a mistake is reported the same way whatever the file is
+        // The options are checked first, so a mistake is reported the same way whatever the file is; the probe reads the
+        // files of the source under the same policy as the load
         ValidateOptions(options);
-        return Load(Probe(path), options);
+        return Load(Probe(path, options.FileAccess), options);
     }
 
     /// <summary>
@@ -209,9 +248,10 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes come from.</param>
     /// <param name="kind">The kind of the source, already recognized by the caller.</param>
+    /// <param name="fileAccess">The policy of the files the probe reads beside the source (the data of a chart).</param>
     /// <returns>The facts and, for a PDF, presentation or drawing, the parsed document; the caller disposes it.</returns>
     /// <exception cref="ViewerException">Thrown for an unreadable or corrupt source (see <see cref="Read{T}"/>).</exception>
-    internal static OpenedSource OpenInput(SourceInput input, SourceKind kind)
+    internal static OpenedSource OpenInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess)
     {
         switch (kind)
         {
@@ -222,7 +262,7 @@ public static partial class SourceLoader
             case SourceKind.Vsdx:
                 return KeepOpen(Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input)), (d, bytes) => DescribeVsdx(input.Name, d, bytes), input);
             default:
-                return new OpenedSource(ProbeInput(input, kind), null);
+                return new OpenedSource(ProbeInput(input, kind, fileAccess), null);
         }
     }
 

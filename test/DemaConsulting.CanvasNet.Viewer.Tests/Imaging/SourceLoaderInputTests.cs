@@ -1,5 +1,6 @@
 // cspell:ignore scad
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -67,7 +68,7 @@ public class SourceLoaderInputTests
         var memory = SourceLoader.SourceInput.FromMemory(File.ReadAllBytes(path), path, directory.Path);
 
         // Act
-        var info = SourceLoader.ProbeInput(memory, SourceLoader.Probe(path).Format);
+        var info = SourceLoader.ProbeInput(memory, SourceLoader.Probe(path).Format, FileAccessPolicy.AllowAll);
         using var pages = SourceLoader.OpenInputPages(memory, info, options, SourceLoader.LoadContext.Default);
         using var fromMemory = pages.ReadPage(1);
 
@@ -94,12 +95,12 @@ public class SourceLoaderInputTests
         var png = SourceLoader.SourceInput.FromMemory(ViewerFixtures.Png(7, 5, ViewerFixtures.Green), "a.png", null);
 
         // Act
-        using (var pdfPages = SourceLoader.OpenInputPages(pdf, SourceLoader.ProbeInput(pdf, SourceKind.Pdf), new SourceOptions { Width = 100, Height = 100 }, context))
+        using (var pdfPages = SourceLoader.OpenInputPages(pdf, SourceLoader.ProbeInput(pdf, SourceKind.Pdf, FileAccessPolicy.AllowAll), new SourceOptions { Width = 100, Height = 100 }, context))
         {
             pdfPages.ReadPage(1).Dispose();
         }
 
-        using (var pngPages = SourceLoader.OpenInputPages(png, SourceLoader.ProbeInput(png, SourceKind.Png), new SourceOptions(), context))
+        using (var pngPages = SourceLoader.OpenInputPages(png, SourceLoader.ProbeInput(png, SourceKind.Png, FileAccessPolicy.AllowAll), new SourceOptions(), context))
         {
             pngPages.ReadPage(1).Dispose();
         }
@@ -119,7 +120,7 @@ public class SourceLoaderInputTests
         // Arrange: a PNG of 8192 by 8192 that is only a header, and a hook that refuses everything
         var input = SourceLoader.SourceInput.FromMemory(ViewerFixtures.PngDeclaring(Surface.MaxDimension, Surface.MaxDimension), "huge.png", null);
         var context = new SourceLoader.LoadContext { Charge = (w, h) => throw new ImageSourceBudgetException((long)w * h, 0) };
-        var info = SourceLoader.ProbeInput(input, SourceKind.Png);
+        var info = SourceLoader.ProbeInput(input, SourceKind.Png, FileAccessPolicy.AllowAll);
         using var pages = SourceLoader.OpenInputPages(input, info, new SourceOptions(), context);
 
         // Act / Assert: the refusal, not an error of decoding the missing pixels or of the size limit
@@ -137,7 +138,7 @@ public class SourceLoaderInputTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         var input = SourceLoader.SourceInput.FromMemory(ViewerFixtures.Png(4, 4, ViewerFixtures.Green), "a.png", null);
-        var info = SourceLoader.ProbeInput(input, SourceKind.Png);
+        var info = SourceLoader.ProbeInput(input, SourceKind.Png, FileAccessPolicy.AllowAll);
         using var pages = SourceLoader.OpenInputPages(input, info, new SourceOptions(), new SourceLoader.LoadContext { CancellationToken = cts.Token });
 
         // Act / Assert
@@ -156,7 +157,7 @@ public class SourceLoaderInputTests
         var input = SourceLoader.SourceInput.FromMemory(System.Text.Encoding.UTF8.GetBytes(svg), "outer.svg", null);
         var resolver = new RecordingResolver();
         var context = new SourceLoader.LoadContext { UseScopedResolver = true, ScopedResolver = resolver };
-        var info = SourceLoader.ProbeInput(input, SourceKind.Svg);
+        var info = SourceLoader.ProbeInput(input, SourceKind.Svg, FileAccessPolicy.AllowAll);
 
         // Act
         using var pages = SourceLoader.OpenInputPages(input, info, new SourceOptions { Background = new Rgba32(0, 0, 0, 0) }, context);
@@ -182,7 +183,7 @@ public class SourceLoaderInputTests
         File.WriteAllBytes(directory.Combine("a.png"), ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
         var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><image href='a.png' x='0' y='0' width='10' height='10'/></svg>";
         var input = SourceLoader.SourceInput.FromMemory(System.Text.Encoding.UTF8.GetBytes(svg), "outer.svg", directory.Path);
-        var info = SourceLoader.ProbeInput(input, SourceKind.Svg);
+        var info = SourceLoader.ProbeInput(input, SourceKind.Svg, FileAccessPolicy.AllowAll);
 
         // Act
         using var pages = SourceLoader.OpenInputPages(input, info, new SourceOptions { Background = new Rgba32(0, 0, 0, 0) }, new SourceLoader.LoadContext { UseScopedResolver = true });
@@ -202,7 +203,7 @@ public class SourceLoaderInputTests
     {
         // Arrange
         var input = SourceLoader.SourceInput.FromMemory(FixtureFactory.CreatePdf(), "a.pdf", null);
-        var info = SourceLoader.ProbeInput(input, SourceKind.Pdf);
+        var info = SourceLoader.ProbeInput(input, SourceKind.Pdf, FileAccessPolicy.AllowAll);
         var options = new SourceOptions { Width = 100, Height = 100 };
 
         // Act

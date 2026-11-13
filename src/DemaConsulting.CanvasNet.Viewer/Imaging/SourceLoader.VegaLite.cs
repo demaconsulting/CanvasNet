@@ -1,5 +1,6 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.VegaLite;
 
@@ -30,10 +31,14 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <c>size-limit</c>.
 ///     </para>
 ///     <para>
-///         <b>Pictures.</b> The <c>image</c> marks of a chart show files that lie beside it: the loader gives the library the same sandboxed resolver as it gives an SVG file
-///         (<see cref="SvgImages"/>, <see cref="CanvasNetViewer.CreateImageResolver(string, FolderImageResolverOptions?)"/>), rooted at the folder of the chart, so a <c>url</c> may name a raster, an SVG
-///         file, a model (<c>part.scad</c>), a page of a document (<c>report.pdf#page=2</c>) or another chart, and nothing outside the folder; a remote URL is never fetched. What
-///         the resolver reports becomes the notes of the result (a link that cannot be drawn is the warning <c>svg-image-unresolved</c>, and the library's own
+///         <b>Files.</b> The data files of the chart are read by the library under <see cref="SourceOptions.FileAccess"/>,
+///         relative to the folder of the chart; a data file the policy denies is the error <c>file-access-denied</c>.
+///     </para>
+///     <para>
+///         <b>Pictures.</b> The <c>image</c> marks of a chart show files relative to it: the loader gives the library the same resolver as it gives an SVG file
+///         (<see cref="SvgImages"/>, <see cref="CanvasNetViewer.CreateImageResolver(string, FolderImageResolverOptions?)"/>), based at the folder of the chart and under the same file-access policy, so a <c>url</c> may name a raster, an SVG
+///         file, a model (<c>part.scad</c>), a page of a document (<c>report.pdf#page=2</c>) or another chart; a remote URL is never fetched. What
+///         the resolver reports becomes the notes of the result (a link that cannot be drawn is the warning <c>svg-image-unresolved</c>, a denied one <c>image-access-denied</c>, and the library's own
 ///         <c>vl-mark-image-unresolved</c> for the same link is left out), the files that were drawn are <c>embed</c> operations, and with <see cref="SourceOptions.Strict"/> a link that was not
 ///         drawn is an <c>unsupported-feature</c> error, exactly as for the pictures of an SVG file. A chart that is itself embedded (<see cref="LoadContext.UseScopedResolver"/>) uses the resolver
 ///         of the embedding document and leaves the notes to it.
@@ -52,6 +57,7 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
+    /// <param name="fileAccess">The file-access policy of the files the source reads beside it.</param>
     /// <returns>
     ///     The facts about the file: the natural size of the chart, 4 channels, and the marks, data references,
     ///     parameters, title, and schema version of the specification.
@@ -60,10 +66,11 @@ public static partial class SourceLoader
     ///     Thrown with code <c>vega-lite-error</c> when the specification or the chart is not valid, <c>budget-exceeded</c>
     ///     when a limit is exceeded, and <c>size-limit</c> when the chart is larger than <see cref="Surface.MaxDimension"/>.
     /// </exception>
-    private static SourceInfo ProbeVegaLite(SourceInput input, long bytes)
+    private static SourceInfo ProbeVegaLite(SourceInput input, long bytes, FileAccessPolicy fileAccess)
     {
+        // The measure reads the data files, so it is judged by the policy of the caller like the render that follows
         var path = input.Name;
-        var document = Read(path, SourceKind.VegaLite, () => OpenVegaLite(input));
+        var document = Read(path, SourceKind.VegaLite, () => OpenVegaLite(input, fileAccess));
         var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions(), null)), path));
         var chart = new ChartFacts(
             [.. document.MarkTypes],
@@ -78,15 +85,19 @@ public static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Parses a chart from its source: the name of the source is the name of the library's messages, and the folder
-    ///     of the source is where the data files of the chart are looked up (nowhere else).
+    ///     Parses a chart from its source: the name of the source is the name of the library's messages, the folder of
+    ///     the source is where the relative data files of the chart are looked up, and the policy decides which files
+    ///     may be read.
     /// </summary>
     /// <param name="input">Where the bytes of the file come from.</param>
+    /// <param name="fileAccess">The file-access policy of the data files.</param>
     /// <returns>The parsed chart.</returns>
-    private static VegaLiteDocument OpenVegaLite(SourceInput input)
+    private static VegaLiteDocument OpenVegaLite(SourceInput input, FileAccessPolicy fileAccess)
     {
         using var stream = input.Open();
-        return VegaLiteDocument.Open(stream, new VegaLiteOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name });
+        return VegaLiteDocument.Open(
+            stream,
+            new VegaLiteOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name, FileAccess = fileAccess });
     }
 
     /// <summary>
@@ -233,9 +244,9 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="exception">The failure.</param>
     /// <returns>
-    ///     The exception to throw: <c>budget-exceeded</c> when the chart exceeded a limit of the library (rows, fields,
-    ///     ticks, scene items, and so on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property
-    ///     value, and so on).
+    ///     The exception to throw: <c>file-access-denied</c> when the file-access policy denied a data file,
+    ///     <c>budget-exceeded</c> when the chart exceeded a limit of the library (rows, fields, ticks, scene items, and so
+    ///     on), otherwise <c>vega-lite-error</c> (missing or invalid data, an invalid property value, and so on).
     /// </returns>
     /// <remarks>
     ///     The library names every limit it enforces in the message, either as <c>the limit of N</c>, as
@@ -245,6 +256,11 @@ public static partial class SourceLoader
     internal static ViewerException MapVegaLiteRender(VegaLiteRenderException exception)
     {
         var message = OneLine(exception.Message);
+        if (IsFileAccessDenial(exception))
+        {
+            return new ViewerException(ErrorCodes.FileAccessDenied, $"Vega-Lite data file denied: {message}", FileAccessDeniedHint, exception);
+        }
+
         if (!IsVegaLiteLimit(message))
         {
             return new ViewerException(ErrorCodes.VegaLiteError, $"Vega-Lite render error: {message}", null, exception);
@@ -304,7 +320,7 @@ public static partial class SourceLoader
         /// <exception cref="ViewerException">Thrown when the file cannot be read or is not a valid specification.</exception>
         public static VegaLitePageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.VegaLite, () => OpenVegaLite(input));
+            var document = Read(info.Path, SourceKind.VegaLite, () => OpenVegaLite(input, options.FileAccess));
             return new VegaLitePageSource(document, info, options, input, context);
         }
 
@@ -329,7 +345,7 @@ public static partial class SourceLoader
             var (width, height) = ComputeTargetSize(info.Path, info.Width, info.Height, Options);
 
             // The pictures of the chart's image marks: through the resolver of the embedding document when there is one, else through a resolver
-            // confined to the folder of the chart, which is where the data files of the chart are looked up too
+            // based at the folder of the chart, which is where the relative data files of the chart are looked up too
             var scoped = Context.UseScopedResolver;
             var images = scoped ? null : new SvgImages(Info.Path, Options);
             var renderOptions = CreateVegaLiteOptions(Options, notes, scoped ? Context.ScopedResolver : images!.Resolver, parameters);
@@ -514,14 +530,15 @@ public static partial class SourceLoader
     /// <param name="libraryDetail">The <see cref="ImageDiagnostic.Detail"/> of the library's warning: <c>vl-mark-image-unresolved</c> or <c>mermaid-image-unresolved</c>.</param>
     /// <returns>The notes without the library's duplicates.</returns>
     /// <remarks>
-    ///     The folder resolver says why it could not draw a link (<c>svg-image-unresolved</c> names the reason: missing file, a path outside the folder, a remote URL); the
+    ///     The folder resolver says why it could not draw a link (<c>svg-image-unresolved</c> names the reason: a missing file, a remote URL; <c>image-access-denied</c> the policy that denied it); the
     ///     library's warning only says that nothing came back. When both exist for the same link the resolver's is the one that helps the user.
     ///     A library warning for a link that the resolver did not report (a resolver that returns nothing without a note) stays.
     /// </remarks>
     private static List<ImageDiagnostic> DropDuplicateUnresolved(List<ImageDiagnostic> notes, IReadOnlyList<ImageSourceDiagnostic> reported, string libraryDetail)
     {
         var unresolvedLinks = reported
-            .Where(d => d.Code is FolderImageResolver.UnresolvedCode or FolderImageResolver.TooLargeCode or FolderImageResolver.FragmentInvalidCode or FolderImageResolver.PageOutOfRangeCode)
+            .Where(d => d.Code is FolderImageResolver.UnresolvedCode or FolderImageResolver.AccessDeniedCode or FolderImageResolver.TooLargeCode
+                or FolderImageResolver.FragmentInvalidCode or FolderImageResolver.PageOutOfRangeCode)
             .Select(d => UnresolvedMessage.Match(d.Message))
             .Where(m => m.Success)
             .Select(m => m.Groups["href"].Value)

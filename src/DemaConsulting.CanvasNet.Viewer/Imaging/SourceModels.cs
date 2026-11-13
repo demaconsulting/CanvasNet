@@ -1,6 +1,7 @@
 // cspell:ignore jpeg tiff pptx vsdx scad jpeg2000 Visio
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -506,6 +507,29 @@ public sealed record SourceOptions
     ///     Gets a value indicating whether a feature the library cannot draw is an error instead of a note.
     /// </summary>
     public bool Strict { get; init; }
+
+    /// <summary>
+    ///     Gets the policy that decides which files the source may read beside it: the pictures an SVG file or a chart
+    ///     links to, the includes of a model, the data of a chart, and the files those read in turn. The default is
+    ///     <see cref="FileAccessPolicy.AllowAll"/>: like Pandoc, any regular local file, also through <c>..</c>, an
+    ///     absolute path or a symbolic link. The source file itself is the caller's choice and is not judged. Must not
+    ///     be null.
+    /// </summary>
+    /// <remarks>
+    ///     A denied picture is the warning <c>image-access-denied</c> (with <see cref="Strict"/> the error
+    ///     <c>file-access-denied</c>); a denied include or data file is the error <c>file-access-denied</c>. To keep the
+    ///     files of a source in its folder and refuse links, use
+    ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
+
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
 
     /// <summary>
     ///     Gets the factor applied to the natural size, or <see langword="null"/> for none. When it is set it takes

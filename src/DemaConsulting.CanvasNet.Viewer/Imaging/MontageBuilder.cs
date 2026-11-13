@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -55,6 +56,20 @@ public sealed record MontageRequest(string Output)
     ///     default.
     /// </summary>
     public bool Strict { get; init; }
+
+    /// <summary>
+    ///     Gets the policy that decides which files the inputs may read beside them (pictures, includes, data);
+    ///     <see cref="FileAccessPolicy.AllowAll"/> by default. It applies to every cell. Must not be null.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
+
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
 
     /// <summary>
     ///     Gets a value indicating whether a JPEG is rotated to its EXIF orientation; <see langword="true"/> by default,
@@ -286,6 +301,7 @@ public static class MontageBuilder
         {
             Dpi = info.Format.IsDocument() ? request.Dpi : null,
             Strict = request.Strict,
+            FileAccess = request.FileAccess,
             Background = request.Sheet.Background,
             AutoOrient = request.AutoOrient,
             Filter = request.Sheet.Filter,

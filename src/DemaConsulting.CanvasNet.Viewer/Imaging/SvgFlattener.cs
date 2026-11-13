@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Svg;
 
@@ -46,9 +47,25 @@ public sealed record FlattenRequest(string Output)
 
     /// <summary>
     ///     Gets a value indicating whether a link that cannot be drawn, or a feature a linked file uses that the library
-    ///     cannot draw, is an error (<c>unsupported-feature</c>) instead of a warning; <see langword="false"/> by default.
+    ///     cannot draw, is an error (<c>unsupported-feature</c>, or <c>file-access-denied</c> for a link the file-access
+    ///     policy denied) instead of a warning; <see langword="false"/> by default.
     /// </summary>
     public bool Strict { get; init; }
+
+    /// <summary>
+    ///     Gets the policy that decides which files the links of the drawing (and the files they read in turn) may read;
+    ///     <see cref="FileAccessPolicy.AllowAll"/> by default, like <c>canvasnet render</c>. A denied link is not flattened
+    ///     and is reported as <c>image-access-denied</c>. Must not be null.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
+
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
 
     /// <summary>
     ///     Gets a value indicating whether an existing output is refused with the code <c>output-exists</c> instead of
@@ -131,7 +148,7 @@ public sealed record FlattenResult(
 ///     </para>
 ///     <para>
 ///         <b>How it is drawn.</b> The drawing is drawn once by the SVG library with the resolver of
-///         <c>canvasnet render</c> (the folder of the drawing is the sandbox; the image count, depth, cycle, fragment, and
+///         <c>canvasnet render</c> (links relative to the folder of the drawing, under <see cref="FlattenRequest.FileAccess"/>; the image count, depth, cycle, fragment, and
 ///         pixel budget limits apply), and each picture to replace is drawn at the size of its placement through every
 ///         transform and the <c>viewBox</c>, times <see cref="FlattenRequest.Scale"/>; the SVG reader then fits it per
 ///         <c>preserveAspectRatio</c> as before. A link the drawing never shows (hidden, an unused definition, outside
@@ -245,7 +262,7 @@ public static partial class SvgFlattener
         // Read the drawing, draw it once to learn which links are shown and draw each picture to replace, and apply the
         // --strict policy of render to what the resolver reported
         var document = ReadDocument(info.Path);
-        var images = new SourceLoader.SvgImages(info.Path, new SourceOptions { Strict = request.Strict });
+        var images = new SourceLoader.SvgImages(info.Path, new SourceOptions { Strict = request.Strict, FileAccess = request.FileAccess });
         var recorder = Detect(info, request, document, images);
         if (request.Strict)
         {

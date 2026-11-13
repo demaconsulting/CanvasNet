@@ -118,7 +118,8 @@ sections:
           drawing from reading other files or using unbounded memory, and the output limit bounds the copy.
         tests:
           - SvgFlattener_Execute_MissingLinkedFile_ReportsUnresolved
-          - SvgFlattener_Execute_LinkOutsideFolder_RefusedBySandbox
+          - SvgFlattener_Execute_LinkOutsideTheRoots_IsNotFlattened
+          - SvgFlattener_Execute_LinkInTheParentFolder_IsFlattenedByDefault
           - SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle
           - SvgFlattener_Execute_MoreThan64Images_ExtraLinksStayAndAreReported
           - SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing

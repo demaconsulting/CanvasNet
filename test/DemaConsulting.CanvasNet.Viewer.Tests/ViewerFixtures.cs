@@ -62,6 +62,47 @@ internal sealed class ViewerTestFolder : IDisposable
         return full;
     }
 
+    /// <summary>
+    ///     Creates a directory link inside the folder (a symbolic link, or on Windows a junction, which needs no
+    ///     privilege), or skips the test when the host can create neither.
+    /// </summary>
+    /// <param name="relativeLink">The path of the link relative to the folder.</param>
+    /// <param name="relativeTarget">The path of the existing target directory relative to the folder.</param>
+    /// <returns>The full path of the link.</returns>
+    public string CreateDirectoryLinkOrSkip(string relativeLink, string relativeTarget)
+    {
+        var link = Combine(relativeLink);
+        var target = Combine(relativeTarget);
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+            return link;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Skip("Directory links cannot be created in this environment: " + ex.Message);
+            }
+        }
+
+        // Without the privilege for symbolic links a junction can still be made on Windows
+        var info = new System.Diagnostics.ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true };
+        info.ArgumentList.Add("/c");
+        info.ArgumentList.Add("mklink");
+        info.ArgumentList.Add("/J");
+        info.ArgumentList.Add(link);
+        info.ArgumentList.Add(target);
+        using var process = System.Diagnostics.Process.Start(info);
+        process?.WaitForExit();
+        if (process is not { ExitCode: 0 } || !Directory.Exists(link))
+        {
+            Assert.Skip("Directory links cannot be created in this environment: mklink /J failed.");
+        }
+
+        return link;
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

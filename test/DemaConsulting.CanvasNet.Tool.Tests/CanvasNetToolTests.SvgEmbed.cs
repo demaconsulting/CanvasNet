@@ -14,12 +14,12 @@ public partial class CanvasNetToolTests
 {
     /// <summary>
     ///     Test that the tool, run as a real process, renders a diagram that embeds an OpenSCAD model and a Vega-Lite
-    ///     chart next to it, the example of the user guide, and refuses a reference outside the folder with a warning.
+    ///     chart next to it, the example of the user guide, and warns about a reference to a missing file outside the folder.
     /// </summary>
     [Fact]
     public void CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder()
     {
-        // Arrange: the diagram of the user guide with a model, a chart, and one reference that leaves the folder
+        // Arrange: the diagram of the user guide with a model, a chart, and one reference to a missing file outside the folder
         using var directory = new TempDirectory();
         File.Copy(FixtureFactory.FixturePath("cube.scad"), directory.Combine("part.scad"));
         File.Copy(FixtureFactory.FixturePath("baskets.vl.json"), directory.Combine("baskets.vl.json"));
@@ -37,7 +37,7 @@ public partial class CanvasNetToolTests
         // Act
         var exitCode = Runner.Run(out var render, "dotnet", _dllPath, "render", input, "-o", output, "--json");
 
-        // Assert: it succeeded, drew the chart opaque and the model over the diagram, and warned about the outside file
+        // Assert: it succeeded, drew the chart opaque and the model over the diagram, and warned about the missing file
         Assert.Equal(0, exitCode);
         using var document = JsonDocument.Parse(render);
         var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());

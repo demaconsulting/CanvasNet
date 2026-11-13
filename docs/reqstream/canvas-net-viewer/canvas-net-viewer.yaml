@@ -66,10 +66,13 @@ sections:
               - CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget
               - CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded
               - CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings
+              - CanvasNetViewer_Render_SvgParentFolderLink_IsDrawnByDefault
               - CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions
               - CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote
               - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException
-              - CanvasNetViewer_Render_PathThroughSymbolicLink_ThrowsSandboxException
+              - CanvasNetViewer_Render_PathThroughSymbolicLink_IsRenderedWhateverThePolicy
+              - CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied
+              - CanvasNetViewer_Render_FileOutsideTheFolderOption_IsRendered
 
           - id: CanvasNetViewer-CanvasNetViewer-RenderStream
             title: >-

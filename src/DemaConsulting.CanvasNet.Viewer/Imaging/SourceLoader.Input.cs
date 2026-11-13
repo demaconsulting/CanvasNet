@@ -236,7 +236,7 @@ public static partial class SourceLoader
 
         /// <summary>
         ///     Gets a value indicating whether the pictures an SVG file links to are loaded by <see cref="ScopedResolver"/>
-        ///     (the resolver of an embedding document) instead of by a resolver the loader creates itself, confined to the
+        ///     (the resolver of an embedding document) instead of by a resolver the loader creates itself, based at the
         ///     folder of the file.
         /// </summary>
         /// <remarks>

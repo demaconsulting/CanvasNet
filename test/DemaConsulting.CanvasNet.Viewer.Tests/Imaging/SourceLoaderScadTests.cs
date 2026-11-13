@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet scad openscad Minkowski minkowski polyhedron multmatrix rands Fcube
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -716,26 +717,47 @@ public class SourceLoaderScadTests
         Assert.StartsWith("SCAD include not found: ", exception.Message);
         Assert.Contains("missing.scad", exception.Message);
         Assert.Contains($"{path}:1:1", exception.Message);
-        Assert.Contains("only inside the folder of the model", exception.Hint);
+        Assert.Contains("relative to the folder of the file that names it", exception.Hint);
     }
 
     /// <summary>
-    ///     Test that a file outside the folder of the model is never read, even when it exists.
+    ///     Test that, under a policy confined to the folder of the model, a file outside it is never read, even when it
+    ///     exists, and that the denial is the error <c>file-access-denied</c> with the reason.
     /// </summary>
     [Fact]
-    public void SourceLoader_Load_IncludeOutsideTheModelFolder_ThrowsScadError()
+    public void SourceLoader_Load_IncludeOutsideTheRoots_ThrowsFileAccessDenied()
     {
         // Arrange: a model in a subfolder that includes a file next to its folder, which exists
         using var directory = new TempDirectory();
         FixtureFactory.WriteText(directory.Path, "outside.scad", "module secret() { cube(1); }\n");
         var path = FixtureFactory.WriteText(directory.Path, "model/model.scad", "include <../outside.scad>\nsecret();\n");
+        var options = new SourceOptions { Width = 64, Height = 64, FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("model")) };
 
         // Act
-        var exception = Assert.Throws<ViewerException>(() => Load(path));
+        var exception = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, options));
 
-        // Assert: refused with the reason
-        Assert.Equal(ErrorCodes.ScadError, exception.Code);
-        Assert.Contains("is outside the allowed directories", exception.Message);
+        // Assert: refused with the reason and a hint
+        Assert.Equal(ErrorCodes.FileAccessDenied, exception.Code);
+        Assert.Contains("denied by the file-access policy 'roots'", exception.Message);
+        Assert.NotNull(exception.Hint);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a file outside the folder of the model is read, like OpenSCAD reads it.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_IncludeOutsideTheModelFolder_IsReadByDefault()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(directory.Path, "outside.scad", "module secret() { cube(1); }\n");
+        var path = FixtureFactory.WriteText(directory.Path, "model/model.scad", "include <../outside.scad>\nsecret();\n");
+
+        // Act
+        using var loaded = Load(path, strict: true);
+
+        // Assert
+        Assert.True(CountCovered(loaded.Surface) > 0);
     }
 
     /// <summary>

@@ -53,7 +53,9 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///     <para>
 ///         <b>Rendering.</b> The methods <see cref="Render(string, ViewerRenderOptions?)"/> and
 ///         <see cref="Render(Stream, string, ViewerRenderOptions?)"/> draw one file with the same sources, the same
-///         folder sandbox and the same limits as embedding does. The class is static and stateless: the shared source
+///         file-access policy (<see cref="ViewerRenderOptions.FileAccess"/>) and the same limits as embedding does. The
+///         file passed to <c>Render</c> is the caller's choice and is never judged by the policy; every file it
+///         references is, at every level. The class is static and stateless: the shared source
 ///         instances are stateless and thread-safe, and every call builds its own resolver, so the methods are safe to
 ///         call concurrently.
 ///     </para>
@@ -118,8 +120,9 @@ public static class CanvasNetViewer
     ///     Creates a resolver that embeds every built-in format from a folder.
     /// </summary>
     /// <param name="folder">
-    ///     The folder the links are confined to, normally the folder of the document that is rendered. Must not be null,
-    ///     empty or only white space; it may be relative.
+    ///     The folder relative links are resolved against, normally the folder of the document that is rendered (the
+    ///     base, not a boundary: <see cref="FolderImageResolverOptions.FileAccess"/> decides which files may be read).
+    ///     Must not be null, empty or only white space; it may be relative.
     /// </param>
     /// <param name="options">The limits and switches, or <see langword="null"/> for the defaults.</param>
     /// <returns>
@@ -144,7 +147,7 @@ public static class CanvasNetViewer
     ///     builds its own resolver from the built-in sources plus <see cref="ViewerRenderOptions.ExtraSources"/>, so pass
     ///     your sources there instead. The precedence is the same in both: a later source wins.
     /// </remarks>
-    /// <param name="folder">The folder the links are confined to. Must not be null, empty or only white space.</param>
+    /// <param name="folder">The folder relative links are resolved against. Must not be null, empty or only white space.</param>
     /// <param name="extraSources">
     ///     Your own sources. They are placed <b>after</b> the built-in ones, so one that claims the same extension or URI
     ///     scheme as a built-in source (or as an earlier extra source) wins. Must not be null.
@@ -178,8 +181,10 @@ public static class CanvasNetViewer
     ///     The picture with its notes, text, format and embedded images; the caller disposes it. It writes no file; to
     ///     save the picture with a format or quality use <c>ImageWriter.Write</c> of the
     ///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace. A document that embeds
-    ///     other files (an SVG file, a model with includes) finds them in the sandbox folder
-    ///     (<see cref="ViewerRenderOptions.Folder"/>, by default the folder of the file).
+    ///     other files (an SVG file, a model with includes) finds them relative to its folder (the links of the file
+    ///     itself relative to <see cref="ViewerRenderOptions.Folder"/>, by default the folder of the file), under
+    ///     <see cref="ViewerRenderOptions.FileAccess"/>. The file itself may lie anywhere, also outside the folder and
+    ///     behind a link: it is the caller's choice and is not judged by the policy.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -191,18 +196,18 @@ public static class CanvasNetViewer
     ///     outside the limit, a triangle limit below 1, a definition the library rejects), or when
     ///     <see cref="ViewerRenderOptions.VegaLite"/> is not usable (a parameter value that the library rejects).
     /// </exception>
-    /// <exception cref="ArgumentException">Thrown when the file is not inside <see cref="ViewerRenderOptions.Folder"/>.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     /// <exception cref="NotSupportedException">Thrown when no source claims the extension; the message lists the extensions.</exception>
-    /// <exception cref="DemaConsulting.CanvasNet.Files.SandboxException">
-    ///     Thrown when the sandbox refuses the file: it is, or is reached through, a symbolic link, or is larger than 16 MiB.
+    /// <exception cref="DemaConsulting.CanvasNet.Files.FileReferenceException">
+    ///     Thrown when the file is not a regular file, is larger than 16 MiB, or cannot be read.
     /// </exception>
     /// <exception cref="ViewerException">
     ///     Thrown, with the code <c>page-out-of-range</c>, when <see cref="ViewerRenderOptions.Page"/> is not a page of the
     ///     file (a single-image file has only page 1); and with the code of the failure (<c>size-limit</c>,
     ///     <c>usage-error</c>, <c>scad-error</c> for a model whose include is missing) for a mistake or limit of the
     ///     built-in sources that has no library exception behind it; with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>,
-    ///     with the code <c>unsupported-feature</c> for a link of an SVG file that is not drawn.
+    ///     with the code <c>unsupported-feature</c> for a link of an SVG file that is not drawn, and <c>file-access-denied</c>
+    ///     for one the file-access policy denied.
     /// </exception>
     /// <exception cref="ImageSourceException">Thrown when the file is found but cannot be drawn (the original failure is the inner exception).</exception>
     /// <exception cref="ImageSourceBudgetException">
@@ -216,23 +221,15 @@ public static class CanvasNetViewer
         var settings = options ?? new ViewerRenderOptions();
         ValidateOptions(settings);
 
-        // The file is addressed relative to the sandbox folder, so it goes through the same checks as an embedded link
+        // The file is the caller's choice: it is read wherever it lies, through the same engine (size limit, regular
+        // file), and only the files it references are judged by the policy, from its own folder
         var fullPath = Path.GetFullPath(path);
         var folder = settings.Folder is null
             ? Path.GetDirectoryName(fullPath) ?? Path.GetPathRoot(fullPath) ?? fullPath
             : Path.GetFullPath(settings.Folder);
-        var relative = Path.GetRelativePath(folder, fullPath);
-        if (Path.IsPathRooted(relative)
-            || relative == ".."
-            || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-            || relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
-        {
-            throw new ArgumentException($"The file '{path}' is not inside the folder '{folder}'.", nameof(path));
-        }
-
         var resolver = CreateResolver(folder, settings);
         var direct = CreateDirectOptions(settings);
-        var result = RenderDirect(() => resolver.Render(relative, settings.Width, settings.Height, direct));
+        var result = RenderDirect(() => resolver.Render(fullPath, settings.Width, settings.Height, direct));
         return CreateImage(resolver, result, settings, direct, Path.GetFileName(fullPath));
     }
 
@@ -243,7 +240,8 @@ public static class CanvasNetViewer
     /// <param name="fileName">The name of the file; its extension chooses the source and it names the file in messages.</param>
     /// <param name="options">
     ///     What to render and how, or <see langword="null"/> for the natural size. <see cref="ViewerRenderOptions.Folder"/>
-    ///     (optional) is the sandbox for the files the document itself includes or embeds; without it none are resolved.
+    ///     (optional) is the base of the files the document itself includes or embeds, read under
+    ///     <see cref="ViewerRenderOptions.FileAccess"/>; without it none are resolved.
     /// </param>
     /// <returns>The picture with its notes, text, format, page and embedded images; the caller disposes it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
@@ -323,7 +321,7 @@ public static class CanvasNetViewer
     /// <summary>
     ///     Creates the resolver of one render: the built-in sources, then the extra ones.
     /// </summary>
-    /// <param name="folder">The sandbox folder, or <see langword="null"/> for none.</param>
+    /// <param name="folder">The base folder of the links, or <see langword="null"/> for none.</param>
     /// <param name="settings">The render options.</param>
     /// <returns>A new resolver.</returns>
     private static FolderImageResolver CreateResolver(string? folder, ViewerRenderOptions settings)
@@ -331,7 +329,8 @@ public static class CanvasNetViewer
         var limits = new FolderImageResolverOptions
         {
             ThrowOnUnsupportedFeature = settings.ThrowOnUnsupportedFeature,
-            CancellationToken = settings.CancellationToken
+            CancellationToken = settings.CancellationToken,
+            FileAccess = settings.FileAccess
         };
 
         // Null keeps the resolver default; a value lets a direct render of one large image raise the cap

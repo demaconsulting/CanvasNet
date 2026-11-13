@@ -354,4 +354,6 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-MermaidImages
         tests:
           - SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations
-          - SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused
+          - SourceLoader_Load_MermaidPictureUnresolvable_IsRefused
+          - SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails
+          - SourceLoader_Load_MermaidPictureInTheParentFolder_IsDrawnByDefault

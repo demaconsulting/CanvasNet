@@ -117,7 +117,8 @@ sections:
           - SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque
           - SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation
           - SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers
-          - SourceLoader_Load_SvgEmbeddingSymbolicLink_IsUnresolvedWarning
+          - SourceLoader_Load_SvgEmbeddingSymbolicLink_NoSymlinks_IsAccessDeniedWarning
+          - SourceLoader_Load_SvgEmbeddingSymbolicLink_Default_IsDrawn
           - SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho
           - SourceLoader_Load_SvgEmbeddingOuterOptions_DoNotReachEmbeddedFiles
 
@@ -135,6 +136,8 @@ sections:
           gap.
         tests:
           - SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning
+          - SourceLoader_Load_SvgEmbeddingParentReference_UnderRoots_IsAccessDeniedWarning
+          - SourceLoader_Load_SvgEmbeddingParentReference_Default_IsDrawn
           - SourceLoader_Load_SvgEmbeddingMissingAndUnknownFiles_AreWarnings
           - SourceLoader_Load_SvgEmbeddingStrict_UnresolvedAndUnsupportedAreErrors
           - SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError
@@ -337,7 +340,8 @@ sections:
           - SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow
           - SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile
           - SourceLoader_Load_MissingInclude_ThrowsScadError
-          - SourceLoader_Load_IncludeOutsideTheModelFolder_ThrowsScadError
+          - SourceLoader_Load_IncludeOutsideTheRoots_ThrowsFileAccessDenied
+          - SourceLoader_Load_IncludeOutsideTheModelFolder_IsReadByDefault
           - SourceLoader_Load_IncludeCycleAndBrokenInclude_ThrowScadError
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ScadErrors
@@ -438,6 +442,8 @@ sections:
         tests:
           - SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder
           - SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError
+          - SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied
+          - SourceLoader_Load_VegaLiteDataInTheParentFolder_IsReadByDefault
           - SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded
 
       - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
@@ -778,6 +784,8 @@ sections:
           - SourceLoader_Load_VegaLiteImageNestedChart_ResolvesFromItsFolder
           - SourceLoader_Load_VegaLiteImageSelfCycle_IsUnresolved
           - SourceLoader_Load_VegaLiteImageUnresolvedLink_IsOneWarningAndNothingIsDrawn
+          - SourceLoader_Load_VegaLiteImageOutsideTheRoots_IsOneAccessDeniedWarning
+          - SourceLoader_Load_VegaLiteImageInTheParentFolder_IsDrawnByDefault
           - SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError
           - SourceLoader_Load_VegaLiteImagePageOutOfRange_IsWarningThenStrictError
           - SourceLoader_Load_VegaLiteImageBrokenFile_FailsWithItsCodeNamingBothFiles
@@ -808,7 +816,9 @@ sections:
           - SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations
           - SourceLoader_Load_MermaidPngPicture_FillsItsBox
           - SourceLoader_Load_MermaidSelfCycle_IsUnresolved
-          - SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused
+          - SourceLoader_Load_MermaidPictureUnresolvable_IsRefused
+          - SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails
+          - SourceLoader_Load_MermaidPictureInTheParentFolder_IsDrawnByDefault
           - SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles
           - SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture
           - SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize
