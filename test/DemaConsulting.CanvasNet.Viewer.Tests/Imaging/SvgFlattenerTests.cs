@@ -606,16 +606,19 @@ public class SvgFlattenerTests
             directory.Path,
             "sub/a.svg",
             "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><image href='../flow.mmd' width='40' height='40'/></svg>");
-        var request = new FlattenRequest(directory.Combine("sub", "b.svg")) { FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("sub")) };
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("sub"));
+        var request = new FlattenRequest(directory.Combine("sub", "b.svg")) { FileAccess = policy };
 
         // Act
-        var result = SvgFlattener.Execute(SourceLoader.Probe(input), request);
+        var result = SvgFlattener.Execute(SourceLoader.Probe(input, policy), request);
+        var mismatched = Assert.Throws<ViewerException>(() => SvgFlattener.Execute(SourceLoader.Probe(input), request));
 
         // Assert
         Assert.False(result.Flattened);
         var note = Assert.Single(result.Diagnostics);
         Assert.Equal(FolderImageResolver.AccessDeniedCode, note.Code);
         Assert.Contains("'../flow.mmd'", note.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.UsageError, mismatched.Code);
     }
 
     /// <summary>

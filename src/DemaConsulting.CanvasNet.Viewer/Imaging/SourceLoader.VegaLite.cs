@@ -71,7 +71,7 @@ public static partial class SourceLoader
         // The measure reads the data files, so it is judged by the policy of the caller like the render that follows
         var path = input.Name;
         var document = Read(path, SourceKind.VegaLite, () => OpenVegaLite(input, fileAccess));
-        var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions(), null)), path));
+        var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions { FileAccess = fileAccess }, null)), path));
         var chart = new ChartFacts(
             [.. document.MarkTypes],
             [.. document.DataReferences.Select(r => new ChartDataReference(r.Kind.ToString().ToLowerInvariant(), r.Url, r.RowCount, r.Location.Line))],

@@ -740,6 +740,67 @@ public class SourceLoaderVegaLiteTests
     }
 
     /// <summary>
+    ///     Test, through the public APIs, that a chart whose data file lies outside the roots never has that file opened
+    ///     under the policy: probing with the policy, loading with it, and rendering with the viewer all fail with the
+    ///     denial before the open (the denial carries no real path, which is set only once a file is open, and on
+    ///     Windows the data file is held without sharing, so any open would fail differently), and facts probed under
+    ///     another policy are refused with <c>usage-error</c> instead of being loaded with this one.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_VegaLiteDataOutsideTheRoots_IsNeverOpenedUnderThePolicy()
+    {
+        // Arrange: the facts of the default probe are taken first, while the data file can still be read
+        using var directory = new TempDirectory();
+        var chart = FixtureFactory.WriteText(
+            directory.Path,
+            "charts/outside.vl.json",
+            FixtureFactory.TwoBarFileChart.Replace("bars.csv", "../secret.csv", StringComparison.Ordinal));
+        var secret = FixtureFactory.WriteText(directory.Path, "secret.csv", FixtureFactory.TwoBarCsv);
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("charts"));
+        var probedUnderDefault = SourceLoader.Probe(chart);
+        using var held = OperatingSystem.IsWindows() ? new FileStream(secret, FileMode.Open, FileAccess.Read, FileShare.None) : null;
+
+        // Act
+        var probe = Assert.Throws<ViewerException>(() => SourceLoader.Probe(chart, policy));
+        var load = Assert.Throws<ViewerException>(() => SourceLoader.Load(chart, new SourceOptions { FileAccess = policy }));
+        var render = Assert.ThrowsAny<Exception>(() => CanvasNetViewer.Render(chart, new ViewerRenderOptions { FileAccess = policy }));
+        var mismatched = Assert.Throws<ViewerException>(() => SourceLoader.Load(probedUnderDefault, new SourceOptions { FileAccess = policy }));
+
+        // Assert
+        Assert.Equal(ErrorCodes.FileAccessDenied, probe.Code);
+        Assert.Equal(ErrorCodes.FileAccessDenied, load.Code);
+        foreach (var error in new Exception[] { probe, load, render })
+        {
+            var denial = FindDenial(error);
+            Assert.NotNull(denial);
+            Assert.Equal(FileReferenceFailureKind.AccessDenied, denial.Kind);
+            Assert.Null(denial.RealPath);
+        }
+
+        Assert.Equal(ErrorCodes.UsageError, mismatched.Code);
+        Assert.Same(FileAccessPolicy.AllowAll, probedUnderDefault.FileAccess);
+        Assert.Same(policy, SourceLoader.Probe(FixtureFactory.WriteText(directory.Path, "charts/inline.vl.json", FixtureFactory.TwoBarChart), policy).FileAccess);
+    }
+
+    /// <summary>
+    ///     Finds the file-access denial in the chain of inner exceptions.
+    /// </summary>
+    /// <param name="exception">The outermost exception.</param>
+    /// <returns>The denial, or <see langword="null"/>.</returns>
+    private static FileReferenceException? FindDenial(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is FileReferenceException denial)
+            {
+                return denial;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Test that, under the default policy, a data file beside the folder of the specification is read.
     /// </summary>
     [Fact]

@@ -319,6 +319,20 @@ public sealed record SourceInfo(
     public InputSelection? Selection { get; init; }
 
     /// <summary>
+    ///     Gets the file-access policy the probe read the files the source references under (the data files a chart is
+    ///     measured with); <see cref="FileAccessPolicy.AllowAll"/> for <see cref="SourceLoader.Probe(string)"/> and
+    ///     <see cref="SourceLoader.Probe(InputReference)"/>.
+    /// </summary>
+    /// <remarks>
+    ///     A probe may already read referenced files, and a stricter policy given to a later operation cannot undo that
+    ///     read. So every operation that is given these facts and a policy (<see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/>,
+    ///     <see cref="SourceLoader.OpenPages"/>, <see cref="ImageRenderer"/>, <see cref="ImageInspector"/>,
+    ///     <see cref="ImageComparer"/>, <see cref="MontageBuilder"/>, <see cref="SvgFlattener"/>) refuses with
+    ///     <c>usage-error</c> unless its policy is this very instance: probe with the policy you will render with.
+    /// </remarks>
+    public FileAccessPolicy FileAccess { get; init; } = FileAccessPolicy.AllowAll;
+
+    /// <summary>
     ///     Gets the input as the user wrote it: the <see cref="Path"/>, and <c>#</c> and the fragment when the input had one.
     ///     It is what a label or a message uses to tell two inputs of one file apart.
     /// </summary>
