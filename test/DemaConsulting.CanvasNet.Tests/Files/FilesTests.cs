@@ -149,8 +149,9 @@ public partial class FilesTests
     }
 
     /// <summary>
-    ///     Validates that network and device references, a directory, and (on Linux and macOS) a device reached by an
-    ///     absolute path are refused even under the default policy.
+    ///     Validates that network and device references, a directory, (on Linux and macOS) a device reached by an
+    ///     absolute path, and (on Windows) a legacy device name and a local path whose opened file lies on a network
+    ///     share are refused even under the default policy.
     /// </summary>
     [Fact]
     public void Files_AlwaysRefused_NetworkDeviceAndNonRegularReferences_AreRefusedUnderAllowAll()
@@ -177,6 +178,85 @@ public partial class FilesTests
         {
             Assert.Equal(FileReferenceFailureKind.NotARegularFile, Assert.Throws<FileReferenceException>(() => resolver.Resolve("/dev/zero")).Kind);
         }
+        else
+        {
+            // A legacy device name, and a local path whose opened file lies on a network share (a link to a UNC target)
+            directory.Write("a.txt", "a");
+            var linkedToShare = new FileReferenceResolver(
+                new FileReferenceOptions { BaseDirectory = directory.Path },
+                Ct,
+                new FileOpenHooks { RealPathOf = _ => @"\\server\share\a.txt" });
+            Assert.Equal(FileReferenceFailureKind.InvalidPath, Assert.Throws<FileReferenceException>(() => resolver.Resolve("folder/NUL")).Kind);
+            Assert.Equal(FileReferenceFailureKind.NetworkPath, Assert.Throws<FileReferenceException>(() => linkedToShare.Resolve("a.txt")).Kind);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a reference resolver with a resolver callback hands the callback only normalized logical paths
+    ///     (a nested reference included), never asks the policy, turns a failing callback into a read failure, and lets
+    ///     a cancellation pass through.
+    /// </summary>
+    [Fact]
+    public void Files_ResolverCallback_ReferenceResolverUsesOnlyTheCallbackAndReportsItsFailure()
+    {
+        // Arrange
+        var files = new SandboxVirtualFiles().With("dir/main.txt", "main").With("dir/x.txt", "x");
+        var policy = FileAccessPolicy.FromDelegate("never", _ => throw new InvalidOperationException("The policy must not be asked."));
+        var resolver = new FileReferenceResolver(new FileReferenceOptions { FileResolver = files.Resolve, FileAccess = policy }, Ct);
+        var failing = new FileReferenceResolver(new FileReferenceOptions { FileResolver = _ => throw new IOException("broken") }, Ct);
+        var canceling = new FileReferenceResolver(
+            new FileReferenceOptions { FileResolver = _ => throw new OperationCanceledException() }, Ct);
+
+        // Act
+        var main = resolver.Resolve("dir\\main.txt");
+        var nested = resolver.Resolve("./x.txt", main);
+        var broken = Assert.Throws<FileReferenceException>(() => failing.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal("x", Encoding.UTF8.GetString(nested!.Content.Span));
+        Assert.Equal(["dir/main.txt", "dir/x.txt"], files.Requests);
+        Assert.Equal(FileReferenceFailureKind.CannotRead, broken.Kind);
+        Assert.Throws<OperationCanceledException>(() => canceling.Resolve("a.txt"));
+    }
+
+    /// <summary>
+    ///     Validates for the reference resolver and the sandbox that, with a file limit of one, the first file is read
+    ///     and a second file is refused before it is opened.
+    /// </summary>
+    [Fact]
+    public void Files_BoundedReading_FileLimit_RefusesTheExtraFileBeforeItIsOpened()
+    {
+        // Arrange: both resolvers record every file they are about to open
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        directory.Write("b.txt", "b");
+        var engineOpened = new List<string>();
+        var sandboxOpened = new List<string>();
+        var engine = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = directory.Path, MaxFiles = 1 },
+            Ct,
+            new FileOpenHooks { BeforeOpen = engineOpened.Add });
+        var sandbox = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Path, MaxFiles = 1 },
+            Ct,
+            null,
+            null,
+            new FileOpenHooks { BeforeOpen = sandboxOpened.Add });
+
+        // Act
+        var engineFirst = engine.Resolve("a.txt");
+        var engineSecond = Assert.Throws<FileReferenceException>(() => engine.Resolve("b.txt"));
+        var sandboxFirst = sandbox.Resolve("a.txt");
+        var sandboxSecond = Assert.Throws<SandboxException>(() => sandbox.Resolve("b.txt"));
+
+        // Assert
+        var a = Path.GetFullPath(directory.Combine("a.txt"));
+        Assert.Equal("a", Encoding.UTF8.GetString(engineFirst!.Content.Span));
+        Assert.Equal(FileReferenceFailureKind.TooManyFiles, engineSecond.Kind);
+        Assert.Equal([a], engineOpened);
+        Assert.Equal("a", Encoding.UTF8.GetString(sandboxFirst!.Content.Span));
+        Assert.Equal(SandboxFailureKind.TooManyFiles, sandboxSecond.Kind);
+        Assert.Equal([a], sandboxOpened);
     }
 
     /// <summary>

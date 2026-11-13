@@ -17,6 +17,48 @@ internal static class FileTestSupport
     /// <summary>The reason given when a test needs a Linux or macOS capability on another system.</summary>
     public const string UnixOnly = "This scenario exists only on Linux and macOS.";
 
+    /// <summary>The reason given when a permission test runs where permissions are not enforced (as root).</summary>
+    public const string PermissionsNotEnforced = "Folder permissions are not enforced for this user (running as root).";
+
+    /// <summary>
+    ///     Makes a folder execute-only for its owner (mode 0100: it may be searched but not listed) on Linux and macOS.
+    /// </summary>
+    /// <param name="path">The full path of the folder.</param>
+    /// <returns>
+    ///     <see langword="true"/> when listing the folder is now refused; <see langword="false"/> on Windows or where
+    ///     permissions are not enforced (a process running as root).
+    /// </returns>
+    public static bool TryMakeExecuteOnly(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        File.SetUnixFileMode(path, UnixFileMode.UserExecute);
+        try
+        {
+            _ = Directory.EnumerateFileSystemEntries(path).Any();
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>
+    ///     Gives the owner full access to a folder again (mode 0700) on Linux and macOS, so it can be deleted.
+    /// </summary>
+    /// <param name="path">The full path of the folder.</param>
+    public static void RestoreOwnerAccess(string path)
+    {
+        if (!OperatingSystem.IsWindows() && Directory.Exists(path))
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
     /// <summary>
     ///     Removes a directory link (a symbolic link or a junction) without touching its target.
     /// </summary>

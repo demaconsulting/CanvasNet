@@ -694,9 +694,9 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
-    ///     Validates what the policy is asked (reference, referrer, base directory, requested and real path) and that a
-    ///     denial is reported with the reason, the hint, the policy name and the paths, without a host directory in its
-    ///     message.
+    ///     Validates what the policy is asked (reference, referrer, base directory - the host-chosen directory the chain
+    ///     started from, also for a nested reference - requested and real path) and that a denial is reported with the
+    ///     reason, the hint, the policy name and the paths, without a host directory in its message.
     /// </summary>
     [Fact]
     public void FileReferenceResolver_Resolve_PolicyDenial_IsAccessDeniedWithFactsAndNothingRead()
@@ -726,7 +726,7 @@ public class FileReferenceResolverTests
         var request = policy.Requests[1];
         Assert.Equal("../x.txt", request.Reference);
         Assert.Equal(main!.Key, request.Referrer);
-        Assert.Equal(Path.GetFullPath(directory.Combine("base/sub")), request.BaseDirectory);
+        Assert.Equal(Path.GetFullPath(directory.Combine("base")), request.BaseDirectory);
         Assert.Equal(Path.GetFullPath(directory.Combine("base/x.txt")), request.RequestedPath);
         Assert.True(RealPath.PathsEqual(Path.Join(FileTestSupport.Canonical(directory.Combine("base")), "x.txt"), request.RealPath));
 
@@ -904,6 +904,155 @@ public class FileReferenceResolverTests
         // Act / Assert
         Assert.Throws<ArgumentException>(() => onDisk.Resolve("a.txt", logicalFile));
         Assert.Throws<ArgumentException>(() => viaCallback.Resolve("a.txt", diskFile));
+    }
+
+    /// <summary>
+    ///     Validates that a file returned by another resolver - even one over the same tree that has read the same file -
+    ///     cannot be the starting point of a reference, because its origin is another resolver's trust.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_RelativeToFromAnotherResolver_ThrowsArgumentException()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        directory.Write("b.txt", "b");
+        var first = Create(new FileReferenceOptions { BaseDirectory = directory.Path });
+        var second = Create(new FileReferenceOptions { BaseDirectory = directory.Path });
+        var fromFirst = first.Resolve("a.txt");
+        var fromSecond = second.Resolve("a.txt");
+
+        // Act
+        var ex = Assert.Throws<ArgumentException>(() => second.Resolve("b.txt", fromFirst));
+
+        // Assert: refused for the foreign file, while the resolver's own file is accepted
+        Assert.Equal("relativeTo", ex.ParamName);
+        Assert.Equal("b", Text(second.Resolve("b.txt", fromSecond)));
+    }
+
+    /// <summary>
+    ///     Validates that the base directory of every request is the host-chosen directory the chain started from: the
+    ///     search path the first file was found under, also for a reference relative to that file.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_NestedReference_RequestBaseDirectoryIsTheChainOrigin()
+    {
+        // Arrange: the main file is only on the search path; the part lies next to it
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("base"));
+        directory.Write("lib/x/main.txt", "main");
+        directory.Write("lib/x/part.txt", "part");
+        var policy = RecordingPolicy.AllowingAll();
+        var resolver = Create(new FileReferenceOptions
+        {
+            BaseDirectory = directory.Combine("base"),
+            SearchPaths = [directory.Combine("lib")],
+            FileAccess = policy,
+        });
+
+        // Act
+        var main = resolver.Resolve("x/main.txt");
+        var part = resolver.Resolve("part.txt", main);
+
+        // Assert
+        var origin = Path.GetFullPath(directory.Combine("lib"));
+        Assert.Equal("part", Text(part));
+        Assert.Equal(2, policy.Requests.Count);
+        Assert.Equal(origin, policy.Requests[0].BaseDirectory);
+        Assert.Equal(origin, policy.Requests[1].BaseDirectory);
+        Assert.Equal(main!.Key, policy.Requests[1].Referrer);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a local path whose opened file lies on a network share (a link to a UNC target,
+    ///     injected through the real-path seam) is refused as a network path under every policy, without a host
+    ///     directory in its message, and that the refusal is remembered without opening the file again.
+    /// </summary>
+    /// <param name="policyName">The policy: <c>any</c>, <c>no-symlinks</c> or <c>roots</c>.</param>
+    [Theory]
+    [InlineData("any")]
+    [InlineData("no-symlinks")]
+    [InlineData("roots")]
+    public void FileReferenceResolver_Resolve_LocalPathWhoseRealPathIsANetworkShare_IsNetworkPathUnderEveryPolicy(string policyName)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        const string share = @"\\server\share\a.txt";
+        var policy = policyName switch
+        {
+            "no-symlinks" => FileAccessPolicy.NoSymlinks,
+            "roots" => FileAccessPolicy.UnderRoots(directory.Path),
+            _ => FileAccessPolicy.AllowAll,
+        };
+        var opened = new List<string>();
+        var resolver = Create(
+            new FileReferenceOptions { BaseDirectory = directory.Path, FileAccess = policy },
+            new FileOpenHooks { BeforeOpen = opened.Add, RealPathOf = _ => share });
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+        var again = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.NetworkPath, ex.Kind);
+        Assert.Equal(share, ex.RealPath);
+        Assert.Equal("it leads to a network location", ex.Reason);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(FileReferenceFailureKind.NetworkPath, again.Kind);
+        Assert.Single(opened);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a reference the system maps to a device (a legacy device name such as <c>NUL</c> in
+    ///     a component) is refused as an invalid path before anything is opened, and that a name the system version does
+    ///     not map stays an ordinary (missing) file; no device is ever opened.
+    /// </summary>
+    /// <param name="reference">The reference.</param>
+    [Theory]
+    [InlineData("x/NUL")]
+    [InlineData("NUL")]
+    [InlineData("x/NUL ")]
+    [InlineData("x/CON")]
+    [InlineData("x/COM1")]
+    [InlineData("x/LPT1")]
+    public void FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened(string reference)
+    {
+        // Arrange: whether this Windows version maps the name to a device decides the expected outcome
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var opened = new List<string>();
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Path }, Recording(opened));
+        var mapsToDevice = Path.GetFullPath(reference, directory.Path).StartsWith(@"\\.\", StringComparison.Ordinal);
+
+        // Act
+        var outcome = Record.Exception(() => Assert.Null(resolver.Resolve(reference)));
+        var nul = Assert.Throws<FileReferenceException>(() => resolver.Resolve("x/NUL"));
+
+        // Assert: a mapped name is refused before the open; an unmapped one is an ordinary missing file
+        if (mapsToDevice)
+        {
+            var ex = Assert.IsType<FileReferenceException>(outcome);
+            Assert.Equal(FileReferenceFailureKind.InvalidPath, ex.Kind);
+            Assert.Equal("the path names a device", ex.Reason);
+            Assert.Empty(opened);
+        }
+        else
+        {
+            Assert.Null(outcome);
+        }
+
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, nul.Kind);
+        Assert.DoesNotContain(opened, path => path.StartsWith(@"\\.\", StringComparison.Ordinal));
     }
 
     /// <summary>

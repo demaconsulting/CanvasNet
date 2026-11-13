@@ -246,6 +246,66 @@ public class RealPathTests
     }
 
     /// <summary>
+    ///     Validates on Linux and macOS that a folder the process may search but not read (execute-only) still has a
+    ///     real location, the same one it has while it is readable. Skips when permissions are not enforced (root).
+    /// </summary>
+    [Fact]
+    public void RealPath_TryGetCanonicalDirectory_ExecuteOnlyDirectory_ReturnsItsLocation()
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.UnixOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var folder = Path.GetFullPath(directory.Combine("search-only"));
+        Directory.CreateDirectory(folder);
+        var readable = FileTestSupport.Canonical(folder);
+        try
+        {
+            if (!FileTestSupport.TryMakeExecuteOnly(folder))
+            {
+                Assert.Skip(FileTestSupport.PermissionsNotEnforced);
+            }
+
+            // Act
+            var canonical = RealPath.TryGetCanonicalDirectory(folder);
+
+            // Assert
+            Assert.NotNull(canonical);
+            Assert.True(RealPath.PathsEqual(readable, canonical), $"expected '{readable}', got '{canonical}'");
+        }
+        finally
+        {
+            FileTestSupport.RestoreOwnerAccess(folder);
+        }
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a UNC path is a network location, while a local path and the device namespaces are
+    ///     not. A mapped network drive cannot be created on CI and is not covered here.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsNetworkLocation_UncAndLocalPaths_AreClassified()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var local = Path.GetFullPath(directory.Write("a.txt", "a"));
+
+        // Act / Assert
+        Assert.True(RealPath.IsNetworkLocation(@"\\server\share\x"));
+        Assert.False(RealPath.IsNetworkLocation(local));
+        Assert.False(RealPath.IsNetworkLocation(@"\\?\C:\x"));
+        Assert.False(RealPath.IsNetworkLocation(@"\\.\NUL"));
+    }
+
+    /// <summary>
     ///     Validates the comparison rules: a folder contains itself and what lies below its separator but not a sibling
     ///     that shares its name as a prefix, trailing separators do not matter, and the deepest shared folder is found by
     ///     whole components.

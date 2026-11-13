@@ -5,8 +5,9 @@ namespace DemaConsulting.CanvasNet.Tests.Files;
 
 /// <summary>
 ///     Unit tests that prove the check of <see cref="FileReferenceResolver"/> is free of races: the decision is made
-///     about the file the open handle refers to, not about whatever the name refers to later. The file system is changed
-///     inside the seam that runs between the open and the check, so every test is deterministic and asserts outcomes,
+///     about the file the open handle refers to, not about whatever the name refers to later, and a referring document's
+///     folder never becomes a trusted starting point. The file system is changed inside the seams around the open, so
+///     every test is deterministic and asserts outcomes,
 ///     never time. The swaps use directory links (a junction on Windows, which needs no privilege) and moves and deletes
 ///     that Windows allows while a file is open with delete sharing, so the tests run on every system.
 /// </summary>
@@ -148,6 +149,47 @@ public class FileReferenceResolverRaceTests
         // Assert
         Assert.Equal(reported, Assert.Single(policy.Requests).RealPath);
         Assert.Equal(reported, file!.RealPath);
+    }
+
+    /// <summary>
+    ///     Validates under the no-symlinks policy that a referring document's folder swapped for a link to an outside
+    ///     folder after the document was read does not become a trusted starting point: the nested reference is denied,
+    ///     because the check is anchored at the host-chosen base directory the chain started from.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_ReferrerFolderSwappedForLinkAfterItWasRead_IsAccessDeniedUnderNoSymlinks()
+    {
+        // Arrange: the document is read from base/sub; just before the referenced open, base/sub becomes a link outside
+        using var directory = new SandboxTempDirectory();
+        directory.Write("base/sub/doc.txt", "doc");
+        directory.Write("outside/secret.txt", "secret");
+        var hooks = new FileOpenHooks
+        {
+            BeforeOpen = key =>
+            {
+                if (key.EndsWith("secret.txt", StringComparison.Ordinal))
+                {
+                    File.Delete(directory.Combine("base/sub/doc.txt"));
+                    Directory.Delete(directory.Combine("base/sub"));
+                    FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("base/sub"), directory.Combine("outside"));
+                }
+            },
+        };
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = directory.Combine("base"), FileAccess = FileAccessPolicy.NoSymlinks },
+            Ct,
+            hooks);
+        var doc = resolver.Resolve("sub/doc.txt");
+
+        // Act
+        FileReference? secret = null;
+        var ex = Assert.Throws<FileReferenceException>(() => secret = resolver.Resolve("secret.txt", doc));
+
+        // Assert: denied by the policy, and nothing was returned
+        Assert.NotNull(doc);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Equal("no-symlinks", ex.PolicyName);
+        Assert.Null(secret);
     }
 
     /// <summary>

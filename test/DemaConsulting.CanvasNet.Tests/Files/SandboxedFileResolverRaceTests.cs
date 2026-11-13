@@ -1,3 +1,4 @@
+using System.Text;
 using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.Tests.Files;
@@ -91,6 +92,72 @@ public class SandboxedFileResolverRaceTests
 
         // Assert
         Assert.Equal(SandboxFailureKind.LinkCheckFailed, ex.Kind);
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS that a root the process may search but not read (execute-only) still serves its
+    ///     files: the real location of the root needs no read permission. Skips when permissions are not enforced.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile()
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.UnixOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var root = Path.GetFullPath(directory.Combine("root"));
+        try
+        {
+            if (!FileTestSupport.TryMakeExecuteOnly(root))
+            {
+                Assert.Skip(FileTestSupport.PermissionsNotEnforced);
+            }
+
+            var resolver = new SandboxedFileResolver(new SandboxOptions { BaseDirectory = root }, Ct);
+
+            // Act
+            var file = resolver.Resolve("a.txt");
+
+            // Assert
+            Assert.NotNull(file);
+            Assert.Equal("inside", Encoding.UTF8.GetString(file.Content.Span));
+        }
+        finally
+        {
+            FileTestSupport.RestoreOwnerAccess(root);
+        }
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS that the file is refused as a failed check (fail closed), not as a link, when the
+    ///     real location of its root cannot be determined: the root is renamed away while the file is open. Windows does
+    ///     not allow renaming the folder of an open file.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed()
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.UnixOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var resolver = Create(
+            directory.Combine("root"),
+            new FileOpenHooks { AfterOpen = _ => Directory.Move(directory.Combine("root"), directory.Combine("moved")) });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.LinkCheckFailed, ex.Kind);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
