@@ -1398,10 +1398,12 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
-    ///     Test that include and use are read from the folder of the model and below it, and that nothing outside is read.
+    ///     Test that include and use are read relative to the folder of the model: the parts below it render, a part
+    ///     in the parent folder renders under the default file-access policy (like OpenSCAD), and a missing include
+    ///     fails with a scad error and writes nothing.
     /// </summary>
     [Fact]
-    public void CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly()
+    public void CanvasNetTool_Scad_Includes_AreReadRelativeToTheModelFolder()
     {
         // Arrange: a model with an include and a use below its folder, one that names a missing file, and one that leaves its folder
         using var directory = new TempDirectory();
@@ -1415,23 +1417,23 @@ public partial class CanvasNetToolTests
         // Act
         var accepted = ToolHost.Invoke("render", good, "--size", "16x16", "-o", directory.Combine("good.png"), "--json");
         var refusedMissing = ToolHost.Invoke("render", missing, "--size", "16x16", "-o", directory.Combine("missing.png"), "--json");
-        var refusedOutside = ToolHost.Invoke("render", outside, "--size", "16x16", "-o", directory.Combine("outside.png"), "--json");
+        var acceptedOutside = ToolHost.Invoke("render", outside, "--size", "16x16", "-o", directory.Combine("outside.png"), "--json");
 
-        // Assert: the model with its parts renders without notes; the other two fail with a scad error and write nothing
-        Assert.Equal(0, accepted.ExitCode);
-        using (var document = JsonDocument.Parse(accepted.StdOut))
+        // Assert: the models with their parts render without notes; the missing include fails with a scad error and
+        // writes nothing
+        foreach (var (result, name) in new[] { (accepted, "good"), (acceptedOutside, "outside") })
         {
+            Assert.Equal(0, result.ExitCode);
+            using var document = JsonDocument.Parse(result.StdOut);
             Assert.Equal(0, document.RootElement.GetProperty("diagnostics").GetArrayLength());
+            Assert.True(File.Exists(directory.Combine($"{name}.png")));
         }
 
-        foreach (var (result, name) in new[] { (refusedMissing, "missing"), (refusedOutside, "outside") })
-        {
-            Assert.Equal(1, result.ExitCode);
-            Assert.Contains("Error: scad-error:", result.StdErr);
-            using var error = JsonDocument.Parse(result.StdOut);
-            Assert.Equal("scad-error", error.RootElement.GetProperty("error").GetProperty("code").GetString());
-            Assert.False(File.Exists(directory.Combine($"{name}.png")));
-        }
+        Assert.Equal(1, refusedMissing.ExitCode);
+        Assert.Contains("Error: scad-error:", refusedMissing.StdErr);
+        using var error = JsonDocument.Parse(refusedMissing.StdOut);
+        Assert.Equal("scad-error", error.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(File.Exists(directory.Combine("missing.png")));
     }
 
     /// <summary>

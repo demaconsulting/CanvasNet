@@ -301,8 +301,10 @@ sections:
               evaluation reaches outside the document, so its public behavior must be confined and
               verifiable.
             tests:
-              - ScadDocument_Evaluate_FileSystemSandbox_EscapesAreRejected
-              - ScadDocument_Evaluate_FileSystemSandbox_LibraryPathIsAllowedRoot
+              - ScadDocument_Evaluate_FileSystemRootsPolicy_EscapesAreDenied
+              - ScadDocument_Evaluate_FileSystemDefault_ParentAndAbsoluteIncludesAreRead
+              - ScadDocument_Evaluate_FileSystemNoSymlinks_DirectoryLinkEscape_IsDenied
+              - ScadDocument_Evaluate_FileSystemRootsPolicy_LibraryPathIsAllowedRoot
               - ScadDocument_Evaluate_ResolverSandbox_HostilePathsNeverReachTheCallback
               - ScadDocument_Evaluate_ResolverMode_RequestsNormalizedLogicalPaths
               - ScadDocument_Evaluate_IncludeLimitsAndCycles_ThrowEvaluationException

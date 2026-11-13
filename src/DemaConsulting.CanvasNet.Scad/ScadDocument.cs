@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         (<see cref="Directives"/>, <see cref="ModuleNames"/>, <see cref="FunctionNames"/>). Parsing never
 ///         evaluates the program and never touches any other file, so <c>include</c>/<c>use</c> paths are recorded
 ///         but not resolved. <see cref="Evaluate(ScadEvaluationOptions?, CancellationToken)"/> runs the program
-///         (resolving those directives under the sandbox rules of <see cref="ScadOpenOptions"/>) and reports
+///         (resolving those directives under the file-access policy of <see cref="ScadOpenOptions"/>) and reports
 ///         its output. The syntax tree itself is internal so it can evolve while rendering is added.
 ///     </para>
 ///     <para>

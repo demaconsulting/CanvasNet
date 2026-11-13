@@ -110,14 +110,17 @@ sections:
                 tests:
                   - ScadFileResolver_Load_HostilePath_InResolverMode_ThrowsWithoutAskingResolver
                   - ScadFileResolver_Load_HostilePath_InFileSystemMode_Throws
+                  - ScadFileResolver_Load_NeverAllowedPath_InFileSystemMode_ThrowsUnderTheDefaultPolicy
                   - ScadFileResolver_Load_DotDotInsideRoot_IsAllowed
                   - ScadFileResolver_Load_NestedFileEscapingRoot_Throws
-                  - ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates
+                  - ScadFileResolver_Load_FileSystem_UnderRoots_LibraryRootConfinesCandidates
+                  - ScadFileResolver_Load_FileSystem_Default_LibraryCandidateMayLeaveItsFolder
                   - ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused
+                  - ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_Default_IsRead
                   - ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot
                   - ScadFileResolver_Load_InvalidConfiguredDirectory_IsLocatedError
-                  - ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsConfinedByEachRoot
-                  - ScadFileResolverLink_Translate_EverySandboxKind_ProducesLocatedWording
+                  - ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsJudgedByThePolicyRoots
+                  - ScadFileResolverLink_Translate_EveryFailureKind_ProducesLocatedWording
                   - ScadFileResolverLink_Translate_TooLarge_IsSourceTooLong
 
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback

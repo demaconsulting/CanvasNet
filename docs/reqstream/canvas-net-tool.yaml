@@ -711,7 +711,7 @@ sections:
           - CanvasNetTool_Scad_RenderAsProcess_WritesImageAndReportsOptions
           - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
-          - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
+          - CanvasNetTool_Scad_Includes_AreReadRelativeToTheModelFolder
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 

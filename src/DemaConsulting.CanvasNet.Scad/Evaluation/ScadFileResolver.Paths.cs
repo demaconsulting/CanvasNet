@@ -4,39 +4,39 @@ using DemaConsulting.CanvasNet.Scad.Language;
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
 /// <summary>
-///     File access of <see cref="ScadFileResolver"/>: the bridge to the core sandbox, the decoding and parsing of what it
-///     returns, the display names of files and the translation of sandbox refusals into OpenSCAD wording.
+///     File access of <see cref="ScadFileResolver"/>: the bridge to the core file engine, the decoding and parsing of
+///     what it returns, the display names of files and the translation of its refusals into OpenSCAD wording.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Delegation.</b> Everything that makes the access safe is done by the core
-///         <see cref="SandboxedFileResolver"/>: validation of the path text (an empty path, a control character, a colon,
-///         a leading slash), confinement of every candidate to the root it was derived from (the base directory or a
-///         library path), the refusal of symbolic links and junctions below a root whatever their target (a dangling
-///         final link included), the open and bounded read, the resolver-callback mode with normalized logical paths and
-///         the per-call file cache. The candidates are, in order, the directory of the including file and each library
-///         path; the including file is the <see cref="SandboxedFile"/> that the previous resolution returned.
+///         <see cref="FileReferenceResolver"/>: validation of the path text (an empty path, a control character, a
+///         network or device path, a colon other than a drive), the file-access policy of the caller judged on the real
+///         path of the opened file, the regular-file check, the open and bounded read, the resolver-callback mode with
+///         normalized logical paths and the per-call file cache. The candidates are, in order, the directory of the
+///         including file and each library path; the including file is the <see cref="FileReference"/> that the
+///         previous resolution returned.
 ///     </para>
 ///     <para>
-///         <b>What stays here.</b> The bytes the sandbox returns are decoded as UTF-8 with byte-order-mark detection and
+///         <b>What stays here.</b> The bytes the engine returns are decoded as UTF-8 with byte-order-mark detection and
 ///         bounded to <see cref="ScadParser.MaxSourceLength"/> characters, parsed once per file, and named for locations
 ///         (the path relative to the base directory with forward slashes when the file is under it, otherwise the full
-///         or logical path). A missing file is a warning; every other sandbox refusal, including a file that exists but
-///         cannot be read (a directory where a file is expected, a failing callback), is a located
-///         <see cref="ScadEvaluationException"/>.
+///         or logical path). A missing file is a warning; every other refusal, including a denial of the policy and a
+///         file that exists but cannot be read (a directory where a file is expected, a failing callback), is a located
+///         <see cref="ScadEvaluationException"/> whose inner exception is the <see cref="FileReferenceException"/>.
 ///     </para>
 /// </remarks>
 internal sealed partial class ScadFileResolver
 {
     /// <summary>
-    ///     The largest file, in bytes, the sandbox may read: four bytes per character of the source limit (the widest
+    ///     The largest file, in bytes, the engine may read: four bytes per character of the source limit (the widest
     ///     encoding the decoder detects, UTF-32) plus a four-byte byte-order mark, so the exact character limit is
     ///     enforced on the decoded text and the byte bound only stops hostile streams.
     /// </summary>
     private const long MaxSourceBytes = (4L * ScadParser.MaxSourceLength) + 4;
 
-    /// <summary>The core sandbox that finds and reads the files.</summary>
-    private readonly SandboxedFileResolver _sandbox;
+    /// <summary>The core engine that finds, checks and reads the files.</summary>
+    private readonly FileReferenceResolver _engine;
 
     /// <summary>The full path of the base directory, or <see langword="null"/> when there is none; computed on first use.</summary>
     private string? _baseRoot;
@@ -72,17 +72,17 @@ internal sealed partial class ScadFileResolver
     /// <param name="directive">The directive.</param>
     /// <param name="referrer">The file that contains the directive, or <see langword="null"/> for the main file.</param>
     /// <returns>The loaded file, or <see langword="null"/> when no candidate exists.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown for a sandbox refusal.</exception>
+    /// <exception cref="ScadEvaluationException">Thrown for a refused or denied file.</exception>
     /// <exception cref="InvalidDataException">Thrown when the file exceeds the source size limit.</exception>
-    private LoadedFile? Resolve(ScadDirectiveStatement directive, SandboxedFile? referrer)
+    private LoadedFile? Resolve(ScadDirectiveStatement directive, FileReference? referrer)
     {
         _cancellation.ThrowIfCancellationRequested();
-        SandboxedFile? found;
+        FileReference? found;
         try
         {
-            found = _sandbox.Resolve(directive.Path, referrer);
+            found = _engine.Resolve(directive.Path, referrer);
         }
-        catch (SandboxException ex)
+        catch (FileReferenceException ex)
         {
             throw Translate(ex, directive.Location);
         }
@@ -92,40 +92,67 @@ internal sealed partial class ScadFileResolver
             return null;
         }
 
-        // The file is parsed once per root it is reached through: the root confines the file's own relative directives, so
-        // the same physical file found through two overlapping roots must not share the first root's context
-        var identity = found.Root + '\0' + found.Key;
-        if (!_files.TryGetValue(identity, out var loaded))
+        // The file is parsed once per path: its display name, and so every location in it, depends on the path
+        if (!_files.TryGetValue(found.Key, out var loaded))
         {
             var display = DisplayName(found.Key);
             loaded = new LoadedFile(found.Key, display, ScadParser.Parse(ScadDocument.DecodeBounded(found.Content), display), found);
-            _files[identity] = loaded;
+            _files[found.Key] = loaded;
         }
 
         return loaded;
     }
 
     /// <summary>
-    ///     Translates a sandbox refusal into the OpenSCAD wording.
+    ///     Translates a refusal of the file engine into the OpenSCAD wording.
     /// </summary>
-    /// <param name="ex">The sandbox exception.</param>
+    /// <param name="ex">The refusal.</param>
     /// <param name="location">The location of the directive.</param>
-    /// <returns>The exception to throw: a located evaluation error, or the source-size error for a file that is too large.</returns>
-    internal Exception Translate(SandboxException ex, ScadSourceLocation location) => ex.Kind switch
+    /// <returns>
+    ///     The exception to throw: a located evaluation error whose inner exception is <paramref name="ex"/>, or the
+    ///     source-size error for a file that is too large. The message names the file as written (or, under the base
+    ///     directory, relative to it), never a host directory.
+    /// </returns>
+    internal Exception Translate(FileReferenceException ex, ScadSourceLocation location)
     {
-        SandboxFailureKind.EmptyPath or SandboxFailureKind.ControlCharacter or SandboxFailureKind.ColonInPath
-            or SandboxFailureKind.AbsolutePath => new ScadEvaluationException($"Include path '{ex.Path}' is not allowed: {ex.Detail}", location),
-        SandboxFailureKind.OutsideRoot => new ScadEvaluationException($"Include path '{ex.Path}' is outside the allowed directories", location),
-        SandboxFailureKind.ThroughLink => new ScadEvaluationException(
-            $"Include file '{DisplayName(ex.Path)}' passes through a link ('{ex.Detail}'); links are not followed inside the allowed directories",
-            location),
-        SandboxFailureKind.LinkCheckFailed => new ScadEvaluationException(
-            $"Include file '{DisplayName(ex.Path)}' cannot be checked for links and is not read", location),
-        SandboxFailureKind.TooLarge => ScadParser.CreateSourceTooLongException(),
-        SandboxFailureKind.InvalidRoot => new ScadEvaluationException(
-            "A configured directory (BaseDirectory or LibraryPaths) is not a valid path", location),
-        _ => new ScadEvaluationException($"Include file '{DisplayName(ex.Path)}' cannot be read", location),
-    };
+        var shown = Shown(ex);
+        return ex.Kind switch
+        {
+            FileReferenceFailureKind.EmptyPath or FileReferenceFailureKind.ControlCharacter or FileReferenceFailureKind.InvalidPath
+                or FileReferenceFailureKind.NetworkPath =>
+                new ScadEvaluationException($"Include path '{ex.Reference}' is not allowed: {ex.Reason}", location, ex),
+            FileReferenceFailureKind.AccessDenied => new ScadEvaluationException(
+                $"Include file '{shown}' was denied by the file-access policy '{ex.PolicyName}': {ex.Reason}", location, ex),
+            FileReferenceFailureKind.RealPathUnavailable => new ScadEvaluationException(
+                $"Include file '{shown}' cannot be checked: its real path cannot be determined on this system, so the "
+                + $"file-access policy '{ex.PolicyName}' cannot be applied",
+                location,
+                ex),
+            FileReferenceFailureKind.NotARegularFile => new ScadEvaluationException(
+                $"Include file '{shown}' is not a regular file", location, ex),
+            FileReferenceFailureKind.TooLarge => ScadParser.CreateSourceTooLongException(),
+            FileReferenceFailureKind.InvalidBaseDirectory => new ScadEvaluationException(
+                "A configured directory (BaseDirectory or LibraryPaths) is not a valid path", location, ex),
+            _ => new ScadEvaluationException($"Include file '{shown}' cannot be read", location, ex),
+        };
+    }
+
+    /// <summary>
+    ///     Gets the name of a refused file for a message: relative to the base directory when the file is under it,
+    ///     otherwise the reference as written, so no host directory is shown.
+    /// </summary>
+    /// <param name="ex">The refusal.</param>
+    /// <returns>The name.</returns>
+    private string Shown(FileReferenceException ex)
+    {
+        if (ex.RequestedPath is not { } requested)
+        {
+            return ex.Reference;
+        }
+
+        var display = DisplayName(requested);
+        return string.Equals(display, requested, StringComparison.Ordinal) && _options.FileResolver is null ? ex.Reference : display;
+    }
 
     /// <summary>
     ///     Gets the name shown in source locations for a file.
@@ -139,7 +166,7 @@ internal sealed partial class ScadFileResolver
             return key;
         }
 
-        // The base directory was validated by the sandbox before any file was found, so computing it here cannot fail
+        // The base directory was validated by the engine before any file was found, so computing it here cannot fail
         if (!_baseRootKnown)
         {
             _baseRoot = _options.BaseDirectory is null ? null : Path.GetFullPath(_options.BaseDirectory);

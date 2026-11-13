@@ -18,7 +18,7 @@ namespace DemaConsulting.CanvasNet.Scad;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Open behavior is configured through <see cref="ScadOpenOptions"/> (which also defines the sandbox for
+///         Open behavior is configured through <see cref="ScadOpenOptions"/> (which also defines the file-access policy for
 ///         <c>include</c>/<c>use</c>), evaluation through <see cref="ScadEvaluationOptions"/> and rendering through
 ///         <see cref="ScadRenderOptions"/>. The lexer, the syntax tree, the parser, the evaluator and the geometry builder
 ///         are internal (the <c>Language</c>, <c>Evaluation</c> and <c>Geometry</c> subsystems); only the document

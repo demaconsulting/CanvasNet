@@ -2,7 +2,7 @@ namespace DemaConsulting.CanvasNet.Scad;
 
 /// <summary>
 ///     The exception thrown when evaluating an OpenSCAD-language program fails: a failed <c>assert</c>, an
-///     exceeded resource limit, an include cycle or sandbox violation, or similar.
+///     exceeded resource limit, an include cycle or file-access denial, or similar.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -51,6 +51,20 @@ public sealed class ScadEvaluationException : InvalidOperationException
     /// <param name="location">The location of the error.</param>
     public ScadEvaluationException(string description, ScadSourceLocation location)
         : base(FormatMessage(description, location))
+    {
+        Location = location;
+    }
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ScadEvaluationException"/> class describing an error at a
+    ///     known source location that another exception caused (a file-access denial keeps its
+    ///     <see cref="Files.FileReferenceException"/>).
+    /// </summary>
+    /// <param name="description">The description of the error, without the location prefix.</param>
+    /// <param name="location">The location of the error.</param>
+    /// <param name="innerException">The exception that caused this exception.</param>
+    internal ScadEvaluationException(string description, ScadSourceLocation location, Exception innerException)
+        : base(FormatMessage(description, location), innerException)
     {
         Location = location;
     }
