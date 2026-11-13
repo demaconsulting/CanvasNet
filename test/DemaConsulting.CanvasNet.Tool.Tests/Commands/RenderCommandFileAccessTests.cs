@@ -31,7 +31,7 @@ public class RenderCommandFileAccessTests
     }
 
     /// <summary>
-    ///     Determines whether a policy allows a file, read by its own path.
+    ///     Determines whether a policy allows a file, read by its own path (no link of its own).
     /// </summary>
     /// <param name="policy">The policy.</param>
     /// <param name="baseDirectory">The folder the lookup started from.</param>
@@ -44,8 +44,31 @@ public class RenderCommandFileAccessTests
             Reference = Path.GetFileName(path),
             BaseDirectory = baseDirectory,
             RequestedPath = path,
-            RealPath = path
+            RealPath = RealPathOf(path)
         }).IsAllowed;
+    }
+
+    /// <summary>
+    ///     Gets the path a file would be opened at, with every link among its existing folders followed: the temporary
+    ///     folder is behind a link on macOS (/var is /private/var), and a policy compares the real path with the real
+    ///     location of its roots.
+    /// </summary>
+    /// <param name="path">The full path.</param>
+    /// <returns>The path with the links of its existing folders resolved.</returns>
+    private static string RealPathOf(string path)
+    {
+        var full = Path.GetFullPath(path);
+        var current = Path.GetPathRoot(full)!;
+        foreach (var part in full[current.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, part);
+            if (Directory.Exists(current) && new DirectoryInfo(current).ResolveLinkTarget(returnFinalTarget: true) is { } target)
+            {
+                current = target.FullName;
+            }
+        }
+
+        return current;
     }
 
     /// <summary>
