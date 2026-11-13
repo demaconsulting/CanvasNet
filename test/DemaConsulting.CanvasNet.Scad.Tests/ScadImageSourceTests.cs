@@ -7,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Scad.Tests;
 
 /// <summary>
 ///     Tests of <see cref="ScadImageSource"/>: an OpenSCAD model as an embedded picture - the size of its placement, a
-///     transparent background, includes confined to the folder of the file, and notes and echo lines as diagnostics.
+///     transparent background, includes read under the file-access policy of the request, and notes and echo lines as
+///     diagnostics.
 /// </summary>
 public class ScadImageSourceTests
 {
@@ -331,6 +332,53 @@ public class ScadImageSourceTests
         finally
         {
             Directory.Delete(folder, true);
+        }
+    }
+
+    /// <summary>
+    ///     Test that the file-access policy of the request applies to the includes of the model: a policy confined to
+    ///     the folder of the model denies an include of the parent folder with a located error whose cause is the
+    ///     denial, and the default policy of a request reads it.
+    /// </summary>
+    [Fact]
+    public void ScadImageSource_Render_RequestPolicy_AppliesToIncludes()
+    {
+        // Arrange: a library in the parent of the model folder
+        var root = Directory.CreateTempSubdirectory("scad-image-policy").FullName;
+        try
+        {
+            var folder = Directory.CreateDirectory(Path.Combine(root, "model")).FullName;
+            File.WriteAllText(Path.Combine(root, "lib.scad"), "module part() { cube(8, center = true); }");
+            const string model = "include <../lib.scad>\npart();\n";
+            var source = new ScadImageSource();
+            var request = Request(model, 40, 40, folder);
+            var confined = new ImageSourceRequest
+            {
+                Href = request.Href,
+                FileName = request.FileName,
+                Content = request.Content,
+                Directory = folder,
+                PixelWidth = 40,
+                PixelHeight = 40,
+                FileAccess = Files.FileAccessPolicy.UnderRoots(folder),
+            };
+
+            // Act
+            var allowed = source.Render(request);
+            using var allowedSurface = allowed.Surface;
+            var ex = Assert.Throws<ScadEvaluationException>(() => source.Render(confined));
+
+            // Assert
+            Assert.True(HasModelOnTransparentBackground(allowedSurface));
+            Assert.Contains("denied by the file-access policy 'roots'", ex.Message, StringComparison.Ordinal);
+            Assert.Equal(1, ex.Location.Line);
+            Assert.Equal(
+                Files.FileReferenceFailureKind.AccessDenied,
+                Assert.IsType<Files.FileReferenceException>(ex.InnerException).Kind);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
         }
     }
 

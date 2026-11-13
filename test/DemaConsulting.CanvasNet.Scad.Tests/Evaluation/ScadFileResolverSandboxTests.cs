@@ -1,13 +1,35 @@
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadResolverTestSupport;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 
 /// <summary>
-///     Unit tests for the sandbox of <see cref="ScadFileResolver"/>: hostile paths, roots, links and resolver-only access.
+///     Unit tests for the file access of <see cref="ScadFileResolver"/>: hostile paths, the roots of a confining policy
+///     and the default that reads every regular local file, and resolver-only access.
 /// </summary>
 public class ScadFileResolverSandboxTests
 {
+    /// <summary>
+    ///     Gets path texts that are refused in file-system mode under every policy: network paths, colons other than a
+    ///     drive, empty paths and control characters.
+    /// </summary>
+    public static TheoryData<string> NeverAllowedPaths =>
+    [
+        "\\\\server\\share\\x.scad",
+        "C:x.scad",
+        "a:b.scad",
+        "file.scad:stream",
+        string.Empty,
+        "   ",
+        "a\0b.scad",
+        "a\u0001b.scad",
+        "a\u007Fb.scad",
+        "a\u0085b.scad",
+        "a\u009Fb.scad",
+        "a\nb.scad",
+    ];
+
     /// <summary>
     ///     Gets path texts that must be rejected in every mode.
     /// </summary>
@@ -58,7 +80,8 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
-    ///     Validates that hostile path texts are sandbox violations in file-system mode.
+    ///     Validates that, under a policy confined to the base directory, hostile path texts (including absolute paths
+    ///     and <c>..</c> above the base) are located errors in file-system mode: the confinement of the former sandbox.
     /// </summary>
     /// <param name="path">The hostile path text.</param>
     [Theory]
@@ -67,33 +90,73 @@ public class ScadFileResolverSandboxTests
     {
         // Arrange
         using var directory = new ScadTempDirectory();
-        var options = new ScadOpenOptions { BaseDirectory = directory.Path };
+        var options = new ScadOpenOptions { BaseDirectory = directory.Path, FileAccess = FileAccessPolicy.UnderRoots(directory.Path) };
 
         // Act / Assert
         Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, [path]));
     }
 
     /// <summary>
-    ///     Validates that a file found through one root is not reused for the same physical file found through another,
-    ///     overlapping root: the root confines the file's own relative includes, so a nested <c>..</c> include must be
-    ///     judged against the root the file was found under each time.
+    ///     Validates that, under the default policy, the path texts that are never allowed (network paths, stray colons,
+    ///     empty paths, control characters) are still located errors in file-system mode.
+    /// </summary>
+    /// <param name="path">The path text.</param>
+    [Theory]
+    [MemberData(nameof(NeverAllowedPaths))]
+    public void ScadFileResolver_Load_NeverAllowedPath_InFileSystemMode_ThrowsUnderTheDefaultPolicy(string path)
+    {
+        // Arrange
+        using var directory = new ScadTempDirectory();
+        var options = new ScadOpenOptions { BaseDirectory = directory.Path };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, [path]));
+
+        // Assert
+        Assert.Equal(1, ex.Location.Line);
+        Assert.IsType<FileReferenceException>(ex.InnerException);
+    }
+
+    /// <summary>
+    ///     Validates that a file is judged by the roots of the policy, not by the folder it was found under: with the
+    ///     library folder as the only root, a nested <c>..</c> include of a library file is denied however the library
+    ///     file was found, and with the base directory as the root it is allowed both times.
     /// </summary>
     [Fact]
-    public void ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsConfinedByEachRoot()
+    public void ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsJudgedByThePolicyRoots()
     {
-        // Arrange: lib/a.scad includes ../x.scad (fine under the base root, outside the library root lib)
+        // Arrange: lib/a.scad includes ../x.scad (inside the base directory, outside the library folder)
         using var directory = new ScadTempDirectory();
         directory.Write("lib/a.scad", "include <../x.scad>\n");
         directory.Write("x.scad", "x = 1;\n");
-        var options = new ScadOpenOptions { BaseDirectory = directory.Path, LibraryPaths = [directory.Combine("lib")] };
+        var libraryOnly = new ScadOpenOptions
+        {
+            BaseDirectory = directory.Path,
+            LibraryPaths = [directory.Combine("lib")],
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("lib")),
+        };
+        var libraryOnlyWithoutBase = new ScadOpenOptions
+        {
+            LibraryPaths = [directory.Combine("lib")],
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("lib")),
+        };
+        var baseRoot = new ScadOpenOptions
+        {
+            BaseDirectory = directory.Path,
+            LibraryPaths = [directory.Combine("lib")],
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Path),
+        };
 
-        // Act: through the base root first (allowed), then the same file through the library root
-        var viaBase = Load("include <lib/a.scad>\n", options);
-        var ex = Assert.Throws<ScadEvaluationException>(() => Load("include <lib/a.scad>\ninclude <a.scad>\n", options));
+        // Act: the library file through the base directory, then through the library path (without a base directory,
+        // whose own candidate would otherwise be denied first, ending the search)
+        var viaBase = Assert.Throws<ScadEvaluationException>(() => Load("include <lib/a.scad>\n", libraryOnly));
+        var viaLibrary = Assert.Throws<ScadEvaluationException>(() => Load("include <a.scad>\n", libraryOnlyWithoutBase));
+        var allowed = Load("include <lib/a.scad>\ninclude <a.scad>\n", baseRoot);
 
-        // Assert: the second find is confined to the library root, so its nested include is refused
-        Assert.Equal(["x"], AssignmentNames(viaBase));
-        Assert.Contains("outside the allowed directories", ex.Message, StringComparison.Ordinal);
+        // Assert: both denials are of the nested include, named relative to the base directory when there is one
+        Assert.Contains("Include file 'x.scad' was denied by the file-access policy 'roots'", viaBase.Message, StringComparison.Ordinal);
+        Assert.Contains("Include file '../x.scad' was denied by the file-access policy 'roots'", viaLibrary.Message, StringComparison.Ordinal);
+        Assert.Equal(["x", "x"], AssignmentNames(allowed));
     }
 
     /// <summary>
@@ -250,16 +313,16 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
-    ///     Validates that a library root is a confinement: a relative path cannot climb out of it.
+    ///     Validates that, under a policy confined to the library folder, a relative path cannot climb out of it.
     /// </summary>
     [Fact]
-    public void ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates()
+    public void ScadFileResolver_Load_FileSystem_UnderRoots_LibraryRootConfinesCandidates()
     {
-        // Arrange: no base directory, so only the library candidate exists, and it points outside its root
+        // Arrange: no base directory, so only the library candidate exists, and it points outside the library folder
         using var directory = new ScadTempDirectory();
         directory.Write("lib/x.scad", "x = 1;\n");
         directory.Write("outside.scad", "o = 1;\n");
-        var options = new ScadOpenOptions { LibraryPaths = [directory.Combine("lib")] };
+        var options = new ScadOpenOptions { LibraryPaths = [directory.Combine("lib")], FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("lib")) };
 
         // Act / Assert
         Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["../outside.scad"]));
@@ -267,7 +330,27 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
-    ///     Validates that a file that exists outside the root is still refused by the sandbox, not read.
+    ///     Validates that, under the default policy, a library path is a search location only: a relative path may
+    ///     leave it.
+    /// </summary>
+    [Fact]
+    public void ScadFileResolver_Load_FileSystem_Default_LibraryCandidateMayLeaveItsFolder()
+    {
+        // Arrange
+        using var directory = new ScadTempDirectory();
+        directory.Write("lib/x.scad", "x = 1;\n");
+        directory.Write("outside.scad", "o = 1;\n");
+        var options = new ScadOpenOptions { LibraryPaths = [directory.Combine("lib")] };
+
+        // Act
+        var unit = LoadDirectives(options, ["../outside.scad"]);
+
+        // Assert
+        Assert.Equal(["o"], AssignmentNames(unit));
+    }
+
+    /// <summary>
+    ///     Validates that, under a policy confined to the root, a file that exists outside it is denied, not read.
     /// </summary>
     [Fact]
     public void ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused()
@@ -276,7 +359,7 @@ public class ScadFileResolverSandboxTests
         using var directory = new ScadTempDirectory();
         directory.Write("secret.scad", "s = 1;\n");
         directory.Write("root/ok.scad", "ok = 1;\n");
-        var options = new ScadOpenOptions { BaseDirectory = directory.Combine("root") };
+        var options = new ScadOpenOptions { BaseDirectory = directory.Combine("root"), FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("root")) };
 
         // Act / Assert
         Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["../secret.scad"]));
@@ -284,7 +367,27 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
-    ///     Validates that a sibling folder whose name merely starts with the root's name is not "under" the root.
+    ///     Validates that, under the default policy, a file that exists outside the base directory is read.
+    /// </summary>
+    [Fact]
+    public void ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_Default_IsRead()
+    {
+        // Arrange
+        using var directory = new ScadTempDirectory();
+        directory.Write("secret.scad", "s = 1;\n");
+        Directory.CreateDirectory(directory.Combine("root"));
+        var options = new ScadOpenOptions { BaseDirectory = directory.Combine("root") };
+
+        // Act
+        var unit = LoadDirectives(options, ["../secret.scad"]);
+
+        // Assert
+        Assert.Equal(["s"], AssignmentNames(unit));
+    }
+
+    /// <summary>
+    ///     Validates that, under a policy confined to the root, a sibling folder whose name merely starts with the
+    ///     root's name is not "under" the root.
     /// </summary>
     [Fact]
     public void ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot()
@@ -293,9 +396,10 @@ public class ScadFileResolverSandboxTests
         using var directory = new ScadTempDirectory();
         directory.Write("root/a.scad", "a = 1;\n");
         directory.Write("root-evil/b.scad", "b = 1;\n");
-        var options = new ScadOpenOptions { BaseDirectory = directory.Combine("root") };
+        var options = new ScadOpenOptions { BaseDirectory = directory.Combine("root"), FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("root")) };
 
         // Act / Assert
-        Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["../root-evil/b.scad"]));
+        var ex = Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["../root-evil/b.scad"]));
+        Assert.Contains("denied by the file-access policy 'roots'", ex.Message, StringComparison.Ordinal);
     }
 }

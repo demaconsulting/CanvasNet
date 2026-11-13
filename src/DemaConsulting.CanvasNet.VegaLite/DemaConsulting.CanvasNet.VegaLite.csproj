@@ -11,7 +11,7 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.VegaLite renders charts described in the Vega-Lite specification language onto a CanvasNet Surface (VegaLiteDocument.Render): a bounded, deterministic JSON specification reader with file/line/column diagnostics, resource limits, and a sandboxed, offline data model. Specification features that are not supported yet are reported with stable identifiers, never silently skipped.</Description>
+    <Description>DemaConsulting.CanvasNet.VegaLite renders charts described in the Vega-Lite specification language onto a CanvasNet Surface (VegaLiteDocument.Render): a bounded, deterministic JSON specification reader with file/line/column diagnostics, resource limits, and an offline data model whose local files are read under a caller-chosen file-access policy. Specification features that are not supported yet are reported with stable identifiers, never silently skipped.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>

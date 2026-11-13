@@ -14,7 +14,7 @@ internal sealed record RowExpressions(SpecExpressions Compiled, ExpressionEvalua
 
 /// <summary>
 ///     Everything one run of the row transforms shares: the specification, the loader that holds the row budget and the
-///     sandbox of the call, the evaluator and the parameter values, the limits and the token.
+///     file access of the call, the evaluator and the parameter values, the limits and the token.
 /// </summary>
 /// <remarks>
 ///     The context belongs to one measure or render call and is used by one thread. The transforms append the findings

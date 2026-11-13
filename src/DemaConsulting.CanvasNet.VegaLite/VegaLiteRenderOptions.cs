@@ -230,9 +230,11 @@ public sealed class VegaLiteRenderOptions
     ///     <para>
     ///         <b>No implicit file access.</b> The library never opens a file or contacts a network for a picture on its own: the <c>url</c> of an <c>image</c> mark is handed to this resolver, as
     ///         text, and to nothing else. Without a resolver no picture is drawn and the specification reports <c>vl-mark-image</c> (an unsupported feature: strict mode fails). The
-    ///         policy of what a link may refer to is the resolver's: <see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolver"/> confines it to a folder and understands
+    ///         policy of what a link may refer to is the resolver's: <see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolver"/> resolves it relative to the chart under its
+    ///         <see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolverOptions.FileAccess"/> policy (every local file by default; confinement is opt-in with
+    ///         <see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy.UnderRoots(string[])"/>) and understands
     ///         every format of the CanvasNet libraries (rasters, SVG, OpenSCAD models, PDF pages through <c>report.pdf#page=2</c>, other charts); a resolver of your own may serve pictures from memory.
-    ///         The text of the link is untrusted (it comes from a specification), so a resolver that touches the file system or the network must confine it.
+    ///         The text of the link is untrusted (it comes from a specification), so a resolver that touches the file system or the network must decide what an untrusted link may reach.
     ///     </para>
     ///     <para>
     ///         <b>When it is called.</b> <see cref="VegaLiteDocument.Render(VegaLiteRenderOptions?, CancellationToken)"/> asks the resolver while the chart is drawn, on the calling thread, with the link and the

@@ -17,7 +17,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Open behavior and the data sandbox are configured through <see cref="VegaLiteOpenOptions"/>, rendering through
+///         Open behavior and the file access of data are configured through <see cref="VegaLiteOpenOptions"/>, rendering through
 ///         <see cref="VegaLiteRenderOptions"/> and resource budgets through <see cref="VegaLiteLimits"/>. The
 ///         specification model, data, expression, scale, guide, layout, mark and scene-graph stages are internal; only the
 ///         document surface is public so that the internals can evolve.
@@ -41,7 +41,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     <para>
 ///         See <see cref="VegaLiteDocument"/> for the entry points. A chart is drawn onto a
 ///         <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> (<see cref="DemaConsulting.CanvasNet.Codecs"/> saves it),
-///         and the files a chart names (<c>data.url</c>) are read through the sandbox of
+///         and the files a chart names (<c>data.url</c>) are read through the file-access engine of
 ///         <see cref="DemaConsulting.CanvasNet.Files"/>. <see cref="VegaLiteImageSource"/> lets an SVG document draw a
 ///         <c>.vl.json</c> chart through <see cref="DemaConsulting.CanvasNet.ImageSources"/>, and the
 ///         <c>DemaConsulting.CanvasNet.Viewer</c> package renders and compares charts with the rest of its formats. For

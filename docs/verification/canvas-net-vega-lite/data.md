@@ -18,7 +18,8 @@ verify the units working together on specifications parsed by the real `SpecPars
 flattens nested containers into leaf fields named by canonical paths; applies the `parse` conversions; builds the
 immutable table through `DataTable.Create`; enforces the row, field, file, and byte limits with the location of the data
 node; and the resulting table is queried by Vega-Lite field paths. The same loader instance also loads the sources of
-the lookup transforms through its file cache, sandbox, and row budget and reserves the rows of the tables that the
+the lookup transforms through its file cache, file-access policy, and row budget and reserves the rows of the tables
+that the
 transforms derive (see the _Transforms Subsystem Verification Design_), and the table's cells can hold the composite
 values of the expression engine (see the _Expressions Subsystem Verification Design_). The subsystem's unit tests
 already use this combination (the loader tests build their input with `SpecParser.Parse`, read files through the real
@@ -42,7 +43,8 @@ reads the host's zone, clock, or culture.
 No mocking or stubbing is used: the subsystem depends only on the parser's tree types, `VegaLiteLimits`,
 `VegaLiteOpenOptions`, `VegaLiteLocation`, and `VegaLiteRenderException`, and its file sources are real implementations
 of the resolver's seams (a temporary directory and an in-memory callback that records its requests). The subsystem
-performs file input only through the resolver's sandbox and never network input: remote data is an empty table that the
+performs file input only through the resolver, under the caller's file-access policy (`VegaLiteOpenOptions.FileAccess`,
+by default `AllowAll`), and never network input: remote data is an empty table that the
 feature catalog reports and that never reaches a file source, which the system-level scenario "Data: Remote URLs Are
 Reported And Never Fetched" confirms. The subsystem is internal, so its tests reach it through the test assembly's
 `InternalsVisibleTo` access.
@@ -55,8 +57,9 @@ Reported And Never Fetched" confirms. The subsystem is internal, so its tests re
 - **Files**: Per-test temporary directories (created and deleted by the test), in-memory virtual files, and the
   original fixtures under `Fixtures` in the test output folder; no network
 - **Isolation**: Each test parses and loads its own data with its own loader; the culture-independence scenario
-  switches the current culture on the test thread and restores it afterwards. Tests that create real links skip only
-  where the host cannot create them. Every time zone is a custom zone that the test creates with
+  switches the current culture on the test thread and restores it afterwards. Directory links are junctions on Windows
+  and never skip; tests that create file links skip only where the host cannot create them. Every time zone is a
+  custom zone that the test creates with
   `TimeZoneInfo.CreateCustomTimeZone`; no test reads `TimeZoneInfo.Local`, the clock, or the host's zone database, and
   the time scenarios repeat under `tr-TR` and `de-DE`
 
@@ -90,23 +93,27 @@ the six unit verification documents passes without error or unexpected exception
   converts only its named field, and a chart whose x, y, and size are quantitative fields of unparsed CSV text has the
   pixels of the same rows with real numbers, with no data warning, so the numeric text is coerced where it is drawn.
   The color of this scenario is a nominal column, so it claims nothing about a quantitative color.
-- **The Sandbox Refuses What It Must And Fails Closed**:
+- **The File-Access Policy Refuses What It Must And Fails Closed**:
   `DataLoaderTests.DataLoader_Load_MissingLocalFileIsHardFailure`,
+  `DataLoaderTests.DataLoader_Load_LocalFileUriAndAbsolutePath_AreReadAsLocalFiles`,
   `DataFileResolverTests.DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess`,
-  `DataFileResolverTests.DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording`,
+  `DataFileResolverTests.DataFileResolver_Load_DotDotOutsideTheBase_IsReadByDefault`,
+  `DataFileResolverTests.DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording`,
   `DataFileResolverTests.DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure`,
   `DataFileResolverTests.DataFileResolver_Load_CallbackStreamReadFailureIsLocated`,
   `DataFileResolverTests.DataFileResolver_Load_CallbackFailureIsLocatedReadFailure`,
   `DataLoaderTests.DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure`,
-  `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException` —
-  a missing file, a path outside the sandbox, and bytes that are not UTF-8 each fail with a located
-  `VegaLiteRenderException`, in lenient and strict mode alike, every refusal of the core sandbox (a path that is not
-  allowed, outside its root, behind a link, a link that cannot be checked, too large, an invalid configured directory)
-  is translated into a located error with Vega-Lite wording and without a host directory (the sandbox mechanics
-  themselves, with an injected link probe and open seam, are verified at the core `SandboxedFileResolver` unit), a
-  directory in place of a file and a throwing resolver callback are located read failures (never raw exceptions), JSON
-  text with an escaped lone surrogate is a located invalid-Unicode failure, and an absolute path is remote data that is
-  never opened.
+  `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException`,
+  `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_DefaultPolicy_ReadsParentAbsoluteAndFileUriPaths`
+  — under the default policy a `..` path, an absolute path, and a local `file:` URI are read as local files (a missing
+  one is "not found", named as written); under `UnderRoots(folder)` a missing file, a path outside the folder (also an
+  absolute one), and bytes that are not UTF-8 each fail with a located `VegaLiteRenderException`, in lenient and strict
+  mode alike; every refusal of the core engine (a path that is not allowed, denied by the policy, a real path that
+  cannot be determined, not a regular file, too large, an invalid configured directory, too many files) is translated
+  into a located error with Vega-Lite wording, the refusal as inner exception, and no host directory (the engine
+  mechanics themselves are verified at the core `FileReferenceResolver` unit); a directory in place of a file and a
+  throwing resolver callback are located failures (never raw exceptions); JSON text with an escaped lone surrogate is a
+  located invalid-Unicode failure; and in resolver-callback mode an absolute path is a located error.
 - **Named Datasets And Sequences**:
   `DataLoaderTests.DataLoader_Load_NamedDatasetsUseCallerPrecedence`,
   `DataLoaderTests.DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate`,
@@ -142,8 +149,8 @@ the six unit verification documents passes without error or unexpected exception
   the offending node.
 - **Other Sources Are Empty, Never Opened**:
   `DataLoaderTests.DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl`,
-  `DataLoaderTests.DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog` — remote data (a scheme, an
-  absolute path, a UNC path), text values, object values, and geographic sources give an empty table with the
+  `DataLoaderTests.DataLoader_Load_OtherSourcesAreEmptyTablesReportedByTheCatalog` — remote data (a scheme, a UNC
+  path, a `file:` URI with a host), text values, object values, and geographic sources give an empty table with the
   document-level report (`vl-data-remote-url`, `vl-data-values-text`, `vl-data-geo`), and nothing, not even a resolver
   callback, is asked for it.
 - **Large Tables Load Completely**:
@@ -164,7 +171,7 @@ the six unit verification documents passes without error or unexpected exception
   position and takes its last value), print as JavaScript does, are equal only to themselves (also when empty), and sort
   after every scalar while the scalar order is unchanged; a table built from sorted cells holds a composite cell, a
   null cell, and a table with rows but no fields, and refuses unordered, repeated, or miscounted fields.
-- **Derived Tables Share The Row Budget And The Sandbox Of The Call**:
+- **Derived Tables Share The Row Budget And The File Access Of The Call**:
   `DataLoaderTests.DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall`,
   `DataLoaderTests.DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall`,
   `RowTransformsTests.RowTransforms_Apply_LookupSourceSharesTheRowBudget`,
@@ -173,7 +180,8 @@ the six unit verification documents passes without error or unexpected exception
   before they are allocated (five derived rows fit beside three loaded ones under a limit of ten, three more are
   refused with the count of the rows read before and nothing is counted for the failure, and released rows are free
   again), a second data source of the same call (the source of a lookup) reads a file once through the same cache and
-  counts it once for `MaxDataFiles`, is refused outside the sandbox at its own `url`, shares the row budget, and stays an
+  counts it once for `MaxDataFiles`, is refused at its own `url` when it leaves the root of the file source (or, through
+  the public API, is outside the roots of the policy), shares the row budget, and stays an
   empty table that is never asked for when it is remote, and a fold over the limit fails at its transform.
 - **The Calendar Reaches Every Source And The Expression Context**:
   `DataLoaderCalendarTests.DataLoader_Load_PassesTheCalendarToInlineCsvJsonAndCallerRows`,

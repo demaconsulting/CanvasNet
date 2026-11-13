@@ -32,8 +32,10 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         The picture has the size of the placement (<see cref="ImageSourceRequest.SizeFor(int, int, bool)"/> with a natural size of
 ///         <see cref="NaturalSize"/> pixels square), over a <b>transparent</b> background so the document that embeds it
 ///         shows through. The <c>include</c> and <c>use</c> directives of the model resolve against
-///         <see cref="ImageSourceRequest.Directory"/>, the folder of the file, and the Scad library confines them to it;
-///         a directive whose file is missing from that folder is reported as a <c>scad-warning</c> note, not an error. A
+///         <see cref="ImageSourceRequest.Directory"/>, the folder of the file, and are read under
+///         <see cref="ImageSourceRequest.FileAccess"/>, the file-access policy of the render (a denied file is a
+///         <see cref="ScadEvaluationException"/>); a directive whose file is missing is reported as a <c>scad-warning</c>
+///         note, not an error. A
 ///         request without a <see cref="ImageSourceRequest.Directory"/> has no place to look, so a model that uses
 ///         <c>include</c> or <c>use</c> then fails with <see cref="ScadEvaluationException"/>.
 ///     </para>
@@ -133,7 +135,9 @@ public sealed class ScadImageSource : IImageSource, IFragmentImageSource
         ScadDocument document;
         using (var stream = request.OpenContent())
         {
-            document = ScadDocument.Open(stream, new ScadOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName });
+            document = ScadDocument.Open(
+                stream,
+                new ScadOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName, FileAccess = request.FileAccess });
         }
 
         // No view is chosen here: the library picks it (isometric for 3D, top-down for flat 2D, or the model's own $vp*

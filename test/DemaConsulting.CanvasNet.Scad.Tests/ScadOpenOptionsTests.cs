@@ -47,6 +47,27 @@ public class ScadOpenOptionsTests
     }
 
     /// <summary>
+    ///     Validates that the file-access policy is the allow-all policy by default, refuses null, and is kept when a
+    ///     document is opened with it.
+    /// </summary>
+    [Fact]
+    public void ScadOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective()
+    {
+        // Arrange
+        var options = new ScadOpenOptions { FileAccess = Files.FileAccessPolicy.NoSymlinks, SourceName = "given.scad" };
+
+        // Act
+        var effective = options.WithEffective("base", "name.scad");
+        var document = ScadDocument.Parse("x = 1;", options);
+
+        // Assert
+        Assert.Same(Files.FileAccessPolicy.AllowAll, new ScadOpenOptions().FileAccess);
+        Assert.Same(Files.FileAccessPolicy.NoSymlinks, effective.FileAccess);
+        Assert.Same(Files.FileAccessPolicy.NoSymlinks, document.Options.FileAccess);
+        Assert.Throws<ArgumentNullException>(() => new ScadOpenOptions { FileAccess = null! });
+    }
+
+    /// <summary>
     ///     Validates that empty or whitespace text values are rejected at initialization.
     /// </summary>
     /// <param name="property">The property to initialize.</param>
@@ -167,7 +188,7 @@ public class ScadOpenOptionsTests
             .ToList();
 
         // Assert
-        Assert.Equal(4, properties.Length);
+        Assert.Equal(5, properties.Length);
         Assert.Empty(mutable);
         Assert.True(typeof(ScadOpenOptions).IsSealed);
     }

@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -7,9 +8,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
 
 /// <summary>
 ///     Tests of the picture nodes of a Mermaid diagram (<c>@{ img: ... }</c>) in <see cref="SourceLoader"/>: a diagram shows
-///     files that lie beside it through the sandboxed resolver of the viewer, rooted at the folder of the diagram. The tests
-///     draw diagrams whose pictures are a generated PNG, a model (<c>.scad</c>) and a chart (<c>.vl.json</c>), and the
-///     failures (a link that leaves the folder, a remote URL, a missing file, a cycle, a broken file), and assert the pixels,
+///     files that lie beside it through the folder image resolver of the viewer, relative to the folder of the diagram. The
+///     tests draw diagrams whose pictures are a generated PNG, a model (<c>.scad</c>) and a chart (<c>.vl.json</c>), and the
+///     failures (a link the policy denies, a remote URL, a missing file, a cycle, a broken file), and assert the pixels,
 ///     the notes, the <c>embed</c> operations and the <c>--strict</c> policy, and that a picture that enlarges a diagram drawn
 ///     at its natural size is charged and reported at the drawn size.
 /// </summary>
@@ -145,16 +146,16 @@ public class SourceLoaderMermaidImageTests
     }
 
     /// <summary>
-    ///     Test that a link that leaves the folder, is a remote URL, is an absolute path or is missing is one warning of the
-    ///     resolver that names the link (the library's own warning for it is left out), draws nothing, and is an error in strict mode.
+    ///     Test that a link that is a remote URL, a drive path that does not exist (or is not valid on Linux and macOS)
+    ///     or a missing file is one warning of the resolver that names the link (the library's own warning for it is left
+    ///     out), draws nothing, and is an error in strict mode.
     /// </summary>
     /// <param name="link">The link.</param>
     [Theory]
-    [InlineData("../secret.png")]
     [InlineData("https://example.invalid/secret.png")]
     [InlineData("C:/secret.png")]
     [InlineData("missing.png")]
-    public void SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused(string link)
+    public void SourceLoader_Load_MermaidPictureUnresolvable_IsRefused(string link)
     {
         // Arrange: a valid picture one folder above the diagram
         using var directory = new TempDirectory();
@@ -174,6 +175,55 @@ public class SourceLoaderMermaidImageTests
         Assert.Empty(Embeds(loaded));
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
         Assert.Contains($"'flow.mmd' embeds '{link}', which was not drawn", strict.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that, under a policy confined to the folder of the diagram, a picture in the parent folder is one
+    ///     access-denied warning (the library's own warning for it is left out), draws nothing, and is the error
+    ///     <c>file-access-denied</c> in strict mode.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails()
+    {
+        // Arrange: a valid picture one folder above the diagram
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("secret.png"), Green);
+        var path = FixtureFactory.WriteText(directory.Combine("site"), "flow.mmd", OnePicture("../secret.png"));
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("site"));
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = policy });
+        var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { FileAccess = policy, Strict = true }));
+
+        // Assert
+        var note = Assert.Single(loaded.Diagnostics);
+        Assert.Equal(("svg", "warning", FolderImageResolver.AccessDeniedCode), (note.Source, note.Severity, note.Code));
+        Assert.Contains("'../secret.png'", note.Message, StringComparison.Ordinal);
+        Assert.Equal(0, Count(loaded.Surface, Green));
+        Assert.Empty(Embeds(loaded));
+        Assert.Equal(ErrorCodes.FileAccessDenied, strict.Code);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a picture in the parent folder of the diagram is drawn.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_MermaidPictureInTheParentFolder_IsDrawnByDefault()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("secret.png"), Green);
+        var path = FixtureFactory.WriteText(directory.Combine("site"), "flow.mmd", OnePicture("../secret.png"));
+
+        // Act
+        using var loaded = Load(path, strict: true);
+
+        // Assert
+        Assert.Empty(loaded.Diagnostics);
+        Assert.True(Count(loaded.Surface, Green) > 0);
+        Assert.Equal(["../secret.png"], Embeds(loaded).Distinct());
     }
 
     /// <summary>
@@ -235,7 +285,7 @@ public class SourceLoaderMermaidImageTests
         File.WriteAllBytes(directory.Combine("big.png"), ViewerFixtures.Png(400, 300, Green));
         var path = FixtureFactory.WriteText(directory.Path, "big.mmd", "flowchart LR\n    p@{ img: \"big.png\" }\n");
         var input = SourceLoader.SourceInput.FromFile(path);
-        return (input, SourceLoader.ProbeInput(input, SourceKind.Mermaid));
+        return (input, SourceLoader.ProbeInput(input, SourceKind.Mermaid, FileAccessPolicy.AllowAll));
     }
 
     /// <summary>

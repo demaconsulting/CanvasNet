@@ -39,6 +39,37 @@ public class MontageBuilderTests
     }
 
     /// <summary>
+    ///     Test that the file-access policy of the request applies to every cell: a model whose include lies outside the
+    ///     roots fails the sheet with <c>file-access-denied</c> when the inputs are probed with that policy, inputs probed
+    ///     under another policy are refused with <c>usage-error</c> before anything is drawn, and the default policy draws
+    ///     the sheet.
+    /// </summary>
+    [Fact]
+    public void MontageBuilder_Build_FileAccess_AppliesToEveryCell()
+    {
+        // Arrange: a picture and a model in the cells folder; the model includes a file of the parent folder
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("cells"));
+        FixtureFactory.WriteText(directory.Path, "lib.scad", "module part() { cube(8, center = true); }\n");
+        var model = FixtureFactory.WriteText(directory.Path, "cells/part.scad", "include <../lib.scad>\npart();\n");
+        SourceInfo[] infos = [CreatePng(directory, "cells/a.png"), SourceLoader.Probe(model)];
+        var policy = DemaConsulting.CanvasNet.Files.FileAccessPolicy.UnderRoots(directory.Combine("cells"));
+        SourceInfo[] confinedInfos = [SourceLoader.Probe(infos[0].Path, policy), SourceLoader.Probe(model, policy)];
+        var confined = CreateRequest(directory.Combine("confined.png")) with { FileAccess = policy };
+
+        // Act
+        var denied = Assert.Throws<ViewerException>(() => MontageBuilder.Execute(confinedInfos, confined));
+        var mismatched = Assert.Throws<ViewerException>(() => MontageBuilder.Execute(infos, confined));
+        var allowed = MontageBuilder.Execute(infos, CreateRequest(directory.Combine("allowed.png")));
+
+        // Assert
+        Assert.Equal(ErrorCodes.FileAccessDenied, denied.Code);
+        Assert.Equal(ErrorCodes.UsageError, mismatched.Code);
+        Assert.False(File.Exists(directory.Combine("confined.png")));
+        Assert.Equal(2, allowed.Cells.Count);
+    }
+
+    /// <summary>
     ///     Test that images are laid out row by row and the sheet is written at the size of the layout.
     /// </summary>
     [Fact]

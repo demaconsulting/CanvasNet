@@ -14,8 +14,9 @@ proves that the source is syntactically valid and reports what it declares at fi
 the program and never opens another file.** A document can then be **evaluated**: `Evaluate` drives the
 internal `ScadEvaluation` subsystem and returns the echo output, the warnings, the unsupported-feature
 reports, and the number of module instances produced; only evaluation opens other files (the files named
-by `include` and `use`), and only through the document's `ScadOpenOptions` and inside the sandbox
-described in _CanvasNetScad System Design_. A document can also be **built** into a Render3D `Scene`
+by `include` and `use`), and only through the document's `ScadOpenOptions` and under its file-access policy
+(`ScadOpenOptions.FileAccess`) described in _CanvasNetScad System Design_. A document can also be **built** into a
+Render3D `Scene`
 (`BuildScene`) and **rendered** onto a `Surface` (`Render`): both evaluate the document, drive the internal
 `ScadGeometry` subsystem, and (for `Render`) the Render3D renderer, steered by `ScadRenderOptions`. The package is
 an original implementation written from
@@ -59,17 +60,19 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   holds no unmanaged resources, is not disposable, and keeps no state between calls: it is safe for
   concurrent use, including concurrent `Evaluate`, `BuildScene`, and `Render` calls.
 - **`ScadOpenOptions`** (sealed class, init-only) — `BaseDirectory` (`string?`), `LibraryPaths`
-  (`IReadOnlyList<string>`, empty by default), `FileResolver` (`Func<string, Stream?>?`), and
-  `SourceName` (`string?`). Every property is validated in its `init` accessor: null is allowed for
+  (`IReadOnlyList<string>`, empty by default), `FileResolver` (`Func<string, Stream?>?`),
+  `SourceName` (`string?`), and `FileAccess` (`FileAccessPolicy`, `FileAccessPolicy.AllowAll` by default). Every
+  property is validated in its `init` accessor: null is allowed for
   the nullable properties, but empty or whitespace text throws `ArgumentException`; a null
-  `LibraryPaths` list or entry throws `ArgumentNullException`, and a whitespace entry throws
+  `LibraryPaths` list or entry, and a null `FileAccess`, throw `ArgumentNullException`, and a whitespace entry throws
   `ArgumentException`. `LibraryPaths` is copied defensively into a read-only list, so a later change to
   the caller's list has no effect. **Parsing consumes only `SourceName`** (it appears in every
-  `ScadSourceLocation`); `BaseDirectory`, `LibraryPaths`, and `FileResolver` are consumed by `Evaluate`,
-  where they define the file-access sandbox. A document that was not opened from a file has no base
+  `ScadSourceLocation`); `BaseDirectory`, `LibraryPaths`, `FileResolver`, and `FileAccess` are consumed by `Evaluate`:
+  the first three say where included files are looked up (search locations, not boundaries) and `FileAccess` which
+  of them may be read (not consulted with a `FileResolver`). A document that was not opened from a file has no base
   directory: there is **no implicit current directory**, so a stream or string document needs a resolver or
   library paths to use `include`/`use`. The internal `WithEffective(baseDirectory, sourceName)` creates a
-  copy with those two values filled in.
+  copy with those two values filled in and every other option, `FileAccess` included, kept.
 - **`ScadSourceLocation`** (`readonly record struct (string? File, int Line, int Column)`) — a
   one-based position. A column counts UTF-16 code units, a tab counts as one column, and `\r\n`,
   `\n`, and a lone `\r` each end exactly one line. `default(ScadSourceLocation)` has `Line == 0` and
@@ -355,11 +358,13 @@ document, the options, and the files the options make reachable.
 - File-system exceptions from `File.OpenRead` and stream read failures (`IOException` and derivatives)
   propagate unchanged.
 - `Evaluate` throws `ScadEvaluationException` (with the location) for a failed `assert`, an exceeded
-  `ScadLimits` limit, an include cycle, a sandbox violation, and a directive with no place to look;
+  `ScadLimits` limit, an include cycle, a file-access denial or another refused include file (with the core
+  `FileReferenceException` as the inner exception), and a directive with no place to look;
   `ScadUnsupportedFeatureException` when `ThrowOnUnsupportedFeature` is set and the program uses an
   unsupported feature; `ScadSyntaxException` (naming the included file) for a syntax error in a referenced
   file; `InvalidDataException` for an oversize referenced file; `OperationCanceledException`, never wrapped,
-  for cancellation; and `IOException` for a referenced file that cannot be read. Recoverable problems (an
+  for cancellation; and `ScadEvaluationException` (cannot be read) for a referenced file that cannot be read.
+  Recoverable problems (an
   unknown name, a bad operand, a missing include file) are **warnings** in the result, not exceptions; see
   _ScadEvaluation_ (`scad-evaluation.md`, _Event Classification_).
 - `BuildScene` and `Render` throw everything `Evaluate` throws, plus `ScadEvaluationException` (located) when
@@ -422,8 +427,10 @@ rendering entry points. The command-line tool reads `ScadRenderOptions.ResolvedV
 `ScadImageSource` (`ScadImageSource.cs`) is the `IImageSource` of the package for `.scad` files, so that a document can
 link to a model (an SVG `image`, for example) through the shared `FolderImageResolver`. `Render(request)` parses the
 model with `ScadDocument.Open(request.OpenContent(), new ScadOpenOptions { BaseDirectory = request.Directory, SourceName
-= request.FileName })`, so the `include` and `use` directives resolve in the folder of the file and are confined there
-by the library; draws it with `ScadDocument.Render` at the size `request.SizeFor(800, 800)` gives (a model has no
+= request.FileName, FileAccess = request.FileAccess })`, so the `include` and `use` directives resolve relative to the
+folder of the file and are read under the file-access policy of the render (the resolver's policy, anchored at the
+origin of the chain, so a nested model cannot loosen it); draws it with `ScadDocument.Render` at the size
+`request.SizeFor(800, 800)` gives (a model has no
 natural size, so 800 by 800 pixels, the `NaturalSize` constant, when none is requested), checking that size first with
 `request.EnsureWithinBudget(width, height)` (a size that does not fit in the budget of the request is refused with
 `ImageSourceBudgetException`

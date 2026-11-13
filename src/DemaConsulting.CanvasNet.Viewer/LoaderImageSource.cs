@@ -227,7 +227,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     /// <returns>The picture and what the loader reported.</returns>
     private ImageSourceResult Draw(ImageSourceRequest request)
     {
-        // The file is read from memory, in the folder the resolver found it in, so its includes resolve beside it
+        // The file is read from memory, in the folder the resolver found it in, so its includes resolve beside it under the policy of the request
         var input = SourceLoader.SourceInput.FromMemory(request.Content, request.FileName!, request.Directory);
         var kind = FindKind(request);
         var direct = request.Options as DirectRenderOptions;
@@ -245,7 +245,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             }
         }
 
-        using var opened = SourceLoader.OpenInput(input, kind);
+        using var opened = SourceLoader.OpenInput(input, kind, request.FileAccess);
         var info = opened.Info;
         if (options.Page < 1 || options.Page > info.PageCount)
         {
@@ -337,6 +337,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             Page = page,
             Dpi = direct?.Dpi,
             Strict = request.ThrowOnUnsupportedFeature,
+            FileAccess = request.FileAccess,
             Width = vector && request.PixelWidth is { } w ? Math.Clamp(w, 1, Surface.MaxDimension) : null,
             Height = vector && request.PixelHeight is { } h ? Math.Clamp(h, 1, Surface.MaxDimension) : null,
             Background = direct?.Background ?? DefaultBackground(kind),

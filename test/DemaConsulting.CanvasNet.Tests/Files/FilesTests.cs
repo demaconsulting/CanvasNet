@@ -99,6 +99,7 @@ public partial class FilesTests
         Assert.Equal("roots+no-symlinks", link.PolicyName);
     }
 
+#pragma warning disable CS0618 // The obsolete facade is still tested until it is removed
     /// <summary>
     ///     Validates for the engine and for the sandbox that a change of the tree around the open does not change the
     ///     decision: it follows the file that was opened.
@@ -147,6 +148,7 @@ public partial class FilesTests
         Assert.Equal(FileReferenceFailureKind.AccessDenied, engineError.Kind);
         Assert.Equal(SandboxFailureKind.ThroughLink, sandboxError.Kind);
     }
+#pragma warning restore CS0618
 
     /// <summary>
     ///     Validates that network and device references, a directory, (on Linux and macOS) a device reached by an
@@ -230,6 +232,7 @@ public partial class FilesTests
         Assert.Throws<OperationCanceledException>(() => canceling.Resolve("a.txt"));
     }
 
+#pragma warning disable CS0618 // The obsolete facade is still tested until it is removed
     /// <summary>
     ///     Validates for the reference resolver and the sandbox that, with a file limit of one, the first file is read
     ///     and a second file is refused before it is opened.
@@ -269,6 +272,7 @@ public partial class FilesTests
         Assert.Equal(SandboxFailureKind.TooManyFiles, sandboxSecond.Kind);
         Assert.Equal([a], sandboxOpened);
     }
+#pragma warning restore CS0618
 
     /// <summary>
     ///     Validates that a denial carries the reference, the policy, the reason and the paths, while its message names

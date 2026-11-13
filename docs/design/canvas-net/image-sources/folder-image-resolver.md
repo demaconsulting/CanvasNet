@@ -4,14 +4,14 @@
 
 ![ImageSources Structure](ImageSourcesView.svg)
 
-The `FolderImageResolver` unit loads the pictures a document links to from one folder, safely, through pluggable
-sources.
+The `FolderImageResolver` unit loads the pictures a document links to, relative to one folder and under a file-access
+policy, safely, through pluggable sources.
 It comprises these source files in the namespace `DemaConsulting.CanvasNet.ImageSources`, all `public`:
 
 - `FolderImageResolver.cs` - `FolderImageResolver` (sealed partial class): the public entry points (`Resolve`,
   `Render(path)`, `Render(Stream)`), the dispatch, the limits, the call of a source, and the private scope class
 - `FolderImageResolver.Href.cs` - the parsing of links: the cutting off of a query and a fragment (`SplitHref`),
-  `file:` URIs, percent-encoding, and the description of a refusal of the sandbox
+  `file:` URIs, percent-encoding, and the description of a refusal of the file engine
 - `FolderImageResolverOptions.cs` - `FolderImageResolverOptions` (sealed record): the limits and switches
 - `RequestedImage.cs` - `RequestedImage` (sealed record): one link a document asked for, with the files that contain
   it and, when it was drawn, the name of the picture
@@ -20,12 +20,13 @@ It comprises these source files in the namespace `DemaConsulting.CanvasNet.Image
 
 The unit is the single, format-independent implementation of "draw what this link names" that the SVG codec, the
 command-line
-tool, and the viewer share. It exists so that the safety rules for untrusted links (confinement to a folder, refusal of
-links and of the network, bounded depth, count and pixels, cycle detection) are written, tested, and reviewed once, in
+tool, and the viewer share. It exists so that the safety rules for untrusted links (a host-chosen file-access policy,
+the refusal of the network, bounded depth, count and pixels, cycle detection) are written, tested, and reviewed once, in
 the core package, instead of in each host. Everything format-specific is in the sources it calls.
 
-The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResolver-*` requirements (`Confinement`,
-`FileUri`, `UriReference`, `Dispatch`, `Precedence`, `Schemes`, `NestedScope`, `Limits`, `PixelBudget`, `Cancellation`,
+The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResolver-*` requirements (`FileAccess`,
+`PolicyPropagation`, `FileUri`, `UriReference`, `Dispatch`, `Precedence`, `Schemes`, `NestedScope`, `Limits`,
+`PixelBudget`, `Cancellation`,
 `Diagnostics`, `DiagnosticOrigin`, `Requested`, `Failures`, `NoCaching`, `DirectRender`, `Configuration`, `Fragment`,
 `FragmentDiagnostics`, and `PageRefusal`) in
 `docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml`.
@@ -33,21 +34,27 @@ The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResol
 #### Data Model
 
 **State of one resolver** (not thread-safe; one resolver serves one top-level render): the `ImageSourceSet` of the
-sources; the `FolderImageResolverOptions`; the full path of the folder (`null` when the resolver has no folder) and the
-`SandboxedFileResolver` over it, created at first use (never when there is no folder); the lists of notes, printed text,
+sources; the `FolderImageResolverOptions`; the full path of the folder (`null` when the resolver has no folder; the
+base of relative links, not a boundary) and the
+`FileReferenceResolver` over it with the policy of the options, created at first use (never when there is no folder);
+the lists of notes, printed text,
 embedded images, and requested links; the count of images that reached a source; the live `ImageBudget` (created from
-`MaxDecodedPixels` and handed to every request); and the root scope. The sandbox may read `MaxImages` distinct files,
+`MaxDecodedPixels` and handed to every request); and the root scope. The engine may read `MaxImages` distinct files,
 plus one more when the render is by path, because `Render(path)` also reads the top-level file and a render of a stream
-does not; the limit is fixed when the sandbox is created, so a render by path is the first call of a resolver.
+does not; the limit is fixed when the engine is created, so a render by path is the first call of a resolver.
 
 **`FolderImageResolverOptions`** (immutable): `MaxDepth` (4), `MaxImages` (64), `MaxDecodedPixels` (64,000,000: the
 pixels, width times height summed over every picture, that the sources of one resolver may allocate in total),
-`ThrowOnUnsupportedFeature` (false), and `CancellationToken` (none). `MaxDepth`, `MaxImages`, and `MaxDecodedPixels`
-must not be negative.
+`ThrowOnUnsupportedFeature` (false), `CancellationToken` (none), and `FileAccess` (the `FileAccessPolicy` that judges
+every file a link names; `FileAccessPolicy.AllowAll` by default, like Pandoc; `null` is an `ArgumentNullException`).
+`MaxDepth`, `MaxImages`, and `MaxDecodedPixels` must not be negative. The confinement of earlier versions is
+`FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)`.
 
 **Scope** (private): the file whose folder relative links resolve against (`Current`; null for the root folder), the
 chain of
-identities (full paths for files, `scheme:` plus the link for scheme-claimed pictures) for the cycle check, the `Depth`
+identities (the real path of a file, or its full path when the real path is unknown, so a file reached again through a
+link or another spelling is a cycle; `scheme:` plus the link for scheme-claimed pictures) for the cycle check, the
+`Depth`
 (levels of embedded files above the links of the scope: 0 at the top level, also for a direct render, which puts its
 file on
 the chain but not in the depth), the name of the embedding file or link for failures, and the `Origin` (the names of the
@@ -66,28 +73,36 @@ that a source receives in its request; it shares the owner's counts and lists.
 clamp the placement size and check it against the live budget (below); apply the limits to the key `scheme:` + link;
 parse the fragment (below); build a request with only the link **as written** (nothing is cut off a scheme link: the
 source owns its meaning), the parsed `Fragment`, the clamped size, the shared budget, the child scope (no file, depth +
-1), the switch, and the token; call the source.
+1), the switch, the token, and the raw policy in `FileAccess`; call the source.
 
-*File path*: with no folder the link is unresolved. Convert the link to a path (`ToRelativePath`, which uses
+*File path*: with no folder the link is unresolved. Convert the link to a path (`ToReferencePath`, which uses
 `SplitHref`): first cut the query (from the first `?` before a `#`) and the fragment (from the first `#`) off the link,
 as RFC 3986 defines a reference, **before**
 anything is decoded; a `?` after the first `#` belongs to the fragment; a link that is empty after that is unresolved
-("the reference is empty"). Then a `file:` URI
-inside the folder becomes a path relative to the folder (a `file:` URI with a host or outside is refused), and for any
+("the reference is empty"). Then a `file:` URI is classified by the core `FileReferenceResolver.ParseFileUri`: a local
+one (no host; the short form `file:/x` included) becomes its absolute local path, one with a host (`localhost`
+included) is unresolved ("it names a network location"), and a malformed one is unresolved with its own reason ("it is
+a malformed file: URI"); for any
 other link percent-encoding is decoded, so an encoded `%23` or `%3F` is a literal `#` or `?` of the file name and the
 text that was cut off is never used for the path (the query is never used; the fragment goes to the source, below);
-absolute, drive, and UNC paths are left in the text so that the sandbox
-refuses them. `DecodeReference` (internal, granted to the viewer) is the same cut and decoding as one helper, so a host
+`..`, absolute, drive, and UNC paths are left in the text, so that the engine refuses what is never allowed and the
+policy judges the rest. `DecodeReference` (internal, granted to the viewer) is the same cut and decoding as one helper,
+so a host
 that must classify a link exactly as the resolver does (the SVG flattener) shares it instead of repeating it. Pick the
 source by the longest extension of the path (none: unresolved, listing the claimed extensions)
 and apply the depth and image-count limits (`CheckDepthAndCount`), both **before any file is read**, so an image that is
-over a limit is never opened. Parse the fragment (below). Resolve the path with the sandbox, relative to the folder of
-the current file for an
-ordinary link (a refusal becomes a reason; no file is "the file was not found"); check that the name the sandbox found
+over a limit is never opened. Parse the fragment (below). Resolve the path with the `FileReferenceResolver`, always
+relative to the current file of the scope (so an absolute link keeps the origin of its chain): a denial of the policy
+(`AccessDenied`, or `RealPathUnavailable` when a restrictive policy cannot learn the real path) is the warning
+`image-access-denied` (`Denied`), any other `FileReferenceException` becomes a reason of an unresolved warning
+(`DescribeFailure`: a network location, not a valid local path, not a regular file, too large, too many files, cannot
+be read), and no file is "the file was not found"; check that the name the engine found
 leads to the same source; clamp the placement size and check it against the live budget; apply the cycle check, which
-needs the resolved key, and only then count the image; build a request with the bytes, the relative name (forward
-slashes), the folder, the parsed `Fragment`, the clamped size, the shared budget, the child scope, the switch, and the
-token, and the link
+needs the resolved file, and only then count the image; build a request with the bytes, the relative name (forward
+slashes; `../x/a.png` for a file outside the folder, or its full path on another drive), the folder, the parsed
+`Fragment`, the clamped size, the shared budget, the child scope, the switch, the token, `FileAccess` set to the
+policy anchored at the origin of the file's chain (`FileAccessPolicy.AnchoredAt(file.Origin)`, so a linked model or
+chart reads its own includes or data under the same policy, judged from the host-chosen folder), and the link
 **as written** in `Href`; call the source.
 
 **Natural size** (`IImageNaturalSizeResolver`): a renderer that places a picture by its own pixel size (the `image` mark
@@ -127,8 +142,8 @@ cannot use) passes `Invoke` unwrapped; `Draw` adds an unsupported note with the 
 render lets the exception propagate.
 
 **Limits**: `CheckDepthAndCount` refuses a scope whose depth has reached `MaxDepth` and a count that has reached
-`MaxImages` (no file is needed, so it runs before the sandbox opens one); `CheckCycle` refuses a key already on the
-chain (with the sandbox's key comparer; it needs the resolved key, so for a file it runs after the sandbox, and for a
+`MaxImages` (no file is needed, so it runs before the engine opens one); `CheckCycle` refuses an identity already on the
+chain (with the engine's key comparer; for a file it is the real path, so it runs after the engine, and for a
 scheme-claimed link, where nothing is read, it runs first so a self-embedding link is named as a cycle). The image is
 counted (`_loaded`) only after every check has passed. Each refusal is an unresolved warning.
 
@@ -174,20 +189,29 @@ them with the entries of that origin. `RequestedImage` compares its origin by en
 
 **`Render(path, w, h)`**: strict version for a top-level file: no folder is `InvalidOperationException`; the extension
 picks
-the source or `NotSupportedException` (listing the extensions); the sandbox resolves the path (`SandboxException` for a
-refusal, `FileNotFoundException` for none); the request has the file on the chain at depth 0; the result is returned
+the source or `NotSupportedException` (listing the extensions); `FileReferenceResolver.ResolveTopLevel` reads the path
+(relative to the folder or absolute; the caller chose the file, so it may lie anywhere, also behind a link, and the
+policy does not judge it; `FileReferenceException` for a path that is not valid, not a regular file, too large or
+unreadable, `FileNotFoundException` for none); the request has the file's identity on the chain at depth 0 and
+`FileAccess` anchored at the file's own folder, so its links are judged from there; the result is returned
 with the
 format filled in. The path is used as given (no query, fragment, or decoding). The overloads with a final
 `IImageSourceOptions` parameter do the same and put the options in `ImageSourceRequest.Options` (a link never gets
 options, so an embedded file does not inherit those of its embedder); the overloads without it pass `null`.
 **`Render(stream, name, w, h)`**: the
 same without a file: the stream is read up to 16 MiB (`InvalidDataException` beyond), `Directory` is the folder of the
-resolver, and the scope has no file.
+resolver, `FileAccess` is anchored at that folder, and the scope has no file.
 
 #### Error Handling
 
 An unresolved link is never an exception: it is a warning with the code `svg-image-unresolved` and the message
-`image '{href}' was not drawn: {reason}`. A fragment over its limits, or a page a source refuses, is an unsupported note
+`image '{href}' was not drawn: {reason}`. A link the file-access policy denied (or could not apply, because the real
+path of the file cannot be determined) is the warning `image-access-denied` (`AccessDeniedCode`) with the message
+`image '{href}' was not drawn: access denied by the file-access policy '{name}': {reason}. Hint: {hint}`; nothing is
+read or drawn and the render carries on. Its message names only the link as written, the policy, and the policy's
+reason and hint (the built-in reasons name no host directory); the host paths go only to `ImageSourceDiagnostic.Detail`
+(`reference=…; requested=…; real=…; policy=…`), which a service that returns diagnostics to untrusted authors should
+redact. A fragment over its limits, or a page a source refuses, is an unsupported note
 with the code `image-fragment-invalid` or the code of the `ImageSourceRefusedException` (`image-page-out-of-range`),
 and an unknown or duplicate parameter is a warning; none of them is an exception, and none stops the render.
 A picture that does not fit in the pixel budget is the warning
@@ -196,7 +220,7 @@ A picture that does not fit in the pixel budget is the warning
 file
 that its source cannot draw is `ImageSourceException`.
 Cancellation
-(from the resolver's own checks, the sandbox, or a source) passes through as `OperationCanceledException`. A direct
+(from the resolver's own checks, the file engine, or a source) passes through as `OperationCanceledException`. A direct
 render
 throws the exceptions listed above, and `ImageSourceBudgetException` for an over-budget picture. Invalid construction
 arguments (a null sequence, an empty or white-space folder, a negative limit, an
@@ -204,7 +228,7 @@ invalid claim) are `ArgumentNullException`, `ArgumentException`, or `ArgumentOut
 
 #### Dependencies
 
-`SandboxedFileResolver` and its types (`Files` subsystem), `ImageSourceSet` and the contract types
+`FileReferenceResolver`, `FileAccessPolicy` and their types (`Files` subsystem), `ImageSourceSet` and the contract types
 (`ImageSourceContract`
 unit), and `Surface` of the `Canvas` subsystem. The sources it calls are injected as `IImageSource` instances.
 

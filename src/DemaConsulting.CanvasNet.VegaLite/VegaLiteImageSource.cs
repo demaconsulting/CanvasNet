@@ -29,7 +29,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         placement allows. The chart keeps <b>its own background</b> (white unless the specification declares another),
 ///         because a chart is meant to carry its own paper. Rendering is deterministic: times are in UTC and only the
 ///         bundled fonts are used. The <c>data</c> files the chart names resolve against
-///         <see cref="ImageSourceRequest.Directory"/> and the Vega-Lite library confines them to it.
+///         <see cref="ImageSourceRequest.Directory"/> and are read under <see cref="ImageSourceRequest.FileAccess"/>, the
+///         file-access policy of the render (a denied file is a <see cref="VegaLiteRenderException"/>).
 ///     </para>
 ///     <para>
 ///         Warnings and unsupported features are returned as <see cref="ImageSourceResult.Diagnostics"/> (source
@@ -41,7 +42,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     </para>
 ///     <para>
 ///         <b>Pictures.</b> The <c>image</c> marks of the chart load their pictures through <see cref="ImageSourceRequest.Resolver"/>, the resolver scoped to the chart's own file: a relative <c>url</c> resolves against the
-///         folder of the chart, shares the budgets, diagnostics and cycle chain of the whole render (a chart that shows itself stops at once), and is confined by the same rules as every other embedded file. A request built by
+///         folder of the chart, shares the budgets, diagnostics and cycle chain of the whole render (a chart that shows itself stops at once), and is checked by the same file-access policy as every other embedded file. A request built by
 ///         hand has no resolver; the <c>image</c> marks are then reported as <c>vl-mark-image</c> and draw nothing.
 ///     </para>
 ///     <para>
@@ -129,7 +130,9 @@ public sealed class VegaLiteImageSource : IImageSource, IFragmentImageSource
         VegaLiteDocument document;
         using (var stream = request.OpenContent())
         {
-            document = VegaLiteDocument.Open(stream, new VegaLiteOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName });
+            document = VegaLiteDocument.Open(
+                stream,
+                new VegaLiteOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName, FileAccess = request.FileAccess });
         }
 
         var diagnostics = new List<ImageSourceDiagnostic>();

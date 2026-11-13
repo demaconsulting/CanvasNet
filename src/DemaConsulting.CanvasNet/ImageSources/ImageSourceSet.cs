@@ -26,8 +26,8 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 public sealed class ImageSourceSet : IReadOnlyList<IImageSource>
 {
     /// <summary>
-    ///     The scheme names that sources may not claim: <c>file</c> is always a path inside the folder (handled by the
-    ///     resolver) and <c>data</c> is decoded by the SVG codec itself.
+    ///     The scheme names that sources may not claim: <c>file</c> is always a local file read by the resolver and
+    ///     <c>data</c> is decoded by the SVG codec itself.
     /// </summary>
     private static readonly string[] ReservedSchemes = ["file", "data"];
 
@@ -250,7 +250,7 @@ public sealed class ImageSourceSet : IReadOnlyList<IImageSource>
         if (Array.IndexOf(ReservedSchemes, lower) >= 0)
         {
             throw new ArgumentException(
-                $"The image source '{source.Name}' claims the scheme '{scheme}', which is reserved: 'file' is always a path inside the folder and 'data' is decoded by the SVG codec.",
+                $"The image source '{source.Name}' claims the scheme '{scheme}', which is reserved: 'file' is always a local file read by the resolver and 'data' is decoded by the SVG codec.",
                 nameof(source));
         }
 

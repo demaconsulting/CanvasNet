@@ -1,5 +1,6 @@
 // cspell:ignore hrefs embedder
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.Tests.ImageSources;
@@ -313,6 +314,23 @@ public class ImageSourceContractTests
         Assert.Null(plain.Options);
         Assert.Same(fragment, full.Fragment);
         Assert.Same(options, full.Options);
+    }
+
+    /// <summary>
+    ///     Test that a new request carries the allow-all file-access policy, that another policy can be set, and that
+    ///     null is refused.
+    /// </summary>
+    [Fact]
+    public void ImageSourceRequest_FileAccess_DefaultsToAllowAllAndRejectsNull()
+    {
+        // Act
+        var plain = new ImageSourceRequest { Href = "a.svg" };
+        var confined = new ImageSourceRequest { Href = "a.svg", FileAccess = FileAccessPolicy.NoSymlinks };
+
+        // Assert
+        Assert.Same(FileAccessPolicy.AllowAll, plain.FileAccess);
+        Assert.Same(FileAccessPolicy.NoSymlinks, confined.FileAccess);
+        Assert.Throws<ArgumentNullException>(() => new ImageSourceRequest { Href = "a.svg", FileAccess = null! });
     }
 
     /// <summary>

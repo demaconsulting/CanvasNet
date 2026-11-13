@@ -26,6 +26,7 @@ sections:
               - CanvasNet-Files-SandboxedFileResolver-Resolution
               - CanvasNet-Files-SandboxedFileResolver-MissingFiles
               - CanvasNet-Files-SandboxedFileResolver-Cache
+              - CanvasNet-Files-SandboxedFileResolver-Deprecated
             tests:
               - SandboxedFileResolver_Resolve_RelativePathUsesBaseDirectoryThenSearchPaths
               - SandboxedFileResolver_Resolve_MissingFileReturnsNullAndNoSourceHasNone
@@ -137,6 +138,7 @@ sections:
               - CanvasNet-Files-FileReferenceResolver-Candidates
               - CanvasNet-Files-FileReferenceResolver-MissingFiles
               - CanvasNet-Files-FileReferenceResolver-Cache
+              - CanvasNet-Files-FileReferenceResolver-TopLevelFile
             tests:
               - Files_ReferenceResolution_RelativeDotDotAndAbsoluteReferences_AreReadUnderTheDefaultPolicy
 
@@ -154,6 +156,7 @@ sections:
             children:
               - CanvasNet-Files-FileReferenceResolver-PolicyEvaluation
               - CanvasNet-Files-FileReferenceResolver-ChainOrigin
+              - CanvasNet-Files-FileAccessPolicy-AnchoredAt
               - CanvasNet-Files-FileAccessPolicy-AllowAll
               - CanvasNet-Files-FileAccessPolicy-UnderRoots
               - CanvasNet-Files-FileAccessPolicy-NoSymlinks
@@ -200,6 +203,7 @@ sections:
               - CanvasNet-Files-FileReferenceResolver-RegularFile
               - CanvasNet-Files-FileReferenceResolver-RealPathUnavailable
               - CanvasNet-Files-FileReferenceResolver-NetworkTarget
+              - CanvasNet-Files-FileReferenceResolver-FileUri
               - CanvasNet-Files-RealPath-RegularFile
               - CanvasNet-Files-RealPath-NonBlockingOpen
               - CanvasNet-Files-RealPath-Unavailable

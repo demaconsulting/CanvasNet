@@ -541,6 +541,116 @@ public class CanvasNetViewerSystemIntegrationTests
             .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))
             .ToList());
 
+    /// <summary>
+    ///     Proves through the public API that the file-access policy of a render reaches every kind of reference: by
+    ///     default the picture of an SVG file, of a Mermaid diagram and of a Vega-Lite image mark in the parent folder are
+    ///     drawn and the data of a chart and the include of a model there are read; under a policy confined to the folder
+    ///     of the document the pictures are access-denied warnings and the data and the include fail the render with the
+    ///     denial in the chain of inner exceptions.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind()
+    {
+        // Arrange: a picture, a data file and a library in the parent of the folder of the documents
+        using var folder = new ViewerTestFolder();
+        folder.WriteBytes("pic.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
+        folder.WriteText("data.csv", "a,b\nA,3\nB,5\n");
+        folder.WriteText("lib.scad", "module part() { cube(8, center = true); }\n");
+        var pictures = new[]
+        {
+            folder.WriteText("site/a.svg", ViewerFixtures.Svg(ViewerFixtures.Cell("../pic.png", 0))),
+            folder.WriteText("site/b.mmd", "flowchart LR\n    p@{ img: \"../pic.png\", w: 60, h: 60, constraint: \"on\" }\n"),
+            folder.WriteText(
+                "site/c.vl.json",
+                "{ \"width\": 100, \"height\": 100, \"padding\": 0, \"data\": { \"values\": [ { \"x\": 5 } ] }, "
+                + "\"mark\": { \"type\": \"image\", \"width\": 40, \"height\": 40 }, \"encoding\": { \"x\": { \"field\": \"x\", "
+                + "\"type\": \"quantitative\", \"scale\": { \"domain\": [0, 10] }, \"axis\": null }, \"y\": { \"value\": 50 }, "
+                + "\"url\": { \"value\": \"../pic.png\" } } }"),
+        };
+        var files = new[]
+        {
+            folder.WriteText(
+                "site/d.vl.json",
+                "{\"data\":{\"url\":\"../data.csv\"},\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"nominal\"},\"y\":{\"field\":\"b\",\"type\":\"quantitative\"}}}"),
+            folder.WriteText("site/e.scad", "include <../lib.scad>\npart();\n"),
+        };
+        var confined = new ViewerRenderOptions { FileAccess = Files.FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+
+        // Act / Assert: the pictures
+        foreach (var path in pictures)
+        {
+            using var drawn = CanvasNetViewer.Render(path);
+            using var denied = CanvasNetViewer.Render(path, confined);
+            Assert.DoesNotContain(drawn.Diagnostics, d => d.Code is FolderImageResolver.UnresolvedCode or FolderImageResolver.AccessDeniedCode);
+            Assert.NotEmpty(drawn.Embedded);
+            Assert.Contains(denied.Diagnostics, d => d.Code == FolderImageResolver.AccessDeniedCode);
+            Assert.Empty(denied.Embedded);
+        }
+
+        // Act / Assert: the files a chart and a model read themselves
+        foreach (var path in files)
+        {
+            using var drawn = CanvasNetViewer.Render(path);
+            Assert.True(drawn.Surface.Width > 0);
+            var ex = Assert.Throws<ImageSourceException>(() => CanvasNetViewer.Render(path, confined));
+            Exception? current = ex;
+            while (current is not null and not Files.FileReferenceException)
+            {
+                current = current.InnerException;
+            }
+
+            Assert.Equal(Files.FileReferenceFailureKind.AccessDenied, Assert.IsType<Files.FileReferenceException>(current).Kind);
+        }
+    }
+
+    /// <summary>
+    ///     Guards the propagation of the policy: every options object of a format library, a resolver or the loader that
+    ///     the viewer creates in its source passes a file-access policy on, apart from the listed ones that only check
+    ///     options or measure without reading a file, so a new code path cannot fall back to the allow-all default
+    ///     silently.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SourceTree_EveryOpenOptionsCarriesTheFileAccess()
+    {
+        // Arrange: the creations that never read a file with the options they build
+        var allowed = new[] { "FindOptionProblem(new SourceOptions", "CreateVegaLiteOptions(new SourceOptions()" };
+        var source = Path.Combine(FindRepositoryRoot(), "src", "DemaConsulting.CanvasNet.Viewer");
+        var pattern = new System.Text.RegularExpressions.Regex(
+            @"new (ScadOpenOptions|VegaLiteOpenOptions|FolderImageResolverOptions|SourceOptions)\b[^;]*",
+            System.Text.RegularExpressions.RegexOptions.Singleline,
+            TimeSpan.FromSeconds(5));
+
+        // Act
+        var missing = Directory.EnumerateFiles(source, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .SelectMany(file => File.ReadAllLines(file)
+                .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+                .Select(line => (file, line)))
+            .Where(entry => pattern.IsMatch(entry.line))
+            .Where(entry => !entry.line.Contains("FileAccess", StringComparison.Ordinal)
+                && !allowed.Any(a => entry.line.Contains(a, StringComparison.Ordinal))
+                && !IsMultiLineInitializerWithFileAccess(entry.file, entry.line))
+            .Select(entry => $"{Path.GetFileName(entry.file)}: {entry.line.Trim()}")
+            .ToList();
+
+        // Assert
+        Assert.Empty(missing);
+    }
+
+    /// <summary>
+    ///     Determines whether a line opens a multi-line object initializer that sets the file-access policy.
+    /// </summary>
+    /// <param name="file">The source file.</param>
+    /// <param name="line">The line that creates the options.</param>
+    /// <returns><see langword="true"/> when the initializer that the line opens sets <c>FileAccess</c>.</returns>
+    private static bool IsMultiLineInitializerWithFileAccess(string file, string line)
+    {
+        var text = File.ReadAllText(file);
+        var start = text.IndexOf(line, StringComparison.Ordinal);
+        var end = text.IndexOf(';', start);
+        return start >= 0 && end > start && text[start..end].Contains("FileAccess", StringComparison.Ordinal);
+    }
+
     /// <summary>A C# block of the guide: the marker that precedes it, its first line number, and its text.</summary>
     /// <param name="Marker">The HTML comment on the line before the block, or an empty string.</param>
     /// <param name="Line">The 1-based line number of the opening fence.</param>

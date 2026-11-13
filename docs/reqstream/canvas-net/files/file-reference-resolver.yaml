@@ -109,10 +109,28 @@ sections:
                   - FileReferenceResolver_Resolve_NestedReference_RequestBaseDirectoryIsTheChainOrigin
                   - FileReferenceResolver_Resolve_RelativeToFromAnotherResolver_ThrowsArgumentException
 
+              - id: CanvasNet-Files-FileReferenceResolver-TopLevelFile
+                title: >-
+                  The FileReferenceResolver class shall open the top-level file of an operation, which the caller
+                  named, as given: the path-text refusals (network, device, and alternate-data-stream paths), the
+                  pre-check, the network-target check and the file-access policy apply to referenced files only. It
+                  shall still refuse a path that is not a valid path, a file that is not a regular file, and a file
+                  over the size limit, count it against the file limit, and judge the references resolved relative to
+                  it as usual; a later reference to the same file shall be judged like any other reference.
+                justification: |
+                  The policy and the refusals protect against what a document references - a document must not make
+                  the host reach a device or an attacker's share - not against the file the user asked to render, which
+                  the operator chose on purpose; the limits still bound the work.
+                tests:
+                  - FileReferenceResolver_ResolveTopLevel_DenyingPolicy_ReadsTheFileAndChecksItsReferences
+                  - FileReferenceResolver_ResolveTopLevel_Directory_IsNotARegularFile
+                  - FileReferenceResolver_ResolveTopLevel_TakesAFileSlot
+                  - "windows@FileReferenceResolver_ResolveTopLevel_PathRefusedAsAReference_IsOpenedAsGiven"
+
               - id: CanvasNet-Files-FileReferenceResolver-NetworkTarget
                 title: >-
                   On Windows the FileReferenceResolver class shall refuse with NetworkPath, under every policy and
-                  without reading it, an opened file whose real path is a network location while the path as written
+                  without reading it, a referenced file whose real path is a network location while the path as written
                   is not (a link to a share), and shall read files whose path as written is itself on a mapped network
                   drive or share.
                 justification: |
@@ -120,6 +138,19 @@ sections:
                   user's credentials) where the host expected a local file; a host working on a share keeps working.
                 tests:
                   - "windows@FileReferenceResolver_Resolve_LocalPathWhoseRealPathIsANetworkShare_IsNetworkPathUnderEveryPolicy"
+
+              - id: CanvasNet-Files-FileReferenceResolver-FileUri
+                title: >-
+                  The FileReferenceResolver class shall classify a text as a file: URI that is local (no host, in
+                  the long form file:///x and the short form file:/x alike, giving its local path), one with a host
+                  (localhost included, never read), a malformed one, or no file: URI at all.
+                justification: |
+                  Image links and data URLs accept file: URIs; one shared classification makes the short form work
+                  on every platform, keeps any host (a network location) from being read, and keeps the rules of
+                  the two consumers from drifting apart.
+                tests:
+                  - FileReferenceResolver_ParseFileUri_ClassifiesFileUris
+                  - FileReferenceResolver_ParseFileUri_ShortAndLongFormGiveTheSamePath
 
               - id: CanvasNet-Files-FileReferenceResolver-RaceFree
                 title: >-

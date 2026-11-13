@@ -44,7 +44,8 @@ public class ScadFileResolverFileSystemTests
     }
 
     /// <summary>
-    ///     Validates that a library path outside the base directory is searched and its files are named by full path.
+    ///     Validates that a library path outside the base directory is searched and its files are located relative to
+    ///     the base directory (never by a host directory).
     /// </summary>
     [Fact]
     public void ScadFileResolver_Load_LibraryPath_IsSearchedAfterIncludingDirectory()
@@ -52,15 +53,15 @@ public class ScadFileResolverFileSystemTests
         // Arrange
         using var directory = new ScadTempDirectory();
         var main = directory.Write("project/main.scad", "include <shared.scad>\nuse <tool.scad>\n");
-        var shared = directory.Write("lib/shared.scad", "s = 1;\n");
+        directory.Write("lib/shared.scad", "s = 1;\n");
         directory.Write("lib/tool.scad", "t = 1;\n");
 
         // Act
         var unit = LoadFile(main, new ScadOpenOptions { LibraryPaths = [directory.Combine("lib")] });
 
         // Assert
-        Assert.Equal(["s@" + Path.GetFullPath(shared) + ":1"], Assignments(unit));
-        Assert.Equal(Path.GetFullPath(directory.Combine("lib/tool.scad")), Assert.Single(unit.Uses).Name);
+        Assert.Equal(["s@../lib/shared.scad:1"], Assignments(unit));
+        Assert.Equal("../lib/tool.scad", Assert.Single(unit.Uses).Name);
     }
 
     /// <summary>
@@ -172,9 +173,34 @@ public class ScadFileResolverFileSystemTests
         var ex = Assert.Throws<ScadEvaluationException>(() => Load("include <folder.scad>\n", options));
 
         // Assert
-        Assert.Contains("Include file 'folder.scad' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Include file 'folder.scad' is not a regular file", ex.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
         Assert.Equal(1, ex.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that an include cycle through a directory link (a junction on Windows), where the file includes
+    ///     itself under another path, is found by the real path of the file at the first repetition.
+    /// </summary>
+    [Fact]
+    public void ScadFileResolver_Load_IncludeCycleThroughLink_IsDetectedByRealPath()
+    {
+        // Arrange: lib/a.scad includes alias/a.scad, and lib/alias is a link to lib itself
+        using var directory = new ScadTempDirectory();
+        directory.Write("lib/a.scad", "include <alias/a.scad>\n");
+        if (!TryCreateDirectoryLink(directory.Combine("lib/alias"), directory.Combine("lib"), out var reason))
+        {
+            Assert.Skip("Directory links cannot be created in this environment: " + reason);
+        }
+
+        var options = new ScadOpenOptions { BaseDirectory = directory.Path, SourceName = "main.scad" };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => Load("include <lib/a.scad>\n", options));
+
+        // Assert: the alias is the same file, so the cycle stops at once rather than at the depth limit
+        Assert.Contains("Include cycle", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("too deep", ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>

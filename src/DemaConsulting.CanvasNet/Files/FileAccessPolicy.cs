@@ -22,10 +22,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         part to allow the file, and <see cref="FromDelegate"/> wraps a function.
 ///     </para>
 ///     <para>
-///         <b>Always refused.</b> Whatever the policy, the resolver refuses network paths (UNC and <c>//host</c>),
-///         device paths (on Windows also a legacy device name such as <c>NUL</c>), alternate data streams, control
-///         characters, anything that is not a regular file and, on Windows, a link from a local path to a network
-///         share, and keeps every size and count limit. A restrictive policy (any policy other than
+///         <b>Always refused.</b> Whatever the policy, the resolver refuses a referenced file given as a network path
+///         (UNC and <c>//host</c>), a device path (on Windows also a reserved device name such as <c>NUL</c>), an
+///         alternate data stream or a path with control characters, anything that is not a regular file and, on Windows,
+///         a link from a local path to a network share, and keeps every size and count limit. These refusals keep a
+///         document from reaching devices and the network; the top-level file the caller names is opened as given. A
+///         restrictive policy (any policy other than
 ///         <see cref="AllowAll"/>) is never consulted without a real path: where the platform cannot tell the real path
 ///         of an open file, the file is refused with <see cref="FileReferenceFailureKind.RealPathUnavailable"/> (fail
 ///         closed).
@@ -187,6 +189,25 @@ public abstract partial class FileAccessPolicy
     /// <param name="requestedPath">The full path as written.</param>
     /// <returns>A denial, or <see langword="null"/> when the open may go ahead (the real check follows the open).</returns>
     internal virtual FileAccessDecision? PreCheck(string requestedPath) => null;
+
+    /// <summary>
+    ///     Gets this policy judged from a fixed chain origin, for the files a nested document reads itself.
+    /// </summary>
+    /// <remarks>
+    ///     A source that draws a linked model or chart reads its own files through a resolver whose base directory is the
+    ///     folder of that nested file; without an anchor, <see cref="NoSymlinks"/> would trust that folder, which may have
+    ///     been swapped for a link after the outer check. The anchored policy hands every request to this policy with
+    ///     <see cref="FileAccessRequest.BaseDirectory"/> replaced by <paramref name="origin"/>, the host-chosen origin of
+    ///     the outer chain. A policy that never needs a real path (<see cref="AllowAll"/>) and a policy that is already
+    ///     anchored are returned as they are, so the outermost origin wins.
+    /// </remarks>
+    /// <param name="origin">The full path of the host-chosen directory the outer chain started from.</param>
+    /// <returns>The anchored policy.</returns>
+    internal virtual FileAccessPolicy AnchoredAt(string origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return RequiresRealPath ? new AnchoredPolicy(this, origin) : this;
+    }
 
     /// <summary>
     ///     Names the trusted folders whose real location the policy compares against after the open, so the resolver can

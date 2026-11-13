@@ -24,6 +24,25 @@ public class VegaLiteOpenOptionsTests
     }
 
     /// <summary>
+    ///     Validates that the file-access policy is the allow-all policy by default, refuses null, and is kept when a
+    ///     document is opened with it.
+    /// </summary>
+    [Fact]
+    public void VegaLiteOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective()
+    {
+        // Arrange
+        var options = new VegaLiteOpenOptions { FileAccess = Files.FileAccessPolicy.NoSymlinks };
+
+        // Act
+        var effective = options.WithEffective("base", "chart.vl.json");
+
+        // Assert
+        Assert.Same(Files.FileAccessPolicy.AllowAll, new VegaLiteOpenOptions().FileAccess);
+        Assert.Same(Files.FileAccessPolicy.NoSymlinks, effective.FileAccess);
+        Assert.Throws<ArgumentNullException>(() => new VegaLiteOpenOptions { FileAccess = null! });
+    }
+
+    /// <summary>
     ///     Validates that valid values are stored.
     /// </summary>
     [Fact]

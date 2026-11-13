@@ -22,8 +22,8 @@ N/A - standard test environment; the tests write only to temporary directories t
   size times the scale, and every other byte of the drawing is kept.
 - Nothing is written when nothing is replaced; a link the drawing never shows is the warning
   `svg-flatten-image-not-drawn`.
-- The sandbox and limits of render apply, a copy over the limit is `size-limit`, and every refused input or output has
-  its documented code.
+- The file-access policy of the request and the limits of render apply, a copy over the limit is `size-limit`, and
+  every refused input or output has its documented code.
 
 #### Test Scenarios
 
@@ -77,11 +77,17 @@ which the drawing shows, is the warning `svg-flatten-image-not-drawn` with `part
 
 **SvgFlattener_Execute_MissingLinkedFile_ReportsUnresolved**,
 **SvgFlattener_Execute_MissingLinkedFileStrict_ThrowsUnsupportedFeature**,
-**SvgFlattener_Execute_LinkOutsideFolder_RefusedBySandbox**, **SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle**,
-and **SvgFlattener_Execute_MoreThan64Images_ExtraLinksStayAndAreReported**: a missing file, a path that leaves the
-folder, a cycle, and the 65th picture are reported as `svg-image-unresolved` and stay links; with strict a missing file
-is
-`unsupported-feature`.
+**SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle**, and
+**SvgFlattener_Execute_MoreThan64Images_ExtraLinksStayAndAreReported**: a missing file, a cycle, and the 65th picture
+are reported as `svg-image-unresolved` and stay links; with strict a missing file is `unsupported-feature`.
+
+**SvgFlattener_Execute_LinkOutsideTheRoots_IsNotFlattened**,
+**SvgFlattener_Execute_LinkInTheParentFolder_IsFlattenedByDefault**, and
+**FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull**: with
+`FlattenRequest.FileAccess = UnderRoots(sub)` (and the drawing probed with that policy) a link to `../flow.mmd` is the
+one `image-access-denied` warning naming the link and nothing is flattened, the drawing probed under the default
+policy is refused with `usage-error`, while under the default policy the same link is flattened (in strict mode); and
+`FlattenRequest`, `MontageRequest`, and `SourceOptions` carry `AllowAll` by default and refuse `null`.
 
 **SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing** and
 **SvgFlattener_Execute_OutputInOtherFolder_RebasesRemainingRelativeLinks**: a copy over a 1000-byte limit is

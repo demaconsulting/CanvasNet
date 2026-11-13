@@ -1,15 +1,16 @@
 // cspell:ignore scad svg href vsdx pptx
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
 
 /// <summary>
-///     Tests of the Vega-Lite <c>image</c> mark wiring of <see cref="SourceLoader"/> (Vega-Lite Phase 13): a chart shows pictures that lie beside it through the sandboxed resolver of the
-///     viewer, the same one an SVG file embeds with, rooted at the folder of the chart. The tests draw charts whose pictures are a generated PNG, a model (<c>.scad</c>), a page of a PDF
-///     (<c>report.pdf#page=2</c>), a nested chart and the failures (a missing file, a path outside the folder, a remote URL, a file that is corrupt, a page that does not exist, a cycle, the
+///     Tests of the Vega-Lite <c>image</c> mark wiring of <see cref="SourceLoader"/> (Vega-Lite Phase 13): a chart shows pictures that lie beside it through the folder image resolver of the
+///     viewer, the same one an SVG file embeds with, relative to the folder of the chart. The tests draw charts whose pictures are a generated PNG, a model (<c>.scad</c>), a page of a PDF
+///     (<c>report.pdf#page=2</c>), a nested chart and the failures (a missing file, a path the policy denies, a remote URL, a file that is corrupt, a page that does not exist, a cycle, the
 ///     limit of pictures), and assert the pixels that the placement of each picture puts the picture's colors into, the notes, the <c>embed</c> operations and the <c>--strict</c> policy.
 /// </summary>
 public class SourceLoaderVegaLiteImageTests
@@ -179,13 +180,12 @@ public class SourceLoaderVegaLiteImageTests
     }
 
     /// <summary>
-    ///     Test that a link that is missing, leaves the folder, is a remote URL or is an absolute path is a warning of the resolver (the reason is the resolver's), draws nothing, and
-    ///     does not leave the library's own warning for the same link next to it.
+    ///     Test that a link that is missing, is a remote URL or is a drive path that does not exist (or is not valid on Linux and macOS) is a warning of the resolver (the reason is
+    ///     the resolver's), draws nothing, and does not leave the library's own warning for the same link next to it.
     /// </summary>
     /// <param name="link">The link.</param>
     [Theory]
     [InlineData("missing.png")]
-    [InlineData("../secret.png")]
     [InlineData("C:/secret.png")]
     [InlineData("https://example.invalid/secret.png")]
     public void SourceLoader_Load_VegaLiteImageUnresolvedLink_IsOneWarningAndNothingIsDrawn(string link)
@@ -205,6 +205,54 @@ public class SourceLoaderVegaLiteImageTests
         Assert.Contains($"'{link}'", note.Message, StringComparison.Ordinal);
         Assert.Equal(White, loaded.Surface[50, 50]);
         Assert.DoesNotContain(loaded.Operations, o => o.Op == "embed");
+    }
+
+    /// <summary>
+    ///     Test that, under a policy confined to the folder of the chart, a picture in the parent folder is one access-denied warning of the resolver (the library's own warning for
+    ///     the same link is left out), draws nothing, and is the error <c>file-access-denied</c> in strict mode.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLiteImageOutsideTheRoots_IsOneAccessDeniedWarning()
+    {
+        // Arrange: a valid picture one folder above the chart
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("secret.png"), Green);
+        var path = FixtureFactory.WriteText(directory.Combine("site"), "chart.vl.json", OnePicture("../secret.png"));
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("site"));
+
+        // Act
+        using var loaded = SourceLoader.Load(path, new SourceOptions { FileAccess = policy });
+        var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { FileAccess = policy, Strict = true }));
+
+        // Assert
+        var note = Assert.Single(loaded.Diagnostics);
+        Assert.Equal(("svg", "warning", FolderImageResolver.AccessDeniedCode), (note.Source, note.Severity, note.Code));
+        Assert.Contains("'../secret.png'", note.Message, StringComparison.Ordinal);
+        Assert.Equal(White, loaded.Surface[50, 50]);
+        Assert.DoesNotContain(loaded.Operations, o => o.Op == "embed");
+        Assert.Equal(ErrorCodes.FileAccessDenied, strict.Code);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a picture in the parent folder of the chart is drawn.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLiteImageInTheParentFolder_IsDrawnByDefault()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteSolidPng(directory.Combine("secret.png"), Green);
+        var path = FixtureFactory.WriteText(directory.Combine("site"), "chart.vl.json", OnePicture("../secret.png"));
+
+        // Act
+        using var loaded = Load(path, strict: true);
+
+        // Assert
+        Assert.Empty(loaded.Diagnostics);
+        Assert.NotEqual(White, loaded.Surface[50, 50]);
+        Assert.Contains(loaded.Operations, o => o.Op == "embed");
     }
 
     /// <summary>

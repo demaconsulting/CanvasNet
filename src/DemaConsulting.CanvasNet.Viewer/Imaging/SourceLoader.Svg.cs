@@ -39,7 +39,7 @@ public static partial class SourceLoader
     ///     size and resampling. Transparent areas are flattened over white unless another background color is given;
     ///     a background with zero alpha keeps the transparency. An <c>image</c> that refers to another file (a raster,
     ///     an SVG file, a model, a chart, or a page of a document) is loaded through the image resolver of
-    ///     <c>CanvasNetViewer</c> (see <see cref="SvgImages"/>), confined to the folder of the SVG file; what it reports
+    ///     <c>CanvasNetViewer</c> (see <see cref="SvgImages"/>), based at the folder of the SVG file and under <see cref="SourceOptions.FileAccess"/>; what it reports
     ///     is part of the result. When the caller supplies the resolver of the nested pictures
     ///     (<see cref="LoadContext.ScopedResolver"/>, as the resolver of an embedding document does) that resolver is used
     ///     instead and it, not the result, collects what the nested pictures report.

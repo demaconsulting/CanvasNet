@@ -43,7 +43,8 @@ sections:
           - id: CanvasNetViewer-CanvasNetViewer-RenderPath
             title: >-
               The CanvasNetViewer class shall expose Render(path), which draws the file with the source that claims
-              its extension, confined to its own folder (or ViewerRenderOptions.Folder), at its natural size or
+              its extension, wherever it lies and without judging it by the file-access policy (the links inside it
+              are resolved from its own folder, or ViewerRenderOptions.Folder, under the policy), at its natural size or
               at the requested width and height (a vector drawn at that size, a raster fitted into the box or scaled
               to keep its aspect ratio), returns the picture with its format, notes, printed text, and embedded
               images, honors ThrowOnUnsupportedFeature and cancellation, rejects a requested width or height outside
@@ -51,7 +52,7 @@ sections:
               buffer of a resized render against what is left of the live MaxDecodedPixels budget (in addition to the
               surface of the source), and fails
               with ArgumentNullException, FileNotFoundException, NotSupportedException, ArgumentException,
-              SandboxException, ImageSourceBudgetException, or ImageSourceException (keeping the original failure
+              FileReferenceException, ImageSourceBudgetException, or ImageSourceException (keeping the original failure
               inside) as documented.
             justification: |
               A viewer, a thumbnail generator, or a report builder gets exactly the same safety and limits as an
@@ -66,10 +67,13 @@ sections:
               - CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget
               - CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded
               - CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings
+              - CanvasNetViewer_Render_SvgParentFolderLink_IsDrawnByDefault
               - CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions
               - CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote
               - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException
-              - CanvasNetViewer_Render_PathThroughSymbolicLink_ThrowsSandboxException
+              - CanvasNetViewer_Render_PathThroughSymbolicLink_IsRenderedWhateverThePolicy
+              - CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied
+              - CanvasNetViewer_Render_FileOutsideTheFolderOption_IsRendered
 
           - id: CanvasNetViewer-CanvasNetViewer-RenderStream
             title: >-
@@ -145,6 +149,37 @@ sections:
               - CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution
               - CanvasNetViewer_Render_StreamWithPage_DrawsThePage
               - CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange
+
+          - id: CanvasNetViewer-CanvasNetViewer-FileAccess
+            title: >-
+              The ViewerRenderOptions class shall carry the file-access policy of a render (FileAccess, the allow-all
+              policy by default, null refused), and CanvasNetViewer shall apply it to every file a render reads
+              besides the top-level file: the links of an SVG file, the includes of a model, the data files of a
+              chart, and the pictures of a diagram, also when they are nested inside an embedded file, each judged
+              from the folder of the top-level file.
+            justification: |
+              One policy, chosen by the host for the whole render, must govern every kind of reference; a nested
+              file must not be a way around it.
+            tests:
+              - ViewerRenderOptions_FileAccess_DefaultsToAllowAllAndRejectsNull
+              - CanvasNetViewer_Render_NestedModelInclude_IsCheckedByTheRenderPolicy
+              - "windows@CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink"
+              - "ubuntu@CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink"
+              - "macos@CanvasNetViewer_Render_NestedModelInclude_NoSymlinks_ReadsPlainIncludeAndDeniesLink"
+              - CanvasNetViewer_Render_NestedChartData_IsCheckedByTheRenderPolicy
+              - CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied
+
+          - id: CanvasNetViewer-CanvasNetViewer-FileAccessDenied
+            title: >-
+              With ThrowOnUnsupportedFeature, CanvasNetViewer shall fail a render whose SVG link the file-access policy
+              denied with a ViewerException with the code file-access-denied, and without it shall draw the rest and
+              return the warning image-access-denied among the notes.
+            justification: |
+              A strict caller must be able to tell a refused file from one that could not be drawn, and a lenient one
+              still gets the picture.
+            tests:
+              - CanvasNetViewer_Render_StrictDeniedLink_ThrowsFileAccessDenied
+              - CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied
               - CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent
               - CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError
               - CanvasNetViewer_Render_Background_FlattensTransparentAreas

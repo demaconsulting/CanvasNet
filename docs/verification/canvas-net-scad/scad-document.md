@@ -32,7 +32,8 @@ the test can assert that reading stopped within a small margin beyond the limit.
 The evaluation scenarios drive `Evaluate` over small in-memory programs and the fixtures, with explicit options:
 default and null options, handlers that record the events they receive and the thread they run on, handlers that
 throw, tiny limits that make each limit fail, tokens that are canceled beforehand or during the run, an
-in-memory resolver that records every path it is asked for, temporary directories for the file-system sandbox,
+in-memory resolver that records every path it is asked for, temporary directories for the file-system file-access
+scenarios (under the default policy and under explicit `UnderRoots` and `NoSymlinks` policies),
 callers on 64 KiB and 256 KiB stacks, and other cultures. The golden fixture tests (`ScadFixtureEvaluationTests`)
 evaluate each `eval-*.scad` fixture through the public API and compare the echo lines, the diagnostics
 (`line:column: message`), the unsupported-feature reports, and, through a test-only dumper, the instantiation
@@ -69,8 +70,9 @@ the view direction and along the up direction of the picture), never by eye.
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required; the internal parser and evaluation subsystem are exercised for real
-- **Files**: The `ScadFixtures/` folder copied to the test output directory (read only); the file-system sandbox
-  scenarios create and delete a per-test temporary directory
+- **Files**: The `ScadFixtures/` folder copied to the test output directory (read only); the file-system file-access
+  scenarios create and delete a per-test temporary directory; the directory-link scenario uses a junction on Windows
+  and never skips
 - **Threads**: The small-stack scenarios run `Evaluate` from a caller thread with a 64 KiB or 256 KiB stack and join
   it before asserting (only outcomes are asserted there, because the stack size a platform really grants differs);
   the handler-thread scenario forces the evaluator's fallback through the internal
@@ -230,7 +232,7 @@ entries throw `ArgumentException` naming the property; that a null library path 
 `ArgumentNullException` naming `LibraryPaths` while null optional text values are accepted; that the library
 paths are copied defensively and exposed read-only; that a nonexistent base directory, nonexistent library paths,
 and a resolver that must never be called leave the parsed directives and module names unchanged; and, by
-reflection, that the class is sealed and that all four public properties can be set only during initialization.
+reflection, that the class is sealed and that all five public properties can be set only during initialization.
 
 #### CanvasNetScad-ScadDocument-SourceLimit: Oversize Source Is Rejected
 
@@ -331,20 +333,40 @@ assignment brought in by `include` is replaced while a used library is untouched
 overridden and the result does not depend on the order of the supplied variables; that `Time` sets `$t`; and that
 the overrides fixture matches its checked-in overridden expectation.
 
-#### CanvasNetScad-ScadDocument-IncludeUse: Include And Use Are Confined To The Sandbox
+#### CanvasNetScad-ScadDocument-IncludeUse: Include And Use Follow The File-Access Policy
 
-**Tests**: `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemSandbox_EscapesAreRejected`,
-`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemSandbox_LibraryPathIsAllowedRoot`,
+**Tests**: `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemRootsPolicy_EscapesAreDenied`,
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_DenialInIncludeOutsideTheBase_IsLocatedRelativeToTheBase`,
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemDefault_ParentAndAbsoluteIncludesAreRead`,
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemRootsPolicy_LibraryPathIsAllowedRoot`,
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemNoSymlinks_DirectoryLinkEscape_IsDenied`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_ResolverSandbox_HostilePathsNeverReachTheCallback`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_ResolverMode_RequestsNormalizedLogicalPaths`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_IncludeLimitsAndCycles_ThrowEvaluationException`,
 `ScadFixtureEvaluationTests.ScadFixtureEvaluation_IncludeMain_ThroughResolver_MatchesExpectedEcho`
 
-Asserts, in a temporary directory tree, that a path escaping the base directory (and an absolute path) is rejected
-with a `ScadEvaluationException` even though the target file exists, and that a library path is an allowed root;
-that hostile paths in resolver mode are rejected before the callback is invoked and that the callback only ever sees
-normalized logical paths; that include cycles, excessive depth, and too many included files throw
-`ScadEvaluationException`; and that the include fixture evaluates through a resolver to its expected echo.
+Asserts, in a temporary directory tree, that under the default policy an include of `../outside.scad`,
+`sub/../../outside.scad`, `..\outside.scad`, and the absolute path of the file is read (echo `outside`); that under
+`UnderRoots(project)` each is a located `ScadEvaluationException` naming the include as written and the `roots`
+policy, the outside file never runs, and an include inside the project works; that a denial raised inside an allowed
+include outside the base directory (`../shared/lib.scad` including `../private/secret.scad`) is located at
+`../shared/lib.scad` and its message names no host directory; that a library path that is a root of
+the policy is allowed; that under `NoSymlinks` an include through a directory link (a junction on Windows) that leaves
+the project is denied naming `no-symlinks` and never runs; that hostile paths in resolver mode are rejected before the
+callback is invoked and that the callback only ever sees normalized logical paths; that include cycles, excessive
+depth, and too many included files throw `ScadEvaluationException`; and that the include fixture evaluates through a
+resolver to its expected echo.
+
+#### CanvasNetScad-ScadDocument-FileAccessOption: The File-Access Option
+
+**Tests**: `ScadOpenOptionsTests.ScadOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective`,
+`ScadImageSourceTests.ScadImageSource_Render_RequestPolicy_AppliesToIncludes`
+
+Asserts that `ScadOpenOptions.FileAccess` is `AllowAll` by default, refuses `null`, and is kept by `WithEffective` and
+by a parsed document; and that `ScadImageSource` applies the policy of the request to the includes of the model: an
+include of the parent folder is drawn under the default policy of a request and, under `UnderRoots(folder)`, is a
+`ScadEvaluationException` at line 1 naming the `roots` policy whose inner exception is a `FileReferenceException` of
+kind `AccessDenied`.
 
 #### CanvasNetScad-ScadDocument-Cancellation: Cancellation Stops Evaluation
 

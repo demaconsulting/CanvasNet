@@ -123,17 +123,19 @@ sections:
             title: >-
               The ScadEvaluation subsystem shall resolve include and use directives before evaluating
               - textual inclusion for include and definitions-only import for use - from the file
-              system or through a caller-supplied resolver, confined to the base directory and library
-              paths, with a missing file reported as a warning and a syntax error in a referenced file
-              reported with that file's name.
+              system under the file-access policy of the open options or through a caller-supplied resolver, searching
+              the base directory and library paths, with a missing file reported as a warning and a syntax error in a
+              referenced file reported with that file's name.
             justification: |
               Multi-file models are common, and file access is the most security-sensitive thing an
-              evaluator can do; it must be explicit, confined, and complete before evaluation starts.
+              evaluator can do; it must be explicit, governed by the policy of the host, and complete before
+              evaluation starts.
             children:
               - CanvasNetScad-ScadEvaluation-ScadFileResolver-Include
               - CanvasNetScad-ScadEvaluation-ScadFileResolver-Use
               - CanvasNetScad-ScadEvaluation-ScadFileResolver-Resolution
-              - CanvasNetScad-ScadEvaluation-ScadFileResolver-Sandbox
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-FileAccess
+              - CanvasNetScad-ScadEvaluation-ScadFileResolver-AliasCycle
               - CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback
               - CanvasNetScad-ScadEvaluation-ScadFileResolver-FileSystem
               - CanvasNetScad-ScadEvaluation-ScadFileResolver-MissingFiles
@@ -266,7 +268,7 @@ sections:
           - id: CanvasNetScad-ScadEvaluation-Errors
             title: >-
               The ScadEvaluation subsystem shall abort an evaluation with a located error for a failed
-              assertion, an exceeded limit, an include cycle, a sandbox violation, or an include
+              assertion, an exceeded limit, an include cycle, a denied or never-allowed include path, or an include
               without any source of files, and shall retain the output recorded before the failure.
             justification: |
               Some problems make a result meaningless; they must stop the evaluation, say where, and

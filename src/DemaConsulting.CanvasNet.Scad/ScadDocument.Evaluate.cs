@@ -16,7 +16,7 @@ public sealed partial class ScadDocument
     ///         Evaluation is deterministic: the same document and options always produce the same result, on every
     ///         platform and culture. It is bounded by <see cref="ScadEvaluationOptions.Limits"/> and fails closed with a
     ///         <see cref="ScadEvaluationException"/> when a limit is exceeded, an <c>assert</c> fails, an include
-    ///         cycle or sandbox violation is found, or the program is otherwise invalid beyond recovery; it cannot
+    ///         cycle or file-access denial is found, or the program is otherwise invalid beyond recovery; it cannot
     ///         overflow the stack of the calling thread, whatever its size.
     ///     </para>
     ///     <para>
@@ -45,7 +45,7 @@ public sealed partial class ScadDocument
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled before or during evaluation.</exception>
     /// <exception cref="ScadEvaluationException">
     ///     Thrown, with the source location, when a limit is exceeded, an <c>assert</c> fails, an include cycle or
-    ///     sandbox violation is found, or an <c>include</c>/<c>use</c> cannot be resolved without a base directory,
+    ///     file-access denial is found, or an <c>include</c>/<c>use</c> cannot be resolved without a base directory,
     ///     library path or resolver.
     /// </exception>
     /// <exception cref="ScadUnsupportedFeatureException">

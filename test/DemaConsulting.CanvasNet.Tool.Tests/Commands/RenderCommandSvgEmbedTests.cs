@@ -300,11 +300,11 @@ public class RenderCommandSvgEmbedTests
     }
 
     /// <summary>
-    ///     Test that a reference outside the folder is a warning in the result and on standard error, that the file is
-    ///     not read, and that the rest of the diagram is drawn.
+    ///     Test that, under the default file-access policy, a reference to a file outside the folder of the diagram is
+    ///     drawn like Pandoc draws it, with no diagnostic.
     /// </summary>
     [Fact]
-    public void RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest()
+    public void RenderCommand_Run_SvgEmbeddingOutsideFolder_IsDrawnUnderTheDefaultPolicy()
     {
         // Arrange: a valid picture above the folder of the diagram, referenced by a path that leaves the folder
         using var directory = new TempDirectory();
@@ -316,15 +316,12 @@ public class RenderCommandSvgEmbedTests
         // Act
         var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", output, "--json");
 
-        // Assert: exit 0, one warning, and the picture of the secret file is not in the output
+        // Assert: exit 0, no diagnostic, and the picture of the file is in the output
         Assert.Equal(0, exitCode);
         using var document = JsonDocument.Parse(stdOut);
-        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
-        Assert.Equal("svg-image-unresolved", diagnostic.GetProperty("code").GetString());
-        Assert.Equal("warning", diagnostic.GetProperty("severity").GetString());
-        Assert.Equal("svg", diagnostic.GetProperty("source").GetString());
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         using var image = PngCodec.Load(output);
-        Assert.Equal(Red, image[20, 20]);
+        Assert.Equal(Green, image[20, 20]);
         Assert.Equal(string.Empty, stdErr);
     }
 

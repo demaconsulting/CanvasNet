@@ -38,11 +38,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         <c>--height</c>).
 ///     </para>
 ///     <para>
-///         <b>Pictures.</b> The <c>@{ img: ... }</c> nodes of a diagram show files that lie beside it, through the same
-///         sandboxed resolver an SVG file and a Vega-Lite chart use (<see cref="SvgImages"/>), rooted at the folder of the
-///         diagram: a raster, an SVG file, a model (<c>part.scad</c>), a chart, a page of a document, or another diagram,
-///         and nothing outside the folder; a remote URL is never fetched. A link that cannot be drawn is the warning
-///         <c>svg-image-unresolved</c> (the library's <c>mermaid-image-unresolved</c> for the same link is left out), the
+///         <b>Pictures.</b> The <c>@{ img: ... }</c> nodes of a diagram show files relative to it, through the same
+///         resolver an SVG file and a Vega-Lite chart use (<see cref="SvgImages"/>), based at the folder of the
+///         diagram and under the same file-access policy: a raster, an SVG file, a model (<c>part.scad</c>), a chart, a
+///         page of a document, or another diagram; a remote URL is never fetched. A link that cannot be drawn is the warning
+///         <c>svg-image-unresolved</c> (a denied one <c>image-access-denied</c>) (the library's <c>mermaid-image-unresolved</c> for the same link is left out), the
 ///         files that were drawn are <c>embed</c> operations (one per link: the library asks for a picture twice, once for its
 ///         natural size and once to draw it), and with <see cref="SourceOptions.Strict"/> a link that was
 ///         not drawn is an <c>unsupported-feature</c> error. A diagram that is itself embedded
@@ -382,7 +382,7 @@ public static partial class SourceLoader
             var (width, height) = ComputeTargetSize(info.Path, info.Width, info.Height, Options);
 
             // The pictures of the nodes: through the resolver of the embedding document when there is one, else through a
-            // resolver confined to the folder of the diagram
+            // resolver based at the folder of the diagram
             var scoped = Context.UseScopedResolver;
             var images = scoped ? null : new SvgImages(Info.Path, Options);
             var background = Options.Background ?? new Rgba32(255, 255, 255, 255);

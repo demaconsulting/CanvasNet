@@ -1,6 +1,7 @@
 // cspell:ignore jpeg tiff pptx vsdx scad jpeg2000 Visio
 using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -318,6 +319,28 @@ public sealed record SourceInfo(
     public InputSelection? Selection { get; init; }
 
     /// <summary>
+    ///     Gets the file-access policy the probe read the files the source references under (the data files a chart is
+    ///     measured with); <see cref="FileAccessPolicy.AllowAll"/> for <see cref="SourceLoader.Probe(string)"/> and
+    ///     <see cref="SourceLoader.Probe(InputReference)"/>.
+    /// </summary>
+    /// <remarks>
+    ///     A probe may already read referenced files, and a stricter policy given to a later operation cannot undo that
+    ///     read. So every operation that is given these facts and a policy (<see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/>,
+    ///     <see cref="SourceLoader.OpenPages"/>, <see cref="ImageRenderer"/>, <see cref="ImageInspector"/>,
+    ///     <see cref="ImageComparer"/>, <see cref="MontageBuilder"/>, <see cref="SvgFlattener"/>) refuses with
+    ///     <c>usage-error</c> unless its policy is this very instance: probe with the policy you will render with. Only a
+    ///     probe records it, so a caller cannot replace the policy the probe actually read under.
+    /// </remarks>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        internal init => _fileAccess = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>The backing field of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
+
+    /// <summary>
     ///     Gets the input as the user wrote it: the <see cref="Path"/>, and <c>#</c> and the fragment when the input had one.
     ///     It is what a label or a message uses to tell two inputs of one file apart.
     /// </summary>
@@ -506,6 +529,29 @@ public sealed record SourceOptions
     ///     Gets a value indicating whether a feature the library cannot draw is an error instead of a note.
     /// </summary>
     public bool Strict { get; init; }
+
+    /// <summary>
+    ///     Gets the policy that decides which files the source may read beside it: the pictures an SVG file or a chart
+    ///     links to, the includes of a model, the data of a chart, and the files those read in turn. The default is
+    ///     <see cref="FileAccessPolicy.AllowAll"/>: like Pandoc, any regular local file, also through <c>..</c>, an
+    ///     absolute path or a symbolic link. The source file itself is the caller's choice and is not judged. Must not
+    ///     be null.
+    /// </summary>
+    /// <remarks>
+    ///     A denied picture is the warning <c>image-access-denied</c> (with <see cref="Strict"/> the error
+    ///     <c>file-access-denied</c>); a denied include or data file is the error <c>file-access-denied</c>. To keep the
+    ///     files of a source in its folder and refuse links, use
+    ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
+
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
 
     /// <summary>
     ///     Gets the factor applied to the natural size, or <see langword="null"/> for none. When it is set it takes

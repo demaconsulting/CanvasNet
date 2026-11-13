@@ -9,9 +9,12 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///     <para>
 ///         <b>What a source claims.</b> A source claims links in one or both of two ways. <see cref="Extensions"/>
 ///         makes it a <i>file-based</i> source: a link that names a file ending in one of the extensions is resolved
-///         through the folder sandbox of the resolver (so the source never sees a path it could not safely read), and the
-///         source receives the file's bytes. <see cref="Schemes"/> makes it a <i>scheme-claimed</i> source: a link such as
-///         <c>camera:front</c> is handed to the source <b>as written</b>, with no sandbox and no file read, and the
+///         through the file engine of the resolver, under its file-access policy (so the source never receives a file the
+///         policy did not allow), and the source receives the file's bytes. A source that reads further files itself (an
+///         <c>include</c>, a data file) routes them through a <see cref="Files.FileReferenceResolver"/> with
+///         <see cref="ImageSourceRequest.FileAccess"/> as the policy and <see cref="ImageSourceRequest.Directory"/> as the
+///         base directory. <see cref="Schemes"/> makes it a <i>scheme-claimed</i> source: a link such as
+///         <c>camera:front</c> is handed to the source <b>as written</b>, with no file read, and the
 ///         source alone decides what the link means and what it may reach (and must therefore treat the text as
 ///         untrusted). When several sources claim the same extension or scheme the <b>later</b> one in the sequence given
 ///         to <see cref="ImageSourceSet"/> or <see cref="FolderImageResolver"/> wins, so a caller's own source placed
@@ -53,7 +56,7 @@ public interface IImageSource
     ///     Gets the URI schemes this source claims: lower case, without the colon, for example <c>camera</c>, <c>myapp</c>
     ///     or <c>test-scheme</c> (letters, digits, <c>+</c>, <c>-</c> and <c>.</c>, starting with a letter, at least two
     ///     characters: a single letter is a Windows drive). A link <c>scheme:rest</c> is handed to the source as written. The
-    ///     names <c>file</c> (always a path inside the folder, handled by the resolver) and <c>data</c> (decoded by the SVG
+    ///     names <c>file</c> (always a local path, handled by the resolver) and <c>data</c> (decoded by the SVG
     ///     codec) cannot be claimed. A source that claims no scheme returns an empty list. The list must not be null and
     ///     must not change over the life of the source.
     /// </summary>

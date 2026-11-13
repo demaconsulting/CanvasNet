@@ -109,16 +109,19 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SvgFlattener-Limits
         title: >-
-          The SvgFlattener class shall follow the links with the resolver of the render operation (the folder of the
-          drawing as the sandbox, at most 64 pictures, 4 levels of nesting, cycles stopped, and the pixel budget),
-          reporting a link that is not drawn as render does, and shall refuse a copy larger than the output limit of the
-          request with the size-limit code without writing anything.
+          The SvgFlattener class shall follow the links with the resolver of the render operation (relative to the
+          folder of the drawing, under the file-access policy of the request - FileAccess, the allow-all policy by
+          default, null refused - at most 64 pictures, 4 levels of nesting, cycles stopped, and the pixel budget),
+          reporting a link that is not drawn or denied as render does and leaving it in place, and shall refuse a copy
+          larger than the output limit of the request with the size-limit code without writing anything.
         justification: |
-          The drawing and every file it links are untrusted; the same sandbox and limits as render keep a hostile
-          drawing from reading other files or using unbounded memory, and the output limit bounds the copy.
+          The drawing and every file it links may be untrusted; the same policy and limits as render keep a hostile
+          drawing from reading files the host denies or using unbounded memory, and the output limit bounds the copy.
         tests:
           - SvgFlattener_Execute_MissingLinkedFile_ReportsUnresolved
-          - SvgFlattener_Execute_LinkOutsideFolder_RefusedBySandbox
+          - SvgFlattener_Execute_LinkOutsideTheRoots_IsNotFlattened
+          - SvgFlattener_Execute_LinkInTheParentFolder_IsFlattenedByDefault
+          - FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull
           - SvgFlattener_Execute_SvgCycle_StopsWithoutReplacingTheCycle
           - SvgFlattener_Execute_MoreThan64Images_ExtraLinksStayAndAreReported
           - SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing

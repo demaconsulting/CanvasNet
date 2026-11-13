@@ -3,7 +3,8 @@
 This document describes the unit-level verification strategy for the `SandboxedFileResolver` unit: the public
 `SandboxedFileResolver` (search, path rules, confinement, link walk, callback mode, bounded reads, per-instance cache)
 and its supporting `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types, in the
-`DemaConsulting.CanvasNet.Files` namespace.
+`DemaConsulting.CanvasNet.Files` namespace. The family is obsolete (a compiler warning that names its replacement) and
+no part of the library uses it any longer; its behavior is unchanged and stays verified until it is removed.
 
 #### Verification Approach
 
@@ -307,3 +308,14 @@ is never empty, contains the path only for the path-text kinds and `OutsideRoot`
 directory, that a
 null path is an `ArgumentNullException`, and that a null options object, a null search path list, a zero or negative
 size limit and a negative file limit are rejected at construction.
+
+##### CanvasNet-Files-SandboxedFileResolver-Deprecated: The Sandbox Types Are Obsolete
+
+**Tests**: `SandboxedFileResolver_Types_AreObsoleteWithTheMigrationMessage`
+
+Asserts, by reflection over `SandboxedFileResolver`, `SandboxOptions`, `SandboxedFile`, `SandboxException`, and
+`SandboxFailureKind`, that each carries exactly one `ObsoleteAttribute`, as a warning (not an error), whose message
+names `FileReferenceResolver`, the replacement
+`FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks)`, and the removal in the next
+major release. The other sandbox test files disable warning `CS0618` so that the unchanged behavior stays verified until
+the types are removed.

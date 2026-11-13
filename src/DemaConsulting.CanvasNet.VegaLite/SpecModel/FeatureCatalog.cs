@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
@@ -54,7 +55,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <listheader><term>Identifier</term><description>Reported at, and when</description></listheader>
 ///         <item><term><c>vl-schema-version</c> (warning)</term><description><c>$schema</c>, when the major version is not 5 or 6 or the URL names no Vega-Lite version; the text is interpreted with the version 6 defaults.</description></item>
 ///         <item><term><c>vl-data-empty</c> (warning)</term><description>the <c>data</c> object, when it has an empty <c>values</c> array or no source at all.</description></item>
-///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
+///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme other than a local <c>file:</c> URI (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>data</c>, <c>javascript</c>, a <c>file:</c> URI with a host), or is a network or UNC path; never fetched, never given to a file resolver, and the dataset is empty. A local path (relative, absolute, a drive path or a <c>file:</c> URI without a host) is supported and not reported (a local file that cannot be read, or that the file-access policy denies, is an error of the render, not a report).</description></item>
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
 ///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, image, boxplot, errorbar and errorband (<c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> were retired in Phase 10 and are never produced).</description></item>
@@ -260,52 +261,93 @@ internal static class FeatureCatalog
     public static bool IsEvaluatedFormatType(string? formatType) => formatType is "number" or "time" or "utc";
 
     /// <summary>
-    ///     Determines whether a data URL names something other than a relative local path: it has a scheme
-    ///     (<c>http</c>, <c>file</c>, <c>data</c>, a drive letter, and so on) or is a network or absolute path.
+    ///     Determines whether a data URL names remote data rather than a local file: it has a URI scheme of two or more
+    ///     characters other than <c>file</c> (<c>http</c>, <c>data</c>, <c>javascript</c>, and so on), it is a
+    ///     <c>file:</c> URI with a host (<c>localhost</c> included) or a malformed one, or it is a network or device path
+    ///     (it starts with <c>//</c> or <c>\\</c>).
     /// </summary>
     /// <remarks>
-    ///     Such a URL is never handed to a file resolver: a chart renderer that fetches resources named by an
+    ///     Remote data is never handed to a file resolver: a chart renderer that fetches resources named by an
     ///     untrusted specification would be a server-side request forgery primitive, so remote data is reported and
-    ///     the dataset is left empty instead. The decision does not depend on the host operating system: a Unix
-    ///     absolute path (<c>/etc/hosts</c>), a path rooted at a backslash, a drive path (<c>C:\data</c>, <c>C:data</c>),
-    ///     a UNC or network path (<c>\\server\share</c>, <c>//server/share</c>) and a <c>file:</c> URI are all
-    ///     classified alike on every platform.
+    ///     the dataset is left empty instead. Everything else is a local path, read under the file-access policy of the
+    ///     caller: a relative path, an absolute path (<c>/etc/hosts</c>, <c>\data\a.csv</c>), a drive path
+    ///     (<c>C:\data</c>, <c>C:/data</c>, <c>C:data</c>: a one-letter "scheme" is a drive) and a <c>file:</c> URI
+    ///     without a host (<c>file:///data/a.csv</c>, <c>file:/data/a.csv</c>). The decision does not depend on the
+    ///     host operating system; a drive path on Linux or macOS is then refused by the file engine as an invalid path,
+    ///     a located error.
     /// </remarks>
     /// <param name="url">The URL as written.</param>
-    /// <returns><see langword="true"/> when the URL is not a plain relative path.</returns>
-    public static bool IsSchemeBearingUrl(string url)
+    /// <returns><see langword="true"/> when the URL names remote data.</returns>
+    public static bool IsRemoteDataUrl(string url)
     {
         ArgumentNullException.ThrowIfNull(url);
         var trimmed = url.AsSpan().TrimStart();
 
-        // Absolute and network paths of either operating system family: a leading '/' (a Unix absolute path or a network
-        // path) or '\' (a Windows rooted or UNC path), whichever the host is; Path.IsPathRooted adds what the host knows
-        if (trimmed.StartsWith("/", StringComparison.Ordinal) || trimmed.StartsWith("\\", StringComparison.Ordinal) || Path.IsPathRooted(trimmed))
+        // A network or device path of either operating system family: two leading separators of any kind
+        if (trimmed.Length >= 2 && trimmed[0] is '/' or '\\' && trimmed[1] is '/' or '\\')
         {
             return true;
         }
 
-        // A scheme is a letter followed by letters, digits, '+', '-' or '.', then a colon
-        if (trimmed.IsEmpty || !char.IsAsciiLetter(trimmed[0]))
+        // A scheme is a letter followed by letters, digits, '+', '-' or '.', then a colon; one letter is a drive
+        var length = SchemeLength(trimmed);
+        if (length <= 1)
         {
             return false;
         }
 
-        for (var i = 1; i < trimmed.Length; i++)
+        return !trimmed[..length].Equals("file", StringComparison.OrdinalIgnoreCase)
+            || LocalPathOfFileUri(url) is null;
+    }
+
+    /// <summary>
+    ///     Gets the local path of a <c>file:</c> URI without a host.
+    /// </summary>
+    /// <param name="url">The URL as written.</param>
+    /// <returns>
+    ///     The local path (<see cref="Uri.LocalPath"/>, percent-decoded) of a well-formed <c>file:</c> URI with an empty
+    ///     host; otherwise <see langword="null"/>, also for a URL that is not a <c>file:</c> URI at all.
+    /// </returns>
+    /// <remarks>
+    ///     Leading white space is ignored; the rest is the core <see cref="FileReferenceResolver.ParseFileUri"/>, so the
+    ///     short form <c>file:/x</c> is local and a URI with any host (<c>localhost</c> included) has no local path,
+    ///     exactly as for an image link.
+    /// </remarks>
+    public static string? LocalPathOfFileUri(string url)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+        return FileReferenceResolver.ParseFileUri(url.TrimStart(), out var path) == FileReferenceResolver.FileUriKind.Local
+            ? path
+            : null;
+    }
+
+    /// <summary>
+    ///     Gets the length of the URI scheme a text starts with.
+    /// </summary>
+    /// <param name="text">The text, leading white space removed.</param>
+    /// <returns>The number of characters before the colon of the scheme, or zero when the text has no scheme.</returns>
+    private static int SchemeLength(ReadOnlySpan<char> text)
+    {
+        if (text.IsEmpty || !char.IsAsciiLetter(text[0]))
         {
-            var c = trimmed[i];
+            return 0;
+        }
+
+        for (var i = 1; i < text.Length; i++)
+        {
+            var c = text[i];
             if (c == ':')
             {
-                return true;
+                return i;
             }
 
             if (!char.IsAsciiLetterOrDigit(c) && c != '+' && c != '-' && c != '.')
             {
-                return false;
+                return 0;
             }
         }
 
-        return false;
+        return 0;
     }
 
     /// <summary>
@@ -841,12 +883,12 @@ internal static class FeatureCatalog
         /// <param name="url">The <c>url</c> value.</param>
         private void VisitUrl(SpecNode data, SpecNode url)
         {
-            // A relative local path is supported (a file that cannot be read fails the render); only remote data is reported
-            if (url.IsString && IsSchemeBearingUrl(url.StringValue!))
+            // A local path is supported (a file that cannot be read fails the render); only remote data is reported
+            if (url.IsString && IsRemoteDataUrl(url.StringValue!))
             {
                 Unsupported(
                     "vl-data-remote-url",
-                    "Remote data is never fetched; download the file next to the specification and refer to it by a relative path. The dataset is treated as empty.",
+                    "Remote data is never fetched; download the file and refer to it by a local path. The dataset is treated as empty.",
                     data);
             }
         }

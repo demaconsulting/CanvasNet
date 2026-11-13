@@ -116,8 +116,8 @@ sections:
           - id: CanvasNetVegaLite-Transforms-Lookup
             title: >-
               The Transforms subsystem shall join the fields of the first matching row of a secondary source
-              into each row, loading that source through the loader of the call so that it keeps the data
-              sandbox, the file cache, and the shared row budget, and shall skip a lookup whose source is a
+              into each row, loading that source through the loader of the call so that it keeps the
+              file-access policy, the file cache, and the shared row budget, and shall skip a lookup whose source is a
               parameter.
             justification: |
               Lookup is how a second table joins a chart; it must not become a second, unbounded way to read

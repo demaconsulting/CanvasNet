@@ -21,6 +21,9 @@ internal sealed class ViewerTestFolder : IDisposable
         Directory.CreateDirectory(Path);
     }
 
+    /// <summary>The directory links created inside the folder, removed before the folder is deleted.</summary>
+    private readonly List<string> _links = [];
+
     /// <summary>Gets the full path of the folder.</summary>
     public string Path { get; }
 
@@ -62,9 +65,62 @@ internal sealed class ViewerTestFolder : IDisposable
         return full;
     }
 
+    /// <summary>
+    ///     Creates a directory link inside the folder (a symbolic link, or on Windows a junction, which needs no
+    ///     privilege), or skips the test when the host can create neither.
+    /// </summary>
+    /// <param name="relativeLink">The path of the link relative to the folder.</param>
+    /// <param name="relativeTarget">The path of the existing target directory relative to the folder.</param>
+    /// <returns>The full path of the link.</returns>
+    public string CreateDirectoryLinkOrSkip(string relativeLink, string relativeTarget)
+    {
+        // Full paths with the separators of the platform: mklink refuses forward slashes
+        var link = System.IO.Path.GetFullPath(Combine(relativeLink));
+        var target = System.IO.Path.GetFullPath(Combine(relativeTarget));
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+            _links.Add(link);
+            return link;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Skip("Directory links cannot be created in this environment: " + ex.Message);
+            }
+        }
+
+        // Without the privilege for symbolic links a junction can still be made on Windows
+        var info = new System.Diagnostics.ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true };
+        info.ArgumentList.Add("/c");
+        info.ArgumentList.Add("mklink");
+        info.ArgumentList.Add("/J");
+        info.ArgumentList.Add(link);
+        info.ArgumentList.Add(target);
+        using var process = System.Diagnostics.Process.Start(info);
+        process?.WaitForExit();
+        if (process is not { ExitCode: 0 } || !Directory.Exists(link))
+        {
+            Assert.Skip("Directory links cannot be created in this environment: mklink /J failed.");
+        }
+
+        _links.Add(link);
+        return link;
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
+        // Remove the links themselves first: a recursive delete can be refused at a junction
+        foreach (var link in _links)
+        {
+            if (Directory.Exists(link))
+            {
+                Directory.Delete(link);
+            }
+        }
+
         if (Directory.Exists(Path))
         {
             Directory.Delete(Path, true);

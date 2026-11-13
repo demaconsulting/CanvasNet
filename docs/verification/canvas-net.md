@@ -496,11 +496,28 @@ referrer's folder. A `FromDelegate("only-txt", ...)` policy reads a `.txt` file 
 
 Exercises the folder sandbox with the tree changed inside its `BeforeOpen` seam: after the link check, the folder of
 the file is moved aside and replaced by a junction or symbolic link to an outside folder; the resolve is
-`SandboxException` with `ThroughLink` naming `sub/a.txt`, and its message contains no host directory.
+`SandboxException` with `ThroughLink` naming `sub/a.txt`, and its message contains no host directory. The sandbox is
+obsolete and no part of the library uses it; the scenario stays until it is removed.
+
+### Integration: Linked Images Follow Parent, Absolute, and File URI Links by Default
+
+**Test**: `CanvasNet_SystemIntegration_LinkedImages_DefaultFollowsParentAbsoluteAndFileUriLinks`
+
+Exercises a `FolderImageResolver` with the default policy through its public API: a link to the parent folder, the
+absolute path of the picture, and a local `file:` URI to it are all drawn by the source, while an `https` link is the
+one `svg-image-unresolved` warning and is never read.
+
+### Integration: A Restrictive Policy Denies Links and Reaches Nested Sources
+
+**Test**: `CanvasNet_SystemIntegration_LinkedImages_RestrictivePolicyDeniesAndReachesNestedSources`
+
+With `FileAccess = UnderRoots(site)` a picture outside the site is the one `image-access-denied` warning and a model
+inside it is drawn; the model reads a file of its own through a `FileReferenceResolver` built from the request's
+`Directory` and `FileAccess`, and that nested read outside the site is `AccessDenied` naming `roots`.
 
 ## Acceptance Criteria
 
-A system-level test run passes when all forty-two scenarios above pass without error or
+A system-level test run passes when all forty-four scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
 

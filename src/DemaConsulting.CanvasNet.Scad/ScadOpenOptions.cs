@@ -1,3 +1,5 @@
+using DemaConsulting.CanvasNet.Files;
+
 namespace DemaConsulting.CanvasNet.Scad;
 
 /// <summary>
@@ -15,12 +17,15 @@ namespace DemaConsulting.CanvasNet.Scad;
 ///         <see cref="FileResolver"/> are consumed when the document is evaluated
 ///         (<see cref="ScadDocument.Evaluate(ScadEvaluationOptions?, CancellationToken)"/>) to find the files named by
 ///         <c>include</c> and <c>use</c>; parsing never accesses another file. Only the directories given here (and
-///         the folder of an opened file) are searched, and a path that leaves them is rejected; environment variables
-///         are ignored.
+///         the folder of an opened file) are searched; environment variables are ignored. Which of the files found
+///         may be read is decided by <see cref="FileAccess"/>, which by default allows every regular local file.
 ///     </para>
 /// </remarks>
 public sealed class ScadOpenOptions
 {
+    /// <summary>The validated file-access policy.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
+
     /// <summary>The validated base directory.</summary>
     private readonly string? _baseDirectory;
 
@@ -31,17 +36,17 @@ public sealed class ScadOpenOptions
     private readonly string? _sourceName;
 
     /// <summary>
-    ///     Gets the directory against which relative <c>include</c>/<c>use</c> paths are resolved and outside of which
-    ///     no file is read, or <see langword="null"/> to use the folder of the opened file.
+    ///     Gets the directory against which relative <c>include</c>/<c>use</c> paths are resolved (a base, not a
+    ///     boundary), or <see langword="null"/> to use the folder of the opened file.
     /// </summary>
     /// <remarks>
     ///     A document created from a string or a stream has no folder: unless it supplies a base directory, a
     ///     <see cref="LibraryPaths"/> entry or a <see cref="FileResolver"/>, its <c>include</c> and <c>use</c>
     ///     directives cannot be resolved and evaluating them fails with a <see cref="ScadEvaluationException"/>. The
-    ///     current directory is never used implicitly. A symbolic link or junction below this directory (a directory on
-    ///     the path to an included file, or the file itself) is never followed: the file is rejected whatever the
-    ///     link's target. The directory itself may be reached through links. The decision is made on the opened file
-    ///     handle, so a link swapped in after the check is refused as well; hard links cannot be detected.
+    ///     current directory is never used implicitly. Whether an included file may be read, wherever it lies and
+    ///     whether it is reached through a symbolic link or junction, is decided by <see cref="FileAccess"/>; to keep
+    ///     includes inside this directory and refuse links, use
+    ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(directory), FileAccessPolicy.NoSymlinks)</c>.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when the value is empty or whitespace.</exception>
     public string? BaseDirectory
@@ -55,8 +60,9 @@ public sealed class ScadOpenOptions
     ///     referenced files; empty by default.
     /// </summary>
     /// <remarks>
-    ///     The same link rule as for <see cref="BaseDirectory"/> applies below each entry. To use linked content, add
-    ///     the real directory as an entry.
+    ///     The entries are search locations, not boundaries: <see cref="FileAccess"/> decides which files may be read.
+    ///     A policy that confines files must list each entry among its roots
+    ///     (<c>FileAccessPolicy.UnderRoots(baseDirectory, library1, ...)</c>).
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the value or an entry is null.</exception>
     /// <exception cref="ArgumentException">Thrown on initialization when an entry is empty or whitespace.</exception>
@@ -87,6 +93,25 @@ public sealed class ScadOpenOptions
     }
 
     /// <summary>
+    ///     Gets the policy that decides which files named by <c>include</c> and <c>use</c> may be read; the default,
+    ///     <see cref="FileAccessPolicy.AllowAll"/>, allows every regular local file (like OpenSCAD itself), including
+    ///     one reached through <c>..</c>, an absolute path or a symbolic link. It is not consulted with a
+    ///     <see cref="FileResolver"/>, which sees only logical paths.
+    /// </summary>
+    /// <remarks>
+    ///     A denied file is a <see cref="ScadEvaluationException"/> located at the directive, whose
+    ///     <see cref="Exception.InnerException"/> is the <see cref="FileReferenceException"/> of the denial. Network
+    ///     paths, device paths and anything that is not a regular file are refused under every policy, and every limit
+    ///     applies whatever the policy.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
+
+    /// <summary>
     ///     Creates a copy with the effective base directory and source name filled in.
     /// </summary>
     /// <param name="baseDirectory">The effective base directory.</param>
@@ -98,6 +123,7 @@ public sealed class ScadOpenOptions
         LibraryPaths = _libraryPaths,
         FileResolver = FileResolver,
         SourceName = sourceName,
+        FileAccess = _fileAccess,
     };
 
     /// <summary>

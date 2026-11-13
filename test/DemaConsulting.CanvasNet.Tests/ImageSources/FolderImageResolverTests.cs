@@ -3,6 +3,7 @@ using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Tests.Files;
 
 namespace DemaConsulting.CanvasNet.Tests.ImageSources;
 
@@ -78,24 +79,17 @@ public class FolderImageResolverTests
         Assert.True(request.ThrowOnUnsupportedFeature);
         Assert.Equal(cts.Token, request.CancellationToken);
         Assert.NotNull(request.Resolver);
+        Assert.Same(FileAccessPolicy.AllowAll, request.FileAccess);
         Assert.Empty(resolver.Diagnostics);
     }
 
     /// <summary>
-    ///     Test that a link that leaves the folder, is absolute, a drive or UNC path, an alternate data stream, a network
-    ///     URL or contains a control character is an unresolved warning, never reaches a source, and never reads the file.
+    ///     Test that a link that is never allowed, under every policy (a UNC path, an alternate data stream, a control
+    ///     character, a network URL, a <c>file:</c> URI with a host), is an unresolved warning under the default policy,
+    ///     never reaches a source, and never reads the file.
     /// </summary>
     /// <param name="href">The link.</param>
     [Theory]
-    [InlineData("../secret.stub")]
-    [InlineData("sub/../../secret.stub")]
-    [InlineData("..%2Fsecret.stub")]
-    [InlineData("%2e%2e/secret.stub")]
-    [InlineData("..\\secret.stub")]
-    [InlineData("/secret.stub")]
-    [InlineData("\\secret.stub")]
-    [InlineData("C:/secret.stub")]
-    [InlineData("C:\\secret.stub")]
     [InlineData("\\\\server\\share\\secret.stub")]
     [InlineData("secret.stub::$DATA")]
     [InlineData("secret.stub%00.stub")]
@@ -103,12 +97,11 @@ public class FolderImageResolverTests
     [InlineData("https://example.invalid/secret.stub")]
     [InlineData("ftp://example.invalid/secret.stub")]
     [InlineData("file://host/share/secret.stub")]
-    public void FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning(string href)
+    public void FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning(string href)
     {
-        // Arrange: a valid file one folder above the folder of the resolver
+        // Arrange: a valid file in the folder of the resolver
         using var folder = new ImageTestFolder();
-        Directory.CreateDirectory(folder.Combine("site"));
-        folder.WriteText("secret.stub", "secret");
+        folder.WriteText("site/secret.stub", "secret");
         var stub = Stub();
         var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
 
@@ -125,8 +118,110 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
-    ///     Test that a <c>file:</c> URI inside the folder is loaded, that one outside it is refused, and that a
-    ///     percent-encoded relative path is decoded.
+    ///     Test that, under a policy confined to the folder, a link that leaves it (also percent-encoded or with
+    ///     backslashes) or is absolute is denied with the access-denied warning, never reaches a source, and never reads
+    ///     the file: the confinement of the former folder sandbox.
+    /// </summary>
+    /// <param name="href">The link.</param>
+    [Theory]
+    [InlineData("../secret.stub")]
+    [InlineData("sub/../../secret.stub")]
+    [InlineData("..%2Fsecret.stub")]
+    [InlineData("%2e%2e/secret.stub")]
+    [InlineData("..\\secret.stub")]
+    [InlineData("/secret.stub")]
+    [InlineData("\\secret.stub")]
+    public void FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning(string href)
+    {
+        // Arrange: a valid file one folder above the folder of the resolver
+        using var folder = new ImageTestFolder();
+        var site = Directory.CreateDirectory(folder.Combine("site")).FullName;
+        folder.WriteText("secret.stub", "secret");
+        var stub = Stub();
+        var resolver = new FolderImageResolver(site, [stub], new FolderImageResolverOptions { FileAccess = FileAccessPolicy.UnderRoots(site) });
+
+        // Act
+        var surface = resolver.Resolve(href, 10, 10);
+
+        // Assert
+        Assert.Null(surface);
+        Assert.Empty(stub.Requests);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(("svg", ImageDiagnosticSeverity.Warning, FolderImageResolver.AccessDeniedCode), (note.Source, note.Severity, note.Code));
+        Assert.Contains($"'{href}'", note.Message, StringComparison.Ordinal);
+        Assert.Contains("'roots'", note.Message, StringComparison.Ordinal);
+        Assert.Empty(resolver.Embedded);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a link that leaves the folder (also percent-encoded or with backslashes)
+    ///     and the absolute path of the file are drawn and the source gets the bytes, like Pandoc.
+    /// </summary>
+    /// <param name="href">The link; <c>absolute</c> stands for the absolute path of the file.</param>
+    [Theory]
+    [InlineData("../secret.stub")]
+    [InlineData("sub/../../secret.stub")]
+    [InlineData("..%2Fsecret.stub")]
+    [InlineData("%2e%2e/secret.stub")]
+    [InlineData("..\\secret.stub")]
+    [InlineData("absolute")]
+    public void FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn(string href)
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        Directory.CreateDirectory(folder.Combine("site"));
+        var secret = folder.WriteText("secret.stub", "secret");
+        var link = href == "absolute" ? secret : href;
+        var stub = Stub();
+        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+
+        // Act
+        using var surface = resolver.Resolve(link, 10, 10);
+
+        // Assert: the file is named relative to the folder
+        Assert.NotNull(surface);
+        Assert.Empty(resolver.Diagnostics);
+        var request = Assert.Single(stub.Requests);
+        Assert.Equal("secret", Encoding.UTF8.GetString(request.Content.Span));
+        Assert.Equal("../secret.stub", request.FileName);
+    }
+
+    /// <summary>
+    ///     Test that a drive path is a local absolute path on Windows (the file is drawn) and is not a valid path on
+    ///     Linux and macOS (an unresolved warning).
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_DrivePath_IsLocalOnWindowsAndInvalidElsewhere()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        Directory.CreateDirectory(folder.Combine("site"));
+        var secret = folder.WriteText("secret.stub", "secret");
+        var link = OperatingSystem.IsWindows() ? secret.Replace('\\', '/') : "C:/secret.stub";
+        var stub = Stub();
+        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+
+        // Act
+        using var surface = resolver.Resolve(link, 10, 10);
+
+        // Assert
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.NotNull(surface);
+            Assert.Single(stub.Requests);
+            Assert.Empty(resolver.Diagnostics);
+        }
+        else
+        {
+            Assert.Null(surface);
+            Assert.Empty(stub.Requests);
+            Assert.Equal(FolderImageResolver.UnresolvedCode, Assert.Single(resolver.Diagnostics).Code);
+        }
+    }
+
+    /// <summary>
+    ///     Test that, under a policy confined to the folder, a <c>file:</c> URI inside the folder is loaded and one
+    ///     outside it is denied, and that a percent-encoded relative path is decoded.
     /// </summary>
     [Fact]
     public void FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot()
@@ -139,7 +234,8 @@ public class FolderImageResolverTests
         var outside = new Uri(folder.Combine("outside.stub")).AbsoluteUri;
         var inside = new Uri(folder.Combine("site", "inside.stub")).AbsoluteUri;
         var stub = Stub();
-        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+        var options = new FolderImageResolverOptions { FileAccess = FileAccessPolicy.UnderRoots(folder.Combine("site")) };
+        var resolver = new FolderImageResolver(folder.Combine("site"), [stub], options);
 
         // Act
         var refused = resolver.Resolve(outside, 10, 10);
@@ -150,8 +246,31 @@ public class FolderImageResolverTests
         Assert.Null(refused);
         Assert.NotNull(viaUri);
         Assert.NotNull(viaEncoding);
-        Assert.Equal(FolderImageResolver.UnresolvedCode, Assert.Single(resolver.Diagnostics).Code);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(resolver.Diagnostics).Code);
         Assert.Equal(["inside.stub", "my img.stub"], stub.Requests.Select(r => r.FileName));
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a local <c>file:</c> URI outside the folder is drawn.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_FileUriOutsideFolder_Default_IsDrawn()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        folder.WriteText("outside.stub", "x");
+        Directory.CreateDirectory(folder.Combine("site"));
+        var outside = new Uri(folder.Combine("outside.stub")).AbsoluteUri;
+        var stub = Stub();
+        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+
+        // Act
+        using var surface = resolver.Resolve(outside, 10, 10);
+
+        // Assert
+        Assert.NotNull(surface);
+        Assert.Empty(resolver.Diagnostics);
+        Assert.Equal("../outside.stub", Assert.Single(stub.Requests).FileName);
     }
 
     /// <summary>
@@ -175,27 +294,36 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
-    ///     Test that a reference through a symbolic link is refused.
+    ///     Creates the folder <c>site</c> with a file symbolic link <c>site/link.stub</c> to the file <c>real.stub</c>
+    ///     beside it, or skips the test where file links cannot be created (Windows without the privilege for symbolic
+    ///     links; the directory-link tests cover the same rule there through a junction).
     /// </summary>
-    [Fact]
-    public void FolderImageResolver_Resolve_SymbolicLink_IsUnresolvedWarning()
+    /// <param name="folder">The test folder.</param>
+    /// <returns>The full path of <c>site</c>.</returns>
+    private static string CreateSiteWithFileLink(ImageTestFolder folder)
     {
-        // Arrange: a file outside the folder and a link to it inside (links may need privileges on Windows)
-        using var folder = new ImageTestFolder();
-        Directory.CreateDirectory(folder.Combine("site"));
+        var site = Directory.CreateDirectory(folder.Combine("site")).FullName;
         folder.WriteText("real.stub", "x");
-        try
+        if (!SandboxLinkSupport.TryCreateFileLink(Path.Combine(site, "link.stub"), folder.Combine("real.stub"), out var reason))
         {
-            File.CreateSymbolicLink(folder.Combine("site", "link.stub"), folder.Combine("real.stub"));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Assert.Skip("Symbolic links cannot be created here.");
-            return;
+            Assert.Skip("File symbolic links cannot be created here (on Windows they need a privilege): " + reason);
         }
 
+        return site;
+    }
+
+    /// <summary>
+    ///     Test that, under the no-symlinks policy, a reference through a file symbolic link is denied with the
+    ///     access-denied warning and never reaches a source.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_SymbolicLink_NoSymlinks_IsAccessDeniedWarning()
+    {
+        // Arrange: a file outside the folder and a link to it inside
+        using var folder = new ImageTestFolder();
+        var site = CreateSiteWithFileLink(folder);
         var stub = Stub();
-        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+        var resolver = new FolderImageResolver(site, [stub], new FolderImageResolverOptions { FileAccess = FileAccessPolicy.NoSymlinks });
 
         // Act
         var surface = resolver.Resolve("link.stub", 10, 10);
@@ -203,7 +331,87 @@ public class FolderImageResolverTests
         // Assert
         Assert.Null(surface);
         Assert.Empty(stub.Requests);
-        Assert.Equal(FolderImageResolver.UnresolvedCode, Assert.Single(resolver.Diagnostics).Code);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(resolver.Diagnostics).Code);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a reference through a file symbolic link follows the link.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_SymbolicLink_Default_FollowsTheLink()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        var site = CreateSiteWithFileLink(folder);
+        var stub = Stub();
+        var resolver = new FolderImageResolver(site, [stub]);
+
+        // Act
+        using var surface = resolver.Resolve("link.stub", 10, 10);
+
+        // Assert
+        Assert.NotNull(surface);
+        Assert.Empty(resolver.Diagnostics);
+        Assert.Equal("link.stub", Assert.Single(stub.Requests).FileName);
+    }
+
+    /// <summary>
+    ///     Test that, under a policy confined to the folder, a file symbolic link inside the folder whose target lies
+    ///     outside it is denied.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_SymbolicLink_UnderRoots_LinkLeavingTheRootsIsDenied()
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        var site = CreateSiteWithFileLink(folder);
+        var stub = Stub();
+        var resolver = new FolderImageResolver(site, [stub], new FolderImageResolverOptions { FileAccess = FileAccessPolicy.UnderRoots(site) });
+
+        // Act
+        var surface = resolver.Resolve("link.stub", 10, 10);
+
+        // Assert
+        Assert.Null(surface);
+        Assert.Empty(stub.Requests);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, note.Code);
+        Assert.Contains("real path is outside the allowed roots", note.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that, under the no-symlinks policy, a reference through a directory link (a junction on Windows, so the
+    ///     test never needs a privilege) is denied, and that the default policy follows the same link.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_DirectoryLink_NoSymlinks_IsAccessDeniedWarning()
+    {
+        // Arrange: site/lib is a directory link to a folder outside the site
+        using var folder = new ImageTestFolder();
+        var site = Directory.CreateDirectory(folder.Combine("site")).FullName;
+        folder.WriteText("real/a.stub", "x");
+        FileTestSupport.CreateDirectoryLinkOrSkip(Path.Combine(site, "lib"), folder.Combine("real"));
+        var stub = Stub();
+        var denying = new FolderImageResolver(site, [stub], new FolderImageResolverOptions { FileAccess = FileAccessPolicy.NoSymlinks });
+        var following = new FolderImageResolver(site, [stub]);
+
+        try
+        {
+            // Act
+            var denied = denying.Resolve("lib/a.stub", 10, 10);
+            using var followed = following.Resolve("lib/a.stub", 10, 10);
+
+            // Assert
+            Assert.Null(denied);
+            Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(denying.Diagnostics).Code);
+            Assert.NotNull(followed);
+            Assert.Empty(following.Diagnostics);
+            Assert.Single(stub.Requests);
+        }
+        finally
+        {
+            FileTestSupport.RemoveDirectoryLink(Path.Combine(site, "lib"));
+        }
     }
 
     /// <summary>
@@ -954,7 +1162,8 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
-    ///     Test that a <c>file:</c> link stays a path inside the folder even when a source claims every scheme it can.
+    ///     Test that a <c>file:</c> link is always read as a local path by the resolver, even when a source claims every
+    ///     scheme it can.
     /// </summary>
     [Fact]
     public void FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources()
@@ -1070,8 +1279,8 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
-    ///     Test that rendering by path fails loudly: a missing file, a refused path, an unknown extension, a failing
-    ///     source, and a resolver without a folder.
+    ///     Test that rendering by path fails loudly: a missing file (also outside the folder), a directory, an unknown
+    ///     extension, a failing source, and a resolver without a folder.
     /// </summary>
     [Fact]
     public void FolderImageResolver_RenderPath_Failures_ThrowSpecificExceptions()
@@ -1080,12 +1289,15 @@ public class FolderImageResolverTests
         using var folder = new ImageTestFolder();
         folder.WriteText("notes.txt", "x");
         folder.WriteText("bad.stub", "x");
+        Directory.CreateDirectory(folder.Combine("dir.stub"));
         var failing = new StubImageSource("failing", [Ext], null, _ => throw new InvalidDataException("corrupt"));
         var resolver = new FolderImageResolver(folder.Path, [failing]);
 
         // Act / Assert
         Assert.Throws<FileNotFoundException>(() => resolver.Render("missing.stub"));
-        Assert.Throws<SandboxException>(() => resolver.Render("../x.stub"));
+        Assert.Throws<FileNotFoundException>(() => resolver.Render("../x.stub"));
+        var directory = Assert.Throws<FileReferenceException>(() => resolver.Render("dir.stub"));
+        Assert.Equal(FileReferenceFailureKind.NotARegularFile, directory.Kind);
         var unsupported = Assert.Throws<NotSupportedException>(() => resolver.Render("notes.txt"));
         Assert.Contains(Ext, unsupported.Message, StringComparison.Ordinal);
         var wrapped = Assert.Throws<ImageSourceException>(() => resolver.Render("bad.stub"));
@@ -1093,6 +1305,35 @@ public class FolderImageResolverTests
         Assert.Null(wrapped.Embedder);
         Assert.Throws<InvalidOperationException>(() => new FolderImageResolver(null, [failing]).Render("bad.stub"));
         Assert.Throws<ArgumentNullException>(() => resolver.Render((string)null!));
+    }
+
+    /// <summary>
+    ///     Test that a file rendered by path outside the folder (relative or absolute) is drawn whatever the policy,
+    ///     because the caller chose it, while a link inside it is still judged by the policy.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_RenderPath_OutsideFolder_IsDrawnWhateverThePolicyButItsLinksAreChecked()
+    {
+        // Arrange: the top-level file links to a file beside it; the policy denies every file it is asked about
+        using var folder = new ImageTestFolder();
+        Directory.CreateDirectory(folder.Combine("site"));
+        var top = folder.WriteText("top.stub", "image.stub");
+        folder.WriteText("image.stub", string.Empty);
+        var denyAll = FileAccessPolicy.FromDelegate("deny-all", _ => FileAccessDecision.Deny("nothing may be read"));
+        var options = new FolderImageResolverOptions { FileAccess = denyAll };
+        var byRelative = new FolderImageResolver(folder.Combine("site"), [Chaining(Ext)], options);
+        var byAbsolute = new FolderImageResolver(folder.Combine("site"), [Chaining(Ext)], options);
+
+        // Act
+        using var relative = byRelative.Render("../top.stub").Surface;
+        using var absolute = byAbsolute.Render(top).Surface;
+
+        // Assert: both top-level files were drawn; the link inside each was denied
+        Assert.NotNull(relative);
+        Assert.NotNull(absolute);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(byRelative.Diagnostics).Code);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(byAbsolute.Diagnostics).Code);
+        Assert.Empty(byRelative.Embedded);
     }
 
     /// <summary>

@@ -66,13 +66,13 @@ sections:
           fragment of the link (flow.mmd#theme=dark) chooses one of Mermaid's themes and a name that is not a theme
           refuses the link with image-fragment-invalid; shall report what a diagram declares (its type, whether this
           version draws it, its direction, titles, and numbers of nodes, edges, and subgraphs) without drawing it; and
-          shall show the pictures of the nodes of a diagram through the same sandboxed resolver as the pictures of an
-          SVG document.
+          shall show the pictures of the nodes of a diagram through the same image resolver and file-access policy as
+          the pictures of an SVG document.
         tags: [system]
         justification: |
           Diagrams are written as Mermaid text in documentation and by agents; an application that already shows SVG
           documents, models, and charts must show a diagram, alone or inside a drawing, with nothing but its file or its
-          link, the same picture on every machine, and under the same sandbox as every other linked file.
+          link, the same picture on every machine, and under the same policy as every other linked file.
         children:
           - CanvasNetViewer-Imaging-SourceLoader-MermaidDetection
           - CanvasNetViewer-Imaging-SourceLoader-MermaidProbe
@@ -88,8 +88,8 @@ sections:
           name, as a picture at its natural size or at a requested size (for a document, the chosen page at a
           chosen resolution, over a chosen background), returning the picture with its format, page, notes, printed
           text, anchors, and embedded images, and shall fail with a specific exception for a missing file,
-          an unknown file type, a file that cannot be drawn, a page that does not exist, a path outside the folder,
-          and a canceled render.
+          an unknown file type, a file that cannot be drawn, a page that does not exist, a path that is not a
+          regular file, and a canceled render.
         tags: [system]
         justification: |
           Applications that only want to show a file (a viewer, a thumbnail generator, a report builder) should
@@ -100,6 +100,29 @@ sections:
           - CanvasNetViewer-CanvasNetViewer-RenderOptions
         tests:
           - CanvasNetViewer_SystemIntegration_RenderWithExtraSources_UsesCustomSources
+
+      - id: CanvasNetViewer-FileAccess
+        title: >-
+          The library shall read every file that a rendered or probed file references (the links of an SVG file,
+          the includes of a model, the data files of a chart, and the pictures of a diagram, also nested inside an
+          embedded file) under one file-access policy that the caller chooses for the operation - by default every
+          regular local file, also through dot-dot, an absolute path, a file: URI without a host, and a symbolic
+          link or junction, as Pandoc does - while never judging the top-level file the caller named, never
+          reading a UNC path or a file: URI with a host, and keeping every resource limit whatever the policy; a
+          reference the policy denies shall be the warning image-access-denied for an SVG link and a located
+          error for an include or a data file, and fail with the code file-access-denied in strict mode.
+        tags: [system, security]
+        justification: |
+          Hosts differ: a desktop converter reads what its user can, a build server confines documents to the
+          repository, a service may refuse links. One policy, applied to every kind of reference by every
+          operation, lets each host decide once and be sure no reference reads around it.
+        children:
+          - CanvasNetViewer-CanvasNetViewer-FileAccess
+          - CanvasNetViewer-CanvasNetViewer-FileAccessDenied
+          - CanvasNetViewer-Imaging-FileAccess
+        tests:
+          - CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind
+          - CanvasNetViewer_SourceTree_EveryOpenOptionsCarriesTheFileAccess
 
       - id: CanvasNetViewer-CustomSources
         title: >-

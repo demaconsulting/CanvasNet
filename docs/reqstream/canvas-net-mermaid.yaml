@@ -690,7 +690,8 @@ sections:
         tags: [system]
         justification: |
           Diagrams of parts and charts show pictures of other CanvasNet sources; untrusted text must not decide
-          which files are read, so the host keeps that decision (for example a sandboxed folder resolver).
+          which files are read, so the host keeps that decision (for example a folder resolver under a file-access
+          policy).
         children:
           - CanvasNetMermaid-Rendering-NodeShapes
           - CanvasNetMermaid-Rendering-Labels

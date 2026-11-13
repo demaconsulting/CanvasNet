@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -592,10 +593,11 @@ public class SvgFlattenerTests
     }
 
     /// <summary>
-    ///     Test that a link that leaves the folder of the drawing is refused by the sandbox.
+    ///     Test that, under a policy confined to the folder of the drawing, a link that leaves it is denied and not
+    ///     flattened.
     /// </summary>
     [Fact]
-    public void SvgFlattener_Execute_LinkOutsideFolder_RefusedBySandbox()
+    public void SvgFlattener_Execute_LinkOutsideTheRoots_IsNotFlattened()
     {
         // Arrange: the diagram exists, but beside the folder of the drawing
         using var directory = new TempDirectory();
@@ -604,15 +606,57 @@ public class SvgFlattenerTests
             directory.Path,
             "sub/a.svg",
             "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><image href='../flow.mmd' width='40' height='40'/></svg>");
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("sub"));
+        var request = new FlattenRequest(directory.Combine("sub", "b.svg")) { FileAccess = policy };
 
         // Act
-        var result = Flatten(input, directory.Combine("sub", "b.svg"));
+        var result = SvgFlattener.Execute(SourceLoader.Probe(input, policy), request);
+        var mismatched = Assert.Throws<ViewerException>(() => SvgFlattener.Execute(SourceLoader.Probe(input), request));
 
         // Assert
         Assert.False(result.Flattened);
         var note = Assert.Single(result.Diagnostics);
-        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
-        Assert.Contains("outside the folder", note.Message, StringComparison.Ordinal);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, note.Code);
+        Assert.Contains("'../flow.mmd'", note.Message, StringComparison.Ordinal);
+        Assert.Equal(ErrorCodes.UsageError, mismatched.Code);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a link to the parent folder of the drawing is flattened.
+    /// </summary>
+    [Fact]
+    public void SvgFlattener_Execute_LinkInTheParentFolder_IsFlattenedByDefault()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        CopyDiagram(directory);
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "sub/a.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><image href='../flow.mmd' width='40' height='40'/></svg>");
+
+        // Act
+        var result = Flatten(input, directory.Combine("sub", "b.svg"), strict: true);
+
+        // Assert
+        Assert.True(result.Flattened);
+        Assert.Single(result.Replaced);
+    }
+
+    /// <summary>
+    ///     Test that the file-access policy of a flatten, a montage and a load is the allow-all policy by default and
+    ///     refuses null.
+    /// </summary>
+    [Fact]
+    public void FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull()
+    {
+        // Assert
+        Assert.Same(FileAccessPolicy.AllowAll, new FlattenRequest("out.svg").FileAccess);
+        Assert.Same(FileAccessPolicy.AllowAll, new MontageRequest("out.png").FileAccess);
+        Assert.Same(FileAccessPolicy.AllowAll, new SourceOptions().FileAccess);
+        Assert.Throws<ArgumentNullException>(() => new FlattenRequest("out.svg") { FileAccess = null! });
+        Assert.Throws<ArgumentNullException>(() => new MontageRequest("out.png") { FileAccess = null! });
+        Assert.Throws<ArgumentNullException>(() => new SourceOptions { FileAccess = null! });
     }
 
     /// <summary>

@@ -17,13 +17,13 @@ and draw what a delegate says (a solid surface, a failure, or a nested `Resolve`
 file, which
 is how a chain, a cycle, and the depth are built without any real format). The files are real files in a per-test
 temporary
-folder (`ImageTestFolder`), so the sandbox, the folder logic, and the link refusal are proven against the real file
-system. Tests
-reside in `FolderImageResolverTests.cs`, `FolderImageResolverHrefTests.cs` (query, fragment, and encoding), and
-`FolderImageResolverBudgetTests.cs` (the pixel budget) in the `ImageSources` folder of the
-`DemaConsulting.CanvasNet.Tests` project. No
-timing is
-asserted.
+folder (`ImageTestFolder`), so the file-access policy, the folder logic, and the links are proven against the real file
+system. Each file-access scenario runs under the default policy (`AllowAll`, which follows `..`, absolute paths, local
+`file:` URIs, and links) and, where confinement matters, under an explicit `UnderRoots(folder)`, `NoSymlinks`, or
+denying `FromDelegate` policy. Tests reside in `FolderImageResolverTests.cs`, `FolderImageResolverHrefTests.cs`
+(query, fragment, and encoding), `FolderImageResolverFileAccessTests.cs` (the access-denied note, the policy a request
+carries, and alias cycles), and `FolderImageResolverBudgetTests.cs` (the pixel budget) in the `ImageSources` folder of
+the `DemaConsulting.CanvasNet.Tests` project. No timing is asserted.
 
 #### Test Environment
 
@@ -31,44 +31,83 @@ asserted.
 - **Mocking**: None; the stub sources are real implementations
 - **Files**: per-test temporary folders under the system temporary folder, deleted by the test; no checked-in file is
   read
-- **Capabilities**: the symbolic-link scenario needs permission to create a link and skips otherwise; nothing else
-  depends on the host
+- **Capabilities**: the file-symbolic-link scenarios skip where a file link cannot be created (Windows without the
+  privilege); the directory-link scenarios use a junction on Windows, need no privilege, and never skip; the drive-path
+  scenario asserts the outcome of each operating system; nothing else depends on the host
 - **Isolation**: each test creates its own resolver, as one render does
 
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
 asserted. A
-source that was called for a refused link, a file read outside the folder, a missing warning, a wrong limit, a wrongly
+source that was called for a refused or denied link, a file read that the policy denied, an allowed file that is not
+drawn, a missing warning, a wrong limit, a wrongly
 wrapped or
 unwrapped exception, or a cached picture constitutes a failure.
 
 #### Unit-Level Test Scenarios
 
-##### CanvasNet-ImageSources-FolderImageResolver-Confinement: Links Stay Inside The Folder
+##### CanvasNet-ImageSources-FolderImageResolver-FileAccess: Links Are Judged By The File-Access Policy
 
 **Tests**: `FolderImageResolver_Resolve_RelativeFile_PassesCompleteRequestToSource`,
-`FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning`,
-`FolderImageResolver_Resolve_SymbolicLink_IsUnresolvedWarning`,
-`FolderImageResolver_Resolve_MissingAndUnknownFiles_AreWarnings`
+`FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning`,
+`FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning`,
+`FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn`,
+`FolderImageResolver_Resolve_DrivePath_IsLocalOnWindowsAndInvalidElsewhere`,
+`FolderImageResolver_Resolve_SymbolicLink_NoSymlinks_IsAccessDeniedWarning`,
+`FolderImageResolver_Resolve_SymbolicLink_Default_FollowsTheLink`,
+`FolderImageResolver_Resolve_SymbolicLink_UnderRoots_LinkLeavingTheRootsIsDenied`,
+`FolderImageResolver_Resolve_DirectoryLink_NoSymlinks_IsAccessDeniedWarning`,
+`FolderImageResolver_Resolve_DeniedLink_ReportsPolicyReasonHintAndDetailWithoutReading`,
+`FolderImageResolver_Resolve_MissingAndUnknownFiles_AreWarnings`,
+`FolderImageResolverOptions_FileAccess_DefaultsToAllowAllAndRejectsNull`
 
-Asserts, as a theory over `..`, `sub/../..`, `..%2F`, `%2e%2e/`, backslash escapes, absolute paths, drive and UNC paths,
-an
-alternate data stream, an encoded NUL, `http`, `https`, `ftp`, and a `file:` URI with a host, that a valid file above
-the folder
-is never drawn, that the source is never called, and that the one note is the warning with the stable code and the link;
-that a
-link through a symbolic link is refused; and that a missing file is a warning.
+Asserts, as a theory over a UNC path, an alternate data stream, an encoded NUL, `http`, `https`, `ftp`, and a `file:`
+URI with a host, that a link that is never allowed is the `svg-image-unresolved` warning under the default policy and
+never reaches a source. Under `UnderRoots(folder)`, `..`, `sub/../..`, `..%2F`, `%2e%2e/`, a backslash escape, and the
+rooted `/x` and `\x` are each the one `image-access-denied` warning (source `svg`, severity `Warning`) naming the link
+and the `roots` policy, with no source call and nothing embedded; under the default policy the five `..` spellings and
+the absolute path of the file are drawn, the source gets the bytes and the name `../secret.stub`, and the request
+carries `AllowAll`. A drive path is drawn on Windows and is `svg-image-unresolved` on Linux and macOS. A file symbolic
+link is denied by `NoSymlinks`, followed by default, and denied by `UnderRoots(folder)` because its real path is
+outside the allowed roots; a directory link (a junction on Windows) is denied by `NoSymlinks` and followed by default.
+A denied link, written outside the roots or reached through a directory link that leaves them, is a warning whose
+message names the link as written, the policy, its reason, and its hint but no host directory, and whose `Detail` holds
+`requested=`, `real=`, and `policy=`, and the file never reaches a source. A missing file is a warning. The option is
+`AllowAll` by default, keeps another policy, and refuses `null`.
+
+##### CanvasNet-ImageSources-FolderImageResolver-PolicyPropagation: Sources Receive The Policy Of The Chain
+
+**Tests**: `FolderImageResolver_Resolve_FileRequest_CarriesThePolicyAnchoredAtTheChainOrigin`,
+`FolderImageResolver_Render_Stream_RequestCarriesThePolicy`,
+`ImageSourceRequest_FileAccess_DefaultsToAllowAllAndRejectsNull`
+
+Asserts, under `NoSymlinks` and under the default policy, that the request of a file link carries the resolver's policy
+(same name) anchored at the origin of the chain: a source that reads a file of its own through a
+`FileReferenceResolver` based at `ImageSourceRequest.Directory` is `AccessDenied` under `NoSymlinks` when that folder
+was swapped for a link after the outer check, and reads the file under the default policy. A render of a stream
+carries the policy, judged from the folder of the resolver, and a scheme-claimed request gets the policy itself. A new
+request carries `AllowAll` and refuses `null`.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-FileUri: File URIs And Percent-Encoding
 
 **Tests**: `FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot`,
+`FolderImageResolver_Resolve_FileUriOutsideFolder_Default_IsDrawn`,
 `FolderImageResolver_Resolve_FileUriWithControlCharacter_IsUnresolvedWarning`,
-`FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources`
+`FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources`,
+`FolderImageResolver_Resolve_ShortFormFileUri_NamesTheFile`,
+`FolderImageResolver_Resolve_ShortFormFileUriWithoutDrive_IsNotANetworkLocation`,
+`FolderImageResolver_Resolve_FileUriWithHost_IsRefusedAsNetworkLocation`,
+`FolderImageResolver_Resolve_MalformedFileUri_IsReportedAsMalformed`
 
-Asserts that a `file:` URI outside the folder is a warning, one inside is drawn, `my%20img.stub` is decoded, a `file:`
-URI with a
-control character is a warning, and that a source that claims another scheme never sees a `file:` link.
+Asserts that, under `UnderRoots(folder)`, a `file:` URI outside the folder is the `image-access-denied` warning and one
+inside is drawn; that under the default policy a local `file:` URI outside the folder is drawn and named
+`../outside.stub`; that `my%20img.stub` is decoded, a `file:` URI with a control character is a warning, and that a
+source that claims another scheme never sees a `file:` link. The short form `file:/x` of an existing file is drawn
+under the default policy; a short form without a drive letter is a local path (a missing file here), never reported as
+a network location or as malformed; `file://localhost/...`, `file://server/share/...` and `file:////server/share/...`
+are unresolved warnings that name a network location and never reach a source; and `file://[/a.stub` is an unresolved
+warning that says it is a malformed `file:` URI and does not mention the network.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-UriReference: Query, Fragment, And Percent-Encoding
 
@@ -76,9 +115,10 @@ control character is a warning, and that a source that claims another scheme nev
 `FolderImageResolver_Resolve_EncodedHash_IsLiteralCharacterOfTheFileName`,
 `FolderImageResolver_Resolve_EncodedQuestionMark_IsLiteralCharacterNotAQuery`,
 `FolderImageResolver_Resolve_FileUriWithQueryAndFragment_NamesTheFile`,
-`FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_IsStillUnresolved`,
+`FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_UnderRoots_IsStillDenied`,
 `FolderImageResolver_Resolve_OnlyQueryOrFragment_IsUnresolved`,
-`FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved`,
+`FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_UnderRoots_IsStillNotDrawn`,
+`FolderImageResolver_Resolve_ParentReferenceWithQueryOrFragment_Default_NamesTheFile`,
 `FolderImageResolver_Resolve_SchemeLinkWithQueryAndFragment_IsPassedAsIs`,
 `FolderImageResolver_Resolve_UnclaimedSchemeWithQuery_IsUnresolved`,
 `FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile`,
@@ -96,10 +136,14 @@ written in
 file `a#b.stub` while the unencoded `a#b.stub` names `a` and is unresolved; that `a%3Fb.stub` is a literal question
 mark of the name and never reads `a.stub` (the file `a?b.stub` is created where the file system allows it, and on
 Windows the link is unresolved instead); that a `file:` URI inside the folder may carry a query and a fragment and an
-encoded hash in it stays literal, and one outside the folder or leaving it with `..` stays unresolved; that a link
+encoded hash in it stays literal, and, under `UnderRoots(folder)`, one outside the folder or leaving it with `..` is
+the `image-access-denied` warning; that a link
 that is only a query or fragment (`?cache=1`, `#view`, `?`, `#`, `?a#b`) is the warning "the reference is empty"
 without a source call; as a theory over 18 spellings (`..%2f` and `%2e%2e` with every kind of suffix, backslashes,
-absolute, drive, and UNC paths, an encoded NUL, an alternate data stream) that stripping opens no way out; that a
+absolute, drive, and UNC paths, an encoded NUL, an alternate data stream) that, under `UnderRoots(folder)`, stripping
+opens no way out (each is one warning, `image-access-denied` or, for text that is never allowed,
+`svg-image-unresolved`, and no source call); that under the default policy `../secret.stub` with a query or a
+fragment, also percent-encoded, draws the file named `../secret.stub`; that a
 claimed scheme link with a query and a fragment reaches its source untouched while a path whose query contains a colon
 is still a path; that an unclaimed scheme with a query is a warning; and that a link inside an embedded file is
 stripped and resolved from the folder of that file; and that a `?` after the first `#` belongs to the fragment, while a
@@ -235,7 +279,8 @@ missing file reports `false` with no picture; and that the resolver that a sourc
 `FolderImageResolver_Resolve_ClaimedSchemeCycleAndDepth_AreWarnings`,
 `FolderImageResolver_Resolve_ClaimedSchemeLinks_CountAgainstImageLimit`,
 `FolderImageResolver_Resolve_ImageCountExhausted_NeverReadsTheEmbeddedFile`,
-`FolderImageResolver_Render_PathAndStream_SandboxFileSlotsMatchTheImageLimit`
+`FolderImageResolver_Render_PathAndStream_SandboxFileSlotsMatchTheImageLimit`,
+`FolderImageResolver_Resolve_LinkAliasCycle_StopsAtTheRealPath`
 
 Asserts that a file that links itself and two files that link each other stop with one cycle warning, that a chain
 longer than the
@@ -243,11 +288,13 @@ depth stops after exactly as many files as the depth allows with a warning about
 image limit
 are drawn only up to the limit with a warning for each further one, and that scheme-claimed pictures are subject to the
 cycle,
-depth, and count limits; that with `MaxImages = 0` a file larger than the 16 MiB sandbox limit is refused with the
-"more than 0 images" reason and never read (the sandbox would otherwise report its size limit) and its source is not
-called; and that, with links that are read but refused for the pixel budget (so they are not counted as images) and a
-limit of two images, a render by path and a render of a stream both read exactly two embedded files before the sandbox
-refuses the third (the top-level file of a path render has a slot of its own).
+depth, and count limits; that with `MaxImages = 0` a file larger than the 16 MiB file limit is refused with the
+"more than 0 images" reason and never read (the file engine would otherwise report its size limit) and its source is
+not called; that, with links that are read but refused for the pixel budget (so they are not counted as images) and a
+limit of two images, a render by path and a render of a stream both read exactly two embedded files before the file
+engine refuses the third (the top-level file of a path render has a slot of its own); and that, under the default
+policy, a file that embeds itself through a directory link to its own folder (a junction on Windows) is one cycle
+warning found by its real path, with only the outer file drawn.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-PixelBudget: Pixel Budget
 
@@ -318,14 +365,15 @@ cancellation thrown by a source stays `OperationCanceledException`.
 ##### CanvasNet-ImageSources-FolderImageResolver-Diagnostics: Notes, Echo, And Embedded Images
 
 **Tests**: `FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded`,
-`FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning`,
+`FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning`,
+`FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning`,
 `FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning`
 
 Asserts that a note keeps its source, severity, and code and gets the link in front of its message, that the printed
 text is
 collected, that the embedded image has the format the source reported, the size of the surface, and the depth, and that
 the
-unresolved warnings have the stable code, source, and severity.
+unresolved and access-denied warnings have the stable code, source, and severity.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin: Which File A Note Is About
 
@@ -374,17 +422,18 @@ every call), as a live source requires.
 **Tests**: `FolderImageResolver_RenderPath_File_ReturnsResultWithFormat`,
 `FolderImageResolver_RenderPath_SourceWithoutFormat_UsesSourceName`,
 `FolderImageResolver_RenderPath_Failures_ThrowSpecificExceptions`,
+`FolderImageResolver_RenderPath_OutsideFolder_IsDrawnWhateverThePolicyButItsLinksAreChecked`,
 `FolderImageResolver_RenderPath_FileLinkingItself_StopsAsCycle`,
 `FolderImageResolver_RenderStream_PassesBytesAndFolder_AndRejectsUnknownOrHuge`,
 `FolderImageResolver_RenderStream_NoFolder_SourceHasNoDirectory`
 
-Asserts that the requested size reaches the source, that the top-level file does not count against the image limit, that
-the
-format is filled in, the exceptions for a missing file, a refused path, an unknown extension (naming the extensions), a
-failing
-source, a resolver without a folder, and a null path, that a file that links itself stops at once, and for a stream the
-bytes, the
-name, the folder (none without a folder), the size, an unknown extension, and a stream larger than 16 MiB.
+Asserts that the requested size reaches the source, that the top-level file does not count against the image limit,
+that the format is filled in, the exceptions for a missing file (also one outside the folder,
+`FileNotFoundException`), a directory (`FileReferenceException` of kind `NotARegularFile`), an unknown extension
+(naming the extensions), a failing source, a resolver without a folder, and a null path; that a top-level file outside
+the folder, named relative or absolute, is drawn under a policy that denies everything while the link inside it is the
+`image-access-denied` warning; that a file that links itself stops at once; and for a stream the bytes, the name, the
+folder (none without a folder), the size, an unknown extension, and a stream larger than 16 MiB.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Configuration: Lists And Arguments
 

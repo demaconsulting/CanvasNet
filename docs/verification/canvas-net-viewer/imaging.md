@@ -31,7 +31,11 @@ for the fixture files and for how the PDF, PPTX, and VSDX documents and the mode
 pictures that a chart or a diagram shows (the requirements of the Imaging subsystem for chart and diagram images) are
 verified by the tests of the pictures of the `SourceLoader` unit (`SourceLoaderVegaLiteImageTests.cs` and
 `SourceLoaderMermaidImageTests.cs`; see _SourceLoader Unit Verification Design_), which load real files of every
-linked kind through the sandboxed resolver.
+linked kind through the resolver of the loader. The file-access policy that every operation passes on
+(`SourceOptions.FileAccess`, `FlattenRequest.FileAccess`, and `MontageRequest.FileAccess`, by default `AllowAll`) is
+verified at the unit tier: under the default policy the pictures, includes, and data files of the parent folder are
+read, and under `UnderRoots` they are access-denied warnings or `file-access-denied` errors (see the `FileAccess`
+scenarios of the _SourceLoader_, _SvgFlattener_, and _MontageBuilder Unit Verification Design_).
 
 ### Test Environment
 

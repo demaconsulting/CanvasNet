@@ -17,11 +17,11 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         never uses the network. <see cref="Measure(VegaLiteRenderOptions?, CancellationToken)"/> and the
 ///         <c>Render</c> methods produce the image under the rules of <see cref="VegaLiteRenderOptions"/>; they are
 ///         the only calls that read data: inline rows, named datasets and sequences need no I/O, and a <c>data.url</c>
-///         that is a relative local path is read from the sandbox that <see cref="VegaLiteOpenOptions"/> defines (the
+///         that is a local path is read under the file-access policy and from the places that <see cref="VegaLiteOpenOptions"/> defines (the
 ///         folder of an opened file, <see cref="VegaLiteOpenOptions.BaseDirectory"/>,
 ///         <see cref="VegaLiteOpenOptions.DataPaths"/>, or the <see cref="VegaLiteOpenOptions.FileResolver"/> callback,
-///         which replaces the file system). A data file that is missing, blocked by the sandbox or invalid is a
-///         <see cref="VegaLiteRenderException"/>, never an empty chart; a URL with a scheme or an absolute path is never
+///         which replaces the file system). A data file that is missing, denied by the policy or invalid is a
+///         <see cref="VegaLiteRenderException"/>, never an empty chart; remote data (a scheme other than a local <c>file:</c> URI, or a network path) is never
 ///         fetched or opened and is reported as <c>vl-data-remote-url</c>.
 ///     </para>
 ///     <para>

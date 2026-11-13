@@ -1,6 +1,7 @@
 // cspell:ignore href hrefs
 using System.Runtime.InteropServices;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.ImageSources;
 
@@ -13,7 +14,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         <see cref="Content"/> holds the file's bytes (use <see cref="OpenContent"/> for a stream),
 ///         <see cref="FileName"/> its path relative to the folder of the resolver (for messages and source names) and
 ///         <see cref="Directory"/> the full path of the folder that holds it (the base for any <c>include</c> or data
-///         file the format itself references, which a format library resolves and confines itself). A request for a
+///         file the format itself references, which a format library resolves under <see cref="FileAccess"/>). A request for a
 ///         <i>scheme-claimed</i> source has <see cref="HasContent"/> unset, <see cref="Content"/> empty,
 ///         <see cref="FileName"/> and <see cref="Directory"/> <see langword="null"/>, and only <see cref="Href"/>, the
 ///         link exactly as written, says what is wanted. <see cref="Href"/> is always set.
@@ -91,6 +92,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 /// </remarks>
 public sealed class ImageSourceRequest
 {
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
+
     /// <summary>
     ///     Gets the link as written in the document (or the path or file name passed to a direct render). For a
     ///     scheme-claimed request it is the whole link, <c>scheme:rest</c>, in the case it was written. It is untrusted
@@ -133,7 +137,7 @@ public sealed class ImageSourceRequest
 
     /// <summary>
     ///     Gets the full path of the folder that holds the file, the base for the <c>include</c>, <c>use</c> or data
-    ///     files the format references (the format library confines them to it), or <see langword="null"/> for a
+    ///     files the format references (read under <see cref="FileAccess"/>), or <see langword="null"/> for a
     ///     scheme-claimed request and when the resolver has no folder.
     /// </summary>
     public string? Directory { get; init; }
@@ -189,6 +193,24 @@ public sealed class ImageSourceRequest
     ///     <see cref="OperationCanceledException"/>. The default is <see cref="System.Threading.CancellationToken.None"/>.
     /// </summary>
     public CancellationToken CancellationToken { get; init; }
+
+    /// <summary>
+    ///     Gets the policy a source must use for every further file it reads itself (an <c>include</c>, a data file). The
+    ///     default is <see cref="FileAccessPolicy.AllowAll"/>. Must not be null.
+    /// </summary>
+    /// <remarks>
+    ///     The resolver sets it to its own policy (<see cref="FolderImageResolverOptions.FileAccess"/>), judged from the
+    ///     folder the chain of links started from, so a link inside a linked file cannot loosen the policy. A source that
+    ///     reads further files routes them through a <see cref="FileReferenceResolver"/> with this policy and
+    ///     <see cref="Directory"/> as the base directory; pictures it links to go through <see cref="Resolver"/>, which
+    ///     applies the policy itself.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
 
     /// <summary>
     ///     Gets a value indicating whether the request carries the bytes of a file (<see langword="true"/>: a

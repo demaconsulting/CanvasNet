@@ -157,8 +157,9 @@ sections:
           The render command shall render a Vega-Lite chart (a .vl.json or .vl file, or a .json file with a
           Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default) over
           its own background, white by default, or the background color given, with no option of its own for a
-          chart; shall read the local data files of a chart from the folder of its specification and below it
-          only, with no option for another data folder and no network access; shall set the parameters of a chart
+          chart; shall read the local data files of a chart relative to the folder of its specification under
+          the default file-access policy of the library, with no option for another data folder and no network
+          access; shall set the parameters of a chart
           only through the --param option (see the ChartParams requirement); shall describe what it drew (the
           size, the time zone, the background when given, and the parameters when given) in the
           render operation and the natural size in the input of the result; shall report the warnings and
@@ -359,7 +360,6 @@ sections:
           - RenderCommand_Run_UnsupportedFeature_IsReportedOrFailsWhenStrict
           - RenderCommand_Run_DocumentDiagnosticsInTextMode_NameTheInputAndPage
           - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
-          - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
           - RenderCommand_Run_SvgEmbeddingMissingFile_WritesWarningLineToStandardError
           - RenderCommand_Run_SvgEmbeddingStrictUnresolved_FailsWithUnsupportedFeature
           - RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError
@@ -372,7 +372,7 @@ sections:
       - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
         title: >-
           The render command shall render an SVG file whose image elements name a model, a chart, a diagram, another SVG
-          file, a document page, or a raster in the folder of the SVG file or below it, choose the page of a
+          file, a document page, or a raster relative to the SVG file, choose the page of a
           document (or the view of a model) from the fragment of the link and draw page 1 without one, list each
           embedded file as an embed operation of the result with the link as written, report a page that does not
           exist (image-page-out-of-range) and a fragment that cannot be used (image-fragment-invalid) as unsupported
@@ -388,6 +388,7 @@ sections:
           - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
           - RenderCommand_Run_SvgEmbeddingBrokenModel_FailsWithScadErrorNamingBothFiles
           - RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe
+          - RenderCommand_Run_SvgEmbeddingOutsideFolder_IsDrawnUnderTheDefaultPolicy
 
       - id: CanvasNetTool-Commands-RenderCommand-DiagnosticExtras
         title: >-

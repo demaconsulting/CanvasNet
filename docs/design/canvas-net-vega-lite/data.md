@@ -7,7 +7,8 @@
 The `Data` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Data`, folder
 `src/DemaConsulting.CanvasNet.VegaLite/Data/`) puts the rows of a chart into memory, safely. It is **internal**: its
 types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly.
-It reads **inline `values`**, **local data files** (JSON, CSV, TSV, and DSV) from a sandbox, **named datasets**, and
+It reads **inline `values`**, **local data files** (JSON, CSV, TSV, and DSV) under the caller's file-access policy,
+**named datasets**, and
 **generated sequences**, and applies the `parse` conversions; remote URLs are never fetched and are reported by the
 `FeatureCatalog` unit. It also owns the **time model** of the system: the calendar, the time units, the date-time
 objects, and the date formatting and parsing (a deviation from the master plan, which placed them in `Transforms` and
@@ -22,7 +23,8 @@ objects, and the date formatting and parsing (a deviation from the master plan, 
   also keeps the row budget of the call for the derived tables of the row transforms and loads the sources of a `lookup`;
   see _DataLoader Unit Design_ (`data/data-loader.md`)
 - **DataFileResolver** - the internal `DataFileResolver` and `DataFile` types: finds and reads local data files
-  through the core `SandboxedFileResolver` (inside the sandbox, or through the caller's callback), and adds the search
+  through the core `FileReferenceResolver` (under the file-access policy, or through the caller's callback), and adds
+  the search
   order, strict UTF-8 decoding, the file limit and the Vega-Lite wording of every refusal; see
   _DataFileResolver Unit Design_ (`data/data-file-resolver.md`)
 - **DelimitedTextParser** - the internal `DelimitedTextParser`, `ParseDirectives`, `ParseFailures`, and the option and
@@ -60,7 +62,7 @@ value); and the value helpers
 static rules, by the `SpecModel` units, see below) and are not called by any other subsystem.
 
 **Consumed**: `SpecNode` and `SpecNodeKind` from the `SpecParser` unit (the time units and date-time objects read
-their specification nodes) and `FeatureCatalog.IsSchemeBearingUrl` and
+their specification nodes), `FeatureCatalog.IsRemoteDataUrl`, `FeatureCatalog.LocalPathOfFileUri`, and
 `FeatureReport` from the `FeatureCatalog` unit; the public `VegaLiteLimits`, `VegaLiteOpenOptions`,
 `VegaLiteRenderOptions` datasets, `VegaLiteLocation`, and `VegaLiteRenderException` types of the `VegaLiteDocument`
 unit. The .NET base class library supplies `System.IO` (files and streams), `System.Text` (strict UTF-8),
@@ -86,16 +88,20 @@ and `TimeLabels` read `DataValue` and format dates with `TimeFormat`), and the `
 
 **Choose the source, do the I/O once, never reach the network.** `DataLoader` picks the source of the `data` object by
 precedence (inline `values`, then `url`, `sequence`, and `name`, the same precedence the feature catalog uses) and
-returns an immutable table. Inline rows, named datasets, and sequences need no I/O. A `url` that has a scheme or is
-absolute (remote data) is never given to the resolver and never opened: the table is empty and the catalog reports
-`vl-data-remote-url`. A relative local `url` goes to `DataFileResolver`, which returns decoded text, and then to
+returns an immutable table. Inline rows, named datasets, and sequences need no I/O. A `url` that names remote data
+(`FeatureCatalog.IsRemoteDataUrl`: a scheme other than `file`, a `file:` URI with a host, or a network path) is never
+given to the resolver and never opened: the table is empty and the catalog reports `vl-data-remote-url`. A local `url`
+(relative, absolute, a drive path, or a `file:` URI without a host, read at its local path and named as written)
+goes to `DataFileResolver`, which returns decoded text, and then to
 `JsonDocument` or `DelimitedTextParser` depending on the format (`format.type`, else the extension). One loader, and
 therefore one resolver cache, one file count, and one row budget, serves exactly one `Measure` or `Render`
 call, including the sources of its
 `lookup` transforms (which are read through `Load` of the same instance).
 
-**Local files are hard errors; unsupported sources are reports.** A local file that is missing, refused by the sandbox,
-a link, a directory where a file is expected, unreadable (an existing file whose open fails, which is never reported as
+**Local files are hard errors; unsupported sources are reports.** A local file that is missing (a dangling link
+included), refused as
+never allowed, denied by the file-access policy, a directory where a file is expected, unreadable (an existing file
+whose open fails, which is never reported as
 missing because only the open attempt itself decides that, or a callback or stream that fails), not
 valid UTF-8, not valid JSON (including JSON text that is not valid Unicode, such as an escaped lone surrogate) or
 delimited text, or over a limit, a `name` that no dataset defines, and a sequence that is
@@ -105,10 +111,13 @@ lenient and strict mode alike, because an empty chart would hide a broken deploy
 supported (remote data, text values, GeoJSON and TopoJSON, no source) is an empty table that the feature catalog
 reports.
 
-**Sandbox.** The resolver asks the core `SandboxedFileResolver` to confine every relative path to a root (the document
-folder, then each data path, in order, or the logical root of the caller's callback), to refuse a symbolic link or
-junction below a root (a dangling link included), and to read at most `MaxDataBytes` bytes; the resolver itself reads at
-most `MaxDataFiles` distinct files, decodes strict UTF-8 and words each refusal; see _DataFileResolver Unit
+**File access.** The resolver asks the core `FileReferenceResolver` to look a relative path up in the document folder,
+then in each data path, in order (search locations, not boundaries), or under the logical root of the caller's
+callback; to let `VegaLiteOpenOptions.FileAccess` (`FileAccessPolicy.AllowAll` by default, like Pandoc) judge the real
+path of the opened file; and to read at most `MaxDataBytes` bytes and `MaxDataFiles` distinct files, whatever the
+policy; the resolver itself decodes strict UTF-8 and words each refusal, keeping the core exception as the inner
+exception. A chart drawn as a linked picture gets the policy of the render, anchored at the origin of its chain; see
+_DataFileResolver Unit
 Design_. With a callback, nothing touches the file system, and a callback that throws or returns a failing stream is the
 same located read failure.
 

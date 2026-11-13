@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.Viewer;
@@ -123,20 +124,46 @@ public sealed record ViewerRenderOptions
     public Imaging.ChartOptions? VegaLite { get; init; }
 
     /// <summary>
-    ///     Gets the folder that confines the files the rendered file itself includes or embeds (a model's
-    ///     <c>include</c>, a chart's data, the pictures of an SVG file), or <see langword="null"/>. For a render by path the
-    ///     default is the folder of the file, and the file must be inside the folder; for a render of a stream the default
-    ///     is none, so no file the document names is resolved.
+    ///     Gets the folder that relative references of the rendered file are resolved against (the pictures of an SVG
+    ///     file named relative to the folder), or <see langword="null"/>. It is a base, not a boundary: which files may be
+    ///     read is <see cref="FileAccess"/>. For a render by path the default is the folder of the file, and the file may
+    ///     lie anywhere; for a render of a stream the default is none, so no file the document names is resolved.
     /// </summary>
     public string? Folder { get; init; }
 
     /// <summary>
+    ///     Gets the policy that decides which files the rendered file may read: its pictures, a model's <c>include</c>, a
+    ///     chart's data, and the files those read in turn, at every level. The default is
+    ///     <see cref="FileAccessPolicy.AllowAll"/>: like Pandoc, any regular local file, also through <c>..</c>, an absolute
+    ///     path, a local <c>file:</c> URI or a symbolic link. The rendered file itself is the caller's choice and is never
+    ///     judged. Must not be null.
+    /// </summary>
+    /// <remarks>
+    ///     A denied picture is the warning <c>image-access-denied</c> and is not drawn; with
+    ///     <see cref="ThrowOnUnsupportedFeature"/> it is a <see cref="ViewerException"/> with the code
+    ///     <c>file-access-denied</c>. A denied include or data file fails the picture; for a nested model or chart the
+    ///     <see cref="ImageSourceException"/> keeps the <see cref="FileReferenceException"/> in its chain of inner
+    ///     exceptions. To restore the confinement of earlier versions, use
+    ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
+
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
+
+    /// <summary>
     ///     Gets a value indicating whether a file that uses a feature its source does not draw fails (the source throws)
     ///     instead of being drawn without it with a note. The default is <see langword="false"/>. For an SVG file it also
-    ///     covers its links, as <c>--strict</c> of the tool does: a link that is not drawn (a missing file, one outside the
-    ///     folder, a picture too large for the budget, an unusable fragment, a page that does not exist), at any level of
-    ///     nesting, is a <see cref="ViewerException"/> with the code <c>unsupported-feature</c> that names the file that
-    ///     holds the link; an unknown or repeated fragment parameter stays a warning.
+    ///     covers its links, as <c>--strict</c> of the tool does: a link that is not drawn (a missing file, a picture too
+    ///     large for the budget, an unusable fragment, a page that does not exist), at any level of nesting, is a
+    ///     <see cref="ViewerException"/> with the code <c>unsupported-feature</c> that names the file that holds the link,
+    ///     and a link the file-access policy denied one with the code <c>file-access-denied</c>; an unknown or repeated
+    ///     fragment parameter stays a warning.
     /// </summary>
     public bool ThrowOnUnsupportedFeature { get; init; }
 

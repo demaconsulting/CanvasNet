@@ -8,7 +8,15 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     equality (or <see cref="Key"/> equality under <see cref="SandboxedFileResolver.KeyComparer"/>) identifies a
 ///     file that was reached through different spellings. The type is immutable; <see cref="Content"/> is shared and
 ///     must not be modified by unsafe means. It is safe to use from any thread.
+///     <para>
+///         <b>Obsolete.</b> The folder sandbox is kept, unchanged and race-free, for one release; use
+///         <see cref="FileReferenceResolver"/> with <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>
+///         for the same confinement. No part of the library uses it any longer.
+///     </para>
 /// </remarks>
+#pragma warning disable S1133 // Deprecated on purpose for one release; removed in the next major release
+[Obsolete("Use FileReferenceResolver with FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks). This type will be removed in the next major release.")]
+#pragma warning restore S1133
 public sealed class SandboxedFile
 {
     /// <summary>

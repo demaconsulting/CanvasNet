@@ -2,7 +2,7 @@ namespace DemaConsulting.CanvasNet.Files;
 
 /// <summary>
 ///     The built-in policies of <see cref="FileAccessPolicy"/>: allow all, under roots, no symbolic links, combined,
-///     and delegate, plus the link match that no-symlinks shares with <see cref="SandboxedFileResolver"/>. The policies
+///     delegate and anchored, plus the link match that no-symlinks shares with <see cref="SandboxedFileResolver"/>. The policies
 ///     are private so that callers depend only on the factory members and the abstract contract.
 /// </summary>
 public abstract partial class FileAccessPolicy
@@ -371,5 +371,46 @@ public abstract partial class FileAccessPolicy
 
         /// <inheritdoc/>
         public override FileAccessDecision Check(FileAccessRequest request) => check(request);
+    }
+
+    /// <summary>
+    ///     A policy judged from a fixed chain origin (<see cref="AnchoredAt(string)"/>).
+    /// </summary>
+    /// <param name="inner">The policy that decides.</param>
+    /// <param name="origin">The origin given to it as the base directory of every request.</param>
+    private sealed class AnchoredPolicy(FileAccessPolicy inner, string origin) : FileAccessPolicy
+    {
+        /// <inheritdoc/>
+        public override string Name => inner.Name;
+
+        /// <inheritdoc/>
+        internal override bool RequiresRealPath => inner.RequiresRealPath;
+
+        /// <inheritdoc/>
+        internal override FileAccessDecision? PreCheck(string requestedPath) => inner.PreCheck(requestedPath);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        ///     The folders are those of the outer chain's origin, the same base directory <see cref="Check"/> hands to
+        ///     the inner policy, so the resolver of the nested document captures exactly what the inner policy compares
+        ///     against.
+        /// </remarks>
+        internal override IEnumerable<string> AnchorsOf(string requestedPath, string baseDirectory) =>
+            inner.AnchorsOf(requestedPath, origin);
+
+        /// <inheritdoc/>
+        internal override FileAccessPolicy AnchoredAt(string origin)
+        {
+            // The outermost origin wins: a nested document never moves the anchor of its outer chain
+            ArgumentNullException.ThrowIfNull(origin);
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public override FileAccessDecision Check(FileAccessRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            return inner.Check(request with { BaseDirectory = origin });
+        }
     }
 }

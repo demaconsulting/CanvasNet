@@ -24,10 +24,12 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///         including, <c>stop</c> in steps of <c>step</c> (1 by default) in the field <c>as</c> (<c>data</c> by default).
 ///     </para>
 ///     <para>
-///         <b>No network.</b> A <c>url</c> that has a scheme, or that is absolute, rooted, a drive path or a network path
-///         (see <see cref="FeatureCatalog.IsSchemeBearingUrl"/>) is remote data: it is never given to the file resolver
+///         <b>No network.</b> A <c>url</c> that has a scheme other than a local <c>file:</c> URI, or that is a network path
+///         (see <see cref="FeatureCatalog.IsRemoteDataUrl"/>) is remote data: it is never given to the file resolver
 ///         or any other reader, and gives an empty table that the feature catalog reports as <c>vl-data-remote-url</c>
-///         (strict mode throws there). A local file that is missing, blocked by the sandbox, not valid UTF-8, not valid
+///         (strict mode throws there). A local path (relative, absolute, a drive path, or a <c>file:</c> URI without a
+///         host, which is read at its local path) is read under the file-access policy of the open options. A local
+///         file that is missing, denied by the policy, not valid UTF-8, not valid
 ///         JSON or delimited text, or over a limit is not an empty dataset: it is a <see cref="VegaLiteRenderException"/>
 ///         with the location of the <c>url</c>, in lenient and strict mode alike. So is a <c>name</c> that nobody defines.
 ///     </para>
@@ -60,7 +62,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     </para>
 ///     <para>
 ///         <b>Transforms.</b> The loader of the call is also the context of the row transforms: the data of a lookup is
-///         loaded by <see cref="Load(SpecNode?, IReadOnlySet{string}?)"/> on the same instance (so with the sandbox, the file cache, the file and
+///         loaded by <see cref="Load(SpecNode?, IReadOnlySet{string}?)"/> on the same instance (so with the file-access policy, the file cache, the file and
 ///         byte limits and the row total of the main data), and the rows of a derived table are counted by
 ///         <see cref="ReserveDerivedRows(double, string, VegaLiteLocation)"/> before they are allocated and given back by <see cref="ReleaseRows"/> when the table
 ///         they came from is no longer needed.
@@ -676,7 +678,7 @@ internal sealed class DataLoader
         var text = url.StringValue!;
 
         // Remote data never reaches the file resolver: the catalog reports it and the dataset is empty
-        if (FeatureCatalog.IsSchemeBearingUrl(text))
+        if (FeatureCatalog.IsRemoteDataUrl(text))
         {
             return DataTable.Empty;
         }
@@ -687,8 +689,10 @@ internal sealed class DataLoader
             return DataTable.Empty;
         }
 
+        // A local file: URI is read at its local path, and named in messages as written
         var location = url.GetLocation(_sourceName);
-        var file = _resolver.Load(text, location);
+        var localPath = FeatureCatalog.LocalPathOfFileUri(text);
+        var file = localPath is null ? _resolver.Load(text, location) : _resolver.Load(localPath, location, text);
         var dataLocation = data.GetLocation(_sourceName);
         return type switch
         {

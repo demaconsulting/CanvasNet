@@ -8,7 +8,8 @@ The `DataLoader` unit is the second software unit in the `Data` subsystem. It is
 #### Purpose
 
 `DataLoader` reads the data of a view from the `data` property of its specification: inline `values` rows, a local data
-file, a named dataset, or a generated sequence, under the data limits and the sandbox of one measure or render call.
+file, a named dataset, or a generated sequence, under the data limits and the file-access policy of one measure or
+render call.
 It exists so that the rest of the pipeline sees every kind of data source as a `DataTable` and so that no other unit
 needs to know how the rows were written. It never uses the network; all file access goes through `DataFileResolver`.
 
@@ -86,8 +87,15 @@ are not read through the calendar: they are dates in UTC, as before.
 **Named data.** A `name` is looked up in the caller's datasets (`VegaLiteRenderOptions.Datasets`) first and then in
 the top-level `datasets` of the specification; the caller wins; neither defining it is an error.
 
-**Remote data.** A `url` for which `FeatureCatalog.IsSchemeBearingUrl` is true (a scheme, an absolute or rooted path, a
-drive path, or a network path) is the empty table and is never given to the resolver.
+**Remote data.** A `url` for which `FeatureCatalog.IsRemoteDataUrl` is true (a scheme of two or more characters other
+than `file`, a `file:` URI with a host, `localhost` included, or a malformed one, or a path that starts with `//` or
+`\\`) is the empty table and is never given to the resolver.
+
+**Local files.** Every other `url` is a local path: relative, absolute (`/x`, `\x`), a drive path (`C:\x`, `C:/x`,
+`C:x`: one letter is a drive), or a `file:` URI without a host (`file:///x`, `file:/x`). `LoadUrl` reads a `file:` URI
+at the local path `FeatureCatalog.LocalPathOfFileUri` returns and passes the `url` as written to
+`DataFileResolver.Load(path, location, written)`, so the messages name what the author wrote. Which file may be read
+is decided by the file-access policy of the open options (see _DataFileResolver Unit Design_).
 
 #### Key Methods
 
@@ -156,8 +164,9 @@ chart is still drawn.
   the `Data` subsystem
 - **`TimeCalendar`** - the calendar of the date conversions, defined in the `Data` subsystem (see _Time Calendar Design_)
 - **`DataTable`**, **`DataValue`**, **`FieldPath`** - the value and table model of the `DataTable` unit
-- **`SpecNode`**, **`SpecNodeKind`**, **`FeatureReport`**, and **`FeatureCatalog.IsSchemeBearingUrl`** - the tree of the
-  `SpecParser` unit and the report type and remote-URL rule of the `FeatureCatalog` unit
+- **`SpecNode`**, **`SpecNodeKind`**, **`FeatureReport`**, **`FeatureCatalog.IsRemoteDataUrl`**, and
+  **`FeatureCatalog.LocalPathOfFileUri`** - the tree of the `SpecParser` unit and the report type, remote-URL rule and
+  local `file:` URI rule of the `FeatureCatalog` unit
 - **`VegaLiteLimits`**, **`VegaLiteOpenOptions`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the
   public types of the `VegaLiteDocument` unit
 - **.NET base class library** - `System.Text.Json` (JSON data files), `System.Globalization` (invariant-culture array
@@ -170,7 +179,8 @@ chart is still drawn.
 `Load` with the implicit date fields (`TemporalFields.Collect` of the root view), and delivers the `Warnings` after the
 reports of the specification. The loader is then the **context of the row
 transforms**: `RowTransforms` calls `Load` on the same instance for the `from.data` of a `lookup` (so the source has the
-sandbox, the file cache, the file and byte limits, and the row total of the main data) and reserves and releases the rows
+file-access policy, the file cache, the file and byte limits, and the row total of the main data) and reserves and
+releases the rows
 of its derived tables with `ReserveDerivedRows` and `ReleaseRows`; `ParameterEnvironment` converts the caller's
 `Parameters` with `FromObject`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataLoaderTests.cs` call it directly through `InternalsVisibleTo`.

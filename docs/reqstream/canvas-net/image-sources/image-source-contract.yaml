@@ -46,7 +46,8 @@ sections:
                   The ImageSourceRequest class shall carry the link as written; for a file-based request the bytes of
                   the file, its name relative to the folder of the resolver, and the full path of its folder; for a
                   scheme-claimed request no bytes, no name and no folder; the requested size, the resolver scoped to
-                  the request, the strictness switch, and a cancellation token; and shall open the bytes as a
+                  the request, the strictness switch, the file-access policy a source applies to the files it reads (the
+                  allow-all policy by default, null refused), and a cancellation token; and shall open the bytes as a
                   read-only seekable stream, failing with InvalidOperationException when the request has no file.
                   The request shall also carry the live shared pixel budget of the render (Budget, an ImageBudget;
                   RemainingPixels reads it live and is unlimited when none is set, as for a request built by hand)
@@ -61,6 +62,7 @@ sections:
                   without a stale number.
                 tests:
                   - ImageSourceRequest_OpenContent_FileRequest_ReturnsReadOnlySeekableStream
+                  - ImageSourceRequest_FileAccess_DefaultsToAllowAllAndRejectsNull
                   - ImageSourceRequest_OpenContent_SchemeRequest_ThrowsInvalidOperationException
                   - ImageSourceRequest_EnsureWithinBudget_ChargesLiveBudgetAndThrowsOnlyWhenOver
                   - ImageSourceRequest_EnsureWithinBudget_SharedBudget_SeesChargesOfOtherRequests

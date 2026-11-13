@@ -8,8 +8,10 @@ using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.Tests.Files;
+using DemaConsulting.CanvasNet.Tests.ImageSources;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests;
@@ -1563,6 +1565,7 @@ public class CanvasNetTests
         Assert.DoesNotContain("not text", binary.Message, StringComparison.Ordinal);
     }
 
+#pragma warning disable CS0618 // The obsolete facade is still tested until it is removed
     /// <summary>
     ///     Proves through the public sandbox API that a link swapped into the tree just before the open (after the link
     ///     check) is refused as a link, with a message that names no host directory.
@@ -1595,5 +1598,72 @@ public class CanvasNetTests
         Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
         Assert.Equal("sub/a.txt", ex.Detail);
         Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+    }
+#pragma warning restore CS0618
+
+    /// <summary>
+    ///     Proves through the public resolver API that, by default, the links of a document are followed like Pandoc
+    ///     follows them: a link to the parent folder, an absolute path and a local <c>file:</c> URI are all drawn, while
+    ///     a network URL is still never read.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LinkedImages_DefaultFollowsParentAbsoluteAndFileUriLinks()
+    {
+        // Arrange: a picture beside the folder of the document
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        var picture = directory.Write("picture.stub", "x");
+        var stub = new StubImageSource("stub", [".stub"]);
+        var resolver = new FolderImageResolver(directory.Combine("site"), [stub]);
+
+        // Act
+        using var parent = resolver.Resolve("../picture.stub", 10, 10);
+        using var absolute = resolver.Resolve(picture, 10, 10);
+        using var fileUri = resolver.Resolve(new Uri(picture).AbsoluteUri, 10, 10);
+        var network = resolver.Resolve("https://example.invalid/picture.stub", 10, 10);
+
+        // Assert
+        Assert.NotNull(parent);
+        Assert.NotNull(absolute);
+        Assert.NotNull(fileUri);
+        Assert.Null(network);
+        Assert.Equal(3, stub.Requests.Count);
+        Assert.Equal(FolderImageResolver.UnresolvedCode, Assert.Single(resolver.Diagnostics).Code);
+    }
+
+    /// <summary>
+    ///     Proves through the public resolver API that a restrictive policy denies a link outside its roots with the
+    ///     access-denied warning, and reaches the files a linked document reads itself: the request carries the policy,
+    ///     so a nested read outside the roots is denied too.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_LinkedImages_RestrictivePolicyDeniesAndReachesNestedSources()
+    {
+        // Arrange: a model in the site that reads a file outside it, the way an include is read
+        using var directory = new SandboxTempDirectory();
+        var site = System.IO.Path.GetFullPath(directory.Combine("site"));
+        directory.Write("site/model.stub", "../secret.txt");
+        directory.Write("secret.txt", "secret");
+        directory.Write("picture.stub", "x");
+        FileReferenceException? nested = null;
+        var model = new StubImageSource("model", [".stub"], null, request =>
+        {
+            var files = new FileReferenceResolver(new FileReferenceOptions { BaseDirectory = request.Directory, FileAccess = request.FileAccess });
+            nested = Assert.Throws<FileReferenceException>(() => files.Resolve(System.Text.Encoding.UTF8.GetString(request.Content.Span)));
+            return new ImageSourceResult(StubImageSource.Solid(4, 4, StubImageSource.Green));
+        });
+        var options = new FolderImageResolverOptions { FileAccess = FileAccessPolicy.UnderRoots(site) };
+        var resolver = new FolderImageResolver(site, [model], options);
+
+        // Act
+        var outside = resolver.Resolve("../picture.stub", 10, 10);
+        using var inside = resolver.Resolve("model.stub", 10, 10);
+
+        // Assert
+        Assert.Null(outside);
+        Assert.NotNull(inside);
+        Assert.Equal(FolderImageResolver.AccessDeniedCode, Assert.Single(resolver.Diagnostics).Code);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, nested?.Kind);
+        Assert.Equal("roots", nested?.PolicyName);
     }
 }

@@ -60,19 +60,22 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-RemoteUrl
                 title: >-
-                  The FeatureCatalog unit shall classify a data URL that carries a scheme (including a file:
-                  URI), a UNC path, a drive letter, or an absolute or rooted path (a leading slash or
-                  backslash, on every host operating system) as remote and report it with the stable
-                  vl-data-remote-url identifier, and shall classify a plain relative URL as a local file
-                  that it does not report, because the data stage reads it (a local file that cannot be
-                  read is an error of the render, not a report).
+                  The FeatureCatalog unit shall classify a data URL that carries a scheme other than file, a
+                  file: URI with a host (localhost included) or that is malformed, and a network path (two
+                  leading slashes or backslashes, on every host operating system) as remote and report it
+                  with the stable vl-data-remote-url identifier, and shall classify a relative path, an
+                  absolute or rooted path, a drive path (a one-letter scheme is a drive) and a file: URI
+                  without a host as a local file that it does not report, because the data stage reads it
+                  under the file-access policy (a local file that cannot be read is an error of the render,
+                  not a report), giving the local path of a file: URI without a host.
                 justification: |
-                  A remote URL must never reach a file resolver or the network, and the difference between
-                  a remote and a local reference is the difference between a security boundary and a
-                  supported feature.
+                  A remote URL must never reach a file resolver or the network, while a local path, written
+                  in any of the forms Vega-Lite accepts, is read like any other file under the policy of the
+                  host; the difference is the difference between a security boundary and a supported feature.
                 tests:
                   - FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl
-                  - FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls
+                  - FeatureCatalog_IsRemoteDataUrl_ClassifiesUrls
+                  - FeatureCatalog_LocalPathOfFileUri_ReturnsThePathOfAUriWithoutHost
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-DataSources
                 title: >-

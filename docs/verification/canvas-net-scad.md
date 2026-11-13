@@ -37,7 +37,9 @@ The evaluation scenarios (Phase 5) assert on what evaluating a document produces
 echo lines of a program and the located failure of a failed assertion; the instance count of the parametric
 fixtures; the validation and immutability of the evaluation options; warnings for unknown names; unsupported
 features reported or thrown; `include` and `use` through a resolver and through the file system, with the
-sandbox rejecting an escaping path before it reaches the callback; every resource limit failing closed with a
+resolver mode rejecting an escaping path before it reaches the callback and the file-system mode reading
+`..` and absolute includes under the default policy and denying them under a confining one; every resource limit
+failing closed with a
 located `ScadEvaluationException`; deep recursion on a small caller stack neither overflowing nor changing the
 outcome; cancellation never being wrapped; variable overrides replacing assignments; and determinism across
 repeated calls and cultures. The detailed semantics (scoping, special variables, children, built-in functions,
@@ -99,7 +101,7 @@ resolution of `include` and `use` files), streams (the `ScadDocument.Open(Stream
 file resolver callback. The file system and streams are not simulated: file input uses the real fixture files
 copied to the output directory, and stream input uses real `MemoryStream` instances over fixture or generated
 bytes. The file resolver callback is a real delegate over in-memory streams that records every path it is
-asked for, so that the sandbox scenario can assert that a hostile path never reaches it. The one case that must
+asked for, so that the resolver-mode scenario can assert that a hostile path never reaches it. The one case that must
 never touch the file system while parsing — directive recording — is verified by supplying a base directory,
 library paths, and a `FileResolver` that would fail the test if they were ever used, and by asserting that
 parsing succeeds regardless. The Render3D scene model and renderer and the core `Surface` are used for real in
@@ -253,6 +255,15 @@ normalized logical path `lib/util.scad`; evaluates a document that includes `../
 `ScadEvaluationException` without any further resolver request (the hostile path never reaches the callback);
 and evaluates the `eval-include-main.scad` fixture from disk, asserting that its include and use of files under
 `libs/` work through the file system.
+
+### Include And Use: The File-Access Policy
+
+**Test**: `CanvasNetScad_SystemIntegration_IncludeUse_FileAccessPolicy`
+
+With a model folder, a library beside it, and a directory link in the model folder to the library (a junction on
+Windows), asserts that the default policy reads a `..` include and an absolute include (echo `part`), that
+`UnderRoots(model)` denies both with a located `ScadEvaluationException` naming the `roots` policy, and that
+`NoSymlinks` denies the include through the link (naming `no-symlinks`) while the default policy follows it.
 
 ### Evaluation Limits: Fail Closed
 
@@ -580,7 +591,8 @@ parallelism are byte-identical.
 Exercises end-to-end system behavior of `ScadImageSource`, the package's source for the shared image resolver of the
 core package: it renders a model from the bytes of a hand-built request with a requested size and asserts that the
 picture has the documented size. The full set of scenarios (natural size, transparency, notes, strict mode, the folder
-of the request, and invalid input) is in the unit verification design (`canvas-net-scad/scad-document.md`).
+and the file-access policy of the request, and invalid input) is in the unit verification design
+(`canvas-net-scad/scad-document.md`).
 
 ## Acceptance Criteria
 

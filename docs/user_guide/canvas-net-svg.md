@@ -304,12 +304,14 @@ is not a `data:` URI and not a same-document `#fragment` (an empty `href` is nev
 draws the `Surface` it returns. A `data:` URI is never passed to the resolver: a nested SVG given as a
 `data:image/svg+xml` URI is not supported and draws nothing, with or without a resolver (an external SVG file can be
 embedded through the resolver). This is an explicit opt-in: **the codec still performs no I/O itself -
-the only I/O is whatever your resolver does**, so what it may reach (one folder, a sandbox, an
-allow-list) is your decision. Never resolve an `href` from an untrusted document against the file
-system without confining it first.
+the only I/O is whatever your resolver does**, so what it may reach (a folder, a file-access policy, an
+allow-list) is your decision.
 
-The ready-made, confined resolver is `FolderImageResolver` of the core package (see the core user
-guide, *Linked Images*). It resolves each link inside one folder, hands the file to the image source
+`FolderImageResolver` of the core package (see the core user guide, *Linked Images*) resolves each link relative to
+the document under `FolderImageResolverOptions.FileAccess`: the default reads every regular local file and never the
+network. For an untrusted document use
+`FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)` (see the core user
+guide, *Migrating from the Folder Sandbox*). It hands the file to the image source
 that claims its extension (or the link to the source that claims its URI scheme), and bounds the depth,
 the cycles, the number of images, and the pixels they may use in total (a picture over that budget is refused before
 it is decoded, with the warning `svg-image-too-large`). A query after a file name (`logo.png?v=2`) is

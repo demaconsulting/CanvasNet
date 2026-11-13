@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 using static DemaConsulting.CanvasNet.Scad.Tests.Evaluation.ScadEvaluationTestHelpers;
@@ -7,7 +8,7 @@ namespace DemaConsulting.CanvasNet.Scad.Tests;
 /// <summary>
 ///     Tests of the fail-closed behavior of the public
 ///     <see cref="ScadDocument.Evaluate(ScadEvaluationOptions?, CancellationToken)"/>: resource limits, cancellation,
-///     the include sandbox and stack safety.
+///     the file-access policy of includes and stack safety.
 /// </summary>
 public class ScadDocumentEvaluateSafetyTests
 {
@@ -176,48 +177,103 @@ public class ScadDocumentEvaluateSafetyTests
     }
 
     /// <summary>
-    ///     Validates that an include that leaves the base directory or names an absolute path is rejected when
-    ///     files are read from the file system, and that the outside file is never executed.
+    ///     Validates that, under a policy confined to the project folder, an include that leaves it or names an
+    ///     absolute path outside it is denied when files are read from the file system, that the denial names the file
+    ///     as written, and that the outside file is never executed.
     /// </summary>
     [Fact]
-    public void ScadDocument_Evaluate_FileSystemSandbox_EscapesAreRejected()
+    public void ScadDocument_Evaluate_FileSystemRootsPolicy_EscapesAreDenied()
     {
         // Arrange
         using var directory = new ScadTempDirectory();
         var outside = directory.Write("outside.scad", "echo(\"leaked\");\n");
         directory.Write("project/ok.scad", "echo(\"ok\");\n");
         var attempts = new[] { "../outside.scad", outside, "sub/../../outside.scad", "..\\outside.scad" };
+        var options = new ScadOpenOptions { FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("project")) };
 
         // Act / Assert
         foreach (var attempt in attempts)
         {
             var main = directory.Write("project/main.scad", $"include <{attempt}>\n");
             var lines = new List<string>();
-            var document = ScadDocument.Open(main);
+            var document = ScadDocument.Open(main, options);
 
             var ex = Assert.Throws<ScadEvaluationException>(() => document.Evaluate(new ScadEvaluationOptions { EchoHandler = lines.Add }, TestContext.Current.CancellationToken));
 
             Assert.Empty(lines);
-            Assert.Contains("outside.scad", ex.Message, StringComparison.Ordinal);
+            Assert.Contains($"Include file '{attempt}' was denied by the file-access policy 'roots'", ex.Message, StringComparison.Ordinal);
             Assert.Equal(1, ex.Location.Line);
         }
 
-        // The same directory, inside the sandbox, works
+        // The same directory, inside the roots, works
         var inside = directory.Write("project/main.scad", "include <ok.scad>\n");
-        Assert.Equal(["ECHO: \"ok\""], ScadDocument.Open(inside).Evaluate(cancellationToken: TestContext.Current.CancellationToken).Echo);
+        Assert.Equal(["ECHO: \"ok\""], ScadDocument.Open(inside, options).Evaluate(cancellationToken: TestContext.Current.CancellationToken).Echo);
     }
 
     /// <summary>
-    ///     Validates that an explicit library path widens the sandbox to exactly that directory.
+    ///     Validates that a denial raised inside an include outside the base directory is located relative to the base
+    ///     directory (<c>../shared/lib.scad</c>), so neither its location nor its message names a host directory.
     /// </summary>
     [Fact]
-    public void ScadDocument_Evaluate_FileSystemSandbox_LibraryPathIsAllowedRoot()
+    public void ScadDocument_Evaluate_DenialInIncludeOutsideTheBase_IsLocatedRelativeToTheBase()
+    {
+        // Arrange: project/main.scad includes ../shared/lib.scad (allowed), which includes ../private/secret.scad (denied)
+        using var directory = new ScadTempDirectory();
+        directory.Write("shared/lib.scad", "include <../private/secret.scad>\n");
+        directory.Write("private/secret.scad", "echo(\"leaked\");\n");
+        var main = directory.Write("project/main.scad", "include <../shared/lib.scad>\n");
+        var options = new ScadOpenOptions
+        {
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("project"), directory.Combine("shared")),
+        };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(
+            () => ScadDocument.Open(main, options).Evaluate(cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("../shared/lib.scad", ex.Location.File);
+        Assert.Contains("Include file '../private/secret.scad' was denied by the file-access policy 'roots'", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that, under the default policy, an include that leaves the project folder or names an absolute
+    ///     path is read, like OpenSCAD reads it.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Evaluate_FileSystemDefault_ParentAndAbsoluteIncludesAreRead()
+    {
+        // Arrange
+        using var directory = new ScadTempDirectory();
+        var outside = directory.Write("outside.scad", "echo(\"outside\");\n");
+        var attempts = new[] { "../outside.scad", outside, "sub/../../outside.scad", "..\\outside.scad" };
+
+        // Act / Assert
+        foreach (var attempt in attempts)
+        {
+            var main = directory.Write("project/main.scad", $"include <{attempt}>\n");
+            var result = ScadDocument.Open(main).Evaluate(cancellationToken: TestContext.Current.CancellationToken);
+            Assert.Equal(["ECHO: \"outside\""], result.Echo);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that, under a policy whose roots are the project and an explicit library path, a file of the
+    ///     library is allowed.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Evaluate_FileSystemRootsPolicy_LibraryPathIsAllowedRoot()
     {
         // Arrange
         using var directory = new ScadTempDirectory();
         directory.Write("libs/shared.scad", "function shared() = 7;\n");
         var main = directory.Write("project/main.scad", "use <shared.scad>\necho(shared());\n");
-        var document = ScadDocument.Open(main, new ScadOpenOptions { LibraryPaths = [directory.Combine("libs")] });
+        var document = ScadDocument.Open(main, new ScadOpenOptions
+        {
+            LibraryPaths = [directory.Combine("libs")],
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("project"), directory.Combine("libs")),
+        });
 
         // Act
         var result = document.Evaluate(cancellationToken: TestContext.Current.CancellationToken);
@@ -227,11 +283,11 @@ public class ScadDocumentEvaluateSafetyTests
     }
 
     /// <summary>
-    ///     Validates end to end that an include through a real directory link that leaves the project folder is
-    ///     rejected and the file behind it is never executed. Skips where links cannot be created.
+    ///     Validates end to end that, under the no-symlinks policy, an include through a real directory link (a junction
+    ///     on Windows) that leaves the project folder is denied and the file behind it is never executed.
     /// </summary>
     [Fact]
-    public void ScadDocument_Evaluate_FileSystemSandbox_DirectoryLinkEscape_IsRejected()
+    public void ScadDocument_Evaluate_FileSystemNoSymlinks_DirectoryLinkEscape_IsDenied()
     {
         // Arrange
         using var directory = new ScadTempDirectory();
@@ -243,14 +299,14 @@ public class ScadDocumentEvaluateSafetyTests
         }
 
         var lines = new List<string>();
-        var document = ScadDocument.Open(main);
+        var document = ScadDocument.Open(main, new ScadOpenOptions { FileAccess = FileAccessPolicy.NoSymlinks });
 
         // Act
         var ex = Assert.Throws<ScadEvaluationException>(() => document.Evaluate(new ScadEvaluationOptions { EchoHandler = lines.Add }, TestContext.Current.CancellationToken));
 
         // Assert
         Assert.Empty(lines);
-        Assert.Contains("link", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("denied by the file-access policy 'no-symlinks'", ex.Message, StringComparison.Ordinal);
         Assert.Equal(1, ex.Location.Line);
     }
 

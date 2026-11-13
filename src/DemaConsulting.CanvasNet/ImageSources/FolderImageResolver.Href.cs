@@ -5,20 +5,21 @@ using DemaConsulting.CanvasNet.Files;
 namespace DemaConsulting.CanvasNet.ImageSources;
 
 /// <summary>
-///     The link parsing of <see cref="FolderImageResolver"/>: turning the text of a link into a path the sandbox accepts,
-///     and describing a refusal of the sandbox in words.
+///     The link parsing of <see cref="FolderImageResolver"/>: turning the text of a link into a path for the file
+///     engine, and describing a refusal of the engine in words.
 /// </summary>
 public sealed partial class FolderImageResolver
 {
     /// <summary>
-    ///     Turns the text of a link without a URI scheme (or with <c>file:</c>) into a path that the sandbox accepts, or
-    ///     says why it cannot be one.
+    ///     Turns the text of a link without a URI scheme (or with <c>file:</c>) into a path for the file engine, or says
+    ///     why it cannot be one.
     /// </summary>
     /// <param name="href">The link as written.</param>
     /// <returns>
-    ///     The relative path, whether it is relative to the file being rendered, and the reason when there is no path. A
-    ///     <c>file:</c> URI inside the folder becomes a path relative to the folder; a <c>file:</c> URI outside the folder
-    ///     has no path.
+    ///     The path (relative to the file that contains the link, or absolute), or <see langword="null"/> and the reason.
+    ///     A local <c>file:</c> URI (no host; the short form <c>file:/x</c> too) becomes its absolute local path; a
+    ///     <c>file:</c> URI with a host (including <c>localhost</c>) has no path, because a network location is never
+    ///     read, and a malformed <c>file:</c> URI has none either and is reported as malformed.
     /// </returns>
     /// <remarks>
     ///     A relative reference is parsed as RFC 3986 says: the query (from the first <c>?</c>) and the fragment (from the
@@ -26,25 +27,26 @@ public sealed partial class FolderImageResolver
     ///     <see cref="SplitHref(string)"/>). That order keeps
     ///     an encoded <c>%23</c> or <c>%3F</c> a literal character of the file name, and it means a decoded
     ///     <c>#</c> or <c>?</c> can never hide or reveal a path segment. What is left is decoded and goes to the
-    ///     extension choice and the sandbox, which refuse everything that is not a plain relative path below the folder
-    ///     exactly as before; the query that was cut off is never used, and the fragment is parsed separately.
+    ///     extension choice and the file engine: <c>..</c>, absolute and drive paths are passed through as they are, and
+    ///     the engine and the file-access policy decide; the query that was cut off is never used, and the fragment is
+    ///     parsed separately.
     /// </remarks>
-    private (string? Path, bool RelativeToCurrent, string? Reason) ToRelativePath(string href)
+    private static (string? Path, string? Reason) ToReferencePath(string href)
     {
         var reference = SplitHref(href).Reference;
         if (reference.Length == 0)
         {
-            return (null, false, "the reference is empty (it has only a query or a fragment)");
+            return (null, "the reference is empty (it has only a query or a fragment)");
         }
 
         if (reference.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
         {
-            var (relative, reason) = FileUriToRelativePath(reference);
-            return (relative, false, reason);
+            return FileUriToLocalPath(reference);
         }
 
-        // An absolute path, a drive letter and a UNC path are left in the text on purpose: the sandbox refuses all of them
-        return (Unescape(reference), true, null);
+        // An absolute path, a drive letter and a UNC path are left in the text on purpose: the engine refuses what is
+        // never allowed, and the policy judges the rest
+        return (Unescape(reference), null);
     }
 
     /// <summary>
@@ -95,58 +97,40 @@ public sealed partial class FolderImageResolver
     }
 
     /// <summary>
-    ///     Converts a <c>file:</c> URI that lies inside the folder of the resolver to a relative path.
+    ///     Converts a local <c>file:</c> URI (one without a host) to its absolute local path.
     /// </summary>
     /// <param name="href">The URI as written.</param>
-    /// <returns>The path relative to the folder, or <see langword="null"/> and the reason.</returns>
-    private (string? Path, string? Reason) FileUriToRelativePath(string href)
+    /// <returns>The local path, or <see langword="null"/> and the reason.</returns>
+    private static (string? Path, string? Reason) FileUriToLocalPath(string href)
     {
-        const string outside = "it is outside the folder (only relative paths below the folder are allowed)";
-
-        // A URI with a host (a network share), a malformed URI, and any text that is not a plain local file are outside
-        if (_rootDirectory is null
-            || !Uri.TryCreate(href, UriKind.Absolute, out var uri)
-            || !uri.IsFile
-            || !string.IsNullOrEmpty(uri.Host))
+        // The short form file:/x is accepted; a URI with a host (a network share, localhost included) and a malformed
+        // URI are never read, and each is reported for what it is
+        return FileReferenceResolver.ParseFileUri(href, out var path) switch
         {
-            return (null, outside);
-        }
-
-        string relative;
-        try
-        {
-            relative = Path.GetRelativePath(_rootDirectory, uri.LocalPath);
-        }
-        catch (ArgumentException)
-        {
-            return (null, outside);
-        }
-
-        var leavesRoot = Path.IsPathRooted(relative)
-                         || relative == ".."
-                         || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-                         || relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
-        return leavesRoot ? (null, outside) : (relative, null);
+            FileReferenceResolver.FileUriKind.Local => (path, null),
+            FileReferenceResolver.FileUriKind.HasHost =>
+                (null, "it names a network location (file URIs with a host are never read)"),
+            _ => (null, "it is a malformed file: URI")
+        };
     }
 
     /// <summary>
-    ///     Describes a refusal of the sandbox in words for a note.
+    ///     Describes a refusal of the file engine (other than a denial of the policy) in words for a note.
     /// </summary>
     /// <param name="ex">The refusal.</param>
     /// <returns>The reason.</returns>
-    private string DescribeSandboxFailure(SandboxException ex)
+    private string DescribeFailure(FileReferenceException ex)
     {
         return ex.Kind switch
         {
-            SandboxFailureKind.EmptyPath => "the reference is empty",
-            SandboxFailureKind.ControlCharacter => "the reference contains a control character",
-            SandboxFailureKind.ColonInPath or SandboxFailureKind.AbsolutePath or SandboxFailureKind.OutsideRoot
-                => "it is outside the folder (only relative paths below the folder are allowed)",
-            SandboxFailureKind.ThroughLink or SandboxFailureKind.LinkCheckFailed
-                => "it is, or is reached through, a symbolic link",
-            SandboxFailureKind.TooLarge => "the file is larger than the maximum of "
-                + (SandboxOptions.DefaultMaxFileBytes / (1024 * 1024)).ToString(CultureInfo.InvariantCulture) + " MiB",
-            SandboxFailureKind.TooManyFiles => $"more than {_options.MaxImages} different files are embedded",
+            FileReferenceFailureKind.EmptyPath => "the reference is empty",
+            FileReferenceFailureKind.ControlCharacter => "the reference contains a control character",
+            FileReferenceFailureKind.NetworkPath => "it names a network location",
+            FileReferenceFailureKind.InvalidPath => $"it is not a valid local path ({ex.Reason})",
+            FileReferenceFailureKind.NotARegularFile => "it is not a regular file",
+            FileReferenceFailureKind.TooLarge => "the file is larger than the maximum of "
+                + (FileReferenceOptions.DefaultMaxFileBytes / (1024 * 1024)).ToString(CultureInfo.InvariantCulture) + " MiB",
+            FileReferenceFailureKind.TooManyFiles => $"more than {_options.MaxImages} different files are embedded",
             _ => "the file cannot be read"
         };
     }

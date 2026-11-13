@@ -64,6 +64,21 @@ sections:
                   - FileAccessPolicy_NoSymlinks_LinkAboveTheAnchor_IsTrusted
                   - "windows@FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed"
 
+              - id: CanvasNet-Files-FileAccessPolicy-AnchoredAt
+                title: >-
+                  The FileAccessPolicy class shall let a consumer that hands a policy to a nested source pin the
+                  base directory of every request of that source to the folder the outer chain of references started
+                  from, returning the same instance for a policy that does not depend on the base directory or that
+                  is already pinned, and naming to the resolver of the nested source the folders of the outer origin
+                  to capture before its open.
+                justification: |
+                  A nested source starts its own chain from the folder of the embedded file, which an untrusted
+                  document can swap for a link; judging from the outer origin keeps the trust where the host put it.
+                tests:
+                  - FileAccessPolicy_AnchoredAt_NoSymlinks_JudgesFromTheOuterOrigin
+                  - FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance
+                  - FileAccessPolicy_AnchoredAt_AnchorsOf_NamesTheAnchorOfTheOuterOrigin
+
               - id: CanvasNet-Files-FileAccessPolicy-Combine
                 title: >-
                   The FileAccessPolicy class shall combine policies into one that asks them in order and returns the

@@ -387,6 +387,69 @@ public class ScadSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates the file-access policy of include and use from the file system: the default reads a <c>..</c> and
+    ///     an absolute include, a policy confined to the model folder denies them with a located error, and the
+    ///     no-symlinks policy denies an include through a directory link (a junction on Windows).
+    /// </summary>
+    [Fact]
+    public void CanvasNetScad_SystemIntegration_IncludeUse_FileAccessPolicy()
+    {
+        // Arrange: a model folder, a library beside it, and a link in the model folder to the library
+        var root = Directory.CreateTempSubdirectory("scad-file-access").FullName;
+        try
+        {
+            var model = Directory.CreateDirectory(Path.Combine(root, "model")).FullName;
+            var library = Directory.CreateDirectory(Path.Combine(root, "library")).FullName;
+            File.WriteAllText(Path.Combine(library, "part.scad"), "echo(\"part\");\n");
+            var parent = Path.Combine(model, "parent.scad");
+            var absolute = Path.Combine(model, "absolute.scad");
+            var linked = Path.Combine(model, "linked.scad");
+            File.WriteAllText(parent, "include <../library/part.scad>\n");
+            File.WriteAllText(absolute, $"include <{Path.Combine(library, "part.scad")}>\n");
+            File.WriteAllText(linked, "include <lnk/part.scad>\n");
+            var hasLink = Evaluation.ScadResolverTestSupport.TryCreateDirectoryLink(Path.Combine(model, "lnk"), library, out var reason);
+            var confined = new ScadOpenOptions { FileAccess = Files.FileAccessPolicy.UnderRoots(model) };
+            var noLinks = new ScadOpenOptions { FileAccess = Files.FileAccessPolicy.NoSymlinks };
+            var token = TestContext.Current.CancellationToken;
+
+            // Act
+            var parentEcho = ScadDocument.Open(parent).Evaluate(cancellationToken: token).Echo;
+            var absoluteEcho = ScadDocument.Open(absolute).Evaluate(cancellationToken: token).Echo;
+            var parentDenied = Assert.Throws<ScadEvaluationException>(() => ScadDocument.Open(parent, confined).Evaluate(cancellationToken: token));
+            var absoluteDenied = Assert.Throws<ScadEvaluationException>(() => ScadDocument.Open(absolute, confined).Evaluate(cancellationToken: token));
+
+            // Assert
+            Assert.Equal(["ECHO: \"part\""], parentEcho);
+            Assert.Equal(["ECHO: \"part\""], absoluteEcho);
+            Assert.Contains("denied by the file-access policy 'roots'", parentDenied.Message, StringComparison.Ordinal);
+            Assert.Equal(1, parentDenied.Location.Line);
+            Assert.Contains("denied by the file-access policy 'roots'", absoluteDenied.Message, StringComparison.Ordinal);
+            if (!hasLink)
+            {
+                Assert.Skip("Directory links cannot be created in this environment: " + reason);
+            }
+
+            var linkDenied = Assert.Throws<ScadEvaluationException>(() => ScadDocument.Open(linked, noLinks).Evaluate(cancellationToken: token));
+            Assert.Contains("denied by the file-access policy 'no-symlinks'", linkDenied.Message, StringComparison.Ordinal);
+            Assert.Equal(["ECHO: \"part\""], ScadDocument.Open(linked).Evaluate(cancellationToken: token).Echo);
+        }
+        finally
+        {
+            var link = Path.Combine(root, "model", "lnk");
+            if (Directory.Exists(link) && OperatingSystem.IsWindows())
+            {
+                Directory.Delete(link);
+            }
+            else if (Directory.Exists(link))
+            {
+                File.Delete(link);
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     ///     Validates that every resource limit fails closed with a located evaluation exception.
     /// </summary>
     [Fact]

@@ -13,7 +13,7 @@ namespace DemaConsulting.CanvasNet.Packaging;
 ///     depends only on the .NET base class library; no new NuGet dependencies are introduced.
 ///     See <see cref="OpcPackage"/> to open a package and <see cref="SafeXml"/> to load untrusted XML. The format packages
 ///     <c>DemaConsulting.CanvasNet.Pptx</c> and <c>DemaConsulting.CanvasNet.Vsdx</c> are built on it, and
-///     <see cref="DemaConsulting.CanvasNet.Files"/> offers the sandbox for plain files.
+///     <see cref="DemaConsulting.CanvasNet.Files"/> offers policy-checked access to plain files.
 /// </remarks>
 /// <example>
 ///     Open a PowerPoint file as a package and read its main document part:

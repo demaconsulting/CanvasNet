@@ -20,8 +20,10 @@ reads a referenced file; a second test fails when an entry no longer opens a fil
 and executes nothing from other systems. It is a tripwire, not linked to a requirement.
 
 The consumers of the subsystem - `FolderImageResolver` in `ImageSources`, `DataFileResolver` in `CanvasNetVegaLite`,
-and `ScadFileResolver` in `CanvasNetScad` - verify in their own projects that every failure kind they receive is
-translated into their own located error; they do not repeat the subsystem's mechanics.
+and `ScadFileResolver` in `CanvasNetScad` - read every referenced file through `FileReferenceResolver` with the
+caller's `FileAccessPolicy` and verify in their own projects that every failure kind they receive is translated into
+their own located error; they do not repeat the subsystem's mechanics. The obsolete `SandboxedFileResolver` is no longer
+used by any consumer; its scenarios stay until it is removed.
 
 ### Test Environment
 

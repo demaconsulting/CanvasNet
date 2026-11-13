@@ -67,8 +67,9 @@ class:
   then disposes) or `null` (a no-op). `Resolve(href, pixelWidth, pixelHeight)` receives the raw `href` and
   the placement size in device pixels after the transform. Default `null` is exactly the previous
   behavior: only `data:` URIs are drawn and the library performs no file or network I/O; with a
-  resolver, the only I/O is whatever the resolver does (`FolderImageResolver` of the core package confines
-  it to a folder). The codec never caches a picture: the resolver is asked again for every element and every
+  resolver, the only I/O is whatever the resolver does (`FolderImageResolver` of the core package reads under
+  its `FileAccessPolicy`: `AllowAll` by default, confinement opt-in with `UnderRoots`/`NoSymlinks`). The codec never
+  caches a picture: the resolver is asked again for every element and every
   load. A resolver exception propagates unchanged; its calls are bounded by the shared work budget.
 - **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
   be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its

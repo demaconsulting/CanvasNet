@@ -22,7 +22,7 @@ installed fonts; variants add an EMF picture, an unsupported shape, an unsupport
 an unsupported encryption handler, and a broken part. Charts are JSON text written by the tests
 (`FixtureFactory.VegaLite.cs`) with inline data and no custom font, plus a two-bar chart whose rows are in a CSV file
 (`TwoBarFileChart` and `TwoBarCsv`, written beside the specification in a temporary folder, so that the chart facts, the
-sandbox, and the data errors are verified with real files); one original chart is a fixture file
+file-access policy, and the data errors are verified with real files); one original chart is a fixture file
 (`baskets.vl.json`). Diagrams are the fixture files `Fixtures/mermaid/flow.mmd` (a small flowchart),
 `shipping.mermaid` (a flowchart with frontmatter, an accessible title, a subgraph, and a class), `sequence.mmd` (a
 two-participant sequence diagram), `class.mmd` (a class diagram of two classes and one relation), and `journey.mmd` (a
@@ -56,7 +56,8 @@ the limit, a text longer than the limit, a diagram wider than the largest image)
 
 #### Test Environment
 
-N/A - standard test environment; the tests need no network and write only to temporary directories.
+N/A - standard test environment; the tests need no network and write only to temporary directories. The
+file-symbolic-link scenarios skip where file links cannot be created (Windows without the privilege).
 
 #### Acceptance Criteria
 
@@ -88,10 +89,11 @@ N/A - standard test environment; the tests need no network and write only to tem
   the SCAD parser is a `scad-error`) is `vega-lite-error`, an exceeded limit of the library while the chart is laid out
   or drawn `budget-exceeded`, a specification file longer than the limit of the library `corrupt-input` (as an overlong
   model is), and a chart larger than 8192 pixels `size-limit` (no other failure to measure is `size-limit`).
-- A chart whose rows are in a local file (CSV, TSV, or JSON named by a relative `url`) is measured and drawn from the
-  folder of its specification and below it only (never the current directory, and no network), exactly like the same
-  chart with inline rows; a local file that is missing, outside that folder, or not valid text is a `vega-lite-error` in
-  lenient and strict mode alike (never an empty chart); remote data is only a diagnostic (an `unsupported-feature` error
+- A chart whose rows are in a local file (CSV, TSV, or JSON named by a `url`) is measured and drawn with the file
+  resolved relative to the folder of its specification (never the current directory, and no network), exactly like the
+  same chart with inline rows; a local file that is missing or not valid text is a `vega-lite-error` in lenient and
+  strict mode alike (never an empty chart); a file the file-access policy denies is `file-access-denied`, whether the
+  chart is probed with the policy or loaded; remote data is only a diagnostic (an `unsupported-feature` error
   with strict mode) and is never fetched; and a data limit of the library (rows or bytes) is `budget-exceeded`.
 - A JPEG is turned upright by its EXIF orientation unless switched off, and the size applies to the upright image.
 - A diagram (`.mmd` or `.mermaid`, never taken for an SVG and never recognized by its content) is probed by parsing and
@@ -104,9 +106,10 @@ N/A - standard test environment; the tests need no network and write only to tem
   picture), or, in strict mode, `unsupported-feature`; invalid text is `mermaid-error` with the location and the hint of
   the library, a limit of the library `budget-exceeded`, an overlong text `corrupt-input`, and a target size above the
   maximum `size-limit`; a cut or damaged diagram is an expected error or a shorter diagram that loads.
-- The pictures of the nodes of a diagram are drawn through the sandboxed resolver of the folder of the diagram (a raster
-  fills its box), listed once each as `embed` operations, a link outside the sandbox or a cycle is one
-  `svg-image-unresolved` warning (an error in strict mode), and a broken picture is an error naming both files; a
+- The pictures of the nodes of a diagram are drawn through the resolver of the folder of the diagram under the
+  file-access policy of the load (a raster fills its box), listed once each as `embed` operations, a link the policy
+  denies is one `image-access-denied` warning (`file-access-denied` in strict mode), an unresolvable link or a cycle is
+  one `svg-image-unresolved` warning (an error in strict mode), and a broken picture is an error naming both files; a
   picture node without `w` and `h` that enlarges a diagram drawn at its natural size is charged at the drawn size
   (refused when that does not fit) and reported with the drawn natural size.
 - A damaged file of any format is an expected error; an unexpected exception type is never mapped.
@@ -244,15 +247,30 @@ natural
 size and the same pixels as the same chart with inline rows, no diagnostic, and the chart facts name the data as a `url`
 reference to `bars.csv`.
 
-**SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError**: charts that name a missing file, a file beside the
-folder of
-the specification (`../secret.csv`, which exists), and a file of invalid UTF-8 are each a `vega-lite-error` ("Vega-Lite
-render error: ...", "was not found", "outside the allowed directories", "is not valid UTF-8") on one line, keeping the
+**SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError**: charts that name a missing file and a file of invalid
+UTF-8 are each a `vega-lite-error` ("Vega-Lite render error: ...", "was not found", "is not valid UTF-8") on one line,
+keeping the
 library's `VegaLiteRenderException` as the cause, whether the chart is probed, loaded, or loaded in strict mode (never
 an
 empty chart); and a chart with an `https` URL loads with only the `vl-data-remote-url` diagnostic, nothing fetched,
 while
 strict mode makes it an `unsupported-feature` error naming the feature.
+
+**SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied** and
+**SourceLoader_Load_VegaLiteDataInTheParentFolder_IsReadByDefault**: a chart whose data is `../secret.csv` (which
+exists) is, under `UnderRoots(charts)`, the error `file-access-denied` ("denied by the file-access policy 'roots'") on
+one line with the library's `VegaLiteRenderException` as the cause, for `Probe(path, policy)`,
+`Probe(InputReference, policy)`, a load, and a strict load, so the probe, which measures the chart and so reads its
+data, is judged by the policy too; under the default policy the same chart is probed and loaded in strict mode with no
+diagnostic.
+
+**SourceLoader_VegaLiteDataOutsideTheRoots_IsNeverOpenedUnderThePolicy**: through the public APIs, the same chart
+under `UnderRoots(charts)` is denied (`file-access-denied`) by `Probe(path, policy)`, by a load with the policy and by
+`CanvasNetViewer.Render` with the policy, each with a `FileReferenceException` of kind `AccessDenied` and no real path
+in its chain (a real path is set only once a file is open); on Windows the data file is held open without sharing
+meanwhile, so any open attempt would fail differently. Facts probed under the default policy and loaded with the
+restrictive one are refused with `usage-error`; the facts carry the policy they were probed with (`AllowAll` for
+`Probe(path)`, the given instance for `Probe(path, policy)`).
 
 **SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded**: real failures of the library for a file-backed chart opened
 from its path, with a row limit of 1, a byte limit of 3, and no data folder at all (a chart parsed from a string), are
@@ -479,13 +497,16 @@ budget, maps to `budget-exceeded`, and any other failure to `scad-error`.
 
 **SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow**,
 **SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile**, **SourceLoader_Load_MissingInclude_ThrowsScadError**,
-**SourceLoader_Load_IncludeOutsideTheModelFolder_ThrowsScadError**, and
+**SourceLoader_Load_IncludeOutsideTheRoots_ThrowsFileAccessDenied**,
+**SourceLoader_Load_IncludeOutsideTheModelFolder_IsReadByDefault**, and
 **SourceLoader_Load_IncludeCycleAndBrokenInclude_ThrowScadError**: a model that includes a module from a subfolder and
 uses a function from another file draws the same picture as the same model in one file, with no notes; an include
 inside an included file is relative to that file; an `include` and a `use` of a file that does not exist are a
-`scad-error` that starts with "SCAD include not found", names the position, and has a hint about where files are
-looked up; an include of an existing file next to the model's folder is refused as "outside the allowed
-directories"; an include cycle and a syntax error in an included file are `scad-error`, the latter naming the
+`scad-error` that starts with "SCAD include not found", names the position, and has the hint that a file is looked up
+relative to the folder of the file that names it; an include of an existing file next to the model's folder is drawn
+in strict mode under the default policy and, under `UnderRoots(model)`, is the error `file-access-denied` ("denied by
+the file-access policy 'roots'") with a hint; an include cycle and a syntax error in an included file are
+`scad-error`, the latter naming the
 included file and the position.
 
 **SourceLoader_Read_ScadExceptions_AreMappedToErrorCodes**: the library's syntax and evaluation exceptions map to
@@ -538,15 +559,20 @@ placement; `sub/inner.svg` draws `sub/img.png` although the outer folder has no 
 `.vl.json` are drawn (formats `pdf` and `vega-lite`) while the same contents named `.bin` and `.json` are two
 `svg-image-unresolved` warnings (the type is decided by the file name).
 
-**SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning** (three references: `../`, a drive letter, and an
-`https` URL, with a valid picture one folder above the SVG; the many forms of escape are tested in the core
-`FolderImageResolver` tests),
-**SourceLoader_Load_SvgEmbeddingSymbolicLink_IsUnresolvedWarning** (skipped when a link cannot be created), and
-**SourceLoader_Load_SvgEmbeddingMissingAndUnknownFiles_AreWarnings**: each escaping reference is the one
+**SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning** (two references: a drive path that does not
+exist, or is not valid on Linux and macOS, and an `https` URL, with a valid picture one folder above the SVG; the many
+forms of reference are tested in the core `FolderImageResolver` tests),
+**SourceLoader_Load_SvgEmbeddingParentReference_UnderRoots_IsAccessDeniedWarning**,
+**SourceLoader_Load_SvgEmbeddingParentReference_Default_IsDrawn**,
+**SourceLoader_Load_SvgEmbeddingSymbolicLink_NoSymlinks_IsAccessDeniedWarning**,
+**SourceLoader_Load_SvgEmbeddingSymbolicLink_Default_IsDrawn** (both skipped where a file link cannot be created), and
+**SourceLoader_Load_SvgEmbeddingMissingAndUnknownFiles_AreWarnings**: each unresolvable reference is the one
 `svg-image-unresolved` warning (source `svg`, severity `warning`) naming the reference, nothing is drawn, and there
-is no `embed` operation; a link is refused (the one coverage of the symbolic-link sandbox at tool level); a missing
-file and a text file are two warnings. The sandbox, the dispatch, the cycle, depth, and count limits, and the file URI
-rules are verified by the `ImageSources` subsystem tests and the Viewer tests.
+is no `embed` operation; `../secret.png` is drawn under the default policy and, under `UnderRoots(site)`, is the one
+`image-access-denied` warning naming the reference with nothing drawn and the error `file-access-denied` in strict
+mode; a reference through a file symbolic link is drawn by default and is the `image-access-denied` warning under
+`NoSymlinks`; a missing file and a text file are two warnings. The file-access policy, the dispatch, the cycle, depth,
+and count limits, and the file URI rules are verified by the `ImageSources` subsystem tests and the Viewer tests.
 
 **SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError**: a 33-byte PNG that only declares 9000 by
 9000
@@ -696,6 +722,8 @@ the four codes are notes of the document, with the embedding file as origin wher
 **SourceLoader_Load_VegaLiteImageNestedChart_ResolvesFromItsFolder**,
 **SourceLoader_Load_VegaLiteImageSelfCycle_IsUnresolved**,
 **SourceLoader_Load_VegaLiteImageUnresolvedLink_IsOneWarningAndNothingIsDrawn**,
+**SourceLoader_Load_VegaLiteImageOutsideTheRoots_IsOneAccessDeniedWarning**,
+**SourceLoader_Load_VegaLiteImageInTheParentFolder_IsDrawnByDefault**,
 **SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError**,
 **SourceLoader_Load_VegaLiteImagePageOutOfRange_IsWarningThenStrictError**,
 **SourceLoader_Load_VegaLiteImageBrokenFile_FailsWithItsCodeNamingBothFiles**,
@@ -703,7 +731,7 @@ the four codes are notes of the document, with the embedding file as origin wher
 **SourceLoader_Load_SvgEmbeddingChartWithImage_DrawsTheChartsPicture**, and
 **SourceLoader_Probe_VegaLiteImageChart_ReadsTheSizeWithoutThePictures** (`SourceLoaderVegaLiteImageTests.cs`): charts
 with
-an image mark are loaded from a temporary folder through the real sandboxed resolver of the viewer. A chart that shows a
+an image mark are loaded from a temporary folder through the real resolver of the viewer. A chart that shows a
 generated green PNG (`logo.png`) and the model of the fixtures (`part.scad`) in two 40 by 40 boxes draws the PNG in its
 box
 (20 to 60 across and 30 to 70 down: green inside, white at the pixels next to it) and a model picture in the other box
@@ -714,10 +742,13 @@ file,
 fragment; a chart that shows `sub/inner.vl.json`, whose own picture `logo.png` lies in `sub`, draws the inner chart's
 white paper and green picture in the middle; a chart that shows itself is the warning `svg-image-unresolved` (cycle)
 and,
-in strict mode, an `unsupported-feature` error naming the chart and the link. A missing file, `../secret.png`,
-`C:/secret.png`
-and `https://example.invalid/secret.png` are each exactly one note, the resolver's `svg-image-unresolved` (no
-`vl-mark-image-unresolved` next to it), nothing is drawn and no operation is listed; strict mode fails naming the chart
+in strict mode, an `unsupported-feature` error naming the chart and the link. A missing file, `C:/secret.png` (a drive
+path that does not exist, or is not valid on Linux and macOS), and `https://example.invalid/secret.png` are each exactly
+one note, the resolver's `svg-image-unresolved` (no
+`vl-mark-image-unresolved` next to it), nothing is drawn and no operation is listed; `../secret.png` (an existing
+picture one folder up) is drawn with an `embed` operation under the default policy and, under `UnderRoots(site)`, is
+the one `image-access-denied` warning of the resolver naming the link, with nothing drawn and the error
+`file-access-denied` in strict mode; strict mode fails naming the chart
 and
 the link with the code in the hint; a page 9 is `image-page-out-of-range` and an error when strict; a truncated PNG is
 `corrupt-input` and a model with a syntax error `scad-error`, both naming the chart and the file; 257 rows with distinct
@@ -729,14 +760,16 @@ and its mark types.
 
 **SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations**,
 **SourceLoader_Load_MermaidPngPicture_FillsItsBox**, **SourceLoader_Load_MermaidSelfCycle_IsUnresolved**,
-**SourceLoader_Load_MermaidPictureOutsideTheSandbox_IsRefused**,
+**SourceLoader_Load_MermaidPictureUnresolvable_IsRefused**,
+**SourceLoader_Load_MermaidPictureOutsideTheRoots_IsAccessDeniedAndStrictFails**,
+**SourceLoader_Load_MermaidPictureInTheParentFolder_IsDrawnByDefault**,
 **SourceLoader_Load_MermaidBrokenPicture_FailsWithItsCodeNamingBothFiles**,
 **SourceLoader_Load_SvgEmbeddingDiagramWithPicture_DrawsTheDiagramsPicture**,
 **SourceLoader_Load_MermaidPictureEnlargingTheLayout_ChargesAndReportsTheDrawnSize**,
 **SourceLoader_Load_MermaidPictureEnlargingTheLayout_IsRefusedBeyondTheBudget**, and
 **SourceLoader_Load_MermaidPictureEnlargingTheLayout_ReportsTheUnscaledDrawnSize** (`SourceLoaderMermaidImageTests.cs`):
-diagrams with picture nodes (`@{ img: ... }`) are loaded from a temporary folder through the real sandboxed resolver of
-the viewer. A flowchart whose two nodes show the model of the fixtures (`part.scad`, 120 by 120) and the two-bar chart
+diagrams with picture nodes (`@{ img: ... }`) are loaded from a temporary folder through the real resolver of the
+viewer. A flowchart whose two nodes show the model of the fixtures (`part.scad`, 120 by 120) and the two-bar chart
 (`chart.vl.json`) draws more than 500 pixels of the bar color and changes more than 500 pixels of the half that holds
 the model, in strict mode without a note, and lists exactly one `embed` operation for each file, in order (`part.scad`
 with the format `scad` and the drawn size 120 by 120, then `chart.vl.json`); the same diagram in a folder without the
@@ -745,9 +778,12 @@ files has the same size, no bar color, no `embed` operation, and exactly two not
 PNG in a 60 by 60 node fills its box (between 50 by 50 and 61 by 61 green pixels) with one `embed` operation and no
 note. A diagram that shows itself is the warning `svg-image-unresolved` that names the cycle and, in strict mode, an
 `unsupported-feature` error whose message says that `'loop.mmd' embeds 'loop.mmd', which was not drawn`. Each of
-`../secret.png` (an existing picture one folder up), `https://example.invalid/secret.png`, `C:/secret.png`, and
-`missing.png` is exactly one warning of the resolver (source `svg`) that names the link, draws nothing green, lists no
-`embed` operation, and is an `unsupported-feature` error naming the diagram and the link in strict mode. A model with a
+`https://example.invalid/secret.png`, `C:/secret.png` (a drive path that does not exist, or is not valid on Linux and
+macOS), and `missing.png` is exactly one `svg-image-unresolved` warning of the resolver (source `svg`) that names the
+link, draws nothing green, lists no `embed` operation, and is an `unsupported-feature` error naming the diagram and the
+link in strict mode. `../secret.png` (an existing picture one folder up) is drawn and listed as embedded under the
+default policy and, under `UnderRoots(site)`, is the one `image-access-denied` warning naming the link with nothing
+green drawn and the error `file-access-denied` in strict mode. A model with a
 syntax error shown by a node is a `scad-error` whose message names both the diagram and the model. And an SVG file
 that places `sub/flow.mmd` (whose picture `logo.png` lies in `sub`) over a red rectangle draws the green picture through
 the resolver of the SVG file, keeps the red where the diagram is transparent, reports nothing in strict mode, and lists

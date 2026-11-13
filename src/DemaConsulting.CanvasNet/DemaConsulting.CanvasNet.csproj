@@ -105,6 +105,10 @@
          (not duplicated) by SourceLoader.SvgImages.KindOfName so that the SVG flattener classifies a
          link from the same cut and percent-decoded path the resolver chooses its source by. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Viewer" />
+    <!-- Grants DemaConsulting.CanvasNet.VegaLite access to FileReferenceResolver.ParseFileUri, reused
+         (not duplicated) by FeatureCatalog.LocalPathOfFileUri and so by DataLoader, so that the file:
+         URI rules of image links and data URLs cannot drift apart. -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.VegaLite" />
   </ItemGroup>
 
   <ItemGroup>

@@ -54,7 +54,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         </description></item>
 ///         <item><description>
 ///             <b>lookup</b> finds, for the value of the <c>lookup</c> field, the first row of <c>from.data</c> (inline, named or a
-///             local file, loaded by the loader of the call under the same sandbox and limits) whose <c>from.key</c> has the same
+///             local file, loaded by the loader of the call under the same file-access policy and limits) whose <c>from.key</c> has the same
 ///             text, and copies <c>from.fields</c> into the <c>as</c> fields (without <c>fields</c> the whole row goes into the one
 ///             field <c>as</c>, <c>data</c> by default, as an object); a row without a match gets <c>default</c> (null by default).
 ///         </description></item>

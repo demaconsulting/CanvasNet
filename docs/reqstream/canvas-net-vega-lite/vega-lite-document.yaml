@@ -55,14 +55,16 @@ sections:
               dictionary of values nested up to 32 levels and holding at most 65,536 values, which replaces the
               whole definition of the parameter) and datasets copied into read-only
               collections, data paths and additional font directories copied and validated, a base
-              directory that is not blank - and shall never change an options instance after it is
-              created, so that an instance is safe to share between threads.
+              directory that is not blank, a file-access policy that is not null (the allow-all policy by
+              default, kept by every copy the document makes of the options) - and shall never change an
+              options instance after it is created, so that an instance is safe to share between threads.
             justification: |
               Validation at initialization lets the pipeline trust every instance, and immutability makes
               sharing safe.
             tests:
               - CanvasNetVegaLite_SystemIntegration_Options_AreValidatedAndImmutable
               - VegaLiteOpenOptions_Defaults_AreUnsetAndEmpty
+              - VegaLiteOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective
               - VegaLiteOpenOptions_ValidValues_AreStored
               - VegaLiteOpenOptions_InvalidValues_Throw
               - VegaLiteOpenOptions_NullDataPaths_Throw
@@ -306,7 +308,7 @@ sections:
             title: >-
               The VegaLiteDocument unit shall fail a measure or render with a VegaLiteRenderException that
               carries the location of the data url or name, in lenient and strict mode alike, when a local
-              data file is missing, outside the sandbox, a link, not valid UTF-8, or no file source is
+              data file is missing, denied by the file-access policy, not valid UTF-8, or no file source is
               configured for a document opened from a string or a stream, and when a data name is defined
               by nobody, while a remote URL is only reported.
             justification: |
@@ -378,7 +380,7 @@ sections:
             title: >-
               The VegaLiteDocument unit shall open and render using only managed code and the public
               CanvasNet APIs, without network access, and shall treat a remote URL in a specification
-              (one with a scheme, or an absolute, rooted, drive, or network path) as empty data that is
+              (one with a scheme other than file, a file: URI with a host, or a network path) as empty data that is
               reported, never fetched, opened, or given to the file callback.
             justification: |
               Following URLs found in untrusted specifications would be a request-forgery vector and
@@ -632,11 +634,25 @@ sections:
               - CanvasNetVegaLite_CompositeMark_ErrorBar_ExpandedViewsAreLimitedByMaxViews
               - CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders
 
+          - id: CanvasNetVegaLite-VegaLiteDocument-FileAccessOption
+            title: >-
+              The VegaLiteOpenOptions class shall carry the file-access policy of the data files of a chart
+              (FileAccess, the allow-all policy by default, null refused, and kept by every copy the document
+              makes of the options), and the VegaLiteImageSource class shall render a chart with the policy of
+              its request.
+            justification: |
+              The host chooses which files a chart may read, and a chart embedded in another document must
+              follow the policy of the whole render.
+            tests:
+              - VegaLiteOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective
+              - VegaLiteImageSource_Render_RequestPolicy_AppliesToDataFiles
+
           - id: CanvasNetVegaLite-VegaLiteDocument-ImageSource
             title: >-
               The VegaLite package shall provide an image source for .vl and .vl.json files (and not .json;
               claiming no URI scheme) that parses the chart from the bytes of the request, resolves its data
-              files against the folder of the request, lays it out deterministically (UTC, bundled fonts only) at
+              files against the folder of the request under the file-access policy of the request, lays it out
+              deterministically (UTC, bundled fonts only) at
               the size of the request (its own layout size when none is asked for) keeping its own background,
               refuses with ImageSourceBudgetException, before drawing anything, a size that exceeds the pixels the
               request allows,
@@ -654,6 +670,7 @@ sections:
               - VegaLiteImageSource_Render_RequestedSize_DrawsAtThatSize
               - VegaLiteImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
               - VegaLiteImageSource_Render_DataFile_ResolvesFromDirectoryOfRequest
+              - VegaLiteImageSource_Render_RequestPolicy_AppliesToDataFiles
               - VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict
               - VegaLiteImageSource_Render_ImageMark_UsesTheResolverOfTheRequest
               - VegaLiteImageSource_Render_InvalidInput_Throws

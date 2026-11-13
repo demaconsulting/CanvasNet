@@ -140,7 +140,7 @@ public sealed partial class VegaLiteDocument
     private DataStage RunDataStage(LayerTree tree, SpecTree specification, IReadOnlyList<LayerNode> drawn, ResolvedConfig config, VegaLiteRenderOptions options, EvaluationState evaluation, SelectionModel selections, CancellationToken cancellationToken, List<FeatureReport>? dataWarningSink)
     {
         // The data is read first, before any scene item is charged and before any scale exists: one loader (so one file
-        // cache, one file count and one row budget) serves this call, from the sandbox that the effective open options
+        // cache, one file count and one row budget) serves this call, from the places and under the file-access policy that the effective open options
         // say, under the limits of the render options
         var root = _tree.Root;
 
@@ -163,7 +163,7 @@ public sealed partial class VegaLiteDocument
         dataWarningSink?.AddRange(loader.Warnings);
 
         // The parameters were evaluated before the data stage; the row transforms run in the order of the specification, on the
-        // loaded rows and before any scale exists; they share the loader (row budget, sandbox) and the evaluator (steps)
+        // loaded rows and before any scale exists; they share the loader (row budget, file access) and the evaluator (steps)
         var parameters = evaluation.Parameters;
         var evaluator = evaluation.Evaluator;
         var expressions = new RowExpressions(specification.Expressions, evaluator);

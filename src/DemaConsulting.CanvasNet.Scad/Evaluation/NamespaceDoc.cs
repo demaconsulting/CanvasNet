@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 /// <summary>
 ///     The internal <c>Evaluation</c> namespace (the <c>ScadEvaluation</c> subsystem) turns a parsed OpenSCAD-language
 ///     program into values, diagnostics and a geometry-agnostic instantiation tree: <c>ScadValue</c> is the value
-///     model, <c>ScadBuiltinFunctions</c> the built-in function library, <c>ScadFileResolver</c> the sandboxed
+///     model, <c>ScadBuiltinFunctions</c> the built-in function library, <c>ScadFileResolver</c> the policy-checked
 ///     <c>include</c>/<c>use</c> loader and <c>ScadEvaluator</c> the interpreter.
 /// </summary>
 /// <remarks>

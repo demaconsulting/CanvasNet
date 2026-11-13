@@ -34,8 +34,9 @@
         { "term": "output-exists", "text": "The output exists and --no-clobber was given." },
         { "term": "output-write-failed", "text": "The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk)." },
         { "term": "scad-error", "text": "An OpenSCAD model has a syntax error, an evaluation error, or an include that cannot be read; the message has file, line, and column." },
-        { "term": "vega-lite-error", "text": "A Vega-Lite chart has an invalid specification, a data file that is missing or refused, or cannot be laid out or drawn; the message has file, line, column, and JSON pointer." },
+        { "term": "vega-lite-error", "text": "A Vega-Lite chart has an invalid specification, a data file that is missing or unreadable, or cannot be laid out or drawn; the message has file, line, column, and JSON pointer." },
         { "term": "mermaid-error", "text": "A Mermaid diagram has a syntax error (mermaid-syntax-error), an unknown diagram type (mermaid-unknown-diagram), invalid frontmatter, or cannot be laid out; the message has file, line, column, and the mermaid-* code, and the hint suggests the fix." },
+        { "term": "file-access-denied", "text": "A file the document references (a model's include, a chart's data, or with --strict a linked picture) was denied by the file-access policy of the library caller, or the policy could not be applied; the message names the file as written and the policy. The tool's default policy reads every regular local file." },
         { "term": "budget-exceeded", "text": "A model exceeds a rendering limit such as --max-triangles, or a chart or diagram exceeds a limit of its library (mermaid-limit-exceeded for a diagram). Raise the limit (a model) or simplify the model, chart, or diagram." },
         { "term": "size-mismatch", "text": "compare was given two images of different sizes and no --resize-to." },
         { "term": "threshold-failed", "text": "compare measured a value on the wrong side of a --threshold limit; the result and the pictures were still written." }

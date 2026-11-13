@@ -14,6 +14,11 @@ the `DemaConsulting.CanvasNet.Files` namespace, all `public`:
 - `SandboxException.cs` - `SandboxException` (sealed class): the failure
 - `SandboxFailureKind.cs` - `SandboxFailureKind` (enum): the reasons for a failure
 
+All six types are marked `[Obsolete]` (a compiler warning, not an error) with the message "Use FileReferenceResolver
+with FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks). This type will be
+removed in the next major release." Their behavior is unchanged and race-free; no part of the library uses them any
+longer.
+
 #### Purpose
 
 `SandboxedFileResolver` turns an untrusted relative path into the bytes of a file that is guaranteed to lie inside
@@ -21,12 +26,15 @@ caller-chosen directories (or a caller-supplied virtual file source), and refuse
 files named by untrusted text (an include directive, a data URL) needs this once, correctly: path validation,
 confinement to a root, refusal of symbolic links and junctions, an open that does not race against a separate existence
 check or link check, a bounded read, and a failure model a caller can map to its own error type. The unit is public so
-that library users get exactly the rules the CanvasNet packages use; the `CanvasNetVegaLite` and `CanvasNetScad`
-packages use it for every local file.
+that library users who adopted it keep the rules they rely on for one more release; the library's own consumers (the
+`ImageSources` subsystem and the `CanvasNetVegaLite` and `CanvasNetScad` packages) moved to `FileReferenceResolver`,
+which gives the same confinement with `FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder),
+FileAccessPolicy.NoSymlinks)`.
 
 The unit's behavior is specified by the `CanvasNet-Files-SandboxedFileResolver-*` requirements (`Resolution`,
 `MissingFiles`, `PathText`, `Confinement`, `Links`, `RaceFree`, `ResolverCallback`, `Reading`, `SizeLimit`,
-`FileLimit`, `Cache`, `Cancellation`, and `Failures`) in `docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml`.
+`FileLimit`, `Cache`, `Cancellation`, `Failures`, and `Deprecated`) in
+`docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml`.
 
 #### Data Model
 
@@ -219,8 +227,8 @@ unit reads a snapshot and does not defend against a concurrent writer of the fil
 
 #### Callers
 
-`SandboxedFileResolver` is a public API entry point for consumers of the CanvasNet package. It is called by the
-`DataFileResolver` unit of `CanvasNetVegaLite` (one resolver per measure or render call) and by the `ScadFileResolver`
-unit of `CanvasNetScad` (one resolver per `Load`), both through the public API. The tests in
-`test/DemaConsulting.CanvasNet.Tests/Files/` call it directly, and reach the internal link-probe and open seams through
-the core assembly's `InternalsVisibleTo` grant to the test project.
+`SandboxedFileResolver` is an obsolete public API entry point for consumers of the CanvasNet package. No CanvasNet unit
+calls it any longer (the `FolderImageResolver`, `DataFileResolver` and `ScadFileResolver` units use
+`FileReferenceResolver`). The tests in
+`test/DemaConsulting.CanvasNet.Tests/Files/` call it directly (suppressing the obsolete warning), and reach the internal
+link-probe and open seams through the core assembly's `InternalsVisibleTo` grant to the test project.

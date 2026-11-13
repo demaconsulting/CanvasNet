@@ -53,6 +53,20 @@ public sealed class VegaLiteRenderException : InvalidOperationException
     }
 
     /// <summary>
+    ///     Initializes a new instance of the <see cref="VegaLiteRenderException"/> class describing a failure at a
+    ///     known location that another exception caused (a file-access denial keeps its
+    ///     <see cref="Files.FileReferenceException"/>).
+    /// </summary>
+    /// <param name="description">The description of the failure, without the location prefix.</param>
+    /// <param name="location">The location of the construct that caused the failure.</param>
+    /// <param name="innerException">The exception that caused this exception.</param>
+    internal VegaLiteRenderException(string description, VegaLiteLocation location, Exception innerException)
+        : base(location.IsKnown ? $"{location}: {description}" : description, innerException)
+    {
+        Location = location;
+    }
+
+    /// <summary>
     ///     Gets the location of the construct that caused the failure; <c>default</c> (line zero, empty pointer) when unknown.
     /// </summary>
     public VegaLiteLocation Location { get; }

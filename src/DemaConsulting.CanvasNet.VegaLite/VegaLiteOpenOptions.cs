@@ -1,3 +1,5 @@
+using DemaConsulting.CanvasNet.Files;
+
 namespace DemaConsulting.CanvasNet.VegaLite;
 
 /// <summary>
@@ -12,15 +14,18 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     <para>
 ///         <see cref="SourceName"/> and <see cref="Limits"/> are consumed when the document is opened (the name
 ///         appears in every <see cref="VegaLiteLocation"/>, and the limits bound the source size and nesting).
-///         <see cref="BaseDirectory"/>, <see cref="DataPaths"/> and <see cref="FileResolver"/> define the sandbox
-///         for data files and are consumed when the chart is rendered; opening never accesses another file. Only
-///         the directories given here (and the folder of an opened file) are used, and a path that leaves them is
-///         rejected. The current directory and environment variables are never used implicitly, and a data
-///         <c>url</c> that names a remote resource is never fetched.
+///         <see cref="BaseDirectory"/>, <see cref="DataPaths"/> and <see cref="FileResolver"/> say where data files
+///         are found, and <see cref="FileAccess"/> which of them may be read; they are consumed when the chart is
+///         rendered, and opening never accesses another file. Only the directories given here (and the folder of an
+///         opened file) are searched for a relative path. The current directory and environment variables are never
+///         used implicitly, and a data <c>url</c> that names a remote resource is never fetched.
 ///     </para>
 /// </remarks>
 public sealed class VegaLiteOpenOptions
 {
+    /// <summary>The validated file-access policy.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
+
     /// <summary>The validated base directory.</summary>
     private readonly string? _baseDirectory;
 
@@ -31,15 +36,16 @@ public sealed class VegaLiteOpenOptions
     private readonly string? _sourceName;
 
     /// <summary>
-    ///     Gets the directory against which relative data <c>url</c> paths are resolved and outside of which no file
-    ///     is read, or <see langword="null"/> to use the folder of the opened file.
+    ///     Gets the directory against which relative data <c>url</c> paths are resolved (a base, not a boundary), or
+    ///     <see langword="null"/> to use the folder of the opened file.
     /// </summary>
     /// <remarks>
     ///     A document created from a string or a stream has no folder: unless it supplies a base directory, a
     ///     <see cref="DataPaths"/> entry or a <see cref="FileResolver"/>, its data files cannot be resolved and
-    ///     rendering a chart that needs one fails with a <see cref="VegaLiteRenderException"/>. A symbolic link or
-    ///     junction below this directory is never followed. The decision is made on the opened file handle, so a link
-    ///     swapped in after the check is refused as well; hard links cannot be detected.
+    ///     rendering a chart that needs one fails with a <see cref="VegaLiteRenderException"/>. Whether a data file may
+    ///     be read, wherever it lies and whether it is reached through a symbolic link or junction, is decided by
+    ///     <see cref="FileAccess"/>; to keep data files inside this directory and refuse links, use
+    ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(directory), FileAccessPolicy.NoSymlinks)</c>.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when the value is empty or whitespace.</exception>
     public string? BaseDirectory
@@ -49,12 +55,12 @@ public sealed class VegaLiteOpenOptions
     }
 
     /// <summary>
-    ///     Gets the additional sandbox roots that are searched, after the base directory, for data files; empty by
+    ///     Gets the additional directories that are searched, after the base directory, for data files; empty by
     ///     default.
     /// </summary>
     /// <remarks>
-    ///     The same link rule as for <see cref="BaseDirectory"/> applies below each entry. The list is copied when it
-    ///     is set.
+    ///     The entries are search locations, not boundaries: <see cref="FileAccess"/> decides which files may be read,
+    ///     and a policy that confines files must list each entry among its roots. The list is copied when it is set.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the value or an entry is null.</exception>
     /// <exception cref="ArgumentException">Thrown on initialization when an entry is empty or whitespace.</exception>
@@ -72,8 +78,8 @@ public sealed class VegaLiteOpenOptions
     ///     returns a readable stream, which the library disposes, or <see langword="null"/> when there is no such
     ///     file. The base directory plays no role then, and each <see cref="DataPaths"/> entry that is a valid
     ///     relative logical path is a directory prefix that is tried after the root. It is only called on the thread
-    ///     that called the measure or render method, at most once per candidate path and call, and never for a URL that
-    ///     has a scheme or is absolute (remote data is never requested). The content must be UTF-8 and is bounded by
+    ///     that called the measure or render method, at most once per candidate path and call, and never for remote data
+    ///     or an absolute path (an absolute path is a located error in this mode). The content must be UTF-8 and is bounded by
     ///     <see cref="VegaLiteLimits.MaxDataBytes"/>; a <see langword="null"/> result for every candidate makes the
     ///     chart fail with a <see cref="VegaLiteRenderException"/>.
     /// </summary>
@@ -88,6 +94,25 @@ public sealed class VegaLiteOpenOptions
     {
         get => _sourceName;
         init => _sourceName = ValidateOptional(value);
+    }
+
+    /// <summary>
+    ///     Gets the policy that decides which local data files (and lookup sources) may be read; the default,
+    ///     <see cref="FileAccessPolicy.AllowAll"/>, allows every regular local file, including one reached through
+    ///     <c>..</c>, an absolute path, a local <c>file:</c> URI or a symbolic link. It is not consulted with a
+    ///     <see cref="FileResolver"/>, which sees only logical paths.
+    /// </summary>
+    /// <remarks>
+    ///     A denied file is a <see cref="VegaLiteRenderException"/> located at the <c>url</c>, whose
+    ///     <see cref="Exception.InnerException"/> is the <see cref="FileReferenceException"/> of the denial. Remote data,
+    ///     network paths, device paths and anything that is not a regular file are refused under every policy, and every
+    ///     limit applies whatever the policy.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown on initialization when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
     }
 
     /// <summary>
@@ -118,6 +143,7 @@ public sealed class VegaLiteOpenOptions
         FileResolver = FileResolver,
         SourceName = sourceName,
         Limits = Limits,
+        FileAccess = _fileAccess,
     };
 
     /// <summary>

@@ -696,8 +696,9 @@ sections:
           800 by 800 pixels unless a size option is given, over white unless `--background` says
           otherwise, with variables set by `-D name=value`, `$t` set by `--time`, the color of
           uncolored surfaces set by `--default-color`, and the number of triangles limited by
-          `--max-triangles`; shall read the files named by `include` and `use` from the folder of the
-          model and below it only and refuse a model whose include cannot be read; and shall report a
+          `--max-triangles`; shall read the files named by `include` and `use` relative to the folder of
+          the model under the default file-access policy of the library (every regular local file, as
+          OpenSCAD reads them) and refuse a model whose include cannot be read; and shall report a
           syntax error, a failed assertion, and an include problem with the error code scad-error, and a
           model that exceeds a limit with the error code budget-exceeded, as expected failures.
         tags: [system]
@@ -705,13 +706,13 @@ sections:
           Agents are asked to show a 3D model; a named view says which side to look at without the
           geometry of a camera, the variables of a parametric model can be set from the command line,
           and every limit and mistake of a model is a concise, coded error rather than a crash, so that
-          a runaway model cannot hang or take down the agent that renders it. Files outside the folder of
-          the model are never read, so a model cannot be used to read other files.
+          a runaway model cannot hang or take down the agent that renders it. Includes resolve the way
+          OpenSCAD resolves them, so a model renders as its author sees it.
         tests:
           - CanvasNetTool_Scad_RenderAsProcess_WritesImageAndReportsOptions
           - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
-          - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
+          - CanvasNetTool_Scad_Includes_AreReadRelativeToTheModelFolder
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 
@@ -751,7 +752,7 @@ sections:
           version) and list the `vega-lite` format with the `formats` command; shall refuse a plain Vega
           specification as an unsupported format; and shall report an invalid chart (including a specification
           that nests deeper than, or has a string longer than, the limit of the parser, and a local data file
-          that is missing, outside the specification folder, or not valid) with the error code
+          that is missing or not valid) with the error code
           vega-lite-error, a chart that exceeds a limit of the library while it is laid out or drawn (including
           the data row and data byte limits) with the error code budget-exceeded, a specification file longer
           than the limit of the library with the error
@@ -787,7 +788,8 @@ sections:
           giving the same picture every time, in the theme `--theme` names (default, base, dark, forest, or neutral;
           the theme fragment of the input, flow.mmd#theme=dark, wins over the option, and a theme the text sets itself
           wins over both); shall show the pictures of its nodes (a raster, an SVG file, a model, a chart, a page of a
-          document, or another diagram) from the folder of the diagram and below it only; shall describe a diagram
+          document, or another diagram) relative to the folder of the diagram under the default file-access policy of
+          the library; shall describe a diagram
           with the `info` command (its laid-out size and, in a `diagram` object, its type, whether this version draws
           it, its direction, titles, and numbers of nodes, edges, and subgraphs), list the `mermaid` format of the
           kind `diagram` with the `formats` command, and explain it in the help topic `mermaid` (alias `mmd`); shall
@@ -829,9 +831,10 @@ sections:
           document (page 1, or the page the fragment of the href names with page=N or slide=N; the type is decided by
           the file name extension; the tool wires in the image resolver of the Viewer
           package and has no plug-in mechanism),
-          reading the embedded files only from the folder of the SVG file the user named and below it (with no
-          option for another folder, never from the network, and refusing an absolute path, a path that leaves
-          the folder, and a symbolic link), drawing a model, chart, or diagram at the size of its placement,
+          reading the embedded files relative to the folder of the file that links them under the default
+          file-access policy of the library (every regular local file, also through dot-dot, an absolute path, and
+          a symbolic link, as Pandoc reads them; never from the network or a UNC path), drawing a model, chart, or
+          diagram at the size of its placement,
           reporting an href that it does not draw as the warning svg-image-unresolved, a picture too large for the
           pixel budget as the warning svg-image-too-large, a fragment that cannot be used as image-fragment-invalid,
           and a page that does not exist as image-page-out-of-range (each an unsupported-feature error with
@@ -842,9 +845,8 @@ sections:
         tags: [system]
         justification: |
           A diagram that shows a part, a chart, and a picture is made of files that sit together; one command
-          that renders them from the folder of the diagram, and never reads anything else, lets agents build
-          figures without a plotting or modeling program and lets documents be rendered from untrusted sources
-          safely, while every left-out reference is reported and the limits keep the work bounded.
+          that renders them relative to the diagram lets agents build figures without a plotting or modeling
+          program, while every left-out reference is reported and the limits keep the work bounded.
         children:
           - CanvasNetViewer-Imaging-SourceLoader-SvgEmbedding
           - CanvasNetViewer-Imaging-SourceLoader-SvgEmbeddingUnresolved
@@ -860,8 +862,8 @@ sections:
           The tool shall write, with the flatten command, a copy of an SVG file in which every image link to an OpenSCAD
           model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document (and to a nested SVG
           file that links one) is a PNG picture of its placement size, keeping every other byte, following the links
-          with the sandbox and limits of render, writing nothing and exiting with code 0 when there is nothing to
-          flatten, and reporting its failures as expected errors.
+          with the file-access policy and limits of render, writing nothing and exiting with code 0 when there is
+          nothing to flatten, and reporting its failures as expected errors.
         tags: [system]
         justification: |
           A documentation build that turns HTML into a PDF with an SVG reader that cannot draw models, charts, or

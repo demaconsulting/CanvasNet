@@ -24,38 +24,31 @@ verify the units working together and with the units that feed them and consume 
 the six grouped transforms to `AggregateTransforms` in the order of the specification, so the scenarios compose them (a
 window whose rank drives a following filter; the grouped transforms run as one pipeline under other cultures), and
 `EncodingPlan` runs the bin, time unit, aggregate, and stack engines over the table that the explicit transforms
-produced, in Vega-Lite's order: bin, then time unit, then aggregate, then the impute of the encoding, then the impute
-of a stacked path mark, then stack. The `timeUnit` transform and the time
-unit of a channel are one engine: `RowTransforms` and `EncodingTransforms` both call `TimeUnitTransform.Apply` with the
-calendar of the chart (the zone of the render options), so the scenarios verify that a time zone moves the unit
-boundaries in the explicit transform, in the implicit stage, and in the filter predicates alike, and that the aggregate
-that follows groups by the start of the unit. The
+produced, in Vega-Lite's order: bin, then time unit, then aggregate, then the impute of the encoding, then the impute of
+a stacked path mark, then stack. The `timeUnit` transform and the time unit of a channel are one engine: `RowTransforms`
+and `EncodingTransforms` both call `TimeUnitTransform.Apply` with the calendar of the chart (the zone of the render
+options), so the scenarios verify that a time zone moves the unit boundaries in the explicit transform, in the implicit
+stage, and in the filter predicates alike, and that the aggregate that follows groups by the start of the unit. The
 subsystem-level scenarios also verify the units working with the units around them: the real `SpecParser` compiles the
 expressions of the transforms and the parameters and validates the shape of every transform and of the aggregate, bin,
 stack, and sort properties of an encoding at the time the document is opened; the real `DataLoader` supplies the source
-table, the sources of the lookups, the file cache, the sandbox, and the one row budget of the call (the transforms and
-the
-implicit stage reserve and release rows through it); the real `ExpressionEvaluator` runs the expressions under the one
-step budget of the call, which the grouped engines charge as well; the real `ScaleResolver`, `MarkBuilder`,
-`AxisBuilder`,
-`ViewLayout`, and `ScenePainter` use the transformed and the Raw table, so the scenarios assert on the pixels of a chart
-whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggregated, binned, imputed, or stacked;
-and the real
-`FeatureCatalog` reports the parts that are not supported. The system-level scenarios of the explicit transforms use
-charts of 100 by 100 pixels without padding, axes, and title, in which the position of every mark is derived by hand
-from
-a scale domain of 0 to 10, so a dot is found by one pixel; the scenarios of the implicit pipeline use the fixtures
-`aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and `window-cumulative`, in which the bars are derived
-by
-hand from the scale formulas. The time scenarios build every zone in the test (`TimeZoneInfo.CreateCustomTimeZone`,
-never
-`TimeZoneInfo.Local`), use the dates of 2024 whose day numbers are derived in the _TimeCalendar Unit Verification
-Design_, and assert on the start and the end of each unit, so the result of a time unit never depends on the host's
-zone, clock, or culture.
+table, the sources of the lookups, the file cache, the file-access policy, and the one row budget of the call (the
+transforms and the implicit stage reserve and release rows through it); the real `ExpressionEvaluator` runs the
+expressions under the one step budget of the call, which the grouped engines charge as well; the real `ScaleResolver`,
+`MarkBuilder`, `AxisBuilder`, `ViewLayout`, and `ScenePainter` use the transformed and the Raw table, so the scenarios
+assert on the pixels of a chart whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggregated,
+binned, imputed, or stacked; and the real `FeatureCatalog` reports the parts that are not supported. The system-level
+scenarios of the explicit transforms use charts of 100 by 100 pixels without padding, axes, and title, in which the
+position of every mark is derived by hand from a scale domain of 0 to 10, so a dot is found by one pixel; the scenarios
+of the implicit pipeline use the fixtures `aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and
+`window-cumulative`, in which the bars are derived by hand from the scale formulas. The time scenarios build every zone
+in the test (`TimeZoneInfo.CreateCustomTimeZone`, never `TimeZoneInfo.Local`), use the dates of 2024 whose day numbers
+are derived in the _TimeCalendar Unit Verification Design_, and assert on the start and the end of each unit, so the
+result of a time unit never depends on the host's zone, clock, or culture.
 
 No mocking or stubbing is used. The subsystem is internal, so its tests reach it through the test assembly's
-`InternalsVisibleTo` access. The subsystem reads files only through the sandbox of the data loader and never reads the
-network.
+`InternalsVisibleTo` access. The subsystem reads files only through the file-access policy of the data loader and never
+reads the network.
 
 ### Test Environment
 
@@ -63,7 +56,7 @@ network.
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None required
 - **Files**: Per-test temporary directories (created and deleted by the test) for the lookups in files and for the
-  sandbox scenario; every other specification is an in-memory string; no network
+  confinement scenario; every other specification is an in-memory string; no network
 - **Isolation**: Each test parses its own specification and renders it with its own options. The determinism scenario
   renders one document from twelve concurrent tasks and compares each result with a single-threaded baseline. Every
   time zone is a custom zone that the test creates; no test reads the host's zone or clock, and the culture scenarios
@@ -77,7 +70,7 @@ reordered, or computed differently from the hand-derived expectation, a group, b
 the hand-derived one, a time unit whose start or end differs from the hand-derived instant (or that ignores the zone of
 the chart or does not ignore it for a `utc` unit), a different sample for the same data and
 pointer, a pixel outside its analytic position, a limit that does not fail closed with the location of the transform,
-a read outside the sandbox, a measured size that differs from the rendered size, or a render that is not byte-identical
+a read the file-access policy denies, a measured size that differs from the rendered size, or a render that is not byte-identical
 to the baseline constitutes a failure.
 
 ### Test Scenarios
@@ -260,7 +253,8 @@ to the baseline constitutes a failure.
   `DataLoaderTests.DataLoader_ReserveDerivedRows_SharesTheRowBudgetOfTheCall`,
   `DataLoaderTests.DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall` — a fold of three rows by two
   fields renders with `MaxDataRows` 9 and fails with 8 at `/transform/0` naming the limit, a lookup of a file outside
-  the folder of the opened specification (`../outside.csv`) fails at its `url` with "outside the allowed directories",
+  the folder of the opened specification (`../outside.csv`) under `UnderRoots` of that folder fails at its `url`
+  with "denied by the file-access policy 'roots'",
   a lookup source
   counts against the same row budget and file cache as the main data, and a canceled token makes measuring and
   rendering throw `OperationCanceledException` with no event delivered.

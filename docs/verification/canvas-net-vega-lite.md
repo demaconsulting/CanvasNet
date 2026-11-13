@@ -65,7 +65,8 @@ at the text of the expression or the transform, never executed, and in strict mo
 an expression with a syntax error, one over the length or nesting limit, an unknown parameter, and an invalid
 parameter definition fail when the document is opened with the location of the offending text and the offset inside
 it; hostile evaluation (a step budget that is too small, a catastrophic regular expression, a fold over the row limit,
-a lookup that leaves the sandbox) fails closed with a located exception or finishes safely; and a chart through every
+a lookup outside the roots of a confining file-access policy) fails closed with a located exception or finishes
+safely; and a chart through every
 kind of transform measures the size it renders and renders the same bytes on every call and from many threads.
 
 The aggregation scenarios assert on what the system computes from the aggregating transforms and from the `aggregate`,
@@ -161,15 +162,16 @@ The data scenarios assert on what the system reads and how it fails: a specifica
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
 file for a specification that has no folder, each giving the pixels of the chart whose rows are written inline; a
 document with no folder, base directory, data path, or callback fails to render a local file with a located
-`VegaLiteRenderException` rather than drawing an empty chart; a missing file, a path that leaves its root, a colon in a
-path, and bytes that are not UTF-8 are located failures in lenient and strict mode alike, while an absolute path is
-remote data that is reported and never opened; sequences and named datasets (the caller's over the specification's)
+`VegaLiteRenderException` rather than drawing an empty chart; under the default file-access policy a path to the parent
+folder, an absolute path, and a local `file:` URI are read as local files, while under `UnderRoots` a path outside the
+roots (also an absolute one) is denied; a missing file, a colon in a path, and bytes that are not UTF-8 are located
+failures in lenient and strict mode alike; sequences and named datasets (the caller's over the specification's)
 draw the pixels of the same rows inline without any report; values that an explicit `parse` cannot read are delivered
 as one `vl-data-parse-failed` warning per field after the reports of the specification; every call reads its file again;
-and the data limits fail before the scene limit is reached. The sandbox mechanics (links, open failures, bounded
-reads) are
-proven once at the core `SandboxedFileResolver` unit with an injected link probe and open seam; this system proves that
-each refusal reaches the caller as a located error, with real links as additional evidence at the unit tier.
+and the data limits fail before the scene limit is reached. The file-access mechanics (real paths, links, open
+failures, bounded reads) are proven once at the core `FileReferenceResolver` unit; this system proves that each
+refusal reaches the caller as a located error, with real links at the unit tier (directory links are junctions on
+Windows and never skip; file links skip where they cannot be created).
 
 System tests reside in `VegaLiteSystemIntegrationTests.cs` (the single-concern scenarios, one per requirement
 topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios),
@@ -220,7 +222,7 @@ documented in `Fixtures/README.md` beside them.
   handler-thread scenario records the managed thread on which each handler ran and compares it with the caller's
 - **Isolation**: Each test method builds its own sources, options, and streams; no shared mutable state between
   tests. The path-based scenarios read the checked-in fixture files; the tests that need a file of their own (the
-  path entry point, the font directory, and the lookup sandbox scenarios) create it in a uniquely named per-test
+  path entry point, the font directory, and the data and lookup file-access scenarios) create it in a uniquely named per-test
   temporary folder and delete the folder when they finish
 
 ## External Interface Simulation
@@ -228,14 +230,14 @@ documented in `Fixtures/README.md` beside them.
 The external interfaces of the system are the file system (the `VegaLiteDocument.Open(string)` overload, the data
 files that `Measure` and `Render` read from the base directory and the data paths, and the font directories), streams
 (the `VegaLiteDocument.Open(Stream)` overload and the stream a file callback returns),
-the network (never used: scheme-bearing data URLs are reported and not fetched), the installed fonts (not consulted
+the network (never used: remote data URLs are reported and not fetched), the installed fonts (not consulted
 by default), and the caller's handler delegates. Nothing is simulated: file input uses the real fixture files copied
 to the output directory and real files in per-test temporary directories, the file callback is a real delegate over an
 in-memory file set that records every logical path it is asked for, stream input uses real `MemoryStream` instances
 over fixture or generated bytes, and the
 one hostile stream (an endless stream of blanks that counts the bytes handed to the reader) is a real
 `Stream` subclass local to the tests. The handlers are real delegates that record what they receive. The
-never-fetched property of remote data is verified by asserting that scheme-bearing URLs are reported, that the
+never-fetched property of remote data is verified by asserting that remote URLs are reported, that the
 document still renders, and that a file resolver callback that records its calls is never asked for anything. The
 core `Surface`, `Rgba32`, `TrueTypeFont`, and the core rasterization units are used for real in every render
 scenario (the pixels are read back from the returned surface); no mocking framework is used.
@@ -395,16 +397,18 @@ reported does not hide it, that after a successful render a failing handler prop
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched`
 
-Parses a layered specification whose views have an `https` URL, a `file` URL, and empty inline data, with a
-`FileResolver` callback that records every name it is asked for. Asserts that each scheme-bearing URL is reported as
+Parses a layered specification whose views have an `https` URL, a `file:` URI with a host (`file://server/share/...`),
+and empty inline data, with a `FileResolver` callback that records every name it is asked for. Asserts that each remote
+URL is reported as
 `vl-data-remote-url` at the pointer of its `data` object (`/layer/0/data` and `/layer/1/data`), that the layer
 composition
 itself is drawn and not reported, that the empty inline data warns with `vl-data-empty` at
 `/layer/2/data`, that rendering still succeeds in lenient mode with empty datasets, that strict mode throws for the
 first report (`vl-data-remote-url`; and for a single view with remote data, `vl-data-remote-url` at `/data`), and that
 the callback was never
-asked for anything. The classification of every other scheme-bearing form (UNC, drive-letter, and
-protocol-relative paths) is verified at the unit tier in the _FeatureCatalog Unit Verification Design_.
+asked for anything. The classification of every other form (remote: other schemes, UNC and protocol-relative paths;
+local: absolute and drive-letter paths and `file:` URIs without a host) is verified at the unit tier in the
+_FeatureCatalog Unit Verification Design_.
 
 ### Data: A Local File Loads From The Folder Of The Opened Specification
 
@@ -433,16 +437,20 @@ that says that the document has no base directory, data path, or file resolver, 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException`
 
 Renders charts against a base directory in a temporary folder that holds a good file, a file of invalid UTF-8, and a
-file beside the root. Asserts that a missing file ("was not found"), `../outside.csv` and `dir/../../outside.csv`
-("outside
-the allowed directories"), a file that is not UTF-8 ("is not valid UTF-8"), and a path with a colon ("is not allowed")
-each fail with a `VegaLiteRenderException` located at `/data/url`, in lenient and strict mode alike; that the good file
-renders; and that an absolute path to the real file beside the root is remote data: it is reported as
-`vl-data-remote-url`, never opened, draws an empty chart in lenient mode, and throws
-`VegaLiteUnsupportedFeatureException`
-in strict mode. The directory-in-place-of-file, existing-file-open-failure, callback-failure, stream-disposal, and
+file beside the root, under `FileAccess = UnderRoots(root)`. Asserts that a missing file ("was not found"),
+`../outside.csv`, `dir/../../outside.csv`, and the absolute path of the file beside the root ("denied by the
+file-access policy 'roots'"), a file that is not UTF-8 ("is not valid UTF-8"), and a path with a colon ("is not
+allowed") each fail with a `VegaLiteRenderException` located at `/data/url`, in lenient and strict mode alike; and that
+the good file renders. The directory-in-place-of-file, existing-file-open-failure, callback-failure, stream-disposal, and
 invalid-Unicode JSON failures, and the clamping of a caller's maximum dates, are verified at the
 `DataFileResolver` and `DataLoader` unit levels.
+
+### Data: The Default Policy Reads Parent, Absolute, And File URI Paths
+
+**Test**: `CanvasNetVegaLite_SystemIntegration_Data_DefaultPolicy_ReadsParentAbsoluteAndFileUriPaths`
+
+With a base directory and no explicit policy, renders a chart whose data `url` is `../outside.csv`, the absolute path
+of that file, and its local `file:` URI, in strict mode, and asserts that each is read and drawn with no report.
 
 ### Data: Sequences And Named Datasets Render Without A Report
 
@@ -741,10 +749,10 @@ letters and a `b` and asserts that the linear-time engine finishes and the chart
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed`
 
-Renders a fold of three rows by two fields and a lookup whose source file is outside the folder of the specification.
-Asserts that the fold needs `MaxDataRows` 9 (8 fails with the limit named, at `/transform/0`), that the lookup is
-refused
-with "outside the allowed directories" at `/transform/0/from/data/url`, and that a canceled token makes `Measure` and
+Renders a fold of three rows by two fields and a lookup whose source file is outside the folder of the specification,
+opened with `FileAccess = UnderRoots(site)`. Asserts that the fold needs `MaxDataRows` 9 (8 fails with the limit named,
+at `/transform/0`), that the lookup is denied with "denied by the file-access policy 'roots'" at
+`/transform/0/from/data/url`, and that a canceled token makes `Measure` and
 `Render` of a document with transforms throw `OperationCanceledException` with no event delivered.
 
 ### Transforms: Measure Equals Render And Renders Are Byte-Identical
@@ -2416,7 +2424,8 @@ link to one representative test from the list above per platform and runtime.
 Exercises end-to-end system behavior of `VegaLiteImageSource`, the package's source for the shared image resolver of the
 core package: it renders a chart from the bytes of a hand-built request with a requested size and asserts that the
 picture has the documented size. The full set of scenarios (natural size, transparency, notes, strict mode, the folder
-of the request, and invalid input) is in the unit verification design (`canvas-net-vega-lite/vega-lite-document.md`).
+and the file-access policy of the request, and invalid input) is in the unit verification design
+(`canvas-net-vega-lite/vega-lite-document.md`).
 
 ## Acceptance Criteria
 
@@ -2430,5 +2439,5 @@ repeated or concurrent renders, an empty chart for a local data file that cannot
 file callback for remote data, a dot that a transform or a parameter should have placed (or removed) at another pixel,
 an expression construct that is executed although it is reported as unsupported, a hostile expression or transform that
 does not fail closed with the location of its text, a path, wedge, or label that is not where its derivation puts it, a
-curve with a coordinate that is not finite, a path, arc, or label that is built beyond a limit, or any read outside the
-sandbox constitutes a failure.
+curve with a coordinate that is not finite, a path, arc, or label that is built beyond a limit, or any read that the
+file-access policy denies constitutes a failure.

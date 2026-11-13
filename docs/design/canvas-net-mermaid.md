@@ -250,7 +250,7 @@ and services, so its risk controls are about availability, integrity of the pict
 - **Segregation from the host's files and network.** The package opens no file other than the path given to `Open`
   and performs no network access. Pictures are loaded only through the caller's `IImageResolver`; without one, a
   picture link is reported (`mermaid-image-unresolved`) and the diagram is still drawn. The Viewer library supplies
-  a sandboxed folder resolver.
+  a folder resolver that reads pictures under the caller's file-access policy.
 - **Bounded work and memory.** Every input-controlled loop and recursion is bounded by a `MermaidLimits` value (see
   _Untrusted Input and Limits_); the parsers are scanner based with no regular-expression backtracking; YAML aliases,
   anchors, and tags are refused.

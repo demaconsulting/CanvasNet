@@ -391,8 +391,9 @@ The `vl-transform-<name>` family now has only `vl-transform-lookup-param`. One i
   are produced by the renderer from the view tree (`LayerTree.Warnings`), not by the catalog.
 - `VisitData` chooses the source by precedence (inline `values`, then `url`, then `sequence`, then `name`, then the
   geographic generators), not by key order. An empty `values` array or a `data` object without a source warns
-  `vl-data-empty`; a `url` is classified with `IsSchemeBearingUrl` and only remote data is reported
-  (`vl-data-remote-url`; a relative local path is supported and not reported); a `name` whose top-level dataset is
+  `vl-data-empty`; a `url` is classified with `IsRemoteDataUrl` and only remote data is reported
+  (`vl-data-remote-url`, "Remote data is never fetched; download the file and refer to it by a local path"; a local
+  path is supported and not reported); a `name` whose top-level dataset is
   text or an object is reported as `vl-data-values-text` or `vl-data-geo` (`VisitNamedData`); inline `values` given as
   text or as an object are reported the same way; and `VisitFormat` reports only a `topojson`
   format type (`vl-data-geo`). Sequences, named datasets, the csv, tsv, dsv, and json formats, parse maps (custom date
@@ -588,12 +589,20 @@ unsupported constructs. A reference whose value no property can hold is reported
   options, found with an explicit stack in document order (the text was validated as a JSON object of at most 64
   levels). Nothing evaluates an expression in that text, which is merged over the defaults as it is, so the property
   would silently keep its default; `VegaLiteDocument.ReportsFor` adds these reports when the options carry a `Config`.
-- `IsSchemeBearingUrl(string url)` - true for a URL that starts with `/` or a backslash (a Unix
-  absolute path, a Windows rooted path, a network or UNC path), is rooted according to `Path.IsPathRooted`, or has a
-  scheme (a letter followed by letters, digits, `+`, `-`, or `.`, then a colon, which includes a drive letter and
-  `file:` URIs); the result does not depend on the host operating system. Such a URL is never
-  handed to a resolver, because a renderer that fetches resources named by an untrusted specification would be a
-  server-side request forgery primitive.
+- `IsRemoteDataUrl(string url)` - true for a URL that names remote data: after leading white space it starts with two
+  separators of any kind (`//` or `\\`: a network, UNC, or device path), or it has a scheme (a letter followed by
+  letters, digits, `+`, `-`, or `.`, then a colon; `SchemeLength`) of two or more characters other than `file`, or it
+  is a `file:` URI with a host (`localhost` included) or a malformed one. A one-letter scheme is a drive, so `C:\x`,
+  `C:/x`, and `C:x` are local, as are relative paths, `/x`, `\x`, `file:///x`, and `file:/x`; the result does not depend
+  on the host operating system (a drive path on Linux or macOS is then refused by the file engine as an invalid path, a
+  located error). A remote URL is never handed to a resolver, because a renderer that fetches resources named by an
+  untrusted specification would be a server-side request forgery primitive; a local path is read under the file-access
+  policy of the caller.
+- `LocalPathOfFileUri(string url)` - the local path (`Uri.LocalPath`, percent-decoded) of a well-formed `file:` URI with
+  an empty host; `null` for any other text, including a URL that is not a `file:` URI. It trims leading white space and
+  delegates to the core `FileReferenceResolver.ParseFileUri` (through the core assembly's `InternalsVisibleTo` grant),
+  so the short form `file:/x` is local and a host (`localhost` included) is refused exactly as for an image link.
+  `DataLoader` reads a local `file:` URI at this path.
 
 **Preconditions and postconditions**: the tree is non-null and valid; the result is a new read-only list in document
 order, empty when the specification uses only supported constructs. The catalog is stateless and thread-safe.
@@ -642,7 +651,7 @@ applied here: the document records the reports in a sink, which throws at the fi
 pipeline delivers the reports through the sink. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` (and `FeatureCatalogLayerTests.cs`,
 `FeatureCatalogCompositeTests.cs`, and `FeatureCatalogLabelExprAndOffsetTests.cs` for the label expressions and the
-offset channels) call `Visit` and `IsSchemeBearingUrl`
+offset channels) call `Visit`, `IsRemoteDataUrl`, and `LocalPathOfFileUri`
 directly through `InternalsVisibleTo`; the test `FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark` pins that
 `order`
 is accepted by every mark.

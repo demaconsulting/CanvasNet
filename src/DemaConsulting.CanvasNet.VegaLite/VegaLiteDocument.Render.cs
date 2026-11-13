@@ -20,7 +20,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// <remarks>
 ///     Pipeline: the specification model reports the constructs that it recognizes but cannot draw; for a single view
 ///     with a mark the data (inline rows, a local file, a named dataset or a sequence) is loaded first, under the limits and
-///     the sandbox of this call, then the static parameters are evaluated and the row transforms (calculate, filter, fold,
+///     the file access of this call, then the static parameters are evaluated and the row transforms (calculate, filter, fold,
 ///     flatten, sample, pivot, lookup, aggregate, joinaggregate, window, bin, stack, impute) run in the order of the specification, the
 ///     encoding's own bin, aggregate and stack run on the result (Vega-Lite's implicit stage, see <see cref="EncodingTransforms"/>), the scales are resolved over the
 ///     Raw and Main tables that stage produced,

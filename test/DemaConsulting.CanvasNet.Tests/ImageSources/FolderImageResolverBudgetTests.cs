@@ -16,8 +16,8 @@ public class FolderImageResolverBudgetTests
     /// <summary>The name of the extension the stubs claim.</summary>
     private const string Ext = ".stub";
 
-    /// <summary>The largest file the sandbox reads, in bytes.</summary>
-    private const long SandboxLimit = DemaConsulting.CanvasNet.Files.SandboxOptions.DefaultMaxFileBytes;
+    /// <summary>The largest file the resolver reads, in bytes.</summary>
+    private const long FileLimit = DemaConsulting.CanvasNet.Files.FileReferenceOptions.DefaultMaxFileBytes;
 
     /// <summary>
     ///     Encodes a solid picture as a PNG file (it compresses to a few kilobytes at any size).
@@ -736,17 +736,17 @@ public class FolderImageResolverBudgetTests
 
     /// <summary>
     ///     Test that an image beyond the image-count limit is refused before its file is read: a file larger than the
-    ///     sandbox can read would otherwise be reported as too large for the sandbox instead of as one image too many.
+    ///     resolver can read would otherwise be reported as too large instead of as one image too many.
     /// </summary>
     [Fact]
     public void FolderImageResolver_Resolve_ImageCountExhausted_NeverReadsTheEmbeddedFile()
     {
-        // Arrange: the limit is zero images, and the file is larger than the 16 MiB the sandbox reads
+        // Arrange: the limit is zero images, and the file is larger than the 16 MiB the resolver reads
         using var folder = new ImageTestFolder();
         var path = folder.Combine("big.stub");
         using (var file = File.Create(path))
         {
-            file.SetLength(SandboxLimit + 1);
+            file.SetLength(FileLimit + 1);
         }
 
         var stub = new StubImageSource("stub", [Ext]);
@@ -764,10 +764,10 @@ public class FolderImageResolverBudgetTests
     }
 
     /// <summary>
-    ///     Test that the sandbox reads exactly <see cref="FolderImageResolverOptions.MaxImages"/> distinct embedded files
+    ///     Test that the file engine of the resolver reads exactly <see cref="FolderImageResolverOptions.MaxImages"/> distinct embedded files
     ///     for a render by path (which also reads the top-level file) and for a render of a stream (which does not):
     ///     files that are read but refused for the pixel budget do not count as images, so only the file limit of the
-    ///     sandbox stops the third one.
+    ///     engine stops the third one.
     /// </summary>
     [Fact]
     public void FolderImageResolver_Render_PathAndStream_SandboxFileSlotsMatchTheImageLimit()

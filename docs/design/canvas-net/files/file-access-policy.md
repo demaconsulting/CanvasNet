@@ -6,10 +6,10 @@ The `FileAccessPolicy` unit is the hook through which a host decides which refer
 four source files in the `DemaConsulting.CanvasNet.Files` namespace:
 
 - `FileAccessPolicy.cs` - `FileAccessPolicy` (public abstract partial class): the contract, the factories, and the
-  internal `RequiresRealPath` and `PreCheck` members
+  internal `RequiresRealPath`, `PreCheck`, and `AnchoredAt` members
 - `FileAccessPolicy.BuiltIns.cs` - the private built-in policies (`AllowAllPolicy`, `UnderRootsPolicy`,
-  `NoSymlinksPolicy`, `CombinedPolicy`, `DelegatePolicy`) and the internal link match `MatchesWithoutLinks` that
-  `NoSymlinks` shares with `SandboxedFileResolver`
+  `NoSymlinksPolicy`, `CombinedPolicy`, `DelegatePolicy`, `AnchoredPolicy`) and the internal link match
+  `MatchesWithoutLinks` that `NoSymlinks` shares with `SandboxedFileResolver`
 - `FileAccessRequest.cs` - `FileAccessRequest` (public sealed record): the facts a policy decides about
 - `FileAccessDecision.cs` - `FileAccessDecision` (public sealed record): the answer
 
@@ -34,8 +34,8 @@ which the first file of the chain was found; never a referring document's folder
 one shared instance; `Deny(reason, hint)` requires a non-empty reason and drops an empty hint.
 
 **`FileAccessPolicy`**: the abstract `Name` and `Check(request)`; the internal virtual `RequiresRealPath` (`true`
-except for `AllowAll`) and `PreCheck(requestedPath)` (`null` except for `UnderRoots`). External subclasses keep the
-defaults, so a custom policy always gets a real path or fails closed.
+except for `AllowAll`), `PreCheck(requestedPath)` (`null` except for `UnderRoots`), and `AnchoredAt(origin)`. External
+subclasses keep the defaults, so a custom policy always gets a real path or fails closed.
 
 **Built-in policies** (all immutable and thread-safe):
 
@@ -87,6 +87,16 @@ other code, with no open in progress) is evaluated by resolving now.
   first denial and treats a part that returns `null` as a failure (`InvalidOperationException`), which the resolver
   turns into a denial.
 - `FromDelegate(name, check)` - validates the name and the function; the policy needs a real path.
+- `AnchoredAt(origin)` (internal) - the same policy judged from a fixed chain origin, for the files a nested document
+  reads itself through its own resolver (a linked model's includes, a linked chart's data). That resolver's base
+  directory is the folder of the nested file, which may have been swapped for a link after the outer check; without
+  an anchor, `NoSymlinks` would trust it. The private `AnchoredPolicy` keeps the inner policy's `Name`,
+  `RequiresRealPath` and `PreCheck`, hands every request to it with `BaseDirectory` replaced by the origin, and answers
+  `AnchorsOf` with the inner policy's folders for that same origin, so the nested resolver captures, before its open,
+  exactly the folder the anchored check compares against (otherwise `NoSymlinks` would deny every nested file). A
+  policy that needs no real path (`AllowAll`) is returned as it is, and an anchored policy returns itself, so the
+  outermost origin wins. `FolderImageResolver` sets `ImageSourceRequest.FileAccess` to its policy anchored at the
+  origin of the chain.
 
 #### Error Handling
 
@@ -111,5 +121,7 @@ the written and the real path is not a link redirection.
 #### Callers
 
 `FileReferenceResolver` asks the policy for every opened file; `SandboxedFileResolver` uses the `NoSymlinks` link match
-(`MatchesWithoutLinks`), anchored at the root, to verify its open file. Host applications create policies through the
-factories or subclass the type.
+(`MatchesWithoutLinks`), anchored at the root, to verify its open file. `FolderImageResolver` (`ImageSources`) anchors
+its policy with `AnchoredAt` for each request it hands to a source. Host applications create policies through the
+factories or subclass the type and pass them as the `FileAccess` option of `FolderImageResolverOptions`,
+`ScadOpenOptions`, `VegaLiteOpenOptions` and the Viewer options.

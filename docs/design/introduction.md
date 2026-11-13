@@ -82,20 +82,24 @@ software items, specifically:
   `ImageSources` subsystem of the core package depends on it): the `FileReferenceResolver` unit (the public
   resolver plus its `FileReferenceOptions`, `FileReference`, `FileReferenceException`, and
   `FileReferenceFailureKind` types) that reads a file a document references after a host-chosen policy approved
-  the open file; the `FileAccessPolicy` unit (the public hook, its built-in policies, and the `FileAccessRequest`
+  the open file (every regular local file by default, like Pandoc), used by `ImageSources`, `CanvasNetVegaLite`, and
+  `CanvasNetScad` for every referenced file; the `FileAccessPolicy` unit (the public hook, its built-in policies, and
+  the `FileAccessRequest`
   and `FileAccessDecision` types); the internal `RealPath` unit that tells the real path and the type of an open
-  file per operating system; and the `SandboxedFileResolver` unit (the public resolver plus its `SandboxOptions`,
-  `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types) that turns an untrusted relative path into
-  the bytes of a file inside caller-chosen directories (or a caller-supplied virtual file source), refusing
-  escapes, hostile path text, and symbolic links or junctions, and used by `ImageSources`, `CanvasNetVegaLite`, and
-  `CanvasNetScad` for every local file
+  file per operating system; and the obsolete `SandboxedFileResolver` unit (the public resolver plus its
+  `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types, kept unchanged for one
+  release) that turns an untrusted relative path into the bytes of a file inside caller-chosen directories (or a
+  caller-supplied virtual file source), refusing escapes, hostile path text, and symbolic links or junctions; no part
+  of the library uses it any longer
 - **ImageSources (Subsystem)** — Linked-picture support for documents that link to other pictures (an SVG
   `image` element, for example), depending on `Files`, `Canvas`, and `Codecs` (no core subsystem depends on it): the
   `ImageSourceContract` unit (the public `IImageSource`, `ImageSourceRequest`, `ImageSourceResult`,
   `ImageSourceDiagnostic`, `ImageDiagnosticSeverity`, `IImageResolver`, `EmbeddedImage`, `ImageSourceException`, and
   `ImageSourceBudgetException`
   types that anyone can implement or use, and the `ImageSourceSet` that validates what sources claim and lets the
-  later source win), the `FolderImageResolver` unit (with its `FolderImageResolverOptions`: confines links to a folder,
+  later source win), the `FolderImageResolver` unit (with its `FolderImageResolverOptions`: resolves links relative to a
+  folder
+  under a file-access policy that it passes on to every source,
   picks the source by file name extension or URI scheme, bounds depth, cycles, image count, and the pixels the sources
   allocate, forwards notes, and
   never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
@@ -246,7 +250,8 @@ software items, specifically:
   modules and children, control flow, comprehensions, and a geometry-agnostic instantiation tree, with
   deterministic, stack-independent resource limits), `ScadBuiltinFunctions` (the built-in function library
   and a platform-independent random generator), and `ScadFileResolver` (`include`/`use`
-  resolution inside a sandbox). The `ScadGeometry` subsystem has five units: `ScadGeometryBuilder` (the
+  resolution under the caller's file-access policy). The `ScadGeometry` subsystem has five units: `ScadGeometryBuilder`
+  (the
   iterative, recursion-free walk that combines the instantiation tree into a Render3D scene, with modifiers,
   booleans, the hull and minkowski convex combinations, the projection of solids, the triangle budget, reporting,
   and the
@@ -257,7 +262,7 @@ software items, specifically:
   glyph regions). The 2D Minkowski sum and a few other constructs are deferred and reported as
   unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
   supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` depends on the `CanvasNet`
-  system's `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`), its `Files` subsystem (`SandboxedFileResolver`, for
+  system's `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`), its `Files` subsystem (`FileReferenceResolver`, for
   `include` and `use`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
   `SystemFontCatalog`, and the bundled Liberation fonts) and `Geometry` (`Path`, the glyph outlines) subsystems,
   and on `CanvasNetRender3D` (the scene, tessellation, and rendering API), all through their public API, and must
@@ -282,7 +287,8 @@ software items, specifically:
   background, the properties of the guides, scales, and marks that no row reads, and the configuration - and the rewrite
   of the tree so that every later stage reads values). The `Data` subsystem has six units: `DataTable` (typed
   values and tables), `DataLoader` (the source of a view - inline rows, a local file, a named dataset, or a sequence -
-  under data limits), `DataFileResolver` (sandboxed, bounded, strict-UTF-8 reading of local data files, or through the
+  under data limits), `DataFileResolver` (policy-checked, bounded, strict-UTF-8 reading of local data files, or through
+  the
   caller's callback), `DelimitedTextParser` (CSV, TSV, and DSV, the `parse` conversions, and the per-column type
   inference), `TimeCalendar` (ECMAScript time arithmetic over the years 1 to 9999 in UTC or the caller's time zone, the
   d3-time intervals, the Vega-Lite time units, and the `DateTime` object), and `TimeFormat` (d3-time-format formatting
@@ -480,7 +486,7 @@ the `Shapes` extension-method unit, and the `WordWrap` line-packer unit, coverin
 further nesting), the `Files` subsystem (the `FileReferenceResolver` unit, covering the public
 `FileReferenceOptions`, `FileReference`, `FileReferenceException`, and `FileReferenceFailureKind` types inline, the
 `FileAccessPolicy` unit, covering the public `FileAccessRequest` and `FileAccessDecision` types inline, the
-internal `RealPath` unit, and the `SandboxedFileResolver` unit, covering the public
+internal `RealPath` unit, and the obsolete `SandboxedFileResolver` unit, covering the public
 `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types inline, namespace
 `DemaConsulting.CanvasNet.Files`, flat — no further nesting), the `ImageSources` subsystem (the
 `ImageSourceContract`, `FolderImageResolver`, and `RasterImageSource` units, namespace
@@ -822,7 +828,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── RealPath.Unix.cs               — Internal: the Linux facts of an open handle
 │   ├── NativeMethods.cs               — Internal: the kernel32 and C library calls of the RealPath unit
 │   ├── FileOpenHooks.cs               — Internal: test seams around the open
-│   ├── SandboxedFileResolver.cs       — Public sandboxed resolver: search order, verified open, bounded read, cache
+│   ├── SandboxedFileResolver.cs       — Public obsolete sandboxed resolver: search order, verified open, bounded read
 │   ├── SandboxedFileResolver.Paths.cs — Path-text rules, root confinement, and the link walk
 │   ├── SandboxOptions.cs              — Public options: base directory, search paths, callback, byte limit
 │   ├── SandboxedFile.cs               — Public result: key, directory, root, and bytes of a resolved file
@@ -840,8 +846,8 @@ src/DemaConsulting.CanvasNet/
 │   ├── ImageSourceException.cs        — Public exception of a source that failed on a found file
 │   ├── ImageSourceBudgetException.cs  — Public refusal of a source for a picture over the pixel budget
 │   ├── ImageSourceSet.cs              — Public ordered, immutable list of sources; later source wins
-│   ├── FolderImageResolver.cs         — Public folder-confined resolver: dispatch, limits, scopes, direct render
-│   ├── FolderImageResolver.Href.cs    — Link parsing: query/fragment, file: URIs, percent-encoding, sandbox refusals
+│   ├── FolderImageResolver.cs         — Public folder-based resolver: file access, dispatch, limits, scopes, direct render
+│   ├── FolderImageResolver.Href.cs    — Link parsing: query/fragment, file: URIs, percent-encoding, engine refusals
 │   ├── FolderImageResolverOptions.cs  — Public options: depth, image count, pixel budget, strictness, token
 │   ├── RasterImageSource.cs           — Public source for the raster formats
 │   └── NamespaceDoc.cs                — Namespace-level XML documentation
@@ -1330,7 +1336,7 @@ src/DemaConsulting.CanvasNet.Scad/
     ├── ScadRandom.cs              — ScadBuiltinFunctions: SplitMix64 generator
     ├── ScadSourceUnit.cs          — ScadFileResolver: include-expanded source unit
     ├── ScadFileResolver.cs        — ScadFileResolver: expansion, libraries, limits
-    └── ScadFileResolver.Paths.cs  — ScadFileResolver: path normalization and sandbox
+    └── ScadFileResolver.Paths.cs  — ScadFileResolver: file access, naming, and wording
 ```
 
 `CanvasNetScad` uses the `CanvasNet` system (`Surface`, `Rgba32`, and `CssColor` of `Canvas`; for `text`,
@@ -1403,8 +1409,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable
 │   ├── DataObject.cs              — DataTable: DataObject and DataArray, the payloads of composite values
 │   ├── DataLoader.cs              — DataLoader: inline rows, files, named datasets, sequences, and the row budget
-│   ├── DataFileResolver.cs        — DataFileResolver: sandboxed bounded reads, cache, strict UTF-8, and data-file limits
-│   ├── DataFileResolver.Paths.cs  — DataFileResolver: path rules, candidates, root confinement, and the link walk
+│   ├── DataFileResolver.cs        — DataFileResolver: policy-checked bounded reads, cache, strict UTF-8, and wording
 │   ├── DelimitedTextParser.cs     — DelimitedTextParser: CSV, TSV, and DSV, parse directives, and type inference
 │   ├── TimeCalendar.cs            — TimeCalendar: DateParts, instants and wall-clock parts, and the integer civil arithmetic
 │   ├── TimeCalendar.Zone.cs       — TimeCalendar: the zone offset lookup and the gap and overlap rule
@@ -1797,7 +1802,7 @@ files follow the same pattern: for `DataFileResolver`, requirements
 `docs/reqstream/canvas-net-vega-lite/data/data-file-resolver.yaml`, design
 `docs/design/canvas-net-vega-lite/data/data-file-resolver.md`, verification
 `docs/verification/canvas-net-vega-lite/data/data-file-resolver.md`, source
-`src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver.cs` (with `DataFileResolver.Paths.cs`), tests
+`src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver.cs`, tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs` and `DataFileResolverLinkTests.cs` (with
 the helpers in `DataTestSupport.cs`), and SysML2 model
 `docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml`; for `DelimitedTextParser`, the same paths with

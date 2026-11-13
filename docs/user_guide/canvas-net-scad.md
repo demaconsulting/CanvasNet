@@ -86,14 +86,14 @@ public sealed partial class ScadDocument
 - `ScadSyntaxException`: Thrown when an included or used file contains a syntax error (its location names that
   file).
 - `ScadEvaluationException`: Thrown, with the source location in the message, when an `assert` fails, a limit is
-  exceeded (including the triangle limit), an `include` or `use` violates the sandbox, or, without a location,
+  exceeded (including the triangle limit), an `include` or `use` names a file the file-access policy denies, a path
+  that is never allowed, or a file that cannot be read, or, without a location,
   when the renderer's `MaxFragmentsPerTile` budget is exceeded by a model with booleans.
 - `ScadUnsupportedFeatureException`: Thrown at the first unsupported feature of any stage when
   `ScadEvaluationOptions.ThrowOnUnsupportedFeature` is set (see *Unsupported Features and Strict Mode*).
 - `OperationCanceledException`: Thrown, never wrapped, when `cancellationToken` is canceled before or during the
   work; with an already canceled token nothing is evaluated.
-- `InvalidDataException` and `IOException`: Thrown when an included or used file is longer than 4,194,304
-  characters or cannot be read.
+- `InvalidDataException`: Thrown when an included or used file is longer than 4,194,304 characters.
 
 Nothing the model asks for is skipped silently: an invalid argument is a **warning** at the module's location and
 yields nothing for that instance, a construct this package recognizes but cannot build is an **unsupported
@@ -673,22 +673,40 @@ below 1 is rendered as a translucent surface (see *Transparency, Ghosts, and Hig
 `scad-module-projection` no longer exists either: `projection` is implemented (see *Drawing Sheets with
 projection()*).
 
-### OpenSCAD Include Sandbox
+### OpenSCAD Includes and File Access
 
-`include` and `use` are resolved before evaluation and only through `ScadOpenOptions`: files under `BaseDirectory`
-or a `LibraryPaths` entry, or, when a `FileResolver` callback is supplied, only that callback with no file-system
-access at all. Absolute paths, drive letters, colons, control characters, and `..` above the root are rejected with a
-`ScadEvaluationException`, and a symbolic link or junction below a root is never followed (a link that points nowhere
-is refused as a link, not reported as a missing file). A file that does not exist is only a warning
-(`Can't open include file`); a file that exists but cannot be read (a directory where a file is expected, a file
-that cannot be opened, or a `FileResolver` callback that throws) is a `ScadEvaluationException` too. The checks are
-those of the core library's public `SandboxedFileResolver`, which you can also use directly (see the core library user
-guide).
+`include` and `use` are resolved before evaluation and only through `ScadOpenOptions`: relative to the folder of the
+including file (`BaseDirectory` for the document itself), then in each `LibraryPaths` entry, or, when a `FileResolver`
+callback is
+supplied, only through that callback with no file-system access at all. Which files on disk may be read is decided by
+`ScadOpenOptions.FileAccess`, a `FileAccessPolicy` of the core library. The default, `FileAccessPolicy.AllowAll`, reads
+every regular local file, as OpenSCAD does: `..`, an absolute path, and a symbolic link or junction are followed. A file
+the policy denies is a `ScadEvaluationException` at the directive that names the policy and its reason (its
+`InnerException` is the core `FileReferenceException`). Under every policy a UNC path, an alternate data stream, a
+control character, and a path that is not valid on the platform are refused with a `ScadEvaluationException`, and in
+callback mode an absolute path and `..` above the root are refused too. A file that does not exist, and a link that
+points nowhere, is only a warning (`Can't open include file`); a file that exists but cannot be read (a directory where
+a file is expected, a file that cannot be opened, or a `FileResolver` callback that throws) is a
+`ScadEvaluationException` too. An include cycle is found by the real path of each file, so a cycle through a link stops.
 
-**Security note.** The sandbox protects against path-based escapes and against a link or junction swapped in after
-the check (the open file is verified before it is read). It does not detect hard links: a hard link to a file outside
-the folders is read like any other file. Only point `BaseDirectory` and `LibraryPaths` at folders that untrusted
-parties cannot write to, or use a `FileResolver` callback to serve the files yourself.
+To evaluate models you do not trust, confine them to their folders (the old include sandbox; see the core library user
+guide, *Migrating from the Folder Sandbox*). `LibraryPaths` are only searched, so add them to the roots too:
+
+```csharp
+var options = new ScadOpenOptions
+{
+    LibraryPaths = ["/opt/scad/lib"],
+    FileAccess = FileAccessPolicy.Combine(
+        FileAccessPolicy.UnderRoots("/srv/models", "/opt/scad/lib"),
+        FileAccessPolicy.NoSymlinks),
+};
+var document = ScadDocument.Open("/srv/models/part.scad", options);
+```
+
+**Security note.** The policy decides on the file that was opened, not on its name: the real path of the open file is
+checked before it is read, so a link or junction swapped in after the check is refused under a confining policy. A hard
+link cannot be detected: it is the file itself. Only confine to folders that untrusted parties cannot write to, or use
+a `FileResolver` callback to serve the files yourself.
 
 Two further behaviors are worth knowing. Indexing is lenient: `v[i]` is `undef` for every negative or
 non-finite index, and a fractional non-negative index is truncated (`[10, 20, 30][1.5]` is `20`). A very deeply
@@ -706,9 +724,11 @@ drawn with the view the library chooses for it (the fitted isometric view for a 
 model that is entirely 2D, or the view of the model's own `$vpr`, `$vpt`, `$vpd`, and `$vpf` assignments) and an
 orthographic projection, at the size of its placement (800 by 800 pixels
 when no size is requested), over a transparent background so the document shows through; its `include` and `use` files
-are looked up in the folder of the file and nowhere else, and a missing one is reported as a `scad-warning` note.
+are looked up relative to the folder of the file, and a missing one is reported as a `scad-warning` note.
 Warnings and unsupported features of the model are returned as notes of the source `scad`, and its `echo` output as
-printed text. Set `FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead.
+printed text. The `include` and `use` files are read under the file-access policy of the request (the policy of the
+resolver, judged from the folder the chain of links started from). Set
+`FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead.
 The source declares one family of fragment parameters, the **variables** of the model: `def.<name>=<value>` in the link
 sets
 the variable `<name>` exactly like `-D name=value` of the `canvasnet` tool (`part.scad#def.width=20`, and in an XML

@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -668,25 +669,23 @@ public class SourceLoaderVegaLiteTests
     }
 
     /// <summary>
-    ///     Test that a local data file that is missing, outside the folder of the specification, or not valid text is a
-    ///     <c>vega-lite-error</c> in lenient and strict mode (never an empty chart), that remote data is only a diagnostic
-    ///     (and an <c>unsupported-feature</c> error with strict) and is never fetched.
+    ///     Test that a local data file that is missing or not valid text is a <c>vega-lite-error</c> in lenient and strict
+    ///     mode (never an empty chart), that remote data is only a diagnostic (and an <c>unsupported-feature</c> error
+    ///     with strict) and is never fetched.
     /// </summary>
     [Fact]
     public void SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError()
     {
-        // Arrange: charts that name a missing file, a file beside the folder, a file of invalid UTF-8, and a remote url
+        // Arrange: charts that name a missing file, a file of invalid UTF-8, and a remote url
         using var directory = new TempDirectory();
         string Chart(string url) => FixtureFactory.TwoBarFileChart.Replace("bars.csv", url, StringComparison.Ordinal);
         var missing = FixtureFactory.WriteText(directory.Path, "charts/missing.vl.json", Chart("gone.csv"));
-        var outside = FixtureFactory.WriteText(directory.Path, "charts/outside.vl.json", Chart("../secret.csv"));
         var invalid = FixtureFactory.WriteText(directory.Path, "charts/invalid.vl.json", Chart("bad.csv"));
         var remote = FixtureFactory.WriteText(directory.Path, "charts/remote.vl.json", Chart("https://example.invalid/bars.csv"));
-        FixtureFactory.WriteText(directory.Path, "secret.csv", FixtureFactory.TwoBarCsv);
         File.WriteAllBytes(directory.Combine("charts/bad.csv"), [0x6B, 0x0A, 0xFF, 0xFE, 0x0A]);
 
         // Act / Assert: each is a located error of the chart on one line, whether it is probed or loaded, strict or not
-        foreach (var (path, expected) in new[] { (missing, "was not found"), (outside, "outside the allowed directories"), (invalid, "is not valid UTF-8") })
+        foreach (var (path, expected) in new[] { (missing, "was not found"), (invalid, "is not valid UTF-8") })
         {
             var probe = Assert.Throws<ViewerException>(() => SourceLoader.Probe(path));
             var load = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions()));
@@ -707,6 +706,121 @@ public class SourceLoaderVegaLiteTests
         var remoteStrict = Assert.Throws<ViewerException>(() => SourceLoader.Load(remote, new SourceOptions { Strict = true }));
         Assert.Equal(ErrorCodes.UnsupportedFeature, remoteStrict.Code);
         Assert.Contains("vl-data-remote-url", remoteStrict.Message);
+    }
+
+    /// <summary>
+    ///     Test that, under a policy confined to the folder of the specification, a data file beside the folder is the
+    ///     error <c>file-access-denied</c>, whether the chart is probed with the policy or loaded, strict or not: the
+    ///     probe, which measures the chart and so reads its data, is judged by the policy too.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        string Chart(string url) => FixtureFactory.TwoBarFileChart.Replace("bars.csv", url, StringComparison.Ordinal);
+        var outside = FixtureFactory.WriteText(directory.Path, "charts/outside.vl.json", Chart("../secret.csv"));
+        FixtureFactory.WriteText(directory.Path, "secret.csv", FixtureFactory.TwoBarCsv);
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("charts"));
+
+        // Act
+        var probe = Assert.Throws<ViewerException>(() => SourceLoader.Probe(outside, policy));
+        var probeInput = Assert.Throws<ViewerException>(() => SourceLoader.Probe(InputReference.Parse(outside), policy));
+        var load = Assert.Throws<ViewerException>(() => SourceLoader.Load(outside, new SourceOptions { FileAccess = policy }));
+        var strict = Assert.Throws<ViewerException>(() => SourceLoader.Load(outside, new SourceOptions { FileAccess = policy, Strict = true }));
+
+        // Assert
+        foreach (var error in new[] { probe, probeInput, load, strict })
+        {
+            Assert.Equal(ErrorCodes.FileAccessDenied, error.Code);
+            Assert.Contains("denied by the file-access policy 'roots'", error.Message);
+            Assert.DoesNotContain('\n', error.Message);
+            Assert.IsType<VegaLiteRenderException>(error.InnerException);
+        }
+    }
+
+    /// <summary>
+    ///     Test, through the public APIs, that a chart whose data file lies outside the roots never has that file opened
+    ///     under the policy: probing with the policy, loading with it, and rendering with the viewer all fail with the
+    ///     denial before the open (the denial carries no real path, which is set only once a file is open, and on
+    ///     Windows the data file is held without sharing, so any open would fail differently), and facts probed under
+    ///     another policy are refused with <c>usage-error</c> instead of being loaded with this one.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_VegaLiteDataOutsideTheRoots_IsNeverOpenedUnderThePolicy()
+    {
+        // Arrange: the facts of the default probe are taken first, while the data file can still be read
+        using var directory = new TempDirectory();
+        var chart = FixtureFactory.WriteText(
+            directory.Path,
+            "charts/outside.vl.json",
+            FixtureFactory.TwoBarFileChart.Replace("bars.csv", "../secret.csv", StringComparison.Ordinal));
+        var secret = FixtureFactory.WriteText(directory.Path, "secret.csv", FixtureFactory.TwoBarCsv);
+        var policy = FileAccessPolicy.UnderRoots(directory.Combine("charts"));
+        var probedUnderDefault = SourceLoader.Probe(chart);
+        using var held = OperatingSystem.IsWindows() ? new FileStream(secret, FileMode.Open, FileAccess.Read, FileShare.None) : null;
+
+        // Act
+        var probe = Assert.Throws<ViewerException>(() => SourceLoader.Probe(chart, policy));
+        var load = Assert.Throws<ViewerException>(() => SourceLoader.Load(chart, new SourceOptions { FileAccess = policy }));
+        var render = Assert.ThrowsAny<Exception>(() => CanvasNetViewer.Render(chart, new ViewerRenderOptions { FileAccess = policy }));
+        var mismatched = Assert.Throws<ViewerException>(() => SourceLoader.Load(probedUnderDefault, new SourceOptions { FileAccess = policy }));
+
+        // Assert
+        Assert.Equal(ErrorCodes.FileAccessDenied, probe.Code);
+        Assert.Equal(ErrorCodes.FileAccessDenied, load.Code);
+        foreach (var error in new Exception[] { probe, load, render })
+        {
+            var denial = FindDenial(error);
+            Assert.NotNull(denial);
+            Assert.Equal(FileReferenceFailureKind.AccessDenied, denial.Kind);
+            Assert.Null(denial.RealPath);
+        }
+
+        Assert.Equal(ErrorCodes.UsageError, mismatched.Code);
+        Assert.Same(FileAccessPolicy.AllowAll, probedUnderDefault.FileAccess);
+        Assert.Same(policy, SourceLoader.Probe(FixtureFactory.WriteText(directory.Path, "charts/inline.vl.json", FixtureFactory.TwoBarChart), policy).FileAccess);
+    }
+
+    /// <summary>
+    ///     Finds the file-access denial in the chain of inner exceptions.
+    /// </summary>
+    /// <param name="exception">The outermost exception.</param>
+    /// <returns>The denial, or <see langword="null"/>.</returns>
+    private static FileReferenceException? FindDenial(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is FileReferenceException denial)
+            {
+                return denial;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a data file beside the folder of the specification is read.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_VegaLiteDataInTheParentFolder_IsReadByDefault()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(
+            directory.Path,
+            "charts/outside.vl.json",
+            FixtureFactory.TwoBarFileChart.Replace("bars.csv", "../secret.csv", StringComparison.Ordinal));
+        FixtureFactory.WriteText(directory.Path, "secret.csv", FixtureFactory.TwoBarCsv);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert
+        Assert.True(info.Width > 0);
+        Assert.Empty(loaded.Diagnostics);
     }
 
     /// <summary>

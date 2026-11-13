@@ -52,6 +52,17 @@ sections:
           - MontageBuilder_Execute_NullRequestMember_ThrowsArgumentNullException
           - MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException
 
+      - id: CanvasNetViewer-Imaging-MontageBuilder-FileAccess
+        title: >-
+          The MontageRequest class shall carry the file-access policy of a sheet (FileAccess, the allow-all policy by
+          default, null refused), and the MontageBuilder class shall load every source of the sheet with it, so that a
+          file a source references and the policy denies fails the sheet with the code file-access-denied.
+        justification: |
+          A contact sheet of untrusted files must not read more than one render of each of them would.
+        tests:
+          - MontageBuilder_Build_FileAccess_AppliesToEveryCell
+          - FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull
+
       - id: CanvasNetViewer-Imaging-MontageBuilder-InputFragment
         title: >-
           The MontageBuilder class shall draw each input with the page, the model variables and view, and the chart

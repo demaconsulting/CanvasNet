@@ -14,18 +14,20 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     <para>
 ///         The SVG library never reads a file for an <c>image</c> reference on its own; it asks the
 ///         <see cref="IImageResolver"/> that <see cref="SvgLoadOptions.ImageResolver"/> carries. The loader hands it the
-///         resolver of <see cref="CanvasNetViewer.CreateImageResolver(string, FolderImageResolverOptions?)"/>, confined
-///         to the folder of the SVG file the user named, so the sandbox, the limits, the dispatch by file name
+///         resolver of <see cref="CanvasNetViewer.CreateImageResolver(string, FolderImageResolverOptions?)"/>, based at
+///         the folder of the SVG file the user named and under <see cref="SourceOptions.FileAccess"/>, so the
+///         file-access policy, the limits, the dispatch by file name
 ///         extension and the nesting of SVG files are the library's (see <c>CanvasNetViewer.Extensions</c> for the
 ///         linkable types). This file only wires that resolver into the loader: it maps what the resolver reports to
 ///         the loader's notes, text and operations, and applies the loader-only policy of <c>--strict</c> and of the
 ///         error codes.
 ///     </para>
 ///     <para>
-///         A reference that cannot be resolved (missing, outside the folder, a network URL, an unknown format, a cycle,
-///         or over a limit) is a warning <c>svg-image-unresolved</c> and draws nothing, and so is a picture that is too
-///         large for the pixel budget (<c>svg-image-too-large</c>); with
-///         <see cref="SourceOptions.Strict"/> either is an <c>unsupported-feature</c> error, and so is a link whose
+///         A reference that cannot be resolved (missing, a network URL, an unknown format, a cycle, or over a limit) is a
+///         warning <c>svg-image-unresolved</c> and draws nothing, a reference the file-access policy denies is the warning
+///         <c>image-access-denied</c>, and a picture that is too large for the pixel budget is <c>svg-image-too-large</c>;
+///         with <see cref="SourceOptions.Strict"/> a denied reference is the error <c>file-access-denied</c>, the others an
+///         <c>unsupported-feature</c> error, and so is a link whose
 ///         fragment cannot be used (<c>image-fragment-invalid</c>) or that asks for a page the document does not have
 ///         (<c>image-page-out-of-range</c>), which are not drawn either; an unknown or repeated fragment parameter
 ///         (<c>image-fragment-unknown-parameter</c>, <c>image-fragment-duplicate-parameter</c>) is a warning only. A
@@ -58,8 +60,8 @@ public static partial class SourceLoader
         /// <summary>
         ///     Initializes a new instance of the <see cref="SvgImages"/> class.
         /// </summary>
-        /// <param name="svgPath">The path of the SVG file being rendered; the folder of the file is the sandbox.</param>
-        /// <param name="options">The loading options of the SVG file.</param>
+        /// <param name="svgPath">The path of the SVG file being rendered; the folder of the file is the base of its links.</param>
+        /// <param name="options">The loading options of the SVG file, whose file-access policy judges the links.</param>
         public SvgImages(string svgPath, SourceOptions options)
         {
             var fullPath = Path.GetFullPath(svgPath);
@@ -67,7 +69,7 @@ public static partial class SourceLoader
             var folder = Path.GetDirectoryName(fullPath) ?? Path.GetPathRoot(fullPath) ?? fullPath;
             Resolver = CanvasNetViewer.CreateImageResolver(
                 folder,
-                new FolderImageResolverOptions { ThrowOnUnsupportedFeature = options.Strict });
+                new FolderImageResolverOptions { ThrowOnUnsupportedFeature = options.Strict, FileAccess = options.FileAccess });
         }
 
         /// <summary>
@@ -115,7 +117,10 @@ public static partial class SourceLoader
         ///     pixel budget, whose fragment cannot be used, or that names a page the document does not have, is an error;
         ///     a fragment parameter that is unknown or given twice is only a warning.
         /// </summary>
-        /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first such reference.</exception>
+        /// <exception cref="ViewerException">
+        ///     Thrown for the first such reference, with code <c>file-access-denied</c> when the file-access policy denied
+        ///     it and <c>unsupported-feature</c> otherwise.
+        /// </exception>
         public void ThrowForUnresolved()
         {
             ThrowForUnresolved(Resolver.Diagnostics, _svgName, false);
@@ -131,11 +136,15 @@ public static partial class SourceLoader
         ///     <see langword="true"/> to name the file that holds the link (the last file of the note's origin) instead of
         ///     <paramref name="svgName"/>.
         /// </param>
-        /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first reference that was not drawn.</exception>
+        /// <exception cref="ViewerException">
+        ///     Thrown for the first reference that was not drawn, with code <c>file-access-denied</c> when the file-access
+        ///     policy denied it and <c>unsupported-feature</c> otherwise.
+        /// </exception>
         internal static void ThrowForUnresolved(IEnumerable<ImageSourceDiagnostic> notes, string svgName, bool nameHolder = true)
         {
             var unresolved = notes.FirstOrDefault(
                 d => d.Code is FolderImageResolver.UnresolvedCode
+                    or FolderImageResolver.AccessDeniedCode
                     or FolderImageResolver.TooLargeCode
                     or FolderImageResolver.FragmentInvalidCode
                     or FolderImageResolver.PageOutOfRangeCode);
@@ -150,8 +159,9 @@ public static partial class SourceLoader
             var what = match.Success
                 ? $"embeds '{match.Groups["href"].Value}', which was not drawn: {match.Groups["reason"].Value}"
                 : $"embeds an image that was not drawn: {unresolved.Message}";
+            var code = unresolved.Code == FolderImageResolver.AccessDeniedCode ? ErrorCodes.FileAccessDenied : ErrorCodes.UnsupportedFeature;
             throw new ViewerException(
-                ErrorCodes.UnsupportedFeature,
+                code,
                 $"'{holder}' {what}.",
                 $"Without --strict the image is left out and reported as the warning {unresolved.Code}.");
         }

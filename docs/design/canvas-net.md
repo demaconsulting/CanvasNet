@@ -91,13 +91,15 @@ DEMA Consulting best practices. The system consists of nine implemented subsyste
   `FileReferenceException`, and `FileReferenceFailureKind` types) opens a referenced file, asks the public
   `FileAccessPolicy` unit (the hook, its built-in policies, and the `FileAccessRequest` and
   `FileAccessDecision` types) about the real path of the open file, and only then reads it; the internal
-  `RealPath` unit supplies that real path per operating system. The public `SandboxedFileResolver` unit
-  (with its `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types
+  `RealPath` unit supplies that real path per operating system. The public, obsolete `SandboxedFileResolver`
+  unit (with its `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types
   documented inline) turns an untrusted relative path into the bytes of a file inside caller-chosen
   directories or a caller-supplied virtual file source, refusing escapes, hostile path text, and symbolic
-  links or junctions, verified on the open file. `Files`
+  links or junctions, verified on the open file; it is kept unchanged for one release and no part of the
+  library uses it any longer. `Files`
   depends on no other subsystem; the `ImageSources` subsystem and the satellite systems `CanvasNetVegaLite`
-  and `CanvasNetScad` depend on it through its public API. See _Files Subsystem Design_ (`files.md`).
+  and `CanvasNetScad` use `FileReferenceResolver` through its public API. See _Files Subsystem Design_
+  (`files.md`).
 - **ImageSources subsystem** (namespace `DemaConsulting.CanvasNet.ImageSources`, folder
   `src/DemaConsulting.CanvasNet/ImageSources/`, flat — no further nesting): linked-picture support for
   documents that link to other pictures (an SVG `image` element, for example) — the `ImageSourceContract`
@@ -105,7 +107,8 @@ DEMA Consulting best practices. The system consists of nine implemented subsyste
   `IImageResolver`, `EmbeddedImage`, `ImageSourceException`, and `ImageSourceBudgetException` types that anyone can
   implement or use,
   and the `ImageSourceSet` that composes sources so that the later source wins), the `FolderImageResolver`
-  unit (confines links to a folder through `Files`, picks the source by file name extension or URI scheme,
+  unit (resolves links relative to a folder through `Files` under a file-access policy that it passes on to
+  every source, picks the source by file name extension or URI scheme,
   bounds depth, cycles, count, and the pixels that sources allocate, and forwards notes), and the `RasterImageSource`
   unit (the source for the
   raster formats of `Codecs`). It depends on `Files`, `Canvas`, and `Codecs`; no core subsystem depends on it.
@@ -546,7 +549,8 @@ details:
 ## Risk Control Measures
 
 N/A - CanvasNet currently has no safety-critical functionality requiring risk control
-measures (IEC 62304 §5.3.3).
+measures (IEC 62304 §5.3.3). The security controls for the files a document references are not safety
+segregation; they are described under _Design Constraints_ (_File Access Threat Model_).
 
 ## Data Flow
 
@@ -821,6 +825,30 @@ These calls are confined to that one unit (see _RealPath Unit Design_), use no u
 closed: where they are unavailable, the default file-access policy still works and every restrictive
 policy refuses the file. No other platform-specific native interop or framework-version-specific feature
 is used.
+
+### File Access Threat Model
+
+- **Unrestricted default**: every consumer of referenced files (linked pictures, OpenSCAD includes,
+  Vega-Lite data) uses `FileReferenceResolver` with `FileAccessPolicy.AllowAll` by default, like Pandoc:
+  a reference may name any regular local file the process can read, through `..`, an absolute path, a
+  local `file:` URI, or a symbolic link. The folder of a document is the base of its relative
+  references, not a boundary. A host that renders untrusted documents must opt in to confinement with
+  `FileAccessPolicy.UnderRoots(...)` and `FileAccessPolicy.NoSymlinks` (combined with
+  `FileAccessPolicy.Combine`), set as the `FileAccess` option; the policy propagates to every nested
+  document, judged from the host-chosen origin of the chain.
+- **Top-level file exempt**: the file a caller names itself (`FolderImageResolver.Render(path)`,
+  `CanvasNetViewer.Render(path)`, `SourceLoader.Probe` and `Load`) is never judged by the policy; only the
+  files it references are.
+- **Network always refused**: for the files a document references, network paths (UNC, `//host`, `file://host`),
+  device paths, alternate data streams, control characters, non-regular files, and network URLs are refused under
+  every policy; the top-level file the caller names is opened as given (see the previous point).
+- **Limits independent of policy**: every resource limit (file size, file count, depth, cycles, image
+  count, pixel budget, include and data limits) applies whatever the policy.
+- **Host paths in diagnostics**: `ImageSourceDiagnostic.Detail` and the `FileReferenceException`
+  properties (`RequestedPath`, `RealPath`, `Reason`) may carry host paths; the messages name only what the
+  author wrote and the reasons of the built-in policies. A service that
+  returns diagnostics to untrusted authors should redact `Detail` (or use a custom policy whose reasons
+  name no host path).
 
 ### Integration Patterns
 

@@ -7,8 +7,8 @@
     over it, and checks what the filter promises: pictures are drawn once and found again (cache), a change to
     the source, an included file, a chart's data file, or an attribute draws a new picture, other pictures are
     left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
-    leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
-    fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
+    leaves the document's folder renders (the filter has no containment rule), a dependency outside the folder is
+    read under the tool's default file-access policy, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
     type the tool does not draw is left as written (shown as code) with a warning, and the defaults-file filters run
@@ -809,8 +809,8 @@ journey
     Write-Result ($absolute.ExitCode -eq 0 -and $absolute.Html -match 'generated/canvasnet/outside-') `
         'an absolute image src renders' $absolute.Log
 
-    # An include or data url that leaves its folder is followed and hashed; the tool's own sandbox decides
-    # whether it may read it, and here it refuses, so the build fails with the tool's message.
+    # An include or data url that leaves its folder is followed and hashed; the tool's file-access policy
+    # decides whether it may read it, and its default (like Pandoc) reads it, so the picture is drawn.
     $sub = Join-Path $guide 'esc'
     New-Item -ItemType Directory -Force -Path $sub | Out-Null
     Set-Content (Join-Path $guide 'outer.scad') -Value 'module outer() { cube([3, 3, 3]); }'
@@ -819,8 +819,8 @@ journey
     Set-Content (Join-Path $sub 'c.vl.json') -Value $urlSpec.Replace('URL', '../outer.csv')
     foreach ($dep in 'm.scad', 'c.vl.json') {
         $run = Invoke-Filter ('esc-dep-' + ($dep -replace '\W', '-')) "![x](esc/$dep)"
-        Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'outside the allowed directories') `
-            "a dependency outside the folder fails with the tool's message ($dep)" $run.Log
+        Write-Result ($run.ExitCode -eq 0 -and $run.Html -match 'generated/canvasnet/') `
+            "a dependency outside the folder is read by default ($dep)" $run.Log
     }
 
     # An include cycle ends in the filter, and the tool then reports the cycle.

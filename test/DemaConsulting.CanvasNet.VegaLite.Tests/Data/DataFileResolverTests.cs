@@ -6,10 +6,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.Data;
 
 /// <summary>
 ///     Unit tests for <see cref="DemaConsulting.CanvasNet.VegaLite.Data.DataFileResolver"/>: the search order, the
-///     translation of the core sandbox's refusals into located Vega-Lite errors, resolver-callback mode end to end, the
-///     per-call cache and the limits and strict decoding of reads. The sandbox mechanics (escape, link, dangling-link,
-///     control-character, open and bounded-read rules) are proven in the core test project for
-///     <c>SandboxedFileResolver</c>; the link wording over real links has its own class,
+///     file-access policy (default and confined), the translation of the core engine's refusals into located Vega-Lite
+///     errors, resolver-callback mode end to end, the per-call cache and the limits and strict decoding of reads. The
+///     engine mechanics (path text, real path, policy, open and bounded-read rules) are proven in the core test project
+///     for <c>FileReferenceResolver</c>; the link wording over real links has its own class,
 ///     <see cref="DataFileResolverLinkTests"/>.
 /// </summary>
 public class DataFileResolverTests
@@ -63,8 +63,8 @@ public class DataFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that <c>.</c> and <c>..</c> inside the root are normalized (also with backslashes) and that a
-    ///     <c>..</c> that leaves the root is a sandbox violation, even when the target exists.
+    ///     Validates that <c>.</c> and <c>..</c> inside the root are normalized (also with backslashes) and that, under a
+    ///     policy confined to the root, a <c>..</c> that leaves it is denied, even when the target exists.
     /// </summary>
     [Fact]
     public void DataFileResolver_Load_DotDotInsideRootNormalizesAndEscapeIsRejected()
@@ -73,7 +73,11 @@ public class DataFileResolverTests
         using var directory = new DataTempDirectory();
         directory.Write("root/sub/a.csv", "inside");
         directory.Write("outside.csv", "outside");
-        var resolver = Create(new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") });
+        var resolver = Create(new VegaLiteOpenOptions
+        {
+            BaseDirectory = directory.Combine("root"),
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("root")),
+        });
 
         // Act
         var normalized = resolver.Load("sub/../sub/./a.csv", Where);
@@ -84,10 +88,53 @@ public class DataFileResolverTests
         // Assert
         Assert.Equal("inside", normalized.Text);
         Assert.Equal("inside", backslashes.Text);
-        Assert.Contains("outside the allowed directories", escape.Message, StringComparison.Ordinal);
-        Assert.Contains("outside the allowed directories", deepEscape.Message, StringComparison.Ordinal);
+        Assert.Contains("The data file '../outside.csv' was denied by the file-access policy 'roots'", escape.Message, StringComparison.Ordinal);
+        Assert.Contains("denied by the file-access policy 'roots'", deepEscape.Message, StringComparison.Ordinal);
         Assert.Equal(Where, escape.Location);
         Assert.StartsWith("spec.vl.json:3:9 /data/url: ", escape.Message, StringComparison.Ordinal);
+        Assert.IsType<FileReferenceException>(escape.InnerException);
+    }
+
+    /// <summary>
+    ///     Validates that, under the default policy, a <c>..</c> that leaves the base directory and the absolute path of
+    ///     a file are read.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_DotDotOutsideTheBase_IsReadByDefault()
+    {
+        // Arrange
+        using var directory = new DataTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root"));
+        var outside = directory.Write("outside.csv", "outside");
+        var resolver = Create(new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") });
+
+        // Act
+        var parent = resolver.Load("../outside.csv", Where);
+        var absolute = resolver.Load(outside, Where);
+
+        // Assert: the same file, read once
+        Assert.Equal("outside", parent.Text);
+        Assert.Same(parent, absolute);
+    }
+
+    /// <summary>
+    ///     Validates that an absolute path is a located error in resolver-callback mode, where it has no meaning, and
+    ///     never reaches the callback.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_CallbackMode_AbsolutePathIsALocatedError()
+    {
+        // Arrange
+        var files = new VirtualDataFiles().With("a.csv", "x");
+        var resolver = Create(new VegaLiteOpenOptions { FileResolver = files.Resolve });
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("/a.csv", Where));
+
+        // Assert
+        Assert.Contains("absolute paths have no meaning for the file source", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
+        Assert.Empty(files.Requests);
     }
 
     /// <summary>
@@ -224,7 +271,7 @@ public class DataFileResolverTests
         var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("folder.csv", Where));
 
         // Assert
-        Assert.Contains("'folder.csv' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("'folder.csv' is not a regular file", ex.Message, StringComparison.Ordinal);
         Assert.Equal(Where, ex.Location);
         Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
     }
@@ -279,32 +326,35 @@ public class DataFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that every kind of sandbox refusal becomes a located render exception with the Vega-Lite wording,
-    ///     naming the path as the specification wrote it and never a host directory.
+    ///     Validates that every kind of engine refusal becomes a located render exception with the Vega-Lite wording,
+    ///     naming the path as the specification wrote it and never a host directory, with the refusal as its inner
+    ///     exception.
     /// </summary>
     /// <param name="kind">The failure kind.</param>
     /// <param name="expected">The text the message must contain.</param>
     [Theory]
-    [InlineData(SandboxFailureKind.EmptyPath, "The data path 'p' is not allowed: the path is empty.")]
-    [InlineData(SandboxFailureKind.OutsideRoot, "The data path 'a/b.csv' is outside the allowed directories.")]
-    [InlineData(SandboxFailureKind.ThroughLink, "The data file 'a/b.csv' passes through a link ('a'); links are not followed inside the allowed directories.")]
-    [InlineData(SandboxFailureKind.LinkCheckFailed, "The data file 'a/b.csv' cannot be checked for links and is not read.")]
-    [InlineData(SandboxFailureKind.CannotRead, "The data file 'a/b.csv' cannot be read.")]
-    [InlineData(SandboxFailureKind.TooLarge, "The data file 'a/b.csv' is larger than the limit of 10 bytes (MaxDataBytes).")]
-    [InlineData(SandboxFailureKind.InvalidRoot, "A configured data directory (BaseDirectory or DataPaths) is not a valid path.")]
-    [InlineData(SandboxFailureKind.TooManyFiles, "The chart reads more than the limit of 3 data files (MaxDataFiles); the file 'a/b.csv' was not read.")]
-    public void DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording(SandboxFailureKind kind, string expected)
+    [InlineData(FileReferenceFailureKind.EmptyPath, "The data path 'a/b.csv' is not allowed: the rule.")]
+    [InlineData(FileReferenceFailureKind.ControlCharacter, "The data path 'a/b.csv' is not allowed: the rule.")]
+    [InlineData(FileReferenceFailureKind.InvalidPath, "The data path 'a/b.csv' is not allowed: the rule.")]
+    [InlineData(FileReferenceFailureKind.NetworkPath, "The data path 'a/b.csv' is not allowed: the rule.")]
+    [InlineData(FileReferenceFailureKind.AccessDenied, "The data file 'a/b.csv' was denied by the file-access policy 'roots': the rule.")]
+    [InlineData(FileReferenceFailureKind.RealPathUnavailable, "The data file 'a/b.csv' cannot be checked: its real path cannot be determined on this system, so the file-access policy 'roots' cannot be applied.")]
+    [InlineData(FileReferenceFailureKind.NotARegularFile, "The data file 'a/b.csv' is not a regular file.")]
+    [InlineData(FileReferenceFailureKind.CannotRead, "The data file 'a/b.csv' cannot be read.")]
+    [InlineData(FileReferenceFailureKind.TooLarge, "The data file 'a/b.csv' is larger than the limit of 10 bytes (MaxDataBytes).")]
+    [InlineData(FileReferenceFailureKind.InvalidBaseDirectory, "A configured data directory (BaseDirectory or DataPaths) is not a valid path.")]
+    [InlineData(FileReferenceFailureKind.TooManyFiles, "The chart reads more than the limit of 3 data files (MaxDataFiles); the file 'a/b.csv' was not read.")]
+    public void DataFileResolver_Translate_EveryFailureKind_ProducesLocatedWording(FileReferenceFailureKind kind, string expected)
     {
-        // Arrange: a sandbox exception as the core would raise it (the host path of a file failure must never be shown)
+        // Arrange: a refusal as the core would raise it (the host path of a file failure must never be shown)
         var resolver = Create(new VegaLiteOpenOptions(), new VegaLiteLimits { MaxDataBytes = 10, MaxDataFiles = 3 });
-        var isPathText = kind is SandboxFailureKind.EmptyPath;
-        var detail = kind == SandboxFailureKind.ThroughLink ? "a" : null;
-        if (isPathText)
+        var host = Path.GetFullPath("host/dir/a/b.csv");
+        var ex = new FileReferenceException(kind, "a/b.csv", "the rule")
         {
-            detail = "the path is empty";
-        }
-
-        var ex = new SandboxException(kind, isPathText ? "p" : Path.GetFullPath("host/dir/a/b.csv"), detail);
+            RequestedPath = host,
+            RealPath = host,
+            PolicyName = "roots",
+        };
 
         // Act
         var translated = resolver.Translate(ex, "a/b.csv", Where);
@@ -313,6 +363,7 @@ public class DataFileResolverTests
         Assert.Contains(expected, translated.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("host", translated.Message, StringComparison.Ordinal);
         Assert.Equal(Where, translated.Location);
+        Assert.Same(ex, translated.InnerException);
     }
 
     /// <summary>
