@@ -6,11 +6,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     as Pandoc does - after a <see cref="FileAccessPolicy"/> chosen by the host approved the file that was actually
 ///     opened; <see cref="FileReferenceOptions"/> configures it, <see cref="FileReference"/> is the result, and
 ///     <see cref="FileReferenceException"/> with its <see cref="FileReferenceFailureKind"/> reports a refusal.
-///     <see cref="SandboxedFileResolver"/> is the folder sandbox: it turns an untrusted relative path into the bytes of a
-///     file that is guaranteed to lie inside caller-chosen directories (or inside a caller-supplied virtual file
-///     source), without following symbolic links or junctions; <see cref="SandboxOptions"/>, <see cref="SandboxedFile"/>,
-///     <see cref="SandboxException"/> and <see cref="SandboxFailureKind"/> go with it. The namespace has no dependency on
-///     any other CanvasNet namespace.
+///     <see cref="SandboxedFileResolver"/> is the folder sandbox of earlier versions, now an obsolete facade kept for one
+///     release (with <see cref="SandboxOptions"/>, <see cref="SandboxedFile"/>, <see cref="SandboxException"/> and
+///     <see cref="SandboxFailureKind"/>): it confines an untrusted relative path to caller-chosen directories without
+///     following links, which <see cref="FileReferenceResolver"/> does with
+///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>. The namespace
+///     has no dependency on any other CanvasNet namespace.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -25,10 +26,10 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         count limit stays.
 ///     </para>
 ///     <para>
-///         The sandbox is what <see cref="DemaConsulting.CanvasNet.ImageSources"/> uses to confine the files a document
-///         links to, and what the OpenSCAD and Vega-Lite packages (<c>DemaConsulting.CanvasNet.Scad</c>,
-///         <c>DemaConsulting.CanvasNet.VegaLite</c>) use for the files a model or a chart includes; it verifies its open
-///         file the same way.
+///         <see cref="FileReferenceResolver"/> is what <see cref="DemaConsulting.CanvasNet.ImageSources"/> uses for the
+///         files a document links to, and what the OpenSCAD and Vega-Lite packages (<c>DemaConsulting.CanvasNet.Scad</c>,
+///         <c>DemaConsulting.CanvasNet.VegaLite</c>) use for the files a model or a chart includes, each under the policy
+///         its caller chose (every regular local file by default). No part of the library uses the sandbox any longer.
 ///     </para>
 /// </remarks>
 /// <example>
@@ -51,20 +52,13 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         Console.WriteLine($"refused ({ex.Kind}, policy {ex.PolicyName}): {ex.Message}");
 ///     }
 ///     </code>
-///     Read an untrusted relative path from a folder with the sandbox:
+///     Read a referenced file like Pandoc, with the default policy (any regular local file):
 ///     <code language="csharp">
 ///     using DemaConsulting.CanvasNet.Files;
 ///
-///     var sandbox = new SandboxedFileResolver(new SandboxOptions { BaseDirectory = "assets" });
-///     try
-///     {
-///         var file = sandbox.Resolve("images/logo.png");
-///         Console.WriteLine(file is null ? "not found" : $"{file.Key}: {file.Content.Length} bytes");
-///     }
-///     catch (SandboxException ex)
-///     {
-///         Console.WriteLine($"refused ({ex.Kind}): {ex.Path}");
-///     }
+///     var resolver = new FileReferenceResolver(new FileReferenceOptions { BaseDirectory = "assets" });
+///     var file = resolver.Resolve("../shared/logo.png");
+///     Console.WriteLine(file is null ? "not found" : $"{file.Key}: {file.Content.Length} bytes");
 ///     </code>
 /// </example>
 internal static class NamespaceDoc

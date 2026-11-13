@@ -57,7 +57,15 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         macOS), so concurrent readers, writers and rename or delete operations by other processes do not block the
 ///         read, and a named pipe cannot hang it.
 ///     </para>
+///     <para>
+///         <b>Obsolete.</b> The folder sandbox is kept, unchanged and race-free, for one release; use
+///         <see cref="FileReferenceResolver"/> with <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>
+///         for the same confinement. No part of the library uses it any longer.
+///     </para>
 /// </remarks>
+#pragma warning disable S1133 // Deprecated on purpose for one release; removed in the next major release
+[Obsolete("Use FileReferenceResolver with FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks). This type will be removed in the next major release.")]
+#pragma warning restore S1133
 public sealed partial class SandboxedFileResolver
 {
     /// <summary>The effective options.</summary>

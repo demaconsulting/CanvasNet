@@ -1,6 +1,8 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Files;
 
+#pragma warning disable CS0618 // The obsolete facade is still tested until it is removed
+
 namespace DemaConsulting.CanvasNet.Tests.Files;
 
 /// <summary>
@@ -1046,5 +1048,25 @@ public class SandboxedFileResolverTests
             base.Dispose(disposing);
             throw new IOException("dispose failed");
         }
+    }
+    /// <summary>
+    ///     Validates that the five types of the folder sandbox are marked obsolete, as a warning (not an error), with the
+    ///     migration message that names the replacement.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Types_AreObsoleteWithTheMigrationMessage()
+    {
+        // Arrange
+        Type[] types = [typeof(SandboxedFileResolver), typeof(SandboxOptions), typeof(SandboxedFile), typeof(SandboxException), typeof(SandboxFailureKind)];
+
+        // Act / Assert
+        Assert.All(types, type =>
+        {
+            var obsolete = Assert.Single(type.GetCustomAttributes(typeof(ObsoleteAttribute), false).Cast<ObsoleteAttribute>());
+            Assert.False(obsolete.IsError);
+            Assert.Contains("FileReferenceResolver", obsolete.Message, StringComparison.Ordinal);
+            Assert.Contains("FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks)", obsolete.Message, StringComparison.Ordinal);
+            Assert.Contains("next major release", obsolete.Message, StringComparison.Ordinal);
+        });
     }
 }

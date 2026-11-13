@@ -1556,6 +1556,7 @@ public class CanvasNetTests
         Assert.DoesNotContain("not text", binary.Message, StringComparison.Ordinal);
     }
 
+#pragma warning disable CS0618 // The obsolete facade is still tested until it is removed
     /// <summary>
     ///     Proves through the public sandbox API that a link swapped into the tree just before the open (after the link
     ///     check) is refused as a link, with a message that names no host directory.
@@ -1589,6 +1590,7 @@ public class CanvasNetTests
         Assert.Equal("sub/a.txt", ex.Detail);
         Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
     }
+#pragma warning restore CS0618
 
     /// <summary>
     ///     Proves through the public resolver API that, by default, the links of a document are followed like Pandoc

@@ -1,5 +1,7 @@
 using DemaConsulting.CanvasNet.Files;
 
+#pragma warning disable CS0618 // The obsolete facade is still tested until it is removed
+
 namespace DemaConsulting.CanvasNet.Tests.Files;
 
 /// <summary>

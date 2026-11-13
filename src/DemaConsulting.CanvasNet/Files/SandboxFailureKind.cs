@@ -8,7 +8,15 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     <see cref="SandboxException.Path"/> and <see cref="SandboxException.Detail"/> of the exception carry the
 ///     kind-specific facts. The first four values are problems with the path text itself and are detected before
 ///     any file or callback is touched.
+///     <para>
+///         <b>Obsolete.</b> The folder sandbox is kept, unchanged and race-free, for one release; use
+///         <see cref="FileReferenceResolver"/> with <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>
+///         for the same confinement. No part of the library uses it any longer.
+///     </para>
 /// </remarks>
+#pragma warning disable S1133 // Deprecated on purpose for one release; removed in the next major release
+[Obsolete("Use FileReferenceResolver with FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks). This type will be removed in the next major release.")]
+#pragma warning restore S1133
 public enum SandboxFailureKind
 {
     /// <summary>The path is empty or consists only of white space.</summary>
