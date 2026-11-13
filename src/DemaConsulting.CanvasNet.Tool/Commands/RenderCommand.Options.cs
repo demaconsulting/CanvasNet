@@ -16,8 +16,8 @@ internal sealed partial class RenderCommand
     /// </summary>
     /// <remarks>
     ///     Source options (<c>--page</c>, <c>--all-pages</c>, <c>--dpi</c>, <c>--scale</c>, <c>--width</c>, <c>--height</c>,
-    ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>) come first, then the options of
-    ///     an OpenSCAD model (<c>--view</c>, <c>--azimuth</c>, <c>--elevation</c>, <c>--projection</c>, <c>--define</c>,
+    ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>, <c>--file-access</c>,
+    ///     <c>--allow-root</c>) come first, then the options of an OpenSCAD model (<c>--view</c>, <c>--azimuth</c>, <c>--elevation</c>, <c>--projection</c>, <c>--define</c>,
     ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the option of a Vega-Lite chart (<c>--param</c>),
     ///     then the option of a Mermaid diagram (<c>--theme</c>), then the image pipeline
     ///     (<c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--allow-upscale</c>, <c>--rotate</c>, <c>--rotate-fill</c>,
@@ -39,6 +39,8 @@ internal sealed partial class RenderCommand
         new("--background", [], true, "Color to flatten transparency over: white (default for vector sources), black, #RRGGBB, #RRGGBBAA, transparent", "color"),
         new("--no-auto-orient", [], false, "Do not turn a JPEG upright according to its EXIF orientation"),
         new("--strict", [], false, "Fail with unsupported-feature instead of skipping a picture or shape the library cannot draw"),
+        new(FileAccessOption, [], true, "Which local files a document may reference: any (default; every regular file, like Pandoc), roots (only inside the --allow-root folders), no-symlinks (no symbolic link or junction), or roots,no-symlinks", "mode"),
+        new(AllowRootOption, [], true, "A folder the referenced files may be in (repeatable; implies --file-access roots); without it roots allows the current folder and the folder of each input", "folder"),
         new("--view", [], true, "SCAD model: the viewpoint - iso (default; top for a model that is entirely 2D), front, back, left, right, top, or bottom", "name"),
         new("--azimuth", [], true, "SCAD model: replace the azimuth of the view, in degrees about the Z axis (0 = from the front)", "degrees"),
         new("--elevation", [], true, "SCAD model: replace the elevation of the view, in degrees above the XY plane (-90 to 90)", "degrees"),
@@ -146,7 +148,7 @@ internal sealed partial class RenderCommand
                              ? "Add -o <file>, for example: canvasnet render input.svg -o output.png"
                              : $"Add -o <file>, for example: canvasnet {verb} input.png {VerbTexts[verb].Operand} -o output.png");
 
-        var source = ReadSourceOptions(reader);
+        var source = ReadSourceOptions(reader, reader.Positionals[0]);
         var quality = reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality;
 
         if (reader.Has("--page") && reader.Has("--all-pages"))
@@ -179,21 +181,26 @@ internal sealed partial class RenderCommand
     ///     Reads the options that decide how an input is loaded.
     /// </summary>
     /// <param name="reader">The parsed arguments of a command that declares the source options.</param>
+    /// <param name="input">The input as written on the command line, whose folder is a default root of <c>--file-access roots</c>.</param>
     /// <returns>
     ///     The page, resolution, strictness, size (<c>--scale</c>, <c>--width</c>, <c>--height</c>, or <c>--size</c>),
-    ///     background, EXIF orientation, resampling filter, and model view options.
+    ///     background, EXIF orientation, resampling filter, model view, and file-access (<c>--file-access</c>,
+    ///     <c>--allow-root</c>) options.
     /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
-    ///     Thrown with code <c>usage-error</c> when a value is malformed or out of range or the sizing options contradict
-    ///     each other; and with code <c>size-limit</c> when <c>--size</c> names a side larger than the maximum.
+    ///     Thrown with code <c>usage-error</c> when a value is malformed or out of range, the sizing options contradict
+    ///     each other, or the file-access options are invalid or conflict (see <see cref="ReadFileAccess(ArgumentReader, IReadOnlyList{string})"/>);
+    ///     and with code <c>size-limit</c> when <c>--size</c> names a side larger than the maximum.
     /// </exception>
     /// <remarks>
     ///     The options of the output (<c>--output</c>, <c>--format</c>, <c>--quality</c>, <c>--no-clobber</c>,
     ///     <c>--all-pages</c>) are not read here; <c>render</c> reads them itself and <c>inspect</c> has none.
     /// </remarks>
-    internal static SourceOptions ReadSourceOptions(ArgumentReader reader)
+    internal static SourceOptions ReadSourceOptions(ArgumentReader reader, string input)
     {
         ArgumentNullException.ThrowIfNull(reader);
+        ArgumentNullException.ThrowIfNull(input);
 
         var width = reader.GetInt("--width", 1, int.MaxValue);
         var height = reader.GetInt("--height", 1, int.MaxValue);
@@ -225,7 +232,8 @@ internal sealed partial class RenderCommand
                 : ResamplingMode.Auto,
             Scad = ReadScadOptions(reader),
             VegaLite = ReadChartOptions(reader),
-            Mermaid = ReadDiagramOptions(reader)
+            Mermaid = ReadDiagramOptions(reader),
+            FileAccess = ReadFileAccess(reader, [input])
         };
     }
 

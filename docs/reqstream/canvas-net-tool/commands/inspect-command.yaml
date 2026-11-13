@@ -27,9 +27,10 @@ sections:
       - id: CanvasNetTool-Commands-InspectCommand-Options
         title: >-
           The inspect command shall declare, in one table that also drives the help, every source option and every
-          pipeline option of the render command with the same declarations (and none of the options of the output or
-          all-pages), and the options count of colors and radius of pixel, and shall show both usages with examples in
-          its help.
+          pipeline option of the render command with the same declarations (the file-access options included, and none
+          of the options of the output or all-pages), and the options count of colors and radius of pixel, and shall
+          show
+          both usages with examples in its help.
         justification: |
           Reusing the declarations of the render command gives the shared options one grammar everywhere, so that what
           is learned for a render works for an inspection; the options of an output the command does not write would
@@ -141,3 +142,13 @@ sections:
         tests:
           - InputFragment_Inspect_ReadsThePage
           - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode
+
+      - id: CanvasNetTool-Commands-InspectCommand-FileAccess
+        title: >-
+          The inspect command shall apply the file-access policy of its options to the probe and the load of its input,
+          so a picture the mode denies is left out of the analysis and reported as image-access-denied.
+        justification: |
+          The numbers of an inspection describe the picture render would draw under the same options, so the same mode
+          must decide which referenced files are read.
+        tests:
+          - InspectCommand_Run_FileAccessRoots_DeniedPictureIsLeftOutAndReported

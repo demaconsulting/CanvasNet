@@ -77,7 +77,7 @@ names to the one command.
 options); a command line with a page, resolution, scale, background with alpha, `--no-auto-orient`, `--strict`, a
 filter,
 and a view gives exactly those settings; `--size` gives the width and height; `--size` with `--scale` and a width of 0
-are usage errors, as they always were.
+are usage errors, as they always were; without a file-access option the policy is `FileAccessPolicy.AllowAll`.
 
 **RenderCommand_Run_PngToPng_WritesFileAndTextLine**: a PNG rendered to a PNG writes the same pixels and the one-line
 text result.
@@ -251,6 +251,12 @@ diagnostic in the JSON result, and nothing on standard error; without `--json` a
 reference is exit code 1 with `unsupported-feature` and no file; an embedded model that uses `offset` gives the
 `scad-module-offset` note with the message starting `part.scad:`, and `unsupported-feature` and no file with `--strict`.
 
+**RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest**: the same diagram with the picture named `../`,
+rendered with `--file-access roots --allow-root <site>` and again with `--file-access roots` alone (the default
+folders): exit code 0, one `image-access-denied` warning with the source `svg` in the JSON result (no `fileAccess`
+member in the document) and nothing on standard error, one `Warning: image-access-denied:` line on standard error
+without `--json`, and the picture is not drawn (red in the output) in both runs.
+
 **RenderCommand_Run_SvgEmbeddingBrokenModel_FailsWithScadErrorNamingBothFiles** and
 **RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe**: an embedded model with a syntax error is exit
 code
@@ -335,8 +341,8 @@ chart is
 `page-out-of-range`; `-D x=1` with a chart is a usage error that names the kind; the usage text names Vega-Lite
 charts and has
 a chart example, and says that the local CSV, TSV, DSV (`format.delimiter`), and JSON data files of a chart are read
-from the folder of the specification and below it
-only, that delimited text is not type-inferred unless `format.parse` is `"auto"`, that a missing file is an error, that
+relative to the folder of the specification, that delimited text is not type-inferred unless `format.parse` is `"auto"`,
+that a missing file is an error, that
 there is no data-folder option, and that nothing is read from the network.
 
 **RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder**: a chart whose rows are in a CSV file in a sub
@@ -350,8 +356,8 @@ has
 no option for another data folder.
 
 **RenderCommand_Usage_DescribesModelOptionsAndIncludeRule**: the help of the command lists the nine model options (and
-`-D`), the 800x800 default size, and the rule that include and use files are read from the folder of the model and
-below only.
+`-D`), the 800x800 default size, the rule that include and use directives are read relative to the file that names
+them, and that `--file-access` (with `canvasnet help files`) confines the files a document references.
 
 **RenderCommand_Help_ListsPipelineOptionsAndVerbs**: the help of `render` lists the pipeline options (the nine of the
 geometry pipeline and the thirteen photo options and settings), and the
@@ -631,3 +637,42 @@ model, a chart, and a PDF, an unterminated vector or object, a name that is not 
 without a value, a malformed JSON object, `page=abc`, and `page=0` are `image-fragment-invalid`, `page=9` is
 `page-out-of-range`, for `render`, `crop`, `inspect`, `info`, `compare`, and `montage`, and no output is written; 33
 parameters and a 2,100 character value are `image-fragment-invalid`.
+
+**RenderCommand_ReadFileAccess_WithoutOptions_IsAllowAll** and **RenderCommand_ReadFileAccess_EachMode_BuildsItsPolicy**
+(`RenderCommandFileAccessTests.cs`): without an option the policy is the shared `FileAccessPolicy.AllowAll`; `any`,
+`roots`, `no-symlinks`, `roots,no-symlinks`, and `NO-SYMLINKS, roots` build the policies named `any` (the shared
+instance), `roots`, `no-symlinks` (the shared instance), and `roots+no-symlinks`.
+
+**RenderCommand_ReadFileAccess_InvalidMode_IsUsageErrorListingTheModes**: `all`, `any,roots`, an empty value,
+`roots,,no-symlinks`, and `roots;no-symlinks` are each the `usage-error` "'{value}' is not a value of --file-access."
+with the hint "Use any (the default), roots, no-symlinks, or roots,no-symlinks.".
+
+**RenderCommand_ReadFileAccess_AllowRootAlone_ConfinesToTheNamedFolders**: `--allow-root a` (relative to the injected
+working directory) and `--allow-root <full path of b>` build `roots`, which allows a file in `a` and in `b` and denies a
+file in the folder of the input and in the working directory.
+
+**RenderCommand_ReadFileAccess_AllowRootWithAnyOrNoSymlinks_IsUsageErrorNamingTheConflict**: `--file-access ANY` and
+`--file-access no-symlinks` with `--allow-root` are each a `usage-error` with the exact message and hint that name the
+conflict.
+
+**RenderCommand_ReadFileAccess_AllowRootThatDoesNotExist_IsUsageError**: `--allow-root missing` and `--allow-root` of a
+file are the `usage-error` "The folder '...' of --allow-root does not exist." with the hint about a relative folder.
+
+**RenderCommand_DefaultRoots_AreTheWorkingDirectoryAndEachInputFolderOutsideIt**: for an injected working directory,
+an input inside it, a relative input, two inputs in one other folder, and an input with a `#view=top` fragment, the
+default roots are the working directory, the other folder once, and the folder of the fragment input.
+
+**RenderCommand_ReadFileAccess_RootsWithoutAllowRoot_UsesTheDefaultRoots**: `--file-access roots` for an input outside
+the working directory allows a file in the working directory and one beside the input, and denies a file elsewhere.
+
+**RenderCommand_Run_ScadIncludeOutsideTheRoots_FailsWithFileAccessDenied** and
+**RenderCommand_Run_VegaLiteDataOutsideTheRoots_FailsWithFileAccessDenied**: under `--file-access roots` (and under
+`--allow-root` of the chart folder) a model that includes `../secret.scad` and a chart whose data url is `../bars.csv`
+exit with code 1 and the error `file-access-denied` (the message of the model names the include), and write no output.
+
+**RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied**: a diagram that links a picture in the
+folder above it, rendered with `--file-access roots --strict`, exits with code 1 and the error `file-access-denied`, and
+writes no output.
+
+**RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs**: `resize` of that diagram with `--file-access roots` exits with
+code 0, reports one `image-access-denied` warning, and leaves the picture undrawn.

@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -24,7 +25,7 @@ internal sealed partial class MontageCommand
     /// </summary>
     /// <remarks>
     ///     The source options (<c>--page</c>, <c>--dpi</c>, the options of an OpenSCAD model, <c>--no-auto-orient</c>,
-    ///     <c>--strict</c>, <c>--filter</c>) and the output options are the declarations of
+    ///     <c>--strict</c>, <c>--file-access</c>, <c>--allow-root</c>, <c>--filter</c>) and the output options are the declarations of
     ///     <see cref="RenderCommand.OptionTable"/>, so the grammar and the help text cannot drift; they apply to every
     ///     input an option concerns and are skipped for the others.
     /// </remarks>
@@ -40,7 +41,7 @@ internal sealed partial class MontageCommand
         new("--labels", [], false, "Write the file name (and the page of a document) below each cell"),
         .. RenderCommand.SpecsFor("--page"),
         new("--all-pages", [], false, "Add every page or slide of a document, in order, instead of one"),
-        .. RenderCommand.SpecsFor("--dpi", "--no-auto-orient", "--strict"),
+        .. RenderCommand.SpecsFor("--dpi", "--no-auto-orient", "--strict", RenderCommand.FileAccessOption, RenderCommand.AllowRootOption),
         .. RenderCommand.SpecsFor(RenderCommand.ScadOptionNames),
         .. RenderCommand.SpecsFor(ImagePipelineParser.FilterOption, "--quality", "--no-clobber")
     ];
@@ -55,6 +56,7 @@ internal sealed partial class MontageCommand
     /// <param name="Dpi">The resolution of a document, or <see langword="null"/> for the default.</param>
     /// <param name="Scad">The options of an OpenSCAD model, or <see langword="null"/> when none was given.</param>
     /// <param name="Strict"><see langword="true"/> to fail on a feature the library cannot draw.</param>
+    /// <param name="FileAccess">The policy that decides which files the inputs may reference, for every input.</param>
     /// <param name="AutoOrient"><see langword="false"/> to leave a JPEG as stored.</param>
     /// <param name="Sheet">The options of the sheet.</param>
     /// <param name="Write">How the sheet is written.</param>
@@ -66,6 +68,7 @@ internal sealed partial class MontageCommand
         float? Dpi,
         ScadViewOptions? Scad,
         bool Strict,
+        FileAccessPolicy FileAccess,
         bool AutoOrient,
         SheetOptions Sheet,
         WriteOptions Write);
@@ -77,7 +80,8 @@ internal sealed partial class MontageCommand
     /// <returns>The settings.</returns>
     /// <exception cref="ToolException">
     ///     Thrown with code <c>usage-error</c> when there is no input or no output, a value is malformed or out of range,
-    ///     the background is not opaque, or <c>--page</c> and <c>--all-pages</c> are combined.
+    ///     the background is not opaque, <c>--page</c> and <c>--all-pages</c> are combined, or the file-access options
+    ///     are invalid.
     /// </exception>
     private static Settings ReadSettings(ArgumentReader reader)
     {
@@ -146,6 +150,7 @@ internal sealed partial class MontageCommand
             reader.Get("--dpi") is { } dpiText ? ArgumentReader.ParseDpi(dpiText, "--dpi") : null,
             RenderCommand.ReadScadOptions(reader),
             reader.Has("--strict"),
+            RenderCommand.ReadFileAccess(reader, reader.Positionals),
             !reader.Has("--no-auto-orient"),
             sheet,
             new WriteOptions

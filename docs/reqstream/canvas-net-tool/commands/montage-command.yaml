@@ -14,7 +14,8 @@ sections:
       - id: CanvasNetTool-Commands-MontageCommand-Options
         title: >-
           The montage command shall declare its options (output, columns, cell, fit, spacing, padding,
-          background, labels, page, all-pages, dpi, no-auto-orient, strict, the model options view, azimuth,
+          background, labels, page, all-pages, dpi, no-auto-orient, strict, file-access, allow-root, the model options
+          view, azimuth,
           elevation, projection, define, time, default-color, and max-triangles, filter, quality, and
           no-clobber) in one table that also drives the help, reusing the declarations of the render command
           for the options both share, and shall be registered under the name montage.
@@ -158,3 +159,14 @@ sections:
           - InputFragment_Montage_CameraByCommandOrByFragment_DrawTheSameCells
           - InputFragment_Montage_Labels_ShowTheFragment
           - InputFragment_Montage_DocumentPage_LabelHasNoRedundantPageNumber
+
+      - id: CanvasNetTool-Commands-MontageCommand-FileAccess
+        title: >-
+          The montage command shall build one file-access policy for every input from the file-access options, whose
+          default folders under roots are the working directory and the folder of every input, and shall apply it to
+          the probe and the load of each input.
+        justification: |
+          Every cell of a contact sheet must be drawn under the same rule, and inputs from several folders must still
+          read the files beside them.
+        tests:
+          - MontageCommand_Run_FileAccessRoots_CoverTheFolderOfEveryInput

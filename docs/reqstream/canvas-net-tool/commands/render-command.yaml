@@ -15,14 +15,15 @@ sections:
       - id: CanvasNetTool-Commands-RenderCommand-Options
         title: >-
           The render command shall declare its options (page, all-pages, dpi, scale, width, height,
-          size, background, no-auto-orient, strict, the model options view, azimuth, elevation,
+          size, background, no-auto-orient, strict, file-access, allow-root, the model options view, azimuth, elevation,
           projection, define, time, default-color, and max-triangles, the chart option param, the diagram option theme,
           the pipeline options crop,
           resize, fit, allow-upscale, rotate, rotate-fill, flip, pad, pad-color, grayscale, invert,
           threshold, levels, brightness, contrast, auto-levels, auto-levels-clip, deskew, trim,
           trim-tolerance, grid, and filter, output, format,
           quality, and no-clobber) in one table that also drives the help (and is shared by the verb
-          commands and the inspect command), shall read the source options in one reusable routine, and
+          commands and the inspect command), shall read the source options (with the file-access policy of the input)
+          in one reusable routine, and
           shall be registered under the names render and convert.
         justification: |
           Declaring the options once keeps the help from drifting from what the command accepts, and the
@@ -158,7 +159,7 @@ sections:
           Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default) over
           its own background, white by default, or the background color given, with no option of its own for a
           chart; shall read the local data files of a chart relative to the folder of its specification under
-          the default file-access policy of the library, with no option for another data folder and no network
+          the file-access mode of the command, with no option for another data folder and no network
           access; shall set the parameters of a chart
           only through the --param option (see the ChartParams requirement); shall describe what it drew (the
           size, the time zone, the background when given, and the parameters when given) in the
@@ -352,7 +353,8 @@ sections:
           The render command shall report the notes about pictures and constructs the libraries skip or
           approximate in the diagnostics of the result, with the page of each (and, without the JSON option, on
           standard error, each ending with the input and page), and with the strict
-          option shall fail with the error code unsupported-feature instead and write no output.
+          option shall fail with the error code unsupported-feature (or, for a file the file-access mode denies,
+          file-access-denied) instead and write no output.
         justification: |
           A caller must be able to choose between an image that is drawn as well as it can be, with a
           list of what is missing, and no image at all.
@@ -368,6 +370,8 @@ sections:
           - RenderCommand_Run_SvgEmbeddingPageBeyondTheLast_IsUnsupportedNoteAndDrawsTheRest
           - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
           - RenderCommand_Run_SvgEmbeddingUnknownAndDuplicateParameters_AreWarningsEvenWhenStrict
+          - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
+          - RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied
 
       - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
         title: >-
@@ -489,3 +493,31 @@ sections:
           - RenderCommand_Run_ScadAnchorsThroughArbitraryRotation_StayOnTheExpandedCanvas
           - RenderCommand_Run_ScadAnchorOutsideTheCrop_IsNotInside
           - RenderCommand_Run_ScadAnchorBehindThePerspectiveEye_HasNullPixel
+
+      - id: CanvasNetTool-Commands-RenderCommand-FileAccess
+        title: >-
+          The render command and its verbs shall read `--file-access` (any, roots, no-symlinks, or roots,no-symlinks, in
+          any letter case, tokens trimmed) and the repeatable `--allow-root` (which alone implies roots and replaces the
+          default folders, the working directory and the folder of each input outside it) in one routine shared by
+          every reading command; shall report an unknown mode, `--allow-root` with the mode any or no-symlinks (naming
+          the conflict), and an `--allow-root` folder that does not exist as usage-error before any input is opened;
+          shall pass the policy to the probe and the load of the input, so a denied picture is the warning
+          image-access-denied (file-access-denied with the strict option) and a denied include or data file the error
+          file-access-denied; and shall not write the policy into the JSON result.
+        justification: |
+          One routine gives every reading command the same grammar and the same errors; checking the options first
+          means a typo is reported at once instead of silently denying every file.
+        tests:
+          - RenderCommand_ReadFileAccess_WithoutOptions_IsAllowAll
+          - RenderCommand_ReadFileAccess_EachMode_BuildsItsPolicy
+          - RenderCommand_ReadFileAccess_InvalidMode_IsUsageErrorListingTheModes
+          - RenderCommand_ReadFileAccess_AllowRootAlone_ConfinesToTheNamedFolders
+          - RenderCommand_ReadFileAccess_AllowRootWithAnyOrNoSymlinks_IsUsageErrorNamingTheConflict
+          - RenderCommand_ReadFileAccess_AllowRootThatDoesNotExist_IsUsageError
+          - RenderCommand_DefaultRoots_AreTheWorkingDirectoryAndEachInputFolderOutsideIt
+          - RenderCommand_ReadFileAccess_RootsWithoutAllowRoot_UsesTheDefaultRoots
+          - RenderCommand_Run_ScadIncludeOutsideTheRoots_FailsWithFileAccessDenied
+          - RenderCommand_Run_VegaLiteDataOutsideTheRoots_FailsWithFileAccessDenied
+          - RenderCommand_Run_SvgEmbeddingDeniedWithStrict_FailsWithFileAccessDenied
+          - RenderCommand_Verb_FileAccessOption_AppliesToTheVerbs
+          - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest

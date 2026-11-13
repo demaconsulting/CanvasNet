@@ -35,7 +35,7 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a topic may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|mermaid|pptx|vsdx|pdf|svg|image-fragment|image-page)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|mermaid|pptx|vsdx|pdf|svg|image-fragment|image-page|image-access)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -123,7 +123,9 @@ public partial class HelpTopicsTests
             ["tif"] = "raster",
             ["gif"] = "raster",
             ["jpeg2000"] = "raster",
-            ["jp2"] = "raster"
+            ["jp2"] = "raster",
+            ["file-access"] = "files",
+            ["links"] = "files"
         };
 
         // Act / Assert: each alias, in lower and upper case, and each canonical name resolves to its topic
@@ -315,10 +317,10 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that the dedicated <c>image-links</c> section of the <c>svg</c> topic states the size rule, the
-    ///     folder rule, the diagnostic code, and the example for a linked file.
+    ///     link rule (with the file-access mode), the diagnostic codes, and the example for a linked file.
     /// </summary>
     [Fact]
-    public void HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample()
+    public void HelpTopics_SvgTopic_ImageLinksSection_StatesSizeLinkRuleDiagnosticAndExample()
     {
         // Arrange: the section and its text
         var topic = HelpTopics.Find("svg")!;
@@ -333,6 +335,9 @@ public partial class HelpTopicsTests
         Assert.Contains("--strict", text);
         Assert.Contains(section.Items, i => i.Term == "svg-image-unresolved");
         Assert.Contains(section.Items, i => i.Term == "svg-image-too-large");
+        Assert.Contains(section.Items, i => i.Term == "link rule");
+        Assert.Contains(section.Items, i => i.Term == FolderImageResolver.AccessDeniedCode);
+        Assert.Contains("--file-access", text);
         Assert.Contains("<image href=\"part.scad\" x=\"10\" y=\"10\" width=\"120\" height=\"120\"/>", text);
         Assert.Contains("canvasnet help svg --example embed", text);
         Assert.Contains("<image href=\"part.scad\"", HelpTopics.RenderExample(topic, "embed"));
@@ -528,6 +533,66 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
+    ///     Test that every item of the <c>files</c> topic says, word for word and in order, what the file access reference
+    ///     table of the tool's user guide says (backticks are dropped, and the first letter of a text is compared ignoring
+    ///     case).
+    /// </summary>
+    [Fact]
+    public void HelpTopics_FilesTopic_Items_MatchUserGuide()
+    {
+        // Arrange: the guide and every item of the topic, in order
+        var guide = File.ReadAllLines(Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-tool.md"));
+        var items = HelpTopics.Find("files")!.Sections.SelectMany(s => s.Items).ToList();
+
+        // Act: the rows of the reference table
+        var rows = GuideTableRows(guide, "#### File Access Reference").ToList();
+
+        // Assert: every item has a term, the table has the documented header, and the items are the rows, in order
+        Assert.All(items, item => Assert.False(string.IsNullOrEmpty(item.Term)));
+        Assert.All(rows, row => Assert.Equal(["Term", "Meaning"], row.Header));
+        Assert.True(rows.Count >= 16, $"Only {rows.Count} rows were found in the file access reference table of the guide.");
+        Assert.Equal(rows.Select(row => Canonical(row.Cells[0], row.Cells[1])), items.Select(item => Canonical(item.Term, item.Text)));
+    }
+
+    /// <summary>
+    ///     Test that the <c>files</c> topic documents the modes, the two options, what holds in every mode, the two
+    ///     diagnostics with their live codes, and the variables of the Pandoc filter (which the filter reads), and that the
+    ///     <c>svg</c> and <c>errors</c> topics point to it.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc()
+    {
+        // Arrange: the topic, its terms, the filter, and the topics that point to it
+        var topic = HelpTopics.Find("files")!;
+        var terms = topic.Sections.SelectMany(s => s.Items).Select(i => i.Term).ToList();
+        var filter = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "filters", "canvasnet.lua"));
+
+        // Assert: the sections and the terms
+        Assert.Equal(["modes", "options", "always", "diagnostics", "pandoc"], topic.Sections.Select(s => s.Id));
+        foreach (var term in new[] { "any", "roots", "no-symlinks", "roots,no-symlinks", "--file-access <mode>", "--allow-root <folder>", "inputs", "never read", "limits" })
+        {
+            Assert.Contains(term, terms);
+        }
+
+        Assert.Contains(FolderImageResolver.AccessDeniedCode, terms);
+        Assert.Contains(ErrorCodes.FileAccessDenied, terms);
+
+        // Assert: the variables of the filter are terms and are read by the filter
+        foreach (var variable in new[] { "CANVASNET_FILE_ACCESS", "CANVASNET_ROOTS" })
+        {
+            Assert.Contains(variable, terms);
+            Assert.Contains(variable, filter, StringComparison.Ordinal);
+        }
+
+        // Assert: the topics that describe a denial point here
+        foreach (var name in new[] { "svg", "errors" })
+        {
+            var text = string.Join("\n", HelpTopics.Find(name)!.Sections.SelectMany(s => s.Items).Select(i => i.Text));
+            Assert.Contains("canvasnet help files", text, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     ///     Test that the <c>svg</c> topic documents the page fragment: the grammar, the parameter of each format, the
     ///     four diagnostic codes with their severity, the <c>--strict</c> behavior, the <c>&amp;amp;</c> note, the
     ///     example, and that the limits quoted are the live ones.
@@ -705,7 +770,7 @@ public partial class HelpTopicsTests
     public void HelpTopics_CitedDiagnosticIds_ExistInTheLibraries()
     {
         // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
-        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, SvgFlattener.ImageNotDrawnCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
+        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, FolderImageResolver.AccessDeniedCode, SvgFlattener.ImageNotDrawnCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
         var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
         var cited = HelpTopics.All.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
 

@@ -77,8 +77,8 @@ public class MontageCommandTests
         foreach (var name in new[]
                  {
                      "--output", "--columns", "--cell", "--fit", "--spacing", "--padding", "--background", "--labels", "--page",
-                     "--all-pages", "--dpi", "--no-auto-orient", "--strict", "--view", "--azimuth", "--elevation", "--projection",
-                     "--define", "--time", "--default-color", "--max-triangles", "--filter", "--quality", "--no-clobber"
+                     "--all-pages", "--dpi", "--no-auto-orient", "--strict", "--file-access", "--allow-root", "--view", "--azimuth",
+                     "--elevation", "--projection", "--define", "--time", "--default-color", "--max-triangles", "--filter", "--quality", "--no-clobber"
                  })
         {
             Assert.Contains(name, names);
@@ -492,5 +492,28 @@ public class MontageCommandTests
         // Assert
         Assert.Equal(firstJson, secondJson);
         Assert.Equal(first, second);
+    }
+
+    /// <summary>
+    ///     Test that one file-access policy applies to every input: under <c>--file-access roots</c> the default folders
+    ///     cover the folder of every input, so each picture beside its drawing is drawn, and only a link that leaves the
+    ///     folders is denied, for its input.
+    /// </summary>
+    [Fact]
+    public void MontageCommand_Run_FileAccessRoots_CoverTheFolderOfEveryInput()
+    {
+        // Arrange: three drawings in three folders; the third links a picture in the folder above it
+        using var directory = new TempDirectory();
+        var one = CompareCommandTests.WriteLinkingDrawing(directory, "x/one.svg", "pic.png", "x/pic.png");
+        var two = CompareCommandTests.WriteLinkingDrawing(directory, "y/two.svg", "pic.png", "y/pic.png");
+        var three = CompareCommandTests.WriteLinkingDrawing(directory, "z/three.svg", "../pic.png", "pic.png");
+
+        // Act
+        using var document = JsonDocument.Parse(Run(true, one, two, three, "--file-access", "roots", "-o", directory.Combine("sheet.png")));
+
+        // Assert
+        var note = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal(three, note.GetProperty("input").GetString());
+        Assert.Equal("image-access-denied", note.GetProperty("code").GetString());
     }
 }

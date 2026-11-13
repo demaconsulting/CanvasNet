@@ -2,6 +2,7 @@
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -951,12 +952,13 @@ public class RenderCommandPipelineTests
     public void RenderCommand_ReadSourceOptions_SameAsBefore()
     {
         // Arrange / Act
-        var defaults = RenderCommand.ReadSourceOptions(ArgumentReader.Parse("render", [], RenderCommand.OptionTable));
+        var defaults = RenderCommand.ReadSourceOptions(ArgumentReader.Parse("render", [], RenderCommand.OptionTable), "in.png");
         var given = RenderCommand.ReadSourceOptions(ArgumentReader.Parse(
             "render",
             ["--page", "2", "--dpi", "150", "--scale", "2", "--background", "#11223344", "--no-auto-orient", "--strict", "--filter", "lanczos3", "--view", "top"],
-            RenderCommand.OptionTable));
-        var sized = RenderCommand.ReadSourceOptions(ArgumentReader.Parse("render", ["--size", "40x30"], RenderCommand.OptionTable));
+            RenderCommand.OptionTable),
+            "in.png");
+        var sized = RenderCommand.ReadSourceOptions(ArgumentReader.Parse("render", ["--size", "40x30"], RenderCommand.OptionTable), "in.png");
 
         // Assert
         Assert.Equal(1, defaults.Page);
@@ -968,6 +970,7 @@ public class RenderCommandPipelineTests
         Assert.False(defaults.Strict);
         Assert.Equal(ResamplingMode.Auto, defaults.Filter);
         Assert.Null(defaults.Scad);
+        Assert.Same(FileAccessPolicy.AllowAll, defaults.FileAccess);
 
         Assert.Equal(2, given.Page);
         Assert.Equal(150, given.Dpi);
@@ -981,10 +984,12 @@ public class RenderCommandPipelineTests
 
         // The errors are the same usage errors as before
         var conflict = Assert.Throws<ToolException>(() => RenderCommand.ReadSourceOptions(
-            ArgumentReader.Parse("render", ["--size", "40x30", "--scale", "2"], RenderCommand.OptionTable)));
+            ArgumentReader.Parse("render", ["--size", "40x30", "--scale", "2"], RenderCommand.OptionTable),
+            "in.png"));
         Assert.Equal(ErrorCodes.UsageError, conflict.Code);
         Assert.Contains("--size and --scale cannot be used together", conflict.Message);
         Assert.Throws<ToolException>(() => RenderCommand.ReadSourceOptions(
-            ArgumentReader.Parse("render", ["--width", "0"], RenderCommand.OptionTable)));
+            ArgumentReader.Parse("render", ["--width", "0"], RenderCommand.OptionTable),
+            "in.png"));
     }
 }

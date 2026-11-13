@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -146,7 +147,8 @@ internal static class DiscoveryCommands
                     "Use --page N for one page, or --all-pages for every page.");
             }
 
-            var info = SourceLoader.Probe(InputReference.Parse(reader.Positionals[0]));
+            // info has no file-access option: it measures a chart under the default mode, any
+            var info = SourceLoader.Probe(InputReference.Parse(reader.Positionals[0]), FileAccessPolicy.AllowAll);
 
             // A page that the fragment of the input names (report.pdf#page=3) replaces --page and --all-pages
             var named = info.Selection?.Page;

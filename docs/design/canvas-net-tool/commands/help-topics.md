@@ -26,7 +26,8 @@ wrapping). The content is embedded in the tool assembly, so an installed tool ne
 immutable, so the catalog is safe to share between threads.
 
 **TopicNames**: the canonical names in the order the topics are listed: `scad`, `vega-lite`, `mermaid`, `svg`, `pdf`,
-`pptx`, `vsdx`, `raster`, `json`, `errors`, `limits` (eleven topics). A topic is added or removed only by changing this
+`pptx`, `vsdx`, `raster`, `json`, `errors`, `limits`, `files` (twelve topics). A topic is added or removed only by
+changing this
 list together with the embedded files, and a unit test proves that the embedded topic files are exactly this set.
 **FormatTopicNames** is the first eight names, the topics that describe one format.
 
@@ -87,11 +88,12 @@ and the limits of `flatten`.
 
 The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
 from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
-the size rule, the folder rule (a query after the file name is ignored; a fragment is read as parameters), the page
+the size rule, the link rule (a query after the file name is ignored; a fragment is read as parameters; which local
+files may be read is the file-access mode of `--file-access`), the page
 fragment (grammar, the parameter of each format, limits, the `&amp;` of an XML attribute), the unknown-parameter note,
 and
-the warnings `svg-image-unresolved`
-and `svg-image-too-large`, and an `example`, which points to the `embed`
+the warnings `svg-image-unresolved`, `svg-image-too-large`, and `image-access-denied`, and an `example`, which points to
+the `embed`
 snippet, and the file types of the `href file types` item are compared by a unit test, in both directions, with
 `CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in, so a type added to the Viewer is
 caught) and with the `formats` table, so the list cannot
@@ -158,6 +160,18 @@ the commands `render`, `theme`, and `info`. The `svg` topic lists `.mmd` and `.m
 `theme=` in its page fragment item, and the `limits` topic has a section for diagrams with the `mmd*` tokens. The
 identifier pattern of the drift test includes the `mermaid-` prefix, and the identifiers it finds are looked up in the
 Mermaid assembly as well.
+
+The `files` topic (aliases `file-access` and `links`) explains which files a document may reference: the sections
+`modes` (`any`, `roots`, `no-symlinks`, `roots,no-symlinks`), `options` (`--file-access <mode>` and
+`--allow-root <folder>`, so the option-term test checks them against the render table), `always` (the inputs, what is
+never read, the limits), `diagnostics` (`image-access-denied`, `file-access-denied`, an unavailable real path, and the
+host paths in `detail`), and `pandoc` (the default of the filter and the variables `CANVASNET_FILE_ACCESS` and
+`CANVASNET_ROOTS`), and three command examples. Every item has a term, and a unit test compares the items, in order,
+with the rows of the `#### File Access Reference` table of the tool user guide, which is the last table of its
+`### File Access` section; another test checks the codes against `FolderImageResolver.AccessDeniedCode` and
+`ErrorCodes.FileAccessDenied`, and that the filter reads both variables. The identifier pattern of the drift test
+includes the `image-access-` prefix. The `svg`, `errors`, `limits`, `scad`, `vega-lite`, and `mermaid` topics point to
+the `files` topic or name the denial codes.
 
 **Tokens**: text in a topic file may use `{{name}}` tokens, which the loader replaces from the live constants of the
 code before the JSON is parsed, so a documented number cannot drift from the real one. `Tokens` is the table; the values

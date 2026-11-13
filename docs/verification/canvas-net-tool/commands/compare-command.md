@@ -45,7 +45,8 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 #### Test Scenarios
 
 **CompareCommand_Metadata_DeclaresNameSummaryUsageAndOptions**: the name, no alias, the summary, the usage line with
-examples, every option declared once with a description, and the declaration of `--page` that is the render command's.
+examples, every option declared once with a description (`--file-access` and `--allow-root` among them), and the
+declaration of `--page` that is the render command's.
 
 **CompareCommand_Run_IdenticalImages_ReportsIdentical**, **CompareCommand_Run_DifferentImages_ReportsMetricsAndGridInText**,
 and **CompareCommand_Run_JsonIdenticalImages_PsnrIsNull**: identical inputs give the one line
@@ -156,3 +157,7 @@ it is overwritten and no temporary file remains; a path inside a file fails befo
 **InputFragment_Compare_ComparesTheViewsOfAModel** (`InputFragmentTests.cs`): `part.scad#view=top` against
 `part.scad#view=front` (resized to 64 by 64) is not identical and the result lists the `fragment` of each side
 (`view=top`, `view=front`), while `part.scad#view=top` against `part.scad#view=top&def.unused=1` is identical.
+
+**CompareCommand_Run_FileAccessRoots_CoverTheFolderOfEachInput**: two drawings in two folders each link a green picture
+beside them; with `--file-access roots` (the default folders cover the folder of each input) the JSON result has no
+diagnostic, and with `--allow-root a` it has one `image-access-denied` note, for side `b`.

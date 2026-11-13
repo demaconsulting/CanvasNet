@@ -140,7 +140,7 @@ internal static partial class HelpTopics
     ///     without this list (and the tests that go with it) being updated.
     /// </remarks>
     public static IReadOnlyList<string> TopicNames { get; } =
-        ["scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster", "json", "errors", "limits"];
+        ["scad", "vega-lite", "mermaid", "svg", "pdf", "pptx", "vsdx", "raster", "json", "errors", "limits", "files"];
 
     /// <summary>
     ///     Gets the names of the topics that describe one format (and so list supported and unsupported features).

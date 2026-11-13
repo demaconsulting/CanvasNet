@@ -71,6 +71,7 @@ internal sealed partial class CompareCommand : ICommand
         + "--b-view, --a-define, and --b-define apply to one input and win. Either input may end in a fragment" + Environment.NewLine
         + "(a.scad#view=top&def.width=20, report.pdf#page=2; quote it in a shell), which wins over all of them for that" + Environment.NewLine
         + "input." + Environment.NewLine
+        + "--file-access and --allow-root apply to both inputs (roots allows the folders of both by default)." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet compare reference.png redraw.png" + Environment.NewLine
@@ -90,8 +91,8 @@ internal sealed partial class CompareCommand : ICommand
         var settings = ReadSettings(reader);
 
         // Report every mistake about the inputs and the outputs before any pixels are decoded
-        var infoA = SourceLoader.Probe(InputReference.Parse(settings.A.Path));
-        var infoB = SourceLoader.Probe(InputReference.Parse(settings.B.Path));
+        var infoA = SourceLoader.Probe(InputReference.Parse(settings.A.Path), settings.FileAccess);
+        var infoB = SourceLoader.Probe(InputReference.Parse(settings.B.Path), settings.FileAccess);
         RequireSharedScadOptionsApply(settings, infoA, infoB);
         var optionsA = PrepareSide(settings, settings.A, infoA, out var pageA);
         var optionsB = PrepareSide(settings, settings.B, infoB, out var pageB);
@@ -214,7 +215,8 @@ internal sealed partial class CompareCommand : ICommand
             Background = settings.Background,
             AutoOrient = settings.AutoOrient,
             Filter = settings.Filter,
-            Scad = info.Format.IsModel() ? MergeScad(settings.Scad, side) : null
+            Scad = info.Format.IsModel() ? MergeScad(settings.Scad, side) : null,
+            FileAccess = settings.FileAccess
         };
     }
 

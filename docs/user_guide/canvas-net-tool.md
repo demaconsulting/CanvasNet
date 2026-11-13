@@ -54,7 +54,9 @@ not an option (or the value of an option) is the command name.
 - **Help.** `canvasnet --help` lists the commands and the help topics, `canvasnet help <command>` and
   `canvasnet <command> --help` show the usage, examples, and every option of a command, and
   `canvasnet help <topic>` explains an input format or a cross-cutting subject (see *Help Topics*).
-- **Files.** Paths are relative to the current directory. Wildcards are not expanded by the tool.
+- **Files.** Paths are relative to the current directory. Wildcards are not expanded by the tool. The files a document
+  references (pictures, includes, data files) are read relative to the file that names them, like Pandoc reads
+  images; `--file-access` and `--allow-root` confine them (see *File Access*).
 
 ### Global Options
 
@@ -407,6 +409,8 @@ The options of `render` are listed in the following tables.
 | `--background <color>` | The color that transparency is flattened over (see *Colors* and *Defaults*) |
 | `--no-auto-orient` | Do not turn a JPEG upright by its EXIF orientation |
 | `--strict` | Fail with `unsupported-feature` instead of skipping a picture or shape that cannot be drawn |
+| `--file-access <mode>` | Which local files a document may reference: `any` (default), or see *File Access* |
+| `--allow-root <folder>` | A folder the referenced files may be in; repeatable; implies `--file-access roots` |
 | `--theme <name>` | The theme of a Mermaid diagram: `default`, `base`, `dark`, `forest`, or `neutral` |
 
 `--scale`, `--width`, `--height`, and `--size` conflict with one another where they overlap (`--scale` with any other,
@@ -580,9 +584,10 @@ diagram embeds takes its variables from the link instead, with the same grammar:
 (see *Embedding Images, Charts, and Models in an SVG*), and so does a model on the command line:
 `canvasnet render "part.scad#def.width=20" -o part.png` (see *Fragments on Input Paths*).
 
-The `include <file>` and `use <file>` directives of a model are read relative to the file that names them, and only
-inside the folder of the model and below it; symbolic links are not followed. An include that names a missing file, a
-file outside the model's folder, or a circular include is an error (`scad-error`) rather than being skipped, because
+The `include <file>` and `use <file>` directives of a model are read relative to the file that names them. Any local
+file can be named, as in OpenSCAD, unless `--file-access` says otherwise (see *File Access*); an include the mode denies
+is the error `file-access-denied`, which names the include as written. An include that names a missing file, or a
+circular include, is an error (`scad-error`) rather than being skipped, because
 a picture drawn without a file it asked for would be silently wrong. The same holds for a model that an SVG file embeds
 with an `<image>` element: its missing include fails the render naming the link, where earlier versions only warned
 and drew the model without the file (a deliberate change). A syntax error is also a `scad-error`, with the
@@ -715,9 +720,9 @@ nothing
 is read from the network.
 
 **Data files.** A chart's rows can be inline (`data.values`), generated (`data.sequence`), or in a file next to the
-specification. A `data.url` that is a **relative path** (`"data": {"url": "stalls.csv"}`) is read from the **folder of
-the
-specification and below it**, whatever the current directory is, so a chart and its data can be moved together. The
+specification. A `data.url` that is a **relative path** (`"data": {"url": "stalls.csv"}`) is read **relative to the
+folder of the specification**, whatever the current directory is, so a chart and its data can be moved together; an
+absolute path, a drive path, and a `file:` URI without a host are local files too. The
 format
 is chosen by `format.type` (`json`, `csv`, `tsv`, or `dsv`, a DSV naming its one-character `format.delimiter`) or else
 by
@@ -726,12 +731,13 @@ files are read as UTF-8 text. As in Vega, delimited text is **not type-inferred*
 chart's `format.parse` is `"auto"` or names fields (quantitative encodings still read numeric text as numbers when they
 draw it). The tool has **no option to name another data folder** (there is no `--data-dir`; such an
 option is a `usage-error`), and the library's extra data paths and named datasets are not available from the command
-line: keep the data in or below the folder of the specification. A path that leaves that folder (`../secret.csv`),
-an absolute path, and a file reached through a symbolic link or junction inside that folder are refused. A local data
-file that is missing, refused, unreadable, not valid UTF-8, or not valid JSON or delimited text is a `vega-lite-error`
+line. Which local files may be read is chosen with `--file-access` (every regular local file by default; see *File
+Access*): a data file the mode denies is the error `file-access-denied`. A local data
+file that is missing, unreadable, not valid UTF-8, or not valid JSON or delimited text is a `vega-lite-error`
 that names the file, line,
-and column of the `url` (also with `--strict`), never an empty chart. A `url` with a scheme (`https:`), a drive letter,
-or an absolute path is **never fetched or opened**: it is reported as the diagnostic `vl-data-remote-url` and the
+and column of the `url` (also with `--strict`), never an empty chart. A **remote** `url` (a scheme such as `https:`, a
+network path that starts with two slashes, or a `file:` URI with a host) is **never fetched or opened**: it is
+reported as the diagnostic `vl-data-remote-url` and the
 chart is
 drawn with an empty dataset (`--strict` makes it an `unsupported-feature` failure). `info` measures the chart, so it
 reads
@@ -739,13 +745,13 @@ the same data files. See *Vega-Lite Data* in the CanvasNet User Guide for the CS
 `format.parse` rules, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
 
 **Pictures.** The `image` mark draws pictures that lie **next to the specification**: `"url": "icon.png"` (a field, a
-datum, or a value of the `url` channel, or the `url` of the mark). The tool wires the same sandboxed folder resolver
-that draws the pictures of an SVG, rooted at the folder of the specification, so the link can name a PNG or JPEG, an
+datum, or a value of the `url` channel, or the `url` of the mark). The tool wires the same folder resolver that draws
+the pictures of an SVG, relative to the folder of the specification, so the link can name a PNG or JPEG, an
 SVG file, an OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), a Mermaid
-diagram (`"url": "flow.mmd#theme=dark"`), or another chart, and nothing
-outside that folder is read. A link that leaves the folder, an absolute path, a symbolic link, and a network URL are
-**never read or fetched**: the picture is not drawn and the diagnostic `svg-image-unresolved` names the link (`--strict`
-makes it an `unsupported-feature` failure). A picture that is found but is broken is the error of its own format, naming
+diagram (`"url": "flow.mmd#theme=dark"`), or another chart. A network URL is **never fetched**: the picture is not
+drawn and the diagnostic `svg-image-unresolved` names the link (`--strict` makes it an `unsupported-feature` failure).
+A local file the file-access mode denies is the warning `image-access-denied` (`file-access-denied` with `--strict`). A
+picture that is found but is broken is the error of its own format, naming
 the chart and the picture; more than 256 different pictures (`MaxImages`) in one chart is `budget-exceeded`. The
 pictures that were
 drawn are listed as operations and notes (`(chart.vl.json)`), as for an SVG. `info` measures the chart without loading
@@ -832,11 +838,12 @@ static and the same on every machine: only the fonts bundled with the tool are u
 Liberation Sans), nothing is read from the network, and `click` links and tooltips are ignored.
 
 **Pictures.** A node can show a picture that lies **next to the diagram**: `A@{ img: "part.scad", w: 120, h: 120 }`
-or `<img src="logo.png">` in a label. The tool wires the same sandboxed folder resolver that draws the pictures of an
-SVG, rooted at the folder of the diagram, so the link can name a raster, an SVG file, an OpenSCAD model, a Vega-Lite
-chart, a page of a document, or another diagram, and nothing outside that folder is read. A link that is not drawn (a
-missing file, a path outside the folder, a network URL) is the warning `svg-image-unresolved` with the reason, and
-`--strict` makes it a failure. The pictures that were drawn are listed as `embed` operations. `info` lays the diagram
+or `<img src="logo.png">` in a label. The tool wires the same folder resolver that draws the pictures of an SVG,
+relative to the folder of the diagram, so the link can name a raster, an SVG file, an OpenSCAD model, a Vega-Lite
+chart, a page of a document, or another diagram, under the mode of `--file-access` (see *File Access*). A link that is
+not drawn (a missing file, a network URL) is the warning `svg-image-unresolved` with the reason, a link the mode denies
+is `image-access-denied`, and `--strict` makes either a failure. The pictures that were drawn are listed as `embed`
+operations. `info` lays the diagram
 out without loading any picture, so give a picture node its `w` and `h`: otherwise the drawn diagram can be a little
 larger or smaller than the size `info` reports. A render without `--width` and `--height` reports the natural size of
 the diagram it drew (`natural` in `render --json`); a library render of the diagram file without a size
@@ -937,11 +944,12 @@ canvasnet render diagram.svg -o diagram.png
 
 draws the model and the chart into their rectangles. The result lists each embedded file as an `embed` operation.
 
-- **Only this folder.** The files are read from the **folder of the SVG file you named, and below it**, like the
-  `include` files of a model and the data files of a chart; there is no option for another folder. An absolute path, a
-  drive letter, a `..` that leaves the folder, a symbolic link, and a network URL (`http:`, `https:`, `ftp:`, ...) are
-  **never** read or fetched. A `file:` URI that points inside the folder, and a percent-encoded path such as
-  `my%20picture.png`, are accepted, and a query after the file name (`logo.png?v=2`) is ignored (an encoded `%23` or
+- **Which files.** A link is read **relative to the folder of the SVG file** that holds it, like the `include` files
+  of a model and the data files of a chart. As in Pandoc, any regular local file can be linked by default: a `..` that
+  leaves the folder, an absolute or drive path, a local `file:` URI, and a symbolic link are followed; `--file-access`
+  and `--allow-root` confine them (see *File Access*). A network URL (`http:`, `https:`, `ftp:`, ...), a UNC path, and
+  a `file:` URI with a host are **never** read or fetched. A percent-encoded path such as `my%20picture.png` is
+  accepted, and a query after the file name (`logo.png?v=2`) is ignored (an encoded `%23` or
   `%3F` is a literal `#` or `?` in the name). A fragment after the file name chooses a page, slide, or view (see
   **Choosing a page** below). An embedded SVG file looks for its own images beside itself, so a diagram can be
   split into folders. (Files that an embedded SVG file embeds are not listed as `embed` operations of the result; the
@@ -988,9 +996,10 @@ draws the model and the chart into their rectangles. The result lists each embed
   `param.`
   on anything but a chart is `image-fragment-unknown-parameter`. An embedded file never takes `-D` or `--param` of the
   command.
-- **A reference that is not drawn** (the file is missing, outside the folder, behind a link, of an unknown format, a
-  network URL, or over a limit) is the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the
-  rest of the diagram is drawn. With `--strict` it is an `unsupported-feature` failure instead. A picture that would
+- **A reference that is not drawn** (the file is missing, of an unknown format, a network URL, or over a limit) is
+  the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the rest of the diagram is drawn.
+  With `--strict` it is an `unsupported-feature` failure instead. A link the file-access mode denies is the warning
+  **`image-access-denied`** in the same way, and with `--strict` the failure `file-access-denied`. A picture that would
   take
   more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million pixels
   in
@@ -1031,7 +1040,9 @@ report: whatever the library cannot draw is simply not drawn, and `--strict` has
 reports only
 its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel
 budget, `image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does
-not exist, which `--strict` fails on; the fragment warnings do not) and the notes of the files it embeds; what the SVG
+not exist, which `--strict` fails on; the fragment warnings do not; and `image-access-denied` for a link the file-access
+mode denies, which `--strict` turns into the error `file-access-denied`) and the notes of the files it embeds; what the
+SVG
 library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
@@ -1192,8 +1203,8 @@ canvasnet inspect pixel  <input> <x,y> [--radius R] [options]
 
 `inspect` reads what the pixels of an image contain, without writing a file. It loads the input like `render` and
 accepts every source and pipeline option of `render` (`--page`, `--dpi`, `--background`, `-D` of a model, `--param` of
-a chart, `--theme` of a Mermaid diagram, `--crop`, `--fit`, `--deskew`, `--auto-levels`, and so on; not the output
-options or `--all-pages`), so the numbers are those of the picture after the
+a chart, `--theme` of a Mermaid diagram, `--file-access` and `--allow-root`, `--crop`, `--fit`, `--deskew`,
+`--auto-levels`, and so on; not the output options or `--all-pages`), so the numbers are those of the picture after the
 pipeline: `inspect colors photo.jpg --crop 100,100,50,50` answers "what color is this region", and the point of
 `inspect pixel` is a coordinate of the processed picture. The subcommand comes first; a missing or misspelled one is a
 `usage-error` that names the closest (`Did you mean 'colors'?`), and an option of the other subcommand is a
@@ -1301,6 +1312,7 @@ Options that are shared by both inputs, with the grammar of the same options of 
 | `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`/`--define`, `--time`, `--default-color`, `--max-triangles` | The view and variables of an OpenSCAD model input (see *OpenSCAD Models*); given when no input is a model they are a `usage-error` |
 | `--background <color>` | The **opaque** color that transparency is flattened over (default white); `transparent` or a color with alpha below 255 is a `usage-error` |
 | `--no-auto-orient`, `--strict`, `--filter` | As for `render` |
+| `--file-access <mode>`, `--allow-root <folder>` | As for `render`, for both inputs; without `--allow-root`, `roots` allows the current folder and the folders of both inputs (see *File Access*) |
 | `--quality <1-100>`, `--no-clobber` | For the pictures that are written (a JPEG picture is flattened over the background) |
 
 A shared option that does not concern an input is skipped silently for that input (`--page` is ignored for a PNG).
@@ -1474,6 +1486,7 @@ canvasnet montage deck.pptx --all-pages --columns 4 --cell 320x180 --labels -o d
 | `--labels` | Draw the name of each input under its cell |
 | `--page <N>`, `--all-pages` | The page of each document, or every page (together they are a `usage-error`) |
 | `--dpi`, the model options, `--no-auto-orient`, `--strict`, `--filter`, `--quality`, `--no-clobber` | As for `render`; options that do not concern an input are skipped for it |
+| `--file-access <mode>`, `--allow-root <folder>` | As for `render`, for every input; without `--allow-root`, `roots` allows the current folder and the folder of every input (see *File Access*) |
 
 A vector input (SVG, document page, model) is drawn directly at the cell size, so it is sharp; a raster is fitted with
 `--fit`. A cell is always scaled to fill the limiting side, because a contact sheet is a preview (there is no
@@ -1521,7 +1534,8 @@ The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 c
 ### flatten
 
 ```text
-canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict] [--no-clobber]
+canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict]
+                  [--file-access <mode>] [--allow-root <folder>] [--no-clobber]
 ```
 
 An SVG drawing that links a Mermaid diagram, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PowerPoint, or
@@ -1540,12 +1554,14 @@ canvasnet flatten dashboard.svg -o print/dashboard.svg --scale 2 --json
 | --- | --- |
 | `-o`, `--output <file>` | The copy (required); it may not be the input, and a missing folder is created |
 | `--scale <factor>` | Multiplies the size of each picture, 0.001 to 8192 (default 1); 2 is sharper in print |
-| `--strict` | A link that is not drawn is an `unsupported-feature` error, as for `render` |
+| `--strict` | A link that is not drawn is an `unsupported-feature` error (a denied link: `file-access-denied`) |
+| `--file-access <mode>`, `--allow-root <folder>` | Which local files the links may read (see *File Access*) |
 | `--no-clobber` | Fail instead of replacing an existing copy |
 
 The drawing is drawn once, as `render` draws it at its natural size, and every link the drawing shows is drawn at the
 size of its placement (through the `viewBox` and every transform) times `--scale`. The links are followed by the
-resolver of `render`, so the folder rule, the fragments (`#page=2`, `#def.width=20`, `#param.t=5`, `#theme=dark`), the
+resolver of `render`, so the link rule, the file-access mode (`--file-access`), the fragments (`#page=2`,
+`#def.width=20`, `#param.t=5`, `#theme=dark`), the
 limits, and the notes are the same. When the drawing links no such picture, or shows none, nothing is written and the
 exit code is 0, so a script can run `flatten` on every SVG file and use the copy only when there is one.
 
@@ -1579,8 +1595,8 @@ This table is also the `flatten` section of `canvasnet help svg`; a test keeps t
 | size | Each picture is drawn at the size of its placement in the drawing at its natural size (through the `viewBox` and every transform, as render draws it), times `--scale`; the SVG reader still fits it with `preserveAspectRatio`. A link used twice is drawn once, at the larger placement. |
 | other folder | When the copy is written to another folder, the relative links that are left are rewritten so they find their files from there; a drive letter or UNC path (`C:\x.png`, `\\server\share\x.png`) is left as written on every system. Links of other elements (an external `use`, a CSS `url()`) are not rewritten. |
 | nothing to flatten | When the drawing links no such picture, or shows none, nothing is written and the exit code is 0: the text says nothing to flatten and `flattened` is false in the JSON document. |
-| limits | The links are drawn by the resolver of render, with its folder rule and limits (at most 64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII). |
-| `--strict` | A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as for render; `svg-flatten-image-not-drawn` stays a warning. |
+| limits | The links are drawn by the resolver of render, with its link rule, file-access mode, and limits (at most 64 pictures, nested ones included, 4 levels, and the pixel budget). The copy is at most 64 MiB (`size-limit`), and the drawing must be UTF-8 (`unsupported-feature` for another declared encoding unless the file is plain ASCII). |
+| `--strict` | A link that is not drawn (`svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range`) is an `unsupported-feature` error, as for render; a link the file-access mode denies (`image-access-denied`) is the error `file-access-denied`; `svg-flatten-image-not-drawn` stays a warning. |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -1604,10 +1620,84 @@ quote
 a color that starts with `#` (`'#336699'`) or use the form without `#`, because many shells treat `#` as a comment.
 A value that does not match its grammar is a `usage-error` that quotes the value and shows an example.
 
+### File Access
+
+> **Breaking change.** Earlier versions read the files a document references only from the folder of the input and
+> below it, and never through a symbolic link. The tool now reads them as Pandoc reads images: any regular local
+> file, relative to the file that names it. Exactly the old confinement is
+> `--file-access roots,no-symlinks --allow-root <folder of the input>`. Without `--allow-root`, `roots` also allows
+> everything under the current folder. See *Migrating from the Folder Sandbox* in the CanvasNet User Guide.
+
+A document can reference other files: the `<image href>` of an SVG drawing, the pictures of a Mermaid diagram, the
+image marks and the data files of a Vega-Lite chart, the `include` and `use` files of an OpenSCAD model, and the pages
+of a linked document. The **file-access mode** decides which of those local files may be read, for `render` and its
+verbs, `inspect`, `compare`, `montage`, and `flatten`:
+
+- **`any`** (the default) reads every regular local file, as Pandoc does: a relative path (with `..`), an absolute or
+  drive path, a local `file:` URI, and a symbolic link or junction.
+- **`roots`** reads only files inside the allowed folders. `--allow-root <folder>` names them (repeatable; a relative
+  folder is taken from the current folder); without it, the folders are the **current folder and the folder of each
+  input**, so `roots` alone also allows everything under the current folder. Both the path as written and the real
+  path of the opened file must be inside. For a document you do not trust, name its folder with `--allow-root`.
+- **`no-symlinks`** refuses a reference that passes through a symbolic link or junction below the folder of the input.
+- **`roots,no-symlinks`** applies both rules (in either order, in any letter case). With
+  `--allow-root <folder of the input>` it is exactly the confinement of earlier versions.
+
+`--allow-root` alone implies `roots`. `--allow-root` with `--file-access any` or `--file-access no-symlinks` is a
+`usage-error` that names the conflict, and so is an unknown mode or an `--allow-root` folder that does not exist: the
+mistake is reported before any input is opened. In every mode, the **inputs named on the command line are never
+judged** (only the files they reference), a network URL, a UNC path, a `file:` URI with a host, and a device path are
+never read, and every limit holds (a mode decides which files may be read, never how much). `info` has no file-access
+option: it measures a chart under `any`.
+
+A picture the mode denies is the warning **`image-access-denied`** (the rest is drawn; `--strict` makes it the error
+`file-access-denied`), and an OpenSCAD include or a Vega-Lite data file the mode denies is the error
+**`file-access-denied`**, which names the file as written and where it is referenced; no output is written. The JSON
+result never reports the mode itself. The `detail` of an `image-access-denied` note holds host paths, so a service that
+shows notes to untrusted authors should remove it.
+
+```bash
+# Links must stay in the docs and assets folders
+canvasnet render docs/diagram.svg --allow-root docs --allow-root assets -o diagram.png --json
+
+# Exactly the confinement of earlier versions: the folder of the input and below it, and no symbolic links
+canvasnet render docs/diagram.svg --file-access roots,no-symlinks --allow-root docs -o diagram.png
+
+# Fail instead of leaving out a denied picture
+canvasnet flatten diagram.svg -o flat.svg --file-access roots --strict --json
+```
+
+#### File Access Reference
+
+This table is also the `canvasnet help files` topic, item by item; a test keeps the two the same.
+
+<!-- markdownlint-disable MD013 -->
+
+| Term | Meaning |
+| --- | --- |
+| `any` | The default. A document may reference every regular local file, as Pandoc reads them: a path relative to the file that holds the link, a path with .., an absolute or drive path, a local file: URI, and a symbolic link or junction. |
+| `roots` | Only a file inside a folder named by --allow-root, or, without --allow-root, inside the current folder or the folder of an input. Both the path as written and the real path of the opened file must be inside, so a link that leads out is denied, and so is a path outside that links back in. |
+| `no-symlinks` | A reference may not pass through a symbolic link or junction below the folder of the input it starts from; that folder and the folders above it are trusted. A hard link cannot be detected. |
+| `roots,no-symlinks` | Both rules. Exactly the confinement that earlier versions applied by default is --file-access roots,no-symlinks --allow-root <folder of the input>; without --allow-root, roots also allows every file under the current folder. For a document you do not trust, name its folder with --allow-root. |
+| `--file-access <mode>` | Chooses the mode for render and its verbs, inspect, compare, montage, and flatten: any, roots, no-symlinks, or roots,no-symlinks, in any letter case. Anything else is a usage-error that lists the modes. info always measures under any. |
+| `--allow-root <folder>` | A folder that referenced files may be in; repeatable. It implies --file-access roots and replaces the default folders. A relative folder is taken from the current folder, and a folder that does not exist is a usage-error. With --file-access any or no-symlinks it is a usage-error that names the conflict. |
+| `inputs` | The files named on the command line are never judged by the mode, only the files they reference: images, pictures, data files, includes, and linked pages, at every level. |
+| `never read` | A network URL (http:, https:, and other schemes), a UNC or network path, a file: URI with a host, a device path, an alternate data stream, and anything that is not a regular file are never read. |
+| `limits` | Every size and count limit holds in every mode; a mode decides which files may be read, never how much. See 'canvasnet help limits'. |
+| `image-access-denied` | Warning: a picture (an SVG image, a Mermaid picture, a Vega-Lite image mark, or a linked page) that the mode denies is not drawn, and the rest is; the message names the link, the mode, and why. With --strict it is the error file-access-denied. |
+| `file-access-denied` | Error: an OpenSCAD include or use file or a Vega-Lite data file that the mode denies, or a denied picture with --strict; the message names the file as written and where it is referenced. No output is written. |
+| `real path unavailable` | A mode other than any needs the real path of every opened file. Where the system cannot tell it (Linux without /proc, for example), the file is denied, never read unchecked. |
+| `detail` | In the JSON result, the detail of an image-access-denied note holds the reference, the requested and real paths, and the mode. These are host paths: a service that shows notes to untrusted authors should remove them. |
+| `default` | docs/filters/canvasnet.lua passes no mode, so a document reads its pictures, includes, and data as Pandoc reads its images. |
+| `CANVASNET_FILE_ACCESS` | Set it to roots, no-symlinks, or roots,no-symlinks to pass --file-access to every render and flatten of the filter; a picture the mode denies then stops the build. |
+| `CANVASNET_ROOTS` | Folders separated like PATH (; on Windows, : elsewhere), passed as one --allow-root each as an absolute path (a relative folder is taken from the working directory); it implies roots. Without it, roots gets the working directory and the folder of the picture as --allow-root. These arguments are part of the cache name of every picture, so a picture drawn without them, or from another working directory, is not reused. |
+
+<!-- markdownlint-enable MD013 -->
+
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see *Commands*) or one of eleven help topics, which cover the input formats and the subjects that apply to
+is a command (see *Commands*) or one of twelve help topics, which cover the input formats and the subjects that apply to
 every command. A subject is matched in any letter case, and a topic may be named by an alias.
 
 | Topic | Aliases | What it covers |
@@ -1623,6 +1713,7 @@ every command. A subject is matched in any letter case, and a topic may be named
 | `json` | | The `--json` result documents |
 | `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
 | `limits` | | The largest sizes and budgets accepted, and the error each one produces |
+| `files` | `file-access`, `links` | Which files a document may reference, `--file-access`, and the Pandoc filter |
 
 `canvasnet help topics` lists the commands and the topics with their aliases and one-line summaries. The topic of a
 format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that apply, the
@@ -1834,8 +1925,9 @@ and hint may be improved at any time.
 | `same-input-output` | The output file is the input file (also reached through a symbolic link) | Name a different output |
 | `output-exists` | The output exists and `--no-clobber` was given | Remove `--no-clobber` or choose another output |
 | `output-write-failed` | The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk) | Check the output path |
+| `file-access-denied` | A file the document references (an OpenSCAD include, a Vega-Lite data file, or with `--strict` a linked picture) is denied by the file-access mode (`--file-access`, `--allow-root`) | Allow its folder with `--allow-root`, or reference a file the mode allows; see *File Access* |
 | `scad-error` | A model has a syntax error, an evaluation error, or an include that cannot be read | The message has the file, line, and column |
-| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn, including a local data file that is missing, outside the folder of the specification, or not valid | The message has the file, line, column, and JSON pointer |
+| `vega-lite-error` | A Vega-Lite chart has an invalid specification (malformed JSON, a property of the wrong type, nesting or a string beyond the parser limits, plain Vega) or cannot be laid out or drawn, including a local data file that is missing or not valid | The message has the file, line, column, and JSON pointer |
 | `mermaid-error` | A Mermaid diagram is not valid (no diagram keyword, a grammar error, an unknown shape, invalid frontmatter or shape data) or cannot be laid out | The message has the file, line, column, and `mermaid-*` code; the hint suggests the fix |
 | `budget-exceeded` | A model exceeds a rendering limit, such as `--max-triangles`, or a chart or diagram exceeds a limit of its library while it is laid out or drawn (data rows, data files, data bytes, ticks, scene items; nodes, edges, nesting, layout work, pictures, painted pixels) | Raise the limit (a model) or simplify the model or chart |
 | `size-mismatch` | `compare` was given two inputs of different pixel sizes and no `--resize-to` | Add `--resize-to a`, `b`, or `WxH` |
@@ -1860,7 +1952,7 @@ and hint may be improved at any time.
 | Theme of a Mermaid diagram | `default`, unless the diagram sets one | `--theme`, or `#theme=` on the input |
 | Fonts of a diagram | The bundled fonts only | Not adjustable |
 | Time zone and fonts of a chart | UTC, the bundled fonts only | Not adjustable |
-| Data files of a chart | Read from the folder of the specification and below it; no network | Not adjustable (no data-folder option) |
+| Referenced files (pictures, includes, data files) | Every regular local file, relative to the file that names it; never the network | `--file-access`, `--allow-root` |
 | SCAD view and projection | The library chooses: `iso` for a 3D model, a flat `top` view for a model that is entirely 2D (or the model's own `$vpr`); orthographic | `--view`, `--azimuth`, `--elevation` (any of them makes the view explicit), `--projection perspective` |
 | SCAD default surface color | Gray | `--default-color` |
 | Maximum triangles of a model | 5,000,000 | `--max-triangles` |
@@ -1973,19 +2065,43 @@ found stops the build with a message that names the picture. All other attribute
 (`width`, `height`, an identifier, a class) stay on the picture. The source is found the way Pandoc finds any picture:
 an absolute name is used if the file opens, and a relative name is tried in each folder of the document's resource
 path, taking the first file that opens. The filter is not a security boundary: it runs your own documents with your own
-permissions, and Pandoc itself embeds pictures from any path, so it applies no containment rule. What a model or a
-chart may read is decided by the tool's own sandbox when the picture is drawn, and a dependency the tool refuses still
-stops the build with the tool's message.
+permissions, and Pandoc itself embeds pictures from any path, so it applies no containment rule. What a model, a chart,
+or a drawing may read is decided by the tool's file-access mode when the picture is drawn: by default every regular
+local file, as Pandoc reads images. A dependency the tool cannot read (a missing include, for example) stops the build
+with the tool's message.
+
+**File access.** Two environment variables opt in to a restrictive mode for a build of documents you do not fully
+trust. `CANVASNET_FILE_ACCESS` (`roots`, `no-symlinks`, or `roots,no-symlinks`; `any` is the default) is passed as
+`--file-access` to every `render` and `flatten` of the filter, and `CANVASNET_ROOTS` holds folders separated like
+`PATH` (`;` on Windows, `:` elsewhere), each passed as `--allow-root` as an absolute path (a relative folder is taken
+from the working directory); it implies `roots`. With `roots` and no `CANVASNET_ROOTS`, the filter passes the folders
+the tool would take by default as `--allow-root`: the working directory, and the picture's folder when it is outside
+it. Without `--allow-root`, `roots` allows everything under the working directory, so for documents you do not trust,
+set `CANVASNET_ROOTS` to their folders. An unknown mode, or
+`CANVASNET_ROOTS` with `CANVASNET_FILE_ACCESS` set to `any` or `no-symlinks`, stops the build before the tool runs. In a
+restrictive mode a picture the mode denies stops the build too (it is a warning of the tool, but a document should not
+be published with a picture silently missing), and so does a denied include or data file. The file-access arguments
+are part of the hash of every picture, so a picture drawn without them, or from another working directory, is not
+reused with them. A CI build can confine every picture to the documentation folders:
+
+```bash
+CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" \
+  dotnet pandoc --defaults docs/user_guide/definition.yaml --output docs/user_guide/generated/user_guide.html
+```
+
+In PowerShell, set `$env:CANVASNET_FILE_ACCESS = 'roots'` and `$env:CANVASNET_ROOTS = "$PWD\docs;$PWD\assets"` first.
 
 The filter writes each PNG to `docs/generated/canvasnet/`, a build-output folder that is ignored by Git: draw the
 pictures when you build, and never commit them. The file name is made from a hash of everything that decides the
 picture, so an unchanged source is not drawn again and a changed one always is. The hash covers the source file,
 the files a model pulls in with `include` and `use`, the local data files a chart names with `data.url` (each one
-that exists, wherever it lies; a remote URL is skipped, since the tool never reads it) and the pictures its image marks
+that exists, wherever it lies, an absolute path and a `file:` URI included; a remote URL is skipped, since the tool
+never reads it) and the pictures its image marks
 name (a
 fragment such as `#def.width=20` of such a link is part of the specification, so changing it draws the chart again), the
 pictures the nodes of a diagram name (`img:` and `<img src>`), the
-attributes, the tool's version, and the filter's own version. A picture is written under a temporary name and then
+attributes, the tool's version, the file-access arguments (with the folders the filter passes for `roots`), and the
+filter's own version. A picture is written under a temporary name and then
 renamed, so builds that run at the same time are safe. The `src` of the picture is written relative to the output
 HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the build with the tool's own
 message, and what the tool leaves out of a picture, and a model's `echo()` lines, are shown as Pandoc warnings.
@@ -2019,8 +2135,12 @@ conventions make this reliable:
   (`scad`, `vega-lite`, `mermaid`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and
   `canvasnet help <format> --example <name>` for a tiny example that is known to render. Add `--json` to parse any of
   them. To put a model, a chart, or a picture inside a diagram, link it from an SVG with
-  `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the folder rule, and the
+  `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the link rule, and the
   `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
+- For a document you did not write, add `--file-access roots,no-symlinks --allow-root <the document's folder>` (and
+  one more `--allow-root` for each other folder its files may come from), so that it cannot make the tool read a file
+  elsewhere on the machine. Without `--allow-root`, `roots` also allows everything under the current folder; see
+  `canvasnet help files`.
 - Always pass `--json` and parse the one line on standard output. Check `ok`, and on a failure branch on
   `error.code`. Read `diagnostics` even on success: they list what was left out of the picture.
 - Ask before you render: `canvasnet info <file> --json` gives the size, the page count, or the modules of a model
@@ -2234,8 +2354,8 @@ pictures side by side.
   where the library can report it (PPTX, VSDX, SCAD, Vega-Lite, and Mermaid: `diagnostics`; SVG: the `image` references
   it could not draw). PDF has no such report, and a construct it (or the SVG library, inside an SVG file) cannot draw is
   simply absent from the picture.
-- **SVG embedding.** Only relative references below the folder of the SVG file are followed (never the network, an
-  absolute path, or a link), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
+- **SVG embedding.** Local references are followed relative to the folder of the SVG file, under the file-access mode
+  (never the network), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
   default view; the `feImage` filter primitive reads only a `data:` URI.
 - **SVG flatten.** `flatten` reads UTF-8 drawings only (a drawing that declares another encoding must be plain ASCII),
   replaces only `image` links (an external `use`, a CSS `url()`, or an `feImage` is neither replaced nor rewritten for
@@ -2244,15 +2364,15 @@ pictures side by side.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.
 - **Charts.** A static picture of one chart: no interaction (selections and bindings are reported as unsupported
-  features), no network (a remote `url` is never fetched), data only inline, generated, or in files in or below the
-  folder
-  of the specification (no option to name another data folder, to supply named datasets, or to change parameters or data
-  from the command line),
+  features), no network (a remote `url` is never fetched), data only inline, generated, or in local files read
+  relative to the specification under the file-access mode (no option to name another data folder, to supply named
+  datasets, or to change data from the command line),
   and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is
   reported). Vega (as opposed to Vega-Lite) specifications are not read.
 - **Diagrams.** A static picture of one Mermaid flowchart, sequence, class, state, or entity relationship diagram, pie
   chart, gantt chart, mindmap, packet diagram, or git graph: no interaction (`click`, tooltips, and menu links are
-  ignored), no network, pictures only from the folder of the diagram, no clock (a gantt chart has no today line, and its
+  ignored), no network, pictures read relative to the folder of the diagram under the file-access mode, no clock (a
+  gantt chart has no today line, and its
   dates are in UTC), and the other diagram types (journey, timeline, and so on) are recognized but drawn as an empty
   picture with the diagnostic `mermaid-diagram-unsupported`.
 - **Models.** Only one view per command, and no animation. A model that needs `surface`, `import`, or other unsupported
@@ -2268,6 +2388,14 @@ pictures side by side.
   give the same file on the same machine and tool version.
 - **Size.** 8192 pixels on a side at most; an image that large uses about 256 MB of memory per copy, so large pipelines
   need memory.
+- **Security.** The default file-access mode reads any regular local file the user running the tool can read, as
+  Pandoc does: a document can name `/etc/passwd` or `..\..\secrets.txt`, and a picture of that file (or the error a
+  model or chart reports about it) can show its content. For a document you do not trust, use
+  `--file-access roots,no-symlinks --allow-root <the document's folder>`: without `--allow-root`, `roots` also allows
+  everything under the current folder. In every mode the tool never reads
+  the network, a UNC path, a `file:` URI with a host, or a device path, and every size and count limit holds; the inputs
+  named on the command line are never judged, and `info` always measures under `any`. The `detail` of an
+  `image-access-denied` note holds host paths: remove it before showing notes to an untrusted author.
 - **Concurrency.** Each command is independent, so several may run in parallel as long as they write different files.
 
 ## Self-Validation

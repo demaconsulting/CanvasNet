@@ -124,7 +124,8 @@ public class CompareCommandTests
         foreach (var name in new[]
                  {
                      "--page", "--dpi", "--a-page", "--b-page", "--a-dpi", "--b-dpi", "--background", "--no-auto-orient", "--strict",
-                     "--view", "--azimuth", "--elevation", "--projection", "--define", "--time", "--default-color", "--max-triangles",
+                     "--file-access", "--allow-root", "--view", "--azimuth", "--elevation", "--projection", "--define", "--time",
+                     "--default-color", "--max-triangles",
                      "--a-view", "--b-view", "--a-define", "--b-define", "--resize-to", "--fit", "--filter", "--tolerance", "--grid",
                      "--threshold", "--diff", "--diff-style", "--gain", "--side-by-side", "--overlay", "--overlay-weight", "--quality",
                      "--no-clobber"
@@ -635,5 +636,51 @@ public class CompareCommandTests
         {
             Assert.Equal(first[i], second[i]);
         }
+    }
+
+    /// <summary>
+    ///     Writes a 40 by 40 drawing that links a picture, and a green picture beside the link's target name.
+    /// </summary>
+    /// <param name="directory">The temporary directory.</param>
+    /// <param name="drawing">The path of the drawing, relative to the directory.</param>
+    /// <param name="href">The link of the picture.</param>
+    /// <param name="picture">The path of the picture, relative to the directory.</param>
+    /// <returns>The path of the drawing.</returns>
+    internal static string WriteLinkingDrawing(TempDirectory directory, string drawing, string href, string picture)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(directory.Combine(picture))!);
+        using (var surface = Solid(4, 4, new Rgba32(0, 255, 0, 255)))
+        {
+            PngCodec.Save(surface, directory.Combine(picture));
+        }
+
+        return FixtureFactory.WriteText(
+            directory.Path,
+            drawing,
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40' width='40' height='40'>"
+            + $"<rect width='40' height='40' fill='#ff0000'/><image href='{href}' x='0' y='0' width='20' height='20'/></svg>");
+    }
+
+    /// <summary>
+    ///     Test that one file-access policy applies to both inputs: under <c>--file-access roots</c> the default folders
+    ///     cover the folder of each input, and <c>--allow-root</c> naming one folder denies the picture of the other input.
+    /// </summary>
+    [Fact]
+    public void CompareCommand_Run_FileAccessRoots_CoverTheFolderOfEachInput()
+    {
+        // Arrange: two drawings in two folders, each linking a picture beside it
+        using var directory = new TempDirectory();
+        var left = WriteLinkingDrawing(directory, "a/left.svg", "pic.png", "a/pic.png");
+        var right = WriteLinkingDrawing(directory, "b/right.svg", "pic.png", "b/pic.png");
+
+        // Act
+        using var both = JsonDocument.Parse(Run(true, left, right, "--file-access", "roots"));
+        using var onlyA = JsonDocument.Parse(Run(true, left, right, "--allow-root", directory.Combine("a")));
+
+        // Assert: no note with the default folders; one note for input b when only a is allowed
+        Assert.Empty(both.RootElement.GetProperty("diagnostics").EnumerateArray());
+        var note = Assert.Single(onlyA.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("b", note.GetProperty("side").GetString());
+        Assert.Equal("image-access-denied", note.GetProperty("code").GetString());
     }
 }

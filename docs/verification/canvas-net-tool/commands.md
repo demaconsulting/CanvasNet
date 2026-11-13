@@ -119,3 +119,15 @@ lists `inspect` with its summary, and `inspect --help` and `help inspect` show b
 writes the copy of a drawing that links a Mermaid diagram with nothing on standard error, a missing output is an
 expected `usage-error` on standard error with exit code 1, the top-level help lists `flatten` with its summary, and
 `help flatten` shows its usage and `--scale <factor>`.
+
+**CommandsSubsystem_FileAccess_EveryReadingCommand_AcceptsTheOptionsAndDeniesAnOutsidePicture**: through the default
+registry, `render`, `rotate`, `inspect colors`, `compare`, `montage`, and `flatten` of a drawing that links a Mermaid
+diagram in the folder above it, each with `--file-access roots --json`, exit with code 0 and report the
+`image-access-denied` note.
+
+**CommandsSubsystem_FileAccess_Info_HasNoFileAccessOption**: `info` with `--file-access roots` exits with code 1 and
+reports the `usage-error` "Unknown option '--file-access' for 'info'.".
+
+**CommandsSubsystem_FileAccess_SourceTree_EveryProbeAndRequestCarriesThePolicy**: every C# file of the tool is scanned;
+each statement that calls `SourceLoader.Probe(` or builds a `SourceOptions`, `FlattenRequest`, or `MontageRequest` (at
+least eleven are found) names a file-access policy.

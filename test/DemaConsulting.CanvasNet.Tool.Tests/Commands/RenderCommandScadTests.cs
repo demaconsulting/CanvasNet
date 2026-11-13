@@ -607,7 +607,8 @@ public class RenderCommandScadTests
         }
 
         Assert.Contains("800x800", help);
-        Assert.Contains("include and use directives are read from the", help);
-        Assert.Contains("folder of the model and below it only", help);
+        Assert.Contains("include and use directives are read relative to the file that names them", help);
+        Assert.Contains("--file-access", help);
+        Assert.Contains("canvasnet help files", help);
     }
 }

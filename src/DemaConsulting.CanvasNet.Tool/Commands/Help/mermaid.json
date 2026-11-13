@@ -317,7 +317,7 @@
         { "term": "mermaid-style-ignored", "text": "Warning: a style declaration outside the supported subset; it is ignored." },
         { "term": "mermaid-html-tag-ignored", "text": "Warning: an HTML tag outside the supported label subset; the tag is dropped and its text is kept." },
         { "term": "mermaid-image-unresolved", "text": "Warning: a picture the resolver did not give; the node keeps its frame." },
-        { "text": "A link that is not drawn (a missing file, a network URL) is the warning svg-image-unresolved with the reason, and --strict makes it a failure." },
+        { "text": "A link that is not drawn (a missing file, a network URL) is the warning svg-image-unresolved with the reason, a link the file-access mode denies is image-access-denied, and --strict makes either a failure." },
         { "term": "mermaid-text-missing-glyph", "text": "Warning: a character that no bundled font has (for example CJK); it is drawn as the missing-glyph box." },
         { "term": "mermaid-gantt-today-unavailable", "text": "Warning: a gantt chart needs today (a todayMarker style, an after or until id that no task has, or a date without a year, month, or day) and MermaidRenderOptions.Now is not set; the today line is not drawn and 1970-01-01 is taken as today." },
         { "term": "mermaid-gantt-ticks-skipped", "text": "Warning: the tickInterval of a gantt chart spans more than 10,000 of its intervals (Mermaid's estimate of the ticks; exactly 10,000 draws 10,001 ticks, both ends included); the default ticks are drawn, as in Mermaid." },

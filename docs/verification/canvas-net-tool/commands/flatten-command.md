@@ -22,8 +22,9 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 
 #### Test Scenarios
 
-**FlattenCommand_Help_ShowsUsageAndOptions**: the name, the usage with its examples, and the four options in order, with
-`-o` as the alias of `--output`.
+**FlattenCommand_Help_ShowsUsageAndOptions**: the name, the usage with its examples, and the six options in order
+(`--output`, `--scale`, `--strict`, `--file-access`, `--allow-root`, `--no-clobber`), with `-o` as the alias of
+`--output`.
 
 **FlattenCommand_Run_CompositeSvg_WritesCopyAndPrintsSummary** and **FlattenCommand_Run_Scale_DoublesReplacedSize**: the
 line names the output, its size, and `flow.mmd 60x40 mermaid` (`120x80` with `--scale 2`), and the copy holds a PNG data
@@ -47,3 +48,7 @@ as `Warning: svg-flatten-image-not-drawn: ...`.
 **FlattenCommand_Run_NotSvg_UnsupportedFormat**, **FlattenCommand_Run_NoClobber_OutputExists**, and
 **FlattenCommand_Run_Strict_UnresolvedLink_FailsUnsupportedFeature**: each refused command line has its code, the hint of
 a missing output names `-o`, and an existing output is kept with `--no-clobber`.
+
+**FlattenCommand_Run_FileAccessRoots_DeniedLinkIsAWarningAndAnErrorWhenStrict**: a drawing in a sub folder that links a
+Mermaid diagram in the folder above it, flattened with `--file-access roots --json`, reports one `image-access-denied`
+note and `flattened` false; with `--strict` it fails with `file-access-denied` and writes no copy.

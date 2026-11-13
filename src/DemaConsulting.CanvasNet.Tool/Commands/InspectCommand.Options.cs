@@ -94,7 +94,7 @@ internal sealed partial class InspectCommand
 
         var count = reader.GetInt(CountOption, SurfaceStatistics.MinColors, SurfaceStatistics.MaxColors) ?? DefaultColors;
         var radius = reader.GetInt(RadiusOption, 0, PixelSample.MaxRadius) ?? 0;
-        var source = RenderCommand.ReadSourceOptions(reader);
+        var source = RenderCommand.ReadSourceOptions(reader, reader.Positionals[1]);
 
         // Every operation is parsed now so that a malformed one is reported before anything is loaded
         var operations = ImagePipelineParser.Parse(reader, null, null);

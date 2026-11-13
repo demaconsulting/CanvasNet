@@ -58,6 +58,7 @@ internal sealed partial class MontageCommand : ICommand
         + "report.pdf#page=3, chart.vl.json#param.t=5, flow.mmd#theme=dark (quote it in a shell; add def.$vpd=200 to a" + Environment.NewLine
         + "model so that every cell keeps one scale). A fragment is the only way to set a chart parameter or a Mermaid" + Environment.NewLine
         + "theme here (montage has no --param or --theme). A '#' is a fragment only when no file has that exact name." + Environment.NewLine
+        + "--file-access and --allow-root apply to every input (roots allows the folder of every input by default)." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet montage a.png b.png c.png -o sheet.png" + Environment.NewLine
@@ -83,7 +84,7 @@ internal sealed partial class MontageCommand : ICommand
         }
 
         // Report every mistake about the inputs, the pages, and the output before any pixels are decoded
-        var infos = settings.Inputs.Select(text => SourceLoader.Probe(InputReference.Parse(text))).ToList();
+        var infos = settings.Inputs.Select(text => SourceLoader.Probe(InputReference.Parse(text), settings.FileAccess)).ToList();
         if (settings.Scad != null && !infos.Any(info => info.Format.IsModel()))
         {
             throw new ToolException(
@@ -105,7 +106,8 @@ internal sealed partial class MontageCommand : ICommand
                 Strict = settings.Strict,
                 AutoOrient = settings.AutoOrient,
                 Sheet = settings.Sheet,
-                Write = settings.Write
+                Write = settings.Write,
+                FileAccess = settings.FileAccess
             });
         var layout = montage.Layout;
         var placed = montage.Cells;

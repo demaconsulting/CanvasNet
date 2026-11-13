@@ -63,6 +63,13 @@ from `RenderCommand.OptionTable` through `RenderCommand.SpecsFor`, and read the 
 `RenderCommand.ReadSourceOptions`; it is one registered command with the subcommands `colors` and `pixel`, taken from
 its first positional argument, because the registry is flat.
 
+**Shared file-access options**: render (and its verbs), `inspect`, `compare`, `montage`, and `flatten` declare
+`--file-access` and `--allow-root` from the same table and build one `FileAccessPolicy` per invocation with
+`RenderCommand.ReadFileAccess` (inside `ReadSourceOptions` for render and inspect), which every `SourceLoader.Probe`
+call and every `SourceOptions`, `FlattenRequest`, and `MontageRequest` of the command receives; `info` has no such
+option and probes under `FileAccessPolicy.AllowAll`. A subsystem test scans the source so that no probe or request is
+built without a policy.
+
 **Expected failure after a result**: a command whose failure still produced a result (`compare` with a threshold that
 is not met) writes the result and then throws a `ToolException` whose `ResultFields` write the result into the JSON
 failure document; the exit code is 1 like every expected failure.

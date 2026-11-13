@@ -71,7 +71,11 @@ are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline s
 > marks and data files, OpenSCAD `include` and `use`, and linked document pages now follow `..`, absolute paths,
 > `file:` URIs and symbolic links, as Pandoc does. To keep the old folder confinement, set
 > `FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)` on the
-> options of the operation. The `SandboxedFileResolver` family is obsolete. See *Migrating from the Folder Sandbox* in
+> options of the operation. The `SandboxedFileResolver` family is obsolete. The `canvasnet` tool follows the same
+> default. Exactly the old confinement is `--file-access roots,no-symlinks --allow-root <folder of the input>`;
+> without `--allow-root`, `roots` also allows everything under the current folder. For a document you do not trust,
+> add `--allow-root <the document's folder>`. The Pandoc filter stays unrestricted unless
+> `CANVASNET_FILE_ACCESS` and `CANVASNET_ROOTS` opt in. See *Migrating from the Folder Sandbox* in
 > the [core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
@@ -202,6 +206,15 @@ unhandled-exception output, and should be reported. Use `canvasnet --version` to
 | `inspect`                  | Report the dominant colors and luma statistics, or the value of a pixel          |
 | `flatten`                  | Copy an SVG drawing with its linked models, charts, and diagrams as PNG pictures |
 
+| File-access option      | Purpose                                                                           |
+|-------------------------|-----------------------------------------------------------------------------------|
+| `--file-access <mode>`  | Which local files a document may reference (`any`, the default, or a confinement) |
+| `--allow-root <folder>` | A folder referenced files may be in (repeatable; implies `--file-access roots`)   |
+
+Both apply to `render` and its verbs, `inspect`, `compare`, `montage`, and `flatten`; the modes are `any` (every regular
+local file, as Pandoc reads them), `roots`, `no-symlinks`, and `roots,no-symlinks`. `canvasnet help files` explains
+the modes, the diagnostics of a denied file, and the opt-in of the Pandoc filter.
+
 `render` reads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, SCAD, Vega-Lite charts
 (`.vl.json`, `.vl`), and Mermaid diagrams (`.mmd`, `.mermaid`), and applies `--crop`, `--resize`,
 `--fit`, `--rotate` (any angle), `--flip`, and `--pad` in the order written, together with the photo operations
@@ -221,8 +234,9 @@ black and white (Otsu's method), and `--grid 100` draws a labeled coordinate gri
 A model (`.scad`) is drawn from a named view (`--view iso|front|back|left|right|top|bottom`, orthographic unless
 `--projection perspective`) at 800x800 pixels unless a size is given, with `-D name=value` setting its variables, for
 example `canvasnet render part.scad --view top -D width=30 -o part-top.png --json`. The files its `include` and `use`
-directives name are read from the folder of the model and below it only, and a model whose include cannot be found
-is an error. `canvasnet info part.scad` lists the modules, functions, and directives of a model without drawing it.
+directives name are read relative to the file that names them (any local file, as in OpenSCAD, unless
+`--file-access` confines them), and a model whose include cannot be found is an error. `canvasnet info part.scad` lists
+the modules, functions, and directives of a model without drawing it.
 
 A Vega-Lite chart is read from a file named `.vl.json` or `.vl`, or from a `.json` file whose `$schema` is a Vega-Lite
 schema, and is drawn at the size its specification lays out (`--scale`, `--width`, `--height`, and `--size` change it),
@@ -235,8 +249,9 @@ expression language and static parameters; bar, rect, point, circle, square, rul
 marks; position, color,
 size, shape, and opacity encodings with legends, color schemes, and time scales and axes), draws only the bundled
 fonts, and never reads the
-network; a chart's CSV, TSV, DSV, or JSON data file is read from the folder of its specification and below it only
-(there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other marks,
+network; a chart's CSV, TSV, DSV, or JSON data file is read relative to the folder of its specification, under the
+mode of `--file-access` (there is no data-folder option, and a missing file is a `vega-lite-error`); everything else
+(other marks,
 remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
 such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
 

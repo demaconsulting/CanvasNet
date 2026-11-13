@@ -1736,11 +1736,12 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── HelpTopics.cs              — HelpTopics: the topic model, the embedded catalog, tokens, and lookup
     ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
     ├── Help/                      — HelpTopics: the embedded topic files (scad, vega-lite, mermaid, svg, pdf, pptx,
-    │   │                            vsdx, raster, json, errors, and limits, one JSON file each)
+    │   │                            vsdx, raster, json, errors, limits, and files, one JSON file each)
     │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, Mermaid, and SVG)
     ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
     ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
     ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+    ├── RenderCommand.FileAccess.cs — RenderCommand: the --file-access and --allow-root options of every reading command
     ├── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
     ├── ImagePipelineParser.cs     — RenderCommand: the reading of the pipeline operations from the command line
     ├── CompareCommand.cs          — CompareCommand: the compare command, run, thresholds, and result

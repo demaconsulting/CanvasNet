@@ -66,7 +66,7 @@ public class FlattenCommandTests
         Assert.False(string.IsNullOrWhiteSpace(command.Summary));
         Assert.StartsWith("canvasnet flatten <input.svg> -o <output.svg>", command.Usage, StringComparison.Ordinal);
         Assert.Contains("Examples:", command.Usage, StringComparison.Ordinal);
-        Assert.Equal(["--output", "--scale", "--strict", "--no-clobber"], command.Options.Select(o => o.Name));
+        Assert.Equal(["--output", "--scale", "--strict", "--file-access", "--allow-root", "--no-clobber"], command.Options.Select(o => o.Name));
         Assert.Equal(["-o"], command.Options.Single(o => o.Name == "--output").Aliases);
     }
 
@@ -222,6 +222,37 @@ public class FlattenCommandTests
 
         // Assert
         Assert.Equal(ErrorCodes.UnsupportedFeature, ex.Code);
+    }
+
+    /// <summary>
+    ///     Test that under <c>--file-access roots</c> a link to a diagram outside the folder of the drawing is the warning
+    ///     <c>image-access-denied</c> (the diagram is not drawn), and the error <c>file-access-denied</c> with
+    ///     <c>--strict</c>, which writes nothing.
+    /// </summary>
+    [Fact]
+    public void FlattenCommand_Run_FileAccessRoots_DeniedLinkIsAWarningAndAnErrorWhenStrict()
+    {
+        // Arrange: the drawing in a sub folder links the diagram in the folder above it
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath("mermaid/flow.mmd"), directory.Combine("flow.mmd"));
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "site/dashboard.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><image href='../flow.mmd' width='60' height='40'/></svg>");
+        var output = directory.Combine("flat.svg");
+        var strictOutput = directory.Combine("strict.svg");
+
+        // Act
+        var (stdOut, _) = Run(true, input, "-o", output, "--file-access", "roots");
+        var strict = RunFailing(input, "-o", strictOutput, "--file-access", "roots", "--strict");
+
+        // Assert: one warning and nothing replaced; strict fails and writes nothing
+        using var document = JsonDocument.Parse(stdOut);
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("image-access-denied", diagnostic.GetProperty("code").GetString());
+        Assert.False(document.RootElement.GetProperty("flattened").GetBoolean());
+        Assert.Equal(ErrorCodes.FileAccessDenied, strict.Code);
+        Assert.False(File.Exists(strictOutput));
     }
 
     /// <summary>

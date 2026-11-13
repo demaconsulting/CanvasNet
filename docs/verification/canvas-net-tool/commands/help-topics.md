@@ -86,10 +86,11 @@ delete.
   in order and worded the same apart from formatting, and every code of the guide's table of unsupported features and
   warnings is an item of the topic.
 - The `flatten` section of the `svg` topic has exactly the rows of the flatten reference table of the tool user guide,
-  in order and worded the same apart from formatting.
+  in order and worded the same apart from formatting, and so has the `files` topic, item by item, with the file access
+  reference table.
 - The file types the `svg` topic lists for `<image href>` are exactly the extensions of `CanvasNetViewer` and of the
-  `formats` table; the `image-links` section states the size rule, the folder rule, `svg-image-unresolved`,
-  `svg-image-too-large`, and the
+  `formats` table; the `image-links` section states the size rule, the link rule, `svg-image-unresolved`,
+  `svg-image-too-large`, `image-access-denied`, and the
   example; the
   `scad` and `vega-lite` topics, the `formats` footer, and the `render` usage point to `canvasnet help svg`.
 - The text of a topic is deterministic, plain (no ANSI escape sequence, no carriage return, no trailing newline), and
@@ -104,7 +105,8 @@ order; every topic has a title, a summary, sections that each have items, and ex
 the assembly are exactly the catalog (no orphan and no missing file).
 
 **HelpTopics_Find_EveryAlias_ResolvesIgnoringCase**: every documented alias (`openscad`, `vegalite`, `vl`, `mmd`,
-`powerpoint`, `visio`, `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, and `jp2`) resolves to its topic
+`powerpoint`, `visio`, `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, `jp2`, `file-access`, and `links`)
+resolves to its topic
 in lower and upper case, every canonical name resolves to itself, the alias count is the documented one, and an unknown
 name resolves to nothing.
 
@@ -142,10 +144,11 @@ and include every one of them (both directions); `CanvasNetViewer.Extensions` is
 registered `ImageSources` and does not contain `.json` but does contain `.vl.json`; and they equal the extensions of
 `DiscoveryCommands.InputFormats`.
 
-**HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample**: the `image-links` section says that
-a linked file is drawn at the size of the image element, that the `href` is relative to the folder of the SVG file and
-that an absolute path and a network URL are never followed, that `--strict` applies, has an item for
-`svg-image-unresolved` and `svg-image-too-large`, shows the `part.scad` example, names
+**HelpTopics_SvgTopic_ImageLinksSection_StatesSizeLinkRuleDiagnosticAndExample**: the `image-links` section says that
+a linked file is drawn at the size of the image element, that the `href` is relative to the folder of the SVG file,
+what it says of an absolute path and a network URL, that `--strict` applies, and that `--file-access` chooses the
+files, has an item for `svg-image-unresolved`, `svg-image-too-large`, `link rule`, and `image-access-denied`, shows the
+`part.scad` example, names
 `canvasnet help svg --example embed`, and the `embed`
 example can be printed.
 
@@ -184,6 +187,16 @@ ignoring case. Every difference is listed in the failure message, guide row besi
 `#### Flatten Reference` (at least 7, each with the header `Term | Meaning`) are, one for one and in order, the items of
 the `flatten` section of the `svg` topic: the term is the first cell and the text the second, compared without
 backticks and with the first letter of the text ignoring case.
+
+**HelpTopics_FilesTopic_Items_MatchUserGuide**: the rows of the table under the guide heading
+`#### File Access Reference` (at least 16, each with the header `Term | Meaning`) are, one for one and in order, every
+item of the `files` topic, each of which has a term; compared as for the flatten reference.
+
+**HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc**: the `files` topic has the sections `modes`,
+`options`, `always`, `diagnostics`, and `pandoc`; its terms include the four modes, `--file-access <mode>`,
+`--allow-root <folder>`, `inputs`, `never read`, `limits`, the live codes `FolderImageResolver.AccessDeniedCode` and
+`ErrorCodes.FileAccessDenied`, and `CANVASNET_FILE_ACCESS` and `CANVASNET_ROOTS`, which `docs/filters/canvasnet.lua`
+reads; the `svg` and `errors` topics point to `canvasnet help files`.
 
 **HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` item names the grammar
 (`name=value`), `page=N`, `slide=N`, `view=`, the counting from 1, and the live limits; the `page example` item shows

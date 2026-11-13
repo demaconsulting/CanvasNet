@@ -53,7 +53,8 @@ sections:
         title: >-
           The tool shall explain the input formats it reads (what is supported and what is not, the options, the
           diagnostics, and the known differences), the result documents, errors, and limits as help topics, with tiny
-          examples that render without a diagnostic, when the help command is given a topic, shall print one example
+          examples that render without a diagnostic, and the files a document may reference, when the help command is
+          given a topic, shall print one example
           alone or list the examples, and shall write any help as one JSON document, without a banner, when the
           `--json` option is given.
         tags: [system]
@@ -697,7 +698,7 @@ sections:
           otherwise, with variables set by `-D name=value`, `$t` set by `--time`, the color of
           uncolored surfaces set by `--default-color`, and the number of triangles limited by
           `--max-triangles`; shall read the files named by `include` and `use` relative to the folder of
-          the model under the default file-access policy of the library (every regular local file, as
+          the model under the file-access mode of `--file-access` (by default every regular local file, as
           OpenSCAD reads them) and refuse a model whose include cannot be read; and shall report a
           syntax error, a failed assertion, and an include problem with the error code scad-error, and a
           model that exceeds a limit with the error code budget-exceeded, as expected failures.
@@ -713,6 +714,7 @@ sections:
           - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
           - CanvasNetTool_Scad_OutputFormats_WriteDecodableFiles
           - CanvasNetTool_Scad_Includes_AreReadRelativeToTheModelFolder
+          - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 
@@ -745,8 +747,8 @@ sections:
           Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default),
           over the background of the chart (white by default) unless `--background` says otherwise, with
           UTC dates and only the fonts bundled with the tool, without reading anything from the network and
-          reading the local data files of a chart (CSV, TSV, or JSON named by a relative url) only from the
-          folder of its specification and below it, with no option for another data folder, giving the same
+          reading the local data files of a chart (CSV, TSV, or JSON named by a url) relative to the folder of
+          its specification under the mode of `--file-access`, with no option for another data folder, giving the same
           picture every time; shall describe a chart with the `info` command (its
           laid-out size and, in a `chart` object, its marks, data references, parameters, title, and schema
           version) and list the `vega-lite` format with the `formats` command; shall refuse a plain Vega
@@ -763,8 +765,8 @@ sections:
         justification: |
           Agents are asked to show data; a declarative chart specification says what to draw without a
           plotting program, the same picture on every machine lets results be compared and cached, and
-          reading only the specification, the data files beside it, and never the network means that
-          rendering a chart from an untrusted source cannot reach other systems or other folders. Every limit
+          never reading the network means that rendering a chart from an untrusted source cannot reach other
+          systems, and `--file-access roots` keeps its data files in chosen folders. Every limit
           and mistake of a chart is a concise, coded error rather than a crash, and the constructs the renderer
           cannot draw yet are reported, never silently skipped.
         children:
@@ -788,8 +790,8 @@ sections:
           giving the same picture every time, in the theme `--theme` names (default, base, dark, forest, or neutral;
           the theme fragment of the input, flow.mmd#theme=dark, wins over the option, and a theme the text sets itself
           wins over both); shall show the pictures of its nodes (a raster, an SVG file, a model, a chart, a page of a
-          document, or another diagram) relative to the folder of the diagram under the default file-access policy of
-          the library; shall describe a diagram
+          document, or another diagram) relative to the folder of the diagram under the file-access mode of
+          `--file-access` (any by default); shall describe a diagram
           with the `info` command (its laid-out size and, in a `diagram` object, its type, whether this version draws
           it, its direction, titles, and numbers of nodes, edges, and subgraphs), list the `mermaid` format of the
           kind `diagram` with the `formats` command, and explain it in the help topic `mermaid` (alias `mmd`); shall
@@ -831,11 +833,12 @@ sections:
           document (page 1, or the page the fragment of the href names with page=N or slide=N; the type is decided by
           the file name extension; the tool wires in the image resolver of the Viewer
           package and has no plug-in mechanism),
-          reading the embedded files relative to the folder of the file that links them under the default
-          file-access policy of the library (every regular local file, also through dot-dot, an absolute path, and
+          reading the embedded files relative to the folder of the file that links them under the file-access mode
+          of `--file-access` (any by default: every regular local file, also through dot-dot, an absolute path, and
           a symbolic link, as Pandoc reads them; never from the network or a UNC path), drawing a model, chart, or
           diagram at the size of its placement,
-          reporting an href that it does not draw as the warning svg-image-unresolved, a picture too large for the
+          reporting an href that it does not draw as the warning svg-image-unresolved, an href the mode denies as
+          the warning image-access-denied (the error file-access-denied with `--strict`), a picture too large for the
           pixel budget as the warning svg-image-too-large, a fragment that cannot be used as image-fragment-invalid,
           and a page that does not exist as image-page-out-of-range (each an unsupported-feature error with
           `--strict`; a parameter the file does not use or a duplicate stays a warning), ignoring a query after the
@@ -854,6 +857,7 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-SvgEmbed
         tests:
           - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder
+          - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsAnOutsidePictureUnderTheDefaultPolicy
           - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
           - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
 
@@ -862,8 +866,8 @@ sections:
           The tool shall write, with the flatten command, a copy of an SVG file in which every image link to an OpenSCAD
           model, a Vega-Lite chart, a Mermaid diagram, or a page of a PDF, PPTX, or VSDX document (and to a nested SVG
           file that links one) is a PNG picture of its placement size, keeping every other byte, following the links
-          with the file-access policy and limits of render, writing nothing and exiting with code 0 when there is
-          nothing to flatten, and reporting its failures as expected errors.
+          with the file-access mode of `--file-access` (any by default) and the limits of render, writing nothing and
+          exiting with code 0 when there is nothing to flatten, and reporting its failures as expected errors.
         tags: [system]
         justification: |
           A documentation build that turns HTML into a PDF with an SVG reader that cannot draw models, charts, or
@@ -875,6 +879,33 @@ sections:
           - CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy
           - CanvasNetTool_Flatten_PlainSvg_ExitsZeroWithoutOutput
           - CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors
+
+      - id: CanvasNetTool-System-FileAccess
+        title: >-
+          The tool shall read the files a document references (SVG images, Mermaid pictures, Vega-Lite image marks and
+          data files, OpenSCAD includes, and linked pages) for render and its verbs, inspect, compare, montage, and
+          flatten under the mode of `--file-access`: any (the default; every regular local file, as Pandoc reads
+          them), roots (only inside the folders of `--allow-root`, which is repeatable and implies roots, or by
+          default the current folder and the folder of each input), no-symlinks, or roots,no-symlinks; shall never
+          judge an input named on the command line; shall report a denied picture as the warning image-access-denied
+          (the error file-access-denied with `--strict`) and a denied include or data file as the error
+          file-access-denied; shall refuse an unknown mode, `--allow-root` with the mode any or no-symlinks, and an
+          `--allow-root` folder that does not exist as usage-error before any input is read; and shall never write the
+          mode into the JSON result.
+        tags: [system, security]
+        justification: |
+          Documents reference other files the way Pandoc documents reference images, so the default reads them as
+          Pandoc does; a user or an agent that processes a document it does not trust must be able to confine what
+          the document can make the tool read, from the command line, with clear errors for every mistake.
+        children:
+          - CanvasNetTool-Commands-FileAccess
+          - CanvasNetViewer-Imaging-FileAccess
+        tests:
+          - CanvasNetTool_FileAccess_AllowRootAsProcess_ConfinesEveryReadingCommand
+          - CanvasNetTool_FileAccess_MistakesAsProcess_AreUsageErrors
+          - CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly
+          - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder
+          - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsAnOutsidePictureUnderTheDefaultPolicy
 
       - id: CanvasNetTool-System-Diagnostics
         title: >-
