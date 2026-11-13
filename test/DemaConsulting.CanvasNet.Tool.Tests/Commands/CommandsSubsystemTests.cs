@@ -488,4 +488,114 @@ public class CommandsSubsystemTests
         Assert.Contains("Usage: canvasnet flatten <input.svg> -o <output.svg>", byName.StdOut, StringComparison.Ordinal);
         Assert.Contains("--scale <factor>", byName.StdOut, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Test that every command that reads an input (render, a verb, inspect, compare, montage, and flatten) accepts
+    ///     <c>--file-access</c> and applies it: a picture outside the folder of the drawing is denied with a warning.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_FileAccess_EveryReadingCommand_AcceptsTheOptionsAndDeniesAnOutsidePicture()
+    {
+        // Arrange: a drawing in a sub folder that links a Mermaid diagram in the folder above it
+        using var directory = new TempDirectory();
+        File.Copy(FixtureFactory.FixturePath("mermaid/flow.mmd"), directory.Combine("flow.mmd"));
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "site/diagram.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><image href='../flow.mmd' width='60' height='40'/></svg>");
+        string[][] commands =
+        [
+            ["render", input, "-o", directory.Combine("render.png")],
+            ["rotate", input, "90", "-o", directory.Combine("rotate.png")],
+            ["inspect", "colors", input],
+            ["compare", input, input],
+            ["montage", input, "-o", directory.Combine("montage.png")],
+            ["flatten", input, "-o", directory.Combine("flat.svg")]
+        ];
+
+        foreach (var command in commands)
+        {
+            // Act
+            var (exitCode, stdOut, _) = ToolHost.Invoke([.. command, "--file-access", "roots", "--json"]);
+
+            // Assert: success, with the denial among the notes
+            Assert.True(exitCode == 0, $"{command[0]} failed: {stdOut}");
+            Assert.Contains("\"code\":\"image-access-denied\"", stdOut, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    ///     Test that <c>info</c> has no file-access option: it measures under the default mode.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_FileAccess_Info_HasNoFileAccessOption()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteSource(directory.Path, "svg");
+
+        // Act
+        var (exitCode, _, stdErr) = ToolHost.Invoke("info", input, "--file-access", "roots");
+
+        // Assert
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Error: usage-error: Unknown option '--file-access' for 'info'.", stdErr, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that, in the source of the tool, every probe of an input and every set of load, flatten, and montage
+    ///     options names a file-access policy, so no command can read a reference under a policy it did not choose.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_FileAccess_SourceTree_EveryProbeAndRequestCarriesThePolicy()
+    {
+        // Arrange: every C# file of the tool
+        var source = Path.Combine(FindRepositoryRoot(), "src", "DemaConsulting.CanvasNet.Tool");
+        var files = Directory.GetFiles(source, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                           && !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+        string[] patterns = ["SourceLoader.Probe(", "new SourceOptions", "new FlattenRequest(", "new MontageRequest("];
+
+        // Act: each statement that starts with a pattern, up to the semicolon that ends it
+        var statements = new List<(string File, string Text)>();
+        foreach (var file in files)
+        {
+            var text = File.ReadAllText(file);
+            foreach (var pattern in patterns)
+            {
+                for (var index = text.IndexOf(pattern, StringComparison.Ordinal); index >= 0; index = text.IndexOf(pattern, index + 1, StringComparison.Ordinal))
+                {
+                    var end = text.IndexOf(';', index);
+                    statements.Add((Path.GetFileName(file), text[index..end]));
+                }
+            }
+        }
+
+        // Assert: the seven probes and the four sets of options were found, and each names a policy
+        Assert.True(statements.Count >= 11, $"Only {statements.Count} statements were found.");
+        Assert.All(
+            statements,
+            statement => Assert.True(
+                statement.Text.Contains("FileAccess", StringComparison.OrdinalIgnoreCase),
+                $"{statement.File}: '{statement.Text}' does not name a file-access policy."));
+    }
+
+    /// <summary>
+    ///     Finds the root of the repository: the folder that holds <c>CanvasNet.slnx</c>.
+    /// </summary>
+    /// <returns>The full path of the folder.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when there is no such folder above the test assembly.</exception>
+    private static string FindRepositoryRoot()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder != null; folder = folder.Parent)
+        {
+            if (File.Exists(Path.Combine(folder.FullName, "CanvasNet.slnx")))
+            {
+                return folder.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"The repository root (the folder with CanvasNet.slnx) was not found above {AppContext.BaseDirectory}.");
+    }
 }

@@ -1437,6 +1437,39 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that under <c>--file-access roots</c> include and use are read from the folder of the model and below it,
+    ///     and that an include outside it is the error <c>file-access-denied</c> that writes nothing.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly()
+    {
+        // Arrange: a model with an include and a use below its folder, and one that leaves its folder
+        using var directory = new TempDirectory();
+        var good = FixtureFactory.WriteText(directory.Path, "model/model.scad", "include <lib/part.scad>\nuse <lib/fn.scad>\nblock(f(3));\n");
+        FixtureFactory.WriteText(directory.Path, "model/lib/part.scad", "module block(s) { cube(s); }\n");
+        FixtureFactory.WriteText(directory.Path, "model/lib/fn.scad", "function f(x) = x * 2;\n");
+        FixtureFactory.WriteText(directory.Path, "secret.scad", "module secret() { cube(1); }\n");
+        var outside = FixtureFactory.WriteText(directory.Path, "model/outside.scad", "include <../secret.scad>\nsecret();\n");
+
+        // Act
+        var accepted = ToolHost.Invoke("render", good, "--file-access", "roots", "--size", "16x16", "-o", directory.Combine("good.png"), "--json");
+        var refused = ToolHost.Invoke("render", outside, "--file-access", "roots", "--size", "16x16", "-o", directory.Combine("outside.png"), "--json");
+
+        // Assert: the model with its parts renders without notes; the outside include fails and writes nothing
+        Assert.Equal(0, accepted.ExitCode);
+        using (var document = JsonDocument.Parse(accepted.StdOut))
+        {
+            Assert.Equal(0, document.RootElement.GetProperty("diagnostics").GetArrayLength());
+        }
+
+        Assert.Equal(1, refused.ExitCode);
+        Assert.Contains("Error: file-access-denied:", refused.StdErr);
+        using var error = JsonDocument.Parse(refused.StdOut);
+        Assert.Equal("file-access-denied", error.RootElement.GetProperty("error").GetProperty("code").GetString());
+        Assert.False(File.Exists(directory.Combine("outside.png")));
+    }
+
+    /// <summary>
     ///     Test that the mistakes a model can make (a syntax error, a missing include, a limit, an unsupported feature in
     ///     strict mode, bad options, garbage) are expected errors with the documented codes, never unexpected ones.
     /// </summary>

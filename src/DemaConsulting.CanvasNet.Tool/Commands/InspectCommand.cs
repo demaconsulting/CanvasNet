@@ -87,7 +87,7 @@ internal sealed partial class InspectCommand : ICommand
         var settings = ReadSettings(reader);
 
         // Report every mistake about the input before any pixels are decoded; a '#' fragment of the input is read here too
-        var info = SourceLoader.Probe(InputReference.Parse(settings.Input));
+        var info = SourceLoader.Probe(InputReference.Parse(settings.Input), settings.Source.FileAccess);
         if (settings.Source.Scad != null && !info.Format.IsModel())
         {
             throw new ToolException(

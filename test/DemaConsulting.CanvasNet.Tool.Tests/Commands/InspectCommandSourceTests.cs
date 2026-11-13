@@ -199,4 +199,37 @@ public class InspectCommandSourceTests
         Assert.Equal("#FFFFFF", transparent.RootElement.GetProperty("background").GetString());
         Assert.Equal(1.0, Assert.Single(green.RootElement.GetProperty("colors").EnumerateArray()).GetProperty("fraction").GetDouble());
     }
+
+    /// <summary>
+    ///     Test that <c>inspect</c> applies <c>--file-access roots</c> to its input: a picture outside the folder of the
+    ///     drawing is left out of the analysis and reported, and is drawn and counted by default.
+    /// </summary>
+    [Fact]
+    public void InspectCommand_Run_FileAccessRoots_DeniedPictureIsLeftOutAndReported()
+    {
+        // Arrange: a red drawing in a sub folder that links a green picture in the folder above it
+        using var directory = new TempDirectory();
+        using (var surface = new Surface(4, 4))
+        {
+            surface.Clear(new Rgba32(0, 255, 0, 255));
+            PngCodec.Save(surface, directory.Combine("secret.png"));
+        }
+
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "site/diagram.svg",
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40' width='40' height='40'>"
+            + "<rect width='40' height='40' fill='#ff0000'/><image href='../secret.png' x='0' y='0' width='20' height='20'/></svg>");
+
+        // Act
+        using var denied = Colors(input, "--file-access", "roots");
+        using var allowed = Colors(input);
+
+        // Assert: under roots, one warning and only red; by default, green is counted and there is no note
+        var diagnostic = Assert.Single(denied.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("image-access-denied", diagnostic.GetProperty("code").GetString());
+        Assert.Equal(["#FF0000"], denied.RootElement.GetProperty("colors").EnumerateArray().Select(c => c.GetProperty("hex").GetString()));
+        Assert.Empty(allowed.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Contains("#00FF00", allowed.RootElement.GetProperty("colors").EnumerateArray().Select(c => c.GetProperty("hex").GetString()));
+    }
 }

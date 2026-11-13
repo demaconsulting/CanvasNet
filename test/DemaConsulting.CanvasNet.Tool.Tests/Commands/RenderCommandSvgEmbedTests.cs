@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
 /// <summary>
 ///     Tests of the render command with an SVG file that embeds other files: the result document, the diagnostics, the
-///     folder the files are confined to, strict mode, and the errors.
+///     file-access mode, strict mode, and the errors.
 /// </summary>
 [Collection("Sequential")]
 public class RenderCommandSvgEmbedTests
@@ -297,6 +297,51 @@ public class RenderCommandSvgEmbedTests
         Assert.Equal(new Rgba32(255, 255, 255, 255), image[41, 1]);
         Assert.Equal(Green, image[100, 60]);
         Assert.Equal(Red, image[60, 70]);
+    }
+
+    /// <summary>
+    ///     Test that, under <c>--file-access roots</c> (with the folder named by <c>--allow-root</c>, and with the default
+    ///     folders), a reference outside the folder is a warning in the result and on standard error, that the file is not
+    ///     read, that the rest of the diagram is drawn, and that the result does not describe the policy.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest()
+    {
+        // Arrange: a valid picture above the folder of the diagram, referenced by a path that leaves the folder
+        using var directory = new TempDirectory();
+        Directory.CreateDirectory(directory.Combine("site"));
+        WriteGreenPng(directory.Combine("secret.png"));
+        var input = WriteDiagram(directory.Combine("site"), "<image href='../secret.png' x='10' y='10' width='20' height='20'/>");
+        var named = directory.Combine("named.png");
+        var defaulted = directory.Combine("defaulted.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(
+            "render", input, "--file-access", "roots", "--allow-root", directory.Combine("site"), "-o", named, "--json");
+        var (defaultExitCode, _, defaultStdErr) = ToolHost.Invoke("render", input, "--file-access", "roots", "-o", defaulted);
+
+        // Assert: exit 0, one warning, the picture of the secret file is not in the output, and no policy in the result
+        Assert.Equal(0, exitCode);
+        using var document = JsonDocument.Parse(stdOut);
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("image-access-denied", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("warning", diagnostic.GetProperty("severity").GetString());
+        Assert.Equal("svg", diagnostic.GetProperty("source").GetString());
+        Assert.False(document.RootElement.TryGetProperty("fileAccess", out _));
+        Assert.DoesNotContain("fileAccess", stdOut, StringComparison.OrdinalIgnoreCase);
+        using (var image = PngCodec.Load(named))
+        {
+            Assert.Equal(Red, image[20, 20]);
+        }
+
+        Assert.Equal(string.Empty, stdErr);
+
+        // Assert: the default folders of roots (the working directory and the folder of the diagram) deny it too, and
+        // the warning is one line on standard error
+        Assert.Equal(0, defaultExitCode);
+        Assert.Contains("Warning: image-access-denied:", defaultStdErr, StringComparison.Ordinal);
+        using var defaultImage = PngCodec.Load(defaulted);
+        Assert.Equal(Red, defaultImage[20, 20]);
     }
 
     /// <summary>

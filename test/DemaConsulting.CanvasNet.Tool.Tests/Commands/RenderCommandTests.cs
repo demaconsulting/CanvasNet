@@ -69,8 +69,8 @@ public class RenderCommandTests
         Assert.Equal(
             [
                 "--page", "--all-pages", "--dpi", "--scale", "--width", "--height", "--size", "--background", "--no-auto-orient",
-                "--strict", "--view", "--azimuth", "--elevation", "--projection", "--define", "--time", "--default-color",
-                "--max-triangles", "--param", "--theme", "--crop", "--resize", "--fit", "--allow-upscale", "--rotate", "--rotate-fill", "--flip", "--pad",
+                "--strict", "--file-access", "--allow-root", "--view", "--azimuth", "--elevation", "--projection", "--define",
+                "--time", "--default-color", "--max-triangles", "--param", "--theme", "--crop", "--resize", "--fit", "--allow-upscale", "--rotate", "--rotate-fill", "--flip", "--pad",
                 "--pad-color", "--grayscale", "--invert", "--threshold", "--levels", "--brightness", "--contrast", "--auto-levels",
                 "--auto-levels-clip", "--deskew", "--trim", "--trim-tolerance", "--grid", "--filter", "--output", "--format",
                 "--quality", "--no-clobber"

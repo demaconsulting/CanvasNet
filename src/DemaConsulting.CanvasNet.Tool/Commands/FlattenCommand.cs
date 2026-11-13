@@ -22,14 +22,14 @@ internal sealed class FlattenCommand : ICommand
     ///     The options of the command, in the order they are listed in the help.
     /// </summary>
     /// <remarks>
-    ///     <c>--strict</c> and <c>--no-clobber</c> are the declarations of <see cref="RenderCommand.OptionTable"/>, so the
-    ///     grammar and the help text cannot drift.
+    ///     <c>--strict</c>, <c>--file-access</c>, <c>--allow-root</c>, and <c>--no-clobber</c> are the declarations of
+    ///     <see cref="RenderCommand.OptionTable"/>, so the grammar and the help text cannot drift.
     /// </remarks>
     internal static readonly IReadOnlyList<OptionSpec> OptionTable =
     [
         new("--output", ["-o"], true, "The SVG file the flattened copy is written to", "file"),
         new("--scale", [], true, "Multiply the size of each replaced picture, for example 2 for sharper pictures in print", "factor"),
-        .. RenderCommand.SpecsFor("--strict", "--no-clobber")
+        .. RenderCommand.SpecsFor("--strict", RenderCommand.FileAccessOption, RenderCommand.AllowRootOption, "--no-clobber")
     ];
 
     /// <inheritdoc />
@@ -46,7 +46,7 @@ internal sealed class FlattenCommand : ICommand
 
     /// <inheritdoc />
     public string Usage =>
-        "canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict] [--no-clobber]" + Environment.NewLine
+        "canvasnet flatten <input.svg> -o <output.svg> [--scale <factor>] [--strict] [--file-access <mode>] [--allow-root <folder>] [--no-clobber]" + Environment.NewLine
         + Environment.NewLine
         + "Writes a copy of an SVG drawing in which every <image> link to a file only CanvasNet draws (a Mermaid diagram," + Environment.NewLine
         + "an OpenSCAD model, a Vega-Lite chart, a PDF, PowerPoint, or Visio page, with or without a fragment, and a nested" + Environment.NewLine
@@ -74,10 +74,17 @@ internal sealed class FlattenCommand : ICommand
                          "No output file was given.",
                          "Add -o <file>, for example: canvasnet flatten dashboard.svg -o dashboard-flat.svg");
         var scale = reader.GetDouble("--scale", 0.001, Surface.MaxDimension) ?? 1;
-        var info = SourceLoader.Probe(reader.Positionals[0]);
+        var fileAccess = RenderCommand.ReadFileAccess(reader, [reader.Positionals[0]]);
+        var info = SourceLoader.Probe(reader.Positionals[0], fileAccess);
         var result = SvgFlattener.Execute(
             info,
-            new FlattenRequest(output) { Scale = scale, Strict = reader.Has("--strict"), NoClobber = reader.Has("--no-clobber") });
+            new FlattenRequest(output)
+            {
+                Scale = scale,
+                Strict = reader.Has("--strict"),
+                NoClobber = reader.Has("--no-clobber"),
+                FileAccess = fileAccess
+            });
 
         if (context.Json)
         {

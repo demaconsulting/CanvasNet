@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet psnr rmse ssim
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -28,7 +29,7 @@ internal sealed partial class CompareCommand
         new("--a-dpi", [], true, "Resolution of the first input in dots per inch (a document only; overrides --dpi)", "D"),
         new("--b-dpi", [], true, "Resolution of the second input in dots per inch (a document only; overrides --dpi)", "D"),
         new("--background", [], true, "Opaque color that transparency is flattened over: white (default), black, #RRGGBB, or a color name", "color"),
-        .. RenderCommand.SpecsFor("--no-auto-orient", "--strict"),
+        .. RenderCommand.SpecsFor("--no-auto-orient", "--strict", RenderCommand.FileAccessOption, RenderCommand.AllowRootOption),
         .. RenderCommand.SpecsFor(RenderCommand.ScadOptionNames),
         new("--a-view", [], true, "SCAD model: the viewpoint of the first input (overrides --view)", "name"),
         new("--b-view", [], true, "SCAD model: the viewpoint of the second input (overrides --view)", "name"),
@@ -76,6 +77,7 @@ internal sealed partial class CompareCommand
     /// <param name="Scad">The shared options of an OpenSCAD model, or <see langword="null"/> when none was given.</param>
     /// <param name="Background">The opaque color transparency is flattened over.</param>
     /// <param name="Strict"><see langword="true"/> to fail on a feature the library cannot draw.</param>
+    /// <param name="FileAccess">The policy that decides which files the inputs may reference, for both inputs.</param>
     /// <param name="AutoOrient"><see langword="false"/> to leave a JPEG as stored.</param>
     /// <param name="Filter">The resampling filter of a fit.</param>
     /// <param name="Resize">How the inputs are brought to one size, or <see langword="null"/> for none.</param>
@@ -99,6 +101,7 @@ internal sealed partial class CompareCommand
         ScadViewOptions? Scad,
         Rgba32 Background,
         bool Strict,
+        FileAccessPolicy FileAccess,
         bool AutoOrient,
         ResamplingMode Filter,
         ResizeTarget? Resize,
@@ -145,7 +148,8 @@ internal sealed partial class CompareCommand
     /// <returns>The settings.</returns>
     /// <exception cref="ToolException">
     ///     Thrown with code <c>usage-error</c> when there are not exactly two inputs, a value is malformed or out of
-    ///     range, the background is not opaque, a threshold is repeated, or two options contradict each other; and with
+    ///     range, the background is not opaque, a threshold is repeated, two options contradict each other, or the
+    ///     file-access options are invalid; and with
     ///     code <c>size-limit</c> when <c>--resize-to</c> names a side larger than the maximum.
     /// </exception>
     private static Settings ReadSettings(ArgumentReader reader)
@@ -198,6 +202,7 @@ internal sealed partial class CompareCommand
             RenderCommand.ReadScadOptions(reader),
             background,
             reader.Has("--strict"),
+            RenderCommand.ReadFileAccess(reader, [reader.Positionals[0], reader.Positionals[1]]),
             !reader.Has("--no-auto-orient"),
             reader.Get(ImagePipelineParser.FilterOption) is { } filterText
                 ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)

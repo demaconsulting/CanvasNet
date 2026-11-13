@@ -43,7 +43,8 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///     </para>
 ///     <para>
 ///         The class is split into <c>RenderCommand.Options.cs</c> (the option declarations and the reading of the
-///         settings), <c>RenderCommand.Verbs.cs</c> (the verbs), and this file (the run).
+///         settings), <c>RenderCommand.FileAccess.cs</c> (the file-access options shared by every reading command),
+///         <c>RenderCommand.Verbs.cs</c> (the verbs), and this file (the run).
 ///     </para>
 /// </remarks>
 internal sealed partial class RenderCommand : ICommand
@@ -77,12 +78,12 @@ internal sealed partial class RenderCommand : ICommand
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
         + "pixels unless a size is given (a model that is entirely 2D is drawn from the top unless a view is chosen);" + Environment.NewLine
-        + "-D sets its variables. Its include and use directives are read from the" + Environment.NewLine
-        + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
+        + "-D sets its variables. Its include and use directives are read relative to the file that names them, and one" + Environment.NewLine
+        + "that names a missing file is an error." + Environment.NewLine
         + "A Vega-Lite chart is drawn at the size its specification lays out (--scale, --width, and --height resize it" + Environment.NewLine
         + "sharply) over its own background, white by default, with UTC dates and the bundled fonts. Its local data" + Environment.NewLine
-        + "files (CSV, TSV, DSV with format.delimiter, or JSON named by a relative url) are read from" + Environment.NewLine
-        + "the folder of the specification and below it only, and one that is missing is an error; there is" + Environment.NewLine
+        + "files (CSV, TSV, DSV with format.delimiter, or JSON named by a url) are read relative to" + Environment.NewLine
+        + "the folder of the specification, and one that is missing is an error; there is" + Environment.NewLine
         + "no data-folder option, and nothing is read from the network. Delimited text is not type-inferred" + Environment.NewLine
         + "unless its format.parse is \"auto\". --param name=value sets a parameter of the chart (a number, true, false, text," + Environment.NewLine
         + "or a JSON array or object such as brush={\"x\":[2,6]}; repeatable). A feature that is not supported yet is reported" + Environment.NewLine
@@ -95,11 +96,13 @@ internal sealed partial class RenderCommand : ICommand
         + "An SVG drawing can embed a picture, model, chart, Mermaid diagram, SVG file, or document page that sits" + Environment.NewLine
         + "beside it with <image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20" + Environment.NewLine
         + "and chart.vl.json#param.cutoff=50 set a variable or a parameter); run 'canvasnet help svg' for the file" + Environment.NewLine
-        + "types, the folder rule, the fragment, and an example." + Environment.NewLine
+        + "types, the link rule, the fragment, and an example." + Environment.NewLine
         + "An input path takes the same fragment: report.pdf#page=3, part.scad#view=top&def.width=20 (quote it in a shell:" + Environment.NewLine
         + "& ends a command), chart.vl.json#param.cutoff=50, flow.mmd#theme=dark. It overrides --page, --view, --theme," + Environment.NewLine
         + "-D, and --param for that input; a '#' is a fragment only when no file has that exact name." + Environment.NewLine
         + "'canvasnet help svg' lists the parameters." + Environment.NewLine
+        + "Every file a document references (an image, a picture, an include, a data file) is read as Pandoc reads it;" + Environment.NewLine
+        + "--file-access roots (or --allow-root <folder>) confines them and no-symlinks refuses links: 'canvasnet help files'." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine
@@ -117,6 +120,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render chart.vl.json --scale 2 -o chart.png" + Environment.NewLine
         + "  canvasnet render chart.vl.json --param cutoff=50 -o chart.png" + Environment.NewLine
         + "  canvasnet render flow.mmd --theme dark --scale 2 -o flow.png" + Environment.NewLine
+        + "  canvasnet render diagram.svg --file-access roots,no-symlinks -o diagram.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
         + "  canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json" + Environment.NewLine
@@ -136,7 +140,7 @@ internal sealed partial class RenderCommand : ICommand
 
         // Report every mistake about the input, the pages, and the outputs before any pixels are decoded; a '#' fragment
         // of the input (part.scad#def.width=20) is read and checked here too
-        var info = SourceLoader.Probe(InputReference.Parse(settings.Input));
+        var info = SourceLoader.Probe(InputReference.Parse(settings.Input), settings.Source.FileAccess);
         if (settings.Source.Scad != null && !info.Format.IsModel())
         {
             throw new ToolException(
