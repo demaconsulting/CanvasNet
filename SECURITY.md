@@ -66,6 +66,9 @@ When using CanvasNet, we recommend following these security best practices:
 
 - Validate input parameters and data before processing
 - Be cautious when processing data from untrusted sources
+- Documents can reference local files, as Pandoc documents do (SVG images, Mermaid pictures, Vega-Lite data files,
+  OpenSCAD includes). To process documents you do not trust, confine them: `FileAccessPolicy.UnderRoots` and
+  `FileAccessPolicy.NoSymlinks` in code, `--file-access roots,no-symlinks` on the command line
 - Use the latest version of CanvasNet to benefit from security updates
 
 ### Dependencies

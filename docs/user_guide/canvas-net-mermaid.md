@@ -1029,8 +1029,8 @@ the authors of these libraries; the names are used only to describe the language
 to a diagram (an SVG `<image href="flow.mmd">`, a picture of a Markdown document) draws the diagram through a
 `FolderImageResolver` of the core package, or `CanvasNetViewer.CreateImageResolver` of the Viewer package, which
 includes it. The diagram is laid out afresh at the size of its placement, on a transparent background, and its own
-pictures load through the resolver of the diagram's own file, so they share the budgets and the folder rule of the
-whole render. Warnings are returned as notes of the source `mermaid` with the code `mermaid-warning` (the specific
+pictures load through the resolver of the diagram's own file, so they share the budgets and the file-access policy of
+the whole render. Warnings are returned as notes of the source `mermaid` with the code `mermaid-warning` (the specific
 `mermaid-*` code is in `Detail`), and unsupported features as notes whose code is the feature.
 
 The source declares one fragment parameter, `theme`: `flow.mmd#theme=dark` sets the site theme like

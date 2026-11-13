@@ -2767,7 +2767,8 @@ The contract, in short (every member is documented in the XML documentation):
 > ```
 >
 > The property is on `FolderImageResolverOptions`, `ScadOpenOptions`, `VegaLiteOpenOptions`, `ViewerRenderOptions`,
-> `SourceOptions`, `FlattenRequest` and `MontageRequest`.
+> `SourceOptions`, `FlattenRequest` and `MontageRequest`. On the command line, add
+> `canvasnet ... --file-access roots,no-symlinks` (and `--allow-root <folder>` for other folders).
 
 What changed:
 
@@ -2795,6 +2796,10 @@ What changed:
 9. **New diagnostics:** the warning `image-access-denied` for a link the policy denies, and the Viewer error code
    `file-access-denied` (`ErrorCodes.FileAccessDenied`) for a denied include or data file, and for a denied link in
    strict mode.
+10. **The command line follows the same default.** `canvasnet` reads referenced files like Pandoc;
+    `--file-access roots,no-symlinks` (with `--allow-root <folder>`) restores the old confinement for `render` and its
+    verbs, `inspect`, `compare`, `montage`, and `flatten`, and the Pandoc filter opts in with `CANVASNET_FILE_ACCESS`
+    and `CANVASNET_ROOTS`. See *File Access* in the tool user guide and `canvasnet help files`.
 
 ## Examples
 
