@@ -19,11 +19,12 @@ partial class `MontageCommand` in `MontageCommand.cs` (the run, the planning of 
 `--columns <N>`, `--cell <WxH>`, `--fit <mode>`, `--spacing <N>`, `--padding <N>`, `--background <color>` (opaque; its
 own declaration), `--labels`, the declaration of `--page` taken from `RenderCommand.OptionTable`, `--all-pages` (its own
 declaration: the one of `render` talks about output names), the declarations of `--dpi`, `--no-auto-orient`,
-`--strict`, the options of an OpenSCAD model, `--filter`, `--quality`, and `--no-clobber` taken from
+`--strict`, `--file-access`, `--allow-root`, the options of an OpenSCAD model, `--filter`, `--quality`, and
+`--no-clobber` taken from
 `RenderCommand.OptionTable` with `RenderCommand.SpecsFor`.
 
 **Settings** (record): the input paths in the order given, the output path, the page, `AllPages`, the resolution, the
-shared `ScadViewOptions`, strict and auto-orient, the `SheetOptions` (columns, cell size, spacing, padding, background,
+shared `ScadViewOptions`, strict, the `FileAccessPolicy` of every input, auto-orient, the `SheetOptions` (columns, cell size, spacing, padding, background,
 labels, fit, and filter), and the `WriteOptions`.
 
 **PlannedCell** and **PlacedCell** (the planning is private to `MontageBuilder`; the placed cell is its public
@@ -39,16 +40,17 @@ Defaults: cell 256x256, spacing 8, padding 8, a white background, `contain`, and
 `--page` together with `--all-pages`; reads `--background` with `ParseColor` and rejects a color that is not opaque;
 reads `--cell` with `ParseSize` and requires each side to be at least 16 (`ContactSheet.MinCell`); reads `--columns` (1
 to 64), `--spacing` and `--padding` (0 to the maximum image size), `--fit` (with `CompareCommand.ParseFit`),
-`--filter`, `--quality`, `--page` (`ParsePage`), `--dpi` (`ParseDpi`), and the shared options of a model
-(`RenderCommand.ReadScadOptions`).
+`--filter`, `--quality`, `--page` (`ParsePage`), `--dpi` (`ParseDpi`), the shared options of a model
+(`RenderCommand.ReadScadOptions`), and the file-access policy of every input (`RenderCommand.ReadFileAccess`; under
+`roots` without `--allow-root`, the default folders cover the folder of every input).
 
 **Run(context, args)**: reads the settings; without `--all-pages` the number of cells is the number of inputs, so
 `ContactSheet.CalculateLayout` is called first and a sheet that is too large is refused with `size-limit` before any
 input is opened (the refusal mentions the options of the tool, which is why the call is made here); then probes every
-input (`SourceLoader.Probe`), checks that model options were given only when an
+input (`SourceLoader.Probe` under the policy), checks that model options were given only when an
 input is a model, and calls `MontageBuilder.Execute(infos, request)` of the Viewer library with a `MontageRequest`
-built from the settings (the output is the positional member; every other value, with the `SheetOptions` and the
-`WriteOptions`, is set explicitly, so the defaults of the records do not matter to the command). The library plans the
+built from the settings (the output is the positional member; every other value, with the `SheetOptions`, the
+`WriteOptions`, and `FileAccess`, is set explicitly, so the defaults of the records do not matter to the command). The library plans the
 cells, calculates the layout (again, with the real count, so that with
 `--all-pages` the check happens after the page counts were read from the headers), checks the output against every input,
 composes the sheet one input at a time, and publishes it (see _MontageBuilder Unit Design_). The command reports the
@@ -93,7 +95,8 @@ loaded (with `--all-pages`, after the page counts were read); a page beyond the 
 `page-out-of-range`; an output that is one of the inputs is `same-input-output`, an existing output with
 `--no-clobber` is `output-exists`, and a path that cannot be written is `output-write-failed`; input failures come from
 `SourceLoader` (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature`,
-`scad-error`, and `budget-exceeded`). Every one is an expected error with exit code 1 and leaves no output. An
+`scad-error`, `file-access-denied`, and `budget-exceeded`; the mistakes of `--file-access` and `--allow-root` are
+`usage-error` as for `render`). Every one is an expected error with exit code 1 and leaves no output. An
 exception that is not a `ToolException` is a defect and propagates. Null arguments throw `ArgumentNullException`.
 
 #### Dependencies
@@ -102,8 +105,8 @@ exception that is not a `ToolException` is a defect and propagates. Null argumen
 - **ResultWriter** - the JSON document.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
-- **RenderCommand** and **CompareCommand** - the shared option declarations and the reading of the model options and of
-  `--fit`.
+- **RenderCommand** and **CompareCommand** - the shared option declarations and the reading of the model options, of
+  the file-access options (`ReadFileAccess`), and of `--fit`.
 - **MontageBuilder**, **SourceLoader**, **ContactSheet**, and **ImageWriter** (Imaging, of the Viewer library) -
   everything that touches files and pixels.
 

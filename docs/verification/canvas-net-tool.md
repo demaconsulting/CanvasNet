@@ -316,6 +316,11 @@ and a model that includes a file in its parent folder (read under the default fi
 render without notes and write their output; a model that includes a file that does not exist returns exit code 1 with
 a `scad-error` message and document and writes no output.
 
+**CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly**: the same fixture rendered with `--file-access roots`
+(the default folders: the working directory and the folder of the model): the model with its parts below its folder
+renders without notes, and the model that includes `../secret.scad` returns exit code 1 with a `file-access-denied`
+message and document and writes no output.
+
 **CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors**: a syntax error, a missing include, a failed `assert`,
 garbage, a triangle limit of 1, runaway recursion, an unsupported feature with `--strict`, an unknown view, an elevation
 of 100, a definition without `=`, and a triangle limit of 0 are rendered in-process; each returns exit code 1 with a
@@ -329,13 +334,15 @@ operation, and the image has the size `info` reported, a white corner, and the d
 the second bar computed from the layout (5 pixels of padding at the right, 50 pixels from the right edge of the data
 rectangle, 15 pixels from the top).
 
-**CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder**: a 240 by 120 red diagram that
-embeds the
-model fixture, the chart fixture, and a reference to `../outside.png` is rendered as a real process (so the SVG, SCAD, and
-Vega-Lite assemblies bundled next to the tool work together); `../outside.png` names a file that does not exist; exit
-code 0, one `svg-image-unresolved` diagnostic in the JSON result, an image of 240 by 120, red at the corner of the
-diagram, white inside the chart placement (a chart keeps its own background), and red where the missing picture would
-have been drawn.
+**CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder**: a 240 by 120 red diagram in a
+sub folder that embeds the model fixture and the chart fixture beside it, and a green `../outside.png` in the folder
+above it, is rendered as a real process with `--file-access roots` (so the SVG, SCAD, and Vega-Lite assemblies bundled
+next to the tool work together); exit code 0, one `image-access-denied` diagnostic in the JSON result, an image of 240
+by 120, red at the corner of the diagram, white inside the chart placement (a chart keeps its own background), and red
+where the denied picture would have been drawn.
+
+**CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsAnOutsidePictureUnderTheDefaultPolicy**: the same diagram rendered as a
+real process without a file-access option; exit code 0, no diagnostic, and the outside picture is drawn (green).
 
 **CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy**: a drawing that links the model fixture and a PNG is
 flattened as a real process with `--json`; exit code 0, `flattened` true with one replaced link of format `scad`, and a
@@ -347,6 +354,17 @@ code 0, the text starts with `nothing to flatten`, and no file is written.
 **CanvasNetTool_Flatten_Errors_AreReportedAsExpectedErrors**: a drawing that links a missing model, flattened with
 `--strict --json`, and the same drawing without an output, each exit with code 1 and the failure document carries
 `unsupported-feature` and `usage-error`.
+
+**CanvasNetTool_FileAccess_AllowRootAsProcess_ConfinesEveryReadingCommand**: a drawing in `site` that links a Mermaid
+diagram in `site/parts` and one in `other` is given to `render`, `inspect colors`, `compare`, `montage`, and `flatten`
+as real processes with `--allow-root site --json`; each exits with code 0 and reports exactly one `image-access-denied`
+note, for the diagram in `other`, and the flattened copy has the allowed diagram as a PNG data URI.
+
+**CanvasNetTool_FileAccess_MistakesAsProcess_AreUsageErrors**: `render` of an input that does not exist, as a real
+process, with `--file-access everything`, with `--file-access any --allow-root <folder>`, and with an `--allow-root`
+folder that does not exist; each exits with code 1 and writes the exact `usage-error` message ("'everything' is not a
+value of --file-access.", "The options --file-access any and --allow-root cannot be used together.", "The folder '...'
+of --allow-root does not exist."), so every mistake is reported before the input is opened.
 
 **CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract**: in-process, a chart saved as `.json` is
 described as `vega-lite` (found by its `$schema`); a chart with an unsupported mark (a `geoshape` with a `longitude`

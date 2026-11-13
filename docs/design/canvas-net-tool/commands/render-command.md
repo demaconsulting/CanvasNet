@@ -13,7 +13,8 @@ pipeline (including the photo tools: tone adjustments, deskew, trim, and grid), 
 TIFF. Its single responsibility is to turn a command line into one
 pass of load, transform, and write for one page or every page, and to report the result. The unit is the partial
 class `RenderCommand` in `RenderCommand.cs` (the run and the reporting), `RenderCommand.Options.cs` (the option
-table and the reading of the settings), and `RenderCommand.Verbs.cs` (the verbs). The verbs are not separate
+table and the reading of the settings), `RenderCommand.FileAccess.cs` (the file-access options that every reading
+command shares), and `RenderCommand.Verbs.cs` (the verbs). The verbs are not separate
 classes: `new RenderCommand(verb)` is the verb command, which differs from `render` only in its name, summary, usage
 text, and in taking one more positional operand, which becomes the first operation of the image pipeline. Because
 verb and `render` share every line of the run, `crop in.png 10,10,100,100 -o out.png` writes exactly the file that
@@ -23,7 +24,8 @@ verb and `render` share every line of the run, `crop in.png 10,10,100,100 -o out
 
 **OptionTable** (`IReadOnlyList<OptionSpec>`, also the `Options` of `render` and of every verb): `--page <N>`,
 `--all-pages`, `--dpi <D>`, `--scale <factor>`, `--width <pixels>`, `--height <pixels>`, `--size <WxH>`,
-`--background <color>`, `--no-auto-orient`, `--strict`, the options of an OpenSCAD model `--view <name>`,
+`--background <color>`, `--no-auto-orient`, `--strict`, `--file-access <mode>`, `--allow-root <folder>` (repeatable),
+the options of an OpenSCAD model `--view <name>`,
 `--azimuth <degrees>`, `--elevation <degrees>`, `--projection <type>`, `--define <name=value>` (alias `-D`,
 repeatable), `--time <T>`, `--default-color <color>`, and `--max-triangles <N>`, the option of a Vega-Lite chart
 `--param <name=value>` (repeatable), the option of a Mermaid diagram `--theme <name>`, the options of the image
@@ -37,7 +39,8 @@ are declared here once, so `render`, the verbs, and `inspect` accept them with o
 their options from the table by name (`SpecsFor`) and so do not inherit them (`compare --threshold metric=value` and
 `compare --grid CxR` are unrelated to `render --threshold` and `--grid`).
 
-**Settings** (record): the `Input` path, the `Output` path, the `SourceOptions`, the `WriteOptions`, `AllPages`, and
+**Settings** (record): the `Input` path, the `Output` path, the `SourceOptions` (with the `FileAccess` policy of the
+invocation), the `WriteOptions`, `AllPages`, and
 the `Operations` of the image pipeline, produced by `ReadSettings`.
 
 **PageOutput** (private record): one page that was loaded, transformed, and written - its page number, the
@@ -54,8 +57,7 @@ combine, and says how an OpenSCAD model is drawn (the views, a model that is ent
 view is chosen, the 800 by 800 default size, `-D`) and where its
 `include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
 background, with UTC dates and the bundled fonts; its local CSV, TSV, DSV (`format.delimiter`), and JSON data files are
-read from the folder of the specification
-and below it only, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
+read relative to the folder of the specification under the file-access mode, a missing one is an error, delimited text is not type-inferred unless `format.parse` is `"auto"`,
 there is no data-folder option, and nothing is read from the network; its only option is `--param`, which sets the
 parameters of the chart, and the usage text shows the option and the `param.` fragment of a link), and how a Mermaid
 diagram is drawn (a flowchart, sequence, class, state, or entity relationship diagram, pie chart, gantt chart,
@@ -79,8 +81,9 @@ opacity, otherwise over white. The option values reach `SourceLoader` and `Image
 `WriteOptions`. Last, `ImagePipelineParser.Parse` reads the operations (the verb's first, then the options in
 command-line order), so a malformed operation is reported before anything is decoded.
 
-**ReadSourceOptions(reader)**: `internal`, extracted from `ReadSettings` without a change of grammar so that `inspect`
-reads the same source options. Reads the size
+**ReadSourceOptions(reader, input)**: `internal`, extracted from `ReadSettings` without a change of grammar so that
+`inspect` reads the same source options; `input` is the input as written, whose folder is a default root of
+`--file-access roots`. Reads the size
 options (`--width` and `--height` as whole numbers of at least 1, `--scale` as a number from 0.001 to 8192, `--size`
 with `ArgumentReader.ParseSize`, which refuses a side beyond the maximum with `size-limit`); rejects `--size`
 combined with `--scale`, `--width`, or `--height`, and `--scale` combined with `--width` or `--height`
@@ -89,11 +92,21 @@ combined with `--scale`, `--width`, or `--height`, and `--scale` combined with `
 reads `--no-auto-orient`; reads `--filter` (which the
 loader uses for the resize of a raster that `--scale`, `--width`, or `--height` ask for, and the pipeline uses for
 `--resize` and `--fit`); reads the model options with `ReadScadOptions`, the chart option with `ReadChartOptions`, and
-the diagram option with `ReadDiagramOptions`. It
-returns the `SourceOptions`. The options
+the diagram option with `ReadDiagramOptions`, and sets `SourceOptions.FileAccess` with `ReadFileAccess(reader,
+[input])`. It returns the `SourceOptions`. The options
 of the output (`--output`, `--format`, `--quality`, `--no-clobber`, `--all-pages`) are not read here.
 
-**ReadScadOptions(reader)**: when none of the model options was given, returns `null` (the loader then uses the
+**ReadFileAccess(reader, inputs[, workingDirectory])**: `internal`, in `RenderCommand.FileAccess.cs`, and used by every
+reading command (render and its verbs and `inspect` through `ReadSourceOptions`, and `compare`, `montage`, and
+`flatten` directly). Reads `--file-access` with `ParseFileAccessMode` and the repeatable `--allow-root`; `--allow-root`
+alone implies `roots`, and with the mode `any` or `no-symlinks` it is a `usage-error` that names the conflict. Without
+`roots` it returns `FileAccessPolicy.AllowAll` or `FileAccessPolicy.NoSymlinks`; with it, `FileAccessPolicy.UnderRoots`
+of the `--allow-root` folders (each taken from the working directory and required to be an existing folder, else
+`usage-error`), or of `DefaultRoots` when none is given, combined with `NoSymlinks` for `roots,no-symlinks` (the name
+`roots+no-symlinks`). Every check is made while the options are read, before any input is opened.
+
+**ParseFileAccessMode(text)**: splits the value at commas, trims and lower-cases each token, and accepts `any` alone,
+or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` " of the model options was given, returns `null` (the loader then uses the
 defaults: the view is chosen by the library - isometric, a flat top view for a model that is entirely 2D, or the
 view the model sets - and the projection is orthographic). Otherwise reads `--view` (one of the names in
 `SourceLoader.ScadViews`, in any case; another name is a `usage-error` whose hint lists the views; `ViewGiven` is set
@@ -239,7 +252,8 @@ The text result does not change for a model with anchors: the one `wrote` line i
 lines of the declarations (and the `scad-anchor-invalid` warnings) are on standard error like any other echo and
 warning.
 
-**Input fragment.** `Run` probes the input with `SourceLoader.Probe(InputReference.Parse(settings.Input))`, so a `#`
+**Input fragment.** `Run` probes the input with `SourceLoader.Probe(InputReference.Parse(settings.Input),
+settings.Source.FileAccess)`, so a `#`
 fragment on the input path (`part.scad#view=top&def.width=20`, `report.pdf#page=3`, `flow.mmd#theme=dark`) is read and
 checked before any pixel is decoded: the page, the view and variables of a model, the chart parameters, and the theme of
 a diagram it names override `--page`, `--view`, `-D`, `--param`, and `--theme` for this input (the library applies the
@@ -264,9 +278,11 @@ option for an input that is not a model, a `--theme` that is not a Mermaid theme
 not a diagram, a malformed or out-of-range operation value (an angle that is not a number, a
 threshold, levels, brightness, contrast, clip, tolerance, or grid spacing out of range),
 `--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a rotation or `--deskew`,
-`--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, and a crop that starts outside the
-image or is
-smaller than a pixel) are `ViewerException` (the library's, or the tool's own `ToolException`) with
+`--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, a crop that starts outside the
+image or is smaller than a pixel, a `--file-access` value that is not a mode ("'{text}' is not a value of
+--file-access."), `--allow-root` with `--file-access any` or `no-symlinks` ("The options --file-access any and
+--allow-root cannot be used together."), and an `--allow-root` folder that does not exist ("The folder '{text}' of
+--allow-root does not exist.")) are `ViewerException` (the library's, or the tool's own `ToolException`) with
 `usage-error`; a size, box, or border larger than the maximum, a border that makes the image larger than the
 maximum, or a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from
 `SourceLoader`
@@ -276,7 +292,9 @@ maximum, or a rotation whose canvas would be larger than the maximum, is `size-l
 failed `assert`, or an `include` that cannot be read, `vega-lite-error` for an invalid chart specification or a chart
 that cannot be rendered, `mermaid-error` for diagram text that is not valid or a diagram that cannot be laid out, with
 the hint of the library, and `budget-exceeded` for a model that exceeds a limit such as `--max-triangles` or a chart or
-a diagram that exceeds a limit of the library) and output failures
+a diagram that exceeds a limit of the library, and `file-access-denied` for an include or a data file the
+file-access mode denies, or a denied picture with `--strict`; without it a denied picture is the warning
+`image-access-denied`) and output failures
 from `ImageWriter` (`same-input-output`, `output-exists`, `output-write-failed`); none of them leaves an output file
 for the page that failed. Null arguments throw `ArgumentNullException`. The registry records the command name on
 every `ToolException`.
@@ -289,12 +307,15 @@ every `ToolException`.
 - **Program** - the tool version for the JSON result.
 - **ImageRenderer**, **SourceLoader**, **ImagePipeline**, and **ImageWriter** (Imaging, of the Viewer library) -
   everything that touches files and pixels.
+- **FileAccessPolicy** (the `Files` subsystem of the core library) - the policy built from `--file-access` and
+  `--allow-root`.
 
 #### Callers
 
 - **CommandRegistry** - `CreateDefault` registers the command under `render` and `convert`, and one instance for each
   verb (`crop`, `resize`, `rotate`, `flip`, and `pad`).
 - **CompareCommand** and **MontageCommand** - the option declarations (`SpecsFor`), `ReadScadOptions`,
-  `ScadOptionNames`, `ParseScadView`, and `WriteField`.
+  `ReadFileAccess`, `ScadOptionNames`, `ParseScadView`, and `WriteField`.
+- **FlattenCommand** - the option declarations (`SpecsFor`) and `ReadFileAccess`.
 - **InspectCommand** - the option table (`OptionTable` without the output options), `ReadSourceOptions`, and
   `WriteField`.

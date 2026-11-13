@@ -120,3 +120,7 @@ standard output too); a model that echoes `"hello"` gives the line `ECHO: "hello
 
 **InputFragment_Inspect_ReadsThePage** (`InputFragmentTests.cs`): `inspect colors source.pdf#page=2` reports the same
 colors and image width as `--page 2`, and its `input` object has `page` 2 and `fragment` `page=2`.
+
+**InspectCommand_Run_FileAccessRoots_DeniedPictureIsLeftOutAndReported** (`InspectCommandSourceTests.cs`): `inspect colors`
+of a red drawing that links a green picture in the folder above it reports, with `--file-access roots`, one
+`image-access-denied` note and only red, and by default no note and green among the colors.

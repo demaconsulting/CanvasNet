@@ -126,15 +126,15 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 <!-- markdownlint-enable MD013 -->
 
 The stable error codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
-`unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`,
-`same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`,
-`budget-exceeded`, `size-mismatch`, and `threshold-failed`
+`unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `image-fragment-invalid`,
+`size-limit`, `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`,
+`mermaid-error`, `budget-exceeded`, `file-access-denied`, `size-mismatch`, and `threshold-failed`
 (the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also _Program Unit Design_). A code is
 never changed once
 released. For a Vega-Lite chart the codes are exact: `vega-lite-error` is an invalid specification (including a
 nesting or string longer than the parser limit, as the SCAD nesting limit is a `scad-error`) or a chart the library
-cannot lay out or draw (including any argument failure of the library, and a local data file that is missing, outside
-the folder of the specification, or not valid); `budget-exceeded` is a limit applied while the
+cannot lay out or draw (including any argument failure of the library, and a local data file that is missing or not
+valid; a data file the file-access mode denies is `file-access-denied`); `budget-exceeded` is a limit applied while the
 chart is laid out or drawn (including the data row, data file, and data byte limits); `corrupt-input` is a
 specification file longer than the limit of the library, as for an
 overlong SCAD model; and `size-limit` is only a chart that lays out larger than the maximum image size. For a Mermaid
@@ -164,8 +164,9 @@ mapping.
   `CanvasNetRender3D` system, which draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite`
   system, which parses, measures, and draws a chart (only its public API is used, with the options that
   make a render static and deterministic: UTC dates, only the bundled fonts, and no network; the data files of a chart
-  are read by the library from the folder of the specification and below it only, because the chart is opened by its
-  path and no other data folder is passed, so there is no `--data-dir` option), and the `MermaidDocument` type of the
+  are read by the library relative to the folder of the specification under the `FileAccessPolicy` the command builds
+  from `--file-access` and `--allow-root`, because the chart is opened by its path and no other data folder is passed,
+  so there is no `--data-dir` option), and the `MermaidDocument` type of the
   `CanvasNetMermaid` system, which parses, measures, and draws a diagram with only the bundled fonts and no network (the
   tool also reads `MermaidRenderOptions.ThemeNames` to check `--theme` and `MermaidLimits` for the limits it quotes in
   its help). The core `Fonts` and `Rendering` subsystems also supply the
@@ -205,6 +206,18 @@ drawing is rendered, which bounds memory use. `compare` holds the two loaded ima
 `montage` holds the sheet plus one source at a time; a sheet larger than the limit is refused before any input is
 loaded.
 
+The files a document references (SVG images, Mermaid pictures, Vega-Lite image marks and data files, OpenSCAD
+includes, linked pages) are a disclosure risk: by default (`--file-access any`) the tool reads every regular local file
+the user can read, as Pandoc reads images, so a document can make a picture of a file elsewhere on the machine. The
+threat model is the user's own documents; for a document that is not trusted, `--file-access roots,no-symlinks` (with
+`--allow-root` for the folders it may use) confines every reference of every reading command, through one
+`FileAccessPolicy` per invocation that `RenderCommand.ReadFileAccess` builds and every probe and load receives (a test
+scans the source so that no probe or request is built without it). In every mode the tool never reads the network, a UNC
+path, a `file:` URI with a host, or a device path, and every size and count limit holds; the inputs named on the command
+line are never judged, and `info` measures under `any`. The policy is never written into the JSON result, but the
+`detail` of an `image-access-denied` note holds host paths, which a service that shows notes to untrusted authors must
+remove.
+
 ## Data Flow
 
 1. The host starts the process; `Program.Main` calls `Program.Execute` with the arguments and the default
@@ -216,7 +229,8 @@ loaded.
    version); help (the banner unless `--json` was given, then the index, or the help of the named command or topic);
    self-validation (banner,
    then `Validation.Run`); the named command (`CommandRegistry.Run`); otherwise the banner and a usage hint.
-4. A command reads its arguments with `ArgumentReader` (against its option table), reads its inputs, writes its
+4. A command reads its arguments with `ArgumentReader` (against its option table), builds one `FileAccessPolicy` from
+   `--file-access` and `--allow-root` when it reads inputs, reads its inputs under it, writes its
    results through the `Context` (as text, or through `ResultWriter` as one JSON document when `--json` was
    given), and reports an expected failure by throwing `ToolException` (or by letting the `ViewerException` of a library
    call escape, which the registry wraps in a `ToolException` with the same code, message, and hint); the registry

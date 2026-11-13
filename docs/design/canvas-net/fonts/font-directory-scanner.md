@@ -74,8 +74,8 @@ For each root, in the order given:
 
 A "link" is the file-system *reparse-point attribute*, deliberately and not `FileSystemInfo.LinkTarget`:
 the attribute also covers reparse points `LinkTarget` does not report, so no redirection can reopen a
-cycle. The sandboxed data-file resolvers of other packages use a different predicate for a different
-purpose and are not related to this one.
+cycle. The file-access engine of the other packages (`FileReferenceResolver`) uses a different predicate for a
+different purpose and is not related to this one.
 
 ##### FontScanLimits properties
 

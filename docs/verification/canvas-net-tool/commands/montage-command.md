@@ -37,7 +37,8 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 #### Test Scenarios
 
 **MontageCommand_Metadata_DeclaresNameSummaryUsageAndOptions**: the name, no alias, the summary, the usage line with
-examples, every option declared once with a description, and `-o` as the alias of `--output`.
+examples, every option declared once with a description (`--file-access` and `--allow-root` among them), and `-o` as
+the alias of `--output`.
 
 **MontageCommand_Run_TwoImages_WritesSheetWithBothCellsAndOneLine**: a red 8x6 and a blue 6x8 image make a 536x272 sheet
 in two columns; the text line names the size, the number of images, and the columns; the middle of each cell has the color
@@ -117,3 +118,7 @@ the same sheet, pixel for pixel.
 **InputFragment_Montage_DocumentPage_LabelHasNoRedundantPageNumber**: the labels are `assembly.scad#def.explode=0` and
 `assembly.scad#def.explode=1` (and the label strips under the two cells hold text and are drawn differently), and
 `source.pdf#page=2` and `source.pdf p1` for a PDF named with and without a page fragment, with `page` 2 and 1.
+
+**MontageCommand_Run_FileAccessRoots_CoverTheFolderOfEveryInput**: three drawings in three folders, the first two linking
+a picture beside them and the third a picture in the folder above it, are composed with `--file-access roots`; the JSON
+result has exactly one `image-access-denied` note, for the third input.

@@ -74,7 +74,8 @@ this order:
 
 **Info.Run(context, args)**: reads the arguments with `ArgumentReader` (against the two page options) and requires
 exactly one positional argument, the input, and rejects `--page` together with `--all-pages` (`usage-error`). Calls
-`SourceLoader.Probe`, checks the page (`--page` counted from 1 with `ArgumentReader.ParsePage`, default 1;
+`SourceLoader.Probe` with `FileAccessPolicy.AllowAll` (`info` has no file-access option; it measures a chart under the
+default mode), checks the page (`--page` counted from 1 with `ArgumentReader.ParsePage`, default 1;
 `page-out-of-range` for a page the file does not have, for a single image too), and writes either the JSON document
 (when `context.Json`) or the text through `context.WriteLine`. For a PDF, PPTX, or VSDX document the pages
 described are page 1 by default, the page chosen with `--page`, or every page with `--all-pages`; a single image
