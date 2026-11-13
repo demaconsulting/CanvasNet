@@ -43,7 +43,8 @@ from the examples of the user guide, rendered in strict mode with ports of Merma
 
 Any format CanvasNet reads can be a picture inside another. An SVG `<image href>` names any such file, a Mermaid node
 shows one (`part@{ img: "part.scad" }`, or `<img src="part.scad">` in a label), and a Vega-Lite `image` mark can too.
-Links go through a sandboxed resolver: only the document's own folder and below, never the network. A URL fragment
+Links are read the way Pandoc reads them, relative to the document, under a file-access policy that the host chooses
+(by default every local file; confine untrusted documents to chosen folders), and never from the network. A URL fragment
 passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio), `#view=` and `def.<name>=`
 (OpenSCAD views and variables), `param.<name>=` (Vega-Lite parameters), and `#theme=` (Mermaid); join several with
 `&amp;` in XML.
@@ -65,6 +66,13 @@ passes options to the linked file: `#page=` or `#slide=` (PDF, PowerPoint, Visio
 are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline shows it.
 
 ## Features
+
+> **Breaking change: linked files are no longer confined by default.** SVG images, Mermaid pictures, Vega-Lite image
+> marks and data files, OpenSCAD `include` and `use`, and linked document pages now follow `..`, absolute paths,
+> `file:` URIs and symbolic links, as Pandoc does. To keep the old folder confinement, set
+> `FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)` on the
+> options of the operation. The `SandboxedFileResolver` family is obsolete. See *Migrating from the Folder Sandbox* in
+> the [core library user guide](https://github.com/demaconsulting/CanvasNet/blob/main/docs/user_guide/canvas-net.md#migrating-from-the-folder-sandbox).
 
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
@@ -104,7 +112,8 @@ are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline s
 - 🗂️ **System Font Discovery** - Match a family/style against installed fonts, with a bundled fallback
 - 🔣 **Glyph Fallback** - A character a font lacks (`∝`, `≫`, arrows, math signs) is drawn from bundled Noto fonts,
   the same on every machine; `GlyphFallback.FindMissing` lists the rest
-- 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
+- 🛡️ **Sandboxed File Resolver** (obsolete) - Resolve untrusted relative paths to files inside chosen directories, no
+  escapes; replaced by the file-access policies below
 - 🔐 **File-Access Policies** - `FileReferenceResolver` reads the files a document references like Pandoc does
   (`..`, absolute paths, links), and a `FileAccessPolicy` (`AllowAll`, `UnderRoots`, `NoSymlinks`, combined or your
   own) decides on the real path of the opened file, so a swapped link cannot slip through
@@ -496,7 +505,8 @@ callouts and leader lines. An anchor that cannot be read is skipped with a warni
 `scad-anchor-invalid` (every warning has a stable `Code`, so test it and not the message).
 
 Render a Vega-Lite chart (the `DemaConsulting.CanvasNet.VegaLite` package implements a defined subset of the
-language for static pictures: it never touches the network, reads local data files only from a sandbox, uses only the
+language for static pictures: it never touches the network, reads local data files under a file-access policy, uses only
+the
 bundled fonts unless told otherwise, and
 reports everything it recognizes but cannot draw; it is not affiliated with the Vega project):
 
@@ -560,7 +570,8 @@ PngCodec.Save(flow, "order.png");
 ```
 
 Embed models, charts, and pictures in an SVG diagram, or render any file, with the `DemaConsulting.CanvasNet.Viewer`
-package. Links are confined to the folder of the document, and nothing is read from the network:
+package. Links are read relative to the document under the file-access policy of the render (every local file by
+default), and nothing is read from the network:
 
 ```csharp
 using DemaConsulting.CanvasNet.Codecs;

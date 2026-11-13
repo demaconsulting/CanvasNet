@@ -10,6 +10,11 @@
 `DemaConsulting.CanvasNet.Viewer`), which references the core `DemaConsulting.CanvasNet` package and the Svg, Pdf, Pptx,
 Vsdx, Scad, VegaLite, and Mermaid packages - see the Installation section of the project README.
 
+> **Breaking change.** The files a document references are no longer confined to its folder by default: links,
+> includes and data files are followed the way Pandoc follows them. Set `ViewerRenderOptions.FileAccess` (or
+> `SourceOptions.FileAccess` for the `Imaging` operations) to confine them; see *Choosing which linked files may be
+> read* below and the core user guide, *Migrating from the Folder Sandbox*.
+
 The viewer is the one place that knows every file format of CanvasNet. It does three things without you wiring each
 format package yourself:
 
@@ -101,11 +106,14 @@ foreach (var image in resolver.Embedded)             // every image that was dra
 }
 ```
 
-Links are confined to the folder: a relative path below it is followed (a query after the file name, as in
-`logo.png?v=2`,
-is ignored, and a fragment, as in `report.pdf#page=3`, is read as parameters, see below); an absolute path, a path that
-leaves the folder, a symbolic link, and a
-network URL (`http:`, `https:`) are never read or fetched. A link that is not drawn is a warning with the code
+The folder is the **base** of relative links, not a boundary: a relative path is followed from the folder of the file
+that contains it (a query after the file name, as in `logo.png?v=2`, is ignored, and a fragment, as in
+`report.pdf#page=3`, is read as parameters, see below), and by default an absolute path, a path through `..`, a
+`file:` URI without a host, and a symbolic link are followed too, as Pandoc does. Which files may be read is decided by
+the file-access policy of the render (`FolderImageResolverOptions.FileAccess`, `ViewerRenderOptions.FileAccess`, see
+*Choosing which linked files may be read* below); a link it denies is the warning `image-access-denied` and draws
+nothing. A network URL (`http:`, `https:`), a UNC path, and a `file:` URI with a host are never read or fetched, whatever
+the policy. A link that is not drawn is a warning with the code
 `svg-image-unresolved` in `Diagnostics` and draws nothing; so is a picture that would take more pixels than the render
 may use (`FolderImageResolverOptions.MaxDecodedPixels`, 64 million by default, counted before anything is decoded, so a
 huge raster in a tiny placement is refused and not decoded), with the code `svg-image-too-large`. A file that is found
@@ -115,8 +123,8 @@ transparent background (a chart keeps its own background); a raster keeps its na
 it. See the core user guide, *Linked Images*, for every rule.
 
 **A chart can link pictures too.** The `image` mark of a Vega-Lite chart (`"url": "part.scad"`, `"url": "icon.png"`,
-`"url": "report.pdf#page=2"`) is drawn through the same sandboxed resolver: a chart loaded by `SourceLoader` shows the
-files that lie in its own folder, and a chart that an SVG or another document embeds uses the resolver of that
+`"url": "report.pdf#page=2"`) is drawn through the same resolver and file-access policy: a chart loaded by `SourceLoader`
+resolves the files from its own folder, and a chart that an SVG or another document embeds uses the resolver of that
 document. The notes, the echo text of a model, the embed operations, and `--strict` work as for an SVG; the library's
 own
 warning for a picture that was not drawn (`vl-mark-image-unresolved`) is dropped because the resolver's
@@ -126,7 +134,7 @@ picture that is found but is broken fails with the error of its own format. Meas
 picture.
 
 **So can a diagram.** The nodes of a Mermaid diagram (`A@{ img: "part.scad", w: 120, h: 120 }`, `<img src="logo.png">`
-in a label) load their pictures through the same sandboxed resolver, rooted at the folder of the diagram, or the
+in a label) load their pictures through the same resolver and file-access policy, from the folder of the diagram, or the
 resolver of the document that embeds the diagram. A link that is not drawn is `svg-image-unresolved`, the pictures that
 were drawn are listed in `Embedded`, and probing a diagram lays it out without loading any picture.
 
@@ -232,7 +240,8 @@ implementing `IFragmentImageSource` (see the core user guide, *Linked Images*).
 
 #### Rendering any file
 
-`Render` draws one file as a picture, with the same sources, the same folder sandbox, and the same limits as embedding:
+`Render` draws one file as a picture, with the same sources, the same file-access policy, and the same limits as
+embedding:
 
 <!-- compile -->
 
@@ -256,8 +265,9 @@ transparent areas are flattened over, and the color of the margin when `Width` a
 whose anchors follow the picture; null keeps the transparency of a document, a model, an SVG file, and a diagram, and
 the own background of a chart), `Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time,
 and triangle limit), `VegaLite` (the `ChartOptions` of a Vega-Lite chart: the values of its parameters, the option
-behind `--param`; see below), `Folder` (the sandbox for the files the rendered file itself includes or embeds; by
-default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an unsupported feature fails instead
+behind `--param`; see below), `Folder` (the base of the relative references of the rendered file; by default the folder
+of the file, or none for a stream), `FileAccess` (the file-access policy for every file the rendered file references,
+`FileAccessPolicy.AllowAll` by default; see below), `ThrowOnUnsupportedFeature` (an unsupported feature fails instead
 of being drawn without it and reported; for an SVG file it also fails on a link that is not drawn, as `--strict` does: a
 missing file, a picture too large, an unusable fragment, or a page that does not exist is a `ViewerException` with the
 code `unsupported-feature`, while an unknown fragment parameter stays a warning), `MaxDecodedPixels` (the most pixels
@@ -269,14 +279,56 @@ below), and `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing
 `Format`, `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document),
 `Diagnostics`, `Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their
 pixels; empty for every other file), and `Embedded`. `Render` throws `FileNotFoundException` for a missing file,
-`NotSupportedException` when no source claims the extension (the message lists them), `SandboxException` when the
-sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn (a mistake of the caller or a
+`NotSupportedException` when no source claims the extension (the message lists them), `FileReferenceException` when the
+path is not a regular file, and `ImageSourceException` for a file that cannot be drawn (a mistake of the caller or a
 limit - `page-out-of-range`, a size above 8192 pixels, a model whose `include` is missing - is a `ViewerException`
 instead). Render a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the
 source. With both `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas
 `SourceOptions.Width` and `Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model
 that the rendered file embeds chooses its own page or view, and sets its own variables or parameters, with the fragment
 of its link; it never inherits `Page`, `Dpi`, `Scad`, or `VegaLite`.
+
+#### Choosing which linked files may be read
+
+The file you name is always read: the policy protects against what a document references, not against the file you
+asked for. Every file the document references - the links of an SVG file, the includes of a model, the data files of a
+chart, the pictures of a diagram, also inside an embedded file - is read under one **file-access policy**. The default,
+`FileAccessPolicy.AllowAll`, reads every regular local file, as Pandoc does. To render documents you do not trust,
+confine them; this is the old folder sandbox (see the core user guide, *Migrating from the Folder Sandbox*):
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Files;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+var folder = Path.GetFullPath("uploads");
+var confined = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks);
+
+try
+{
+    using var image = CanvasNetViewer.Render(
+        Path.Combine(folder, "diagram.svg"),
+        new ViewerRenderOptions { FileAccess = confined, ThrowOnUnsupportedFeature = true });
+    Console.WriteLine($"{image.Surface.Width}x{image.Surface.Height}");
+}
+catch (ViewerException ex) when (ex.Code == ErrorCodes.FileAccessDenied)
+{
+    Console.Error.WriteLine(ex.Message);   // names the link and the policy
+}
+
+// The Imaging operations take the same policy: the probe reads the data files of the chart under it
+var info = SourceLoader.Probe(Path.Combine(folder, "chart.vl.json"), confined);
+ImageRenderer.Execute(info, new RenderRequest("out/chart.png") { Source = new SourceOptions { FileAccess = confined } });
+```
+
+A link that the policy denies is the warning `image-access-denied` and draws nothing; with `ThrowOnUnsupportedFeature`
+it is a `ViewerException` with the code `file-access-denied`. A denied include of a model or data file of a chart always
+fails with `file-access-denied`. The `Imaging` operations carry the policy in `SourceOptions.FileAccess`,
+`FlattenRequest.FileAccess`, and `MontageRequest.FileAccess`, and `SourceLoader.Probe(path, policy)` and
+`SourceLoader.Probe(input, policy)` apply it to the files a probe reads; the overloads without a policy use
+`FileAccessPolicy.AllowAll`. Every resource limit holds whatever the policy.
 
 To render page 2 of a PDF document at 192 dpi, over white, in memory:
 
@@ -756,8 +808,9 @@ catch (ViewerException ex)
 **`flatten` - an SVG drawing for other SVG readers.** A browser or WeasyPrint shows nothing for an
 `<image href="flow.mmd">` (or a model, a chart, a page of a document, or a nested SVG file that links one).
 `SvgFlattener.Execute` writes a copy of the drawing in which each such link is a PNG picture of its placement size
-times `Scale`, as a `data:` URI, drawn with the resolver of `render` (the folder of the drawing is the sandbox, with the
-same limits); only those attribute values change. When the drawing links no such picture nothing is written and
+times `Scale`, as a `data:` URI, drawn with the resolver of `render` (relative to the folder of the drawing, under the
+policy of `FlattenRequest.FileAccess`, with the same limits); only those attribute values change. When the drawing links
+no such picture nothing is written and
 `Flattened` is false, so the original can be used as it is. A link to such a file that the drawing, or an SVG file it shows,
 never shows (hidden, or an unused definition) is the warning `SvgFlattener.ImageNotDrawnCode` (`svg-flatten-image-not-drawn`):
 
@@ -927,7 +980,8 @@ stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints
 is a defect and is not caught. The codes are `usage-error`, `operation-failed`, `input-not-found`, `input-unreadable`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`, `same-input-output`,
 `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `mermaid-error`, `budget-exceeded`,
-`size-mismatch`, and `threshold-failed`. `ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
+`file-access-denied` (a referenced file the file-access policy denied), `size-mismatch`, and `threshold-failed`.
+`ViewerException` is in `DemaConsulting.CanvasNet.Viewer` and the operations
 are in `DemaConsulting.CanvasNet.Viewer.Imaging`, so a program that catches it lists both:
 
 <!-- compile -->
@@ -964,7 +1018,7 @@ request with a missing member, or a null element in a list, is a defect of the c
 or with a custom one; without it the extension decides.
 
 A note about the two ways to draw a file: `CanvasNetViewer.Render` (above) is the simple way to get a picture of a file
-(transparent background for vector files, the fit of a raster into a box, the image-source sandbox, and its own
+(transparent background for vector files, the fit of a raster into a box, the file-access policy, and its own
 exceptions), and the `Imaging` operations are the way the `canvasnet` tool works (document pages and resolution, EXIF
 orientation, a flattened background, the ordered pipeline, and the `ViewerException` codes). The messages and hints of
 the
@@ -1012,7 +1066,7 @@ using var picture = SvgCodec.Load(Path.Combine(folder, "dashboard.svg"), 800, 60
 // The same sources work for Render of a single file
 using var dots = CanvasNetViewer.Render("grid.dots", new ViewerRenderOptions { ExtraSources = [new DotsSource()] });
 
-// 1. Claimed by extension: the file is found inside the folder and the source receives its bytes.
+// 1. Claimed by extension: the file is found under the file-access policy and the source receives its bytes.
 //    The text of a ".dots" file is the number of dots to draw.
 sealed class DotsSource : IImageSource
 {
@@ -1031,7 +1085,7 @@ sealed class DotsSource : IImageSource
     }
 }
 
-// 2. Claimed by URI scheme: "camera://front" is handed to the source as written; there is no file and no sandbox.
+// 2. Claimed by URI scheme: "camera://front" is handed to the source as written; there is no file and no policy check.
 sealed class CameraSource(ICamera camera) : IImageSource
 {
     public string Name => "camera";
@@ -1067,7 +1121,8 @@ sealed class StubCamera : ICamera
   fresh frame each time.
 - **`http` and `https` stay unresolved.** No built-in source claims them, so such a link is only the
   `svg-image-unresolved` warning. A source that claims them takes full responsibility for what it fetches.
-- **Security.** A file-based source receives bytes the resolver has already confined to the folder. A **scheme source
+- **Security.** A file-based source receives bytes the resolver has already checked against the file-access policy, and
+  the policy itself in `request.FileAccess` for the files it reads on its own. A **scheme source
   owns its own access control**: it receives the text of the link as written and decides what that may reach. Validate
   it (a list of allowed cameras, hosts, or paths), never build a file path or a URL from it unchecked, and bound the
   work

@@ -2108,6 +2108,12 @@ the same row-vector composition convention as `Gradient.WithTransform`.
 
 ### SandboxedFileResolver
 
+> **Obsolete.** The `SandboxedFileResolver`, `SandboxOptions`, `SandboxedFile`, `SandboxException` and
+> `SandboxFailureKind` types are marked `[Obsolete]` (a compiler warning) and will be removed in the next major
+> release. Their behavior is unchanged and race-free. Use [`FileReferenceResolver` and
+> `FileAccessPolicy`](#filereferenceresolver-and-fileaccesspolicy) instead; the
+> [migration section](#migrating-from-the-folder-sandbox) shows the policy that keeps the old confinement.
+
 ```csharp
 namespace DemaConsulting.CanvasNet.Files;
 
@@ -2152,7 +2158,8 @@ public enum SandboxFailureKind
 
 `SandboxedFileResolver` turns an **untrusted relative path** (the text of an include directive, a data URL, a
 manifest entry) into the bytes of a file that is guaranteed to lie inside directories you chose, and refuses
-everything else. It is the resolver that the Vega-Lite and OpenSCAD packages use for their local files.
+everything else. The Vega-Lite and OpenSCAD packages no longer use it: they read their files through
+`FileReferenceResolver`.
 
 `Resolve` looks for the path in `relativeTo`'s directory when you pass the file a reference came from (it must have been
 returned by this resolver or one with the same roots, or `Resolve` throws `ArgumentException`; so a
@@ -2470,16 +2477,36 @@ public sealed class FolderImageResolver : IImageNaturalSizeResolver
 public sealed record FolderImageResolverOptions
 {
     // MaxDepth 4, MaxImages 64, MaxDecodedPixels 64_000_000, ThrowOnUnsupportedFeature, CancellationToken
+    public FileAccessPolicy FileAccess { get; init; }   // default: FileAccessPolicy.AllowAll
 }
 ```
 
 #### What a link may point to
 
-`FolderImageResolver` confines every link to its folder. A link without a URI scheme is a path relative to the folder
-(relative to the folder of the file that contains the link, for a link inside an embedded file). It is refused, with a
-warning and without reading anything, when it is absolute, a drive or UNC path, an alternate data stream, contains a
-control character, leaves the folder (also as `%2e%2e`), or goes through a symbolic link or junction; a `file:` URI is
-accepted only when it names a file inside the folder, and `%20` and similar encodings are decoded. A link is read as a
+The folder of `FolderImageResolver` is the **base** of relative links, not a boundary. A link without a URI scheme is a
+path relative to the folder (relative to the folder of the file that contains the link, for a link inside an embedded
+file), or an absolute or (on Windows) drive path, and a `file:` URI without a host is read as its local path; `%20` and
+similar encodings are decoded. Which of these files may be read is decided by the **file-access policy** in
+`FolderImageResolverOptions.FileAccess` (see [FileReferenceResolver and
+FileAccessPolicy](#filereferenceresolver-and-fileaccesspolicy)). The default, `FileAccessPolicy.AllowAll`, reads every
+regular local file, also through `..` (also as `%2e%2e`), an absolute path, and a symbolic link or junction, as Pandoc
+does. A link the policy denies is not read and draws nothing: it is the warning **`image-access-denied`**
+(`FolderImageResolver.AccessDeniedCode`), whose message names the link, the policy, its reason and its hint, while the
+requested and real paths are only in `Detail` (log it, do not show it to the author of an untrusted document). Under
+every policy a link is refused with the warning `svg-image-unresolved`, without reading anything, when it is a UNC path
+or a `file:` URI with a host, an alternate data stream, contains a control character, is not a valid path on the
+platform, or names something that is not a regular file. To render untrusted documents, confine them:
+
+```csharp
+var resolver = new FolderImageResolver(folder, sources, new FolderImageResolverOptions
+{
+    FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks),
+});
+```
+
+Every source that reads further files (the includes of a model, the data files of a chart) receives the policy in
+`request.FileAccess`, judged from the folder the chain of links started from, so a nested file cannot widen it. A link
+is read as a
 URI reference (RFC 3986): **a query (`?cache=1`) is not part of the file name** and is cut off (and ignored), and **a
 fragment (`#page=2`) is not part of the file name either**: it is cut off before the decoding and parsed into
 `request.Fragment`, so `image.png?v=2` and `report.pdf#page=2` name `image.png` and `report.pdf`, while an encoded
@@ -2627,7 +2654,8 @@ Claims are validated when the set is built: an extension must be a dot followed 
 must
 be two or more characters of letters, digits, `+`, `-` and `.` starting with a letter, and `file` and `data` can never
 be
-claimed (`file:` is always a path inside the folder; `data:` is decoded by the SVG codec). A single letter followed by a
+claimed (`file:` is always a local path under the policy; `data:` is decoded by the SVG codec). A single letter followed
+by a
 colon
 is a Windows drive, not a scheme.
 
@@ -2657,7 +2685,7 @@ sealed class DotsSource : IImageSource
     }
 }
 
-// A scheme-claimed source: "camera:front" is handed to it as written, with no file and no sandbox.
+// A scheme-claimed source: "camera:front" is handed to it as written, with no file and no file-access check.
 sealed class CameraSource : IImageSource
 {
     public string Name => "camera";
@@ -2675,10 +2703,11 @@ sealed class CameraSource : IImageSource
 
 The contract, in short (every member is documented in the XML documentation):
 
-- **Claims.** `Extensions` select file-based links: the file is found through the sandbox and the source receives its
-  bytes
-  (`request.Content` or `request.OpenContent()`), its path relative to the folder (`FileName`), and its folder
-  (`Directory`, the base for the files the format itself includes). `Schemes` select links such as `camera:front`: the
+- **Claims.** `Extensions` select file-based links: the file is found under the file-access policy and the source
+  receives its bytes
+  (`request.Content` or `request.OpenContent()`), its path relative to the folder (`FileName`), its folder
+  (`Directory`, the base for the files the format itself includes), and the policy to apply to those files
+  (`request.FileAccess`). `Schemes` select links such as `camera:front`: the
   source
   receives only `Href`, exactly as written, and must treat it as untrusted. A source may claim either or both.
 - **Size.** `PixelWidth` and `PixelHeight` are the size, in device pixels, of the placement of the picture, or `null`
@@ -2727,6 +2756,45 @@ The contract, in short (every member is documented in the XML documentation):
   for a scheme-claimed request, which has no folder of its own, they resolve against the folder of the resolver. It
   shares the
   limits and lists of the whole render, so recursion is bounded without any state in your source.
+
+## Migrating from the Folder Sandbox
+
+> **Breaking change.** Linked files are no longer confined to the folder of the document by default. They are read
+> the way Pandoc reads them. To keep the old confinement, set the file-access policy of the operation:
+>
+> ```csharp
+> FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)
+> ```
+>
+> The property is on `FolderImageResolverOptions`, `ScadOpenOptions`, `VegaLiteOpenOptions`, `ViewerRenderOptions`,
+> `SourceOptions`, `FlattenRequest` and `MontageRequest`.
+
+What changed:
+
+1. **The default is unrestricted.** `..`, absolute paths, drive paths, `file:` URIs without a host, and symbolic links
+   or junctions are followed for SVG images, Mermaid pictures, Vega-Lite image marks and `data.url`, OpenSCAD
+   `include` and `use`, and linked PDF, PPTX and VSDX pages. The policy above restores the old confinement.
+2. **A folder is a base, not a boundary.** `ViewerRenderOptions.Folder` and the folder of `FolderImageResolver` are the
+   base of relative references. `CanvasNetViewer.Render(path)` no longer throws `ArgumentException` for a path outside
+   `Folder`, and no longer refuses a top-level file reached through a link: the file you name is never judged by the
+   policy, only the files it references.
+3. **Search paths are only search paths.** `ScadOpenOptions.LibraryPaths` and `VegaLiteOpenOptions.DataPaths` are
+   searched, but do not allow anything by themselves. Add them to `UnderRoots(...)` when you confine.
+4. **Vega-Lite reads local absolute data.** An absolute local `data.url` and a `file:` URI without a host are now read
+   (they were reported as `vl-data-remote-url`). `http:`, `https:`, other schemes, `file:` URIs with a host, and UNC
+   paths are still remote: reported, never fetched.
+5. **A dangling link is "not found".** It is an OpenSCAD include warning `scad-include-not-found`, a Vega-Lite "was not
+   found" error, or an image `svg-image-unresolved`, no longer a link refusal.
+6. **Still refused under every policy:** UNC, network and device paths, alternate data streams, control characters,
+   anything that is not a regular file (new), and `http(s)` and other network schemes.
+7. **Every resource limit is unchanged:** `MaxDepth` 4, cycle detection (now by real path, so a cycle through a link is
+   caught), `MaxImages` 64 and the load counts, `MaxDecodedPixels` and the painted-pixel budgets, `MaxFileBytes`
+   16 MiB, `MaxDataBytes` and `MaxDataFiles`, `MaxIncludeDepth` and `MaxIncludedFiles`, and the Mermaid `MaxImages`.
+8. **The folder sandbox is obsolete.** The `SandboxedFileResolver` family is marked `[Obsolete]` (a warning). Its
+   behavior is unchanged and race-free; it will be removed in the next major release.
+9. **New diagnostics:** the warning `image-access-denied` for a link the policy denies, and the Viewer error code
+   `file-access-denied` (`ErrorCodes.FileAccessDenied`) for a denied include or data file, and for a denied link in
+   strict mode.
 
 ## Examples
 

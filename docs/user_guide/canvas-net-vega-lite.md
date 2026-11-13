@@ -81,8 +81,8 @@ public sealed partial class VegaLiteDocument
   be built or a limit of `VegaLiteLimits` is exceeded. An expression or transform that fails while it runs (the
   evaluation budget, a string limit, a regular expression, a row, field, or cell limit of a derived table) is this
   exception, located at the expression or the transform (see *Vega-Lite Expressions* and *Vega-Lite Transforms*). A
-  local data file that is missing, refused by the sandbox,
-  behind a link, not valid UTF-8, or not valid JSON or delimited text, a `data.name` that nobody defines, and a
+  local data file that is missing, denied by the file-access policy, not valid UTF-8, or not valid JSON or delimited
+  text, a `data.name` that nobody defines, and a
   document with no place to look for a local data file are all this exception, in lenient and strict mode alike (see
   *Vega-Lite Data*).
 - `VegaLiteUnsupportedFeatureException`: Thrown at the first unsupported feature when
@@ -107,7 +107,8 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `SourceName` | `null` (the path for `Open(string)`) | The name shown in locations and messages |
 | `Limits` | `null` (`VegaLiteLimits.Default`) | The resource limits of parsing (the source length, the JSON depth, and the length and nesting depth of every expression) |
 | `BaseDirectory` | `null` (the folder of the file for `Open(string)`) | The folder that a relative data `url` is looked up in first. A document opened from a string or a stream has none unless you set it. The current directory is never used |
-| `DataPaths` | empty | More folders that a relative data `url` is looked up in, in order, after `BaseDirectory`; copied when set |
+| `DataPaths` | empty | More folders that a relative data `url` is looked up in, in order, after `BaseDirectory`; copied when set. They are only searched: add them to the roots of a confining `FileAccess` policy |
+| `FileAccess` | `FileAccessPolicy.AllowAll` | The core `FileAccessPolicy` that decides which data files on disk may be read; see *File access* below. Null is refused |
 | `FileResolver` | `null` | A `Func<string, Stream?>` callback that replaces the file system: it receives a normalized logical path (forward slashes, no leading slash) and returns a readable stream of UTF-8 text, or `null` when the file does not exist. When it is set the file system is never touched. The library disposes the stream |
 <!-- markdownlint-enable MD013 -->
 
@@ -197,7 +198,7 @@ opening a document never reads a data file.
 | Source | Written as | Notes |
 | ------ | ---------- | ----- |
 | Inline rows | `"data": {"values": [{...}, ...]}` | An array of objects (one row each) or of primitives (one row `{"data": value}`); nested objects and arrays are flattened to fields named by their path (`a.b`, `p.r.0`) |
-| A local file | `"data": {"url": "rows.csv"}` | A **relative** path only; see *Data files* and *The sandbox* below |
+| A local file | `"data": {"url": "rows.csv"}` | A relative or absolute path, or a `file:` URI without a host; see *Data files* and *File access* below |
 | A named dataset | `"data": {"name": "rows"}` | The caller's `VegaLiteRenderOptions.Datasets` first, then the top-level `datasets` of the specification; the caller wins. A name that nobody defines is an error |
 | A sequence | `"data": {"sequence": {"start": 0, "stop": 5, "step": 1, "as": "x"}}` | The numbers from `start` up to, **not including**, `stop` in steps of `step` (1 by default; negative counts down) in the field `as` (`data` by default). `start` and `stop` must be finite numbers; a step that is present must be a finite number other than zero (an absent step is 1), and a step that points away from `stop` gives no rows. A missing, non-finite, or zero value fails the render, and so does a sequence longer than `MaxDataRows` or than the 2^25 (33,554,432) values that one table may hold |
 <!-- markdownlint-enable MD013 -->
@@ -279,35 +280,42 @@ the year 9999 (`9999-12-31T23:59:59.999Z`) instead of failing). A name in `Datas
 replaces a dataset of the same name in the specification. This is the way to chart data that you hold in memory without
 writing a file. The same `format.parse` rules apply to a named dataset.
 
-**The sandbox.** A relative `url` is looked for in the **base directory** first (the folder of a file opened with
+**File access.** A relative `url` is looked for in the **base directory** first (the folder of a file opened with
 `Open(path)`, or `VegaLiteOpenOptions.BaseDirectory`) and then in each `DataPaths` folder, in order; the first file
-that exists wins. The rules are the same on every platform:
+that exists wins. An absolute path (`/data/rows.csv`, and on Windows `C:\data\rows.csv`) and a `file:` URI without a
+host (`file:///data/rows.csv`) are read as that local file. Which files may be read is decided by
+`VegaLiteOpenOptions.FileAccess`:
 
-- Only **relative** paths are read. A path that is empty, starts with a slash, has a drive letter or a colon, is a UNC
-  or network path, or contains a control character (including the C1 range) is refused. `.` and `..` are resolved,
-  and a path that would leave
-  its folder (for example `../secret.csv`) is refused even if the file exists. A backslash is the same as a slash.
-- A **symbolic link or junction** inside a folder is never followed, whatever it points to: a file that is a link, or
-  that lies below a directory that is a link, is refused before it is opened. The folder you name is trusted, including
-  when you reach it through a link; to use linked content, name the real folder as a data path. A hard link cannot be
-  recognized (a link swapped in after the check is refused), so point `BaseDirectory` and `DataPaths` only at folders
-  that untrusted parties cannot write to.
+- The default, `FileAccessPolicy.AllowAll`, reads every regular local file, as Vega-Lite does: `..`, an absolute path,
+  and a symbolic link or junction are followed. A backslash is the same as a slash.
+- A file the policy denies is a `VegaLiteRenderException` at the `url` that names the policy and its reason (its
+  `InnerException` is the core `FileReferenceException`). To render specifications you do not trust, confine them (the
+  old data sandbox; see the core library user guide, *Migrating from the Folder Sandbox*):
+  `FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)`, with each
+  `DataPaths` folder among the roots.
+- Under every policy a path that is empty, is a UNC or network path, or contains a control character (including the C1
+  range) is refused, and so is anything that is not a regular file. The policy decides on the file that was opened, so
+  a link swapped in after the check is refused under a confining policy; a hard link cannot be recognized (it is the
+  file itself), so confine only to folders that untrusted parties cannot write to.
 - With a **`FileResolver`** callback the file system is never touched: the callback is called on the calling thread
   with the normalized logical path (first as written, then once per valid `DataPaths` entry used as a prefix), at most
-  once per path and call, and returns a stream (disposed by the library) or `null`. It is never called for a remote URL.
+  once per path and call, and returns a stream (disposed by the library) or `null`. It is never called for a remote URL,
+  and an absolute path or `..` above the root is refused in this mode.
 - A document parsed from a string or opened from a stream has **no folder**: a local `url` then needs
   `BaseDirectory`, `DataPaths`, or a `FileResolver`, or the render fails.
 - A file is read as UTF-8 (a byte-order mark is removed); text that is not valid UTF-8, including UTF-16, is an error
   and
   is never repaired. Each file is read **once per call**, however often the chart names it, and again by the next call.
 
-**Remote URLs.** A `url` with a scheme (`https:`, `file:`, `data:`, ...), a drive letter, an absolute path, or a network
-path is never fetched, never opened, and never passed to a `FileResolver`: it is reported as `vl-data-remote-url`, and
+**Remote URLs.** A `url` with a scheme other than `file:` (`https:`, `data:`, ...), a `file:` URI with a host, or a
+network path is never fetched, never opened, and never passed to a `FileResolver`: it is reported as
+`vl-data-remote-url`, and
 the chart is drawn with an empty dataset (strict mode throws `VegaLiteUnsupportedFeatureException`).
 
 **Errors.** A local file that cannot be used is **not** an empty chart. These fail the render with a
 `VegaLiteRenderException` located at the `url` (or `name`) in the specification, in lenient and strict mode alike: no
-place to look, a path the sandbox refuses, a link, a missing file, a directory where a file is expected, an existing
+place to look, a path that is never allowed, a file the policy denies, a missing file, a directory where a file is
+expected, an existing
 file
 that cannot be opened (for example for lack of permission, which is reported as a read failure and **never** as a
 missing file), a file or a
@@ -342,7 +350,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | ---- | --------- |
 | Schema | A `$schema` of Vega-Lite version 5 or 6, interpreted with the **version 6 defaults** (not the version 5 defaults, for example a view is 300 by 300 pixels by default); no `$schema` at all |
 | Views | A single view, a `layer` of views (layers may be nested and carry a `resolve` of the scales, axes, and legends; see *Vega-Lite Layers and Composite Marks*), and the compositions `concat`, `hconcat`, `vconcat` (with `columns`, `spacing`, `align`, `center`, and `bounds`), `facet` (a `row` and `column` mapping, or one field with `columns`, over a `spec` that is a unit or a layered view; the `row`, `column`, and `facet` channels of a unit view), and `repeat` (a list, a `row` and `column` mapping, a `layer` list, and `{"repeat": ...}` field references), nested within `MaxCompositionDepth` levels and `MaxViews` views, with a `resolve` of the scales, axes, and legends of each composition; see *Vega-Lite Composition* |
-| Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields such as `a.b`, or of primitives, one row `{"data": value}`); a relative local `data.url` read as JSON, CSV, TSV, or DSV; `format.type`, `delimiter`, `property`, and `parse` (see *Vega-Lite Data*); named data (`data.name`, from the caller's `Datasets` or the top-level `datasets`); and `data.sequence`. Remote URLs, geographic data, and `values` given as text are not read |
+| Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields such as `a.b`, or of primitives, one row `{"data": value}`); a local `data.url` (a relative or absolute path, or a `file:` URI without a host, read under the file-access policy) read as JSON, CSV, TSV, or DSV; `format.type`, `delimiter`, `property`, and `parse` (see *Vega-Lite Data*); named data (`data.name`, from the caller's `Datasets` or the top-level `datasets`); and `data.sequence`. Remote URLs, geographic data, and `values` given as text are not read |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, `arc`, and `image` (through the image resolver of the caller), given as a string or as a definition object with `type`; see *Vega-Lite Line, Area, Text, and Arc Marks* and *Vega-Lite Image Marks*. The composite marks `boxplot`, `errorbar`, and `errorband`, which are drawn as layers of those marks; see *Vega-Lite Layers and Composite Marks* |
 | Channels | `x`, `y`, `xOffset` and `yOffset` (grouped bars and offset points inside a band; see *Vega-Lite Offset Channels (Grouped Bars)*), `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, `angle`, `text`, and `url`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it (`shape` is drawn by a `point` mark and by the overlay points of a `line`, `area`, `trail`, or `rule` (see *Overlays* under *Vega-Lite Line, Area, Text, and Arc Marks*), `angle` by a `point`, `circle`, `square`, or `text`, `text` by a `text` mark, `url` by an `image` mark, `theta` and `radius` by an `arc` or `text` mark, `size` by every mark but a `rect`, `area`, and `arc`, and `strokeDash` by every mark but a `rect`, `area`, `trail`, `text`, and `arc`; see *Vega-Lite Legends, Color Schemes, and Scales*). `x2` and `y2` give the end of a range on a `bar`, `rect`, `rule`, or `area` (and the ends of the range of an `errorbar` or `errorband`), `xError`, `xError2`, `yError`, and `yError2` give the errors of an `errorbar` or `errorband` (they are reported on any other mark), `theta2` and `radius2` the end of the span of an `arc`, and `order` orders the layers of a stack, the points of a path, or the drawing order of the marks. `detail` groups the points of a path. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture. `row`, `column`, and `facet` on a unit view facet it, as the `facet` operator does (see *Vega-Lite Composition*); inside a layer or the `spec` of a facet they are reported |
 | Field types | `quantitative`, `temporal`, `nominal`, and `ordinal` (`geojson` is reported) |
@@ -957,7 +965,8 @@ transform** (for example `/transform/0`), so the same chart always keeps the sam
 change between renders. A size of at least the number of rows keeps every row. The rows of every table that a transform
 derives count against `MaxDataRows` (a `fold` or `flatten` needs room for the input and the output together, and a
 `filter`, `sample`, or `pivot` gives the rows it drops back), the lookup source counts like any data source (and a
-local file in it is read under the same sandbox, file count, and size limits), the fields against `MaxFieldCount`, and a
+local file in it is read under the same file-access policy, file count, and size limits), the fields against
+`MaxFieldCount`, and a
 derived table may hold at most 2^25 (33,554,432) cells, rows times fields (the same bound holds for the values of a
 generated `sequence`, the points of a sampled curve of a `density` or a `regression`, and the probabilities of a
 `quantile`, whatever `MaxDataRows` is). The counts are checked **before** the memory
@@ -2285,8 +2294,8 @@ using var surface = chart.Render(options);
 ```
 
 **The tool and the viewer.** `canvasnet render chart.vl.json` and the Viewer draw the pictures of a chart through the
-sandboxed folder resolver rooted at the folder of the chart (the same one that draws the pictures of an SVG): nothing
-outside that folder is read, and the files that were drawn are listed with the operations, the text that a model
+folder resolver for the folder of the chart (the same one that draws the pictures of an SVG), under the file-access
+policy of the render, and the files that were drawn are listed with the operations, the text that a model
 printed with the echo, and the pictures that could not be drawn as the warnings `svg-image-unresolved`. In strict mode
 (`--strict`) a picture that could not be drawn fails the render, naming the chart. A chart that is drawn inside a
 document of another format (an SVG that links to the chart) uses the resolver of that document, so a picture is looked
@@ -2764,10 +2773,10 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   and `CANVASNET_VL_FUZZ_DUMP_DIR` (a folder that receives each failing specification) and run
   `dotnet test test/DemaConsulting.CanvasNet.VegaLite.Tests`. Report a failing specification together with its seed and
   index.
-- **No network.** The package never opens a socket. A `url` that names a scheme, a drive letter, an absolute path, or a
-  network path is reported as `vl-data-remote-url` and is **never fetched, opened, or given to your `FileResolver`**;
-  the chart is drawn with an empty dataset (strict mode throws). Download such a file next to the specification and
-  refer to it by a relative path.
+- **No network.** The package never opens a socket. A `url` that names a scheme other than `file:`, a `file:` URI with
+  a host, or a network path is reported as `vl-data-remote-url` and is **never fetched, opened, or given to your
+  `FileResolver`**; the chart is drawn with an empty dataset (strict mode throws). Download such a file and refer to it
+  by a local path.
 
 ### Vega-Lite Unsupported Features and Strict Mode
 
@@ -2787,7 +2796,7 @@ thread, after the work finished and before the method returns or throws.
 | ---------- | ---- | --------------------- |
 | `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version (the chart is rendered with the version 6 defaults) |
 | `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
-| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path (never fetched; empty dataset). A relative local path is supported and is not reported |
+| `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme other than `file:`, is a `file:` URI with a host, or is a network or UNC path (never fetched; empty dataset). A relative or absolute local path, a drive path, and a `file:` URI without a host are read under the file-access policy and are not reported |
 | `vl-data-parse-failed` | Warning | The `data` object, at render time: values that an explicit `format.parse` conversion (or the implicit date parse of a temporal field) could not read (one warning per field and type; those values are `null`) |
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
@@ -3053,8 +3062,9 @@ describe the language that is implemented.
 document that links to a chart draws the chart through a `FolderImageResolver` of the core package (or
 `CanvasNetViewer.CreateImageResolver` of the Viewer package). The chart is laid out afresh at the size of its placement,
 deterministically (UTC and the bundled fonts only), and keeps **its own background** (white unless the specification
-declares another), because a chart carries its own paper; its data files are looked up in the folder of the file and
-nowhere else. Warnings and unsupported features are returned as notes of the source `vega-lite`.
+declares another), because a chart carries its own paper; its data files are looked up relative to the folder of the
+file, under the file-access policy of the request. Warnings and unsupported features are returned as notes of the source
+`vega-lite`.
 
 The source declares one family of fragment parameters, the **parameters of the chart**: `param.<name>=<value>` in the
 link sets the parameter `<name>` through `VegaLiteRenderOptions.Parameters`, like `--param name=value` of the
