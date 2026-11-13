@@ -51,7 +51,8 @@
         { "term": "PPTX", "text": "Opening a presentation buffers the whole package in memory, up to 256 MiB." },
         { "term": "SVG flatten", "text": "canvasnet flatten draws at most 64 pictures (nested ones included) within the pixel budget of render, and writes a copy of at most 64 MiB; a larger copy is size-limit and nothing is written." },
         { "term": "Default resolution", "text": "A document page is drawn at 96 dpi." },
-        { "term": "Link fragment", "text": "The fragment of an image href in an SVG file, or of an input path on the command line (the part after #, as in report.pdf#page=2), is at most {{fragmentMaxLength}} characters and {{fragmentMaxParameters}} parameters; beyond that the image is not drawn and image-fragment-invalid is reported (an unsupported-feature error with --strict; for an input path, an error)." }
+        { "term": "Link fragment", "text": "The fragment of an image href in an SVG file, or of an input path on the command line (the part after #, as in report.pdf#page=2), is at most {{fragmentMaxLength}} characters and {{fragmentMaxParameters}} parameters; beyond that the image is not drawn and image-fragment-invalid is reported (an unsupported-feature error with --strict; for an input path, an error)." },
+        { "term": "File access", "text": "Every limit here holds in every file-access mode (--file-access): a mode decides which files may be read, never how much. See 'canvasnet help files'." }
       ]
     }
   ],
