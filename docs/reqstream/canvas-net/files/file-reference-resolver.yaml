@@ -1,0 +1,207 @@
+---
+# Software Unit Requirements for FileReferenceResolver
+#
+# These requirements describe the design-level behavior of the FileReferenceResolver unit of the Files subsystem
+# (namespace DemaConsulting.CanvasNet.Files): the public resolver that turns a path a document references into the
+# bytes of a regular file after a caller-chosen FileAccessPolicy approved the opened file, together with its
+# FileReferenceOptions, FileReference, FileReferenceException and FileReferenceFailureKind types. Each "tests" entry
+# cites a test method in the DemaConsulting.CanvasNet.Tests project; see
+# docs/verification/canvas-net/files/file-reference-resolver.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Files Requirements
+        sections:
+          - title: FileReferenceResolver Requirements
+            requirements:
+              - id: CanvasNet-Files-FileReferenceResolver-Candidates
+                title: >-
+                  The FileReferenceResolver class shall look up a relative reference in the directory of the file
+                  it is relative to (or, when none is given, the base directory) and then in each search path in
+                  order, taking the first file that exists; shall look up an absolute reference (and on Windows a
+                  drive path) as exactly one candidate; shall collapse dot and dot-dot segments, including those
+                  that leave the base directory; and shall treat backslashes as forward slashes so that every
+                  spelling of a path names one file.
+                justification: |
+                  Documents reference files relative to themselves, through library folders, and by absolute path,
+                  as Pandoc documents do; one deterministic order lets authors predict which file is read.
+                tests:
+                  - FileReferenceResolver_Resolve_RelativePathUsesReferrerThenBaseThenSearchPaths
+                  - FileReferenceResolver_Resolve_DotDotLeavingTheBase_IsReadUnderAllowAll
+                  - FileReferenceResolver_Resolve_AbsolutePath_IsASingleCandidateAndIsRead
+                  - FileReferenceResolver_Resolve_BackslashesAndDotSegments_NameOneFile
+                  - FileReferenceResolver_Resolve_DrivePath_IsAbsoluteOnWindowsAndInvalidElsewhere
+
+              - id: CanvasNet-Files-FileReferenceResolver-PathText
+                title: >-
+                  The FileReferenceResolver class shall refuse, before any file-system access or callback request
+                  and under every policy, an empty or white-space reference, a reference with a control character
+                  (including NUL, DEL and the C1 range), a device path, a network path (UNC or a leading double
+                  slash), and a reference with a colon other than the drive of an absolute Windows path, each with
+                  a FileReferenceException of the matching kind, and shall reject a null reference with
+                  ArgumentNullException.
+                justification: |
+                  These forms are never a safe local file: network paths can leak credentials, device paths and
+                  alternate data streams reach things that are not files, and control characters hide the real text.
+                tests:
+                  - FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess
+                  - FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Files-FileReferenceResolver-MissingFiles
+                title: >-
+                  The FileReferenceResolver class shall report a reference for which no candidate exists - including
+                  a dangling link and a file whose open reports "not found" - as no file, trying the next candidate,
+                  and shall report through HasSource whether any way of finding files is configured.
+                justification: |
+                  A missing file is an ordinary outcome that callers handle in their own way (a warning, an error, a
+                  fallback); only a refusal or a read failure is exceptional.
+                tests:
+                  - FileReferenceResolver_Resolve_MissingFileAndDanglingLink_ReturnNull
+                  - FileReferenceResolver_Resolve_FileNotFoundFromOpen_TriesTheNextCandidate
+                  - FileReferenceResolver_Resolve_NoSource_ReturnsNullAndHasSourceIsFalse
+
+              - id: CanvasNet-Files-FileReferenceResolver-PolicyEvaluation
+                title: >-
+                  The FileReferenceResolver class shall ask the configured file-access policy about every file it
+                  opens, before reading it, with the reference as written, the referring file (or the configured
+                  referrer path), the base directory, the path that was opened and the real path of the opened file;
+                  shall read the file only when the policy allows it; shall end the search on a denial; shall treat a
+                  policy that throws or returns no decision as a denial while letting a cancellation pass through;
+                  shall ask the policy again whenever a cached file is resolved again; and shall let a policy refuse
+                  a path as written before the file is opened.
+                justification: |
+                  The policy is the host's rule; it must see the facts of the file that would actually be read, a
+                  failing policy must never allow, and a policy may depend on which document references the file.
+                tests:
+                  - FileReferenceResolver_Resolve_PolicyDenial_IsAccessDeniedWithFactsAndNothingRead
+                  - FileReferenceResolver_Resolve_PolicyDenial_StopsTheSearch
+                  - FileReferenceResolver_Resolve_ThrowingOrNullPolicy_IsAccessDeniedAndCancellationPassesThrough
+                  - FileReferenceResolver_Resolve_CachedFile_IsReCheckedOnEveryResolveButReadOnce
+                  - FileReferenceResolver_Resolve_UnderRootsPreCheck_DeniesBeforeTheOpen
+
+              - id: CanvasNet-Files-FileReferenceResolver-RaceFree
+                title: >-
+                  The FileReferenceResolver class shall take the real path it gives the policy from the open file,
+                  not from its name, and shall read the bytes from that same open file, so that a file moved or a
+                  link added or removed after the open neither changes the decision nor what is read.
+                justification: |
+                  Another process that can change the directory tree must not be able to redirect a read after the
+                  decision; deciding on the open file closes that window.
+                tests:
+                  - FileReferenceResolver_Resolve_FileMovedAndFolderSwappedForOutsideLinkAfterOpen_IsAllowedWithOriginalBytes
+                  - FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderUnderRoots
+                  - FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderNoSymlinks
+                  - FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied
+                  - FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult
+
+              - id: CanvasNet-Files-FileReferenceResolver-RealPathUnavailable
+                title: >-
+                  The FileReferenceResolver class shall refuse a file with RealPathUnavailable, without reading it,
+                  when the configured policy needs the real path and it cannot be determined, while the default
+                  policy, which needs no real path, still reads the file.
+                justification: |
+                  A restrictive policy that cannot be applied must fail closed; the default must keep working on a
+                  platform or in a container that cannot tell the real path of an open file.
+                tests:
+                  - FileReferenceResolver_Resolve_RestrictivePolicyWithoutRealPath_IsRealPathUnavailable
+
+              - id: CanvasNet-Files-FileReferenceResolver-RegularFile
+                title: >-
+                  The FileReferenceResolver class shall refuse, under every policy and without reading it, a
+                  referenced path that is not a regular file - a directory, a device, or a named pipe, which shall
+                  not block the open - with NotARegularFile.
+                justification: |
+                  A device can return endless or sensitive data and a named pipe can hang the reader; once absolute
+                  references are allowed, such paths are one reference away.
+                tests:
+                  - FileReferenceResolver_Resolve_DirectoryAtFilePath_IsNotARegularFile
+                  - "windows@FileReferenceResolver_Resolve_InjectedNulHandle_IsNotARegularFile"
+                  - "ubuntu@FileReferenceResolver_Resolve_DevNull_IsNotARegularFile"
+                  - "macos@FileReferenceResolver_Resolve_DevNull_IsNotARegularFile"
+                  - "ubuntu@FileReferenceResolver_Resolve_Fifo_IsNotARegularFileWithoutBlocking"
+                  - "macos@FileReferenceResolver_Resolve_Fifo_IsNotARegularFileWithoutBlocking"
+
+              - id: CanvasNet-Files-FileReferenceResolver-Reading
+                title: >-
+                  The FileReferenceResolver class shall open files read-only with read, write and delete sharing,
+                  shall report an existing file whose open or read fails as CannotRead (keeping the cause and ending
+                  the search), never as missing, and shall read a file that another process holds open for writing.
+                justification: |
+                  An inaccessible file is not a missing one, and a concurrent writer or rename must not turn a read
+                  into a sharing violation.
+                tests:
+                  - FileReferenceResolver_Resolve_OpenFailure_IsCannotReadAndStopsTheSearch
+                  - FileReferenceResolver_Resolve_FileHeldOpenByWriter_IsStillRead
+
+              - id: CanvasNet-Files-FileReferenceResolver-Limits
+                title: >-
+                  The FileReferenceResolver class shall, under every policy, read at most the configured number of
+                  bytes of a file (accepting exactly the limit, refusing a longer file with TooLarge and stopping a
+                  stream that never ends one chunk past the limit), and, when a file limit is configured, open or
+                  request at most that many distinct files, counting a file whatever the outcome of its open (a miss
+                  excluded) and refusing a new file beyond the limit with TooManyFiles before it is opened.
+                justification: |
+                  A document is untrusted input; the size and number of the files it reads bound memory and work
+                  whatever the host's policy.
+                tests:
+                  - FileReferenceResolver_Resolve_MaxFileBytesAtLimitAndOneOver
+                  - FileReferenceResolver_Resolve_EndlessCallbackStream_StopsAtTheBound
+                  - FileReferenceResolver_Resolve_MaxFiles_CountsOpenedFilesAndRefusesBeforeOpen
+
+              - id: CanvasNet-Files-FileReferenceResolver-Cache
+                title: >-
+                  The FileReferenceResolver class shall open each distinct path at most once per instance,
+                  remembering a miss and a failure as well as a file, shall return the same file instance for every
+                  spelling of one path, shall not read a file again after it changed, and shall expose the comparer
+                  under which two keys name the same path (ordinal for logical paths, the platform's path comparison
+                  for full paths).
+                justification: |
+                  Repeated reads would multiply the cost of a hostile input and let a file change between two reads
+                  of one operation; callers need the comparer and the real path to detect cycles.
+                tests:
+                  - FileReferenceResolver_Resolve_SameFileTwice_IsOpenedOnceAndReturnsTheSameInstance
+                  - FileReferenceResolver_KeyComparer_FollowsModeAndPlatform
+
+              - id: CanvasNet-Files-FileReferenceResolver-Callback
+                title: >-
+                  When the options supply a file resolver callback, the FileReferenceResolver class shall use only
+                  that callback, never the file system nor the policy, shall pass it only normalized logical paths
+                  (the referring file's directory or the logical root first, then each valid search path as a
+                  prefix), shall refuse an absolute reference and a dot-dot segment above the logical root with
+                  InvalidPath, shall report every failure of the callback or its stream as CannotRead (keeping the
+                  cause), and shall let a cancellation pass through; a file from the other mode shall not be accepted
+                  as the starting point of a reference.
+                justification: |
+                  Hosts that serve files from memory or archives control file access completely through the
+                  callback, which is the policy in that mode; its failures must not leak as raw exceptions.
+                tests:
+                  - FileReferenceResolver_Resolve_CallbackMode_UsesLogicalPathsAndNeverConsultsThePolicy
+                  - FileReferenceResolver_Resolve_CallbackMode_DotDotAboveRootAndAbsolutePath_AreInvalidPath
+                  - FileReferenceResolver_Resolve_CallbackFailure_IsCannotReadAndCancellationPassesThrough
+                  - FileReferenceResolver_Resolve_RelativeToFromTheOtherMode_ThrowsArgumentException
+
+              - id: CanvasNet-Files-FileReferenceResolver-Cancellation
+                title: >-
+                  The FileReferenceResolver class shall make no request and open no file when the cancellation token
+                  is already canceled, throwing OperationCanceledException.
+                justification: |
+                  Reading may touch slow storage; a caller must be able to abandon it promptly.
+                tests:
+                  - FileReferenceResolver_Resolve_CanceledToken_StopsBeforeAnyAccess
+
+              - id: CanvasNet-Files-FileReferenceResolver-Failures
+                title: >-
+                  The FileReferenceException class shall carry the failure kind, the reference as written, the rule
+                  or policy reason, the policy name and hint, the path that was opened and its real path, and the
+                  underlying cause, and its message shall name the reference and the policy but never a host
+                  directory nor a policy reason; the FileReferenceResolver class shall report a configured directory
+                  that is not a valid path as InvalidBaseDirectory and reject invalid options at construction.
+                justification: |
+                  Callers map a failure to their own diagnostic without parsing text and must be able to show the
+                  message to an untrusted author; invalid configuration should fail immediately.
+                tests:
+                  - FileReferenceException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
+                  - FileReferenceException_Constructor_NullReference_ThrowsArgumentNullException
+                  - FileReferenceResolver_Resolve_InvalidBaseDirectory_IsInvalidBaseDirectory
+                  - FileReferenceResolver_Constructor_InvalidArguments_Throw

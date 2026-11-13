@@ -46,6 +46,9 @@ includes:
   - docs/reqstream/canvas-net/fonts/font-resolver.yaml
   - docs/reqstream/canvas-net/fonts/glyph-fallback.yaml
   - docs/reqstream/canvas-net/files.yaml
+  - docs/reqstream/canvas-net/files/file-reference-resolver.yaml
+  - docs/reqstream/canvas-net/files/file-access-policy.yaml
+  - docs/reqstream/canvas-net/files/real-path.yaml
   - docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml
   - docs/reqstream/canvas-net/image-sources.yaml
   - docs/reqstream/canvas-net/image-sources/image-source-contract.yaml

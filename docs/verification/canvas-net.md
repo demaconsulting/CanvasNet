@@ -459,9 +459,27 @@ to the bundled Liberation Sans with the failure `no such font family was found`.
 source, family, style and glyph data of the font, confirming the resolver integrates with the
 bundled fonts end to end.
 
+### Integration: File References Are Read Anywhere by Default and Confined by a Roots Policy
+
+**Test**: `CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines`
+
+Exercises the `Files` subsystem's referenced-file engine through its public API only: a `FileReferenceResolver`
+with the default policy reads a file next to the document folder through a dot-dot reference and through its absolute
+path, while a resolver over the same tree with `FileAccessPolicy.UnderRoots(docs)` reads a file inside the root and
+denies the dot-dot reference with `AccessDenied` naming the `roots` policy.
+
+### Integration: Unsafe References Are Refused Under Every Policy
+
+**Test**: `CanvasNet_SystemIntegration_FileReferences_UnsafeReferencesAreRefusedUnderEveryPolicy`
+
+Exercises the references that no policy can allow: under `AllowAll`, `NoSymlinks`, and a `UnderRoots` policy that
+includes the referenced folders, a UNC path is `NetworkPath`, a `\\?\` device path and an alternate data stream are
+`InvalidPath`, a directory is `NotARegularFile`, and on Linux and macOS `/dev/null` is `NotARegularFile`; no refusal
+message contains the temporary directory.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all thirty-three scenarios above pass without error or
+A system-level test run passes when all forty scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
 

@@ -46,6 +46,9 @@ input-files:
   - docs/design/canvas-net/rendering/text-renderer.md
   - docs/design/canvas-net/rendering/shapes.md
   - docs/design/canvas-net/files.md
+  - docs/design/canvas-net/files/file-reference-resolver.md
+  - docs/design/canvas-net/files/file-access-policy.md
+  - docs/design/canvas-net/files/real-path.md
   - docs/design/canvas-net/files/sandboxed-file-resolver.md
   - docs/design/canvas-net/image-sources.md
   - docs/design/canvas-net/image-sources/image-source-contract.md

@@ -43,8 +43,8 @@ constituent software items, specifically:
   `PathStroker`, `GradientPaint`, and `TilePaint`
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font loading and glyph-outline extraction:
   `TrueTypeFont` and `SystemFontCatalog`
-- **Files (Subsystem)** — Sandboxed file access: the `SandboxedFileResolver` unit and its supporting
-  `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types
+- **Files (Subsystem)** — Access to referenced files: the `FileReferenceResolver`, `FileAccessPolicy`, `RealPath`,
+  and `SandboxedFileResolver` units and their supporting types
 - **ImageSources (Subsystem)** — Linked-picture support: the `ImageSourceContract`, `FolderImageResolver`, and
   `RasterImageSource` units and their supporting types
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing

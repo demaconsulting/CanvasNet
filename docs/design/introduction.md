@@ -78,12 +78,16 @@ software items, specifically:
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
   TrueType text with alignment and kerning), `Shapes` (rectangle, rounded rectangle, and
   circle helpers), and `WordWrap` (a font- and unit-independent greedy word-wrap line packer)
-- **Files (Subsystem)** — Sandboxed file access, with no dependency on any other subsystem (only the
-  `ImageSources` subsystem of the core package depends on it): the
-  `SandboxedFileResolver` unit (the public resolver plus its `SandboxOptions`, `SandboxedFile`,
-  `SandboxException`, and `SandboxFailureKind` types) that turns an untrusted relative path into the bytes of
-  a file inside caller-chosen directories (or a caller-supplied virtual file source), refusing escapes,
-  hostile path text, and symbolic links or junctions, and used by `ImageSources`, `CanvasNetVegaLite`, and
+- **Files (Subsystem)** — Access to referenced files, with no dependency on any other subsystem (only the
+  `ImageSources` subsystem of the core package depends on it): the `FileReferenceResolver` unit (the public
+  resolver plus its `FileReferenceOptions`, `FileReference`, `FileReferenceException`, and
+  `FileReferenceFailureKind` types) that reads a file a document references after a host-chosen policy approved
+  the open file; the `FileAccessPolicy` unit (the public hook, its built-in policies, and the `FileAccessRequest`
+  and `FileAccessDecision` types); the internal `RealPath` unit that tells the real path and the type of an open
+  file per operating system; and the `SandboxedFileResolver` unit (the public resolver plus its `SandboxOptions`,
+  `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types) that turns an untrusted relative path into
+  the bytes of a file inside caller-chosen directories (or a caller-supplied virtual file source), refusing
+  escapes, hostile path text, and symbolic links or junctions, and used by `ImageSources`, `CanvasNetVegaLite`, and
   `CanvasNetScad` for every local file
 - **ImageSources (Subsystem)** — Linked-picture support for documents that link to other pictures (an SVG
   `image` element, for example), depending on `Files`, `Canvas`, and `Codecs` (no core subsystem depends on it): the
@@ -473,7 +477,10 @@ transform-aware `Canvas` wrapper unit,
 the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline,
 the `Shapes` extension-method unit, and the `WordWrap` line-packer unit, covering the supporting
 `WordWrapTokenKind` enum inline, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
-further nesting), the `Files` subsystem (the `SandboxedFileResolver` unit, covering the public
+further nesting), the `Files` subsystem (the `FileReferenceResolver` unit, covering the public
+`FileReferenceOptions`, `FileReference`, `FileReferenceException`, and `FileReferenceFailureKind` types inline, the
+`FileAccessPolicy` unit, covering the public `FileAccessRequest` and `FileAccessDecision` types inline, the
+internal `RealPath` unit, and the `SandboxedFileResolver` unit, covering the public
 `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types inline, namespace
 `DemaConsulting.CanvasNet.Files`, flat — no further nesting), the `ImageSources` subsystem (the
 `ImageSourceContract`, `FolderImageResolver`, and `RasterImageSource` units, namespace
@@ -800,7 +807,22 @@ src/DemaConsulting.CanvasNet/
 │   ├── CornerRoundEffect.cs       — Replaces polyline corners with tangent circular arcs
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
 ├── Files/
-│   ├── SandboxedFileResolver.cs       — Public sandboxed resolver: search order, bounded read, callback mode, cache
+│   ├── FileReferenceResolver.cs       — Public referenced-file resolver: open, inspect, policy, bounded read, cache
+│   ├── FileReferenceResolver.Paths.cs — Text rules that hold under every policy, candidates, logical paths
+│   ├── FileReferenceOptions.cs        — Public options: base, referrer, search paths, callback, policy, limits
+│   ├── FileReference.cs               — Public result: key, real path, directory, and bytes of a referenced file
+│   ├── FileReferenceException.cs      — Public exception carrying the failure kind, reference, policy, and paths
+│   ├── FileReferenceFailureKind.cs    — Public enumeration of the reasons a reference is refused
+│   ├── FileAccessPolicy.cs            — Public policy hook and factories (AllowAll, UnderRoots, NoSymlinks, ...)
+│   ├── FileAccessPolicy.BuiltIns.cs   — The built-in policies
+│   ├── FileAccessRequest.cs           — Public facts of an opened file that a policy decides about
+│   ├── FileAccessDecision.cs          — Public answer of a policy: allowed, or denied with a reason and hint
+│   ├── RealPath.cs                    — Internal: open, handle facts, real folder location, path comparison
+│   ├── RealPath.Windows.cs            — Internal: the Windows facts of an open handle
+│   ├── RealPath.Unix.cs               — Internal: the Linux facts of an open handle
+│   ├── NativeMethods.cs               — Internal: the kernel32 and C library calls of the RealPath unit
+│   ├── FileOpenHooks.cs               — Internal: test seams around the open
+│   ├── SandboxedFileResolver.cs       — Public sandboxed resolver: search order, verified open, bounded read, cache
 │   ├── SandboxedFileResolver.Paths.cs — Path-text rules, root confinement, and the link walk
 │   ├── SandboxOptions.cs              — Public options: base directory, search paths, callback, byte limit
 │   ├── SandboxedFile.cs               — Public result: key, directory, root, and bytes of a resolved file

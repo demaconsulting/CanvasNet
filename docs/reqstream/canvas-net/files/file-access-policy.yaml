@@ -1,0 +1,91 @@
+---
+# Software Unit Requirements for FileAccessPolicy
+#
+# These requirements describe the design-level behavior of the FileAccessPolicy unit of the Files subsystem
+# (namespace DemaConsulting.CanvasNet.Files): the public hook that decides whether an opened, referenced file may be
+# read, its built-in policies, and the FileAccessRequest and FileAccessDecision types it uses. Each "tests" entry
+# cites a test method in the DemaConsulting.CanvasNet.Tests project; see
+# docs/verification/canvas-net/files/file-access-policy.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Files Requirements
+        sections:
+          - title: FileAccessPolicy Requirements
+            requirements:
+              - id: CanvasNet-Files-FileAccessPolicy-AllowAll
+                title: >-
+                  The FileAccessPolicy class shall provide a policy named "any" that allows every file and needs no
+                  real path.
+                justification: |
+                  The default behaves like Pandoc: a document may reference any regular local file, and the default
+                  must work where the real path of an open file cannot be determined.
+                tests:
+                  - FileAccessPolicy_AllowAll_AnyRequest_IsAllowedAndNamedAny
+
+              - id: CanvasNet-Files-FileAccessPolicy-UnderRoots
+                title: >-
+                  The FileAccessPolicy class shall provide a policy named "roots" that allows a file only when both
+                  the path as written and the real path lie inside one of the given folders (the folder itself
+                  included, a sibling that merely shares a name prefix excluded, compared under the platform's case
+                  rule and in each folder's written and real spelling), that refuses a path as written outside every
+                  folder before the file is opened, that explains a denial with a reason and a hint, and that rejects
+                  a missing, empty or invalid folder when it is created.
+                justification: |
+                  A build server or service confines documents to chosen folders; a link that stays inside is fine,
+                  one that leads out is not, and a path outside the folders is never even opened.
+                tests:
+                  - FileAccessPolicy_UnderRoots_RealPathInsideOrEqualToARoot_IsAllowed
+                  - FileAccessPolicy_UnderRoots_SiblingWithSharedPrefix_IsDenied
+                  - FileAccessPolicy_UnderRoots_RealPathOutsideEveryRoot_IsDeniedWithReasonAndHint
+                  - FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck
+                  - FileAccessPolicy_UnderRoots_InvalidRoots_Throw
+                  - FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied
+
+              - id: CanvasNet-Files-FileAccessPolicy-NoSymlinks
+                title: >-
+                  The FileAccessPolicy class shall provide a policy named "no-symlinks" that allows a file only when
+                  its real path equals the path as written below the deepest folder shared by that path and the base
+                  directory, trusting that folder and everything above it, and comparing a path written with short
+                  (8.3) names in its long spelling.
+                justification: |
+                  Some hosts refuse links altogether, as the folder sandbox did; folders the host chose (and their
+                  links, such as the macOS temporary folder) are trusted, and a short spelling is not a link.
+                tests:
+                  - FileAccessPolicy_NoSymlinks_RealPathMatchesTheWrittenPath_IsAllowed
+                  - FileAccessPolicy_NoSymlinks_RealPathDiffersBelowTheAnchor_IsDenied
+                  - FileAccessPolicy_NoSymlinks_LinkAboveTheAnchor_IsTrusted
+                  - "windows@FileAccessPolicy_NoSymlinks_ShortNameSpelling_IsAllowed"
+
+              - id: CanvasNet-Files-FileAccessPolicy-Combine
+                title: >-
+                  The FileAccessPolicy class shall combine policies into one that asks them in order and returns the
+                  first denial, whose name joins the parts' names with a plus sign, that flattens nested
+                  combinations, returns a single policy unchanged, needs a real path when any part does, and rejects
+                  a missing, empty or null-holding list.
+                justification: |
+                  Hosts compose rules (inside these folders and without links) without writing a policy of their
+                  own, and diagnostics must name the composition.
+                tests:
+                  - FileAccessPolicy_Combine_FirstDenialWinsAndNamesAreJoined
+                  - FileAccessPolicy_Combine_InvalidArguments_Throw
+
+              - id: CanvasNet-Files-FileAccessPolicy-FromDelegate
+                title: >-
+                  The FileAccessPolicy class shall create a named policy from a caller's function, which receives
+                  every request and whose decision is returned, and shall reject an empty name or a missing function.
+                justification: |
+                  A host rule that needs no class of its own (an allow list of files, a rule that depends on the
+                  referring document) should be one line.
+                tests:
+                  - FileAccessPolicy_FromDelegate_UsesNameAndCheckAndRejectsInvalidArguments
+
+              - id: CanvasNet-Files-FileAccessPolicy-Decision
+                title: >-
+                  The FileAccessDecision class shall represent an allow decision as one shared instance and a denial
+                  with a non-empty reason and an optional hint, rejecting a missing or empty reason.
+                justification: |
+                  A policy explains a denial in words that end up in the caller's diagnostic, without throwing.
+                tests:
+                  - FileAccessDecision_Deny_KeepsReasonAndHintAndRejectsAnEmptyReason

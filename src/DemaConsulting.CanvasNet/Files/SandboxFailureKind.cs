@@ -26,15 +26,23 @@ public enum SandboxFailureKind
     /// <summary>A <c>..</c> segment would leave the root that the path is confined to.</summary>
     OutsideRoot,
 
-    /// <summary>The file, or a directory above it below its root, is a symbolic link or junction.</summary>
+    /// <summary>
+    ///     The file, or a directory above it below its root, is a symbolic link or junction - found by the link check
+    ///     before the open, or by the real path of the open file not being the root's real location followed by the
+    ///     path below the root (a link swapped in after the check).
+    /// </summary>
     ThroughLink,
 
-    /// <summary>The link check itself failed, so the file is refused rather than trusted.</summary>
+    /// <summary>
+    ///     The link check itself failed, or the real path of the open file cannot be determined, so the file is refused
+    ///     rather than trusted.
+    /// </summary>
     LinkCheckFailed,
 
     /// <summary>
-    ///     The file exists but cannot be read: it is a directory, it cannot be opened, the read failed, or the
-    ///     caller's resolver callback threw or returned a stream that failed.
+    ///     The file exists but cannot be read: it is a directory or another file that is not a regular file (a device,
+    ///     a named pipe), it cannot be opened, the read failed, or the caller's resolver callback threw or returned a
+    ///     stream that failed.
     /// </summary>
     CannotRead,
 

@@ -257,7 +257,8 @@ internal static class NativeMethods
     [SupportedOSPlatform("linux")]
     internal static int? TryGetLinuxMode(SafeFileHandle handle)
     {
-        // st_mode follows st_dev, st_ino and (on x64 only) the 64-bit st_nlink; other architectures are not known here
+        // st_mode follows the device and inode numbers and (on x64 only) the 64-bit link count; other architectures are
+        // not known here
         var architecture = RuntimeInformation.ProcessArchitecture;
         int offset;
         int statVersion;

@@ -1,11 +1,12 @@
 ---
 # Software Subsystem Requirements for Files
 #
-# These requirements decompose the CanvasNet system's sandboxed file access into the Files subsystem's own
-# responsibility: resolving an untrusted relative path to the bytes of a file that lies inside caller-chosen
-# directories (or a caller-supplied virtual file source), refusing everything else, and reporting each refusal in
-# a form a caller can map to its own error type (the SandboxedFileResolver unit and its supporting types). Each
-# requirement here links down to the unit requirements that implement it.
+# These requirements decompose the CanvasNet system's file access into the Files subsystem's own responsibility:
+# resolving a path to the bytes of a file - either a referenced file that a host-chosen file-access policy approves
+# after the file was opened (the FileReferenceResolver, FileAccessPolicy and RealPath units), or an untrusted
+# relative path confined to caller-chosen directories (the SandboxedFileResolver unit) - refusing what is never
+# safe, and reporting each refusal in a form a caller can map to its own error type. Each requirement here links
+# down to the unit requirements that implement it.
 
 sections:
   - title: CanvasNet Requirements
@@ -49,17 +50,21 @@ sections:
           - id: CanvasNet-Files-LinkRefusal
             title: >-
               The Files subsystem shall refuse a file that is, or lies beneath, a symbolic link or junction
-              below its root, whatever the link's target and including a dangling link, shall trust the root
-              itself, and shall fail closed whenever it cannot decide.
+              below its root, whatever the link's target and including a dangling link and a link swapped into
+              the directory tree between the link check and the open, shall trust the root itself, and shall
+              fail closed whenever it cannot decide.
             justification: |
               A link inside an allowed directory can point anywhere on the host; refusing links is simpler
-              and safer than resolving them.
+              and safer than resolving them, and another process must not be able to slip a link in after the
+              check.
             children:
               - CanvasNet-Files-SandboxedFileResolver-Links
+              - CanvasNet-Files-SandboxedFileResolver-RaceFree
             tests:
               - SandboxedFileResolver_Resolve_LinkedDirectoryIsRejectedBeforeOpen
               - SandboxedFileResolver_Resolve_MissingFinalComponentIsProbedAndDanglingLinkIsRejected
               - SandboxedFileResolver_Resolve_ProbeFailureFailsClosed
+              - Files_RaceFreeCheck_SwapAfterOpen_DecisionFollowsTheOpenedFile
 
           - id: CanvasNet-Files-ResolverCallback
             title: >-
@@ -72,9 +77,11 @@ sections:
               and the callback is untrusted code whose failures must not leak as raw exceptions.
             children:
               - CanvasNet-Files-SandboxedFileResolver-ResolverCallback
+              - CanvasNet-Files-FileReferenceResolver-Callback
             tests:
               - SandboxedFileResolver_Resolve_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem
               - SandboxedFileResolver_Resolve_CallbackFailureIsCannotReadAndCancellationPassesThrough
+              - FileReferenceResolver_Resolve_CallbackMode_UsesLogicalPathsAndNeverConsultsThePolicy
 
           - id: CanvasNet-Files-BoundedReading
             title: >-
@@ -91,11 +98,15 @@ sections:
               - CanvasNet-Files-SandboxedFileResolver-SizeLimit
               - CanvasNet-Files-SandboxedFileResolver-FileLimit
               - CanvasNet-Files-SandboxedFileResolver-Cancellation
+              - CanvasNet-Files-FileReferenceResolver-Reading
+              - CanvasNet-Files-FileReferenceResolver-Limits
+              - CanvasNet-Files-FileReferenceResolver-Cancellation
             tests:
               - SandboxedFileResolver_Resolve_ExistingFileOpenFailureIsCannotRead
               - SandboxedFileResolver_Resolve_MaxFileBytesAtLimitAndOneOver
               - SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver
               - SandboxedFileResolver_Resolve_CanceledTokenStopsBeforeAnyRequest
+              - FileReferenceResolver_Resolve_MaxFiles_CountsOpenedFilesAndRefusesBeforeOpen
 
           - id: CanvasNet-Files-FailureReporting
             title: >-
@@ -110,3 +121,95 @@ sections:
             tests:
               - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
               - SandboxedFileResolver_Constructor_InvalidArguments_Throw
+
+          - id: CanvasNet-Files-ReferenceResolution
+            title: >-
+              The Files subsystem shall resolve a referenced path - relative, with dot-dot segments, or absolute -
+              against the directory of the referring file (or a base directory) and then additional search
+              paths, taking the first file that exists, reading every regular local file under the default
+              policy, treating every spelling of a path as one file read once per resolver, and reporting a path
+              that names no file, including a dangling link, as no file rather than a failure.
+            justification: |
+              Documents reference other files the way Pandoc documents do; a host needs one deterministic search
+              order and a clear distinction between "not there" and "refused".
+            children:
+              - CanvasNet-Files-FileReferenceResolver-Candidates
+              - CanvasNet-Files-FileReferenceResolver-MissingFiles
+              - CanvasNet-Files-FileReferenceResolver-Cache
+            tests:
+              - Files_ReferenceResolution_RelativeDotDotAndAbsoluteReferences_AreReadUnderTheDefaultPolicy
+
+          - id: CanvasNet-Files-AccessPolicy
+            title: >-
+              The Files subsystem shall ask a caller-chosen file-access policy about every referenced file it
+              opens, with the path as written, the referring file, the base directory and the real path of the
+              opened file, shall read the file only when the policy allows it, and shall provide policies that
+              allow every file, that confine files to chosen folders, and that refuse files reached through a
+              symbolic link or junction, combinable with each other and with a policy made from a function.
+            justification: |
+              Hosts differ in which files a document may read; one hook with useful built-ins lets each host
+              express its rule once, and the same rule then holds for every format.
+            children:
+              - CanvasNet-Files-FileReferenceResolver-PolicyEvaluation
+              - CanvasNet-Files-FileAccessPolicy-AllowAll
+              - CanvasNet-Files-FileAccessPolicy-UnderRoots
+              - CanvasNet-Files-FileAccessPolicy-NoSymlinks
+              - CanvasNet-Files-FileAccessPolicy-Combine
+              - CanvasNet-Files-FileAccessPolicy-FromDelegate
+              - CanvasNet-Files-FileAccessPolicy-Decision
+            tests:
+              - Files_AccessPolicy_RootsAndNoSymlinksCombined_ReadsInsideAndDeniesEscapeAndLink
+
+          - id: CanvasNet-Files-RaceFreeCheck
+            title: >-
+              The Files subsystem shall decide about the file that was opened, not about its name: the real path
+              it judges shall come from the open file itself and the bytes it returns shall be read from that same
+              open file, so a link swapped in or out of the directory tree after the open does not change the
+              decision or what is read.
+            justification: |
+              A check by name followed by an open by name can be raced by another process that changes the tree
+              in between; deciding on the open file removes that window on every supported operating system.
+            children:
+              - CanvasNet-Files-FileReferenceResolver-RaceFree
+              - CanvasNet-Files-RealPath-FinalPath
+              - CanvasNet-Files-RealPath-CanonicalDirectory
+              - CanvasNet-Files-RealPath-Comparison
+              - CanvasNet-Files-SandboxedFileResolver-RaceFree
+            tests:
+              - "windows@Files_RaceFreeCheck_SwapAfterOpen_DecisionFollowsTheOpenedFile"
+              - "ubuntu@Files_RaceFreeCheck_SwapAfterOpen_DecisionFollowsTheOpenedFile"
+              - "macos@Files_RaceFreeCheck_SwapAfterOpen_DecisionFollowsTheOpenedFile"
+
+          - id: CanvasNet-Files-AlwaysRefused
+            title: >-
+              The Files subsystem shall refuse, under every policy and before any access, a referenced path that
+              is empty, contains a control character, names a network location or a device, or carries an
+              alternate data stream, shall refuse a referenced file that is not a regular file without blocking
+              on a named pipe, and shall refuse a file when a restrictive policy needs its real path and the
+              platform cannot tell it.
+            justification: |
+              Network paths can leak credentials, devices and named pipes can hang or flood a reader, and a
+              policy that cannot be applied must fail closed rather than allow.
+            children:
+              - CanvasNet-Files-FileReferenceResolver-PathText
+              - CanvasNet-Files-FileReferenceResolver-RegularFile
+              - CanvasNet-Files-FileReferenceResolver-RealPathUnavailable
+              - CanvasNet-Files-RealPath-RegularFile
+              - CanvasNet-Files-RealPath-NonBlockingOpen
+              - CanvasNet-Files-RealPath-Unavailable
+            tests:
+              - Files_AlwaysRefused_NetworkDeviceAndNonRegularReferences_AreRefusedUnderAllowAll
+
+          - id: CanvasNet-Files-ReferenceFailureReporting
+            title: >-
+              The Files subsystem shall report every refusal and read failure of a referenced file as an
+              exception that carries a failure kind, the reference as written, and - for a policy denial - the
+              policy name, its reason and hint, the path that was opened and its real path, while its message
+              names the reference and the policy but never a host directory.
+            justification: |
+              Callers turn a refusal into their own diagnostic with their own wording and location without
+              parsing text, and must be able to show the message to the untrusted author of a document safely.
+            children:
+              - CanvasNet-Files-FileReferenceResolver-Failures
+            tests:
+              - Files_ReferenceFailureReporting_DenialCarriesFactsWithoutHostPathInMessage

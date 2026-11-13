@@ -41,10 +41,13 @@ Limits are verified at their exact boundary (the limit accepted and one over), t
 never ends and counts the bytes it was asked for, and cancellation with a token that is already canceled. No timing is
 asserted.
 
-Unit tests reside in `SandboxedFileResolverTests.cs`, `SandboxedFileResolverLinkTests.cs`, and
-`SandboxExceptionTests.cs` within the `DemaConsulting.CanvasNet.Tests` project, in the `Files` folder, with the shared
-helpers (`SandboxTempDirectory`, `SandboxVirtualFiles`, `SandboxEndlessStream`, `SandboxTrackedStream`, and
-`SandboxLinkSupport`) in `SandboxTestSupport.cs`.
+Unit tests reside in `SandboxedFileResolverTests.cs`, `SandboxedFileResolverLinkTests.cs`,
+`SandboxedFileResolverRaceTests.cs`, and `SandboxExceptionTests.cs` within the `DemaConsulting.CanvasNet.Tests`
+project, in the `Files` folder, with the shared helpers (`SandboxTempDirectory`, `SandboxVirtualFiles`,
+`SandboxEndlessStream`, `SandboxTrackedStream`, and `SandboxLinkSupport`) in `SandboxTestSupport.cs` and
+`FileTestSupport.cs`. A second internal constructor adds the `FileOpenHooks` seams around the verified open (see the
+`RaceFree` scenario); the scenarios that inject a stream opener bypass the verified open, which has no stream to
+verify.
 
 #### Test Environment
 
@@ -156,8 +159,25 @@ link inside the root, a file link, a dangling file link, and on Windows a juncti
 a base directory reached through a link is trusted, and that the real file beside them is read, which proves the default
 probe against the real file system. _Not verified, by design:_ the requirement covers symbolic links and junctions only;
 a hard link has no marker a link probe can see, other reparse points that redirect nothing (for example cloud placeholders)
-are not rejected, and a component swapped between the link walk and the open (a check/use race) is not noticed. These are
-documented residual risks (see _SandboxedFileResolver Unit Design_), and no test claims otherwise.
+are not rejected. These are documented residual risks (see _SandboxedFileResolver Unit Design_), and no test claims
+otherwise. A component swapped between the link walk and the open is refused by the post-open verification (see the
+next scenario).
+
+##### CanvasNet-Files-SandboxedFileResolver-RaceFree: The Open File Is Verified Before It Is Read
+
+**Tests**: `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink`
+(Windows, Linux, macOS),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathOutsideTheRoot_IsRejectedAsThroughLink`,
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathUnavailable_FailsClosedAsLinkCheckFailed`,
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_NonRegularFile_IsCannotRead` (Windows, Linux, macOS)
+
+The post-open verification is proven through the `FileOpenHooks` seams of the internal constructor, with no timing:
+inside `BeforeOpen` (after the link walk passed, before any handle exists, so Windows allows the rename) the folder of
+the file is renamed and replaced by a junction or symbolic link to an outside folder that holds unreadable bytes, and
+the resolve is `ThroughLink` naming the file below the root, with no host directory in the message. An outside real
+path injected through `RealPathOf` is `ThroughLink`; no real path is `LinkCheckFailed` (fail closed). A handle that is
+not a regular file is `CannotRead`: a named pipe created with `mkfifo` on Linux and macOS (which also proves the open
+does not block), and on Windows the null device handed in through the `Open` seam.
 
 ##### CanvasNet-Files-SandboxedFileResolver-ResolverCallback: Callback Mode
 

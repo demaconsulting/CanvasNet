@@ -1,0 +1,94 @@
+---
+# Software Unit Requirements for RealPath
+#
+# These requirements describe the design-level behavior of the RealPath unit of the Files subsystem (namespace
+# DemaConsulting.CanvasNet.Files, internal): the per-operating-system open of a file and the facts of an open
+# handle (whether it is a regular file, and its real path), the real location of a folder, and the path comparison
+# rules shared by the resolvers and the policies. Scenarios that exist on one operating system only are linked
+# with a source filter, so that only test runs on that system count as evidence. Each "tests" entry cites a test
+# method in the DemaConsulting.CanvasNet.Tests project; see docs/verification/canvas-net/files/real-path.md.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Files Requirements
+        sections:
+          - title: RealPath Requirements
+            requirements:
+              - id: CanvasNet-Files-RealPath-FinalPath
+                title: >-
+                  The RealPath unit shall report, for an open file on Windows, Linux and macOS, the real path of the
+                  file the handle refers to: the full path with symbolic links, junctions and (on Windows) short
+                  names resolved, and (on macOS) the real location of linked system folders.
+                justification: |
+                  A race-free decision needs the real path of the open file, which .NET does not provide; every
+                  supported operating system must supply it.
+                tests:
+                  - "windows@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
+                  - "ubuntu@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
+                  - "macos@RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile"
+                  - "windows@RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget"
+                  - "ubuntu@RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget"
+                  - "macos@RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget"
+                  - "windows@RealPath_Inspect_ShortNameSpelling_IsExpanded"
+                  - "macos@RealPath_Inspect_TempFileOnMacOS_ReportsThePrivateLocation"
+
+              - id: CanvasNet-Files-RealPath-Unavailable
+                title: >-
+                  The RealPath unit shall report no real path, rather than a wrong one, when the operating system
+                  cannot tell it, including for a file deleted after it was opened on Linux.
+                justification: |
+                  A caller that needs the real path must be able to fail closed; a stale or invented path would
+                  allow the wrong file.
+                tests:
+                  - "ubuntu@RealPath_Inspect_DeletedFile_IsUnavailable"
+
+              - id: CanvasNet-Files-RealPath-RegularFile
+                title: >-
+                  The RealPath unit shall report whether an open handle is a regular file, reporting a device and (on
+                  Linux and macOS) a directory as not a regular file, while on Windows a directory cannot be opened
+                  as a file at all.
+                justification: |
+                  The resolvers refuse anything that is not a regular file, which needs the type of the open handle
+                  rather than of the name.
+                tests:
+                  - "windows@RealPath_Inspect_DirectoryAndDevice_AreNotRegularFiles"
+                  - "ubuntu@RealPath_Inspect_DirectoryAndDevice_AreNotRegularFiles"
+                  - "macos@RealPath_Inspect_DirectoryAndDevice_AreNotRegularFiles"
+
+              - id: CanvasNet-Files-RealPath-NonBlockingOpen
+                title: >-
+                  The RealPath unit shall open a file for reading without blocking on Linux and macOS, so that a
+                  named pipe without a writer returns at once, and shall report a missing file or folder with the
+                  framework's "not found" exceptions.
+                justification: |
+                  A named pipe reached by a reference must not hang the reader, and callers tell a missing file from
+                  an unreadable one by exception type.
+                tests:
+                  - "ubuntu@RealPath_OpenForRead_Fifo_DoesNotBlockAndIsNotRegular"
+                  - "macos@RealPath_OpenForRead_Fifo_DoesNotBlockAndIsNotRegular"
+                  - RealPath_OpenForRead_MissingFileAndMissingFolder_MapToNotFoundExceptions
+
+              - id: CanvasNet-Files-RealPath-CanonicalDirectory
+                title: >-
+                  The RealPath unit shall report the real location of an existing folder (a linked folder reports its
+                  target) and no location for a missing folder.
+                justification: |
+                  Roots and anchors chosen by the host are compared with real paths, so they must be compared in their
+                  real location too.
+                tests:
+                  - "windows@RealPath_TryGetCanonicalDirectory_LinkedDirectory_ReturnsTheTarget"
+                  - "ubuntu@RealPath_TryGetCanonicalDirectory_LinkedDirectory_ReturnsTheTarget"
+                  - "macos@RealPath_TryGetCanonicalDirectory_LinkedDirectory_ReturnsTheTarget"
+
+              - id: CanvasNet-Files-RealPath-Comparison
+                title: >-
+                  The RealPath unit shall compare paths under the platform's rule (case-insensitive on Windows and
+                  macOS, exact elsewhere), treating a folder as containing itself and what lies below its separator
+                  but not a sibling that shares its name as a prefix, ignoring trailing separators, and finding the
+                  deepest folder two paths share by whole components.
+                justification: |
+                  Every containment decision of the policies rests on these rules; a prefix match on text would let a
+                  sibling folder pass.
+                tests:
+                  - RealPath_IsUnder_BoundaryIsTheSeparator
