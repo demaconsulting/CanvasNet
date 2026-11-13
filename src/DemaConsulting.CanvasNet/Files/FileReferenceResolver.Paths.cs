@@ -188,9 +188,10 @@ public sealed partial class FileReferenceResolver
         }
 
         // Windows maps a legacy device name in a component (NUL, and on older versions CON, COM1, LPT1 and others) to a
-        // device path; such a path is refused before the open, under every policy. A host that configured an
-        // extended-length directory (\\?\C:\docs) keeps working: there no device names are mapped
-        if (OperatingSystem.IsWindows() && IsDevicePath(full) && !IsDevicePath(directory))
+        // device path (\\.\NUL); such a path is refused before the open, under every policy. A host that configured an
+        // extended-length directory (\\?\C:\docs) keeps working: a path that stays under the same \\?\ root has no
+        // device names mapped. An absolute reference (C:/x/NUL) leaves that root and is judged like any other
+        if (OperatingSystem.IsWindows() && IsDevicePath(full) && !IsUnderExtendedRoot(full, directory))
         {
             throw new FileReferenceException(FileReferenceFailureKind.InvalidPath, shown, "the path names a device");
         }
@@ -204,7 +205,27 @@ public sealed partial class FileReferenceResolver
     /// <param name="path">The full path.</param>
     /// <returns><see langword="true"/> when it is.</returns>
     private static bool IsDevicePath(string path) =>
-        path.StartsWith(@"\\.\", StringComparison.Ordinal) || path.StartsWith(@"\\?\", StringComparison.Ordinal);
+        path.StartsWith(@"\\.\", StringComparison.Ordinal) || IsExtendedPath(path);
+
+    /// <summary>
+    ///     Determines whether a full path is an extended-length path (<c>\\?\</c>).
+    /// </summary>
+    /// <param name="path">The full path.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsExtendedPath(string path) =>
+        path.StartsWith(@"\\?\", StringComparison.Ordinal);
+
+    /// <summary>
+    ///     Determines whether a full path is an extended-length path with the same root as an extended-length directory,
+    ///     so the system mapped no device name in it. A <c>\\.\</c> path is never under such a root.
+    /// </summary>
+    /// <param name="full">The full path of the candidate.</param>
+    /// <param name="directory">The full path of the directory it was resolved against.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    private static bool IsUnderExtendedRoot(string full, string directory) =>
+        IsExtendedPath(full)
+        && IsExtendedPath(directory)
+        && string.Equals(Path.GetPathRoot(full), Path.GetPathRoot(directory), RealPath.PathComparison);
 
     /// <summary>
     ///     Combines a logical directory and a reference into a logical candidate.

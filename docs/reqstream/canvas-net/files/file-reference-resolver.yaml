@@ -49,6 +49,7 @@ sections:
                   - FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess
                   - FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened"
+                  - "windows@FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened"
 
               - id: CanvasNet-Files-FileReferenceResolver-MissingFiles
                 title: >-

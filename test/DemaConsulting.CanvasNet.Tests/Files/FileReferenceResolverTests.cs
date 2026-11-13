@@ -1035,7 +1035,8 @@ public class FileReferenceResolverTests
         var mapsToDevice = Path.GetFullPath(reference, directory.Path).StartsWith(@"\\.\", StringComparison.Ordinal);
 
         // Act
-        var outcome = Record.Exception(() => Assert.Null(resolver.Resolve(reference)));
+        FileReference? found = null;
+        var outcome = Record.Exception(() => found = resolver.Resolve(reference));
         var nul = Assert.Throws<FileReferenceException>(() => resolver.Resolve("x/NUL"));
 
         // Assert: a mapped name is refused before the open; an unmapped one is an ordinary missing file
@@ -1049,10 +1050,47 @@ public class FileReferenceResolverTests
         else
         {
             Assert.Null(outcome);
+            Assert.Null(found);
         }
 
         Assert.Equal(FileReferenceFailureKind.InvalidPath, nul.Kind);
         Assert.DoesNotContain(opened, path => path.StartsWith(@"\\.\", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Validates on Windows that with an extended-length base directory (<c>\\?\</c>) an absolute reference that the
+    ///     system maps to a device (<c>C:/x/NUL</c> gives <c>\\.\NUL</c>) is still refused as an invalid path with
+    ///     nothing opened, while a file under the extended-length base directory is still found.
+    /// </summary>
+    /// <param name="reference">The absolute reference.</param>
+    [Theory]
+    [InlineData("C:/x/NUL")]
+    [InlineData("C:/x/nul ")]
+    public void FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened(string reference)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        var extended = @"\\?\" + directory.Path;
+        var opened = new List<string>();
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = extended }, Recording(opened));
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve(reference));
+        var inside = resolver.Resolve("a.txt");
+
+        // Assert: the device is refused before the open; the extended-length base directory keeps working
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, ex.Kind);
+        Assert.Equal("the path names a device", ex.Reason);
+        Assert.NotNull(inside);
+        Assert.Equal("a"u8.ToArray(), inside.Content.ToArray());
+        var only = Assert.Single(opened);
+        Assert.StartsWith(@"\\?\", only, StringComparison.Ordinal);
     }
 
     /// <summary>

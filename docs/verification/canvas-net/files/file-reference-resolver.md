@@ -70,7 +70,9 @@ segments give the same instance; a drive path is absolute on Windows and invalid
 
 **Tests**: `FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess`,
 `FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException`,
-`FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened` (Windows)
+`FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened` (Windows),
+`FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened`
+(Windows)
 
 A theory over empty and white-space text, NUL, a line feed, DEL, a C1 control, an alternate data stream, a
 drive-relative path, UNC paths in both slash styles, and `\\?\` and `\\.\` device paths asserts the matching kind in
@@ -79,7 +81,10 @@ opened or requested. A null reference is an `ArgumentNullException`. On Windows 
 `x/NUL` (trailing space), `x/CON`, `x/COM1` and `x/LPT1` asserts that a name the running Windows version maps to a
 device (`Path.GetFullPath` gives `\\.\`) is `InvalidPath` with the reason "the path names a device" and nothing
 opened, that a name it does not map is an ordinary missing file, that `x/NUL` is `InvalidPath` on every version, and
-that no device path is ever opened.
+that no device path is ever opened. With an extended-length base directory (`\\?\` in front of the temporary
+directory), a theory over the absolute references `C:/x/NUL` and `C:/x/nul` (trailing space), which the system maps
+to `\\.\NUL`, asserts `InvalidPath` with the reason "the path names a device", and that a file under the base directory
+is still read and is the only thing opened.
 
 ##### CanvasNet-Files-FileReferenceResolver-MissingFiles: Not Found Is Not a Failure
 
@@ -114,8 +119,8 @@ against the file limit.
 
 A document is read from `base/sub` under `NoSymlinks`; just before the referenced open (a `BeforeOpen` seam that fires
 only for the referenced file), `base/sub` is replaced by a directory link to an outside folder holding the referenced
-name: the nested reference is `AccessDenied` by `no-symlinks` and nothing is returned (the same test is allowed when the
-anchor is taken from the referrer's folder, which is the defect it guards against). With a base directory and a search
+name: the nested reference is `AccessDenied` by `no-symlinks` and nothing is returned (with the anchor taken from the
+referrer's folder, the defect this test guards against, the reference was allowed). With a base directory and a search
 path, a file found under the search path and a reference relative to it both give the policy the search path as the
 base directory, and the second request names the first file as the referrer. A file returned by one resolver is an
 `ArgumentException` (parameter `relativeTo`) as the starting point of another resolver over the same tree, even one
