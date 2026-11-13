@@ -134,7 +134,7 @@ that decides the picture:
     copy lead from there to it;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
-    fingerprint of the DLLs beside it; the CANVASNET_FILE_ACCESS and CANVASNET_ROOTS arguments; and this filter's
+    fingerprint of the DLLs beside it; the file-access arguments (see File access below); and this filter's
     version.
 
 An unchanged source is therefore not drawn again, and a changed one always is. Each picture is written
@@ -167,12 +167,19 @@ build of documents you do not fully trust:
     CANVASNET_FILE_ACCESS   roots, no-symlinks, or roots,no-symlinks (any is the default), passed as --file-access
                             to every render and flatten
     CANVASNET_ROOTS         folders separated like PATH (";" on Windows, ":" elsewhere), each passed as
-                            --allow-root (a relative folder is taken from the working directory); it implies roots
+                            --allow-root as an absolute path (a relative folder is taken from the working
+                            directory); it implies roots
+
+The mode roots without CANVASNET_ROOTS does not leave the folders to the tool: the filter passes, as --allow-root,
+the folders the tool would take by default, the working directory and the picture's folder when it is outside it.
+So the tool decides only from its arguments. These arguments are part of every picture's name, so a picture drawn
+without the variables, or from another working directory, is not reused with them. Without --allow-root, roots
+allows everything under the working directory; for documents you do not trust, set CANVASNET_ROOTS to the
+documents' folders.
 
 An unknown mode, or CANVASNET_ROOTS with CANVASNET_FILE_ACCESS=any or no-symlinks, stops the build before the tool
 runs. In a restrictive mode a picture the mode denies (the tool's warning image-access-denied) stops the build, and
-so does a denied include or data file (the tool's error file-access-denied). Both variables are part of every
-picture's name, so a picture drawn without them is not reused with them. A CI build can confine every picture to
+so does a denied include or data file (the tool's error file-access-denied). A CI build can confine every picture to
 the documentation folders:
 
     CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" dotnet pandoc --defaults docs/x/definition.yaml
@@ -200,7 +207,8 @@ with the same organization (header, helpers, hash, render, rewrite), to draw eve
 -- again. 12: a diagram type the tool does not draw is left as written with a warning, no longer for another filter.
 -- 13: packet diagrams are drawn, so a marker that left one as written is no longer used.
 -- 14: git graphs are drawn, so a marker that left one as written is no longer used.
--- 15: CANVASNET_FILE_ACCESS and CANVASNET_ROOTS pass --file-access and --allow-root and are part of every name, and an
+-- 15: CANVASNET_FILE_ACCESS and CANVASNET_ROOTS pass --file-access and --allow-root (absolute folders; for roots
+-- without CANVASNET_ROOTS, the working directory and the picture's folder) and are part of every name, and an
 -- absolute path or a file: URI without a host is hashed, as the tool reads it.
 local FILTER_VERSION = "15"
 local SCAD_DEFAULT_SIZE = "1600x1200"
@@ -483,9 +491,10 @@ local FILE_ACCESS_MODES = {
 local ACCESS_DENIED = "image-access-denied"
 
 -- The file-access arguments of every render and flatten, read once from CANVASNET_FILE_ACCESS and CANVASNET_ROOTS:
--- "args" (--file-access and one --allow-root per folder, as absolute paths), "restrictive" (a mode other than any,
--- or folders), and "key" (the arguments as part of every picture's name). An unknown mode, or folders with the mode
--- any or no-symlinks, stops the build before the tool runs.
+-- "args" (--file-access and one --allow-root per folder, each an absolute path, a relative one taken from the
+-- working directory), "restrictive" (a mode other than any, or folders), "default_roots" (the mode roots without
+-- folders, whose folders file_access_of adds for each picture), and "key" (the arguments as part of every picture's
+-- name). An unknown mode, or folders with the mode any or no-symlinks, stops the build before the tool runs.
 local access = nil
 
 local function find_file_access()
@@ -524,9 +533,50 @@ local function find_file_access()
   access = {
     args = args,
     restrictive = #roots > 0 or (mode ~= nil and mode ~= "any"),
+    default_roots = #roots == 0 and mode ~= nil and mode:find("roots", 1, true) ~= nil,
     key = "file-access\n" .. table.concat(args, "\n"),
   }
   return access
+end
+
+-- Whether the absolute, collapsed path "path" is the folder "folder" or inside it, comparing whole segments, with
+-- the letter case ignored on Windows.
+local function is_same_or_under(path, folder)
+  local function plain(text)
+    text = text:gsub("[/\\]+$", "")
+    if pandoc.path.separator == "\\" then
+      text = text:gsub("/", "\\"):lower()
+    end
+    return text
+  end
+  local inner = plain(path)
+  local outer = plain(folder)
+  return inner == outer or inner:sub(1, #outer + 1) == outer .. pandoc.path.separator
+end
+
+-- The file-access arguments and key of the picture drawn from "source". The mode roots without CANVASNET_ROOTS
+-- names, as --allow-root, the folders the tool would take by default: the working directory, and the source's folder
+-- when it is outside it. The tool's decision then depends only on its arguments, which are part of the picture's
+-- name, so the same document built from another working directory is drawn again and never skips a denial.
+local function file_access_of(source)
+  local shared = find_file_access()
+  if not shared.default_roots then
+    return shared
+  end
+  local args = { table.unpack(shared.args) }
+  local working = absolute(pandoc.system.get_working_directory())
+  local folder = pandoc.path.directory(absolute(source))
+  table.insert(args, "--allow-root")
+  table.insert(args, working)
+  if not is_same_or_under(folder, working) then
+    table.insert(args, "--allow-root")
+    table.insert(args, folder)
+  end
+  return {
+    args = args,
+    restrictive = shared.restrictive,
+    key = "file-access\n" .. table.concat(args, "\n"),
+  }
 end
 
 -- Stops the build for a picture the file-access mode denied, when CANVASNET_FILE_ACCESS or CANVASNET_ROOTS made the
@@ -920,8 +970,9 @@ end
 
 -- Adds a Mermaid diagram and the local pictures its nodes name to the hash input: a link is taken from the
 -- diagram's folder without its fragment ("#page=2", "#theme=dark") or query, a remote link (which the tool never
--- reads) is skipped (an absolute path and a file: URI without a host are files), and a linked model, chart or diagram adds its own files. A diagram that names
--- more than MAX_DEPENDENCIES different local pictures stops the build, as for a chart.
+-- reads) is skipped (an absolute path and a file: URI without a host are files), and a linked model, chart or
+-- diagram adds its own files. A diagram that names more than MAX_DEPENDENCIES different local pictures stops the
+-- build, as for a chart.
 function add_mermaid_sources(path, root, parts, seen, depth)
   seen[path] = true
   local content = read_file(path)
@@ -1131,11 +1182,11 @@ end
 -- Adds an SVG drawing and the local files its image elements link to the hash input, and tells whether it links a
 -- file that only the tool draws (a model, chart, diagram, or document page), directly or through a nested .svg file.
 -- A link is taken from the drawing's folder without its fragment or query, a remote or data: link (which the tool
--- never reads) is skipped (an absolute path and a file: URI without a host are files), a nested .svg file is followed with its own links, and a linked model, chart or
--- diagram adds its own files. A link to such a file that is missing makes the drawing composite too (the tool reports
--- it) and adds a "missing" entry to the hash. While a drawing is being read its entry in "seen" is true, and afterwards
--- "composite" or "plain", so a drawing linked twice is read once and a cycle ends. More than MAX_DEPENDENCIES files
--- stops the build.
+-- never reads) is skipped (an absolute path and a file: URI without a host are files), a nested .svg file is
+-- followed with its own links, and a linked model, chart or diagram adds its own files. A link to such a file that
+-- is missing makes the drawing composite too (the tool reports it) and adds a "missing" entry to the hash. While a
+-- drawing is being read its entry in "seen" is true, and afterwards "composite" or "plain", so a drawing linked
+-- twice is read once and a cycle ends. More than MAX_DEPENDENCIES files stops the build.
 function add_svg_sources(path, root, parts, seen, depth)
   if depth > MAX_DEPTH then
     fail("SVG drawings are linked inside each other more than " .. MAX_DEPTH .. " levels deep")
@@ -1442,7 +1493,7 @@ end
 local function draw(name, source, kind, attributes, stem)
   local options, keep = build_options(name, kind, attributes)
   local command = find_tool()
-  local file_access = find_file_access()
+  local file_access = file_access_of(source)
 
   local root = pandoc.path.directory(source)
   local sources = {}
@@ -1579,7 +1630,7 @@ local function flatten_svg(img)
   end
 
   local command = find_tool()
-  local file_access = find_file_access()
+  local file_access = file_access_of(source)
   -- The links the tool rebases in the copy lead from the cache folder to the drawing's folder, so the same drawing in
   -- another folder (or a renamed folder) is another copy. The folder is taken relative to the cache folder, so the
   -- name does not depend on where the repository is checked out (the full path when there is no relative one).

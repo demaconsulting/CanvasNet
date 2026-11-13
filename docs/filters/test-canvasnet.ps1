@@ -9,7 +9,9 @@
     left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
     leaves the document's folder renders (the filter has no containment rule), a dependency outside the folder is
     read under the tool's default file-access policy and refused under CANVASNET_FILE_ACCESS=roots (CANVASNET_ROOTS is a
-    PATH-like list, both are hashed, a denied picture stops the build, and a bad value is an error), an absolute or
+    PATH-like list whose relative folders are taken from the working directory, both are hashed, roots without
+    CANVASNET_ROOTS is hashed with the working directory so a build from another folder is denied, a denied picture
+    stops the build, and a bad value is an error), an absolute or
     file: data url and an absolute SVG link are hashed, and a model the tool cannot draw stops the build with the tool's message.
     Mermaid diagrams are drawn from code blocks and from .mmd/.mermaid pictures (the pictures of their nodes are
     hashed), sequence, class, state, ER, pie, gantt, mindmap, packet, and git graph diagrams are drawn by the filter itself, a diagram
@@ -853,6 +855,45 @@ journey
     $listed = Invoke-FilterWith @{ CANVASNET_ROOTS = $rootList } 'esc-list' '![x](esc/m.scad)'
     Write-Result ($listed.ExitCode -eq 0 -and $listed.Html -match 'generated/canvasnet/') `
         'CANVASNET_ROOTS takes folders separated like PATH' $listed.Log
+
+    # A relative CANVASNET_ROOTS folder is taken from the working directory (the tree), as its absolute form: it
+    # allows the same include, reuses the picture drawn with the absolute form, and a relative folder that leaves
+    # the include out denies it
+    $absoluteRoot = Invoke-FilterWith @{ CANVASNET_ROOTS = $guide } 'esc-absolute-root' '![x](esc/m.scad)'
+    $absoluteCount = @(Get-Pictures).Count
+    $relativeRoot = Invoke-FilterWith @{ CANVASNET_ROOTS = 'docs/guide' } 'esc-relative-root' '![x](esc/m.scad)'
+    $absoluteSrc = [regex]::Match($absoluteRoot.Html, 'generated/canvasnet/[^"]+').Value
+    Write-Result ($absoluteRoot.ExitCode -eq 0 -and $relativeRoot.ExitCode -eq 0 -and $absoluteSrc -ne '' -and
+        $relativeRoot.Html.Contains($absoluteSrc) -and @(Get-Pictures).Count -eq $absoluteCount) `
+        'a relative CANVASNET_ROOTS folder allows what its absolute form allows, with the same picture' `
+        "absolute: $($absoluteRoot.Log)`nrelative: $($relativeRoot.Log)"
+    $relativeDenied = Invoke-FilterWith @{ CANVASNET_ROOTS = 'docs/guide/esc' } 'esc-relative-deny' '![x](esc/m.scad)'
+    Write-Result ($relativeDenied.ExitCode -ne 0 -and $relativeDenied.Log -match 'SCAD include denied') `
+        'a relative CANVASNET_ROOTS folder that leaves the include out denies it' $relativeDenied.Log
+
+    # Under roots without CANVASNET_ROOTS the tool's default folders come from the working directory, so the filter
+    # names them and the picture's name depends on them: the include is allowed from the tree, which holds it, and
+    # the same document built from the model's folder, which does not, is drawn again and denied
+    $wd = Join-Path $guide 'wd'
+    New-Item -ItemType Directory -Force -Path $wd | Out-Null
+    Set-Content (Join-Path $guide 'wd-outer.scad') -Value 'module wd_outer() { cube([2, 2, 2]); }'
+    Set-Content (Join-Path $wd 'm.scad') -Value "include <../wd-outer.scad>`ncylinder(r = 3, h = 6);"
+    $fromTree = Invoke-FilterWith @{ CANVASNET_FILE_ACCESS = 'roots' } 'wd-roots' '![x](wd/m.scad)'
+    Write-Result ($fromTree.ExitCode -eq 0 -and $fromTree.Html -match 'generated/canvasnet/m-') `
+        'roots without CANVASNET_ROOTS allows an include under the working directory' $fromTree.Log
+    $env:CANVASNET_FILE_ACCESS = 'roots'
+    Push-Location $wd
+    try {
+        $fromModel = & dotnet pandoc --from markdown --to html5 --resource-path .. --lua-filter ../../filters/canvasnet.lua `
+            --output ../generated/wd-roots-moved.html ../wd-roots.md 2>&1 | Out-String
+        $fromModelCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+        Remove-Item -Path env:CANVASNET_FILE_ACCESS -ErrorAction SilentlyContinue
+    }
+    Write-Result ($fromModelCode -ne 0 -and $fromModel -match 'SCAD include denied') `
+        'roots without CANVASNET_ROOTS from another working directory does not reuse the picture and is denied' $fromModel
 
     # The variables are part of every picture's name: the same picture under roots is drawn again
     Invoke-Filter 'access-hash' '![m](t.scad)' | Out-Null
