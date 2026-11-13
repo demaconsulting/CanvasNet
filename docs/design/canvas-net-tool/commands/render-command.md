@@ -107,8 +107,17 @@ of the `--allow-root` folders (each taken from the working directory and require
 `roots+no-symlinks`). Every check is made while the options are read, before any input is opened.
 
 **ParseFileAccessMode(text)**: splits the value at commas, trims and lower-cases each token, and accepts `any` alone,
-or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` " of the model options was
-given, returns `null` (the loader then uses the
+or `roots` and `no-symlinks` in any order and combination; anything else is the `usage-error` "'{text}' is not a value
+of --file-access." with the hint "Use any (the default), roots, no-symlinks, or roots,no-symlinks.". It returns whether
+the mode confines references to folders and whether it refuses links; `any` is neither.
+
+**DefaultRoots(inputs, workingDirectory)**: the folders of `roots` when no `--allow-root` is given: the full path of the
+working directory first, then the folder of each input that is not the working directory or inside it. A relative
+input is taken from the working directory, and a `#` fragment is split off by the file that exists there before the
+folder is taken. The comparison is lexical, by whole path segments, and case-insensitive on Windows and macOS;
+duplicates are dropped. An input whose path cannot be read is skipped here, since its probe reports the mistake.
+
+**ReadScadOptions(reader)**: when none of the model options was given, returns `null` (the loader then uses the
 defaults: the view is chosen by the library - isometric, a flat top view for a model that is entirely 2D, or the
 view the model sets - and the projection is orthographic). Otherwise reads `--view` (one of the names in
 `SourceLoader.ScadViews`, in any case; another name is a `usage-error` whose hint lists the views; `ViewGiven` is set
