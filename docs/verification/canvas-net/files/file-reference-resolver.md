@@ -161,12 +161,15 @@ policy reads it and the result has no real path.
 ##### CanvasNet-Files-FileReferenceResolver-RegularFile: Only Regular Files Are Read
 
 **Tests**: `FileReferenceResolver_Resolve_DirectoryAtFilePath_IsNotARegularFile`,
+`FileReferenceResolver_Resolve_UnknownFileType_IsNotARegularFileUnderEveryPolicy`,
 `FileReferenceResolver_Resolve_InjectedNulHandle_IsNotARegularFile` (Windows),
 `FileReferenceResolver_Resolve_DevNull_IsNotARegularFile` (Linux, macOS),
 `FileReferenceResolver_Resolve_Fifo_IsNotARegularFileWithoutBlocking` (Linux, macOS)
 
 A directory, the Windows null device handed in through the open seam, `/dev/null`, and a named pipe without a writer
-are `NotARegularFile`; the pipe's resolve returns within the hang guard.
+are `NotARegularFile`; the pipe's resolve returns within the hang guard. A handle whose type the platform cannot tell
+(reported through the `IsRegularFileOf` seam) is `NotARegularFile` under `AllowAll` and under a restrictive policy, and
+nothing is read.
 
 ##### CanvasNet-Files-FileReferenceResolver-Reading: Open Failures and Shared Access
 

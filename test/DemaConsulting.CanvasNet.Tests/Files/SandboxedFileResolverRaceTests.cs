@@ -95,6 +95,24 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates that a handle whose type the platform cannot tell is refused (fail closed), not read.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_UnknownFileType_FailsClosedAsCannotRead()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var resolver = Create(directory.Combine("root"), new FileOpenHooks { IsRegularFileOf = _ => null });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+    }
+
+    /// <summary>
     ///     Validates on Linux and macOS that a root the process may search but not read (execute-only) still serves its
     ///     files: the real location of the root needs no read permission. Skips when permissions are not enforced.
     /// </summary>

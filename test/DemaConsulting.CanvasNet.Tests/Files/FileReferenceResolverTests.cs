@@ -888,6 +888,32 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
+    ///     Validates that a handle whose type the platform cannot tell is refused as not a regular file under every
+    ///     policy, the default included (fail closed), and that nothing is read.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_UnknownFileType_IsNotARegularFileUnderEveryPolicy()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        var unknown = new FileOpenHooks { IsRegularFileOf = _ => null };
+        var permissive = Create(new FileReferenceOptions { BaseDirectory = directory.Path }, unknown);
+        var restrictive = Create(
+            new FileReferenceOptions { BaseDirectory = directory.Path, FileAccess = FileAccessPolicy.UnderRoots(directory.Path) },
+            unknown);
+
+        // Act
+        var permissiveError = Assert.Throws<FileReferenceException>(() => permissive.Resolve("a.txt"));
+        var restrictiveError = Assert.Throws<FileReferenceException>(() => restrictive.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.NotARegularFile, permissiveError.Kind);
+        Assert.Equal(FileReferenceFailureKind.NotARegularFile, restrictiveError.Kind);
+        Assert.DoesNotContain(directory.Path, permissiveError.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a file of the other mode cannot be the starting point of a reference.
     /// </summary>
     [Fact]

@@ -132,6 +132,7 @@ sections:
                   - "macos@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
                   - SandboxedFileResolver_Resolve_RealPathOutsideTheRoot_IsRejectedAsThroughLink
                   - SandboxedFileResolver_Resolve_RealPathUnavailable_FailsClosedAsLinkCheckFailed
+                  - SandboxedFileResolver_Resolve_UnknownFileType_FailsClosedAsCannotRead
                   - "ubuntu@SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed"
                   - "macos@SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed"
                   - "ubuntu@SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile"

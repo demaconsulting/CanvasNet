@@ -62,10 +62,13 @@ Per system:
   so the call is correct on every ABI; `EINTR` is retried. `errno` maps to the framework's exceptions (`ENOENT` to
   `FileNotFoundException`, `ENOTDIR` to `DirectoryNotFoundException`, `EACCES`/`EPERM` to
   `UnauthorizedAccessException`, `ENAMETOOLONG` to `PathTooLongException`, others to `IOException`). The flags are
-  `O_NONBLOCK` 0x800, `O_NOCTTY` 0x100, `O_CLOEXEC` 0x80000, `O_PATH` 0x200000 (x64 and Arm64). `st_mode` is read from
-  a 256-byte `struct stat` buffer at offset 24 on x64 and 16 on Arm64 (other architectures: type unknown); where an
-  older glibc does not export `fstat`, `__fxstat` is used with `_STAT_VER` 1 (x64) or 0 (Arm64). A `/proc` link that
-  carries the suffix `(deleted)` or does not start with `/` is no path.
+  `O_NONBLOCK` 0x800, `O_NOCTTY` 0x100, `O_CLOEXEC` 0x80000, `O_PATH` 0x200000 (x64 and Arm64). `fstat` fills a
+  256-byte `struct stat` buffer; on x64 `st_nlink` is 64 bits at offset 16 and `st_mode` 32 bits at offset 24, on Arm64
+  (the generic layout) `st_mode` is at offset 16 and `st_nlink` 32 bits at offset 20 (other architectures: type and
+  link count unknown); where an older glibc does not export `fstat`, `__fxstat` is used with `_STAT_VER` 1 (x64) or 0
+  (Arm64). The `/proc` link is read before `fstat`; a file whose link count is zero (deleted while open), whose link
+  count is unknown, or whose link does not start with `/` has no path. Deletion is never inferred from the `(deleted)`
+  suffix Linux appends, because a live file may carry that text in its name; the link text is kept verbatim.
 - **macOS**: `proc_pidfdinfo(pid, fd, PROC_PIDFDVNODEPATHINFO = 2, buffer, 1200)` fills `struct vnode_fdinfowithpath`:
   `proc_fileinfo` (24 bytes) followed by `vnode_info_path` (`vnode_info` of 152 bytes - `vinfo_stat` 136, `vi_type`,
   `vi_pad`, `vi_fsid` - and a 1024-byte path). The mode (16 bits) is at offset 28 and the NUL-terminated UTF-8 path at

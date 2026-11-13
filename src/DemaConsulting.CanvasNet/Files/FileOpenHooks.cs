@@ -32,4 +32,10 @@ internal sealed class FileOpenHooks
     ///     means "unavailable"), or <see langword="null"/> to ask the operating system.
     /// </summary>
     public Func<SafeFileHandle, string?>? RealPathOf { get; init; }
+
+    /// <summary>
+    ///     Gets the function that replaces whether an open handle is reported as a regular file (a
+    ///     <see langword="null"/> result means "unknown"), or <see langword="null"/> to ask the operating system.
+    /// </summary>
+    public Func<SafeFileHandle, bool?>? IsRegularFileOf { get; init; }
 }

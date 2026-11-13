@@ -95,9 +95,10 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   limit refuses a new key before the open; (4) `OpenCheckAndRead`.
 - `OpenCheckAndRead` - opens the key through the hooks or `RealPath.OpenForRead`. "Not found" is a miss; an access
   failure on a directory is `NotARegularFile`; any other open failure is `CannotRead`. From the open on, the key counts.
-  The handle's facts come from `RealPath.Inspect` (or the `RealPathOf` hook). On Windows, a real path that is a network
-  location (`RealPath.IsNetworkLocation`) while the key is not is `NetworkPath` under every policy, before the
-  regular-file check and the policy; a handle that is not a regular file is `NotARegularFile`; when the policy needs the
+  The handle's facts come from `RealPath.Inspect` (or the `RealPathOf` and `IsRegularFileOf` hooks). On Windows, a real
+  path that is a network location (`RealPath.IsNetworkLocation`) while the key is not is `NetworkPath` under every
+  policy, before the regular-file check and the policy; a handle that is not known to be a regular file (including one
+  whose type the platform cannot tell) is `NotARegularFile` under every policy (fail closed); when the policy needs the
   real path and it is unknown, `RealPathUnavailable` (fail closed); otherwise `CheckPolicy` runs and the file is read
   from the same handle (`Read`).
 - `CheckPolicy` - builds the `FileAccessRequest` (reference, referrer = `relativeTo.Key` or `ReferrerPath`, base

@@ -367,7 +367,9 @@ public sealed partial class SandboxedFileResolver
             _hooks?.AfterOpen?.Invoke(candidate.Key);
             var facts = RealPath.Inspect(handle);
             var realPath = _hooks?.RealPathOf is { } realPathOf ? realPathOf(handle) : facts.FinalPath;
-            if (facts.IsRegularFile == false)
+            // Only a handle known to be a regular file is read; an unknown type is refused (fail closed)
+            var isRegularFile = _hooks?.IsRegularFileOf is { } isRegularFileOf ? isRegularFileOf(handle) : facts.IsRegularFile;
+            if (isRegularFile != true)
             {
                 throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key);
             }
