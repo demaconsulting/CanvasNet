@@ -139,8 +139,9 @@ internal sealed partial class RenderCommand
             return (false, false);
         }
 
-        // Every token must be one of the two rules; "any" does not combine, and an empty token is a typo
-        if (tokens.TrueForAll(token => token is RootsToken or NoSymlinksToken))
+        // Every token must be one of the two rules, each at most once; "any" does not combine, and an empty or
+        // repeated token is a typo
+        if (tokens.TrueForAll(token => token is RootsToken or NoSymlinksToken) && tokens.Distinct().Count() == tokens.Count)
         {
             return (tokens.Contains(RootsToken), tokens.Contains(NoSymlinksToken));
         }

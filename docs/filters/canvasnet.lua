@@ -179,8 +179,9 @@ documents' folders.
 
 An unknown mode, or CANVASNET_ROOTS with CANVASNET_FILE_ACCESS=any or no-symlinks, stops the build before the tool
 runs. In a restrictive mode a picture the mode denies (the tool's warning image-access-denied) stops the build, and
-so does a denied include or data file (the tool's error file-access-denied). A CI build can confine every picture to
-the documentation folders:
+so does a denied include or data file (the tool's error file-access-denied). In a roots mode the filter itself never
+opens a referenced file outside the folders while it hashes a picture's files for its name (compared by path; a link
+is judged by the tool). A CI build can confine every picture to the documentation folders:
 
     CANVASNET_FILE_ACCESS=roots CANVASNET_ROOTS="$PWD/docs:$PWD/assets" dotnet pandoc --defaults docs/x/definition.yaml
     (PowerShell: $env:CANVASNET_FILE_ACCESS = 'roots'; $env:CANVASNET_ROOTS = "$PWD\docs;$PWD\assets")
@@ -532,6 +533,7 @@ local function find_file_access()
   end
   access = {
     args = args,
+    roots = #roots > 0 and roots or nil,
     restrictive = #roots > 0 or (mode ~= nil and mode ~= "any"),
     default_roots = #roots == 0 and mode ~= nil and mode:find("roots", 1, true) ~= nil,
     key = "file-access\n" .. table.concat(args, "\n"),
@@ -566,17 +568,43 @@ local function file_access_of(source)
   local args = { table.unpack(shared.args) }
   local working = absolute(pandoc.system.get_working_directory())
   local folder = pandoc.path.directory(absolute(source))
+  local roots = { working }
   table.insert(args, "--allow-root")
   table.insert(args, working)
   if not is_same_or_under(folder, working) then
     table.insert(args, "--allow-root")
     table.insert(args, folder)
+    table.insert(roots, folder)
   end
   return {
     args = args,
+    roots = roots,
     restrictive = shared.restrictive,
     key = "file-access\n" .. table.concat(args, "\n"),
   }
+end
+
+-- The folders of a roots mode the dependency walk of the picture being drawn may open files in, or nil for anywhere.
+local walk_roots = nil
+
+-- Whether the dependency walk takes the file "path" a picture references (absolute and collapsed): it exists and, in a
+-- roots mode, is under one of the folders, compared by path. A file outside them is never opened; it is left out of
+-- the hash and the tool denies it, which stops the build, so no picture that needs it is kept. A link is judged by
+-- the tool alone: the walk may hash a file a link inside the folders leads to before the tool denies it.
+local function dependency_exists(path)
+  if walk_roots then
+    local inside = false
+    for _, root in ipairs(walk_roots) do
+      if is_same_or_under(path, root) then
+        inside = true
+        break
+      end
+    end
+    if not inside then
+      return false
+    end
+  end
+  return file_exists(path)
 end
 
 -- Stops the build for a picture the file-access mode denied, when CANVASNET_FILE_ACCESS or CANVASNET_ROOTS made the
@@ -670,7 +698,7 @@ local function add_scad_sources(root, path, seen, parts, depth)
   for _, keyword in ipairs({ "include", "use" }) do
     for target in content:gmatch(keyword .. "%s*<%s*([^>\r\n]-)%s*>") do
       local next_path = collapse(pandoc.path.join({ folder, target }))
-      if file_exists(next_path) then
+      if dependency_exists(next_path) then
         add_scad_sources(root, next_path, seen, parts, depth + 1)
       end
     end
@@ -896,7 +924,7 @@ function add_chart_sources(path, root, parts, seen, depth)
   local files = {}
   for url in pairs(urls) do
     local resolved = local_data_file(root, url)
-    if resolved and file_exists(resolved) then
+    if resolved and dependency_exists(resolved) then
       table.insert(files, resolved)
     end
   end
@@ -932,7 +960,7 @@ function add_chart_sources(path, root, parts, seen, depth)
   local pictures = {}
   for link in pairs(links) do
     local resolved = local_image_file(root, link)
-    if resolved and file_exists(resolved) then
+    if resolved and dependency_exists(resolved) then
       table.insert(pictures, resolved)
     end
   end
@@ -992,7 +1020,7 @@ function add_mermaid_sources(path, root, parts, seen, depth)
   for link in pairs(links) do
     for _, name in ipairs({ link, decode_percent(link) }) do
       local resolved = local_image_file(folder, name)
-      if resolved and not unique[resolved] and file_exists(resolved) then
+      if resolved and not unique[resolved] and dependency_exists(resolved) then
         unique[resolved] = true
         table.insert(pictures, resolved)
       end
@@ -1222,7 +1250,7 @@ function add_svg_sources(path, root, parts, seen, depth)
       resolved = local_data_file(folder, reference) and local_data_file(folder, decode_percent(reference))
     end
     if resolved and not unique[resolved] then
-      if file_exists(resolved) then
+      if dependency_exists(resolved) then
         unique[resolved] = true
         table.insert(files, resolved)
       elseif kind_of(resolved) ~= nil then
@@ -1497,6 +1525,7 @@ local function draw(name, source, kind, attributes, stem)
 
   local root = pandoc.path.directory(source)
   local sources = {}
+  walk_roots = file_access.roots
   if kind == "scad" then
     add_scad_sources(root, source, {}, sources, 0)
   elseif kind == "vegalite" then
@@ -1510,6 +1539,7 @@ local function draw(name, source, kind, attributes, stem)
     end
     table.insert(sources, pandoc.path.filename(source) .. "\n" .. content)
   end
+  walk_roots = nil
 
   local key = pandoc.sha1(table.concat({
     "canvasnet.lua " .. FILTER_VERSION,
@@ -1614,7 +1644,11 @@ local function flatten_svg(img)
   end
   local root = pandoc.path.directory(source)
   local sources = {}
-  if not add_svg_sources(source, root, sources, {}, 0) then
+  local file_access = file_access_of(source)
+  walk_roots = file_access.roots
+  local composite = add_svg_sources(source, root, sources, {}, 0)
+  walk_roots = nil
+  if not composite then
     return nil
   end
 
@@ -1630,7 +1664,6 @@ local function flatten_svg(img)
   end
 
   local command = find_tool()
-  local file_access = file_access_of(source)
   -- The links the tool rebases in the copy lead from the cache folder to the drawing's folder, so the same drawing in
   -- another folder (or a renamed folder) is another copy. The folder is taken relative to the cache folder, so the
   -- name does not depend on where the repository is checked out (the full path when there is no relative one).

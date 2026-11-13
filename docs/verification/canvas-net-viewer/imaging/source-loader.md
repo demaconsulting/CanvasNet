@@ -75,7 +75,7 @@ file-symbolic-link scenarios skip where file links cannot be created (Windows wi
   sets with its own viewport variables when it sets one) at 800x800 pixels unless a size is given; a view name,
   azimuth, or elevation that was given always wins, and the operation reports the view that was drawn; with the
   variables, time, default color, and triangle limit given, the same picture every time; its include and use files
-  are read from its folder and below only; a missing include, a syntax error, and a failed assertion are `scad-error`,
+  are read under the file-access policy given; a missing include, a syntax error, and a failed assertion are `scad-error`,
   an exceeded limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
 - A chart (`.vl.json`, `.vl`, or a `.json` with a Vega-Lite `$schema` in its first 4 KiB, never taken for an SVG) is
   probed

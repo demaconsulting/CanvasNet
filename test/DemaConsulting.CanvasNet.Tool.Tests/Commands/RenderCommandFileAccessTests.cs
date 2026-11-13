@@ -126,6 +126,8 @@ public class RenderCommandFileAccessTests
     [InlineData("")]
     [InlineData("roots,,no-symlinks")]
     [InlineData("roots;no-symlinks")]
+    [InlineData("roots,roots")]
+    [InlineData("no-symlinks,NO-SYMLINKS")]
     public void RenderCommand_ReadFileAccess_InvalidMode_IsUsageErrorListingTheModes(string mode)
     {
         // Arrange
