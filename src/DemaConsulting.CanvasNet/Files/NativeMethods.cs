@@ -101,6 +101,9 @@ internal static class NativeMethods
     /// <summary>The offset of <c>vip_path</c> (a NUL-terminated UTF-8 path) in <c>vnode_fdinfowithpath</c>: 24 + 152.</summary>
     private const int MacPathOffset = 176;
 
+    /// <summary>The offset of the 16-bit <c>st_mode</c> in the macOS Arm64 <c>struct stat</c>, after the 32-bit <c>st_dev</c>.</summary>
+    private const int MacStatModeOffset = 4;
+
     /// <summary>Whether <c>fstat</c> is missing from the C library (so <c>__fxstat</c> is used); null until first needed.</summary>
     private static bool? _linuxUsesFxStat;
 
@@ -283,6 +286,27 @@ internal static class NativeMethods
     }
 
     /// <summary>
+    ///     Gets the mode of an open descriptor on macOS through <c>fstat</c>, the fallback when <c>proc_pidfdinfo</c>
+    ///     cannot describe the descriptor.
+    /// </summary>
+    /// <param name="handle">The open handle.</param>
+    /// <returns>The mode, or <see langword="null"/> when it cannot be read.</returns>
+    [SupportedOSPlatform("macos")]
+    private static int? TryGetMacStatMode(SafeFileHandle handle)
+    {
+        // On Arm64 fstat fills the struct stat with 64-bit inode numbers, where the 16-bit st_mode follows the 32-bit
+        // st_dev at offset 4; the x64 fstat symbol fills the older layout, which is not read here
+        if (RuntimeInformation.ProcessArchitecture != Architecture.Arm64)
+        {
+            return null;
+        }
+
+        var buffer = new byte[LinuxStatBufferSize];
+        var result = WithDescriptor(handle, descriptor => FStat(descriptor, buffer));
+        return result == 0 ? BitConverter.ToUInt16(buffer, MacStatModeOffset) : null;
+    }
+
+    /// <summary>
     ///     Gets the mode and the path of an open descriptor on macOS, from one <c>proc_pidfdinfo</c> call.
     /// </summary>
     /// <param name="handle">The open handle.</param>
@@ -297,7 +321,9 @@ internal static class NativeMethods
             descriptor => ProcPidFdInfo(Environment.ProcessId, descriptor, MacVnodePathInfo, buffer, buffer.Length));
         if (filled != MacVnodePathInfoSize)
         {
-            return (null, null);
+            // Without the vnode information there is no path, but the type can still come from fstat, so a device or a
+            // named pipe is never mistaken for a file of unknown type
+            return (TryGetMacStatMode(handle), null);
         }
 
         var mode = BitConverter.ToUInt16(buffer, MacModeOffset);
@@ -441,11 +467,12 @@ internal static class NativeMethods
     [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     private static extern int Open(byte[] path, int flags);
 
-    /// <summary>The C library <c>fstat</c> function (Linux).</summary>
+    /// <summary>The C library <c>fstat</c> function (Linux, and macOS as a fallback).</summary>
     /// <param name="descriptor">The descriptor.</param>
     /// <param name="statBuffer">The buffer for <c>struct stat</c>.</param>
     /// <returns>Zero on success.</returns>
     [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("macos")]
     [DllImport("libc", EntryPoint = "fstat", ExactSpelling = true, SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     private static extern int FStat(int descriptor, [Out] byte[] statBuffer);

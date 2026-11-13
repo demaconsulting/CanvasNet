@@ -63,8 +63,9 @@ Per system:
   `proc_fileinfo` (24 bytes) followed by `vnode_info_path` (`vnode_info` of 152 bytes - `vinfo_stat` 136, `vi_type`,
   `vi_pad`, `vi_fsid` - and a 1024-byte path). The mode (16 bits) is at offset 28 and the NUL-terminated UTF-8 path at
   offset 176. The structure has no pointer- or `long`-sized field, so the layout is the same on x64 and Arm64; a call
-  that fills fewer than 1200 bytes is "unknown". The flags are `O_NONBLOCK` 0x4, `O_NOCTTY` 0x20000, `O_CLOEXEC`
-  0x01000000. Paths are compared in Unicode composed form.
+  that fills fewer than 1200 bytes gives no path, and the type then comes from `fstat` (on Arm64, whose `struct stat`
+  has the 16-bit `st_mode` at offset 4), so a device or named pipe is still recognized. The flags are `O_NONBLOCK` 0x4,
+  `O_NOCTTY` 0x20000, `O_CLOEXEC` 0x01000000. Paths are compared in Unicode composed form.
 - **Other systems**: `File.OpenHandle` (blocking) and unknown facts; a restrictive policy then fails closed.
 - `NativeMethods.WithDescriptor` is the one place that reads the raw descriptor of a handle (for the C calls and the
   `/proc` link), inside `DangerousAddRef`/`DangerousRelease`, so the descriptor cannot be closed and reused meanwhile.
