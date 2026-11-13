@@ -24,8 +24,8 @@ internal readonly record struct HandleFacts(bool? IsRegularFile, string? FinalPa
 ///         be read: the real path must come from the <b>open handle</b>, not from the name, which another process can
 ///         change between a check and the open. .NET offers no API for this (its link APIs work by name), so this unit
 ///         asks the operating system: Windows <c>GetFinalPathNameByHandleW</c>, Linux <c>/proc/self/fd</c>, macOS
-///         <c>proc_pidfdinfo</c>. On any other platform the facts are unknown (<see langword="null"/>), and a caller
-///         that needs them fails closed.
+///         <c>proc_pidfdinfo</c>. On any other platform the facts are unknown (<see langword="null"/>), and the
+///         resolvers fail closed: a file of unknown type is never read, under any policy.
 ///     </para>
 ///     <para>
 ///         <b>Non-blocking open.</b> On Linux and macOS a file is opened with <c>O_NONBLOCK</c>, so opening a named pipe

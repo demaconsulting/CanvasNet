@@ -40,7 +40,10 @@ public enum FileReferenceFailureKind
     /// </summary>
     RealPathUnavailable,
 
-    /// <summary>The path names something other than a regular file: a directory, a device or a named pipe.</summary>
+    /// <summary>
+    ///     The path names something other than a regular file (a directory, a device or a named pipe), or the platform
+    ///     cannot tell the type of the opened file; under every policy the file is refused rather than read.
+    /// </summary>
     NotARegularFile,
 
     /// <summary>

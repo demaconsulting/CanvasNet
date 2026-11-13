@@ -140,6 +140,29 @@ public class RealPathTests
     }
 
     /// <summary>
+    ///     Validates that a live file whose name ends with the text Linux appends to a deleted file's link still reports
+    ///     its real path, suffix included: deletion is told from the open file, not from its name.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_LiveFileNamedLikeADeletedOne_ReportsItsRealPath()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var path = directory.Write("x (deleted)", "a");
+
+        // Act
+        using var handle = RealPath.OpenForRead(Path.GetFullPath(path));
+        var facts = RealPath.Inspect(handle);
+
+        // Assert
+        Assert.True(facts.IsRegularFile);
+        Assert.NotNull(facts.FinalPath);
+        Assert.True(
+            RealPath.PathsEqual(Path.Join(FileTestSupport.Canonical(directory.Path), "x (deleted)"), facts.FinalPath),
+            $"got '{facts.FinalPath}'");
+    }
+
+    /// <summary>
     ///     Validates that a device and a directory are not regular files: on Linux and macOS both open without blocking
     ///     and are reported as such; on Windows the null device is a character device and a directory cannot be opened as
     ///     a file at all.
