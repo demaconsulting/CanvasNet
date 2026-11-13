@@ -364,4 +364,59 @@ public class FileAccessPolicyTests
         Assert.Throws<ArgumentNullException>(() => FileAccessDecision.Deny(null!));
         Assert.Throws<ArgumentException>(() => FileAccessDecision.Deny(string.Empty));
     }
+
+    /// <summary>
+    ///     Validates that a no-symlinks policy anchored at an outer origin judges a nested request from that origin: a
+    ///     directory link between the outer origin and the nested folder is denied although the nested request names the
+    ///     linked folder as its base, and the unanchored policy trusts it.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_AnchoredAt_NoSymlinks_JudgesFromTheOuterOrigin()
+    {
+        // Arrange: outer/lib is a link to a real folder; the nested request starts at outer/lib
+        using var directory = new SandboxTempDirectory();
+        var outer = Directory.CreateDirectory(directory.Combine("outer")).FullName;
+        var real = Directory.CreateDirectory(directory.Combine("real")).FullName;
+        var lib = Path.Combine(outer, "lib");
+        FileTestSupport.CreateDirectoryLinkOrSkip(lib, real);
+        var request = Request(lib, Path.Combine(lib, "a.txt"), Path.Join(FileTestSupport.Canonical(real), "a.txt"));
+        var anchored = FileAccessPolicy.NoSymlinks.AnchoredAt(outer);
+
+        // Act
+        var nested = FileAccessPolicy.NoSymlinks.Check(request);
+        var fromOuter = anchored.Check(request);
+
+        // Assert: the anchored policy keeps the name and the needs of the inner one
+        Assert.True(nested.IsAllowed);
+        Assert.False(fromOuter.IsAllowed);
+        Assert.Contains("symbolic link or junction", fromOuter.Reason, StringComparison.Ordinal);
+        Assert.Equal("no-symlinks", anchored.Name);
+        Assert.True(anchored.RequiresRealPath);
+    }
+
+    /// <summary>
+    ///     Validates that anchoring the allow-all policy, or a policy that is already anchored, returns the same instance,
+    ///     so the outermost origin wins, and that the pre-check of an anchored policy is the pre-check of the inner one.
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var outer = Directory.CreateDirectory(directory.Combine("outer")).FullName;
+        var inner = Directory.CreateDirectory(directory.Combine("inner")).FullName;
+        var anchored = FileAccessPolicy.UnderRoots(outer).AnchoredAt(outer);
+
+        // Act
+        var allowAll = FileAccessPolicy.AllowAll.AnchoredAt(outer);
+        var again = anchored.AnchoredAt(inner);
+
+        // Assert
+        Assert.Same(FileAccessPolicy.AllowAll, allowAll);
+        Assert.Same(anchored, again);
+        Assert.Equal("roots", anchored.Name);
+        Assert.Null(anchored.PreCheck(Path.Combine(outer, "a.txt")));
+        Assert.NotNull(anchored.PreCheck(Path.Combine(inner, "a.txt")));
+        Assert.Throws<ArgumentNullException>(() => FileAccessPolicy.NoSymlinks.AnchoredAt(null!));
+    }
 }

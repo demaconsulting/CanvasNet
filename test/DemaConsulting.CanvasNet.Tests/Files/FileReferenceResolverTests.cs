@@ -1127,4 +1127,86 @@ public class FileReferenceResolverTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new FileReferenceResolver(new FileReferenceOptions { MaxFileBytes = -1 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new FileReferenceResolver(new FileReferenceOptions { MaxFiles = -1 }));
     }
+
+    /// <summary>
+    ///     Validates that the top-level file a host names is read whatever the policy (even outside the base directory and
+    ///     under a policy that denies everything), that a reference inside it is still judged by the policy with the
+    ///     top-level folder as its origin, and that a reference back to the top-level file gets the policy too.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ResolveTopLevel_DenyingPolicy_ReadsTheFileAndChecksItsReferences()
+    {
+        // Arrange: the top-level file lies outside the base directory; the policy denies everything it is asked
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("base"));
+        directory.Write("top/doc.txt", "top");
+        directory.Write("top/image.txt", "image");
+        var policy = new RecordingPolicy(_ => FileAccessDecision.Deny("nothing may be read"));
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Combine("base"), FileAccess = policy });
+
+        // Act
+        var top = resolver.ResolveTopLevel("../top/doc.txt");
+        var reference = Assert.Throws<FileReferenceException>(() => resolver.Resolve("image.txt", top));
+        var back = Assert.Throws<FileReferenceException>(() => resolver.Resolve("doc.txt", top));
+        var again = resolver.ResolveTopLevel(directory.Combine("top/doc.txt"));
+        var missing = resolver.ResolveTopLevel("missing.txt");
+
+        // Assert: the policy was asked only for the references, with the top-level folder as the origin
+        Assert.Equal("top", Text(top));
+        Assert.Same(top, again);
+        Assert.Null(missing);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, reference.Kind);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, back.Kind);
+        Assert.Equal(2, policy.Requests.Count);
+        Assert.All(policy.Requests, request =>
+            Assert.Equal(Path.GetFullPath(directory.Combine("top")), request.BaseDirectory));
+    }
+
+    /// <summary>
+    ///     Validates that a top-level path that names a directory is not a regular file, as for a reference.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ResolveTopLevel_Directory_IsNotARegularFile()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("base/dir.txt"));
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Combine("base") });
+
+        // Act
+        var error = Assert.Throws<FileReferenceException>(() => resolver.ResolveTopLevel("dir.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.NotARegularFile, error.Kind);
+    }
+
+    /// <summary>
+    ///     Validates that the top-level file takes a slot of the file limit, so one more distinct file is refused before
+    ///     it is opened, and that the callback mode has no top-level file.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ResolveTopLevel_TakesAFileSlot()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("base/doc.txt", "top");
+        directory.Write("base/a.txt", "a");
+        directory.Write("base/b.txt", "b");
+        var opened = new List<string>();
+        var resolver = Create(
+            new FileReferenceOptions { BaseDirectory = directory.Combine("base"), MaxFiles = 2 },
+            Recording(opened));
+        var callback = Create(new FileReferenceOptions { FileResolver = _ => null });
+
+        // Act
+        var top = resolver.ResolveTopLevel("doc.txt");
+        var a = resolver.Resolve("a.txt", top);
+        var error = Assert.Throws<FileReferenceException>(() => resolver.Resolve("b.txt", top));
+
+        // Assert
+        Assert.Equal("a", Text(a));
+        Assert.Equal(FileReferenceFailureKind.TooManyFiles, error.Kind);
+        Assert.Equal(2, opened.Count);
+        Assert.Throws<InvalidOperationException>(() => callback.ResolveTopLevel("doc.txt"));
+    }
 }

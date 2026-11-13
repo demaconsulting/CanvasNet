@@ -181,6 +181,25 @@ public abstract partial class FileAccessPolicy
     internal virtual FileAccessDecision? PreCheck(string requestedPath) => null;
 
     /// <summary>
+    ///     Gets this policy judged from a fixed chain origin, for the files a nested document reads itself.
+    /// </summary>
+    /// <remarks>
+    ///     A source that draws a linked model or chart reads its own files through a resolver whose base directory is the
+    ///     folder of that nested file; without an anchor, <see cref="NoSymlinks"/> would trust that folder, which may have
+    ///     been swapped for a link after the outer check. The anchored policy hands every request to this policy with
+    ///     <see cref="FileAccessRequest.BaseDirectory"/> replaced by <paramref name="origin"/>, the host-chosen origin of
+    ///     the outer chain. A policy that never needs a real path (<see cref="AllowAll"/>) and a policy that is already
+    ///     anchored are returned as they are, so the outermost origin wins.
+    /// </remarks>
+    /// <param name="origin">The full path of the host-chosen directory the outer chain started from.</param>
+    /// <returns>The anchored policy.</returns>
+    internal virtual FileAccessPolicy AnchoredAt(string origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return RequiresRealPath ? new AnchoredPolicy(this, origin) : this;
+    }
+
+    /// <summary>
     ///     Returns the name of the policy.
     /// </summary>
     /// <returns>The value of <see cref="Name"/>.</returns>
