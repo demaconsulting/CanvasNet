@@ -1,0 +1,271 @@
+using DemaConsulting.CanvasNet.Files;
+
+namespace DemaConsulting.CanvasNet.Tests.Files;
+
+/// <summary>
+///     Unit tests for the real-path unit (<see cref="RealPath"/> and its native calls): the final path and the type of
+///     an open handle on each operating system, the non-blocking open, the real location of a folder, and the path
+///     comparison rules. Each operating-system scenario runs on its own system and skips on the others; the CI matrix
+///     runs Windows, Linux and macOS.
+/// </summary>
+public class RealPathTests
+{
+    /// <summary>Gets the cancellation token of the running test.</summary>
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    /// <summary>
+    ///     Validates that a plain file opened for reading is a regular file whose final path is its full path in the
+    ///     real location of its folder.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_PlainFile_ReportsItsCanonicalPathAndARegularFile()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var path = directory.Write("a.txt", "a");
+
+        // Act
+        using var handle = RealPath.OpenForRead(path);
+        var facts = RealPath.Inspect(handle);
+
+        // Assert
+        Assert.True(facts.IsRegularFile);
+        Assert.NotNull(facts.FinalPath);
+        Assert.True(Path.IsPathFullyQualified(facts.FinalPath));
+        Assert.True(RealPath.PathsEqual(Path.Join(FileTestSupport.Canonical(directory.Path), "a.txt"), facts.FinalPath));
+    }
+
+    /// <summary>
+    ///     Validates that a file opened through a directory link reports the path of the link's target.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_FileThroughADirectoryLink_ReportsTheTarget()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("target/a.txt", "a");
+        FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("link"), directory.Combine("target"));
+
+        // Act
+        using var handle = RealPath.OpenForRead(Path.GetFullPath(directory.Combine("link/a.txt")));
+        var facts = RealPath.Inspect(handle);
+
+        // Assert
+        Assert.True(RealPath.PathsEqual(Path.Join(FileTestSupport.Canonical(directory.Combine("target")), "a.txt"), facts.FinalPath!));
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a file opened by its short (8.3) spelling reports its long spelling, and that short
+    ///     names are expanded. Skips where the volume does not create short names.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_ShortNameSpelling_IsExpanded()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var longFile = directory.Write("a-long-folder-name/a.txt", "a");
+        var shortFolder = FileTestSupport.TryGetShortPath(Path.GetDirectoryName(longFile)!);
+        if (shortFolder is null || !shortFolder.Contains('~', StringComparison.Ordinal))
+        {
+            Assert.Skip("The volume does not create short (8.3) names.");
+        }
+
+        // Act
+        using var handle = RealPath.OpenForRead(Path.Combine(shortFolder, "a.txt"));
+        var facts = RealPath.Inspect(handle);
+        var expanded = RealPath.ExpandShortNames(Path.Combine(shortFolder, "a.txt"));
+
+        // Assert
+        Assert.Contains("a-long-folder-name", facts.FinalPath, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("a-long-folder-name", expanded, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Validates on macOS that the final path comes back through <c>proc_pidfdinfo</c> in the real location of the
+    ///     temporary folder (<c>/var</c> and <c>/tmp</c> are links to <c>/private</c>), which pins the offset of the path
+    ///     in the kernel's structure.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_TempFileOnMacOS_ReportsThePrivateLocation()
+    {
+        // Arrange
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.Skip("This scenario exists only on macOS.");
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var path = Path.GetFullPath(directory.Write("a.txt", "a"));
+        var linked = path.StartsWith("/var/", StringComparison.Ordinal) || path.StartsWith("/tmp/", StringComparison.Ordinal);
+        var expected = linked ? "/private" + path : path;
+
+        // Act
+        using var handle = RealPath.OpenForRead(path);
+        var facts = RealPath.Inspect(handle);
+
+        // Assert
+        Assert.True(facts.IsRegularFile);
+        Assert.True(RealPath.PathsEqual(expected, facts.FinalPath!), $"expected '{expected}', got '{facts.FinalPath}'");
+    }
+
+    /// <summary>
+    ///     Validates on Linux that a file deleted after it was opened has no real path any more (fail closed for a
+    ///     restrictive policy), while it is still a regular file.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_DeletedFile_IsUnavailable()
+    {
+        // Arrange
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Skip("This scenario exists only on Linux.");
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var path = directory.Write("a.txt", "a");
+        using var handle = RealPath.OpenForRead(path);
+        File.Delete(path);
+
+        // Act
+        var facts = RealPath.Inspect(handle);
+
+        // Assert
+        Assert.True(facts.IsRegularFile);
+        Assert.Null(facts.FinalPath);
+    }
+
+    /// <summary>
+    ///     Validates that a device and a directory are not regular files: on Linux and macOS both open without blocking
+    ///     and are reported as such; on Windows the null device is a character device and a directory cannot be opened as
+    ///     a file at all.
+    /// </summary>
+    [Fact]
+    public void RealPath_Inspect_DirectoryAndDevice_AreNotRegularFiles()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+
+        // Act / Assert
+        if (OperatingSystem.IsWindows())
+        {
+            using var device = FileTestSupport.OpenNullDevice();
+            Assert.False(RealPath.Inspect(device).IsRegularFile);
+            Assert.Throws<UnauthorizedAccessException>(() => RealPath.OpenForRead(directory.Path));
+        }
+        else
+        {
+            using var device = RealPath.OpenForRead("/dev/null");
+            using var folder = RealPath.OpenForRead(directory.Path);
+            Assert.False(RealPath.Inspect(device).IsRegularFile);
+            Assert.False(RealPath.Inspect(folder).IsRegularFile);
+        }
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS that opening a named pipe without a writer returns at once and the handle is not
+    ///     a regular file. The only wait is a guard that fails the test if the open hangs.
+    /// </summary>
+    /// <returns>A task.</returns>
+    [Fact]
+    public async Task RealPath_OpenForRead_Fifo_DoesNotBlockAndIsNotRegular()
+    {
+        // Arrange
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.UnixOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var pipe = directory.Combine("pipe");
+        var failure = FileTestSupport.CreateFifo(pipe);
+        Assert.True(failure.Length == 0, failure);
+
+        // Act
+        var open = Task.Run(
+            () =>
+            {
+                using var handle = RealPath.OpenForRead(pipe);
+                return RealPath.Inspect(handle);
+            },
+            Ct);
+        var first = await Task.WhenAny(open, Task.Delay(TimeSpan.FromMinutes(1), Ct));
+
+        // Assert
+        Assert.Same(open, first);
+        Assert.False((await open).IsRegularFile);
+    }
+
+    /// <summary>
+    ///     Validates that a missing file and a missing folder fail with the "not found" exceptions a caller treats as a
+    ///     missing candidate.
+    /// </summary>
+    [Fact]
+    public void RealPath_OpenForRead_MissingFileAndMissingFolder_MapToNotFoundExceptions()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("file.txt", "f");
+
+        // Act
+        var missingFile = Record.Exception(() => RealPath.OpenForRead(Path.GetFullPath(directory.Combine("none.txt"))));
+        var missingFolder = Record.Exception(() => RealPath.OpenForRead(Path.GetFullPath(directory.Combine("none/a.txt"))));
+        var fileAsFolder = Record.Exception(() => RealPath.OpenForRead(Path.GetFullPath(directory.Combine("file.txt/a.txt"))));
+
+        // Assert
+        Assert.IsType<FileNotFoundException>(missingFile);
+        Assert.True(missingFolder is FileNotFoundException or DirectoryNotFoundException, missingFolder?.GetType().Name);
+        Assert.True(fileAsFolder is FileNotFoundException or DirectoryNotFoundException, fileAsFolder?.GetType().Name);
+    }
+
+    /// <summary>
+    ///     Validates that the real location of a linked folder is its target, and that a missing folder has none.
+    /// </summary>
+    [Fact]
+    public void RealPath_TryGetCanonicalDirectory_LinkedDirectory_ReturnsTheTarget()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("target"));
+        FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("link"), directory.Combine("target"));
+
+        // Act
+        var viaLink = RealPath.TryGetCanonicalDirectory(Path.GetFullPath(directory.Combine("link")));
+        var direct = RealPath.TryGetCanonicalDirectory(Path.GetFullPath(directory.Combine("target")));
+        var missing = RealPath.TryGetCanonicalDirectory(Path.GetFullPath(directory.Combine("missing")));
+
+        // Assert
+        Assert.NotNull(viaLink);
+        Assert.True(RealPath.PathsEqual(direct!, viaLink));
+        Assert.EndsWith("target", viaLink, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(missing);
+    }
+
+    /// <summary>
+    ///     Validates the comparison rules: a folder contains itself and what lies below its separator but not a sibling
+    ///     that shares its name as a prefix, trailing separators do not matter, and the deepest shared folder is found by
+    ///     whole components.
+    /// </summary>
+    [Fact]
+    public void RealPath_IsUnder_BoundaryIsTheSeparator()
+    {
+        // Arrange
+        var root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "real-path-root"));
+        var separator = Path.DirectorySeparatorChar;
+        var systemRoot = Path.GetPathRoot(root)!;
+
+        // Act / Assert
+        Assert.True(RealPath.IsUnder(root, root));
+        Assert.True(RealPath.IsUnder(root + separator + "a.txt", root));
+        Assert.True(RealPath.IsUnder(root + separator + "a.txt", root + separator));
+        Assert.False(RealPath.IsUnder(root + "-sibling" + separator + "a.txt", root));
+        Assert.True(RealPath.IsUnder(root, systemRoot));
+        Assert.True(RealPath.PathsEqual(root + separator, root));
+        Assert.Equal(root, RealPath.CommonAncestor(root + separator + "a" + separator + "x.txt", root + separator + "b"));
+        Assert.Equal(Path.GetDirectoryName(root), RealPath.CommonAncestor(root + separator + "a.txt", root + "-sibling" + separator + "b"));
+    }
+}
