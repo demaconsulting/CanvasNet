@@ -4,10 +4,11 @@
 # These requirements describe the design-level behavior of the SandboxedFileResolver unit of the Files
 # subsystem (namespace DemaConsulting.CanvasNet.Files): the public resolver that turns an untrusted relative path
 # into the bytes of a file inside caller-chosen directories (or a caller-supplied virtual file source), together
-# with the types it needs (SandboxOptions, SandboxedFile, SandboxException, SandboxFailureKind). It is the single
-# implementation of the sandbox rules that the Vega-Lite and OpenSCAD packages use for every local file, and it
-# is public so that library users can apply the same rules to their own untrusted paths. Its link walk is checked
-# again after the open, on the real path of the open file, so a link swapped in between the two is refused too.
+# with the types it needs (SandboxOptions, SandboxedFile, SandboxException, SandboxFailureKind). It is the
+# obsolete folder sandbox, kept public for one release so that existing callers keep working; no CanvasNet
+# package uses it any longer (they read files through FileReferenceResolver under a FileAccessPolicy).
+# Its link walk is checked again after the open, on the real path of the open file, so a link swapped in
+# between the two is refused too.
 # Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.Tests project; see
 # docs/verification/canvas-net/files/sandboxed-file-resolver.md for the test-evidence mapping.
 

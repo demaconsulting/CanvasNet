@@ -11,8 +11,11 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///     <para>
 ///         This is the only thing a document renderer needs from the host to draw linked pictures, so the renderer (the
 ///         SVG library) depends on this contract and on no format. <see cref="FolderImageResolver"/> is the
-///         implementation that reads files from a folder; an application may implement the interface itself (for
-///         example to serve pictures from memory or from a network allow-list).
+///         implementation that resolves links relative to the document under its
+///         <see cref="FolderImageResolverOptions.FileAccess"/> policy
+///         (<see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy.AllowAll"/>, every regular local file, by
+///         default); an application may implement the interface itself (for example to serve pictures from memory or
+///         from a network allow-list).
 ///     </para>
 ///     <para>
 ///         <b>What an implementation must do.</b> Return a surface the caller owns (the caller disposes it after drawing,
@@ -20,7 +23,8 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         (the renderer then draws nothing and carries on). Return a fresh surface on every call: nothing in the
 ///         contract allows a caller to cache results, and a live source (a video frame) depends on being asked again. The
 ///         <c>href</c> is untrusted text from a document, so an implementation that touches the file system
-///         or the network must confine it first. Exceptions propagate to the caller of the renderer unchanged. An
+///         or the network must decide what an untrusted link may reach (a
+///         <see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy"/>, for example). Exceptions propagate to the caller of the renderer unchanged. An
 ///         implementation need not be <see cref="IDisposable"/>; <see cref="FolderImageResolver"/> is not.
 ///     </para>
 ///     <para>
