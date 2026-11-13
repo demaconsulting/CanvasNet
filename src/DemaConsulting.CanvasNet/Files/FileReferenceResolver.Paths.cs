@@ -15,8 +15,8 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     </para>
 ///     <para>
 ///         <b>File-system candidates</b> are full paths with <c>.</c> and <c>..</c> collapsed and links not resolved.
-///         On Windows a reference that the system maps to a device (a legacy device name such as <c>NUL</c> in a
-///         component) is refused before the open as well.
+///         On Windows a path with a reserved device name in any component (<c>NUL</c>, <c>CON</c>, <c>COM1</c>,
+///         <c>NUL.txt</c>, ...) is refused before the open as well.
 ///         <b>Logical candidates</b> (resolver callback) are normalized logical paths: forward slashes, no leading slash,
 ///         <c>.</c> and <c>..</c> collapsed; an absolute reference and a <c>..</c> above the logical root are refused,
 ///         because there is no real path to judge them by. Search paths that are valid logical paths are prefixes.
@@ -49,8 +49,7 @@ public sealed partial class FileReferenceResolver
     /// </summary>
     /// <param name="reference">The reference as written.</param>
     /// <returns>The printable reference.</returns>
-    private static string Shown(string reference) =>
-        reference.Any(char.IsControl) ? new string(reference.Select(c => char.IsControl(c) ? '?' : c).ToArray()) : reference;
+    private static string Shown(string reference) => FileReferenceException.Printable(reference);
 
     /// <summary>
     ///     Validates and normalizes the text of a reference.
@@ -187,11 +186,13 @@ public sealed partial class FileReferenceResolver
             throw new FileReferenceException(FileReferenceFailureKind.InvalidPath, shown, "the path is not a valid path", ex);
         }
 
-        // Windows maps a legacy device name in a component (NUL, and on older versions CON, COM1, LPT1 and others) to a
-        // device path (\\.\NUL); such a path is refused before the open, under every policy. A host that configured an
-        // extended-length directory (\\?\C:\docs) keeps working: a path that stays under the same \\?\ root has no
-        // device names mapped. An absolute reference (C:/x/NUL) leaves that root and is judged like any other
-        if (OperatingSystem.IsWindows() && IsDevicePath(full) && !IsUnderExtendedRoot(full, directory))
+        // Windows maps a reserved device name in any component (NUL, CON, COM1, LPT1, NUL.txt, ...) to a device, either
+        // by rewriting the path (\\.\NUL) or when it is opened; such a path is refused before the open, under every
+        // policy. A host that configured an extended-length directory (\\?\C:\docs) keeps working: a path that stays
+        // under the same \\?\ root has no device names mapped. An absolute reference (C:/x/NUL) leaves that root and is
+        // judged like any other
+        if (OperatingSystem.IsWindows() && !IsUnderExtendedRoot(full, directory)
+            && (IsDevicePath(full) || RealPath.HasWindowsDeviceName(full)))
         {
             throw new FileReferenceException(FileReferenceFailureKind.InvalidPath, shown, "the path names a device");
         }

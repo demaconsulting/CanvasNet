@@ -72,19 +72,23 @@ segments give the same instance; a drive path is absolute on Windows and invalid
 `FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException`,
 `FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened` (Windows),
 `FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened`
-(Windows)
+(Windows), `RealPath_IsWindowsDeviceName_RecognizesEveryReservedSpelling`
 
 A theory over empty and white-space text, NUL, a line feed, DEL, a C1 control, an alternate data stream, a
 drive-relative path, UNC paths in both slash styles, and `\\?\` and `\\.\` device paths asserts the matching kind in
 file-system and callback mode, a printable reference, a message that says the path is not allowed, and that nothing was
-opened or requested. A null reference is an `ArgumentNullException`. On Windows a theory over `x/NUL`, `NUL`,
-`x/NUL` (trailing space), `x/CON`, `x/COM1` and `x/LPT1` asserts that a name the running Windows version maps to a
-device (`Path.GetFullPath` gives `\\.\`) is `InvalidPath` with the reason "the path names a device" and nothing
-opened, that a name it does not map is an ordinary missing file, that `x/NUL` is `InvalidPath` on every version, and
-that no device path is ever opened. With an extended-length base directory (`\\?\` in front of the temporary
+opened or requested. A null reference is an `ArgumentNullException`. On Windows a theory over reserved device names
+in a component - `NUL`, `x/NUL`, a trailing space, `nul.txt`, `Nul .txt`, `AUX.tar.gz`, `PRN.`, `CON`, `COM1`, `lpt9`,
+`COM¹`, `LPT³.txt`, `CONIN$`, `conout$`, and `NUL` as a folder (`NUL/a.txt`) - asserts `InvalidPath` with the reason
+"the path names a device" and, through the `BeforeOpen` seam, that nothing at all was opened, whether or not the running
+Windows version rewrites the path to `\\.\`. A theory over single components (on every system, the check is pure text)
+asserts the reserved spellings - every letter case, an extension, trailing spaces or dots, a stream suffix, `COM0` to
+`COM9`, the superscript digits, the console names - and that similar names (`NULL`, `CONSOLE`, `COM10`, `a.NUL`, a leading
+space) are not reserved. With an extended-length base directory (`\\?\` in front of the temporary
 directory), a theory over the absolute references `C:/x/NUL` and `C:/x/nul` (trailing space), which the system maps
-to `\\.\NUL`, asserts `InvalidPath` with the reason "the path names a device", and that a file under the base directory
-is still read and is the only thing opened.
+to `\\.\NUL`, asserts `InvalidPath` with the reason "the path names a device", that a file under the base directory
+is still read, and that a reserved name under the extended-length base directory (`NUL.txt`) is an ordinary (missing)
+file, because `\\?\` paths map no device names; only `\\?\` paths are opened.
 
 ##### CanvasNet-Files-FileReferenceResolver-MissingFiles: Not Found Is Not a Failure
 
@@ -222,10 +226,16 @@ A canceled token throws `OperationCanceledException` before any request or open.
 
 **Tests**: `FileReferenceException_Constructor_EveryKind_KeepsFactsAndHidesHostPath`,
 `FileReferenceException_Constructor_NullReference_ThrowsArgumentNullException`,
+`FileReferenceException_Constructor_ControlCharacters_AreReplacedInReferenceAndMessage`,
+`FileReferenceResolver_Resolve_AbsoluteReferenceDenied_MessageEchoesItButNotTheRealPathOrBase`,
 `FileReferenceResolver_Resolve_InvalidBaseDirectory_IsInvalidBaseDirectory`,
 `FileReferenceResolver_Constructor_InvalidArguments_Throw`
 
 For every kind the exception keeps its facts, its message is a sentence without the host folder, and only a path-text
-failure states its rule; a null reference is rejected; an invalid base directory or search path is
-`InvalidBaseDirectory` naming the configured text; null options, a null search-path list, a null policy, a non-positive
+failure states its rule; a null reference is rejected; a reference with control characters passed straight to the
+constructor is stored and shown with each replaced by `?`; the message of a denied absolute reference contains the
+reference exactly as written but neither the real path of the opened file (reported elsewhere through the `RealPathOf`
+seam) nor the base directory, which stay in the properties; an invalid base directory or search path is
+`InvalidBaseDirectory` naming the configured text (control characters replaced); null options, a null search-path list,
+a null policy, a non-positive
 byte limit, and a negative file limit are rejected at construction.

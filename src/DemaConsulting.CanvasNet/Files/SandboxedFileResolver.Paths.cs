@@ -192,9 +192,21 @@ public sealed partial class SandboxedFileResolver
     /// <param name="root">The root the result must stay under.</param>
     /// <param name="text">The validated path text.</param>
     /// <returns>The candidate.</returns>
-    /// <exception cref="SandboxException">Thrown when the result is not under the root.</exception>
+    /// <exception cref="SandboxException">
+    ///     Thrown when the result is not under the root, or (<see cref="SandboxFailureKind.CannotRead"/>) when on Windows a
+    ///     component is a reserved device name.
+    /// </exception>
     private Candidate Combine(string directory, string root, string text)
     {
+        // A reserved Windows device name in any component (NUL, CON, COM1, NUL.txt, ...) could reach the device when the
+        // path is walked or opened, so it is refused before anything is touched; an extended-length root (\\?\) maps no
+        // device names
+        if (!UsesResolver && OperatingSystem.IsWindows()
+            && !root.StartsWith(@"\\?\", StringComparison.Ordinal) && RealPath.HasWindowsDeviceName(text))
+        {
+            throw new SandboxException(SandboxFailureKind.CannotRead, text);
+        }
+
         var path = UsesResolver ? CombineLogical(directory, root, text) : CombineFileSystem(directory, root, text);
         return path is null
             ? throw new SandboxException(SandboxFailureKind.OutsideRoot, text)

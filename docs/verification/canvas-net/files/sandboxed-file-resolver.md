@@ -97,13 +97,15 @@ alone makes
 ##### CanvasNet-Files-SandboxedFileResolver-PathText: Hostile Path Text Is Refused Before Any Access
 
 **Tests**: `SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess`,
-`SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException`
+`SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException`,
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess` (Windows)
 
 Asserts, as a theory over an empty path, white space, a Unix absolute path, a rooted backslash path, UNC paths in both slash
 styles, a drive path, a drive-relative path, a colon inside a name, NUL, a line feed, DEL, and two C1 control characters,
 that each is refused with the matching kind, a reason in `Detail`, a path with no control character left in it, and a
 message that says the path is not allowed, and that the callback received no request. A null path is an
-`ArgumentNullException`.
+`ArgumentNullException`. On Windows a theory over reserved device names in a component (`x/NUL`, `x/con.txt`, `x/COM1`,
+`x/LPT¹`, `NUL/a.txt`, `x/CONOUT$`) asserts `CannotRead` and, through the `BeforeOpen` seam, that nothing was opened.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Confinement: Candidates Stay Inside Their Root
 

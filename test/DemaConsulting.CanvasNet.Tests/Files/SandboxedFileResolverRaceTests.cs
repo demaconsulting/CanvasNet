@@ -113,6 +113,39 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates on Windows that a path with a reserved device name in any component is refused before the link
+    ///     walk and the open, so no device is touched.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    [Theory]
+    [InlineData("x/NUL")]
+    [InlineData("x/con.txt")]
+    [InlineData("x/COM1")]
+    [InlineData("x/LPT\u00B9")]
+    [InlineData("NUL/a.txt")]
+    [InlineData("x/CONOUT$")]
+    public void SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess(string path)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root"));
+        var opened = new List<string>();
+        var resolver = Create(directory.Combine("root"), new FileOpenHooks { BeforeOpen = opened.Add });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve(path));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+        Assert.Empty(opened);
+    }
+
+    /// <summary>
     ///     Validates on Linux and macOS that a root the process may search but not read (execute-only) still serves its
     ///     files: the real location of the root needs no read permission. Skips when permissions are not enforced.
     /// </summary>

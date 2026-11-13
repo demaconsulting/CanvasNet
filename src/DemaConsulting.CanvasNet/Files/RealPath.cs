@@ -87,6 +87,55 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines whether any component of a path is a name Windows reserves for a device, so that opening the path
+    ///     could reach the device instead of a file.
+    /// </summary>
+    /// <remarks>
+    ///     A pure text check, so it gives the same answer on every platform; the resolvers apply it on Windows only. The
+    ///     root of the path is not a component.
+    /// </remarks>
+    /// <param name="path">The path, with forward or backward slashes.</param>
+    /// <returns><see langword="true"/> when a component is a reserved device name.</returns>
+    internal static bool HasWindowsDeviceName(string path)
+    {
+        var root = Path.IsPathRooted(path) ? Path.GetPathRoot(path) ?? string.Empty : string.Empty;
+        return path[root.Length..]
+            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+            .Any(IsWindowsDeviceName);
+    }
+
+    /// <summary>
+    ///     Determines whether one path component is a name Windows reserves for a device: <c>CON</c>, <c>PRN</c>,
+    ///     <c>AUX</c>, <c>NUL</c>, <c>COM0</c>-<c>COM9</c>, <c>LPT0</c>-<c>LPT9</c>, <c>COM</c> or <c>LPT</c> with a
+    ///     superscript 1, 2 or 3, <c>CONIN$</c> and <c>CONOUT$</c>, in any letter case. Windows ignores what follows the
+    ///     name, so an extension (<c>NUL.txt</c>), trailing spaces or dots (<c>NUL .</c>) and a stream suffix
+    ///     (<c>NUL:</c>) still name the device.
+    /// </summary>
+    /// <param name="component">The path component.</param>
+    /// <returns><see langword="true"/> when it is a reserved device name.</returns>
+    internal static bool IsWindowsDeviceName(string component)
+    {
+        // The name is what precedes a stream suffix and an extension, without trailing spaces
+        var name = component;
+        var colon = name.IndexOf(':', StringComparison.Ordinal);
+        name = colon >= 0 ? name[..colon] : name;
+        var dot = name.IndexOf('.', StringComparison.Ordinal);
+        name = (dot >= 0 ? name[..dot] : name).TrimEnd(' ');
+        return name.Length switch
+        {
+            3 => name.Equals("CON", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("NUL", StringComparison.OrdinalIgnoreCase),
+            4 => (name.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+                    || name.StartsWith("LPT", StringComparison.OrdinalIgnoreCase))
+                && (char.IsAsciiDigit(name[3]) || name[3] is '\u00B9' or '\u00B2' or '\u00B3'),
+            _ => name.Equals("CONIN$", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("CONOUT$", StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    /// <summary>
     ///     Gets the deepest folder that two full paths share, comparing whole components.
     /// </summary>
     /// <param name="first">A full path.</param>

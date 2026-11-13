@@ -39,9 +39,11 @@ sections:
                   and under every policy, an empty or white-space reference, a reference with a control character
                   (including NUL, DEL and the C1 range), a device path, a network path (UNC or a leading double
                   slash), a reference with a colon other than the drive of an absolute Windows path, and, on Windows,
-                  a reference whose full path the system maps to a device (a legacy device name such as NUL in a
-                  component), each with a FileReferenceException of the matching kind, and shall reject a null
-                  reference with ArgumentNullException.
+                  a reference whose full path has a reserved device name in any component (CON, PRN, AUX, NUL,
+                  COM0-COM9, LPT0-LPT9, the superscript-digit forms, CONIN$ and CONOUT$, in any letter case and with
+                  an extension, trailing spaces or dots, or a stream suffix) unless it stays under an extended-length
+                  configured directory, each with a FileReferenceException of the matching kind, and shall reject a
+                  null reference with ArgumentNullException.
                 justification: |
                   These forms are never a safe local file: network paths can leak credentials, device paths and
                   alternate data streams reach things that are not files, and control characters hide the real text.
@@ -50,6 +52,7 @@ sections:
                   - FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened"
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened"
+                  - RealPath_IsWindowsDeviceName_RecognizesEveryReservedSpelling
 
               - id: CanvasNet-Files-FileReferenceResolver-MissingFiles
                 title: >-
@@ -226,16 +229,20 @@ sections:
 
               - id: CanvasNet-Files-FileReferenceResolver-Failures
                 title: >-
-                  The FileReferenceException class shall carry the failure kind, the reference as written, the rule
-                  or policy reason, the policy name and hint, the path that was opened and its real path, and the
-                  underlying cause, and its message shall name the reference and the policy but never a host
-                  directory nor a policy reason; the FileReferenceResolver class shall report a configured directory
-                  that is not a valid path as InvalidBaseDirectory and reject invalid options at construction.
+                  The FileReferenceException class shall carry the failure kind, the reference as written (control
+                  characters replaced, also when constructed directly), the rule or policy reason, the policy name and
+                  hint, the path that was opened and its real path, and the underlying cause, and its message shall
+                  echo the reference as written and name the policy but never add the resolved path, the real path, a
+                  configured directory, nor a policy reason; the FileReferenceResolver class shall report a configured
+                  directory that is not a valid path as InvalidBaseDirectory and reject invalid options at construction.
                 justification: |
                   Callers map a failure to their own diagnostic without parsing text and must be able to show the
-                  message to an untrusted author; invalid configuration should fail immediately.
+                  message to an untrusted author, which reveals nothing the author did not write; invalid
+                  configuration should fail immediately.
                 tests:
                   - FileReferenceException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
                   - FileReferenceException_Constructor_NullReference_ThrowsArgumentNullException
+                  - FileReferenceException_Constructor_ControlCharacters_AreReplacedInReferenceAndMessage
+                  - FileReferenceResolver_Resolve_AbsoluteReferenceDenied_MessageEchoesItButNotTheRealPathOrBase
                   - FileReferenceResolver_Resolve_InvalidBaseDirectory_IsInvalidBaseDirectory
                   - FileReferenceResolver_Constructor_InvalidArguments_Throw

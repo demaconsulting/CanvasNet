@@ -1458,6 +1458,8 @@ public class CanvasNetTests
         else
         {
             references.Add(("folder/NUL", FileReferenceFailureKind.InvalidPath));
+            references.Add(("folder/con.txt", FileReferenceFailureKind.InvalidPath));
+            references.Add(("folder/COM1", FileReferenceFailureKind.InvalidPath));
         }
 
         var policies = new[]
@@ -1469,17 +1471,24 @@ public class CanvasNetTests
 
         foreach (var policy in policies)
         {
+            var opened = new List<string>();
             var resolver = new FileReferenceResolver(
                 new FileReferenceOptions { BaseDirectory = directory.Path, FileAccess = policy },
-                TestContext.Current.CancellationToken);
+                TestContext.Current.CancellationToken,
+                new FileOpenHooks { BeforeOpen = opened.Add });
             foreach (var (reference, kind) in references)
             {
                 // Act
+                var openedBefore = opened.Count;
                 var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve(reference));
 
-                // Assert
+                // Assert: a refused path text never reaches the opener
                 Assert.Equal(kind, ex.Kind);
                 Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+                if (kind is FileReferenceFailureKind.InvalidPath or FileReferenceFailureKind.NetworkPath)
+                {
+                    Assert.Equal(openedBefore, opened.Count);
+                }
             }
         }
     }

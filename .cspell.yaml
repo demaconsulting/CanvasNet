@@ -1118,6 +1118,8 @@ words:
   - IFREG
   - libc
   - mkfifo
+  - CONIN
+  - CONOUT
   - nlink
   - NOCTTY
   - NONBLOCK

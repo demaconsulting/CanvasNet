@@ -11,11 +11,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         A cancellation is never wrapped: it surfaces as <see cref="OperationCanceledException"/>.
 ///     </para>
 ///     <para>
-///         <see cref="Message"/> is a complete English sentence that contains the reference as written (control
-///         characters replaced) and the policy name, but never a host directory and never the reason of a policy
-///         (which may name host paths), so it is safe to show to the author of an untrusted document.
-///         <see cref="RequestedPath"/>, <see cref="RealPath"/> and <see cref="Reason"/> may reveal host directories;
-///         show them only to trusted callers.
+///         <see cref="Message"/> is a complete English sentence that echoes the reference as written (control
+///         characters replaced) and names the policy. It never adds the resolved path, the real path or a configured
+///         directory, nor the reason of a policy (which may name host paths), so it reveals nothing beyond what the
+///         author of the document wrote and is safe to show to that author: an absolute reference appears as the
+///         author wrote it. <see cref="RequestedPath"/>, <see cref="RealPath"/> and <see cref="Reason"/> may reveal
+///         host directories; show them only to trusted callers.
 ///     </para>
 ///     <para>Instances are immutable and safe to use from any thread.</para>
 /// </remarks>
@@ -26,8 +27,8 @@ public sealed class FileReferenceException : Exception
     /// </summary>
     /// <param name="kind">What went wrong.</param>
     /// <param name="reference">
-    ///     The reference as written (control characters replaced by <c>?</c>), or for
-    ///     <see cref="FileReferenceFailureKind.InvalidBaseDirectory"/> the configured directory. Must not be null.
+    ///     The reference as written, or for <see cref="FileReferenceFailureKind.InvalidBaseDirectory"/> the configured
+    ///     directory; control characters in it are replaced by <c>?</c> when it is stored. Must not be null.
     /// </param>
     /// <param name="reason">
     ///     For the path-text kinds, the rule that was broken (for example <c>network paths are not permitted</c>); for
@@ -45,7 +46,7 @@ public sealed class FileReferenceException : Exception
     {
         ArgumentNullException.ThrowIfNull(reference);
         Kind = kind;
-        Reference = reference;
+        Reference = Printable(reference);
         Reason = reason;
     }
 
@@ -89,8 +90,8 @@ public sealed class FileReferenceException : Exception
     public string? Hint { get; init; }
 
     /// <summary>
-    ///     Gets the message: a complete English sentence that names the reference as written and, for a denial, the
-    ///     policy, but never a host directory nor the reason of a policy.
+    ///     Gets the message: a complete English sentence that echoes the reference as written and, for a denial, names
+    ///     the policy; it never adds the resolved path, the real path, a configured directory, nor the reason of a policy.
     /// </summary>
     public override string Message => Kind switch
     {
@@ -111,4 +112,12 @@ public sealed class FileReferenceException : Exception
             $"The limit on the number of files was reached; the file '{Reference}' was not read.",
         _ => $"The file '{Reference}' was refused.",
     };
+
+    /// <summary>
+    ///     Gets a text as it may be shown in a message: control characters replaced by <c>?</c>.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The printable text.</returns>
+    internal static string Printable(string text) =>
+        text.Any(char.IsControl) ? new string(text.Select(c => char.IsControl(c) ? '?' : c).ToArray()) : text;
 }

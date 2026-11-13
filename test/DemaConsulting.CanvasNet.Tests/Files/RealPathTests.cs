@@ -351,4 +351,50 @@ public class RealPathTests
         Assert.Equal(root, RealPath.CommonAncestor(root + separator + "a" + separator + "x.txt", root + separator + "b"));
         Assert.Equal(Path.GetDirectoryName(root), RealPath.CommonAncestor(root + separator + "a.txt", root + "-sibling" + separator + "b"));
     }
+
+    /// <summary>
+    ///     Validates that the reserved Windows device names are recognized in every spelling Windows accepts, in a single
+    ///     component and anywhere in a path, and that names that merely resemble them are not. The check is pure text, so
+    ///     it runs on every system.
+    /// </summary>
+    /// <param name="component">The path component.</param>
+    /// <param name="reserved">Whether it is a reserved device name.</param>
+    [Theory]
+    [InlineData("CON", true)]
+    [InlineData("prn", true)]
+    [InlineData("Aux", true)]
+    [InlineData("NUL", true)]
+    [InlineData("NUL.txt", true)]
+    [InlineData("NUL ", true)]
+    [InlineData("NUL...", true)]
+    [InlineData("NUL .txt", true)]
+    [InlineData("NUL:", true)]
+    [InlineData("NUL:stream", true)]
+    [InlineData("COM0", true)]
+    [InlineData("com9", true)]
+    [InlineData("LPT1.log", true)]
+    [InlineData("COM\u00B9", true)]
+    [InlineData("LPT\u00B2", true)]
+    [InlineData("lpt\u00B3", true)]
+    [InlineData("CONIN$", true)]
+    [InlineData("conout$.x", true)]
+    [InlineData("NULL", false)]
+    [InlineData("CONSOLE", false)]
+    [InlineData("COM10", false)]
+    [InlineData("COM", false)]
+    [InlineData("LPT", false)]
+    [InlineData("a.NUL", false)]
+    [InlineData(" NUL", false)]
+    [InlineData("nul_x", false)]
+    [InlineData("CONIN", false)]
+    public void RealPath_IsWindowsDeviceName_RecognizesEveryReservedSpelling(string component, bool reserved)
+    {
+        // Act
+        var single = RealPath.IsWindowsDeviceName(component);
+        var inPath = RealPath.HasWindowsDeviceName("C:/docs/" + component + "/a.txt");
+
+        // Assert
+        Assert.Equal(reserved, single);
+        Assert.Equal(reserved, inPath);
+    }
 }

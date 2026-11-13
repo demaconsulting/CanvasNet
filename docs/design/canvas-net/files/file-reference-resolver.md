@@ -22,8 +22,8 @@ in the `DemaConsulting.CanvasNet.Files` namespace, all `public`:
 host-chosen `FileAccessPolicy` approved the file that was actually opened. It follows references the way Pandoc does -
 relative paths, dot-dot segments, absolute paths, and symbolic links - and leaves every restriction to the policy,
 except for the references that are never safe (network, device and alternate-data-stream paths, control characters,
-and files that are not regular files; on Windows also legacy device names and a link from a local path to a network
-share) and the resource limits, which hold under every policy. The decision is made
+and files that are not regular files; on Windows also reserved device names in any path component and a link from a
+local path to a network share) and the resource limits, which hold under every policy. The decision is made
 about the open handle, so it cannot be raced by another process that changes the directory tree between a check and
 the open.
 
