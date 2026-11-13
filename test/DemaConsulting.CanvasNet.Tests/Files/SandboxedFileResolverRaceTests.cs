@@ -184,12 +184,43 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
-    ///     Validates on Linux and macOS that the file is refused as a failed check (fail closed), not as a link, when the
-    ///     real location of its root cannot be determined: the root is renamed away while the file is open. Windows does
-    ///     not allow renaming the folder of an open file.
+    ///     Validates that a root renamed and replaced by a link to an outside folder after the link walk and before the
+    ///     open is refused as a link: the real location of the root was captured before the walk and is never resolved
+    ///     by name again, so the outside file the open reached does not match it, and nothing is read from it.
     /// </summary>
     [Fact]
-    public void SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed()
+    public void SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        directory.Write("outside/a.txt", Unreadable);
+        var root = Path.GetFullPath(directory.Combine("root"));
+        var hooks = new FileOpenHooks
+        {
+            BeforeOpen = _ =>
+            {
+                Directory.Move(root, directory.Combine("root-old"));
+                FileTestSupport.CreateDirectoryLinkOrSkip(root, directory.Combine("outside"));
+            },
+        };
+        var resolver = Create(root, hooks);
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("a.txt", ex.Detail);
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS that the file is refused as a link when its root is renamed away while the file
+    ///     is open: the real path of the handle no longer lies below the real location captured before the open.
+    ///     Windows does not allow renaming the folder of an open file.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink()
     {
         // Arrange
         if (OperatingSystem.IsWindows())
@@ -202,6 +233,26 @@ public class SandboxedFileResolverRaceTests
         var resolver = Create(
             directory.Combine("root"),
             new FileOpenHooks { AfterOpen = _ => Directory.Move(directory.Combine("root"), directory.Combine("moved")) });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the file is refused as a failed check (fail closed), not as a link, when the real location of
+    ///     its root could not be captured before the open.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var resolver = Create(directory.Combine("root"), new FileOpenHooks { DirectoryLocationOf = _ => null });
 
         // Act
         var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));

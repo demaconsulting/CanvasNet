@@ -118,15 +118,22 @@ sections:
               - id: CanvasNet-Files-FileReferenceResolver-RaceFree
                 title: >-
                   The FileReferenceResolver class shall take the real path it gives the policy from the open file,
-                  not from its name, and shall read the bytes from that same open file, so that a file moved or a
-                  link added or removed after the open neither changes the decision nor what is read.
+                  not from its name, shall read the bytes from that same open file, and shall capture the real
+                  location of every trusted folder a built-in policy compares against before the open, so that a
+                  file moved, a link added or removed, or a trusted folder renamed and replaced by a link around the
+                  open neither changes the decision nor what is read.
                 justification: |
                   Another process that can change the directory tree must not be able to redirect a read after the
-                  decision; deciding on the open file closes that window.
+                  decision; deciding on the open file against folder locations fixed before the open closes that
+                  window.
                 tests:
                   - FileReferenceResolver_Resolve_FileMovedAndFolderSwappedForOutsideLinkAfterOpen_IsAllowedWithOriginalBytes
                   - FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderUnderRoots
                   - FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderNoSymlinks
+                  - "windows@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - "ubuntu@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - "macos@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks
                   - FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied
                   - FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult
 

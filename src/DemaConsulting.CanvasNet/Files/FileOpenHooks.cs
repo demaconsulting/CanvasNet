@@ -38,4 +38,11 @@ internal sealed class FileOpenHooks
     ///     <see langword="null"/> result means "unknown"), or <see langword="null"/> to ask the operating system.
     /// </summary>
     public Func<SafeFileHandle, bool?>? IsRegularFileOf { get; init; }
+
+    /// <summary>
+    ///     Gets the function that replaces the real location reported for a trusted folder (a root or an anchor), which
+    ///     is captured before the open (a <see langword="null"/> result means "unknown"), or <see langword="null"/> to
+    ///     ask the operating system.
+    /// </summary>
+    public Func<string, string?>? DirectoryLocationOf { get; init; }
 }

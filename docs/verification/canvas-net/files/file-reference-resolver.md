@@ -147,13 +147,20 @@ that is itself a network location is covered by `RealPath-NetworkLocation` and b
 `FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderUnderRoots`,
 `FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderNoSymlinks`,
 `FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied`,
-`FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult`
+`FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult`,
+`FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied` (Windows, Linux, macOS),
+`FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks`
 
 After the open, the inside file is moved and its folder replaced by a link to the outside: the file is allowed, its
 original bytes are returned, its real path follows the moved file, and by name the path now reads the outside file.
 After the open, an outside link is replaced by a benign inside folder: the file is denied under `UnderRoots` (with the
-outside real path) and under `NoSymlinks`. On a plain tree, an injected outside real path is denied by both policies,
-and an injected real path is the one in the request and in the result.
+outside real path and the "real path is outside" reason) and under `NoSymlinks`. On a plain tree, an injected outside
+real path is denied by both policies, and an injected real path is the one in the request and in the result. In the
+root rename-and-replace race, the root itself is renamed away inside the `BeforeOpen` seam (after the pre-check) and
+replaced by a junction or symbolic link to an outside folder, so the open reaches the outside file: under `UnderRoots`
+(whose root location was captured when the policy was created) and under `NoSymlinks` (whose starting folder was
+captured before the open) the file is denied with the outside real path. A starting folder whose location could not be
+captured (the `DirectoryLocationOf` seam reports none) is denied under `NoSymlinks`.
 
 ##### CanvasNet-Files-FileReferenceResolver-RealPathUnavailable: Fail Closed Without a Real Path
 

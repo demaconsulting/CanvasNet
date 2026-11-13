@@ -42,13 +42,16 @@ Any request is allowed; the name is `any` (also as `ToString`); no real path and
 **Tests**: `FileAccessPolicy_UnderRoots_RealPathInsideOrEqualToARoot_IsAllowed`,
 `FileAccessPolicy_UnderRoots_SiblingWithSharedPrefix_IsDenied`,
 `FileAccessPolicy_UnderRoots_RealPathOutsideEveryRoot_IsDeniedWithReasonAndHint`,
+`FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing`,
 `FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck`,
 `FileAccessPolicy_UnderRoots_InvalidRoots_Throw`,
 `FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied`
 
 A file inside the second of two roots and the root itself are allowed; a sibling folder that shares the root's name as
 a prefix is denied before and after the open; a written path inside whose real path is outside is denied with the
-documented reason and a hint; a written path outside is denied by the pre-check, a written path inside passes it, and
+documented reason and a hint; a root created only after the policy passes the pre-check but is denied after the open
+with the "did not exist when the policy was created" reason and a hint, because its real location is captured only at
+creation; a written path outside is denied by the pre-check, a written path inside passes it, and
 an outside written path whose real path is inside is still denied; a null list, a null, empty, white-space or invalid
 root, and no root at all are rejected; an upper-case spelling is allowed on Windows and macOS and denied on Linux.
 

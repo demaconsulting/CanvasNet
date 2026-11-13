@@ -2204,7 +2204,9 @@ callback paths and case-insensitive for full paths on Windows and macOS).
 **Security note.** The sandbox protects against path-based escapes and against a link swapped into the tree after
 its check: before a single byte is read, the **open file** is verified - its real path, asked of the operating
 system for the open handle (not the name), must be the root's real location followed by the path below the root,
-otherwise the file is `ThroughLink`; where the system cannot tell the real path of an open file, the file is
+otherwise the file is `ThroughLink`; the root's real location is captured before the file is looked up, so a root
+renamed and replaced by a link meanwhile is refused too. Where the system cannot tell the real path of an open file,
+the file is
 refused (`LinkCheckFailed`), also when the real location of the root cannot be determined (a root you may search
 but not read has one). Devices and named pipes below a root are `CannotRead`, and opening a named pipe never
 blocks. A hard link to a file outside the directories is still read like any other file (a hard link is the file
@@ -2355,9 +2357,15 @@ decided by the **file-access policy** in `FileAccess`:
 The policy is asked **after the file was opened and before a byte is read**, about the real path of the open file
 (`FileAccessRequest.RealPath`), and the bytes are read from that same open file. A link that another process swaps in
 or out after a check therefore cannot change what is read. `UnderRoots` also refuses a path written outside its
-folders before the file is opened. `NoSymlinks` trusts the deepest folder shared by the written path and the base
+folders before the file is opened. `UnderRoots` captures the real location of each folder **when you create the
+policy** and never looks it up again, so create the folders first: a folder that does not exist then allows no file,
+even once it exists. Likewise the folder `NoSymlinks` starts from is captured before the file is opened, so a trusted
+folder that is renamed and replaced by a link while a file is being read cannot widen what is read. `NoSymlinks`
+trusts the deepest folder shared by the written path and the base
 directory or search path the chain of references started from - never a referring document's folder - and everything
-above it (so a linked home or temporary folder is fine), and refuses any link below it. A hard link is the file itself
+above it (so a linked home or temporary folder is fine), and refuses any link below it. Use it through `Combine`, not
+inside a `FromDelegate` function, where it cannot know its starting folder in advance and denies. A hard link is the
+file itself
 and is not detected. On Windows and macOS paths are compared without regard to letter case: on a case-sensitive volume
 or directory of those systems, a sibling folder whose name differs from a root only in letter case counts as inside
 it, so do not configure roots next to such folders.

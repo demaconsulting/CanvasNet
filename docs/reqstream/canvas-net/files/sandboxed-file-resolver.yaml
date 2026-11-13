@@ -121,22 +121,28 @@ sections:
                 title: >-
                   In file-system mode the SandboxedFileResolver class shall verify the opened file before reading
                   it: the file shall be refused as a link when the real path of the open file is not the real
-                  location of its root followed by the path below the root (so a link swapped into the tree after
-                  the link check is refused), as a link-check failure when that real path or the real location of the
+                  location of its root, captured before the link check and the open, followed by the path below the
+                  root (so a link swapped into the tree after the link check, or a root renamed and replaced by a
+                  link, is refused), as a link-check failure when that real path or the real location of the
                   root cannot be determined (a root the process may search but not read has a real location), and as
                   a read failure when the open file is not a regular file, which shall not block the open.
                 justification: |
                   The link check runs on names before the open; another process could swap a component for a link
-                  in between. Verifying the open file closes that window and keeps devices and named pipes out.
+                  in between. Verifying the open file against a root location fixed before the open closes that
+                  window and keeps devices and named pipes out.
                 tests:
                   - "windows@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
                   - "ubuntu@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
                   - "macos@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
+                  - "windows@SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink"
+                  - "ubuntu@SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink"
+                  - "macos@SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink"
+                  - "ubuntu@SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink"
+                  - "macos@SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink"
                   - SandboxedFileResolver_Resolve_RealPathOutsideTheRoot_IsRejectedAsThroughLink
                   - SandboxedFileResolver_Resolve_RealPathUnavailable_FailsClosedAsLinkCheckFailed
                   - SandboxedFileResolver_Resolve_UnknownFileType_FailsClosedAsCannotRead
-                  - "ubuntu@SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed"
-                  - "macos@SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed"
+                  - SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed
                   - "ubuntu@SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile"
                   - "macos@SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile"
                   - "windows@SandboxedFileResolver_Resolve_NonRegularFile_IsCannotRead"

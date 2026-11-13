@@ -91,6 +91,31 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
+    ///     Validates that a root that did not exist when the policy was created allows nothing, even once it exists: its
+    ///     real location was not captured, and the policy never resolves it by name later (fail closed).
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var root = Path.GetFullPath(directory.Combine("later"));
+        var policy = FileAccessPolicy.UnderRoots(root);
+        Directory.CreateDirectory(root);
+        var file = Path.Combine(root, "a.txt");
+
+        // Act
+        var early = policy.PreCheck(file);
+        var decision = policy.Check(Request(root, file, Path.Join(FileTestSupport.Canonical(root), "a.txt")));
+
+        // Assert: the written path is inside, so the pre-check lets the open go ahead; the check after it denies
+        Assert.Null(early);
+        Assert.False(decision.IsAllowed);
+        Assert.Equal("the allowed root it is in did not exist when the policy was created, so it allows nothing", decision.Reason);
+        Assert.NotNull(decision.Hint);
+    }
+
+    /// <summary>
     ///     Validates that a file written inside a root whose real path lies outside every root is denied with a reason
     ///     and a hint.
     /// </summary>
