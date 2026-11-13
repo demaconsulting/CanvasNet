@@ -39,20 +39,26 @@ sections:
                   and under every policy, an empty or white-space reference, a reference with a control character
                   (including NUL, DEL and the C1 range), a device path, a network path (UNC or a leading double
                   slash), a reference with a colon other than the drive of an absolute Windows path, and, on Windows,
-                  a reference whose full path has a reserved device name in any component (CON, PRN, AUX, NUL,
-                  COM0-COM9, LPT0-LPT9, the superscript-digit forms, CONIN$ and CONOUT$, in any letter case and with
-                  an extension, trailing spaces or dots, or a stream suffix) unless it stays under an extended-length
-                  configured directory, each with a FileReferenceException of the matching kind, and shall reject a
+                  a reference whose full path is in a device namespace (\\.\, \\?\, \\??\) or has a reserved device
+                  name in any component (CON, PRN, AUX, NUL, COM0-COM9, LPT0-LPT9, the superscript-digit forms, CONIN$
+                  and CONOUT$, in any letter case and with an extension, trailing spaces or dots, or a stream suffix),
+                  unless it stays under an ordinary extended-length configured directory with the same root (a drive,
+                  \\?\X:\, or a volume GUID, \\?\Volume{GUID}\; any other root such as \\?\GLOBALROOT\ gets no
+                  exemption), each with a FileReferenceException of the matching kind, and shall reject a
                   null reference with ArgumentNullException.
                 justification: |
                   These forms are never a safe local file: network paths can leak credentials, device paths and
                   alternate data streams reach things that are not files, and control characters hide the real text.
+                  Only a drive or volume root is known to map no device names.
                 tests:
                   - FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess
                   - FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened"
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened"
+                  - "windows@FileReferenceResolver_Resolve_DeviceNamespaceBaseDirectory_IsInvalidPathAndNothingIsOpened"
+                  - "windows@FileReferenceResolver_Resolve_VolumeGuidBaseDirectory_ReadsTheFile"
                   - RealPath_IsWindowsDeviceName_RecognizesEveryReservedSpelling
+                  - RealPath_IsOrdinaryExtendedPath_AcceptsOnlyDriveAndVolumeRoots
 
               - id: CanvasNet-Files-FileReferenceResolver-MissingFiles
                 title: >-

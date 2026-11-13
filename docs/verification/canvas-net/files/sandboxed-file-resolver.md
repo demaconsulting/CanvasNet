@@ -98,7 +98,9 @@ alone makes
 
 **Tests**: `SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess`,
 `SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException`,
-`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess` (Windows)
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess` (Windows),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_DeviceNamespaceRoot_IsRefusedBeforeAnyAccess` (Windows),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_OrdinaryExtendedLengthRoot_ReadsTheFile` (Windows)
 
 Asserts, as a theory over an empty path, white space, a Unix absolute path, a rooted backslash path, UNC paths in both slash
 styles, a drive path, a drive-relative path, a colon inside a name, NUL, a line feed, DEL, and two C1 control characters,
@@ -106,6 +108,10 @@ that each is refused with the matching kind, a reason in `Detail`, a path with n
 message that says the path is not allowed, and that the callback received no request. A null path is an
 `ArgumentNullException`. On Windows a theory over reserved device names in a component (`x/NUL`, `x/con.txt`, `x/COM1`,
 `x/LPT¹`, `NUL/a.txt`, `x/CONOUT$`) asserts `CannotRead` and, through the `BeforeOpen` seam, that nothing was opened.
+A root in another device namespace (`\\?\GLOBALROOT\Device\HarddiskVolume1\docs`, `\\?\pipe\docs`, `\\.\C:\docs`)
+refuses a relative path as `CannotRead` with no link probe and no open; a root spelled as an ordinary extended-length
+path, on the drive (`\\?\C:\...`) or the volume GUID from `mountvol`, still reads its file, and `NUL.txt` under it is
+an ordinary (missing) file.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Confinement: Candidates Stay Inside Their Root
 

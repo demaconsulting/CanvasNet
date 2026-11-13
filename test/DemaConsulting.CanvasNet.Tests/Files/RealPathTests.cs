@@ -325,6 +325,8 @@ public class RealPathTests
         Assert.True(RealPath.IsNetworkLocation(@"\\server\share\x"));
         Assert.False(RealPath.IsNetworkLocation(local));
         Assert.False(RealPath.IsNetworkLocation(@"\\?\C:\x"));
+        Assert.True(RealPath.IsNetworkLocation(@"\\?\UNC\server\share\x"));
+        Assert.False(RealPath.IsNetworkLocation(@"\\?\GLOBALROOT\Device\HarddiskVolume1\x"));
         Assert.False(RealPath.IsNetworkLocation(@"\\.\NUL"));
     }
 
@@ -350,6 +352,43 @@ public class RealPathTests
         Assert.True(RealPath.PathsEqual(root + separator, root));
         Assert.Equal(root, RealPath.CommonAncestor(root + separator + "a" + separator + "x.txt", root + separator + "b"));
         Assert.Equal(Path.GetDirectoryName(root), RealPath.CommonAncestor(root + separator + "a.txt", root + "-sibling" + separator + "b"));
+    }
+
+    /// <summary>
+    ///     Validates the classification of extended-length and device-namespace paths (pure text, so it runs on every
+    ///     system): only <c>\\?\</c> followed by a drive or a volume GUID is an ordinary extended-length path; every
+    ///     device-namespace spelling is recognized as one.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    /// <param name="ordinary">Whether it is an ordinary extended-length path.</param>
+    /// <param name="deviceNamespace">Whether it is in a device namespace.</param>
+    [Theory]
+    [InlineData(@"\\?\C:\docs", true, true)]
+    [InlineData(@"\\?\c:\", true, true)]
+    [InlineData(@"\\?\Z:", true, true)]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}\docs", true, true)]
+    [InlineData(@"\\?\volume{67589FD6-EE90-4E7D-9AD7-A17168A66D75}", true, true)]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs", false, true)]
+    [InlineData(@"\\?\UNC\server\share", false, true)]
+    [InlineData(@"\\?\pipe\x", false, true)]
+    [InlineData(@"\\?\Volume{not-a-guid}\docs", false, true)]
+    [InlineData(@"\\?\Volume{67589fd6-ee90-4e7d-9ad7-a17168a66d75}x", false, true)]
+    [InlineData(@"\\?\C:docs", false, true)]
+    [InlineData(@"\\.\C:\docs", false, true)]
+    [InlineData(@"\??\C:\docs", false, true)]
+    [InlineData("//?/C:/docs", false, true)]
+    [InlineData(@"C:\docs", false, false)]
+    [InlineData(@"\\server\share", false, false)]
+    [InlineData("/home/docs", false, false)]
+    public void RealPath_IsOrdinaryExtendedPath_AcceptsOnlyDriveAndVolumeRoots(string path, bool ordinary, bool deviceNamespace)
+    {
+        // Act
+        var isOrdinary = RealPath.IsOrdinaryExtendedPath(path);
+        var isDevice = RealPath.IsWindowsDeviceNamespace(path);
+
+        // Assert
+        Assert.Equal(ordinary, isOrdinary);
+        Assert.Equal(deviceNamespace, isDevice);
     }
 
     /// <summary>

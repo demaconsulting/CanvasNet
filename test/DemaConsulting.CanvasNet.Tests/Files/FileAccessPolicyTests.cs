@@ -164,7 +164,8 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
-    ///     Validates that the roots policy rejects missing, empty and invalid roots when it is created.
+    ///     Validates that the roots policy rejects missing, empty and invalid roots when it is created, and on Windows a
+    ///     root in a device namespace other than an ordinary extended-length drive path.
     /// </summary>
     [Fact]
     public void FileAccessPolicy_UnderRoots_InvalidRoots_Throw()
@@ -177,6 +178,12 @@ public class FileAccessPolicyTests
         Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots(string.Empty));
         Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots("   "));
         Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots("bad\0root"));
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs"));
+            Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots(@"\\.\C:\docs"));
+            Assert.Equal("roots", FileAccessPolicy.UnderRoots(@"\\?\" + Path.GetTempPath()).Name);
+        }
     }
 
     /// <summary>

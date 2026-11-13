@@ -90,8 +90,9 @@ when permissions are not enforced (a process running as root).
 
 **Tests**: `RealPath_IsNetworkLocation_UncAndLocalPaths_AreClassified` (Windows)
 
-A UNC path is a network location; a local temporary file, an extended-length local path (`\\?\C:\x`) and a device path
-(`\\.\NUL`) are not. A mapped network drive cannot be created on CI, so that branch is covered by review.
+A UNC path and an extended-length UNC path (`\\?\UNC\server\share`) are network locations; a local temporary file, an
+extended-length local path (`\\?\C:\x`), a `\\?\GLOBALROOT\` path and a device path (`\\.\NUL`) are not. A mapped
+network drive cannot be created on CI, so that branch is covered by review.
 
 ##### CanvasNet-Files-RealPath-Comparison: Comparison Rules
 

@@ -56,15 +56,19 @@ sections:
                   kind and before any file-system access or callback request, an empty or white-space path,
                   an absolute or rooted path, a drive or UNC path, a path containing a colon, and a path
                   containing a control character (including NUL, DEL and the C1 range), and, on Windows, a path with a
-                  reserved device name in any component (as CannotRead), and shall reject a null path with
+                  reserved device name in any component or below a root in a device namespace other than an ordinary
+                  extended-length drive or volume root (both as CannotRead), and shall reject a null path with
                   ArgumentNullException.
                 justification: |
                   A path may come from an untrusted source; these forms are the usual ways to name something
                   outside the intended directories or a device, and the caller must be told which rule was broken.
+                  Only a drive or volume root is known to map no device names.
                 tests:
                   - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
                   - SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException
                   - "windows@SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess"
+                  - "windows@SandboxedFileResolver_Resolve_DeviceNamespaceRoot_IsRefusedBeforeAnyAccess"
+                  - "windows@SandboxedFileResolver_Resolve_OrdinaryExtendedLengthRoot_ReadsTheFile"
 
               - id: CanvasNet-Files-SandboxedFileResolver-Confinement
                 title: >-

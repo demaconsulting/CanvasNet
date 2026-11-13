@@ -48,15 +48,21 @@ whether the C library exports `fstat`.
   permission on the components, never read permission, so a folder that may be searched but not read (execute-only)
   has a real location too. `NULL` (failure) is no location.
 - `IsNetworkLocation` - Windows only (`false` elsewhere): a path that starts with `\\` and is not in a device
-  namespace (`\\.\`, `\\?\`) is a UNC path; a path on a drive whose `DriveInfo.DriveType` is `Network` (a mapped
+  namespace (`\\.\`, `\\?\`) is a UNC path, and so is `\\?\UNC\`; an ordinary extended-length drive path (`\\?\Z:\`)
+  is classified by its drive; a path on a drive whose `DriveInfo.DriveType` is `Network` (a mapped
   network drive) is a network location too, so a host working on `Z:\` keeps working; a drive that cannot be asked is
   treated as local. A mapped drive cannot be created on CI, so that branch is covered by review only.
+- `IsWindowsDeviceNamespace` - pure text: the path starts with `\\.\`, `\\?\` or `\??\` (either slash).
+- `IsOrdinaryExtendedPath` - pure text: `\\?\` followed by a drive (`\\?\C:` or `\\?\C:\...`) or a volume GUID
+  (`\\?\Volume{GUID}` or `\\?\Volume{GUID}\...`, the GUID in the 36-character form); the one rule both resolvers use to
+  exempt an extended-length directory, and that `UnderRoots` uses to reject any other device-namespace root.
 - `ExpandShortNames` - Windows: `GetLongPathNameW`; elsewhere the path is returned unchanged.
 
 Per system:
 
 - **Windows**: the final path buffer starts at 512 characters and grows to the size the call asks for (at most
-  32,768); the `\\?\` prefix is stripped and `\\?\UNC\` becomes `\\`. The result resolves symbolic links, junctions,
+  32,768); `\\?\UNC\` becomes `\\` and the `\\?\` prefix is stripped from a drive path; any other spelling (which the
+  `VOLUME_NAME_DOS` flag should never yield) is no path (unknown, fail closed). The result resolves symbolic links, junctions,
   substituted and mapped drives, and short (8.3) names.
 - **Linux**: `open` is imported without its optional mode argument, which is only read with `O_CREAT` (never passed),
   so the call is correct on every ABI; `EINTR` is retried. `errno` maps to the framework's exceptions (`ENOENT` to

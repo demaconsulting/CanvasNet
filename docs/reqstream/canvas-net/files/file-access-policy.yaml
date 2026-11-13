@@ -32,7 +32,8 @@ sections:
                   rule and in each folder's written and real spelling), that refuses a path as written outside every
                   folder before the file is opened, that compares the real path only with each folder's real location
                   captured when the policy is created (a folder that does not exist then allows no file), that explains
-                  a denial with a reason and a hint, and that rejects a missing, empty or invalid folder when it is
+                  a denial with a reason and a hint, and that rejects a missing, empty or invalid folder, and on Windows
+                  a folder in a device namespace other than an ordinary extended-length drive or volume path, when it is
                   created.
                 justification: |
                   A build server or service confines documents to chosen folders; a link that stays inside is fine,

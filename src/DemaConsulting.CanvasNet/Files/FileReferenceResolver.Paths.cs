@@ -86,7 +86,8 @@ public sealed partial class FileReferenceResolver
         }
 
         var text = raw.Replace('\\', '/');
-        if (text.StartsWith("//?/", StringComparison.Ordinal) || text.StartsWith("//./", StringComparison.Ordinal))
+        if (text.StartsWith("//?/", StringComparison.Ordinal) || text.StartsWith("//./", StringComparison.Ordinal)
+            || (OperatingSystem.IsWindows() && RealPath.IsWindowsDeviceNamespace(text)))
         {
             return (FileReferenceFailureKind.InvalidPath, "device paths are not permitted");
         }
@@ -188,11 +189,12 @@ public sealed partial class FileReferenceResolver
 
         // Windows maps a reserved device name in any component (NUL, CON, COM1, LPT1, NUL.txt, ...) to a device, either
         // by rewriting the path (\\.\NUL) or when it is opened; such a path is refused before the open, under every
-        // policy. A host that configured an extended-length directory (\\?\C:\docs) keeps working: a path that stays
-        // under the same \\?\ root has no device names mapped. An absolute reference (C:/x/NUL) leaves that root and is
-        // judged like any other
-        if (OperatingSystem.IsWindows() && !IsUnderExtendedRoot(full, directory)
-            && (IsDevicePath(full) || RealPath.HasWindowsDeviceName(full)))
+        // policy, as is any path in a device namespace. A host that configured an ordinary extended-length directory
+        // (\\?\C:\docs or \\?\Volume{GUID}\docs) keeps working: a path that stays under the same such root has no
+        // device names mapped. Any other extended-length root (\\?\GLOBALROOT\...) gets no exemption, and an absolute
+        // reference (C:/x/NUL) leaves the root and is judged like any other
+        if (OperatingSystem.IsWindows() && !IsUnderOrdinaryExtendedRoot(full, directory)
+            && (RealPath.IsWindowsDeviceNamespace(full) || RealPath.HasWindowsDeviceName(full)))
         {
             throw new FileReferenceException(FileReferenceFailureKind.InvalidPath, shown, "the path names a device");
         }
@@ -201,31 +203,17 @@ public sealed partial class FileReferenceResolver
     }
 
     /// <summary>
-    ///     Determines whether a full path is in the Windows device namespace (<c>\\.\</c> or <c>\\?\</c>).
-    /// </summary>
-    /// <param name="path">The full path.</param>
-    /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsDevicePath(string path) =>
-        path.StartsWith(@"\\.\", StringComparison.Ordinal) || IsExtendedPath(path);
-
-    /// <summary>
-    ///     Determines whether a full path is an extended-length path (<c>\\?\</c>).
-    /// </summary>
-    /// <param name="path">The full path.</param>
-    /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsExtendedPath(string path) =>
-        path.StartsWith(@"\\?\", StringComparison.Ordinal);
-
-    /// <summary>
-    ///     Determines whether a full path is an extended-length path with the same root as an extended-length directory,
-    ///     so the system mapped no device name in it. A <c>\\.\</c> path is never under such a root.
+    ///     Determines whether a full path is an ordinary extended-length path (a drive or a volume GUID, see
+    ///     <see cref="RealPath.IsOrdinaryExtendedPath"/>) with the same root as the ordinary extended-length directory it
+    ///     was resolved against, so the system mapped no device name in it. A <c>\\.\</c> path, or any other
+    ///     extended-length root such as <c>\\?\GLOBALROOT\</c>, is never under such a root.
     /// </summary>
     /// <param name="full">The full path of the candidate.</param>
     /// <param name="directory">The full path of the directory it was resolved against.</param>
     /// <returns><see langword="true"/> when it is.</returns>
-    private static bool IsUnderExtendedRoot(string full, string directory) =>
-        IsExtendedPath(full)
-        && IsExtendedPath(directory)
+    private static bool IsUnderOrdinaryExtendedRoot(string full, string directory) =>
+        RealPath.IsOrdinaryExtendedPath(full)
+        && RealPath.IsOrdinaryExtendedPath(directory)
         && string.Equals(Path.GetPathRoot(full), Path.GetPathRoot(directory), RealPath.PathComparison);
 
     /// <summary>

@@ -83,12 +83,14 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   reference yields the referring file's directory (or the base directory) and then each search path. Each candidate
   carries its origin: the base directory or the search path itself, or, relative to a referring file, that file's origin
   (never its directory); an absolute reference keeps the referring file's origin or starts at the first configured
-  directory. `FullCandidate` refuses on Windows a full path that the system mapped to a device (`\\.\`, from a legacy
-  device name such as `NUL`) with `InvalidPath` before the open. A `\\?\` full path is refused as well unless the
-  configured directory it was resolved against is an extended-length directory (`\\?\C:\docs`, where no names are
-  mapped) with the same root (`Path.GetPathRoot`, compared under `RealPath.PathComparison`); a `\\.\` full path is
-  refused even then, so an absolute reference such as `C:/x/NUL` cannot reach a device through an extended-length
-  directory. In callback mode the logical candidates
+  directory. `FullCandidate` refuses on Windows a full path in a device namespace (`RealPath.IsWindowsDeviceNamespace`:
+  `\\.\`, `\\?\`, `\??\`, for example `\\.\NUL` mapped from a legacy device name) or with a reserved device name in any
+  component, with `InvalidPath` before the open. The only exemption is an ordinary extended-length path
+  (`RealPath.IsOrdinaryExtendedPath`: `\\?\X:\` or `\\?\Volume{GUID}\`, where no names are mapped) under an ordinary
+  extended-length configured directory with the same root (`Path.GetPathRoot`, compared under
+  `RealPath.PathComparison`). Any other root (`\\?\GLOBALROOT\`, `\\?\UNC\`, `\\?\pipe\`, `\\.\`) gets no exemption, so
+  every reference under such a base directory is refused, and an absolute reference such as `C:/x/NUL` cannot reach a
+  device through an extended-length directory. In callback mode the logical candidates
   collapse `.` and `..` and refuse a `..` above the logical root.
 - `LoadFile` - the per-candidate pipeline: (1) `policy.PreCheck(key)` may deny the path as written before anything is
   opened (not counted); (2) a cached outcome answers, after the policy is asked again for a cached file; (3) the file

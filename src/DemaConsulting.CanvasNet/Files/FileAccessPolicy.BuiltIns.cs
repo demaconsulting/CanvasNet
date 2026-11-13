@@ -126,15 +126,25 @@ public abstract partial class FileAccessPolicy
                     throw new ArgumentException("A root must not be empty or white space.", nameof(roots));
                 }
 
-                // The lexical full path is fixed now, so a later change of the current directory does not move a root
+                // The lexical full path is fixed now, so a later change of the current directory does not move a root.
+                // A root in a device namespace other than an ordinary extended-length drive or volume path
+                // (\\?\GLOBALROOT\..., \\.\...) is no folder a file may be confined to; it is not even resolved
+                string full;
                 try
                 {
-                    list.Add(new Root(Path.GetFullPath(root)));
+                    full = Path.GetFullPath(root);
                 }
                 catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
                 {
                     throw new ArgumentException("A root is not a valid path.", nameof(roots), ex);
                 }
+
+                if (OperatingSystem.IsWindows() && RealPath.IsWindowsDeviceNamespace(full) && !RealPath.IsOrdinaryExtendedPath(full))
+                {
+                    throw new ArgumentException("A root must not be in a device namespace.", nameof(roots));
+                }
+
+                list.Add(new Root(full));
             }
 
             if (list.Count == 0)

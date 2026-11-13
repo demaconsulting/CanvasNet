@@ -146,6 +146,84 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates on Windows that a root in a device namespace other than an ordinary extended-length drive or volume
+    ///     root gives no exemption: a relative path under it is refused before the link walk and the open.
+    /// </summary>
+    /// <param name="root">The root.</param>
+    [Theory]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs")]
+    [InlineData(@"\\?\pipe\docs")]
+    [InlineData(@"\\.\C:\docs")]
+    public void SandboxedFileResolver_Resolve_DeviceNamespaceRoot_IsRefusedBeforeAnyAccess(string root)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        var opened = new List<string>();
+        var probed = new List<string>();
+        var resolver = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = root },
+            Ct,
+            path =>
+            {
+                probed.Add(path);
+                return false;
+            },
+            null,
+            new FileOpenHooks { BeforeOpen = opened.Add });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+        Assert.Empty(probed);
+        Assert.Empty(opened);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a root given as an ordinary extended-length path, on a drive (<c>\\?\C:\...</c>) or
+    ///     a volume GUID (<c>\\?\Volume{GUID}\...</c>), keeps working: a file under it is read, and a reserved device
+    ///     name under it is an ordinary (here missing) file. The volume case skips when the volume GUID path of the
+    ///     temporary folder's drive cannot be determined.
+    /// </summary>
+    /// <param name="useVolume">Whether to spell the root with the volume GUID (otherwise with the drive).</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SandboxedFileResolver_Resolve_OrdinaryExtendedLengthRoot_ReadsTheFile(bool useVolume)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var full = Path.GetFullPath(directory.Combine("root"));
+        var volume = useVolume ? FileTestSupport.TryGetVolumeGuidPath(full) : @"\\?\" + Path.GetPathRoot(full);
+        if (volume is null)
+        {
+            Assert.Skip("The volume GUID path of the temporary folder's drive cannot be determined.");
+        }
+
+        var resolver = Create(volume + full[Path.GetPathRoot(full)!.Length..], new FileOpenHooks());
+
+        // Act
+        var file = resolver.Resolve("a.txt");
+        var reserved = resolver.Resolve("NUL.txt");
+
+        // Assert
+        Assert.NotNull(file);
+        Assert.Equal("inside", Encoding.UTF8.GetString(file.Content.Span));
+        Assert.Null(reserved);
+    }
+
+    /// <summary>
     ///     Validates on Linux and macOS that a root the process may search but not read (execute-only) still serves its
     ///     files: the real location of the root needs no read permission. Skips when permissions are not enforced.
     /// </summary>

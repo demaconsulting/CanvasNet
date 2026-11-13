@@ -28,18 +28,30 @@ internal static partial class RealPath
     }
 
     /// <summary>
-    ///     Determines whether a full path is a network location on Windows: a UNC path (<c>\\server\share</c>), or a path
-    ///     on a mapped network drive. A mapped network drive is a network location, so a host working on <c>Z:\</c>
-    ///     keeps working when its files are compared with their real paths (which name the share). A device path
-    ///     (<c>\\.\</c>, <c>\\?\</c>) and a local drive are not. Always <see langword="false"/> on other systems.
+    ///     Determines whether a full path is a network location on Windows: a UNC path (<c>\\server\share</c> or
+    ///     <c>\\?\UNC\server\share</c>), or a path on a mapped network drive (also as <c>\\?\Z:\</c>). A mapped network
+    ///     drive is a network location, so a host working on <c>Z:\</c> keeps working when its files are compared with
+    ///     their real paths (which name the share). Any other device-namespace path (<c>\\.\</c>, a volume GUID,
+    ///     <c>\\?\GLOBALROOT\</c>) and a local drive are not. Always <see langword="false"/> on other systems.
     /// </summary>
-    /// <param name="fullPath">The full path (a real path has no <c>\\?\</c> prefix).</param>
+    /// <param name="fullPath">The full path.</param>
     /// <returns><see langword="true"/> when the path is a network location.</returns>
     internal static bool IsNetworkLocation(string fullPath)
     {
         if (!OperatingSystem.IsWindows())
         {
             return false;
+        }
+
+        // An ordinary extended-length path on a drive is classified by its drive, and \\?\UNC\ is a share
+        if (fullPath.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (IsOrdinaryExtendedPath(fullPath))
+        {
+            fullPath = fullPath[4..];
         }
 
         if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))

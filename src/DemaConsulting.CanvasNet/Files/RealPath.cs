@@ -136,6 +136,54 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines whether a full path is in a Windows device namespace: the Win32 device namespace (<c>\\.\</c>), an
+    ///     extended-length path (<c>\\?\</c>), or the NT object namespace (<c>\??\</c>), with either slash.
+    /// </summary>
+    /// <remarks>A pure text check; the resolvers apply it on Windows only.</remarks>
+    /// <param name="path">The full path.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    internal static bool IsWindowsDeviceNamespace(string path) =>
+        path.Length >= 4
+        && path[0] is '\\' or '/'
+        && path[1] is '\\' or '/' or '?'
+        && path[2] is '.' or '?'
+        && path[3] is '\\' or '/';
+
+    /// <summary>
+    ///     Determines whether a full path is an ordinary extended-length path: <c>\\?\</c> followed by a drive
+    ///     (<c>\\?\C:\docs</c>) or a volume GUID (<c>\\?\Volume{GUID}\docs</c>). These name a file on a local volume with
+    ///     no device names mapped; every other extended-length or device-namespace root (<c>\\?\GLOBALROOT\</c>,
+    ///     <c>\\?\UNC\</c>, <c>\\?\pipe\</c>, <c>\\.\</c>, <c>\??\</c>) is not ordinary.
+    /// </summary>
+    /// <remarks>A pure text check, the one rule both resolvers use to exempt an extended-length directory.</remarks>
+    /// <param name="path">The full path.</param>
+    /// <returns><see langword="true"/> when it is an ordinary extended-length path.</returns>
+    internal static bool IsOrdinaryExtendedPath(string path)
+    {
+        if (!path.StartsWith(@"\\?\", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // A drive: \\?\X: alone or followed by a backslash
+        var rest = path.AsSpan(4);
+        if (rest.Length >= 2 && char.IsAsciiLetter(rest[0]) && rest[1] == ':')
+        {
+            return rest.Length == 2 || rest[2] == '\\';
+        }
+
+        // A volume: \\?\Volume{GUID} alone or followed by a backslash
+        const string VolumePrefix = "Volume{";
+        const int GuidLength = 36;
+        var close = VolumePrefix.Length + GuidLength;
+        return rest.StartsWith(VolumePrefix, StringComparison.OrdinalIgnoreCase)
+            && rest.Length > close
+            && rest[close] == '}'
+            && Guid.TryParseExact(rest.Slice(VolumePrefix.Length, GuidLength), "D", out _)
+            && (rest.Length == close + 1 || rest[close + 1] == '\\');
+    }
+
+    /// <summary>
     ///     Gets the deepest folder that two full paths share, comparing whole components.
     /// </summary>
     /// <param name="first">A full path.</param>

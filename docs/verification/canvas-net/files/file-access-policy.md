@@ -53,7 +53,8 @@ documented reason and a hint; a root created only after the policy passes the pr
 with the "did not exist when the policy was created" reason and a hint, because its real location is captured only at
 creation; a written path outside is denied by the pre-check, a written path inside passes it, and
 an outside written path whose real path is inside is still denied; a null list, a null, empty, white-space or invalid
-root, and no root at all are rejected; an upper-case spelling is allowed on Windows and macOS and denied on Linux.
+root, and no root at all are rejected, and on Windows a `\\?\GLOBALROOT\` or `\\.\` root is rejected while an
+extended-length drive root is accepted; an upper-case spelling is allowed on Windows and macOS and denied on Linux.
 
 ##### CanvasNet-Files-FileAccessPolicy-NoSymlinks: No Links Below the Anchor
 

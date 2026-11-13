@@ -194,15 +194,17 @@ public sealed partial class SandboxedFileResolver
     /// <returns>The candidate.</returns>
     /// <exception cref="SandboxException">
     ///     Thrown when the result is not under the root, or (<see cref="SandboxFailureKind.CannotRead"/>) when on Windows a
-    ///     component is a reserved device name.
+    ///     component is a reserved device name or the root is in a device namespace other than an ordinary extended-length
+    ///     root.
     /// </exception>
     private Candidate Combine(string directory, string root, string text)
     {
         // A reserved Windows device name in any component (NUL, CON, COM1, NUL.txt, ...) could reach the device when the
-        // path is walked or opened, so it is refused before anything is touched; an extended-length root (\\?\) maps no
-        // device names
-        if (!UsesResolver && OperatingSystem.IsWindows()
-            && !root.StartsWith(@"\\?\", StringComparison.Ordinal) && RealPath.HasWindowsDeviceName(text))
+        // path is walked or opened, and so could any path below a root in a device namespace; both are refused before
+        // anything is touched. Only an ordinary extended-length root (\\?\C:\ or \\?\Volume{GUID}\) maps no device names
+        // and is exempt; any other (\\?\GLOBALROOT\..., \\.\...) is not
+        if (!UsesResolver && OperatingSystem.IsWindows() && !RealPath.IsOrdinaryExtendedPath(root)
+            && (RealPath.IsWindowsDeviceNamespace(root) || RealPath.HasWindowsDeviceName(text)))
         {
             throw new SandboxException(SandboxFailureKind.CannotRead, text);
         }

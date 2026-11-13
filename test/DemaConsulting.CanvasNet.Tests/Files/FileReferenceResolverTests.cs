@@ -1117,6 +1117,71 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
+    ///     Validates on Windows that a base directory in a device namespace other than an ordinary extended-length drive
+    ///     or volume root (<c>\\?\GLOBALROOT\</c>, <c>\\?\UNC\</c>, <c>\\?\pipe\</c>, <c>\\.\</c>) gives no exemption: a
+    ///     relative reference under it is refused as a device path before anything is opened.
+    /// </summary>
+    /// <param name="baseDirectory">The base directory.</param>
+    [Theory]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs")]
+    [InlineData(@"\\?\UNC\server\share\docs")]
+    [InlineData(@"\\?\pipe\docs")]
+    [InlineData(@"\\.\C:\docs")]
+    public void FileReferenceResolver_Resolve_DeviceNamespaceBaseDirectory_IsInvalidPathAndNothingIsOpened(string baseDirectory)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        var opened = new List<string>();
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = baseDirectory }, Recording(opened));
+
+        // Act
+        var plain = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+        var climbing = Assert.Throws<FileReferenceException>(() => resolver.Resolve("../../HarddiskVolume2/a.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, plain.Kind);
+        Assert.Equal("the path names a device", plain.Reason);
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, climbing.Kind);
+        Assert.Empty(opened);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a base directory given as an ordinary extended-length volume path
+    ///     (<c>\\?\Volume{GUID}\...</c>) keeps working: a file under it is read. Skips when the volume GUID path of the
+    ///     temporary folder's drive cannot be determined.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_VolumeGuidBaseDirectory_ReadsTheFile()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        var full = Path.GetFullPath(directory.Path);
+        var volume = FileTestSupport.TryGetVolumeGuidPath(full);
+        if (volume is null)
+        {
+            Assert.Skip("The volume GUID path of the temporary folder's drive cannot be determined.");
+        }
+
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = volume + full[Path.GetPathRoot(full)!.Length..] });
+
+        // Act
+        var file = resolver.Resolve("a.txt");
+
+        // Assert
+        Assert.Equal("a", Text(file));
+    }
+
+    /// <summary>
     ///     Validates that the message of a denied absolute reference echoes the reference exactly as written, which the
     ///     author supplied, but never adds the real path of the opened file or the base directory; those stay in the
     ///     properties for trusted callers.

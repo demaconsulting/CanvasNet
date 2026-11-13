@@ -141,6 +141,40 @@ internal static class FileTestSupport
     }
 
     /// <summary>
+    ///     Gets the volume GUID path (<c>\\?\Volume{GUID}\</c>) of the drive of an existing Windows path through
+    ///     <c>mountvol</c>.
+    /// </summary>
+    /// <param name="path">The full path on a drive.</param>
+    /// <returns>The volume GUID path with its trailing backslash, or <see langword="null"/> when it cannot be determined.</returns>
+    public static string? TryGetVolumeGuidPath(string path)
+    {
+        var info = new ProcessStartInfo("mountvol.exe")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            Arguments = $"{Path.GetPathRoot(path)} /L",
+        };
+        try
+        {
+            using var process = Process.Start(info);
+            if (process is null)
+            {
+                return null;
+            }
+
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            return process.ExitCode == 0 && RealPath.IsOrdinaryExtendedPath(output) && output.EndsWith('\\') ? output : null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Opens the Windows null device as a handle, to stand in for a device reached through a reference.
     /// </summary>
     /// <returns>The handle.</returns>
