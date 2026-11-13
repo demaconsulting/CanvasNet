@@ -4,8 +4,8 @@
 #
 # The HelpTopics class is the catalog of help topics of the tool: the quick reference for each input format (what is
 # supported and what is not, the options that apply, the diagnostics and how --strict treats them, and the known
-# differences from the original program), for the --json result documents, for errors and exit codes, and for the
-# limits, with tiny examples that are verified to render without a diagnostic. The content ships inside the tool,
+# differences from the original program), for the --json result documents, for errors and exit codes, for the
+# limits, and for the files a document may reference, with tiny examples that are verified to render without a diagnostic. The content ships inside the tool,
 # so it works offline, and it is verified against the code so that it cannot drift from what the tool does. The
 # class resolves a topic by name or alias and renders it, and its examples, as plain text or as a JSON document.
 
@@ -14,8 +14,8 @@ sections:
     requirements:
       - id: CanvasNetTool-Commands-HelpTopics-Catalog
         title: >-
-          The HelpTopics class shall provide the eleven help topics scad, vega-lite, mermaid, svg, pdf, pptx, vsdx,
-          raster, json, errors, and limits from content shipped inside the tool, in that fixed order, each with a title,
+          The HelpTopics class shall provide the twelve help topics scad, vega-lite, mermaid, svg, pdf, pptx, vsdx,
+          raster, json, errors, limits, and files from content shipped inside the tool, in that fixed order, each with a title,
           a summary, and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and shall
           give no topic a name or alias that is the name or alias of another topic, of a command, or of the help
           subjects help and topics.
@@ -101,11 +101,11 @@ sections:
           The HelpTopics class shall state in the svg topic, in a section of its own, which file types an image element
           may link (the list shall be exactly the file name extensions the SVG image resolver of the tool accepts, and
           the same extensions the formats command lists), that a linked model, chart, document page, or SVG file is
-          drawn at the size of the placement, the folder rule (relative to the folder of the SVG file, with no absolute
-          path, escape, symbolic link, or network URL; a query after the file name is ignored), the page fragment (its
+          drawn at the size of the placement, the link rule (relative to the folder of the SVG file; any local file
+          under the file-access mode, never a network URL; a query after the file name is ignored), the page fragment (its
           grammar, the parameter of each format, that page 1 is drawn without one, the limits, the &amp; of an XML
           attribute, and the change that a fragment on a file that takes no parameter is now a warning), the
-          diagnostic codes svg-image-unresolved, svg-image-too-large, image-fragment-unknown-parameter,
+          diagnostic codes svg-image-unresolved, svg-image-too-large, image-access-denied, image-fragment-unknown-parameter,
           image-fragment-duplicate-parameter, image-fragment-invalid, and image-page-out-of-range with the effect of the
           strict option on each, and an example (a snippet of pages that renders under the strict option once its
           sibling files exist), and
@@ -119,7 +119,7 @@ sections:
           with the resolver in both directions cannot omit a type that works or promise one that does not.
         tests:
           - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
-          - HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample
+          - HelpTopics_SvgTopic_ImageLinksSection_StatesSizeLinkRuleDiagnosticAndExample
           - HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles
           - HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict
           - HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin
@@ -216,3 +216,32 @@ sections:
           - HelpTopics_SvgTopic_FlattenItems_MatchUserGuide
           - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
           - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
+
+      - id: CanvasNetTool-Commands-HelpTopics-FileAccess
+        title: >-
+          The HelpTopics class shall provide the files topic (aliases file-access and links) with the sections modes,
+          options, always, diagnostics, and pandoc, describing the modes any, roots, no-symlinks, and roots,no-symlinks,
+          the options `--file-access` and `--allow-root`, what holds in every mode, the diagnostics image-access-denied
+          and file-access-denied (with their live codes), and the variables CANVASNET_FILE_ACCESS and CANVASNET_ROOTS
+          that the Pandoc filter reads; the svg, errors, limits, scad, vega-lite, and mermaid topics shall point to it;
+          and the codes it cites shall exist in the libraries.
+        justification: |
+          A user or an agent about to process a document it does not trust must learn from the tool itself which files
+          a document can make it read and how to confine them; the codes and variables are verified against the code
+          and the filter, so the topic cannot promise what the tool does not do.
+        tests:
+          - HelpTopics_FilesTopic_DocumentsModesOptionsDiagnosticsAndPandoc
+          - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
+          - HelpTopics_OptionTerms_ExistInTheRenderOptionTable
+          - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
+          - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
+
+      - id: CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
+        title: >-
+          The HelpTopics class shall give every item of the files topic, in order, the term and text of a row of the
+          File Access Reference table of the tool user guide.
+        justification: |
+          The guide and the topic are two views of the same reference; a test that compares them item by item keeps
+          them from drifting apart.
+        tests:
+          - HelpTopics_FilesTopic_Items_MatchUserGuide

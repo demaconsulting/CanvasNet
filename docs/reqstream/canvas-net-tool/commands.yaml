@@ -5,7 +5,7 @@
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
 #   table, resolution, dispatch, and help rendering), the HelpTopics unit (the help topics for the
-#   input formats, the result documents, errors, and limits, with their verified examples), and the
+#   input formats, the result documents, errors, limits, and file access, with their verified examples), and the
 #   command units DiscoveryCommands (formats and info), RenderCommand (render and convert, and the
 #   verbs crop, resize, rotate, flip, and pad), CompareCommand (compare), MontageCommand (montage),
 #   InspectCommand (inspect), and FlattenCommand (flatten)
@@ -69,6 +69,8 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-InputFragments
           - CanvasNetTool-Commands-HelpTopics-Mermaid
           - CanvasNetTool-Commands-HelpTopics-MermaidGuideParity
+          - CanvasNetTool-Commands-HelpTopics-FileAccess
+          - CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:
@@ -245,3 +247,25 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-FlattenGuideParity
         tests:
           - CommandsSubsystem_Flatten_DefaultRegistry_RunsFlattenAndListsItInHelp
+
+      - id: CanvasNetTool-Commands-FileAccess
+        title: >-
+          The Commands subsystem shall give render (and its verbs), inspect, compare, montage, and flatten the same two
+          file-access options, `--file-access` and `--allow-root`, with one grammar and one help text, shall build one
+          file-access policy per invocation and pass it to every probe and load of the command, and shall give the info
+          command no such option.
+        justification: |
+          A mode that one reading command forgot to apply would let a document read what the user meant to deny; one
+          shared routine and one policy per invocation make every reading command confine the same way.
+        children:
+          - CanvasNetTool-Commands-RenderCommand-FileAccess
+          - CanvasNetTool-Commands-InspectCommand-FileAccess
+          - CanvasNetTool-Commands-CompareCommand-FileAccess
+          - CanvasNetTool-Commands-MontageCommand-FileAccess
+          - CanvasNetTool-Commands-FlattenCommand-FileAccess
+          - CanvasNetTool-Commands-HelpTopics-FileAccess
+          - CanvasNetTool-Commands-HelpTopics-FileAccessGuideParity
+        tests:
+          - CommandsSubsystem_FileAccess_EveryReadingCommand_AcceptsTheOptionsAndDeniesAnOutsidePicture
+          - CommandsSubsystem_FileAccess_Info_HasNoFileAccessOption
+          - CommandsSubsystem_FileAccess_SourceTree_EveryProbeAndRequestCarriesThePolicy

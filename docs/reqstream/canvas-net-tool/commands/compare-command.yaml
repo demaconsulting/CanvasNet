@@ -16,7 +16,8 @@ sections:
       - id: CanvasNetTool-Commands-CompareCommand-Options
         title: >-
           The compare command shall declare its options (page, dpi, the per-side options a-page, b-page,
-          a-dpi, b-dpi, a-view, b-view, a-define, and b-define, background, no-auto-orient, strict, the model
+          a-dpi, b-dpi, a-view, b-view, a-define, and b-define, background, no-auto-orient, strict, file-access,
+          allow-root, the model
           options view, azimuth, elevation, projection, define, time, default-color, and max-triangles,
           resize-to, fit, filter, tolerance, grid, threshold, diff, diff-style, gain, side-by-side, overlay,
           overlay-weight, quality, and no-clobber) in one table that also drives the help, reusing the
@@ -229,3 +230,14 @@ sections:
         tests:
           - InputFragment_Compare_ComparesTheViewsOfAModel
           - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode
+
+      - id: CanvasNetTool-Commands-CompareCommand-FileAccess
+        title: >-
+          The compare command shall build one file-access policy for both inputs from the file-access options, whose
+          default folders under roots are the working directory and the folders of both inputs, and shall apply it to
+          the probe and the load of each input.
+        justification: |
+          Both sides of a comparison must be drawn under the same rule, and a document in another folder than the
+          other input must still read the files beside it.
+        tests:
+          - CompareCommand_Run_FileAccessRoots_CoverTheFolderOfEachInput
