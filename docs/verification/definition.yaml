@@ -46,6 +46,9 @@ input-files:
   - docs/verification/canvas-net/rendering/text-renderer.md
   - docs/verification/canvas-net/rendering/shapes.md
   - docs/verification/canvas-net/files.md
+  - docs/verification/canvas-net/files/file-reference-resolver.md
+  - docs/verification/canvas-net/files/file-access-policy.md
+  - docs/verification/canvas-net/files/real-path.md
   - docs/verification/canvas-net/files/sandboxed-file-resolver.md
   - docs/verification/canvas-net/image-sources.md
   - docs/verification/canvas-net/image-sources/image-source-contract.md

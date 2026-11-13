@@ -861,6 +861,67 @@ reviews:
       - "docs/verification/canvas-net/files.md"              # subsystem verification
       - "docs/sysml2/model/canvas-net/files.sysml"           # subsystem model
       - "src/DemaConsulting.CanvasNet/Files/NamespaceDoc.cs"  # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FilesTests.cs"  # subsystem tests (incl. source-tree guard)
+
+  # CanvasNet-Files-FileReferenceResolver Review (one per unit)
+  - id: CanvasNet-Files-FileReferenceResolver
+    title: Review that CanvasNet Files FileReferenceResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/files.md"
+      - "docs/reqstream/canvas-net/files.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/files/file-reference-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net/files/file-reference-resolver.md"      # unit design
+      - "docs/verification/canvas-net/files/file-reference-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/files/file-reference-resolver.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Files/FileReferenceResolver*.cs"  # unit source (engine and path rules)
+      - "src/DemaConsulting.CanvasNet/Files/FileReferenceOptions.cs"    # unit source (options)
+      - "src/DemaConsulting.CanvasNet/Files/FileReference.cs"           # unit source (result)
+      - "src/DemaConsulting.CanvasNet/Files/FileReferenceException.cs"  # unit source (failure)
+      - "src/DemaConsulting.CanvasNet/Files/FileReferenceFailureKind.cs"  # unit source (failure kinds)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceResolverTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceResolverLinkTests.cs"  # unit tests (real links)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceResolverRaceTests.cs"  # unit tests (race-free check)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceExceptionTests.cs"     # unit tests (exception)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FileTestSupport.cs"                 # shared test support
+
+  # CanvasNet-Files-FileAccessPolicy Review (one per unit)
+  - id: CanvasNet-Files-FileAccessPolicy
+    title: Review that CanvasNet Files FileAccessPolicy Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/files.md"
+      - "docs/reqstream/canvas-net/files.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/files/file-access-policy.yaml"  # unit requirements
+      - "docs/design/canvas-net/files/file-access-policy.md"      # unit design
+      - "docs/verification/canvas-net/files/file-access-policy.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/files/file-access-policy.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Files/FileAccessPolicy*.cs"  # unit source (hook and built-in policies)
+      - "src/DemaConsulting.CanvasNet/Files/FileAccessRequest.cs"  # unit source (request)
+      - "src/DemaConsulting.CanvasNet/Files/FileAccessDecision.cs"  # unit source (decision)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/FileAccessPolicyTests.cs"  # unit tests
+
+  # CanvasNet-Files-RealPath Review (one per unit)
+  - id: CanvasNet-Files-RealPath
+    title: Review that CanvasNet Files RealPath Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/files.md"
+      - "docs/reqstream/canvas-net/files.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/files/real-path.yaml"  # unit requirements
+      - "docs/design/canvas-net/files/real-path.md"      # unit design
+      - "docs/verification/canvas-net/files/real-path.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/files/real-path.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Files/RealPath*.cs"     # unit source (dispatch, Windows, Linux)
+      - "src/DemaConsulting.CanvasNet/Files/NativeMethods.cs"  # unit source (operating-system calls)
+      - "src/DemaConsulting.CanvasNet/Files/FileOpenHooks.cs"  # unit source (test seams)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/RealPathTests.cs"  # unit tests
 
   # CanvasNet-Files-SandboxedFileResolver Review (one per unit)
   - id: CanvasNet-Files-SandboxedFileResolver
@@ -882,6 +943,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Files/SandboxFailureKind.cs"      # unit source (failure kinds)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverTests.cs"      # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverLinkTests.cs"  # unit tests (link walk)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverRaceTests.cs"  # unit tests (post-open check)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxExceptionTests.cs"           # unit tests (exception)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxTestSupport.cs"              # shared test support
 

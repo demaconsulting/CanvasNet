@@ -685,12 +685,10 @@ that cannot be opened, or a `FileResolver` callback that throws) is a `ScadEvalu
 those of the core library's public `SandboxedFileResolver`, which you can also use directly (see the core library user
 guide).
 
-**Security note.** The sandbox protects against path-based escapes in a *static* file tree. It is **not a
-security boundary against a concurrent local attacker** who has write access to the included folders: the
-link check and the file open are separate operations, so a component swapped for a link or junction between
-them is not noticed, and a hard link (which cannot be detected) to a file outside the folders is read like any
-other file. Only point `BaseDirectory` and `LibraryPaths` at folders that untrusted parties cannot write to, or
-use a `FileResolver` callback to serve the files yourself.
+**Security note.** The sandbox protects against path-based escapes and against a link or junction swapped in after
+the check (the open file is verified before it is read). It does not detect hard links: a hard link to a file outside
+the folders is read like any other file. Only point `BaseDirectory` and `LibraryPaths` at folders that untrusted
+parties cannot write to, or use a `FileResolver` callback to serve the files yourself.
 
 Two further behaviors are worth knowing. Indexing is lenient: `v[i]` is `undef` for every negative or
 non-finite index, and a fractional non-negative index is truncated (`[10, 20, 30][1.5]` is `20`). A very deeply

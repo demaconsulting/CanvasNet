@@ -1099,6 +1099,40 @@ words:
   - FFFD
   - xlink
   - linecap
+  # Operating-system calls, flags, errno names and structures of the file-access real-path unit
+  - APFS
+  - CLOEXEC
+  - CREAT
+  - EACCES
+  - EINTR
+  - ENAMETOOLONG
+  - ENOENT
+  - ENOTDIR
+  - EPERM
+  - fdinfowithpath
+  - fsid
+  - fstat
+  - fsutil
+  - fxstat
+  - IFMT
+  - IFREG
+  - libc
+  - mkfifo
+  - mountvol
+  - GLOBALROOT
+  - Harddisk
+  - CONIN
+  - CONOUT
+  - nlink
+  - NOCTTY
+  - NONBLOCK
+  - NTFS
+  - pidfdinfo
+  - PIDFDVNODEPATHINFO
+  - RDONLY
+  - realpath
+  - vinfo
+  - vnode
 # Percent-escapes in URL and file-name examples (such as "flow%2Emmd" for "flow.mmd"): the escape and the letters
 # glued to it are not words
 ignoreRegExpList:

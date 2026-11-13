@@ -38,9 +38,8 @@ public sealed class VegaLiteOpenOptions
     ///     A document created from a string or a stream has no folder: unless it supplies a base directory, a
     ///     <see cref="DataPaths"/> entry or a <see cref="FileResolver"/>, its data files cannot be resolved and
     ///     rendering a chart that needs one fails with a <see cref="VegaLiteRenderException"/>. A symbolic link or
-    ///     junction below this directory is never followed. These checks protect against path-based escapes in static
-    ///     file trees; they are not a security boundary against a concurrent local attacker with write access to the
-    ///     data folders.
+    ///     junction below this directory is never followed. The decision is made on the opened file handle, so a link
+    ///     swapped in after the check is refused as well; hard links cannot be detected.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when the value is empty or whitespace.</exception>
     public string? BaseDirectory

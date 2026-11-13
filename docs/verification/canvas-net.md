@@ -459,9 +459,48 @@ to the bundled Liberation Sans with the failure `no such font family was found`.
 source, family, style and glyph data of the font, confirming the resolver integrates with the
 bundled fonts end to end.
 
+### Integration: File References Are Read Anywhere by Default and Confined by a Roots Policy
+
+**Test**: `CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines`
+
+Exercises the `Files` subsystem's referenced-file engine through its public API only: a `FileReferenceResolver`
+with the default policy reads a file next to the document folder through a dot-dot reference and through its absolute
+path, while a resolver over the same tree with `FileAccessPolicy.UnderRoots(docs)` reads a file inside the root and
+denies the dot-dot reference with `AccessDenied` naming the `roots` policy.
+
+### Integration: Unsafe References Are Refused Under Every Policy
+
+**Test**: `CanvasNet_SystemIntegration_FileReferences_UnsafeReferencesAreRefusedUnderEveryPolicy`
+
+Exercises the references that no policy can allow: under `AllowAll`, `NoSymlinks`, and a `UnderRoots` policy that
+includes the referenced folders, a UNC path is `NetworkPath`, a `\\?\` device path and an alternate data stream are
+`InvalidPath`, a directory is `NotARegularFile`, on Linux and macOS `/dev/null` is `NotARegularFile`, and on Windows
+the reserved device names `folder/NUL`, `folder/con.txt` and `folder/COM1` are `InvalidPath`; a refused path text never
+reaches the opener (recorded through the `BeforeOpen` seam), and no refusal message contains the temporary directory.
+
+### Integration: Combined and Delegate Policies Decide Nested References
+
+**Test**: `CanvasNet_SystemIntegration_FileReferences_CombinedAndDelegatePoliciesDecideNestedReferences`
+
+Exercises the policy model through its public API: with `Combine(UnderRoots(docs), NoSymlinks)` a file in a subfolder
+is read and so is a reference relative to it, a file reached through a directory link inside `docs` is `AccessDenied`
+naming `roots+no-symlinks`, and a dot-dot escape is denied. After the referring file's folder is replaced by a link to
+another folder inside `docs` (so only the no-symlinks part can refuse), a reference relative to the referring file is
+`AccessDenied` by `roots+no-symlinks` with a link reason: the anchor is the host-chosen base directory, never the
+referrer's folder. A `FromDelegate("only-txt", ...)` policy reads a `.txt` file and denies a `.bin` file naming
+`only-txt`, without its reason in the message.
+
+### Integration: A Link Swapped Into the Sandbox Before the Open Is Refused
+
+**Test**: `CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused` (Windows, Linux, macOS)
+
+Exercises the folder sandbox with the tree changed inside its `BeforeOpen` seam: after the link check, the folder of
+the file is moved aside and replaced by a junction or symbolic link to an outside folder; the resolve is
+`SandboxException` with `ThroughLink` naming `sub/a.txt`, and its message contains no host directory.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all thirty-three scenarios above pass without error or
+A system-level test run passes when all forty-two scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
 

@@ -2,7 +2,7 @@
 
 ![Files Structure](FilesView.svg)
 
-The `SandboxedFileResolver` unit is the only software unit of the `Files` subsystem. It comprises six source files in
+The `SandboxedFileResolver` unit is the folder sandbox of the `Files` subsystem. It comprises six source files in
 the `DemaConsulting.CanvasNet.Files` namespace, all `public`:
 
 - `SandboxedFileResolver.cs` - `SandboxedFileResolver` (sealed partial class): the public entry point, the search, the
@@ -20,13 +20,13 @@ the `DemaConsulting.CanvasNet.Files` namespace, all `public`:
 caller-chosen directories (or a caller-supplied virtual file source), and refuses everything else. A program that reads
 files named by untrusted text (an include directive, a data URL) needs this once, correctly: path validation,
 confinement to a root, refusal of symbolic links and junctions, an open that does not race against a separate existence
-check, a bounded read, and a failure model a caller can map to its own error type. The unit is public so that library
-users get exactly the rules the CanvasNet packages use; the `CanvasNetVegaLite` and `CanvasNetScad` packages
-use it for every local file.
+check or link check, a bounded read, and a failure model a caller can map to its own error type. The unit is public so
+that library users get exactly the rules the CanvasNet packages use; the `CanvasNetVegaLite` and `CanvasNetScad`
+packages use it for every local file.
 
 The unit's behavior is specified by the `CanvasNet-Files-SandboxedFileResolver-*` requirements (`Resolution`,
-`MissingFiles`, `PathText`, `Confinement`, `Links`, `ResolverCallback`, `Reading`, `SizeLimit`, `FileLimit`, `Cache`,
-`Cancellation`, and `Failures`) in `docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml`.
+`MissingFiles`, `PathText`, `Confinement`, `Links`, `RaceFree`, `ResolverCallback`, `Reading`, `SizeLimit`,
+`FileLimit`, `Cache`, `Cancellation`, and `Failures`) in `docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml`.
 
 #### Data Model
 
@@ -63,7 +63,9 @@ probe by full path, and the roots, which are computed on first use. **It is not 
 unsynchronized and the callback is invoked on the calling thread; use one instance per operation or serialize access.
 The options and results are immutable and may be shared. An internal constructor accepts a link probe
 (`Func<string, bool>`) and a file opener (`Func<string, Stream>`) as test seams, so the link and open rules are proven
-on every platform without any link privilege or file permission; they are not public options.
+on every platform without any link privilege or file permission; an injected stream opener has no handle, so the
+post-open verification is skipped for it. A second internal constructor adds the `FileOpenHooks` seams around the
+verified open (see _RealPath Unit Design_). None of them is a public option.
 
 **Modes.** _File-system mode_ (no callback): the roots are the full path of `BaseDirectory` and of each `SearchPaths`
 entry. _Callback mode_ (`FileResolver` set): the file system is never touched; the logical root is the empty path, and
@@ -77,8 +79,8 @@ normalizes `.` and `..`; a result that is not under the root (ordinal comparison
 is refused with `OutsideRoot`, while `..` that stays inside the root is fine.
 
 **Invariants**: a candidate (root plus key) is looked up at most once per instance (hit or miss); every component
-below a
-root is checked for a link before the file is opened, for every root the file is reached through; no more than
+below a root is checked for a link before the file is opened, for every root the file is reached through, and the
+real path of the open handle is checked before a byte is read; no more than
 `MaxFileBytes` bytes are read of any file; with `MaxFiles` set, no more than that many distinct files are opened or
 requested (a file that is too large or could not be read included) and
 a new file beyond it is never opened or requested; every failure that is not
@@ -106,15 +108,33 @@ a cancellation or an argument error is a `SandboxException`.
   or open.
 - `ReadBytes` - in callback mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk (which
   stops a candidate whose directory is missing but leaves the final component to the open), treats an existing
-  directory where the file is expected as `CannotRead` (not a missing file), then attempts to open the file read-only
-  with `FileShare.ReadWrite | FileShare.Delete`. **The open attempt, not an existence probe, decides missing versus
-  unreadable**: `File.Exists` answers `false` for an existing file the process cannot access, so gating on it would report
-  an inaccessible file as "not found". Only a `FileNotFoundException` or `DirectoryNotFoundException` from the open call
-  itself (a file that is missing, or that vanished since the walk) makes the candidate missing and lets the search
-  continue; any other `IOException` or `UnauthorizedAccessException` of the open is `CannotRead` and ends the search.
-  Once the open succeeded the file exists, so a failure while reading or disposing it that is an `IOException` (including
-  one spelled `FileNotFoundException` or `DirectoryNotFoundException`), `UnauthorizedAccessException` or
-  `NotSupportedException` is `CannotRead`, never a missing candidate; other exception types are not mapped.
+  directory where the file is expected as `CannotRead` (not a missing file), then reads the file through
+  `ReadVerified` (or, when a test injected a stream opener, through `ReadFromStream` with that opener). **The open
+  attempt, not an existence probe, decides missing versus unreadable**: `File.Exists` answers `false` for an existing
+  file the process cannot access, so gating on it would report an inaccessible file as "not found". Only a
+  `FileNotFoundException` or `DirectoryNotFoundException` from the open call itself (a file that is missing, or that
+  vanished since the walk) makes the candidate missing and lets the search continue; any other `IOException` or
+  `UnauthorizedAccessException` of the open is `CannotRead` and ends the search. Once the open succeeded the file
+  exists, so a failure while reading or disposing it that is an `IOException` (including one spelled
+  `FileNotFoundException` or `DirectoryNotFoundException`), `UnauthorizedAccessException` or `NotSupportedException` is
+  `CannotRead`, never a missing candidate; other exception types are not mapped.
+- `ReadVerified` - opens the candidate through `RealPath.OpenForRead` (read-only with `FileShare.ReadWrite |
+  FileShare.Delete` on Windows; non-blocking and not inherited on Linux and macOS), asks `RealPath.Inspect` for the
+  facts of the **open handle**, and only then reads from that handle: a handle that is not a regular file (a device, a
+  named pipe) is `CannotRead`; a handle whose real path cannot be determined is `LinkCheckFailed` (fail closed); and
+  the link match of the `NoSymlinks` policy (`FileAccessPolicy.MatchesWithoutLinks`), anchored at the candidate's root,
+  must accept the real path - that is, the real path must be the real location of the root followed by the path below
+  the root. The real location of the root (and the long spelling of the candidate's path) is captured once per root,
+  before the walk and the open (`RootLocation`), and is never resolved by name after the open, so a root renamed and
+  replaced by a link in between is refused as `ThroughLink`. When the real location of the root could not be
+  determined the file is `LinkCheckFailed` (fail closed; a root
+  the process may search but not read has a real location); when the real path differs the file is
+  `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is
+  the link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after
+  the walk is refused. `ThroughLink` and `LinkCheckFailed` from this step are thrown like walk refusals: they are not
+  cached and do not count against `MaxFiles`.
+- `ReadFromStream` - the open-and-read of a stream opener (the verified handle wrapped in a `FileStream`, or a test's
+  injected opener) with the missing/unreadable mapping above.
 - `ComponentExists` - the existence check of a directory component above the file during the link walk. It reads
   `FileInfo.Attributes` rather than calling `File.Exists`/`Directory.Exists` (which answer `false` for _every_ failure):
   only a component that is genuinely not there reads as missing and ends the candidate; a component that exists but
@@ -125,10 +145,10 @@ a cancellation or an argument error is a `SandboxException`.
   exception other than a cancellation, including a `SandboxException` that the callback or its stream throws itself - is
   `CannotRead` with the cause kept as the inner exception, so untrusted code can neither leak a raw exception nor forge
   another failure kind. The size failure is raised by the resolver outside that boundary.
-- `ReadBounded` - checks a size the stream reports, then reads in 8 KiB chunks and stops as soon as the running length
-  exceeds `MaxFileBytes` (returning no bytes, which `LoadCandidate` reports as `TooLarge`), so a stream that never ends
-  stops
-  one chunk past the limit; the token is observed after every chunk. Failures of the stream are left to the caller.
+- `ReadBounded` - delegates to the shared `FileReferenceResolver.ReadBounded`: checks a size the stream reports, then
+  reads in 8 KiB chunks and stops as soon as the running length exceeds `MaxFileBytes` (returning no bytes, which
+  `LoadCandidate` reports as `TooLarge`), so a stream that never ends stops one chunk past the limit; the token is
+  observed after every chunk. Failures of the stream are left to the caller.
 - `WalkRejectingLinks` and `ProbeLink` - walk the candidate top-down from the root, probing each component once **before
   its existence is judged** (an existence check says "missing" for a dangling link, so asking it first would let a
   dangling directory link in the middle of the path look like a missing directory and the search fall through to another
@@ -148,29 +168,34 @@ a cancellation or an argument error is a `SandboxException`.
   comparison for full paths. It is exposed so that callers can detect that two spellings reached one file (for example an
   include cycle) without re-deriving the platform rule.
 
-**Preconditions and postconditions**: `path` is untrusted text; on return the file exists, is not behind a link, is within
-the size limit, and its bytes are in `Content`, or `null` was returned because no candidate exists, or an exception was
-thrown and nothing was read through a link. A call never changes the files it reads.
+**Preconditions and postconditions**: `path` is untrusted text; on return the file exists, is a regular file, is not
+behind a link (checked on the names before the open and on the open handle after it), is within the size limit, and
+its bytes are in `Content`, or `null` was returned because no candidate exists, or an exception was thrown and nothing
+was read through a link. A call never changes the files it reads.
 
-**Residual risk.** The link check and the open are two steps; a writer that can change the tree between them could
-swap a
-checked component for a link. The unit does not defend against this and says so: its protection is against path-based
-escapes in a static tree, not against a concurrent local attacker with write access to the directories. Hard links and
-special files (named pipes, devices) are not recognized either; a caller who cannot trust a directory must not use it
-as a
-root. Strict refusal of links was chosen over resolving real paths because resolution is ambiguous (relative links,
-chains,
-junction targets) and racy; a caller who wants to use linked content adds the real directory as a search path.
+**Residual risk.** The link check by name and the open are two steps, but the open handle is verified before any byte
+is read, so a component swapped for a link in between is refused rather than read; the root's real location used by
+that verification is captured before the walk, so replacing the root itself is refused too. Hard links are not
+recognized: a
+hard link is the file itself and has no marker that a name or a handle can show; a caller who cannot trust a directory
+must not use it as a root. The verification needs the real path of the open file, which Windows, Linux (with `/proc`
+mounted) and macOS provide; elsewhere every file is refused with `LinkCheckFailed`. Strict refusal of links was chosen
+over following links that stay inside the root because a caller who wants to use linked content can add the real
+directory as a search path.
 
 #### Error Handling
 
 Every failure is a `SandboxException` (never an empty result for a refusal): the path text is refused (`EmptyPath`,
 `ControlCharacter`, `ColonInPath`, `AbsolutePath`) or leaves its root (`OutsideRoot`), a configured directory is not a
-valid path (`InvalidRoot`), a component is a link (`ThroughLink`) or the link check fails (`LinkCheckFailed`), the file
-exists but cannot be read - a directory where a file is expected, an open that fails with an `IOException` or
-`UnauthorizedAccessException`, a stream that fails while being read, a callback that throws, or a callback stream whose
-disposal throws (`CannotRead`) - or the file is longer than `MaxFileBytes` (`TooLarge`), or reading a new file would
-exceed `MaxFiles` (`TooManyFiles`). A file that does not exist is not
+valid path (`InvalidRoot`), a component is a link (`ThroughLink`, also when the real path of the open handle shows a
+link) or the link check fails (`LinkCheckFailed`, also when the real path of the open handle or the real location of
+its root cannot be determined), the
+file exists but cannot be read - a directory where a file is expected, an open handle that is not a regular file, an
+open that fails with an `IOException` or `UnauthorizedAccessException`, a stream that fails while being read, a
+callback that throws, or a callback stream whose disposal throws (`CannotRead`) - or the file is longer than
+`MaxFileBytes` (`TooLarge`), or reading a new file would exceed `MaxFiles` (`TooManyFiles`). No new failure kind was
+added for the post-open verification, so callers that translate every kind keep working unchanged. A file that does
+not exist is not
 a failure: `Resolve` returns `null`. The callback is untrusted caller code, so its failures are normalized to
 `CannotRead` and its own message is not copied into the exception message (the cause is kept as the inner exception for
 trusted diagnostics). A canceled token is an `OperationCanceledException`, never wrapped (also when the callback raises
@@ -180,13 +205,17 @@ it), thrown before any request or file access and between files and chunks. Inva
 **Design decision: file sharing.** Files are opened read-only with `FileShare.ReadWrite | FileShare.Delete`. The unit
 reads a bounded snapshot and never writes, so it is the least restrictive reader: another process that is writing,
 replacing, renaming, or deleting the file (an editor saving a file while it is read) does not turn the read into a sharing
-violation. The trade-off is that the bytes read may be a mix of two versions of a file that is being rewritten, which is
-the same exposure as the documented check/use race and is not defended against.
+violation. The trade-off is that the bytes read may be a mix of two versions of a file that is being rewritten; the
+unit reads a snapshot and does not defend against a concurrent writer of the file's content.
 
 #### Dependencies
 
+- **RealPath** (same subsystem) - the verified open (`OpenForRead`) and the facts of the open handle (`Inspect`).
+- **FileAccessPolicy** (same subsystem) - the `NoSymlinks` link match (`MatchesWithoutLinks`) that checks the real
+  path of the open handle.
+- **FileReferenceResolver** (same subsystem) - the shared bounded read (`ReadBounded`).
 - **.NET base class library** - `System.IO` (`File`, `Directory`, `FileInfo.LinkTarget`, `DirectoryInfo.LinkTarget`,
-  `FileStream`, `Path`) and `System.Collections.Generic`. The unit depends on no other CanvasNet software item.
+  `FileStream`, `Path`) and `System.Collections.Generic`.
 
 #### Callers
 

@@ -1,0 +1,11 @@
+package CanvasNet {
+    part def FileReferenceResolver {
+        doc /* The public FileReferenceResolver (a sealed partial class) with its FileReferenceOptions (base directory, referrer path, search paths, resolver callback, file-access policy, byte and file limits), FileReference (key, real path, directory, bytes), FileReferenceException, and FileReferenceFailureKind types: it resolves a relative, dot-dot or absolute reference next to the referring file, in the base directory and then in each search path; refuses empty, control-character, device, network (UNC and //host) and alternate-data-stream text before any access; lets the policy refuse a path as written before the open; opens the file (non-blocking on Unix), refuses a handle that is not a regular file, fails closed with RealPathUnavailable when a restrictive policy needs a real path that cannot be determined, asks the policy about the real path of the open handle, and reads from that same handle under MaxFileBytes and MaxFiles. A missing file or dangling link is null; a denial, a failure and a non-regular file end the search. With a resolver callback the file system and the policy are never touched. Not thread-safe per instance. */
+
+        comment sourceRef /* Source: src/DemaConsulting.CanvasNet/Files/FileReferenceResolver.cs, src/DemaConsulting.CanvasNet/Files/FileReferenceResolver.Paths.cs, src/DemaConsulting.CanvasNet/Files/FileReferenceOptions.cs, src/DemaConsulting.CanvasNet/Files/FileReference.cs, src/DemaConsulting.CanvasNet/Files/FileReferenceException.cs, src/DemaConsulting.CanvasNet/Files/FileReferenceFailureKind.cs */
+        comment testRef /* Test: test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceResolverTests.cs, test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceResolverLinkTests.cs, test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceResolverRaceTests.cs, test/DemaConsulting.CanvasNet.Tests/Files/FileReferenceExceptionTests.cs, test/DemaConsulting.CanvasNet.Tests/Files/FileTestSupport.cs */
+        comment designRef /* Design: docs/design/canvas-net/files/file-reference-resolver.md */
+        comment verificationRef /* Verification: docs/verification/canvas-net/files/file-reference-resolver.md */
+        comment reqRef /* Requirements: docs/reqstream/canvas-net/files/file-reference-resolver.yaml */
+    }
+}

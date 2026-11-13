@@ -105,6 +105,9 @@ are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline s
 - 🔣 **Glyph Fallback** - A character a font lacks (`∝`, `≫`, arrows, math signs) is drawn from bundled Noto fonts,
   the same on every machine; `GlyphFallback.FindMissing` lists the rest
 - 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
+- 🔐 **File-Access Policies** - `FileReferenceResolver` reads the files a document references like Pandoc does
+  (`..`, absolute paths, links), and a `FileAccessPolicy` (`AllowAll`, `UnderRoots`, `NoSymlinks`, combined or your
+  own) decides on the real path of the opened file, so a swapped link cannot slip through
 - 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, Mermaid diagrams, other SVG files, document
   pages (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the `Viewer` package
   lists every format, and you can add your own source

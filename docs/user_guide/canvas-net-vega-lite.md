@@ -290,8 +290,8 @@ that exists wins. The rules are the same on every platform:
 - A **symbolic link or junction** inside a folder is never followed, whatever it points to: a file that is a link, or
   that lies below a directory that is a link, is refused before it is opened. The folder you name is trusted, including
   when you reach it through a link; to use linked content, name the real folder as a data path. A hard link cannot be
-  recognized, and a file that is replaced by a link after it was checked (a race with a writer) is not noticed, so point
-  `BaseDirectory` and `DataPaths` only at folders that untrusted parties cannot write to.
+  recognized (a link swapped in after the check is refused), so point `BaseDirectory` and `DataPaths` only at folders
+  that untrusted parties cannot write to.
 - With a **`FileResolver`** callback the file system is never touched: the callback is called on the calling thread
   with the normalized logical path (first as written, then once per valid `DataPaths` entry used as a prefix), at most
   once per path and call, and returns a stream (disposed by the library) or `null`. It is never called for a remote URL.

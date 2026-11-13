@@ -309,11 +309,10 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   to use linked content, add the real directory as a library path); a file that exists but cannot be read (a directory
   in place of a file, an open failure, a callback that throws) is an evaluation error, and only a file that does not
   exist is a warning. All of this is done by the core `SandboxedFileResolver`, which `ScadFileResolver` wraps with the
-  OpenSCAD search order, limits, decoding and wording. **The sandbox is not a security boundary
-  against a concurrent local attacker:** it protects against path-based escapes in static file trees, but the check
-  and the open are separate operations, so an attacker with write access to the included folders can swap a
-  component for a link or junction between them, or place a hard link (which cannot be detected) to a file outside
-  the roots; controlling who can write to those folders is the caller's responsibility. Include cycles, nesting
+  OpenSCAD search order, limits, decoding and wording. The sandbox protects against path-based escapes and against a
+  link or junction swapped in between the check and the open (it verifies the open file before reading it); it
+  cannot detect a hard link to a file outside the roots, so controlling who can write to the included folders is the
+  caller's responsibility. Include cycles, nesting
   depth, the number of inclusions, and the
   number of statements include expansion may produce are bounded. A document with `include` or `use` but no
   base directory, library path, or resolver is an error rather than a search of the current directory.

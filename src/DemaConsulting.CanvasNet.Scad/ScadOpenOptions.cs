@@ -40,10 +40,8 @@ public sealed class ScadOpenOptions
     ///     directives cannot be resolved and evaluating them fails with a <see cref="ScadEvaluationException"/>. The
     ///     current directory is never used implicitly. A symbolic link or junction below this directory (a directory on
     ///     the path to an included file, or the file itself) is never followed: the file is rejected whatever the
-    ///     link's target. The directory itself may be reached through links. These checks protect against path-based
-    ///     escapes in static file trees; they are not a security boundary against a concurrent local attacker with write
-    ///     access to the included folders (the check and the open are separate operations, and hard links cannot be
-    ///     detected).
+    ///     link's target. The directory itself may be reached through links. The decision is made on the opened file
+    ///     handle, so a link swapped in after the check is refused as well; hard links cannot be detected.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown on initialization when the value is empty or whitespace.</exception>
     public string? BaseDirectory

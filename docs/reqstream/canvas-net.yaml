@@ -1264,13 +1264,14 @@ sections:
         title: >-
           The library shall confine that file access to the directories the caller chose: it shall refuse a
           path that is empty, absolute, a drive or UNC path, contains a colon or a control character, or
-          leaves its root, shall never follow a symbolic link or junction below a root, and shall report
-          every refusal as an exception that identifies the rule that was broken without revealing a host
-          directory.
+          leaves its root, shall never follow a symbolic link or junction below a root (including one swapped
+          into the directory tree between the link check and the open), and shall report every refusal as an
+          exception that identifies the rule that was broken without revealing a host directory.
         tags: [system, security]
         justification: |
           A path may come from an untrusted source and must never become a way to read arbitrary files of
-          the host; callers need to tell the author which rule the path broke.
+          the host; callers need to tell the author which rule the path broke. Another process that can change
+          the directory tree must not be able to redirect a read through a link after the check.
         children:
           - CanvasNet-Files-Confinement
           - CanvasNet-Files-LinkRefusal
@@ -1279,6 +1280,72 @@ sections:
           - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
           - SandboxedFileResolver_Resolve_LinkedDirectoryIsRejectedBeforeOpen
           - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
+          - "windows@CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused"
+          - "ubuntu@CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused"
+          - "macos@CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused"
+
+  - title: Referenced File Access API
+    requirements:
+      - id: CanvasNet-Lib-FileReferenceResolution
+        title: >-
+          The library shall resolve a file that a document references - by a relative path, a path with dot-dot
+          segments, or an absolute path - to the bytes of that file, looking next to the referring document, in
+          a base directory and in additional search paths (or in a caller-supplied virtual file source), reading
+          every regular local file by default, within a byte limit and an optional limit on the number of files,
+          once per resolver, and distinguishing a file that does not exist from one that cannot be read.
+        tags: [system]
+        justification: |
+          Documents (SVG image links, OpenSCAD includes, Vega-Lite data URLs) reference other files the way
+          Pandoc documents do, with relative, dot-dot and absolute paths; a host needs one bounded way to find
+          and read them that behaves the same for every format.
+        children:
+          - CanvasNet-Files-ReferenceResolution
+          - CanvasNet-Files-BoundedReading
+          - CanvasNet-Files-ResolverCallback
+        tests:
+          - CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines
+
+      - id: CanvasNet-Lib-FileAccessPolicy
+        title: >-
+          The library shall let the caller decide which referenced files may be read through a file-access
+          policy that is asked after the file was opened and before any byte is read, about the path as written
+          and the real path of the opened file, and shall provide built-in policies that allow every file, that
+          allow only files inside chosen folders (following a link only when it stays inside), and that refuse
+          files reached through a symbolic link or junction, trusting only folders the host chose, which can be
+          combined with each other and with a policy made from the caller's own function.
+        tags: [system, security]
+        justification: |
+          The right confinement depends on the host: a desktop converter reads what its user can, a build server
+          confines documents to the repository, a service may refuse links. Deciding on the real path of the
+          opened file, rather than on its name, keeps a link swapped in or out by another process from changing
+          what is read after the decision.
+        children:
+          - CanvasNet-Files-AccessPolicy
+          - CanvasNet-Files-RaceFreeCheck
+        tests:
+          - CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines
+          - CanvasNet_SystemIntegration_FileReferences_CombinedAndDelegatePoliciesDecideNestedReferences
+
+      - id: CanvasNet-Lib-FileReferenceSafety
+        title: >-
+          The library shall refuse, under every file-access policy, a referenced path that names a network
+          location (including, on Windows, a local path whose opened file lies on a network share), a device
+          (including a Windows reserved device name in any path component), an alternate data stream or contains
+          a control character, and a referenced file that is not a regular file (without blocking on a named
+          pipe); shall refuse a file when a restrictive policy needs its real path and the platform cannot tell
+          it; and shall report every refusal as an exception that identifies the rule or the policy and whose
+          message echoes the reference as written without adding the resolved or real path or a configured
+          directory.
+        tags: [system, security]
+        justification: |
+          Network paths can leak credentials, devices and named pipes can hang or flood a reader, and a policy
+          that cannot be applied must not silently allow; callers need to tell the author what was refused
+          without disclosing the host's folders to an untrusted author.
+        children:
+          - CanvasNet-Files-AlwaysRefused
+          - CanvasNet-Files-ReferenceFailureReporting
+        tests:
+          - CanvasNet_SystemIntegration_FileReferences_UnsafeReferencesAreRefusedUnderEveryPolicy
 
   - title: Linked Image Sources API
     requirements:

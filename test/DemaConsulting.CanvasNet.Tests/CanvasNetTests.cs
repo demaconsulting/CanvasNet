@@ -5,9 +5,11 @@ using System.Numerics;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Drawing;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
 using DemaConsulting.CanvasNet.Rendering;
+using DemaConsulting.CanvasNet.Tests.Files;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
 namespace DemaConsulting.CanvasNet.Tests;
@@ -1396,5 +1398,202 @@ public class CanvasNetTests
         Assert.Equal(
             sentence.Split(' '),
             lineTexts.SelectMany(text => text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToArray());
+    }
+
+    /// <summary>
+    ///     Proves through the public file-reference API that a document's references are read anywhere under the default
+    ///     policy (relative, dot-dot and absolute), and that a roots policy confines them: a file inside the root is read
+    ///     and a file outside it is denied with the policy named.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_FileReferences_DefaultReadsAnywhereAndRootsPolicyConfines()
+    {
+        // Arrange: a document folder, a sibling folder, and two resolvers over the same tree
+        using var directory = new SandboxTempDirectory();
+        directory.Write("docs/inside.txt", "inside");
+        var outside = directory.Write("assets/outside.txt", "outside");
+        var docs = directory.Combine("docs");
+        var open = new FileReferenceResolver(new FileReferenceOptions { BaseDirectory = docs }, TestContext.Current.CancellationToken);
+        var confined = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = docs, FileAccess = FileAccessPolicy.UnderRoots(docs) },
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var dotDot = open.Resolve("../assets/outside.txt");
+        var absolute = open.Resolve(outside);
+        var inside = confined.Resolve("inside.txt");
+        var denied = Assert.Throws<FileReferenceException>(() => confined.Resolve("../assets/outside.txt"));
+
+        // Assert
+        Assert.Equal("outside", System.Text.Encoding.UTF8.GetString(dotDot!.Content.Span));
+        Assert.Equal("outside", System.Text.Encoding.UTF8.GetString(absolute!.Content.Span));
+        Assert.Equal("inside", System.Text.Encoding.UTF8.GetString(inside!.Content.Span));
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, denied.Kind);
+        Assert.Equal("roots", denied.PolicyName);
+    }
+
+    /// <summary>
+    ///     Proves through the public file-reference API that unsafe references (a network path, a device path, an
+    ///     alternate data stream, a directory, on Linux and macOS a device, and on Windows a legacy device name) are
+    ///     refused the same way under every built-in policy, and that the message of a refusal never names a host
+    ///     directory.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_FileReferences_UnsafeReferencesAreRefusedUnderEveryPolicy()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("folder"));
+        var references = new List<(string Reference, FileReferenceFailureKind Kind)>
+        {
+            ("\\\\server\\share\\a.png", FileReferenceFailureKind.NetworkPath),
+            ("\\\\?\\C:\\a.png", FileReferenceFailureKind.InvalidPath),
+            ("a.png:hidden", FileReferenceFailureKind.InvalidPath),
+            ("folder", FileReferenceFailureKind.NotARegularFile),
+        };
+        if (!OperatingSystem.IsWindows())
+        {
+            references.Add(("/dev/null", FileReferenceFailureKind.NotARegularFile));
+        }
+        else
+        {
+            references.Add(("folder/NUL", FileReferenceFailureKind.InvalidPath));
+            references.Add(("folder/con.txt", FileReferenceFailureKind.InvalidPath));
+            references.Add(("folder/COM1", FileReferenceFailureKind.InvalidPath));
+        }
+
+        var policies = new[]
+        {
+            FileAccessPolicy.AllowAll,
+            FileAccessPolicy.NoSymlinks,
+            FileAccessPolicy.UnderRoots(directory.Path, "/dev"),
+        };
+
+        foreach (var policy in policies)
+        {
+            var opened = new List<string>();
+            var resolver = new FileReferenceResolver(
+                new FileReferenceOptions { BaseDirectory = directory.Path, FileAccess = policy },
+                TestContext.Current.CancellationToken,
+                new FileOpenHooks { BeforeOpen = opened.Add });
+            foreach (var (reference, kind) in references)
+            {
+                // Act
+                var openedBefore = opened.Count;
+                var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve(reference));
+
+                // Assert: a refused path text never reaches the opener
+                Assert.Equal(kind, ex.Kind);
+                Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+                if (kind is FileReferenceFailureKind.InvalidPath or FileReferenceFailureKind.NetworkPath)
+                {
+                    Assert.Equal(openedBefore, opened.Count);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Proves through the public file-reference API that combined and delegate policies decide nested references: a
+    ///     roots-and-no-symlinks policy reads plain files and a reference relative to them, denies a link inside the root
+    ///     and a dot-dot escape, and denies a nested reference after the referring document's folder was swapped for a
+    ///     link; a delegate policy decides by the real path and keeps its reason out of the message.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_FileReferences_CombinedAndDelegatePoliciesDecideNestedReferences()
+    {
+        // Arrange: a document folder with a nested document, an internal link, and an outside folder
+        using var directory = new SandboxTempDirectory();
+        directory.Write("docs/sub/main.txt", "main");
+        directory.Write("docs/sub/part.txt", "part");
+        directory.Write("docs/real/a.txt", "a");
+        directory.Write("docs/data.txt", "text");
+        directory.Write("docs/data.bin", "binary");
+        directory.Write("outside.txt", "outside");
+        FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("docs/alias"), directory.Combine("docs/real"));
+        var docs = directory.Combine("docs");
+        var combined = new FileReferenceResolver(
+            new FileReferenceOptions
+            {
+                BaseDirectory = docs,
+                FileAccess = FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(docs), FileAccessPolicy.NoSymlinks),
+            },
+            TestContext.Current.CancellationToken);
+        var onlyText = new FileReferenceResolver(
+            new FileReferenceOptions
+            {
+                BaseDirectory = docs,
+                FileAccess = FileAccessPolicy.FromDelegate(
+                    "only-txt",
+                    request => request.RealPath.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+                        ? FileAccessDecision.Allow
+                        : FileAccessDecision.Deny("not text")),
+            },
+            TestContext.Current.CancellationToken);
+
+        // Act: plain, nested, linked and escaping references
+        var main = combined.Resolve("sub/main.txt");
+        var part = combined.Resolve("part.txt", main);
+        var link = Assert.Throws<FileReferenceException>(() => combined.Resolve("alias/a.txt"));
+        var escape = Assert.Throws<FileReferenceException>(() => combined.Resolve("../outside.txt"));
+
+        // Act: the referring document's folder is swapped, after it was read, for a link to another folder inside the
+        // root, so only the no-symlinks part can refuse the nested reference
+        File.Delete(directory.Combine("docs/sub/main.txt"));
+        File.Delete(directory.Combine("docs/sub/part.txt"));
+        Directory.Delete(directory.Combine("docs/sub"));
+        FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("docs/sub"), directory.Combine("docs/real"));
+        var swapped = Assert.Throws<FileReferenceException>(() => combined.Resolve("a.txt", main));
+
+        // Act: the delegate policy
+        var text = onlyText.Resolve("data.txt");
+        var binary = Assert.Throws<FileReferenceException>(() => onlyText.Resolve("data.bin"));
+
+        // Assert
+        Assert.Equal("part", System.Text.Encoding.UTF8.GetString(part!.Content.Span));
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, link.Kind);
+        Assert.Equal("roots+no-symlinks", link.PolicyName);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, escape.Kind);
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, swapped.Kind);
+        Assert.Equal("roots+no-symlinks", swapped.PolicyName);
+        Assert.Contains("symbolic link", swapped.Reason, StringComparison.Ordinal);
+        Assert.Equal("text", System.Text.Encoding.UTF8.GetString(text!.Content.Span));
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, binary.Kind);
+        Assert.Equal("only-txt", binary.PolicyName);
+        Assert.DoesNotContain("not text", binary.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Proves through the public sandbox API that a link swapped into the tree just before the open (after the link
+    ///     check) is refused as a link, with a message that names no host directory.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_SandboxedFiles_LinkSwappedInBeforeTheOpenIsRefused()
+    {
+        // Arrange: the link check sees a real folder; just before the open it is replaced by a link to the outside
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/sub/a.txt", "inside");
+        directory.Write("outside/a.txt", "outside");
+        var sandbox = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Combine("root") },
+            TestContext.Current.CancellationToken,
+            null,
+            null,
+            new FileOpenHooks
+            {
+                BeforeOpen = _ =>
+                {
+                    Directory.Move(directory.Combine("root/sub"), directory.Combine("root/sub-old"));
+                    FileTestSupport.CreateDirectoryLinkOrSkip(directory.Combine("root/sub"), directory.Combine("outside"));
+                },
+            });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => sandbox.Resolve("sub/a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("sub/a.txt", ex.Detail);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
     }
 }

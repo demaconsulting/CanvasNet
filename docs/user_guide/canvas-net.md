@@ -2201,11 +2201,17 @@ operation, or serialize access. `SandboxOptions` and the returned `SandboxedFile
 shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file (it is ordinal for
 callback paths and case-insensitive for full paths on Windows and macOS).
 
-**Security note.** The sandbox protects against path-based escapes in a *static* directory tree. It is **not a
-security boundary against a concurrent local attacker** with write access to your directories: the link check and
-the open are separate operations, so a component swapped for a link between them is not noticed, and a hard link
-to a file outside the directories is read like any other file. Point it only at directories that untrusted
-parties cannot write to, or serve the files yourself with `FileResolver`.
+**Security note.** The sandbox protects against path-based escapes and against a link swapped into the tree after
+its check: before a single byte is read, the **open file** is verified - its real path, asked of the operating
+system for the open handle (not the name), must be the root's real location followed by the path below the root,
+otherwise the file is `ThroughLink`; the root's real location is captured before the file is looked up, so a root
+renamed and replaced by a link meanwhile is refused too. Where the system cannot tell the real path of an open file,
+the file is
+refused (`LinkCheckFailed`), also when the real location of the root cannot be determined (a root you may search
+but not read has one). Devices and named pipes below a root are `CannotRead`, and opening a named pipe never
+blocks. A hard link to a file outside the directories is still read like any other file (a hard link is the file
+itself), so point the sandbox only at directories that untrusted parties cannot write to, or serve the files
+yourself with `FileResolver`.
 
 ```csharp
 using System.Text;
@@ -2252,6 +2258,177 @@ catch (SandboxException ex)
   negative.
 - `ArgumentException`: Thrown by `Resolve` when `relativeTo` was not resolved through one of this resolver's own roots.
 - `SandboxException`: Thrown by `Resolve` for every refusal and read failure described above.
+- `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
+
+### FileReferenceResolver and FileAccessPolicy
+
+```csharp
+namespace DemaConsulting.CanvasNet.Files;
+
+public sealed record FileReferenceOptions
+{
+    public string? BaseDirectory { get; init; }
+    public string? ReferrerPath { get; init; }
+    public IReadOnlyList<string> SearchPaths { get; init; }      // default: empty
+    public Func<string, Stream?>? FileResolver { get; init; }
+    public FileAccessPolicy FileAccess { get; init; }            // default: FileAccessPolicy.AllowAll
+    public long MaxFileBytes { get; init; }                      // default: 16 MiB
+    public int? MaxFiles { get; init; }                          // default: no limit
+}
+
+public sealed class FileReferenceResolver
+{
+    public FileReferenceResolver(FileReferenceOptions options, CancellationToken cancellationToken = default);
+    public bool HasSource { get; }
+    public StringComparer KeyComparer { get; }
+    public FileReference? Resolve(string reference, FileReference? relativeTo = null);
+}
+
+public sealed class FileReference
+{
+    public string Key { get; }          // the path as written (links not resolved)
+    public string? RealPath { get; }    // the real path of the opened file
+    public string Directory { get; }
+    public ReadOnlyMemory<byte> Content { get; }
+}
+
+public abstract class FileAccessPolicy
+{
+    public static FileAccessPolicy AllowAll { get; }                           // "any"
+    public static FileAccessPolicy NoSymlinks { get; }                         // "no-symlinks"
+    public static FileAccessPolicy UnderRoots(params string[] roots);          // "roots"
+    public static FileAccessPolicy UnderRoots(IEnumerable<string> roots);
+    public static FileAccessPolicy Combine(params FileAccessPolicy[] policies); // names joined with "+"
+    public static FileAccessPolicy FromDelegate(string name, Func<FileAccessRequest, FileAccessDecision> check);
+    public abstract string Name { get; }
+    public abstract FileAccessDecision Check(FileAccessRequest request);
+}
+
+public sealed record FileAccessRequest
+{
+    public required string Reference { get; init; }
+    public string? Referrer { get; init; }
+    public required string BaseDirectory { get; init; }
+    public required string RequestedPath { get; init; }
+    public required string RealPath { get; init; }
+}
+
+public sealed record FileAccessDecision
+{
+    public static FileAccessDecision Allow { get; }
+    public static FileAccessDecision Deny(string reason, string? hint = null);
+    public bool IsAllowed { get; }
+    public string? Reason { get; }
+    public string? Hint { get; }
+}
+
+public sealed class FileReferenceException : Exception
+{
+    public FileReferenceFailureKind Kind { get; }
+    public string Reference { get; }
+    public string? Reason { get; }
+    public string? RequestedPath { get; init; }
+    public string? RealPath { get; init; }
+    public string? PolicyName { get; init; }
+    public string? Hint { get; init; }
+}
+
+public enum FileReferenceFailureKind
+{
+    EmptyPath, ControlCharacter, InvalidPath, NetworkPath, AccessDenied, RealPathUnavailable,
+    NotARegularFile, CannotRead, TooLarge, InvalidBaseDirectory, TooManyFiles,
+}
+```
+
+`FileReferenceResolver` reads the files a document **references** (an image link, an include, a data file) the way
+Pandoc does: a relative path is looked up next to the referring file (pass it as `relativeTo`), otherwise in
+`BaseDirectory`, and then in each `SearchPaths` entry; `..` and absolute paths (`/x`, and `C:/x` on Windows) are
+followed, and so are symbolic links. A missing file, including a dangling link, is `null`. Which files may be read is
+decided by the **file-access policy** in `FileAccess`:
+
+| Policy | Name | Reads |
+| --- | --- | --- |
+| `FileAccessPolicy.AllowAll` (default) | `any` | every regular local file |
+| `FileAccessPolicy.UnderRoots(folders)` | `roots` | files whose written path and real path both lie inside a folder |
+| `FileAccessPolicy.NoSymlinks` | `no-symlinks` | files not reached through a symbolic link or junction |
+| `FileAccessPolicy.Combine(a, b)` | `a+b` | files every part allows |
+| `FileAccessPolicy.FromDelegate(name, check)` | `name` | files your function allows |
+
+The policy is asked **after the file was opened and before a byte is read**, about the real path of the open file
+(`FileAccessRequest.RealPath`), and the bytes are read from that same open file. A link that another process swaps in
+or out after a check therefore cannot change what is read. `UnderRoots` also refuses a path written outside its
+folders before the file is opened. `UnderRoots` captures the real location of each folder **when you create the
+policy** and never looks it up again, so create the folders first: a folder that does not exist then allows no file,
+even once it exists. Likewise the folder `NoSymlinks` starts from is captured before the file is opened, so a trusted
+folder that is renamed and replaced by a link while a file is being read cannot widen what is read. `NoSymlinks`
+trusts the deepest folder shared by the written path and the base
+directory or search path the chain of references started from - never a referring document's folder - and everything
+above it (so a linked home or temporary folder is fine), and refuses any link below it. Use it through `Combine`, not
+inside a `FromDelegate` function, where it cannot know its starting folder in advance and denies. A hard link is the
+file itself
+and is not detected. On Windows and macOS paths are compared without regard to letter case: on a case-sensitive volume
+or directory of those systems, a sibling folder whose name differs from a root only in letter case counts as inside
+it, so do not configure roots next to such folders.
+
+Under **every** policy the resolver refuses a network path (`\\server\share`, `//host`) as `NetworkPath`, a device path
+(`\\?\`, `\\.\`), on Windows a reserved device name in any component (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`,
+`LPT0`-`LPT9` and their superscript-digit forms, `CONIN$`, `CONOUT$`, in any letter case and also with an extension
+such as `NUL.txt`, trailing spaces or dots), or an alternate data stream (any colon other than a Windows drive) as
+`InvalidPath`, a control
+character, and anything that is not a regular file (a directory, a device such as `/dev/zero`, a named pipe, which never
+blocks the open) as `NotARegularFile`, and it keeps `MaxFileBytes` and `MaxFiles`. A policy other than `AllowAll` needs
+the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it; elsewhere such a policy
+refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file.
+
+On Windows, a path written as a local path whose opened file lies on a network share (a symbolic link to a UNC
+target) is refused under every policy as `NetworkPath`; files you place on a mapped network drive or share yourself
+keep working. Opening the file is what follows the link, so the open itself may already contact the share (and offer
+the user's credentials) before the check refuses the file. Windows evaluates local-to-remote symbolic links according
+to `fsutil behavior set SymlinkEvaluation` (local-to-remote is enabled by default); if untrusted parties can create
+symbolic links in folders documents are read from, disable it (`L2R:0`). Junctions cannot target a share, and creating
+a symbolic link needs a privilege or Developer Mode.
+
+A denial is a `FileReferenceException` with `Kind == AccessDenied`, the policy's `PolicyName`, `Reason` and `Hint`, and
+the `RequestedPath` and `RealPath`. **The message echoes the reference as written and names the policy; it never adds
+the resolved or real path, a configured directory, or the policy's reason** (which may name host paths), so it reveals
+nothing the author of the document did not write and is safe to show to that author (an absolute reference appears as
+written). Show the other properties only to trusted users. With a `FileResolver` callback, the file system and the
+policy are not used at all: the callback
+is the policy. An instance is not thread-safe (one per operation); options and policies are immutable and may be shared.
+
+```csharp
+using System.Text;
+using DemaConsulting.CanvasNet.Files;
+
+var resolver = new FileReferenceResolver(new FileReferenceOptions
+{
+    BaseDirectory = "/home/me/docs",
+    FileAccess = FileAccessPolicy.Combine(
+        FileAccessPolicy.UnderRoots("/home/me/docs", "/home/me/assets"),
+        FileAccessPolicy.NoSymlinks),
+});
+
+try
+{
+    var file = resolver.Resolve("../assets/logo.svg");
+    Console.WriteLine(file is null ? "Not found." : Encoding.UTF8.GetString(file.Content.Span));
+}
+catch (FileReferenceException ex) when (ex.Kind == FileReferenceFailureKind.AccessDenied)
+{
+    Console.WriteLine(ex.Message); // safe to show to the document's author
+    System.Diagnostics.Trace.TraceWarning($"{ex.Reason}; {ex.Hint}"); // host log only: may name host folders
+}
+```
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown by the constructor when `options`, its `SearchPaths` or its `FileAccess` is null,
+  and by `Resolve` when `reference` is null.
+- `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive or `MaxFiles` is
+  negative.
+- `ArgumentException`: Thrown by `Resolve` when `relativeTo` was not returned by this resolver (including one from the
+  other mode, file system or callback), and by the policy factories for invalid arguments.
+- `FileReferenceException`: Thrown by `Resolve` for every refusal and read failure described above.
 - `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
 
 ### Linked Images (ImageSources)

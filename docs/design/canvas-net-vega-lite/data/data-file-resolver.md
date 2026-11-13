@@ -64,11 +64,11 @@ text of a returned file is valid UTF-8.
 the file exists, is not behind a link, is within the limits, and is decoded text, or an exception was thrown and
 nothing was returned. A call never changes the files it reads.
 
-**Residual risk.** The sandbox's link check and its open are two steps; a writer that can change the tree between them
-could swap a checked component for a link. The sandbox does not defend against this and says so: its protection is
-against path-based escapes in a static tree, not against a concurrent local attacker with write access to the data
-folders. Hard links and special files (named pipes, devices) are not recognized either; a caller who cannot trust a
-folder must not use it as a data root.
+**Residual risk.** The sandbox's link check and its open are still two steps, but the sandbox verifies the open file
+before reading it (its real path must be the real location of the root followed by the path below the root), so a
+link swapped in between is refused (`ThroughLink`, mapped to the existing "passes through a link" message). Devices
+and named pipes are refused as unreadable. Hard links remain undetectable: a hard link is the file itself and has no
+marker; a caller who cannot trust a folder must not use it as a data root.
 
 #### Error Handling
 

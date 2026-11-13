@@ -169,8 +169,8 @@ file link is a link error while a truly missing file is "was not found", a base 
 trusted, and the real file beside the links is read. The walk itself - top-down order, existing components only,
 caching, trusted root, fail-closed probe, resolver mode never probing, dot-dot normalization - is proven on every
 platform at the core unit with an injected probe. _Not verified, by design:_ the requirement covers symbolic links and
-junctions only; a hard link has no marker a link probe can see, other reparse points that redirect nothing (for example
-cloud placeholders) are not rejected, and a component swapped between the link walk and the open (a check/use race) is
-not noticed. These are documented residual risks (see _DataFileResolver Unit Design_), and no test claims otherwise: the
-sandbox protects against path-based escapes in static file trees and is not a security boundary against a concurrent
-local attacker with write access to the data folders.
+junctions only; a hard link has no marker a link probe can see, and other reparse points that redirect nothing (for
+example cloud placeholders) are not rejected. These are documented residual risks (see _DataFileResolver Unit Design_),
+and no test claims otherwise. A component swapped for a link between the link walk and the open is refused by the core
+sandbox's verification of the open file; that race is covered at the core unit
+(`CanvasNet-Files-SandboxedFileResolver-RaceFree`).

@@ -86,11 +86,16 @@ DEMA Consulting best practices. The system consists of nine implemented subsyste
   See _Rendering Subsystem Design_
   (`rendering.md`).
 - **Files subsystem** (namespace `DemaConsulting.CanvasNet.Files`, folder
-  `src/DemaConsulting.CanvasNet/Files/`, flat — no further nesting): sandboxed file access
-  through the public `SandboxedFileResolver` unit (with its `SandboxOptions`, `SandboxedFile`,
-  `SandboxException`, and `SandboxFailureKind` types documented inline), which turns an untrusted
-  relative path into the bytes of a file inside caller-chosen directories or a caller-supplied
-  virtual file source, refusing escapes, hostile path text, and symbolic links or junctions. `Files`
+  `src/DemaConsulting.CanvasNet/Files/`, flat — no further nesting): access to the files a document
+  references. The public `FileReferenceResolver` unit (with its `FileReferenceOptions`, `FileReference`,
+  `FileReferenceException`, and `FileReferenceFailureKind` types) opens a referenced file, asks the public
+  `FileAccessPolicy` unit (the hook, its built-in policies, and the `FileAccessRequest` and
+  `FileAccessDecision` types) about the real path of the open file, and only then reads it; the internal
+  `RealPath` unit supplies that real path per operating system. The public `SandboxedFileResolver` unit
+  (with its `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types
+  documented inline) turns an untrusted relative path into the bytes of a file inside caller-chosen
+  directories or a caller-supplied virtual file source, refusing escapes, hostile path text, and symbolic
+  links or junctions, verified on the open file. `Files`
   depends on no other subsystem; the `ImageSources` subsystem and the satellite systems `CanvasNetVegaLite`
   and `CanvasNetScad` depend on it through its public API. See _Files Subsystem Design_ (`files.md`).
 - **ImageSources subsystem** (namespace `DemaConsulting.CanvasNet.ImageSources`, folder
@@ -805,9 +810,17 @@ The library is supported on the following operating systems:
 - **Linux** — CI/CD and containerized environments
 - **macOS** — developer workstations using Apple platforms
 
-Portability is achieved by restricting the implementation exclusively to Base Class Library (BCL)
-APIs available across all target frameworks. No platform-specific native interop, OS-specific
-APIs, or framework-version-specific features are used.
+Portability is achieved by restricting the implementation to Base Class Library (BCL) APIs available
+across all target frameworks, with one documented exception: the `RealPath` unit of the `Files`
+subsystem asks the operating system for the real path and the type of an **open file handle**, which no
+BCL API provides and which a race-free file-access check needs. It calls `kernel32.dll` on Windows
+(`GetFinalPathNameByHandleW`, `GetFileType`, `CreateFileW`, `GetLongPathNameW`), the C library on Linux
+(`open`, `fstat`) together with `/proc/self/fd`, and the C library on macOS (`open`, `proc_pidfdinfo`,
+`fstat`, `realpath`).
+These calls are confined to that one unit (see _RealPath Unit Design_), use no unsafe code, and fail
+closed: where they are unavailable, the default file-access policy still works and every restrictive
+policy refuses the file. No other platform-specific native interop or framework-version-specific feature
+is used.
 
 ### Integration Patterns
 
