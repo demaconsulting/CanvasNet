@@ -202,6 +202,7 @@ sections:
               - CanvasNet-Files-FileReferenceResolver-RegularFile
               - CanvasNet-Files-FileReferenceResolver-RealPathUnavailable
               - CanvasNet-Files-FileReferenceResolver-NetworkTarget
+              - CanvasNet-Files-FileReferenceResolver-FileUri
               - CanvasNet-Files-RealPath-RegularFile
               - CanvasNet-Files-RealPath-NonBlockingOpen
               - CanvasNet-Files-RealPath-Unavailable

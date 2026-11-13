@@ -599,8 +599,10 @@ unsupported constructs. A reference whose value no property can hold is reported
   untrusted specification would be a server-side request forgery primitive; a local path is read under the file-access
   policy of the caller.
 - `LocalPathOfFileUri(string url)` - the local path (`Uri.LocalPath`, percent-decoded) of a well-formed `file:` URI with
-  an empty host, the short form `file:/x` written out as `file:///x` first so every platform parses it alike; `null`
-  for any other text, including a URL that is not a `file:` URI. `DataLoader` reads a local `file:` URI at this path.
+  an empty host; `null` for any other text, including a URL that is not a `file:` URI. It trims leading white space and
+  delegates to the core `FileReferenceResolver.ParseFileUri` (through the core assembly's `InternalsVisibleTo` grant),
+  so the short form `file:/x` is local and a host (`localhost` included) is refused exactly as for an image link.
+  `DataLoader` reads a local `file:` URI at this path.
 
 **Preconditions and postconditions**: the tree is non-null and valid; the result is a new read-only list in document
 order, empty when the specification uses only supported constructs. The catalog is stateless and thread-safe.

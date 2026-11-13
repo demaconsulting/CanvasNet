@@ -58,10 +58,12 @@ sections:
 
               - id: CanvasNet-ImageSources-FolderImageResolver-FileUri
                 title: >-
-                  The FolderImageResolver class shall read a file: URI without a host as its absolute local path,
-                  judged by the policy like any other link (a URI with a host, localhost included, and a malformed URI
-                  are unresolved warnings, never read), shall treat the file scheme as a local path even when sources
-                  claim schemes, and shall decode percent-encoded characters of a relative path.
+                  The FolderImageResolver class shall read a file: URI without a host, in the long form file:///x and
+                  the short form file:/x alike, as its absolute local path, judged by the policy like any other link
+                  (a URI with a host, localhost included, is an unresolved warning that names a network location, and
+                  a malformed file: URI is an unresolved warning that says it is malformed; neither is read), shall
+                  treat the file scheme as a local path even when sources claim schemes, and shall decode
+                  percent-encoded characters of a relative path.
                 justification: |
                   Documents written by tools use file: URIs and percent-encoded names; they must work like the paths
                   they stand for and must never reach a network share.
@@ -71,6 +73,10 @@ sections:
                   - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_FileUriWithControlCharacter_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources
+                  - FolderImageResolver_Resolve_ShortFormFileUri_NamesTheFile
+                  - FolderImageResolver_Resolve_ShortFormFileUriWithoutDrive_IsNotANetworkLocation
+                  - FolderImageResolver_Resolve_FileUriWithHost_IsRefusedAsNetworkLocation
+                  - FolderImageResolver_Resolve_MalformedFileUri_IsReportedAsMalformed
 
               - id: CanvasNet-ImageSources-FolderImageResolver-UriReference
                 title: >-

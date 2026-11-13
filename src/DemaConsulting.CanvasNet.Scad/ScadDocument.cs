@@ -115,7 +115,8 @@ public sealed partial class ScadDocument
     /// <remarks>
     ///     The file is read as UTF-8 (a byte-order mark is detected and removed). Unless overridden, the source
     ///     name is <paramref name="path"/> exactly as supplied and the base directory is the folder of the full path, so
-    ///     a relative <c>include</c> or <c>use</c> is found next to the file (and cannot leave that folder); set
+    ///     a relative <c>include</c> or <c>use</c> is found next to the file; it may name any local file unless
+    ///     <see cref="ScadOpenOptions.FileAccess"/> (a <see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy"/>) confines it; set
     ///     <see cref="ScadOpenOptions.BaseDirectory"/> to use another folder.
     /// </remarks>
     /// <param name="path">The path of the file. Must not be null, empty or whitespace.</param>

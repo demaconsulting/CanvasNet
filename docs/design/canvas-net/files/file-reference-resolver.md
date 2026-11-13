@@ -118,6 +118,14 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   denial throws `AccessDenied` with the policy's name, reason and hint and both paths.
 - `ReadBounded` (internal static, shared with `SandboxedFileResolver`) - checks a reported length first, then reads in
   8 KiB chunks, stops as soon as the running length exceeds the limit, and observes the token after each chunk.
+- `ParseFileUri(text, out localPath)` (internal static) with the nested `FileUriKind` - classifies a text as a `file:`
+  URI for the consumers that accept one: `NotFileUri` (no `file:` prefix, case-insensitive), `Local` (no host; the
+  local path is `Uri.LocalPath`, percent-decoded), `HasHost` (any host, `localhost` included, and the UNC forms that
+  `System.Uri` maps to a host; never read), or `Malformed` (the text does not parse as a file URI). The short form
+  `file:/x` has no authority, which `System.Uri` rejects on Windows, so it is written out as `file:///x` first and
+  parses alike on every platform. The text is not trimmed. Its consumers are `FolderImageResolver` (image links) and
+  `FeatureCatalog.LocalPathOfFileUri` (`CanvasNetVegaLite`, through the core assembly's `InternalsVisibleTo` grant),
+  so the `file:` rules of image links and data URLs are one implementation and cannot drift apart.
 - `LoadLogical` and `ReadFromCallback` - callback mode: the callback, the bounded read and the disposal form one
   boundary whose every failure except a cancellation is `CannotRead`; the policy is never asked.
 
@@ -164,7 +172,8 @@ _FileAccessPolicy Unit Design_).
 `FileReferenceResolver` is a public API entry point for consumers of the CanvasNet package. Inside the library it is
 used by `FolderImageResolver` (`ImageSources`; every file link, and `ResolveTopLevel` for the file of a render by
 path), by `DataFileResolver` (`CanvasNetVegaLite`) and by `ScadFileResolver` (`CanvasNetScad`), each with the policy
-its caller chose; the obsolete `SandboxedFileResolver` reuses its `ReadBounded`. The tests in
+its caller chose; the obsolete `SandboxedFileResolver` reuses its `ReadBounded`, and `FolderImageResolver` and the
+Vega-Lite `FeatureCatalog` share its `ParseFileUri`. The tests in
 `test/DemaConsulting.CanvasNet.Tests/Files/` call it
 directly and reach the internal hooks constructor through the core assembly's `InternalsVisibleTo` grant to the test
 project.

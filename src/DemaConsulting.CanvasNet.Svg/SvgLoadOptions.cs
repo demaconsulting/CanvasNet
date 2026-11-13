@@ -42,11 +42,14 @@ public sealed record SvgLoadOptions
     ///     <c>data:</c> URI, and it never reads a file or the network for any other <c>href</c>. Set
     ///     this resolver to opt in to loading other references. The codec itself still performs no
     ///     I/O: the only I/O is whatever the resolver you supply does, and what it is allowed to
-    ///     reach (a folder, a sandbox, a network allow-list) is entirely your decision. Do not
-    ///     resolve an <c>href</c> from an untrusted document against the file system without
-    ///     confining it first; <see cref="FolderImageResolver"/> does that confinement (and also
+    ///     reach (a folder, a file-access policy, a network allow-list) is entirely your decision.
+    ///     <see cref="FolderImageResolver"/> resolves links relative to the document under
+    ///     <see cref="FolderImageResolverOptions.FileAccess"/> (every regular local file by default,
+    ///     never the network); for an untrusted document, confine it with
+    ///     <see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy.UnderRoots(string[])"/> (and
+    ///     <see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy.NoSymlinks"/>). It also
     ///     loads models, charts, nested SVG files, documents and rasters through pluggable
-    ///     <see cref="IImageSource"/> implementations).
+    ///     <see cref="IImageSource"/> implementations.
     ///     </para>
     ///     <para>
     ///     The resolver receives the raw <c>href</c> and the device-pixel size of the placement

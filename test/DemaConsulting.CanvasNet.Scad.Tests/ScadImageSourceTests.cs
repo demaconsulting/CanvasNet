@@ -7,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Scad.Tests;
 
 /// <summary>
 ///     Tests of <see cref="ScadImageSource"/>: an OpenSCAD model as an embedded picture - the size of its placement, a
-///     transparent background, includes confined to the folder of the file, and notes and echo lines as diagnostics.
+///     transparent background, includes read under the file-access policy of the request, and notes and echo lines as
+///     diagnostics.
 /// </summary>
 public class ScadImageSourceTests
 {

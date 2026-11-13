@@ -165,9 +165,11 @@ public sealed class MermaidRenderOptions
     ///         <b>No implicit file access.</b> The library never opens a file or contacts a network for a picture on its
     ///         own: the link is handed to this resolver, as text, and to nothing else. Without a resolver no picture is drawn
     ///         and the warning <see cref="MermaidDiagnosticCodes.ImageUnresolved"/> is reported. The policy of what a link may
-    ///         refer to is the resolver's: <see cref="FolderImageResolver"/> confines it to a folder and understands every
+    ///         refer to is the resolver's: <see cref="FolderImageResolver"/> resolves it relative to the diagram under its
+    ///         <see cref="FolderImageResolverOptions.FileAccess"/> policy (every local file by default; confinement is opt-in
+    ///         with <see cref="DemaConsulting.CanvasNet.Files.FileAccessPolicy.UnderRoots(string[])"/>) and understands every
     ///         format of the CanvasNet libraries. The text of the link is untrusted, so a resolver that touches the file
-    ///         system or the network must confine it.
+    ///         system or the network must decide what an untrusted link may reach.
     ///     </para>
     ///     <para>
     ///         The resolver is called on the calling thread; <see cref="MermaidLimits.MaxImages"/> bounds the number of

@@ -1162,7 +1162,8 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
-    ///     Test that a <c>file:</c> link stays a path inside the folder even when a source claims every scheme it can.
+    ///     Test that a <c>file:</c> link is always read as a local path by the resolver, even when a source claims every
+    ///     scheme it can.
     /// </summary>
     [Fact]
     public void FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources()

@@ -127,6 +127,19 @@ sections:
                 tests:
                   - "windows@FileReferenceResolver_Resolve_LocalPathWhoseRealPathIsANetworkShare_IsNetworkPathUnderEveryPolicy"
 
+              - id: CanvasNet-Files-FileReferenceResolver-FileUri
+                title: >-
+                  The FileReferenceResolver class shall classify a text as a file: URI that is local (no host, in
+                  the long form file:///x and the short form file:/x alike, giving its local path), one with a host
+                  (localhost included, never read), a malformed one, or no file: URI at all.
+                justification: |
+                  Image links and data URLs accept file: URIs; one shared classification makes the short form work
+                  on every platform, keeps any host (a network location) from being read, and keeps the rules of
+                  the two consumers from drifting apart.
+                tests:
+                  - FileReferenceResolver_ParseFileUri_ClassifiesFileUris
+                  - FileReferenceResolver_ParseFileUri_ShortAndLongFormGiveTheSamePath
+
               - id: CanvasNet-Files-FileReferenceResolver-RaceFree
                 title: >-
                   The FileReferenceResolver class shall take the real path it gives the policy from the open file,

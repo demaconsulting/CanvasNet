@@ -783,7 +783,9 @@ A node can show a picture: `@{ img: "part.png", label: "Part", pos: "t", w: 120,
 `<img src="part.png">` in a label. The library never opens a file or the network for a picture: the link is handed, as
 text, to `MermaidRenderOptions.ImageResolver`, and the resolver decides what it may refer to. Without a resolver no
 picture is drawn and the warning `mermaid-image-unresolved` is reported. `CanvasNetViewer.CreateImageResolver(folder)`
-of the `DemaConsulting.CanvasNet.Viewer` package confines the links to one folder and draws every CanvasNet format, so a
+of the `DemaConsulting.CanvasNet.Viewer` package resolves the links relative to that folder under the file-access
+policy of its options (every regular local file by default; never the network; see the core user guide, *Migrating
+from the Folder Sandbox*) and draws every CanvasNet format, so a
 node can show a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, a page of a PDF, PPTX, or VSDX document, or
 another diagram. A link may carry the fragments of an SVG link, such as `part.scad#def.width=20` or
 `flow.mmd#theme=dark`. `MaxImages` bounds the calls of the resolver in one render: a picture counts when it is
@@ -1163,7 +1165,7 @@ using DemaConsulting.CanvasNet.Viewer;
 var diagram = MermaidDocument.Open("examples/mermaid-pictures.mmd");
 var options = new MermaidRenderOptions
 {
-    ImageResolver = CanvasNetViewer.CreateImageResolver("examples"),  // links stay inside this folder
+    ImageResolver = CanvasNetViewer.CreateImageResolver("examples"),  // links resolve relative to this folder
     WarningHandler = warning => Console.WriteLine(warning),          // a picture that was not drawn is a warning
 };
 using var picture = diagram.Render(options);
@@ -1181,8 +1183,9 @@ PngCodec.Save(picture, "pictures.png");
 Example 55 in the other direction: an SVG document shows diagrams next to a model and a chart. Any SVG
 `<image href>` can name a `.mmd` or `.mermaid` file, and a fragment such as `#theme=dark` chooses the diagram's theme
 (see *Using As An Embedded Image*). The pictures inside a diagram are found relative to the `.mmd` file, not to the
-SVG. All the nesting goes through the one resolver of the render: every link stays inside the folder of the outer
-document and shares its budgets, nesting is limited in depth, and a file that embeds itself is cut as a cycle.
+SVG. All the nesting goes through the one resolver of the render: every link is resolved relative to the file that
+contains it, under the file-access policy of the render, and shares its budgets, nesting is limited in depth, and a file
+that embeds itself is cut as a cycle.
 
 `examples/composition-dashboard.svg` has four panels: the flowchart of Example 55 (which itself shows `bracket.scad`,
 `swatch.svg`, and `stall-sales.vl.json`), the OpenSCAD model `bracket.scad`, the sequence diagram

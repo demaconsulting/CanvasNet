@@ -37,7 +37,8 @@ namespace DemaConsulting.CanvasNet.Mermaid;
 ///     <para>
 ///         <b>Pictures.</b> The pictures of the diagram (<c>@{ img }</c> nodes) load through
 ///         <see cref="ImageSourceRequest.Resolver"/>, the resolver scoped to the diagram's own file, so they share the budgets,
-///         notes and cycle chain of the whole render and are confined like every other embedded file.
+///         notes and cycle chain of the whole render and are checked by the same file-access policy as every other embedded
+///         file.
 ///     </para>
 ///     <para>
 ///         The source is stateless and thread-safe and claims no URI scheme.

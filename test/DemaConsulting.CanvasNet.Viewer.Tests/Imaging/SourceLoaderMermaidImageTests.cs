@@ -8,9 +8,9 @@ namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
 
 /// <summary>
 ///     Tests of the picture nodes of a Mermaid diagram (<c>@{ img: ... }</c>) in <see cref="SourceLoader"/>: a diagram shows
-///     files that lie beside it through the sandboxed resolver of the viewer, rooted at the folder of the diagram. The tests
-///     draw diagrams whose pictures are a generated PNG, a model (<c>.scad</c>) and a chart (<c>.vl.json</c>), and the
-///     failures (a link that leaves the folder, a remote URL, a missing file, a cycle, a broken file), and assert the pixels,
+///     files that lie beside it through the folder image resolver of the viewer, relative to the folder of the diagram. The
+///     tests draw diagrams whose pictures are a generated PNG, a model (<c>.scad</c>) and a chart (<c>.vl.json</c>), and the
+///     failures (a link the policy denies, a remote URL, a missing file, a cycle, a broken file), and assert the pixels,
 ///     the notes, the <c>embed</c> operations and the <c>--strict</c> policy, and that a picture that enlarges a diagram drawn
 ///     at its natural size is charged and reported at the drawn size.
 /// </summary>

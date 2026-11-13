@@ -2209,8 +2209,8 @@ own scope, and everything not yet implemented is reported with a stable identifi
    files and `$schema`-identified JSON, probes and renders Vega-Lite charts, reports the chart facts, and maps the
    library exceptions to its stable error codes; the tool package bundles the assembly and the license texts. The
    tool's own design, verification, and requirements are documented in the `CanvasNetTool` artifacts.
-4. **Phase 4 - Data files (delivered).** The `Data` units `DataFileResolver` (the sandboxed,
-   bounded, cached reading of local data files and of the caller's callback) and `DelimitedTextParser` (CSV, TSV, and
+4. **Phase 4 - Data files (delivered).** The `Data` units `DataFileResolver` (the bounded, cached reading of local
+   data files under a file-access policy and of the caller's callback) and `DelimitedTextParser` (CSV, TSV, and
    DSV, `parse`, and opt-in per-column inference), the extended `DataLoader` (files, `format.property`, named datasets,
    `sequence`) and `DataTable` (a date value), the active `BaseDirectory`, `DataPaths`, `FileResolver`, `Datasets`,
    `MaxDataFiles`, and `MaxDataBytes` options, the retired and new `vl-data-*` identifiers, the data folder behavior of

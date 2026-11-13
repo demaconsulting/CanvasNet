@@ -505,10 +505,9 @@ callouts and leader lines. An anchor that cannot be read is skipped with a warni
 `scad-anchor-invalid` (every warning has a stable `Code`, so test it and not the message).
 
 Render a Vega-Lite chart (the `DemaConsulting.CanvasNet.VegaLite` package implements a defined subset of the
-language for static pictures: it never touches the network, reads local data files under a file-access policy, uses only
-the
-bundled fonts unless told otherwise, and
-reports everything it recognizes but cannot draw; it is not affiliated with the Vega project):
+language for static pictures: it never touches the network, reads local data files under a file-access policy, uses
+only the bundled fonts unless told otherwise, and reports everything it recognizes but cannot draw; it is not
+affiliated with the Vega project):
 
 ```csharp
 using DemaConsulting.CanvasNet.Codecs;

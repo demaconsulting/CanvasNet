@@ -8,9 +8,9 @@ using DemaConsulting.CanvasNet.Viewer.Imaging;
 namespace DemaConsulting.CanvasNet.Viewer.Tests.Imaging;
 
 /// <summary>
-///     Tests of the Vega-Lite <c>image</c> mark wiring of <see cref="SourceLoader"/> (Vega-Lite Phase 13): a chart shows pictures that lie beside it through the sandboxed resolver of the
-///     viewer, the same one an SVG file embeds with, rooted at the folder of the chart. The tests draw charts whose pictures are a generated PNG, a model (<c>.scad</c>), a page of a PDF
-///     (<c>report.pdf#page=2</c>), a nested chart and the failures (a missing file, a path outside the folder, a remote URL, a file that is corrupt, a page that does not exist, a cycle, the
+///     Tests of the Vega-Lite <c>image</c> mark wiring of <see cref="SourceLoader"/> (Vega-Lite Phase 13): a chart shows pictures that lie beside it through the folder image resolver of the
+///     viewer, the same one an SVG file embeds with, relative to the folder of the chart. The tests draw charts whose pictures are a generated PNG, a model (<c>.scad</c>), a page of a PDF
+///     (<c>report.pdf#page=2</c>), a nested chart and the failures (a missing file, a path the policy denies, a remote URL, a file that is corrupt, a page that does not exist, a cycle, the
 ///     limit of pictures), and assert the pixels that the placement of each picture puts the picture's colors into, the notes, the <c>embed</c> operations and the <c>--strict</c> policy.
 /// </summary>
 public class SourceLoaderVegaLiteImageTests

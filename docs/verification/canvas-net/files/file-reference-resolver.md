@@ -152,6 +152,17 @@ location", and no temporary directory in the message; a second resolve fails the
 again. A real link to a share and a mapped network drive cannot be created on CI, so the exemption of a written path
 that is itself a network location is covered by `RealPath-NetworkLocation` and by review.
 
+##### CanvasNet-Files-FileReferenceResolver-FileUri: Classifying File URIs
+
+**Tests**: `FileReferenceResolver_ParseFileUri_ClassifiesFileUris`,
+`FileReferenceResolver_ParseFileUri_ShortAndLongFormGiveTheSamePath`
+
+`a.png` and `http://h/a.png` are not `file:` URIs; `file:///tmp/a.png`, `file:/tmp/a.png`, `FILE:/tmp/a.png` and
+`file:/C:/a.png` are local with a local path; `file://localhost/a.png`, `file://server/share/a.png` and
+`file:////server/share/a.png` have a host and no local path; `file://[/a.png` and `file:` are malformed with no local
+path. The short form `file:/tmp/a%20b.png` and the long form `file:///tmp/a%20b.png` give the same, percent-decoded
+local path on every platform.
+
 ##### CanvasNet-Files-FileReferenceResolver-RaceFree: The Decision Follows the Open Handle
 
 **Tests**: `FileReferenceResolver_Resolve_FileMovedAndFolderSwappedForOutsideLinkAfterOpen_IsAllowedWithOriginalBytes`,

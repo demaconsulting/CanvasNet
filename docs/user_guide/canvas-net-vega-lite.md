@@ -2272,7 +2272,9 @@ picture is comes from the source (a raster source says its picture is at its own
 pixel size equals the requested size is still a raster. A resolver of your own that only implements `IImageResolver`
 says nothing, and a picture that comes back at exactly the requested size is then taken as drawn for the request.
 
-**Resolvers.** `FolderImageResolver` of the core package confines a link to a folder and understands every format of the
+**Resolvers.** `FolderImageResolver` of the core package resolves a link relative to the chart under its file-access
+policy (`FolderImageResolverOptions.FileAccess`; every local file by default, see the core user guide, *Migrating from
+the Folder Sandbox*) and understands every format of the
 CanvasNet libraries, so a chart can show a PNG or JPEG, an SVG, an OpenSCAD model (`"url": "part.scad"`), a page of a
 document (`"url": "report.pdf#page=2"`), a Mermaid diagram, or another chart; a remote link (`https://`) is refused and
 reported as `svg-image-unresolved` by the resolver. A resolver of your own may serve pictures from memory. The resolver
@@ -4644,7 +4646,7 @@ var reports = new List<VegaLiteUnsupportedFeature>();
 using var bare = chart.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add });
 Console.WriteLine(reports[0].Feature);               // Output: vl-mark-image
 
-// A resolver that confines the links to the folder of the chart and draws a vector, a model, or a raster
+// A resolver that reads the links relative to the folder of the chart and draws a vector, a model, or a raster
 var resolver = new FolderImageResolver("examples", [new RasterImageSource(), new SvgImageSource(), new ScadImageSource()]);
 var options = new VegaLiteRenderOptions
 {

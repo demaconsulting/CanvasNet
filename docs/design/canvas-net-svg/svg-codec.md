@@ -1447,8 +1447,9 @@ the out-of-scope list above for the full rationale behind each).
 
 _Image Resolver._ `SvgLoadOptions.ImageResolver` (`IImageResolver?`, default `null`) is the only way an
 external reference is ever loaded, so the codec itself still performs no I/O: a host that opts in decides
-what the resolver may reach (`FolderImageResolver` of the core package confines it to a folder with
-`SandboxedFileResolver`). The codec never caches a picture: every element and every load calls the
+what the resolver may reach (`FolderImageResolver` of the core package reads through `FileReferenceResolver` under
+`FolderImageResolverOptions.FileAccess`, a `FileAccessPolicy`: `AllowAll` by default, confinement opt-in with
+`UnderRoots`/`NoSymlinks`). The codec never caches a picture: every element and every load calls the
 resolver again, so a resolver backed by a live source gets a fresh request each time. `RenderImageWithEffects` first
 validates the placement size, then
 `ClassifyImageHref` classifies the trimmed `href`: empty or a same-document `#fragment` is a no-op; a

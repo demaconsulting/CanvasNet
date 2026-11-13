@@ -94,12 +94,20 @@ request carries `AllowAll` and refuses `null`.
 **Tests**: `FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot`,
 `FolderImageResolver_Resolve_FileUriOutsideFolder_Default_IsDrawn`,
 `FolderImageResolver_Resolve_FileUriWithControlCharacter_IsUnresolvedWarning`,
-`FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources`
+`FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources`,
+`FolderImageResolver_Resolve_ShortFormFileUri_NamesTheFile`,
+`FolderImageResolver_Resolve_ShortFormFileUriWithoutDrive_IsNotANetworkLocation`,
+`FolderImageResolver_Resolve_FileUriWithHost_IsRefusedAsNetworkLocation`,
+`FolderImageResolver_Resolve_MalformedFileUri_IsReportedAsMalformed`
 
 Asserts that, under `UnderRoots(folder)`, a `file:` URI outside the folder is the `image-access-denied` warning and one
 inside is drawn; that under the default policy a local `file:` URI outside the folder is drawn and named
 `../outside.stub`; that `my%20img.stub` is decoded, a `file:` URI with a control character is a warning, and that a
-source that claims another scheme never sees a `file:` link.
+source that claims another scheme never sees a `file:` link. The short form `file:/x` of an existing file is drawn
+under the default policy; a short form without a drive letter is a local path (a missing file here), never reported as
+a network location or as malformed; `file://localhost/...`, `file://server/share/...` and `file:////server/share/...`
+are unresolved warnings that name a network location and never reach a source; and `file://[/a.stub` is an unresolved
+warning that says it is a malformed `file:` URI and does not mention the network.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-UriReference: Query, Fragment, And Percent-Encoding
 

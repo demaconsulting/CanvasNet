@@ -79,8 +79,10 @@ source owns its meaning), the parsed `Fragment`, the clamped size, the shared bu
 `SplitHref`): first cut the query (from the first `?` before a `#`) and the fragment (from the first `#`) off the link,
 as RFC 3986 defines a reference, **before**
 anything is decoded; a `?` after the first `#` belongs to the fragment; a link that is empty after that is unresolved
-("the reference is empty"). Then a local `file:` URI (no host) becomes its absolute local path (a `file:` URI with a
-host, `localhost` included, or a malformed one is unresolved: "it names a network location"), and for any
+("the reference is empty"). Then a `file:` URI is classified by the core `FileReferenceResolver.ParseFileUri`: a local
+one (no host; the short form `file:/x` included) becomes its absolute local path, one with a host (`localhost`
+included) is unresolved ("it names a network location"), and a malformed one is unresolved with its own reason ("it is
+a malformed file: URI"); for any
 other link percent-encoding is decoded, so an encoded `%23` or `%3F` is a literal `#` or `?` of the file name and the
 text that was cut off is never used for the path (the query is never used; the fragment goes to the source, below);
 `..`, absolute, drive, and UNC paths are left in the text, so that the engine refuses what is never allowed and the

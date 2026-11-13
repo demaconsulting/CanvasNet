@@ -7,8 +7,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 
 /// <summary>
 ///     Tests of <see cref="VegaLiteImageSource"/>: a Vega-Lite chart as an embedded picture - laid out at the size of
-///     its placement, keeping its own background, data files confined to the folder of the file, and notes as
-///     diagnostics.
+///     its placement, keeping its own background, data files read under the file-access policy of the request, and notes
+///     as diagnostics.
 /// </summary>
 public class VegaLiteImageSourceTests
 {
