@@ -3,8 +3,8 @@
 # Software Subsystem Requirements for ImageSources
 #
 # These requirements decompose the CanvasNet system's linked-picture support into the ImageSources subsystem's own
-# responsibility: letting a document that links to other pictures (an SVG image element, for example) draw them
-# through one resolver that reads every file link under a file-access policy, hands the file (or the link, for a URI scheme a
+# responsibility: letting a document that links to other pictures (an SVG image element, for example) draw them through
+# one resolver that reads every file link under a file-access policy, hands the file (or the link, for a URI scheme a
 # source claims) to the pluggable source that claims it, bounds the work, and reports what happened, without the
 # renderer or the resolver knowing any format (the ImageSourceContract, FolderImageResolver, and RasterImageSource
 # units). Each requirement here links down to the unit requirements that implement it.
@@ -41,11 +41,11 @@ sections:
             title: >-
               The ImageSources subsystem shall resolve every file link relative to the folder of the file that contains
               it and read the file only when the caller's file-access policy allows the opened file (by default every
-              regular local file, also through dot-dot, an absolute or drive path, a local file: URI or a symbolic link),
-              shall refuse a UNC, network, file URI with a host, alternate-stream, or control-character path under every
-              policy without reading the file it names, shall pass the policy, judged from the origin of the chain, to
-              every source it calls, and shall decode percent-encoded relative paths after cutting off a query and a
-              fragment (RFC 3986) so that neither can change the path or open a way past the policy.
+              regular local file, also through dot-dot, an absolute or drive path, a local file: URI or a symbolic
+              link), shall refuse a UNC, network, file URI with a host, alternate-stream, or control-character path
+              under every policy without reading the file it names, shall pass the policy, judged from the origin of the
+              chain, to every source it calls, and shall decode percent-encoded relative paths after cutting off a query
+              and a fragment (RFC 3986) so that neither can change the path or open a way past the policy.
             justification: |
               Links resolve the way Pandoc resolves them, while the host decides which files a document may read; a link
               must never reach the network, and a policy must also hold for the files the linked models and charts read.

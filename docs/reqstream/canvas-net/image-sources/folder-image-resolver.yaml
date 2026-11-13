@@ -78,10 +78,10 @@ sections:
                   reference: it shall cut off the query (from the first question mark before a number sign) and the
                   fragment (from the first number sign) before it decodes percent-encoding, so that an encoded %23 or
                   %3F stays a literal character of the file name; shall choose the source by the extension of what is
-                  left and resolve it through the file-access engine with every refusal unchanged; shall report a link that is
-                  nothing but a query or a fragment as an unresolved warning; shall hand the source the link as
-                  written (the fragment parsed into the request, see the Fragment requirement); and shall hand a
-                  link of a claimed scheme to its source as written, without cutting anything off.
+                  left and resolve it through the file-access engine with every refusal unchanged; shall report a link
+                  that is nothing but a query or a fragment as an unresolved warning; shall hand the source the link as
+                  written (the fragment parsed into the request, see the Fragment requirement); and shall hand a link of
+                  a claimed scheme to its source as written, without cutting anything off.
                 justification: |
                   Documents link files with cache-busting queries and fragments (image.png?v=2, report.pdf#page=2);
                   the order of stripping and decoding is what keeps an encoded character from changing the path and

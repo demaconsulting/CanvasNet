@@ -233,9 +233,9 @@ sections:
 
               - id: CanvasNetVegaLite-Data-DataLoader-LookupSources
                 title: >-
-                  The DataLoader unit shall load the secondary source of a lookup transform with the same Load
-                  method, file-access policy, per-call file cache, file and byte limits, and row budget as the main data of
-                  the view, locating a failure at the lookup source.
+                  The DataLoader unit shall load the secondary source of a lookup transform with the same Load method,
+                  file-access policy, per-call file cache, file and byte limits, and row budget as the main data of the
+                  view, locating a failure at the lookup source.
                 justification: |
                   A lookup source is untrusted data like any other; it must not escape the limits and the
                   policy that bound the main data.

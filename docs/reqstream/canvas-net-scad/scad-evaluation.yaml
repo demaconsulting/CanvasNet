@@ -123,9 +123,9 @@ sections:
             title: >-
               The ScadEvaluation subsystem shall resolve include and use directives before evaluating
               - textual inclusion for include and definitions-only import for use - from the file
-              system under the file-access policy of the open options or through a caller-supplied
-              resolver, searching the base directory and library paths, with a missing file reported as a warning and a syntax error in a referenced file
-              reported with that file's name.
+              system under the file-access policy of the open options or through a caller-supplied resolver, searching
+              the base directory and library paths, with a missing file reported as a warning and a syntax error in a
+              referenced file reported with that file's name.
             justification: |
               Multi-file models are common, and file access is the most security-sensitive thing an
               evaluator can do; it must be explicit, governed by the policy of the host, and complete before

@@ -273,13 +273,13 @@ smallest long on .NET 8).
 `RowTransformsTests.RowTransforms_Apply_LookupSourceSharesTheRowBudget`
 
 Asserts the derived rows above, that the later matching row (`uno`, 99) is never used, that a null key and a key with no
-match get the default (`?`), that the output names default to the looked-up field names and go to `as` when given,
-that the text `"2"` finds the number 2, that a lookup without `fields` stores the whole matching row as one object in
-the field `as` (`data` by default) and null without a match, that a lookup in a named dataset of the specification
-works, that a lookup in the data of a parameter (`from.param`) is skipped and leaves the table unchanged, that two
-lookups of one file read it once and need a file limit of only one, that, under `UnderRoots` of the folder, `../outside.csv` is refused as
-"denied by the file-access policy 'roots'" at `/transform/0/from/data/url`, and that a source of three rows beside three main
-rows needs `MaxDataRows` 6 (5 fails at `/transform/0/from/data/values`).
+match get the default (`?`), that the output names default to the looked-up field names and go to `as` when given, that
+the text `"2"` finds the number 2, that a lookup without `fields` stores the whole matching row as one object in the
+field `as` (`data` by default) and null without a match, that a lookup in a named dataset of the specification works,
+that a lookup in the data of a parameter (`from.param`) is skipped and leaves the table unchanged, that two lookups of
+one file read it once and need a file limit of only one, that, under `UnderRoots` of the folder, `../outside.csv` is
+refused as "denied by the file-access policy 'roots'" at `/transform/0/from/data/url`, and that a source of three rows
+beside three main rows needs `MaxDataRows` 6 (5 fails at `/transform/0/from/data/values`).
 
 ##### Lookup Shares Rebuilt Composites, Calculated Shared Arrays Are Bounded
 

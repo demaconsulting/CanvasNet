@@ -21,6 +21,9 @@ internal sealed class ViewerTestFolder : IDisposable
         Directory.CreateDirectory(Path);
     }
 
+    /// <summary>The directory links created inside the folder, removed before the folder is deleted.</summary>
+    private readonly List<string> _links = [];
+
     /// <summary>Gets the full path of the folder.</summary>
     public string Path { get; }
 
@@ -71,11 +74,13 @@ internal sealed class ViewerTestFolder : IDisposable
     /// <returns>The full path of the link.</returns>
     public string CreateDirectoryLinkOrSkip(string relativeLink, string relativeTarget)
     {
-        var link = Combine(relativeLink);
-        var target = Combine(relativeTarget);
+        // Full paths with the separators of the platform: mklink refuses forward slashes
+        var link = System.IO.Path.GetFullPath(Combine(relativeLink));
+        var target = System.IO.Path.GetFullPath(Combine(relativeTarget));
         try
         {
             Directory.CreateSymbolicLink(link, target);
+            _links.Add(link);
             return link;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
@@ -100,12 +105,22 @@ internal sealed class ViewerTestFolder : IDisposable
             Assert.Skip("Directory links cannot be created in this environment: mklink /J failed.");
         }
 
+        _links.Add(link);
         return link;
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
+        // Remove the links themselves first: a recursive delete can be refused at a junction
+        foreach (var link in _links)
+        {
+            if (Directory.Exists(link))
+            {
+                Directory.Delete(link);
+            }
+        }
+
         if (Directory.Exists(Path))
         {
             Directory.Delete(Path, true);

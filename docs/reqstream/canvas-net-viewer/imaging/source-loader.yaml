@@ -461,15 +461,15 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
         title: >-
-          The SourceLoader class shall measure and draw a Vega-Lite chart whose data is in a local file named by
-          a local url by opening the specification by its path, so that a relative url is read from the folder of
-          the specification under the file-access policy of the source options (never the current directory or the
-          network), exactly as the same chart with inline rows, and shall name the data file in the chart facts;
-          shall report a local data file the policy denies as file-access-denied and one that is missing or not
-          valid text as a vega-lite-error in lenient and strict mode alike, never as an empty chart; shall report remote data
-          only as a diagnostic (an unsupported-feature error with the strict switch) and never fetch it; and
-          shall report a data limit of the library (rows or bytes of a file) as budget-exceeded and every other
-          data failure as vega-lite-error.
+          The SourceLoader class shall measure and draw a Vega-Lite chart whose data is in a local file named by a local
+          url by opening the specification by its path, so that a relative url is read from the folder of the
+          specification under the file-access policy of the source options (never the current directory or the network),
+          exactly as the same chart with inline rows, and shall name the data file in the chart facts; shall report a
+          local data file the policy denies as file-access-denied and one that is missing or not valid text as a
+          vega-lite-error in lenient and strict mode alike, never as an empty chart; shall report remote data only as a
+          diagnostic (an unsupported-feature error with the strict switch) and never fetch it; and shall report a data
+          limit of the library (rows or bytes of a file) as budget-exceeded and every other data failure as
+          vega-lite-error.
         justification: |
           A chart is only as useful as its data, and the data of a chart that an agent was given sits beside it;
           resolving from that folder keeps the result independent of the working directory, a confining policy
@@ -802,12 +802,12 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartImages
         title: >-
-          The SourceLoader class shall give the image marks of a Vega-Lite chart the image resolver of the
-          viewer, for the folder of the chart (or the resolver of the embedding document when the chart is
-          embedded), so that a url draws a raster, an SVG file, a model, a page of a document (report.pdf#page=2), or
-          another chart under the file-access policy and never a remote resource, list each drawn file as an embed
-          operation and the echo of a model, report a link that was not drawn as the warning of the resolver
-          (svg-image-unresolved, image-access-denied, svg-image-too-large, image-fragment-*, image-page-out-of-range) without the library's
+          The SourceLoader class shall give the image marks of a Vega-Lite chart the image resolver of the viewer, for
+          the folder of the chart (or the resolver of the embedding document when the chart is embedded), so that a url
+          draws a raster, an SVG file, a model, a page of a document (report.pdf#page=2), or another chart under the
+          file-access policy and never a remote resource, list each drawn file as an embed operation and the echo of a
+          model, report a link that was not drawn as the warning of the resolver (svg-image-unresolved,
+          image-access-denied, svg-image-too-large, image-fragment-*, image-page-out-of-range) without the library's
           duplicate warning for the same link, fail with unsupported-feature naming the chart and the link for such a
           link when the strict option is set, name both files when a picture that is found cannot be loaded, report a
           chart with more pictures than the limit as budget-exceeded, and measure a chart without loading any picture.
@@ -831,23 +831,24 @@ sections:
 
       - id: CanvasNetViewer-Imaging-SourceLoader-MermaidImages
         title: >-
-          The SourceLoader class shall give the picture nodes of a Mermaid diagram (@{ img: ... }) the image
-          resolver of the viewer, for the folder of the diagram (or the resolver of the embedding document when
-          the diagram is embedded), so that a link draws a raster (stretched to the box of its node), an SVG file, a
-          model, a chart, a page of a document, or another diagram under the file-access policy and never a remote
-          resource; list each drawn file once as an embed operation at the size it was drawn and
-          report each note of the resolver once; report a link that was not drawn (including a diagram that shows
-          itself) as the warning of the resolver (svg-image-unresolved or image-access-denied) without the library's duplicate warning
-          mermaid-image-unresolved for the same link; fail with unsupported-feature naming the diagram and the link for
-          such a link when the strict option is set; name both files when a picture that is found cannot be loaded;
-          and, when a picture node without its w and h makes a diagram drawn at its natural size larger than the probe
-          measured, charge the load with the size of the surface it returns (refusing it when that does not fit) and
-          report the natural size of the drawn diagram (the drawn size over the scale).
+          The SourceLoader class shall give the picture nodes of a Mermaid diagram (@{ img: ... }) the image resolver of
+          the viewer, for the folder of the diagram (or the resolver of the embedding document when the diagram is
+          embedded), so that a link draws a raster (stretched to the box of its node), an SVG file, a model, a chart, a
+          page of a document, or another diagram under the file-access policy and never a remote resource; list each
+          drawn file once as an embed operation at the size it was drawn and report each note of the resolver once;
+          report a link that was not drawn (including a diagram that shows itself) as the warning of the resolver
+          (svg-image-unresolved or image-access-denied) without the library's duplicate warning mermaid-image-unresolved
+          for the same link; fail with unsupported-feature naming the diagram and the link for such a link when the
+          strict option is set; name both files when a picture that is found cannot be loaded; and, when a picture node
+          without its w and h makes a diagram drawn at its natural size larger than the probe measured, charge the load
+          with the size of the surface it returns (refusing it when that does not fit) and report the natural size of
+          the drawn diagram (the drawn size over the scale).
         justification: |
           A diagram on the command line must show the files beside it exactly as an SVG drawing and a chart do, under
-          the same file-access policy, notes, and strict policy, so a diagram can never read a file the policy denies, and an
-          agent reads one note and one operation for each picture. The pixel budget must hold for the picture that is
-          returned, not for the size guessed without the pictures, and the reported natural size must describe it.
+          the same file-access policy, notes, and strict policy, so a diagram can never read a file the policy denies,
+          and an agent reads one note and one operation for each picture. The pixel budget must hold for the picture
+          that is returned, not for the size guessed without the pictures, and the reported natural size must describe
+          it.
         tests:
           - SourceLoader_Load_MermaidScadAndVegaLitePictures_DrawsBothAndListsEmbedOperations
           - SourceLoader_Load_MermaidPngPicture_FillsItsBox

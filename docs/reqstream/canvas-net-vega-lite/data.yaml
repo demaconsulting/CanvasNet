@@ -1,20 +1,19 @@
 ---
 # Software Subsystem Requirements for Data
 #
-# These requirements decompose the CanvasNetVegaLite system's data responsibility into the Data subsystem
-# (internal namespace DemaConsulting.CanvasNet.VegaLite.Data): the immutable typed row table and its value
-# model (DataTable), the loader that chooses the source of a view and builds its table (DataLoader), the
-# resolver that reads local data files under the file-access policy (DataFileResolver), and the parser of delimited text and of
-# the parse conversions (DelimitedTextParser). Inline values, local CSV, TSV, DSV, and JSON files, named
-# datasets, and sequences are read; remote URLs and the other sources are empty tables that the feature
-# catalog reports, and nothing here uses the network. Phase 5 adds the immutable array, object, and regular
-# expression cell values that expressions produce, the loading of a lookup source through the same per-call
-# loader, and the derived-row reservations of the transforms. Phase 8 adds the time calendar (instants, time
-# zones, the d3-time intervals, the Vega-Lite time units, and the datetime objects: TimeCalendar), the text of dates
-# (the d3-time-format formatter and parser, the Vega multi-format, and the JavaScript Date.parse rules: TimeFormat),
-# and the conversion of dates by the parse directives, all in the one time zone the caller chooses (UTC by
-# default). Each requirement here links down to the unit requirements that implement it. See
-# docs/verification/canvas-net-vega-lite/data.md for the test-evidence mapping.
+# These requirements decompose the CanvasNetVegaLite system's data responsibility into the Data subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Data): the immutable typed row table and its value model (DataTable), the
+# loader that chooses the source of a view and builds its table (DataLoader), the resolver that reads local data files
+# under the file-access policy (DataFileResolver), and the parser of delimited text and of the parse conversions
+# (DelimitedTextParser). Inline values, local CSV, TSV, DSV, and JSON files, named datasets, and sequences are read;
+# remote URLs and the other sources are empty tables that the feature catalog reports, and nothing here uses the
+# network. Phase 5 adds the immutable array, object, and regular expression cell values that expressions produce, the
+# loading of a lookup source through the same per-call loader, and the derived-row reservations of the transforms. Phase
+# 8 adds the time calendar (instants, time zones, the d3-time intervals, the Vega-Lite time units, and the datetime
+# objects: TimeCalendar), the text of dates (the d3-time-format formatter and parser, the Vega multi-format, and the
+# JavaScript Date.parse rules: TimeFormat), and the conversion of dates by the parse directives, all in the one time
+# zone the caller chooses (UTC by default). Each requirement here links down to the unit requirements that implement it.
+# See docs/verification/canvas-net-vega-lite/data.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
