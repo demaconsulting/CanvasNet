@@ -7,7 +7,7 @@ The `Files` subsystem is the seventh software subsystem in CanvasNet. It reads t
 lets the host decide which files may be read, and reads a bounded number of bytes. It consists of four units:
 `FileReferenceResolver` and `FileAccessPolicy` (the public referenced-file engine and its policy hook), the internal
 `RealPath` unit (the operating-system facts of an open file), and `SandboxedFileResolver` (the public folder sandbox
-that predates the policy model and is now verified on the open file as well).
+that predates the policy model, now obsolete and kept unchanged for one release).
 
 ### Overview
 
@@ -18,10 +18,13 @@ files named by documents can apply exactly the rules the CanvasNet packages use.
 Two models live side by side. The **policy model** (`FileReferenceResolver` with a `FileAccessPolicy`) follows
 references the way Pandoc does - relative, dot-dot and absolute paths and symbolic links - and lets the host restrict
 them with a policy that is asked about the **real path of the opened file**, so a decision cannot be raced by
-another process that changes the directory tree. The **sandbox model** (`SandboxedFileResolver`) confines untrusted
-relative paths to caller-chosen folders and refuses links, and is what the `ImageSources` subsystem and the
-`CanvasNetVegaLite` and `CanvasNetScad` systems use today; its link check now also runs on the open file through the
-same `RealPath` unit.
+another process that changes the directory tree. The policy model is what the `ImageSources` subsystem and the
+`CanvasNetVegaLite` and `CanvasNetScad` systems use, each under the policy its caller chose (`AllowAll` by default,
+so the folder of a document is the base of its relative references, not a boundary). The **sandbox model**
+(`SandboxedFileResolver`) confines untrusted relative paths to caller-chosen folders and refuses links; it is marked
+`[Obsolete]` (a warning whose message names the migration to `FileReferenceResolver` with
+`FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks)`), keeps its unchanged,
+race-free behavior for one release, and is used by no part of the library any longer.
 
 Whatever the model or policy, the subsystem refuses network paths (UNC and `//host`), device paths (on Windows also a
 reference the system maps to a device, such as a legacy device name like `NUL` in a component), alternate data
@@ -56,8 +59,9 @@ case counts as inside that root; hosts should not configure roots next to such f
   regular file and what its real path is, the real location of a folder, and the path comparison rules; the only
   place in the library that calls the operating system directly (`NativeMethods`); see _RealPath Unit Design_
   (`files/real-path.md`)
-- **SandboxedFileResolver** - the public folder sandbox (`SandboxedFileResolver`) with its options (`SandboxOptions`),
-  result (`SandboxedFile`), and failure reporting (`SandboxException`, `SandboxFailureKind`): validates the path text,
+- **SandboxedFileResolver** - the public, obsolete folder sandbox (`SandboxedFileResolver`) with its options
+  (`SandboxOptions`), result (`SandboxedFile`), and failure reporting (`SandboxException`, `SandboxFailureKind`):
+  validates the path text,
   confines each candidate to its root, refuses symbolic links and junctions before the open and verifies the open
   file after it, reads with a byte bound, supports a caller-supplied callback, and caches per instance; see
   _SandboxedFileResolver Unit Design_ (`files/sandboxed-file-resolver.md`)
@@ -87,7 +91,11 @@ flowchart LR
 `FileReferenceResolver` validates the text, builds the candidates, lets the policy refuse a path as written before
 the open, opens the candidate through `RealPath`, asks `RealPath` for the facts of the open handle, asks the policy,
 and reads from the handle. The policy's base directory is the host-chosen directory the chain of references started
-from, never a referring document's folder. `SandboxedFileResolver` keeps its own search, link walk, and cache, and
+from, never a referring document's folder: a source that reads its own files for a linked document receives the
+policy anchored at the origin of the outer chain (the internal `FileAccessPolicy.AnchoredAt`). The internal
+`FileReferenceResolver.ResolveTopLevel` reads the top-level file a host named (the document being rendered) without
+judging it by the policy; its references are judged from its own folder. `SandboxedFileResolver` keeps its own
+search, link walk, and cache, and
 delegates the open, the handle facts, and the post-open link check (the link match of the `NoSymlinks` policy,
 `MatchesWithoutLinks`, anchored at the root) to the same code, plus the bounded read of `FileReferenceResolver`
 (`ReadBounded`). The built-in policies use `RealPath` to compare paths and to find the real location of a root or
@@ -99,17 +107,19 @@ The `Files` subsystem depends only on the .NET base class library (`System.IO`, 
 `System.Collections.Generic`), available on every CanvasNet target framework, and on the operating-system calls of
 the `RealPath` unit; it has no runtime NuGet dependency. It has no dependency on the `Canvas`, `Codecs`, `Geometry`,
 `Drawing`, `Fonts`, or `Rendering` subsystems. Its only core consumer is the `ImageSources` subsystem (its
-`FolderImageResolver` unit confines every link of a document to a folder with `SandboxedFileResolver`); its other
+`FolderImageResolver` unit resolves every link of a document with `FileReferenceResolver` under the caller's
+policy); its other
 consumers are outside the core package: the `CanvasNetVegaLite` and `CanvasNetScad` systems depend on it through its
 public API (see _Callers_).
 
 ### Callers
 
 `FileReferenceResolver`, `FileAccessPolicy`, and `SandboxedFileResolver` are public API entry points, invoked
-directly by consumers of the CanvasNet package. `SandboxedFileResolver` is also used internally, through its public
-API only, by the `ImageSources` subsystem (the `FolderImageResolver` unit resolves every file link of a document
-through a sandbox rooted at its folder, and maps each `SandboxException` to an unresolved-link warning) and by two
-satellite packages: `CanvasNetVegaLite`'s `DataFileResolver` unit (every local data file of a chart) and
-`CanvasNetScad`'s `ScadFileResolver` unit (every `include` and `use`). Each of those units keeps its own exception
-types, message wording, locations, limits, and text decoding and translates every `SandboxException` it receives.
-No caller uses `FileReferenceResolver` yet; the consumers move to it in a later change.
+directly by consumers of the CanvasNet package. `FileReferenceResolver` is also used internally by the
+`ImageSources` subsystem (the `FolderImageResolver` unit resolves every file link of a document relative to its
+folder, reads the top-level file of a render by path with `ResolveTopLevel`, and maps a denial to the warning
+`image-access-denied` and every other `FileReferenceException` to an unresolved-link warning) and by two satellite
+packages: `CanvasNetVegaLite`'s `DataFileResolver` unit (every local data file of a chart) and `CanvasNetScad`'s
+`ScadFileResolver` unit (every `include` and `use`). Each of those units keeps its own exception types, message
+wording, locations, limits, and text decoding and translates every `FileReferenceException` it receives, keeping it
+as the inner exception. No part of the library calls `SandboxedFileResolver` any longer.

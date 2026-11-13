@@ -19,8 +19,9 @@ the same internal pipeline, which drives the `SpecModel`, `Data`, `Expressions`,
 `Marks`, and
 `Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers. **Only
 `Measure` and `Render` read data and run the parameters and the row transforms over it:** inline rows, named datasets,
-and sequences need no I/O, and a relative local
-`data.url` is read from the sandbox that the open options define (see _Data Subsystem Design_); a file that cannot be
+and sequences need no I/O, and a local
+`data.url` is read from the places and under the file-access policy that the open options define (see _Data Subsystem
+Design_); a file that cannot be
 used is a `VegaLiteRenderException`, and a remote URL is reported and never fetched.
 
 The unit covers the files `VegaLiteDocument.cs` (the entry points and the descriptive properties),
@@ -56,15 +57,19 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   order).
 - **`VegaLiteOpenOptions`** (sealed class, init-only) - `BaseDirectory` (`string?`), `DataPaths`
   (`IReadOnlyList<string>`, empty by default, copied), `FileResolver` (`Func<string, Stream?>?`), `SourceName`
-  (`string?`), and `Limits` (`VegaLiteLimits?`; the defaults when null). Every property is validated in its `init`
+  (`string?`), `Limits` (`VegaLiteLimits?`; the defaults when null), and `FileAccess` (`FileAccessPolicy`,
+  `FileAccessPolicy.AllowAll` by default). Every property is validated in its `init`
   accessor: null is allowed for the nullable properties, but empty or whitespace text throws `ArgumentException`; a
-  null `DataPaths` list or entry throws `ArgumentNullException`, and a whitespace entry throws `ArgumentException`.
-  Opening consumes only `SourceName` and `Limits`; `BaseDirectory` (the base directory of the sandbox: the folder of an
-  opened file unless set; for a document from a string or stream, none), `DataPaths` (further directories, searched in
-  order after the base directory), and `FileResolver` (a callback that receives a normalized logical path and returns
-  a stream or null; it replaces the file system and is never called for a remote URL) are consumed by `Measure` and
-  `Render` through the data stage. The internal `WithEffective(baseDirectory, sourceName)` creates a copy
-  with those two values filled in, and `EffectiveLimits` is the limits or `VegaLiteLimits.Default`.
+  null `DataPaths` list or entry, and a null `FileAccess`, throw `ArgumentNullException`, and a whitespace entry throws
+  `ArgumentException`.
+  Opening consumes only `SourceName` and `Limits`; `BaseDirectory` (the base of relative data paths, not a boundary: the
+  folder of an opened file unless set; for a document from a string or stream, none), `DataPaths` (further
+  directories, searched in order after the base directory), `FileResolver` (a callback that receives a normalized
+  logical path and returns a stream or null; it replaces the file system and is never called for a remote URL or an
+  absolute path), and `FileAccess` (the policy that decides which local data files may be read; not consulted with a
+  `FileResolver`) are consumed by `Measure` and `Render` through the data stage. The internal
+  `WithEffective(baseDirectory, sourceName)` creates a copy with those two values filled in and every other option,
+  `FileAccess` included, kept, and `EffectiveLimits` is the limits or `VegaLiteLimits.Default`.
 - **`VegaLiteRenderOptions`** (sealed class, init-only) - `Scale` (default 1; finite, greater than zero, at most
   `Surface.MaxDimension`, else `ArgumentOutOfRangeException`), `Background` (`Rgba32?`), `Config` (`string?`; a JSON
   object of at most 4,194,304 characters and 64 levels, else `ArgumentException`), `Parameters`
@@ -450,8 +455,9 @@ orientation, d3 format, scale domain or range, including a temporal domain entry
 transform, expression, scale, axis, or
 scene limit (including more time ticks than `MaxTicks` and a formatted date longer than `MaxStringLength`), an exhausted
 evaluation step budget, an invalid or too slow regular expression, and a
-local data file or named dataset that cannot be used: no file source, a path the sandbox refuses, a link, a missing or
-unreadable file, invalid UTF-8, invalid JSON or delimited text, an undefined name; in lenient and strict mode alike),
+local data file or named dataset that cannot be used: no file source, a path that is never allowed, a file the
+file-access policy denies (the core `FileReferenceException` is the inner exception), a missing or unreadable file,
+invalid UTF-8, invalid JSON or delimited text, an undefined name; in lenient and strict mode alike),
 each with a location and thrown from the stage that detected them; the unit does not catch and convert them,
 except that it
 delivers the already-found reports first. A scaled size outside 1 to `Surface.MaxDimension` and an unknown parameter
@@ -500,8 +506,10 @@ pipeline types.
 `VegaLiteImageSource` (`VegaLiteImageSource.cs`) is the `IImageSource` of the package for `.vl` and `.vl.json` files
 (not `.json`: a plain JSON file is not assumed to be a chart), so that a document can link to a chart through the shared
 `FolderImageResolver`. `Render(request)` parses the chart with `VegaLiteDocument.Open(request.OpenContent(), new
-VegaLiteOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName })`, so the data files resolve in
-the folder of the file and are confined there by the library; measures it (`Measure`, with options that have no
+VegaLiteOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName, FileAccess = request.FileAccess
+})`, so the data files resolve relative to the folder of the file and are read under the file-access policy of the
+render (the resolver's policy, anchored at the origin of the chain, so a nested chart cannot loosen it; a denied file
+is a `VegaLiteRenderException`); measures it (`Measure`, with options that have no
 handlers, so a note is reported once) for the natural size; lays it out afresh with `Render(width, height, options)` at
 the size `request.SizeFor` gives (checked first with `request.EnsureWithinBudget(width, height)`: a size that does not
 fit in the budget of the request is refused with `ImageSourceBudgetException` before the chart is drawn), with
@@ -510,7 +518,8 @@ only the bundled fonts so the result is deterministic, and
 with **no** background override, because a chart carries its own paper; and passes the cancellation token to both calls.
 The pictures of the chart's `image` marks are loaded through `request.Resolver` (`ImageResolver = request.Resolver`):
 the
-resolver scoped to the chart's own file, so a relative `url` resolves against the folder of the chart under the sandbox,
+resolver scoped to the chart's own file, so a relative `url` resolves against the folder of the chart under the
+file-access policy,
 the
 budgets, and the cycle chain of the whole render; a request built by hand has none and the mark is a `vl-mark-image`
 note.

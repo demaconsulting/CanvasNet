@@ -25,7 +25,7 @@ units:
   `ScadEvaluationSink`; see _ScadEvaluator Unit Design_ (`scad-evaluation/scad-evaluator.md`)
 - **ScadBuiltinFunctions** — the library of built-in functions and the deterministic random-number
   generator; see _ScadBuiltinFunctions Unit Design_ (`scad-evaluation/scad-builtin-functions.md`)
-- **ScadFileResolver** — the `include`/`use` resolver and its sandbox; see _ScadFileResolver Unit Design_
+- **ScadFileResolver** — the `include`/`use` resolver under the file-access policy; see _ScadFileResolver Unit Design_
   (`scad-evaluation/scad-file-resolver.md`)
 
 The subsystem's namespace documentation is in `Evaluation/NamespaceDoc.cs`. Its behavior is specified by the
@@ -75,9 +75,9 @@ instantiation tree to `ScadGeometryBuilder`, which converts them into a `CanvasN
 the whole file graph can be resolved **before** anything is evaluated.
 
 - **Phase A — `ScadFileResolver`** runs on the calling thread. It is the only code that touches the file
-  system or calls the caller's `FileResolver` callback, and it does so through the core `SandboxedFileResolver`, which
-  enforces the sandbox (including the refusal of any
-  symbolic link or junction below a root); the resolver adds the depth, cycle, and file
+  system or calls the caller's `FileResolver` callback, and it does so through the core `FileReferenceResolver`, which
+  applies the caller's file-access policy (`ScadOpenOptions.FileAccess`, every regular local file by default) to the
+  real path of each opened file; the resolver adds the depth, cycle, and file
   count limits, parses each distinct file once, and produces an immutable, include-expanded `ScadSourceUnit`
   for the main document plus the list of `use`d library units.
 - **Phase B — `ScadEvaluator`** is pure computation over those immutable units. It records every echo line,
@@ -97,7 +97,7 @@ continues, which type carries the information, and where the caller sees it.
 | ----- | --------- | -------- | ---------- |
 | **Warning** | `ScadDiagnostic` in `Result.Diagnostics` and the `WarningHandler`; de-duplicated by (message, location); capped at `MaxDiagnostics` (the cap is reported once as `Further diagnostics suppressed (limit N)`) | unknown variable, function, or module (value `undef`, nothing emitted); a variable assigned twice in one scope (reported at the **earlier** assignment); circular variable reference; invalid operand types for an operator or built-in (result `undef`); calling a non-function; wrong, extra, or unknown arguments; `children()` outside a module or with an invalid index; a range with a zero step or non-finite bound; a `for` over `undef`; a missing `include` or `use` file | Yes |
 | **Unsupported feature** | `ScadUnsupportedFeature` (feature identifier, message, location) in `Result.UnsupportedFeatures` and the `UnsupportedFeatureHandler`; de-duplicated by (feature, location); with `ThrowOnUnsupportedFeature`, a `ScadUnsupportedFeatureException` at the first one | Evaluation reports only language-level items: the recognized but unimplemented functions `parent_module`, `textmetrics`, and `fontmetrics` (`scad-function-<name>`) and unimplemented argument forms of `search` (`scad-search-form`) | Yes, with `undef`, unless the caller asked to throw |
-| **Error** | `ScadEvaluationException` with the location of the offending construct | a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a sandbox violation; an `include` or `use` when the document has no base directory, library path, or resolver | No |
+| **Error** | `ScadEvaluationException` with the location of the offending construct | a failed `assert`; every limit of `ScadLimits` exceeded; an include cycle; a file-access denial or another refused include file; an `include` or `use` when the document has no base directory, library path, or resolver | No |
 | **Syntax error in a referenced file** | `ScadSyntaxException` whose location carries the included file's name, propagated unchanged | a parse failure of any file loaded in phase A | No |
 | **Cancellation** | `OperationCanceledException`, never wrapped | the token is canceled before or during evaluation or loading | No |
 | **I/O failure** | the natural `IOException`, and `InvalidDataException` for a file over 4,194,304 characters | an included file that cannot be read | No |

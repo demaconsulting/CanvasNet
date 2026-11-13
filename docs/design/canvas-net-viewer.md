@@ -61,13 +61,18 @@ The system exposes the following public API:
   resolver and takes extra sources from `ViewerRenderOptions.ExtraSources` instead.
 - **`CanvasNetViewer.Render(path, options)`** / **`Render(stream, fileName, options)`**: draw one file as a
   `ViewerImage` (the picture, its format, the notes, the printed text, and the embedded images). Throw
-  `FileNotFoundException`, `NotSupportedException` (no source claims the extension), `ArgumentException` (the file is
-  outside the folder option), `SandboxException`, `ImageSourceException` (a file that is found but cannot be drawn), and
-  `OperationCanceledException`.
-- **`ViewerRenderOptions`**: `Width`, `Height`, `Folder`, `ThrowOnUnsupportedFeature`, `MaxDecodedPixels`,
-  `ExtraSources`, and `CancellationToken`.
+  `FileNotFoundException`, `NotSupportedException` (no source claims the extension), `FileReferenceException` (the file
+  is not a regular file, is too large, or cannot be read), `ViewerException` (with `ThrowOnUnsupportedFeature`, also
+  `file-access-denied` for a link the file-access policy denied), `ImageSourceException` (a file that is found but
+  cannot be drawn), and `OperationCanceledException`. The file a caller renders by path may lie anywhere (also outside
+  the folder option and behind a link): it is the caller's choice and is never judged by the file-access policy.
+- **`ViewerRenderOptions`**: `Width`, `Height`, `Folder` (the base of relative links, not a boundary), `FileAccess` (the
+  `FileAccessPolicy` of every file the rendered file references, at every level; `FileAccessPolicy.AllowAll` by
+  default, like Pandoc), `ThrowOnUnsupportedFeature`, `MaxDecodedPixels`, `ExtraSources`, and `CancellationToken`.
 - **The `Imaging` operations** (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`): `SourceLoader.Probe` /
-  `Load` / `OpenPages` (the facts of a file, and its pixels, with pages, resolution, and options),
+  `Load` / `OpenPages` (the facts of a file, and its pixels, with pages, resolution, and options; `Probe(path,
+  FileAccessPolicy)` and `Probe(InputReference, FileAccessPolicy)` read the files a probe needs, the data of a chart,
+  under a policy),
   `ImageRenderer.Execute` (load, transform, and write), `ImageInspector.Execute` (colors and pixels),
   `ImageComparer.Execute` (measures, thresholds, and pictures), `MontageBuilder.Execute` (a contact sheet),
   `SvgFlattener.Execute` (a copy of an SVG drawing that other SVG readers can show), and the
@@ -80,7 +85,7 @@ The system exposes the following public API:
 | ----------------------------------- | ---------------- | ---------------------------------------- | ---------------------------------------- |
 | `ImageSources` / `Extensions` | Outbound | Property / read-only lists | Fixed; cannot be changed |
 | `CreateImageResolver(folder, ...)` | Outbound | Method call / `FolderImageResolver` | One resolver per render; folder not empty |
-| `Render(path, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | Extension claimed by a source; file in the folder |
+| `Render(path, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | Extension claimed by a source; the file itself is not judged by the file-access policy |
 | `Render(stream, fileName, ...)` | Inbound/Outbound | Method call / `ViewerImage` return | At most 16 MiB; extension claimed by a source |
 | `ImageRenderer.Execute` and the other operations | Inbound/Outbound | Method call / request and result records | Files read and written by path; failures are `ViewerException` |
 <!-- markdownlint-enable MD013 -->
@@ -110,16 +115,25 @@ operations and creates the resolver for the SVG files it renders; a format packa
 
 ## Risk Control Measures
 
-`CanvasNetViewer` renders files and documents from an externally supplied folder, which may be untrusted. The risk
-control is the confinement of the core `FolderImageResolver` (every file access goes through the sandboxed file
-resolver rooted at the folder; absolute paths, paths that leave the folder, and symbolic links are refused; network URLs
-are never loaded; depth, count, size, and the pixels allocated in total are bounded, a picture that would exceed the
-pixel budget being refused before it is decoded), which the viewer inherits unchanged by building every render on
-it. The viewer adds no file access of its own on the render path. The `Imaging` operations read the files that a caller
-names and write the files that a caller names (the tool's own file access is the same), and the files that an SVG
-document, an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram refers to are read through the same sandboxed
-resolver, the folder of the model and below it, and never from the network. A source that a **library user** adds is
-trusted code of the application: a source that claims a URI scheme receives the link as written, with no sandbox, and
+`CanvasNetViewer` renders files and documents that may be untrusted. The risk control is the file-access policy of the
+core `FolderImageResolver` (`ViewerRenderOptions.FileAccess`, or `SourceOptions.FileAccess` and the `FileAccess` of
+the flatten and montage requests for the `Imaging` operations): every file a rendered file references goes through
+the core `FileReferenceResolver`, which asks the policy about the real path of the opened file; the policy reaches
+every nested picture, model include, and chart data file, anchored at the host-chosen origin of the chain. The
+default, `FileAccessPolicy.AllowAll`, reads every regular local file, like Pandoc (`..`, absolute paths, local `file:`
+URIs, and symbolic links are followed); a host that renders untrusted documents opts in to confinement with
+`FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)`. Under every policy,
+network paths and URLs are never loaded, device paths, alternate data streams, and non-regular files are refused, and
+depth, count, size, and the pixels allocated in total are bounded (a picture that would exceed the pixel budget being
+refused before it is decoded). A denied picture is the warning `image-access-denied` (with
+`ThrowOnUnsupportedFeature` or `--strict` the error `file-access-denied`), and a denied include or data file the
+error `file-access-denied`; the paths of a denial are only in `ImageSourceDiagnostic.Detail` and the exception
+properties, which a service that returns diagnostics to untrusted authors should redact. The file a caller names
+itself is never judged by the policy. The viewer adds no file access of its own on the render path. The `Imaging`
+operations read the files that a caller names and write the files that a caller names (the tool's own file access is
+the same), and the files that an SVG document, an OpenSCAD model, a Vega-Lite chart, or a Mermaid diagram refers to are
+read through the same resolver and policy, and never from the network. A source that a **library user** adds is
+trusted code of the application: a source that claims a URI scheme receives the link as written, with no file access, and
 alone owns what the link may reach (for example, a source that claims `http` must decide which hosts it fetches); no
 built-in source claims `http` or `https`, so such links stay unresolved. A viewer never caches a picture, so a live
 source is asked again on every render. The shape contains this risk control inherently (IEC 62304 §5.3.3).
@@ -131,14 +145,14 @@ source is asked again on every render. The shape contains this risk control inhe
 1. **Input**: the folder of a document and optional extra sources
 2. **Processing**: `CreateImageResolver` builds a `FolderImageResolver` over the built-in sources followed by the extra
    ones (later sources win) and returns it; the application assigns it to `SvgLoadOptions.ImageResolver`; the SVG codec
-   calls `Resolve(href, width, height)` for each `image` and the resolver confines, dispatches, draws, and records
+   calls `Resolve(href, width, height)` for each `image` and the resolver checks, dispatches, draws, and records
 3. **Output**: the pictures in the rendered document, and the resolver's `Diagnostics`, `Echo`, and `Embedded` lists
 
 **Render path:**
 
 1. **Input**: a path (or a stream and a file name) and optional `ViewerRenderOptions`
-2. **Validation**: a null argument, a path outside the folder option, an unknown extension, a missing file, or a sandbox
-   refusal throws before anything is drawn
+2. **Validation**: a null argument, an unknown extension, a missing file, or a file that is not a regular file, is too
+   large, or cannot be read throws before anything is drawn
 3. **Processing**: a resolver for the render draws the file at the requested size; a raster (always returned at its
    natural size) is fitted into a requested box or scaled to keep its aspect ratio
 4. **Output**: a `ViewerImage` that owns the `Surface` and carries the format, notes, text, and embedded images

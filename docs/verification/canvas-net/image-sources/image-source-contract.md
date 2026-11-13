@@ -68,7 +68,8 @@ scheme syntax is RFC 3986 with the single-letter drive exception (including `sec
 `ImageSourceRequest_OpenContent_SchemeRequest_ThrowsInvalidOperationException`,
 `ImageSourceRequest_EnsureWithinBudget_ChargesLiveBudgetAndThrowsOnlyWhenOver`,
 `ImageSourceRequest_EnsureWithinBudget_SharedBudget_SeesChargesOfOtherRequests`,
-`ImageBudget_Constructor_StartsFullAndRejectsNegative`
+`ImageBudget_Constructor_StartsFullAndRejectsNegative`,
+`ImageSourceRequest_FileAccess_DefaultsToAllowAllAndRejectsNull`
 
 Asserts that a request with a file name has content (also when the file is empty), opens as a read-only seekable stream
 over the
@@ -81,7 +82,8 @@ several calls add up; a size of zero pixels is free; the last 20 pixels still fi
 `ImageSourceBudgetException` with the requested and the free pixels on the exception and in its message and charges
 nothing, and that `ChargedPixels`, `RemainingPixels`, and the budget agree afterwards; that two requests on one budget
 of 1000 see each other's charge live (after 600 the other sees 400 and is refused 410) and keep their own
-`ChargedPixels`; and that a budget starts with all its pixels, accepts zero, and rejects a negative maximum.
+`ChargedPixels`; that a budget starts with all its pixels, accepts zero, and rejects a negative maximum; and that a
+request carries `FileAccessPolicy.AllowAll` by default, keeps another policy, and refuses `null`.
 
 ##### CanvasNet-ImageSources-ImageSourceContract-SizeRule: Sizing
 

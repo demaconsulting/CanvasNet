@@ -22,14 +22,16 @@ exception), and the embedded image list - never on "no exception thrown" alone.
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Mocking**: None; the format packages are real
-- **Files**: per-test temporary folders, deleted by the test; one scenario creates a real symbolic link and skips itself
-  where the host cannot
+- **Files**: per-test temporary folders, deleted by the test; the file-symbolic-link scenario skips itself where file
+  links cannot be created (Windows without the privilege), while the directory-link scenario uses a junction on Windows
+  and never skips
 - **Isolation**: each test builds its own folder and resolver
 
 ### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. A wrong size, a raster that is not fitted into the box, a link outside the folder that is drawn, a missing
+asserted. A wrong size, a raster that is not fitted into the box, a link that the file-access policy denies that is
+drawn, an allowed link that is not drawn, a missing
 embedded image record, a wrong exception type, or a disposed surface that is still usable constitutes a failure.
 
 ### Unit-Level Test Scenarios
@@ -66,8 +68,7 @@ null extra sources are rejected.
 `CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings`,
 `CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions`,
 `CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote`,
-`CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException`,
-`CanvasNetViewer_Render_PathThroughSymbolicLink_ThrowsSandboxException`
+`CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException`
 
 Asserts the natural size and format name, that disposing the result disposes the surface, a vector drawn at the
 requested
@@ -82,9 +83,38 @@ of 0, -1, or `Surface.MaxDimension + 1` throws `ArgumentOutOfRangeException`
 `Surface.MaxDimension` pass the validation, that the final buffer of a resized render is charged to the budget in
 addition to the surface of the source (a 10 by 10 picture resized to 1 by 1 needs 101 pixels: a cap of 100 throws
 `ImageSourceBudgetException`, 101 returns the 1 by 1 picture), the notes, printed text, and embedded images of an
-SVG that embeds files (and that an escaping link and a self-embedding SVG are warnings), the exceptions for a missing
-file, an unknown extension, a corrupt file (with the original failure inside), a file outside the folder option, and a
-null path, the strict switch, a canceled token, and a symbolic link.
+SVG that embeds files (and, under `UnderRoots(site)`, that a link to the parent folder is the `image-access-denied`
+warning and a self-embedding SVG the cycle warning), the exceptions for a missing file, an unknown extension, a corrupt
+file (with the original failure inside), and a null path (a folder option that holds the file works), the strict
+switch, and a canceled token.
+
+#### CanvasNetViewer-CanvasNetViewer-FileAccess: The File-Access Policy Of A Render
+
+**Tests**: `CanvasNetViewer_Render_SvgParentFolderLink_IsDrawnByDefault`,
+`CanvasNetViewer_Render_FileOutsideTheFolderOption_IsRendered`,
+`CanvasNetViewer_Render_PathThroughSymbolicLink_IsRenderedWhateverThePolicy`,
+`CanvasNetViewer_Render_LinkThroughDirectoryLink_NoSymlinks_IsAccessDenied`,
+`CanvasNetViewer_Render_NestedModelInclude_IsCheckedByTheRenderPolicy`,
+`CanvasNetViewer_Render_NestedChartData_IsCheckedByTheRenderPolicy`,
+`ViewerRenderOptions_FileAccess_DefaultsToAllowAllAndRejectsNull`
+
+Asserts that under the default policy an SVG file embeds a picture of its parent folder; that the rendered file itself
+is never judged by the policy: a file outside the `Folder` option is rendered even under a policy that denies
+everything, and a file reached through a file symbolic link (skipped where file links cannot be created) is rendered by
+default and under `NoSymlinks`; that under `NoSymlinks` a link of the rendered file through a directory link (a junction
+on Windows) is the one `image-access-denied` warning with nothing drawn, while the default policy draws it; that the
+policy of the render reaches a model and a chart that an SVG file embeds: under `UnderRoots(site)` an include or a data
+file of the parent folder fails the render with an `ImageSourceException` whose chain of inner exceptions holds a
+`FileReferenceException` of kind `AccessDenied`, while the default draws both; and that `ViewerRenderOptions.FileAccess`
+is `AllowAll` by default, keeps another policy, and refuses `null`.
+
+#### CanvasNetViewer-CanvasNetViewer-FileAccessDenied: A Denied Link Under The Strict Option
+
+**Tests**: `CanvasNetViewer_Render_StrictDeniedLink_ThrowsFileAccessDenied`
+
+Asserts that, under `UnderRoots(site)`, a link to the parent folder is a `ViewerException` with the code
+`file-access-denied` naming `../secret.png` when `ThrowOnUnsupportedFeature` is set, and the one `image-access-denied`
+warning without it.
 
 #### CanvasNetViewer-CanvasNetViewer-RenderStream: Render From A Stream
 
@@ -93,7 +123,7 @@ null path, the strict switch, a canceled token, and a symbolic link.
 `CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading`, `CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted`
 
 Asserts that a stream is rendered by the extension of its file name, that the files the document names are resolved
-only from the folder option, that null arguments and an unknown extension are rejected, and that a width or height
+relative to the folder option, that null arguments and an unknown extension are rejected, and that a width or height
 outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without the stream being read.
 
 #### CanvasNetViewer-CanvasNetViewer-LoaderSources: Linked Files Are Drawn By The Loader

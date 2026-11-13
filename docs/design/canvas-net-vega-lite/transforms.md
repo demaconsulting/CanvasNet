@@ -81,7 +81,7 @@ engines that other subsystems reuse
 `AggregateTransforms`);
 and the `TransformContext` and `RowExpressions` records that carry what the stages share.
 
-**Consumed**: `DataTable`, `DataValue`, `DataLoader` (the row budget, the sandbox, and the
+**Consumed**: `DataTable`, `DataValue`, `DataLoader` (the row budget, the file-access policy, and the
 loading of a lookup source), `FieldPath`, and the time model (`TimeCalendar`, `TimeUnitSpec`, and `DateTimeObject`) of
 the
 `Data` subsystem; `ExpressionEvaluator` and `CompiledExpression` of the `Expressions` subsystem (whose
@@ -140,7 +140,7 @@ so the peak of an input and an output table is what is bounded; the rows of an i
 the
 output is complete; filter, sample, and pivot give back the rows they drop; a lookup source is loaded through the same
 loader
-instance, so it has the same sandbox, file cache, file and byte limits, and row total as the
+instance, so it has the same file-access policy, file cache, file and byte limits, and row total as the
 main data. `aggregate` reserves one row per group as the group appears, `impute` reserves its result (the combinations
 of
 groups and keys first) before it allocates anything, the transforms that keep every row (`joinaggregate`, `window`,

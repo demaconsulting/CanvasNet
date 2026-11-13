@@ -189,6 +189,17 @@ null list and a null entry throw `ArgumentNullException`; that the data paths ar
 (a later add has no effect) and exposed read-only; and that the effective copy carries every setting and fills the
 base directory and source name that were not set.
 
+#### CanvasNetVegaLite-VegaLiteDocument-FileAccessOption: The File-Access Option
+
+**Tests**: `VegaLiteOpenOptionsTests.VegaLiteOpenOptions_FileAccess_DefaultsToAllowAllRejectsNullAndSurvivesWithEffective`,
+`VegaLiteImageSourceTests.VegaLiteImageSource_Render_RequestPolicy_AppliesToDataFiles`
+
+Asserts that `VegaLiteOpenOptions.FileAccess` is `AllowAll` by default, refuses `null`, and is kept by
+`WithEffective`; and that `VegaLiteImageSource` applies the policy of the request to the data files of the chart: a
+data file in the parent folder is drawn (100 by 80) under the default policy of a request and, under
+`UnderRoots(folder)`, is a `VegaLiteRenderException` located at `/data/url` naming the `roots` policy whose inner
+exception is a `FileReferenceException` of kind `AccessDenied`.
+
 #### Font Options: Bundled Only By Default
 
 **Tests**: `VegaLiteFontOptionsTests.VegaLiteFontOptions_Defaults_AreBundledOnly`,
@@ -388,6 +399,7 @@ influence).
 **Tests**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_LocalFileLoadsFromOpenedSpecFolder`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_StreamNeedsResolverForLocalFile`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_DefaultPolicy_ReadsParentAbsoluteAndFileUriPaths`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_SequenceAndNamedDatasetsRender`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_EachCallReadsTheFileAgain`,
@@ -400,9 +412,10 @@ behind it are verified under their own designs. Asserts that a document opened b
 file's folder and that the base directory, a data path, and a callback find the same file for a document without a
 folder
 (all drawing the inline chart's pixels); that a document from a string or a stream with no file source fails every
-`Measure` and `Render`, lenient or strict, with a located `VegaLiteRenderException`; that a missing file, a path
-outside the
-sandbox, and invalid UTF-8 are located failures in both modes; that the caller's datasets, the specification's datasets,
+`Measure` and `Render`, lenient or strict, with a located `VegaLiteRenderException`; that under the default policy a
+file in the parent folder, an absolute path, and a local `file:` URI are read and drawn without a report; that under
+`UnderRoots(folder)` a missing file, a path outside the folder (also an absolute one), and invalid UTF-8 are located
+failures in both modes; that the caller's datasets, the specification's datasets,
 and sequences render without a report; that the data warnings follow the specification's reports; that each call reads
 the
 file again; that a data limit fails before the scene limit; and that a remote URL is reported, never fetched, and never
@@ -449,7 +462,8 @@ of the specification (a syntax error, a length or nesting over `MaxExpressionLen
 unknown parameter, a parameter cycle, a repeated name, a wrong transform shape) are located `VegaLiteSpecException`
 errors that fail when the document is opened, before any render or event, while the failures that depend on data
 (`MaxEvaluationSteps`, `MaxStringLength`, `MaxDataRows` and `MaxFieldCount` of a derived table, a lookup outside the
-sandbox, and a regular expression that exceeds its time limit) are `VegaLiteRenderException` errors located at the
+roots of a confining file-access policy, and a regular expression that exceeds its time limit) are
+`VegaLiteRenderException` errors located at the
 transform or expression at render time; that the one budget of the call is shared by the parameters, the transforms,
 the implicit stage, and the mark values (the groups of an aggregate count in the row budget: the five rows and three
 groups of the aggregate bars need `MaxDataRows` 8, and 7 fails located at `/encoding/y`); that the reports of the

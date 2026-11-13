@@ -4,10 +4,11 @@ This document describes the unit-level verification strategy for the `DataLoader
 `DemaConsulting.CanvasNet.VegaLite.Data` namespace: the internal `DataLoader` class (its constructor, `Load`,
 `InferFormatType`, `Warnings`, `RowsLoaded`, the `ReserveDerivedRows` and `ReleaseRows` methods that let a transform
 count the rows of a table it derives against the same row total, and the `PrimitiveField` constant). The loader turns
-the `data` node of a parsed specification into a `DataTable`: inline `values` arrays, a relative local `url` (read
-through the `DataFileResolver` unit as JSON, CSV, TSV, or DSV), a named dataset, and a generated sequence are read; the
-same `Load` serves the `from.data` source of a lookup transform and shares the file cache, the sandbox, and the row
-budget of the call; remote data and the other recognized sources (text or object values, geographic data, no data at
+the `data` node of a parsed specification into a `DataTable`: inline `values` arrays, a local `url` (relative,
+absolute, or a `file:` URI without a host, read through the `DataFileResolver` unit as JSON, CSV, TSV, or DSV), a named
+dataset, and a generated sequence are read; the same `Load` serves the `from.data` source of a lookup transform and
+shares the file cache, the file-access policy, and the row budget of the call; remote data and the other recognized
+sources (text or object values, geographic data, no data at
 all) are an empty table that is never opened or fetched, and that the feature catalog reports.
 
 #### Verification Approach
@@ -90,7 +91,8 @@ Asserts that no node, a `null` data node, and a non-object node all give the sha
 array gives a table with no rows and no fields while the document warns `vl-data-empty` at `/data` and still renders;
 that an `https` URL is never read, the table is empty, the document reports `vl-data-remote-url` at `/data`, and strict
 mode turns that report into a `VegaLiteUnsupportedFeatureException`; and, as a theory, that text values, object values
-(GeoJSON), the `sphere` generator, a `topojson` format, a UNC URL, an `https` URL, and an absolute path each give the
+(GeoJSON), the `sphere` generator, a `topojson` format, a UNC URL, an `https` URL, and a `file:` URI with a host each
+give the
 shared empty table, that the catalog reports `vl-data-values-text`, `vl-data-geo`, or `vl-data-remote-url` respectively,
 and that the resolver callback, which the test supplies, received no request.
 
@@ -112,6 +114,15 @@ number, a date, and a boolean while other fields keep their JSON types, and that
 delimited text with an absent `parse`, with `parse: null`, and as a DSV keeps `01234`, `007`, ISO-looking dates, and
 `true` as strings, while a parse map converts only the field it names (no inference without `"auto"`, as in Vega); and
 that a file named twice in one call is requested once and counts once for a file limit of one.
+
+##### CanvasNetVegaLite-Data-DataLoader-LocalFileUri: Absolute Paths And Local File URIs Are Local Files
+
+**Tests**: `DataLoaderTests.DataLoader_Load_LocalFileUriAndAbsolutePath_AreReadAsLocalFiles`
+
+Asserts, with a CSV outside the base directory, that under the default policy its absolute path and its `file:` URI
+without a host are each read as a one-row table; that a `file:` URI of a missing file is "The data file '…' was not
+found" naming the URI as written; and that in resolver-callback mode the absolute `url` `/t.csv` is the located error
+"absolute paths have no meaning for the file source" rather than remote data.
 
 ##### Named Datasets And Sequences
 
@@ -247,13 +258,14 @@ three, a negative release is ignored, a release of more rows than are counted st
 again afterwards; and that a count that cannot be an exact row count (positive infinity) is described as "an
 unrepresentable number of" rows and refused.
 
-##### Lookup Sources Share The Sandbox, The Cache, And The Budget
+##### Lookup Sources Share The File Access, The Cache, And The Budget
 
 **Tests**: `DataLoaderTests.DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall`
 
 Asserts, with a file limit of one and a row limit of four, that the main data and the source of a lookup that name the
 same two-row file read it once (one request in the virtual file set), that four rows are counted in total, that a
-lookup source outside the sandbox (`../secret.csv`) is a `VegaLiteRenderException` ("outside the allowed directories")
+lookup source that leaves the root of the file source (`../secret.csv`) is a `VegaLiteRenderException` ("leaves the
+root of the file source")
 located at `/transform/1/from/data/url`, that a remote lookup source (`https`) is an empty table that no request reached
 and that the feature catalog reports as `vl-data-remote-url` at `/transform/2/from/data`, and that a third table over the
 row limit is refused naming `MaxDataRows`.

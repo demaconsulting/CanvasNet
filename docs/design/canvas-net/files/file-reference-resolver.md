@@ -29,7 +29,7 @@ the open.
 
 The unit's behavior is specified by the `CanvasNet-Files-FileReferenceResolver-*` requirements (`Candidates`,
 `PathText`, `MissingFiles`, `PolicyEvaluation`, `ChainOrigin`, `NetworkTarget`, `RaceFree`, `RealPathUnavailable`,
-`RegularFile`, `Reading`, `Limits`, `Cache`, `Callback`, `Cancellation`, and `Failures`) in
+`RegularFile`, `Reading`, `Limits`, `Cache`, `Callback`, `Cancellation`, `Failures`, and `TopLevelFile`) in
 `docs/reqstream/canvas-net/files/file-reference-resolver.yaml`.
 
 #### Data Model
@@ -60,11 +60,13 @@ contains a host directory nor a policy reason, which may name host paths.
 
 **`FileReferenceResolver`** is created for one operation with the options, a cancellation token and (internally) the
 `FileOpenHooks` test seams. It holds the outcome of every key that was looked up (a file, a remembered failure, or a
-miss) and the set of keys counted against `MaxFiles`. **It is not thread-safe**: one instance per operation. A
+miss; a file read by `ResolveTopLevel` is flagged `Exempt`) and the set of keys counted against `MaxFiles`. **It is
+not thread-safe**: one instance per operation. A
 candidate (private record `Candidate`) carries its `Key` and its `Origin`: the base directory or search path of the
 candidate, or the origin of the referring file (in callback mode the logical directory, which no policy sees).
 
-**Invariants**: no byte of a file is read before the policy (when it needs the real path) allowed the open handle;
+**Invariants**: no byte of a referenced file is read before the policy (when it needs the real path) allowed the open
+handle (the top-level file of `ResolveTopLevel` is not judged; a reference that reaches it later is);
 the bytes come from the handle the policy was asked about; a key is opened at most once per instance except after a
 policy denial (a denial is not cached, so the policy is asked again); no more than `MaxFileBytes` bytes are read of any
 file; with `MaxFiles` set, no more than that many distinct keys are opened or requested.
@@ -75,6 +77,14 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   `relativeTo` of the other mode or one this instance did not return (the cached outcome of its key must hold that very
   instance), returns `null` when no source is configured, and walks the candidates, returning the first file that
   exists.
+- `ResolveTopLevel(path)` (internal) - reads the top-level file a host named itself (the document being rendered,
+  for `FolderImageResolver.Render(path)`). The host chose it, so the text rules, the pre-check, the network-target
+  check and the policy are skipped; the open, the regular-file check, the size limit, a `MaxFiles` slot and the cache
+  apply. The path is made full against the base directory (or the current directory); an invalid path is
+  `InvalidPath`, and callback mode is an `InvalidOperationException`. The candidate's origin is the file's own folder,
+  so its references are judged from there. The outcome is flagged `Exempt`; a later `Resolve` that reaches the same
+  key applies the skipped checks (`CheckExemptFile`: the network target, `RealPathUnavailable` for a restrictive
+  policy without a real path, and the policy).
 - `DescribeInvalidText` - backslashes become forward slashes; refuses an empty text, a control character, a device
   path (`//?/`, `//./`), a network path (a leading `//`), and a colon anywhere except the drive of an absolute Windows
   path (`C:/`); in callback mode also an absolute or drive path.
@@ -91,8 +101,10 @@ file; with `MaxFiles` set, no more than that many distinct keys are opened or re
   directory. In callback mode the logical candidates
   collapse `.` and `..` and refuse a `..` above the logical root.
 - `LoadFile` - the per-candidate pipeline: (1) `policy.PreCheck(key)` may deny the path as written before anything is
-  opened (not counted); (2) a cached outcome answers, after the policy is asked again for a cached file; (3) the file
-  limit refuses a new key before the open; (4) `OpenCheckAndRead`.
+  opened (not counted; skipped for the exempt top-level file); (2) a cached outcome answers, after the policy is asked
+  again for a cached file (or `CheckExemptFile` runs for a file first read as the top-level file); (3) the file
+  limit refuses a new key before the open; (4) `OpenCheckAndRead`, which skips the network-target check and the policy
+  for the exempt top-level file.
 - `OpenCheckAndRead` - opens the key through the hooks or `RealPath.OpenForRead`. "Not found" is a miss; an access
   failure on a directory is `NotARegularFile`; any other open failure is `CannotRead`. From the open on, the key counts.
   The handle's facts come from `RealPath.Inspect` (or the `RealPathOf` hook). On Windows, a real path that is a network
@@ -149,7 +161,10 @@ _FileAccessPolicy Unit Design_).
 
 #### Callers
 
-`FileReferenceResolver` is a public API entry point for consumers of the CanvasNet package. No CanvasNet unit calls it
-yet; `SandboxedFileResolver` reuses its `ReadBounded`. The tests in `test/DemaConsulting.CanvasNet.Tests/Files/` call it
+`FileReferenceResolver` is a public API entry point for consumers of the CanvasNet package. Inside the library it is
+used by `FolderImageResolver` (`ImageSources`; every file link, and `ResolveTopLevel` for the file of a render by
+path), by `DataFileResolver` (`CanvasNetVegaLite`) and by `ScadFileResolver` (`CanvasNetScad`), each with the policy
+its caller chose; the obsolete `SandboxedFileResolver` reuses its `ReadBounded`. The tests in
+`test/DemaConsulting.CanvasNet.Tests/Files/` call it
 directly and reach the internal hooks constructor through the core assembly's `InternalsVisibleTo` grant to the test
 project.

@@ -16,7 +16,9 @@ geometry and the pixels of the sheet are those of `ContactSheet`, the loading is
 
 **MontageRequest** (record): the required `Output` (positional) and the `init` properties `Page` (of each document,
 counted from 1; `null` for the first), `AllPages` (off), `Dpi` (none), `Scad` (`ScadViewOptions?`; none), `Strict`
-(off), `AutoOrient` (on), `Sheet` (the `SheetOptions`; default), and `Write` (`WriteOptions.Default`).
+(off), `FileAccess` (the `FileAccessPolicy` of the files every cell's input reads beside it, passed to each cell as
+`SourceOptions.FileAccess`; `FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`),
+`AutoOrient` (on), `Sheet` (the `SheetOptions`; default), and `Write` (`WriteOptions.Default`).
 
 **MontageCell** (record): `Index` and `InputIndex` (positions in a list, from 0), `Info`, `Page` (from 1), `X` and `Y`
 (of the cell's image area), `LoadedWidth` and `LoadedHeight`, `Label`, `Diagnostics`, and `Echo`. **MontageResult**

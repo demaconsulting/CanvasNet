@@ -84,8 +84,8 @@ belong to the "Sequential" collection because console redirection is process-wid
   exceeds a limit while it is laid out or drawn is `budget-exceeded`, an overlong specification file `corrupt-input`
   as for a model, and only a chart that lays out larger than 8192 pixels is `size-limit`); a diagram is recognized by
   its `.mmd` or `.mermaid` file name, drawn at the size Mermaid lays it out at over white with the bundled fonts in the
-  theme `--theme` names, its pictures read from its folder only, a type that is not drawn (a user journey, for example)
-  is the diagnostic
+  theme `--theme` names, its pictures resolved relative to its folder, a type that is not drawn (a user journey, for
+  example) is the diagnostic
 `mermaid-diagram-unsupported` (an `unsupported-feature` error with `--strict`), invalid text is a `mermaid-error` with a
 hint, and `--theme` on another kind of input is a `usage-error`;
   `info` describes a
@@ -311,9 +311,10 @@ a box (and a malformed declaration) is rendered in-process from the top at 400 b
 `scad-anchor-invalid` diagnostic, the second has the pixel at `(400 - x + 10, y + 10)` of the first with `inside` true,
 and the text mode writes no anchor on standard output.
 
-**CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly**: a model that includes and uses files in a subfolder
-renders without notes; a model that includes a file that does not exist and a model that includes a file outside its
-folder (which exists) each return exit code 1 with a `scad-error` message and document and write no output.
+**CanvasNetTool_Scad_Includes_AreReadRelativeToTheModelFolder**: a model that includes and uses files in a subfolder
+and a model that includes a file in its parent folder (read under the default file-access policy, like OpenSCAD) each
+render without notes and write their output; a model that includes a file that does not exist returns exit code 1 with
+a `scad-error` message and document and writes no output.
 
 **CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors**: a syntax error, a missing include, a failed `assert`,
 garbage, a triangle limit of 1, runaway recursion, an unsupported feature with `--strict`, an unknown view, an elevation
@@ -331,9 +332,10 @@ rectangle, 15 pixels from the top).
 **CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder**: a 240 by 120 red diagram that
 embeds the
 model fixture, the chart fixture, and a reference to `../outside.png` is rendered as a real process (so the SVG, SCAD, and
-Vega-Lite assemblies bundled next to the tool work together); exit code 0, one `svg-image-unresolved` diagnostic in the
-JSON result, an image of 240 by 120, red at the corner of the diagram, white inside the chart placement (a chart keeps its
-own background), and red where the outside reference would have been drawn.
+Vega-Lite assemblies bundled next to the tool work together); `../outside.png` names a file that does not exist; exit
+code 0, one `svg-image-unresolved` diagnostic in the JSON result, an image of 240 by 120, red at the corner of the
+diagram, white inside the chart placement (a chart keeps its own background), and red where the missing picture would
+have been drawn.
 
 **CanvasNetTool_Flatten_CompositeSvg_WritesFlattenedCopy**: a drawing that links the model fixture and a PNG is
 flattened as a real process with `--json`; exit code 0, `flattened` true with one replaced link of format `scad`, and a

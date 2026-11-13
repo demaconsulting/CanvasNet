@@ -6,12 +6,13 @@ This document describes the unit-level verification strategy for the `FileRefere
 
 #### Verification Approach
 
-The unit is verified by calling `FileReferenceResolver.Resolve` directly and asserting on the returned
-`FileReference` (key, real path, directory, bytes), on the requests that reached the policy and the callback, on the
-paths that were opened, and on the `FileReferenceException`s thrown (kind, reference, reason, hint, policy name, paths,
-inner exception, message). Real temporary files and folders (`SandboxTempDirectory`) are used for the file system, the
-in-memory `SandboxVirtualFiles` for callback mode, `RecordingPolicy` and `FileAccessPolicy.FromDelegate` for policies
-whose answers the test controls, and the built-in policies where their real behavior matters.
+The unit is verified by calling `FileReferenceResolver.Resolve` (and the internal `ResolveTopLevel`) directly and
+asserting on the returned `FileReference` (key, real path, directory, bytes), on the requests that reached the policy
+and the callback, on the paths that were opened, and on the `FileReferenceException`s thrown (kind, reference, reason,
+hint, policy name, paths, inner exception, message). Real temporary files and folders (`SandboxTempDirectory`) are used
+for the file system, the in-memory `SandboxVirtualFiles` for callback mode, `RecordingPolicy` and
+`FileAccessPolicy.FromDelegate` for policies whose answers the test controls, and the built-in policies where their
+real behavior matters.
 
 The internal `FileOpenHooks` seams, supplied through an internal constructor that the test project reaches through the
 core assembly's `InternalsVisibleTo` grant, make the open and the handle deterministic without any privilege, lock or
@@ -119,12 +120,26 @@ against the file limit.
 
 A document is read from `base/sub` under `NoSymlinks`; just before the referenced open (a `BeforeOpen` seam that fires
 only for the referenced file), `base/sub` is replaced by a directory link to an outside folder holding the referenced
-name: the nested reference is `AccessDenied` by `no-symlinks` and nothing is returned (with the anchor taken from the
-referrer's folder, the defect this test guards against, the reference was allowed). With a base directory and a search
+name: the nested reference is `AccessDenied` by `no-symlinks` and nothing is returned (had the anchor been taken from
+the referrer's folder, which is the defect this test guards against, the reference would have been allowed). With a
+base directory and a search
 path, a file found under the search path and a reference relative to it both give the policy the search path as the
 base directory, and the second request names the first file as the referrer. A file returned by one resolver is an
 `ArgumentException` (parameter `relativeTo`) as the starting point of another resolver over the same tree, even one
 that has read the same file, while that resolver's own file is accepted.
+
+##### CanvasNet-Files-FileReferenceResolver-TopLevelFile: The Host's Top-Level File Is Not Judged
+
+**Tests**: `FileReferenceResolver_ResolveTopLevel_DenyingPolicy_ReadsTheFileAndChecksItsReferences`,
+`FileReferenceResolver_ResolveTopLevel_Directory_IsNotARegularFile`,
+`FileReferenceResolver_ResolveTopLevel_TakesAFileSlot`
+
+The internal `ResolveTopLevel` (reached through `InternalsVisibleTo`) reads a top-level file outside the base directory
+under a policy that denies everything, returns the same instance for its absolute path, and returns `null` for a
+missing file; a reference inside it and a reference back to it are `AccessDenied`, and the policy is asked only for
+those two, with the top-level file's folder as the base directory. A directory is `NotARegularFile`. The top-level file
+takes a slot of the file limit: with `MaxFiles = 2` it and one reference are read and a second reference is
+`TooManyFiles` without being opened; callback mode has no top-level file (`InvalidOperationException`).
 
 ##### CanvasNet-Files-FileReferenceResolver-NetworkTarget: A Link to a Share Is Refused
 

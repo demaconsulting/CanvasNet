@@ -66,8 +66,11 @@ of a custom source sets `new ImageBudget(maxPixels)`), `RemainingPixels` (read l
 without one) and `ChargedPixels` (the pixels this request has charged through `EnsureWithinBudget`; default 0; the only
 state that changes after construction). `Fragment` (an `init` property, the `ImageFragment` of the link; `Empty` for a
 link without one) and `Options` (an `init` property, the `IImageSourceOptions` of a direct render; `null` for a link,
-because an embedded file never inherits the options of its embedder). `HasContent` is true exactly when `FileName` is
-not null: a file-based request
+because an embedded file never inherits the options of its embedder). `FileAccess` (an `init` property, the
+`FileAccessPolicy` a source must use, with `Directory` as the base directory, for every further file it reads itself;
+`FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`; `FolderImageResolver` sets its own
+policy anchored at the origin of the chain, or the raw policy for a scheme-claimed request). `HasContent` is true
+exactly when `FileName` is not null: a file-based request
 has content, a scheme-claimed request has only `Href`. The budget contract is documented once, in the XML remarks of
 this class; the other documents link to it.
 
@@ -195,8 +198,8 @@ unit throws nothing else and performs no I/O.
 
 #### Dependencies
 
-Only `Surface` of the `Canvas` subsystem (for `Surface.FitInside` and `Surface.MaxDimension` and as the picture type)
-and the
+Only `Surface` of the `Canvas` subsystem (for `Surface.FitInside` and `Surface.MaxDimension` and as the picture type),
+`FileAccessPolicy` of the `Files` subsystem (the type of `ImageSourceRequest.FileAccess`), and the
 .NET base class library. The documentation refers to `FolderImageResolver` by name only; the unit does not use it.
 
 #### Callers

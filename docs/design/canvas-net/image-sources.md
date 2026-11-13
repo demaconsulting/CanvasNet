@@ -6,7 +6,8 @@ The `ImageSources` subsystem is the ninth software subsystem in CanvasNet. It le
 pictures (an SVG `<image href="...">`, for example) draw 3D models, charts, other vector files, document pages, and
 rasters without the program that draws the document knowing any of those formats. It consists of three units:
 `ImageSourceContract` (the public types that anyone can implement or use to plug a format or a live source in),
-`FolderImageResolver` (the resolver that confines links to a folder, picks the source, and bounds the work), and
+`FolderImageResolver` (the resolver that resolves links relative to a folder under a file-access policy, picks the
+source, and bounds the work), and
 `RasterImageSource` (the source for the raster formats the core library decodes).
 
 ### Overview
@@ -42,28 +43,37 @@ The public types of the subsystem are in the namespace `DemaConsulting.CanvasNet
   `Render(path)` and `Render(Stream, fileName)` draw a top-level file and fail loudly.
 - **`RasterImageSource`** - the raster source.
 
-The subsystem consumes `SandboxedFileResolver` of the `Files` subsystem (to confine and read files), `ImageDecoder`,
+The subsystem consumes `FileReferenceResolver` and `FileAccessPolicy` of the `Files` subsystem (to check and read
+files), `ImageDecoder`,
 `JpegCodec`, and `Surface` of the `Codecs` and `Canvas` subsystems (the raster source), and nothing else.
 
 ### Design
 
-**Claims and precedence.** A source claims file name extensions (resolved through the folder sandbox; the source
-receives
-the bytes), URI schemes (the link is handed over as written; no sandbox, no file; the source owns access and security),
+**Claims and precedence.** A source claims file name extensions (resolved through the file engine of the resolver,
+under its file-access policy; the source receives the bytes), URI schemes (the link is handed over as written; no file;
+the source owns access and security),
 or both. `ImageSourceSet` validates every claim when it is built and records the winner of each extension and scheme:
 **the later source of the sequence wins**, so sources an application lists after the built-in ones override them. The
-reserved schemes `file` (always a path inside the folder, handled by the resolver) and `data` (decoded by the SVG codec)
+reserved schemes `file` (always a local path, handled by the resolver) and `data` (decoded by the SVG codec)
 cannot be claimed, and a single letter followed by a colon is a Windows drive, never a scheme.
 
-**One resolver, one render.** A `FolderImageResolver` owns the sandbox, the count of images, and the lists of notes,
+**One resolver, one render.** A `FolderImageResolver` owns the file engine, the count of images, and the lists of notes,
 printed text, and embedded images of one top-level render, and it is not thread-safe; a new resolver is created for
 every render (it is cheap). It never caches a drawn picture: every call reaches the source again, so a live source (a
 video frame) is fresh each time.
 
 **Scoped resolvers.** When a source draws a file, the request carries a resolver scoped to that file: it shares the
 counts and lists of the render, resolves relative links against the folder of the file, and carries the chain of files
-for the cycle check and the depth. A source that draws a document with links of its own (the SVG source) just passes
-that resolver on, so recursion is bounded without any state in the sources.
+for the cycle check (by real path) and the depth. A source that draws a document with links of its own (the SVG source)
+just passes that resolver on, so recursion is bounded without any state in the sources.
+
+**File access.** `FolderImageResolverOptions.FileAccess` (default `FileAccessPolicy.AllowAll`, like Pandoc) decides
+which files a link may read; the folder is the base of relative links, not a boundary. A link the policy denies is the
+warning `image-access-denied` and nothing is read; a link that is never allowed (a network or device path, a `file:`
+URI with a host) or cannot be read is `svg-image-unresolved`. The top-level file of `Render(path)` is the caller's
+choice and is not judged. Every request carries `ImageSourceRequest.FileAccess`: the policy anchored at the origin of
+the chain, so a source that reads further files itself (the includes of a model, the data of a chart) uses the same
+policy, judged from the host-chosen folder, and a nested document cannot loosen it.
 
 **Safety and failure.** A link that cannot be resolved is a warning and draws nothing; a file that is found but cannot
 be
@@ -93,8 +103,9 @@ number and never a snapshot. The contract is documented once, in the XML remarks
 
 ### Dependencies
 
-The subsystem depends on the `Files` subsystem (`SandboxedFileResolver`, `SandboxOptions`, `SandboxedFile`,
-`SandboxException`) for every file access, on the `Canvas` subsystem (`Surface`, `Rgba32`) for pictures, and on the
+The subsystem depends on the `Files` subsystem (`FileReferenceResolver`, `FileReferenceOptions`, `FileReference`,
+`FileReferenceException`, `FileAccessPolicy`) for every file access, on the `Canvas` subsystem (`Surface`, `Rgba32`) for
+pictures, and on the
 `Codecs` subsystem (`ImageDecoder`, `ImageFormats`, `JpegCodec`) for the raster source. No other CanvasNet subsystem
 depends on it. Its consumers are the format packages (each supplies a source), the `CanvasNetSvg` system (its
 `SvgLoadOptions.ImageResolver` takes an `IImageResolver`), the `CanvasNetViewer` system, and applications.

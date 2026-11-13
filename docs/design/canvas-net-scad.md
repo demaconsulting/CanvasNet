@@ -18,7 +18,8 @@ and, in the current phase (Phase 6), can **parse** it — validating the source 
 grammar and reporting what the source declares at file scope, or the first syntax error with its file,
 line, and column — **evaluate** it: `ScadDocument.Evaluate` runs the program (values, scoping,
 functions, modules and their children, control flow, comprehensions, built-in functions, `include` and
-`use` resolution inside a sandbox, variable overrides, resource limits, and cancellation) and returns the
+`use` resolution under the caller's file-access policy, variable overrides, resource limits, and cancellation) and
+returns the
 `echo` output, the warnings, the unsupported-feature reports, and the number of module instances produced —
 **build its geometry**: `ScadDocument.BuildScene` converts the instantiation tree into a
 `CanvasNetRender3D` `Scene` (primitives, 2D shapes, transforms, color, booleans, extrusions, modifiers, and
@@ -66,7 +67,8 @@ entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_). Th
   `Evaluation/`): the evaluator, with four units. `ScadValue` is the value model. `ScadEvaluator`
   evaluates a resolved program into the instantiation tree. `ScadBuiltinFunctions` is the built-in function
   library with a platform-independent random generator. `ScadFileResolver` resolves `include` and `use`
-  inside a sandbox before evaluation. The subsystem has no public types of its own: the value model and the
+  under the caller's file-access policy before evaluation. The subsystem has no public types of its own: the value model
+  and the
   instantiation tree stay internal so that they can evolve with the geometry phase. See _ScadEvaluation
   Subsystem Design_ (`canvas-net-scad/scad-evaluation.md`).
 - **ScadGeometry** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Geometry`, folder
@@ -167,7 +169,7 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 | `ScadOpenOptions.FileResolver` | Inbound | `Func<string, Stream?>` | Receives only normalized logical paths, only on the calling thread; a null result means "not found"; the stream is disposed after reading |
 | `ScadEvaluationResult` | Outbound | Read-only lists and a count | Cannot be turned into mutable collections |
 | `ScadSyntaxException` | Outbound | Exception with `Location` | Thrown for the first lexical or grammatical error, for nesting deeper than 256 levels, and for a syntax error in a file loaded by `include` or `use` |
-| `ScadEvaluationException` | Outbound | Exception with `Location` | Thrown for a failed assertion, an exceeded limit (including the triangle limit, with the module's location), an include cycle or sandbox violation, a directive with no place to look, and, without a location, the renderer's fragment budget |
+| `ScadEvaluationException` | Outbound | Exception with `Location` | Thrown for a failed assertion, an exceeded limit (including the triangle limit, with the module's location), an include cycle, a file-access denial or another refused include file (the core `FileReferenceException` as the inner exception), a directive with no place to look, and, without a location, the renderer's fragment budget |
 | `ScadUnsupportedFeatureException` | Outbound | Exception with `Feature` and `Location` | Thrown only when `ThrowOnUnsupportedFeature` is set, at the first unsupported feature of any stage (evaluation, geometry, renderer operand checks) |
 | `ArgumentOutOfRangeException`, `ArgumentException` | Outbound | Exception | `Render` throws them, before any work, for a width or height outside 1 to `Surface.MaxDimension` and for an invalid camera |
 | `OperationCanceledException` | Outbound | Exception | Thrown, never wrapped, when the token is canceled before or during evaluation, geometry building, or rendering |
@@ -176,7 +178,7 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 
 Parsing never opens any file named by an `include` or `use` directive: directives are recorded only. Files
 are accessed only by `Evaluate`, `BuildScene`, and `Render` (which evaluate), only through the open options,
-and only inside the sandbox described in _Risk Control Measures_. The types of the `ScadLanguage`,
+and only under the file-access policy described in _Risk Control Measures_. The types of the `ScadLanguage`,
 `ScadEvaluation`, and `ScadGeometry` subsystems are internal and visible only to the test assembly through
 `InternalsVisibleTo`. The unsupported-feature identifiers that the geometry phase adds (`scad-module-*`,
 `scad-modifier-*` (a `#` or `%` on a 2D shape that is not extruded only), `scad-csg-*`, the Phase 7 `scad-hull-*`
@@ -197,8 +199,9 @@ project references in
   glyph lookup, outlines, advances, and kerning, and the **`Geometry`** subsystem (`Path`) for the glyph outlines
   that a font returns. Only the `ScadTextGeometry` unit of the `ScadGeometry` subsystem uses `Fonts` and
   `Geometry`; no core API and no `InternalsVisibleTo` entry was added for it. The `ScadEvaluation` subsystem's
-  `ScadFileResolver` unit uses the **`Files`** subsystem (`SandboxedFileResolver`, `SandboxOptions`, `SandboxedFile`,
-  `SandboxException`) for all file access of `include` and `use`; it is public core API, so no `InternalsVisibleTo`
+  `ScadFileResolver` unit uses the **`Files`** subsystem (`FileReferenceResolver`, `FileReferenceOptions`,
+  `FileReference`, `FileReferenceException`, `FileAccessPolicy`) for all file access of `include` and `use`; it is
+  public core API, so no `InternalsVisibleTo`
   entry is needed for it either
 - `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose scene model
   (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`), tessellators and
@@ -298,23 +301,29 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   parser does; a
   caller waiting for a thread slot can be canceled. The restart is invisible because evaluation has no observable
   side effect until the buffered events are delivered.
-- **File-access sandbox.** `include` and `use` are resolved before evaluation, on the calling thread, and only
-  through the open options: files under the base directory or a library path, or, when a resolver callback is
-  supplied, **only** that callback with no file-system access at all. Environment variables are never
-  consulted. Absolute paths, drive letters, colons, control characters (including the C1 range), and `..` above the
-  root are rejected
-  with an evaluation error (and, in resolver mode, never reach the callback); a file that is, or lies beneath, a
-  symbolic link or junction below its root is refused whatever the link's target, a dangling link included (the root
-  itself is trusted;
-  to use linked content, add the real directory as a library path); a file that exists but cannot be read (a directory
-  in place of a file, an open failure, a callback that throws) is an evaluation error, and only a file that does not
-  exist is a warning. All of this is done by the core `SandboxedFileResolver`, which `ScadFileResolver` wraps with the
-  OpenSCAD search order, limits, decoding and wording. The sandbox protects against path-based escapes and against a
-  link or junction swapped in between the check and the open (it verifies the open file before reading it); it
-  cannot detect a hard link to a file outside the roots, so controlling who can write to the included folders is the
-  caller's responsibility. Include cycles, nesting
+- **File access.** `include` and `use` are resolved before evaluation, on the calling thread, and only
+  through the open options: files found relative to the including file, the base directory or a library path (search
+  locations, not boundaries), or, when a resolver callback is supplied, **only** that callback with no file-system
+  access and no policy at all. Environment variables are never consulted. Which of the files found may be read is
+  decided by `ScadOpenOptions.FileAccess`: the default `FileAccessPolicy.AllowAll` reads every regular local file, like
+  OpenSCAD itself (`..`, absolute paths and symbolic links are followed), and
+  `FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(...), FileAccessPolicy.NoSymlinks)` restores the confinement of
+  earlier versions. A model drawn as a linked picture gets the policy of the render, anchored at the origin of its
+  chain, so a nested model cannot loosen it. Empty paths, control characters (including the C1 range), network,
+  device and alternate-data-stream paths are rejected under every policy
+  with an evaluation error (and, in resolver mode, never reach the callback, where absolute paths and `..` above the
+  root are errors too); a denial of the policy, a file whose real path a restrictive policy cannot determine, and a
+  file that exists but cannot be read (a directory
+  in place of a file, an open failure, a callback that throws) are evaluation errors, and only a file that does not
+  exist (a dangling link included) is a warning. All of this is done by the core `FileReferenceResolver`, which
+  `ScadFileResolver` wraps with the
+  OpenSCAD search order, limits, decoding and wording. The policy is asked about the real path of the open file, so a
+  directory swapped for a link between a check and the open cannot redirect the read; hard links cannot be told from
+  the file itself, so a host that confines includes must keep hard links to outside files out of its roots. Include
+  cycles (compared on the real path of the file), nesting
   depth, the number of inclusions, and the
-  number of statements include expansion may produce are bounded. A document with `include` or `use` but no
+  number of statements include expansion may produce are bounded whatever the policy. A document with `include` or
+  `use` but no
   base directory, library path, or resolver is an error rather than a search of the current directory.
 - **Cancellation.** A `CancellationToken` is honored before any work (and before any resolver call), between
   files, every 1,024 evaluation steps, every 65,536 multiply-adds of a matrix product, every 65,536 candidate
@@ -391,7 +400,7 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 2. **Prepare**: the public options become internal settings (the `Variables` were converted when the options
    were initialized) and an empty buffering sink is created.
 3. **Phase A — resolve** (on the calling thread): `ScadFileResolver` expands every `include` in place, loads
-   every `use`d file as a library unit, enforces the sandbox and the include limits, and parses each distinct
+   every `use`d file as a library unit, applies the file-access policy and the include limits, and parses each distinct
    file once with `ScadParser`.
 4. **Phase B — evaluate**: `ScadEvaluator` builds the root scope (the defaults, the imports of the libraries,
    the file's own hoisted definitions and assignments, and the variable overrides), forces the variable cells
@@ -573,12 +582,12 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | Expressions: literals, vectors, ranges, postfix index/member/call, function literals, conditional, operators | Supported (Phase 4) | Precedence table in _ScadParser Unit Design_ |
 | List comprehensions: `for`, C-style `for`, `if`/`else`, `let`, `each` | Supported (Phase 4) | Valid only inside a vector |
 | `include`/`use` directives | Recorded (Phase 4); resolved on evaluation (Phase 5) | File-scope only; never opened while parsing |
-| `ScadOpenOptions.BaseDirectory`, `LibraryPaths`, `FileResolver` | Supported (Phase 5) | Govern `include`/`use` resolution; the sandbox is described in _Risk Control Measures_ |
+| `ScadOpenOptions.BaseDirectory`, `LibraryPaths`, `FileResolver`, `FileAccess` | Supported (Phase 5; `FileAccess` with the file-access policy) | Govern `include`/`use` resolution; the file-access policy is described in _Risk Control Measures_ |
 | Expression evaluation, variable scoping, special-variable semantics | Supported (Phase 5) | Dialect semantics in _ScadEvaluator Unit Design_ |
 | Built-in functions: mathematics, trigonometry in degrees, `len`, `concat`, `norm`, `cross`, `lookup`, `search` (documented forms), `str`, `chr`, `ord`, type tests, `version`, `rands` | Supported (Phase 5) | See _ScadBuiltinFunctions Unit Design_ |
 | `parent_module`, `textmetrics`, `fontmetrics`, and unimplemented `search` argument forms | Reported as unsupported features (Phase 5) | Feature ids `scad-function-<name>` and `scad-search-form` |
 | Module evaluation into an instantiation tree, `children()`, user functions, closures, tail calls | Supported (Phase 5) | The tree is internal and geometry-agnostic |
-| `include`/`use` file resolution, file-access sandbox, library paths, resolver callback | Supported (Phase 5) | Environment variables are never consulted |
+| `include`/`use` file resolution, file-access policy, library paths, resolver callback | Supported (Phase 5) | Environment variables are never consulted |
 | Variable overrides (`-D` style), special-variable overrides, animation time | Supported (Phase 5) | `ScadEvaluationOptions.Variables` and `Time` |
 | Resource limits, cancellation, deterministic recursion limit | Supported (Phase 5) | `ScadLimits`, `CancellationToken` |
 | `cube`, `sphere`, `cylinder` (cones and frusta), `polyhedron`, `square`, `circle`, `polygon`; `$fn`, `$fa`, `$fs` | Supported (Phase 6) | See _ScadPrimitives Unit Design_; the fragment rule is public and documented |

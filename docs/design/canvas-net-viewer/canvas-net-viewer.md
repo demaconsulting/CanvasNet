@@ -12,11 +12,13 @@
 can read, it creates the image resolver that lets an SVG document embed all of them, and it renders any file as a
 picture. It adds no format knowledge of its own: each format is drawn by the `SourceLoader`, the same code the
 command-line tool uses (which calls the libraries of the format packages), and every file
-access is confined by the core `FolderImageResolver`. See _CanvasNetViewer System Design_ (`canvas-net-viewer.md`) for
+a rendered file references is read by the core `FolderImageResolver` under the file-access policy of the caller. See
+_CanvasNetViewer System Design_ (`canvas-net-viewer.md`) for
 the system-level architecture.
 
 The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requirements (`ImageSources`,
-`CreateImageResolver`, `RenderPath`, `RenderStream`, `LoaderSources`, `RenderOptions`, and `ExtraSources`) in
+`CreateImageResolver`, `RenderPath`, `RenderStream`, `LoaderSources`, `RenderOptions`, `ExtraSources`, `FileAccess`,
+and `FileAccessDenied`) in
 `docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml`. The unit comprises `CanvasNetViewer.cs`,
 `ViewerRenderOptions.cs`, `ViewerImage.cs`, and `LoaderImageSource.cs` (the adapter, with the internal
 `DirectRenderOptions`).
@@ -47,9 +49,11 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   aspect ratio, both = a box; when given, each must be from 1 to `Surface.MaxDimension`), `Page` (1-based, default 1),
   `Dpi` (nullable; none = 96), `Background` (nullable; none = no flattening), `Scad` (a `ScadViewOptions`, nullable),
   `VegaLite` (a `ChartOptions` with the values of the parameters of a chart, nullable; the option behind `--param`),
-  `Folder` (the sandbox for the
-  files the rendered file itself includes or embeds; by
-  default the folder of the file for a render by path, none for a stream), `ThrowOnUnsupportedFeature`,
+  `Folder` (the base of the relative references of the rendered file, not a boundary; by
+  default the folder of the file for a render by path, none for a stream), `FileAccess` (the `FileAccessPolicy` of
+  every file the rendered file references, its pictures, a model's includes, a chart's data, and the files those read
+  in turn; `FileAccessPolicy.AllowAll` by default, `null` refused with `ArgumentNullException`; passed to the resolver as
+  `FolderImageResolverOptions.FileAccess`), `ThrowOnUnsupportedFeature`,
   `MaxDecodedPixels` (nullable; none = the resolver default budget), `ExtraSources`,
   and `CancellationToken`. There is deliberately no `Scale`, `Filter` or `AutoOrient`: the size is `Width`/`Height` (or
   `Dpi`), and the resampling of a raster belongs to `ImageWriter` and `SourceLoader`.
@@ -74,10 +78,14 @@ of a Mermaid diagram (`ReadDiagram`: the name compared with `MermaidRenderOption
 `SourceLoader.FindMermaidTheme`, the result a `DiagramOptions` with the canonical name), a value or name that
 is not
 usable being an `ImageSourceRefusedException` with the code `image-fragment-invalid`, the strictness switch,
+`request.FileAccess` as the `SourceOptions.FileAccess` of the load (so the includes, data and
+pictures of a linked model, chart, diagram or SVG file are read under the policy of the render, anchored at its
+origin),
 a transparent background for a vector source, none for a chart, and for a vector source the placement as `Width` and
 `Height`; an embedded file never inherits the options of its embedder); (2) wrap the bytes in a
 `SourceLoader.SourceInput` named and based as the resolver found the file; (3) for a raster, refuse from its declared
-size, before anything is decoded, a picture that cannot fit in the budget; (4) `OpenInput`, which parses a PDF,
+size, before anything is decoded, a picture that cannot fit in the budget; (4) `OpenInput` (with `request.FileAccess`),
+which parses a PDF,
 presentation or drawing once and returns the facts about its pages together with the parsed document (any other kind
 is described by `ProbeInput`), and a page below 1 or beyond the page count is an `ImageSourceRefusedException` with the
 code `image-page-out-of-range`; (5) open the pages, handing the already parsed document to the page source (which then
@@ -99,21 +107,23 @@ the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` 
 `Render`, and `CreateImageResolver` is for a render that the caller drives (for example `SvgCodec.Load` with
 `SvgLoadOptions.ImageResolver`) and that needs the resolver and its notes.
 
-**`Render(path, options)`**: validate the options (see _Error Handling_), resolve the sandbox folder (`options.Folder`,
-or the folder of the file), refuse a file outside it with `ArgumentException`, express the file as a path relative to
-the
-folder, and call
-`FolderImageResolver.Render(relative, width, height, directOptions)` on a resolver built from the built-in and extra
+**`Render(path, options)`**: validate the options (see _Error Handling_), resolve the base folder (`options.Folder`,
+or the folder of the file), and call
+`FolderImageResolver.Render(fullPath, width, height, directOptions)` on a resolver built from the built-in and extra
 sources, the
-strictness switch, and the cancellation token; then build the `ViewerImage` from the picture, the notes, and the page,
+strictness switch, the file-access policy, and the cancellation token; the file may lie anywhere, also outside the
+folder and behind a link, because it is the caller's choice and the resolver reads it without judging it by the policy
+(`FileReferenceResolver.ResolveTopLevel`), while every file it references is judged; then build the `ViewerImage` from
+the picture, the notes, and the page,
 page count and anchors that the adapter left in the `DirectRenderOptions`. The file therefore goes through the same
-sandbox checks, dispatch, and limits as an embedded link. A raster is asked for no size (the post-processing below
+regular-file check, size limit, dispatch, and limits as an embedded link, but not the policy. A raster is asked for no
+size (the post-processing below
 keeps the documented fit rule). An `ImageSourceRefusedException` becomes a `ViewerException` with the code
 `page-out-of-range`; an `ImageSourceException` whose inner exception is a `ViewerException` (a caller mistake or a limit
 that happened inside the loader) is rethrown as that `ViewerException`, while a library failure stays an
 `ImageSourceException`.
 
-**`Render(stream, fileName, options)`**: the same, with `FolderImageResolver.Render(stream, fileName, ...)`; the sandbox
+**`Render(stream, fileName, options)`**: the same, with `FolderImageResolver.Render(stream, fileName, ...)`; the base
 folder is `options.Folder` or none, so a stream cannot reach the disk by accident. The options are validated first,
 before
 the stream is read.
@@ -135,7 +145,8 @@ requested size is not post-processed and costs nothing more.
 ### Error Handling
 
 A null `path`, `stream`, or `fileName` throws `ArgumentNullException`; a null, empty or white-space folder for
-`CreateImageResolver` throws `ArgumentException`; a path outside `options.Folder` throws `ArgumentException`; a
+`CreateImageResolver` throws `ArgumentException`; a null `FileAccess` is refused when the options are built; a path outside
+`options.Folder` is not an error; a
 `Width` or `Height` that is given and is not from 1 to `Surface.MaxDimension`, a `Page` below 1, and a `Dpi` or `Scad`
 value that the shared validator `SourceLoader.FindOptionProblem` rejects throw `ArgumentOutOfRangeException`
 (parameter `options`, message naming the member) before any file or
@@ -143,11 +154,16 @@ stream is read; a page the file does not have is a `ViewerException` with the co
 whose `include` is missing, a size limit, or a Visio `Dpi` that is not a whole number is a `ViewerException` too; a
 final picture that does not fit in what is left of `MaxDecodedPixels` throws
 `ImageSourceBudgetException`. The other
-failures are those of `FolderImageResolver.Render`: `FileNotFoundException` for a missing file, `SandboxException` when
-the sandbox refuses the file (a symbolic link, more than 16 MiB), `NotSupportedException` when no source claims the
+failures are those of `FolderImageResolver.Render`: `FileNotFoundException` for a missing file, `FileReferenceException`
+when
+the file is not a regular file, is larger than 16 MiB, or cannot be read, `NotSupportedException` when no source claims
+the
 extension (the message lists the extensions), `ImageSourceException` when the file is found but cannot be drawn (the
 original failure is the inner exception), and `OperationCanceledException`. An unsupported feature is a note unless
-`ThrowOnUnsupportedFeature` is set.
+`ThrowOnUnsupportedFeature` is set. A link the file-access policy denies is the warning `image-access-denied`, and with
+`ThrowOnUnsupportedFeature` a `ViewerException` with the code `file-access-denied`; a denied include or data file
+fails the picture with an `ImageSourceException` whose chain of inner exceptions holds the `FileReferenceException`
+(the loader's `file-access-denied` wraps a library failure, so the adapter rethrows the library exception).
 
 ### Dependencies
 

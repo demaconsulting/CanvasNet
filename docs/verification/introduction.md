@@ -44,7 +44,7 @@ constituent software items, specifically:
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font loading and glyph-outline extraction:
   `TrueTypeFont` and `SystemFontCatalog`
 - **Files (Subsystem)** — Access to referenced files: the `FileReferenceResolver`, `FileAccessPolicy`, `RealPath`,
-  and `SandboxedFileResolver` units and their supporting types
+  and the obsolete `SandboxedFileResolver` units and their supporting types
 - **ImageSources (Subsystem)** — Linked-picture support: the `ImageSourceContract`, `FolderImageResolver`, and
   `RasterImageSource` units and their supporting types
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing

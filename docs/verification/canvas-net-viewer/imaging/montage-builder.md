@@ -22,6 +22,7 @@ N/A - standard test environment; the tests write only to temporary directories t
 - A sheet larger than the maximum is `size-limit`, an output that is an input is `same-input-output`, and no inputs are
   a
   defect of the caller.
+- The file-access policy of the request applies to every cell.
 
 #### Test Scenarios
 
@@ -46,6 +47,10 @@ written.
 **MontageBuilder_Execute_NoFormatAndNoExtension_ThrowsUsageError**: with JPEG in the write options a sheet named `sheet`
 is written as a JPEG (it starts with FF D8); without a format a sheet named `sheet` is a `usage-error` and nothing is
 written.
+
+**MontageBuilder_Build_FileAccess_AppliesToEveryCell**: with a picture and a model in the cells folder whose include
+lies in the parent folder, a request with `FileAccess = UnderRoots(cells)` fails the sheet with `file-access-denied`
+and writes nothing, and the default policy builds both cells.
 
 **MontageBuilder_Execute_NullRequestMember_ThrowsArgumentNullException** and
 **MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException**: a request without the output, the sheet options,

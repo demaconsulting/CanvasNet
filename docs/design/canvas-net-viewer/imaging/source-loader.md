@@ -51,7 +51,11 @@ what the fragment of the input chose, an `InputSelection`; `null` for an input w
 **SourceOptions** (record, all properties `init`): `Page` (1-based, default 1), `Dpi` (nullable, 96 when absent),
 `Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
 (default `true`), `Scad` (a nullable `ScadViewOptions`; the defaults when absent), `VegaLite` (a nullable
-`ChartOptions`, see *Chart parameters* below), and `Mermaid` (a nullable `DiagramOptions`).
+`ChartOptions`, see *Chart parameters* below), `Mermaid` (a nullable `DiagramOptions`), and `FileAccess` (the
+`FileAccessPolicy` of every file the source reads beside it: the pictures of an SVG file, a chart or a diagram, the
+includes of a model, the data of a chart, and the files those read in turn; `FileAccessPolicy.AllowAll` by default,
+like Pandoc; `null` refused with `ArgumentNullException`; the source file itself is the caller's choice and is not
+judged).
 
 **DiagramOptions** (record, `init`): `Theme`, the site-level theme of a Mermaid diagram - `default`, `base`, `dark`,
 `forest`, or `neutral` (`MermaidRenderOptions.ThemeNames`) - or `null` for `default`; it is what the `--theme` option of
@@ -142,19 +146,23 @@ Mermaid text (`flowchart`, `graph`) is too common: a Markdown or text file that 
 kind, so that an empty or truncated `.png` is reported as corrupt by the load instead of as an unknown format. Otherwise
 throws `unsupported-format` with a hint to run `canvasnet formats`.
 
-**Probe(path)**: `Detect`, then reads the header with the codec's `GetInfo` (and, for a JPEG, the EXIF orientation
+**Probe(path)** and **Probe(path, fileAccess)**: `Detect`, then reads the header with the codec's `GetInfo` (and, for a
+JPEG, the EXIF orientation
 with `JpegCodec.ReadExifOrientation`) or, for an SVG, the intrinsic size with `SvgCodec.GetInfo`. A PDF, PPTX, or VSDX
 document is opened with its library and every page is listed in `Pages` (`SourcePage`: the 1-based number, the size
 in points and in pixels at 96 dots per inch, the rotation of a PDF page, the name of a VSDX page); the page count
 is `PageCount`, and `Width` and `Height` are those of page 1. A PDF page's size is the library's displayed
 (rotation-applied) size in points; a slide or a page of a drawing is converted from EMU (12,700 EMU per point). A
-document with no pages is `corrupt-input`. An OpenSCAD model is parsed with `ScadDocument.Open(path)` (the parse
+document with no pages is `corrupt-input`. An OpenSCAD model is parsed from its bytes (`OpenScad`, with the folder of
+the path as the base directory and the
+policy of the probe as `FileAccess`; the parse
 reads no other file and evaluates nothing): its `ModuleNames` and `FunctionNames` become `Modules` and `Functions`,
 its `Directives` become `SourceDirective` records, and a syntax error is a `scad-error`. A Vega-Lite chart is parsed
-with `VegaLiteDocument.Open(path)` (the parse reads no other file and draws nothing; the folder of the path becomes the
-base directory of the library's data sandbox) and
-measured with `Measure()` (the library lays the chart out, which reads its data files from that folder and below it, but
-draws no pixel): the size is
+from its bytes with the folder of the path as the base directory of its data files and `FileAccess` set to the policy of
+the probe (the parse reads no other file and draws nothing) and
+measured with `Measure()` (the library lays the chart out, which reads its data files under that policy, but draws no
+pixel; `Probe(path)` uses `FileAccessPolicy.AllowAll`, and `Load(path, options)` probes with `options.FileAccess`, so
+the probe never reads a data file the load would refuse, and a denial is `file-access-denied`): the size is
 `Width` and `Height`, there are 4 channels with transparency, one page, and no `Pages`, and the `ChartFacts` come from
 the document (`MarkTypes`, `DataReferences`, `ParameterNames`, `Title`, `SchemaMajorVersion`). A chart that lays out
 larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. A
@@ -177,7 +185,8 @@ reports the size it drew (see the Mermaid load). No pixels
 are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
-`options.Page`. **OpenPages(info, options)** returns a `PageSource` (`IDisposable`) whose `ReadPage(page)` loads
+`options.Page`; `Load(path, options)` validates the options and probes the file with `Probe(path, options.FileAccess)`
+first. **OpenPages(info, options)** returns a `PageSource` (`IDisposable`) whose `ReadPage(page)` loads
 one page; for a document it holds the parsed document, so that loading every page parses it once. `CheckPage`
 throws `page-out-of-range` (message naming the page and the file, hint that pages count from 1) for a page that
 is not in `1..PageCount`; a single image has the one page 1.
@@ -198,9 +207,11 @@ and operations of the loaded source.
 **SVG embedding** (`SourceLoader.SvgImages.cs`, the internal class `SvgImages`). The SVG library never reads a file
 for an `image` reference; it calls the `IImageResolver` of `SvgLoadOptions.ImageResolver`. For every SVG load the tool
 creates the resolver with `CanvasNetViewer.CreateImageResolver(folder, options)`, where the folder is the folder of the
-SVG file the user named (the sandbox root, the same rule as for `include` in a model and for the data files of a chart:
-there is no option for another folder) and `ThrowOnUnsupportedFeature` carries `--strict` to the sources. The whole of
-the embedding behavior belongs to the libraries: the sandbox, the extension dispatch, the sizes (a vector file at the
+SVG file the user named (the base of its relative links, the same rule as for `include` in a model and for the data
+files of a chart: there is no option for another folder), `ThrowOnUnsupportedFeature` carries `--strict` to the
+sources, and `FileAccess` carries `SourceOptions.FileAccess`. The whole of
+the embedding behavior belongs to the libraries: the file-access policy, the extension dispatch, the sizes (a vector
+file at the
 size of the placement over a transparent background, a chart keeping its own background, a raster at its natural size),
 the nesting depth (4), the cycle check, the count limit (64), the diagnostics with the `href` in front, and the
 no-caching rule are specified and tested in the core `ImageSources` subsystem and the format packages. The tool has no
@@ -216,8 +227,9 @@ plug-in mechanism: it never passes extra sources, so the supported types are exa
   embedded SVG file embeds are not listed, as before) to an `embed` operation (`href`, `format`, `width`, `height`).
   The outer sizing, page, resolution, and model options are not passed on: the resolver draws an embedded file from
   its own defaults.
-- **Strict.** With `--strict`, `ThrowForUnresolved()` turns the first `svg-image-unresolved` or `svg-image-too-large`
-  diagnostic into a `ViewerException` with code `unsupported-feature`, message
+- **Strict.** With `--strict`, `ThrowForUnresolved()` turns the first `svg-image-unresolved`, `image-access-denied`,
+  `svg-image-too-large`, `image-fragment-invalid`, or `image-page-out-of-range` diagnostic into a `ViewerException`
+  with code `unsupported-feature` (`file-access-denied` for `image-access-denied`), message
   `'<svg>' embeds '<href>', which was not drawn: <reason>.` and the hint that without `--strict` the image is reported
   as the warning with that code. The check runs after the render, so the surface
   is disposed and the work of the rest of the picture is spent first.
@@ -230,10 +242,14 @@ plug-in mechanism: it never passes extra sources, so the supported types are exa
   exception that the allow-list does not map is a defect and is rethrown as itself.
 
 An unresolved reference is the warning `svg-image-unresolved` (source `svg`, message
-`image '<href>' was not drawn: <reason>`) and nothing is drawn; a picture that is too large for the pixel budget of the
+`image '<href>' was not drawn: <reason>`) and nothing is drawn; a reference the file-access policy denies is the warning
+`image-access-denied` (message `image '<href>' was not drawn: access denied by the file-access policy '<name>':
+<reason>. Hint:
+<hint>`, the paths only in `Detail`) and nothing is read or drawn; a picture that is too large for the pixel budget of the
 render (64 million pixels in all, charged by the resolver before anything is decoded) is the warning
-`svg-image-too-large` in the same form; in strict mode either is the `unsupported-feature` error
-above (the same rule as a skipped picture of a PPTX slide). A query or fragment after the file name of an `href` is not
+`svg-image-too-large` in the same form; in strict mode each is the error
+above (`file-access-denied` for a denial, `unsupported-feature` otherwise) (the same rule as a skipped picture of a PPTX
+slide). A query or fragment after the file name of an `href` is not
 part of the name (the resolver cuts it off), and `KindOfName` ignores it when it words an error.
 
 A *document page* load (`DocumentPageSource`, shared by the PDF, PPTX, and VSDX page sources) sizes the page at
@@ -301,11 +317,11 @@ feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such 
 *Chart parameters* below): no datasets,
 configuration, or data folders are passed, and there is **no data-folder option** (the shared option grammar of the
 render, inspect, compare, and montage commands has no place for one, and the library's `DataPaths` stay unused). A
-chart's local data files (CSV, TSV, DSV, or JSON named by a relative `url`) are therefore read by the library through
-its own sandbox from the folder of the specification and below it only - the base directory that `Open(path)` sets,
-never
-the current directory - and no link below that folder is followed; a file that is missing, outside the folder, or not
-valid is a `VegaLiteRenderException` (`vega-lite-error`, in strict mode too), and a remote URL is only a diagnostic that
+chart's local data files (CSV, TSV, DSV, or JSON named by a local `url`) are therefore read by the library relative to
+the folder of the specification - the base directory, never the current directory - under `SourceOptions.FileAccess`
+(`OpenVegaLite(input, fileAccess)`); a file that is missing or not valid is a `VegaLiteRenderException`
+(`vega-lite-error`, in strict mode too), a file the policy denies is `file-access-denied`, and a remote URL is only a
+diagnostic that
 is never fetched (an `unsupported-feature` error with the strict switch). The
 picture is the same for the same chart and options: the library's render is deterministic. The operation recorded
 is `render` with the `width`, the `height`, the `timeZone` (`UTC`), and, when it was given, the `background`.
@@ -331,18 +347,18 @@ measure and
 the render. The `render` operation lists them in a `params` field (name order, `name=value` with the value as JSON, so a
 selection reads `brush={"x":[2,6]}`). The tests are in `CanvasNetViewerParameterFragmentTests.cs`.
 
-*Chart pictures* (phase 13). The `image` marks of a chart show files that lie beside it, through the same wiring as the
+*Chart pictures* (phase 13). The `image` marks of a chart show files relative to it, through the same wiring as the
 pictures of an SVG file: unless the caller supplied the resolver of an embedding document
 (`LoadContext.UseScopedResolver`,
 then that one is used and it, not the result, collects what the nested pictures report), the loader creates
 `SvgImages(path, options)` (the `CanvasNetViewer.CreateImageResolver` of the folder of the chart, with
-`ThrowOnUnsupportedFeature` set from `Strict`) and gives it to the library as `VegaLiteRenderOptions.ImageResolver`. The
+`ThrowOnUnsupportedFeature` set from `Strict` and the file-access policy of the options) and gives it to the library as
+`VegaLiteRenderOptions.ImageResolver`. The
 resolver is **only** given to `Render`; the probe measures the chart without one, so `info` and the natural size never
 read
 a picture. A `url` may therefore name a raster, an SVG file, a model, a page of a document (`report.pdf#page=2`), or
-another chart, always inside the folder of the chart: a remote URL, an absolute path, a link through a symbolic link,
-and
-a path that leaves the folder are the resolver's warning `svg-image-unresolved` and draw nothing. After the render the
+another chart that the file-access policy allows: a remote URL is the resolver's warning `svg-image-unresolved`, a file
+the policy denies the warning `image-access-denied`, and neither draws anything. After the render the
 notes of the resolver become the notes of the result, in the order they were reported, after the library's; the
 library's
 own warning `vl-mark-image-unresolved` for a link that the resolver reported itself (`DropDuplicateUnresolved`: the
@@ -400,20 +416,22 @@ at least one pixel; exact at a scale of 1 or more), so the loaded picture's size
 `info` still reports the size without the pictures. The operation recorded is `render` with the `width` and the `height`
 of the surface that was drawn, the `background`, and, when one is set, the `theme`.
 
-*Diagram pictures.* A node written `@{ img: "part.png", ... }` shows a file that lies beside the diagram, through the
+*Diagram pictures.* A node written `@{ img: "part.png", ... }` shows a file relative to the diagram, through the
 same wiring as the pictures of a chart: unless the caller supplied the resolver of an embedding document
 (`LoadContext.UseScopedResolver`, then that one is used and it collects what the nested pictures report), the loader
-creates `SvgImages(path, options)` for the folder of the diagram and gives its resolver to the library as
+creates `SvgImages(path, options)` for the folder of the diagram, under the file-access policy of the options, and gives
+its resolver to the library as
 `MermaidRenderOptions.ImageResolver`. A link may therefore name a raster, an SVG file, a model, a chart, a page of a
-document, or another diagram, always inside the folder of the diagram; a remote URL, an absolute path, a link through a
-symbolic link, a path that leaves the folder, a missing file, and a diagram that shows itself are the resolver's warning
-`svg-image-unresolved` and draw nothing. The resolver is only given to the render: the probe measures without one. The
+document, or another diagram that the policy allows; a remote URL, a missing file, and a diagram that shows itself are
+the resolver's warning `svg-image-unresolved`, a file the policy denies is the warning `image-access-denied`, and
+none of them draws anything. The resolver is only given to the render: the probe measures without one. The
 library asks for every picture twice, once at a probe size to learn its natural size and once to draw it, so the loader
 keeps one `embed` operation per link (`LastPerLink`: the last request, at the size that was drawn, in the order of those
 last requests) and each note of the resolver once (`Distinct`), and drops the library's own warning
 `mermaid-image-unresolved` for a link the resolver reported itself (`DropDuplicateUnresolved` with that detail, shared
 with the chart path, which passes `vl-mark-image-unresolved`). With the strict option the first link that was not drawn
-is an `unsupported-feature` error that names the diagram and the link (`SvgImages.ThrowForUnresolved`), a file that is
+is an `unsupported-feature` error (`file-access-denied` for a denied one) that names the diagram and the link
+(`SvgImages.ThrowForUnresolved`), a file that is
 found but cannot be loaded is the error of its own failure naming both files (`SvgImages.Map`), and a diagram with more
 pictures than `MermaidLimits.MaxImages` is `budget-exceeded`. A raster that the resolver returns at its own size is
 stretched to the box of its node by the Mermaid library's painter (Mermaid sets `preserveAspectRatio="none"` on the
@@ -421,14 +439,16 @@ picture of a node). The tests are in `SourceLoaderMermaidImageTests.cs`; the oth
 `SourceLoaderMermaidTests.cs`.
 
 *Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
-from the folder of the file that names it, nothing outside the folder of the model (the base directory, which is the
-folder of the file that was opened) is ever read, a link below that folder is not followed, and no library path or
-file resolver is configured, so the folder of the model and below it are the only places a model can read. A path
-that leaves the folder, an include cycle, nesting that is too deep, and a syntax error in an included file are errors
-of the library. A directive whose file does not exist is only a *warning* in the library (as in OpenSCAD itself);
+from the folder of the file that names it (the base directory is the folder of the file that was opened; no library
+path or file resolver is configured), and the file is read under `SourceOptions.FileAccess` (`OpenScad(input,
+fileAccess)`; every regular local file by default, like OpenSCAD). A file the policy denies is the error
+`file-access-denied` ("SCAD include denied: ...", hint "Allow the file in the file-access policy, or reference a file it
+allows."); an include cycle, nesting that is too deep, and a syntax error in an included file are errors of the
+library. A directive whose file does not exist is only a *warning* in the library (as in OpenSCAD itself);
 the loader treats that warning as an error, because a picture drawn without a file the model asked for would be
 wrong without saying so: after the render the picture is discarded and a `scad-error` ("SCAD include not found: ...")
-with a hint about where files are looked up is thrown. The loader recognizes that warning by its code
+with the hint "A file named by include or use is looked up relative to the folder of the file that names it." is
+thrown. The loader recognizes that warning by its code
 (`ScadDiagnosticCodes.IncludeNotFound`, `scad-include-not-found`), not by its text, which a test pins.
 
 Each step that changed the pixels is recorded in `Operations` (`auto-orient` with the orientation,
@@ -443,7 +463,8 @@ the path (so a real file `chart#2.png` keeps working and wins over `chart` with 
 path is the longest start of the text, ending before a `#`, that names an existing file (the last such `#` is tried
 first, so a `#` in a folder name or in the file name is not a problem, and the fragment may itself hold a `#`), and when
 no start names a file the first `#` splits, so that the missing file reported is the one before it.
-`Probe(InputReference)` is `Probe(path)` plus, when there is a fragment, `InputSelection.Create`, which parses the
+`Probe(InputReference)` and `Probe(InputReference, fileAccess)` are `Probe(path)` and `Probe(path, fileAccess)` plus,
+when there is a fragment, `InputSelection.Create`, which parses the
 fragment with the core `ImageFragment` (over its limits: `image-fragment-invalid`) and reads it with the **built-in
 image source of the kind** of the file (`CanvasNetViewer.FindBuiltIn(kind)`, the `LoaderImageSource` that draws a link
 of that kind): its `ReadPage` (`page`, and `slide` for a presentation), `ReadScad` (`view`, and the `def.` variables
@@ -517,7 +538,8 @@ what the path overloads of the libraries do, so a file loaded from disk and the 
 same
 kind, size, pixels, and notes. The public `Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default
 `LoadContext`, so the command line behaves as before (it probes once for `info` and opens once for `render`, as
-before). The internal entry points `ProbeInput(input, kind)`, `OpenInput(input, kind)` and
+before). The internal entry points `ProbeInput(input, kind, fileAccess)`, `OpenInput(input, kind, fileAccess)` (the policy
+of the files the source reads beside it; `ProbeScad`, `ProbeVegaLite`, `OpenScad`, and `OpenVegaLite` take it too) and
 `OpenInputPages(input, info, options, context, opened)` serve `LoaderImageSource` of the `CanvasNetViewer` unit:
 `OpenInput` returns an `OpenedSource` that keeps the parsed PDF, presentation or drawing open after reading its pages,
 and `OpenInputPages` takes the document from it (`TakeDocument`, which transfers ownership to the page source), so a
@@ -578,7 +600,9 @@ before it) to `scad-error` ("SCAD syntax error: file:line:column: ..."); and `Sc
 `InvalidOperationException`) to `budget-exceeded` when it reports a limit - the library words every limit as
 `(limit N)`, for example "Triangle limit exceeded (limit 5)" or "Recursion too deep (limit 5000)", and reports a
 renderer budget failure with `RenderBudgetExceededException` as the cause, which `MapScadEvaluation` recognizes - and
-otherwise to `scad-error` (a failed `assert`, an include problem, and so on). The hint of a triangle-limit failure
+otherwise to `scad-error` (a failed `assert`, an include problem, and so on); a `ScadEvaluationException` whose inner
+exception is a `FileReferenceException` of kind `AccessDenied` or `RealPathUnavailable` is `file-access-denied`
+(`IsFileAccessDenial`), checked first. The hint of a triangle-limit failure
 names `--max-triangles` and the default; the other limits cannot be changed from the command line and the hint says
 to simplify the model. A model longer than the library reads is an `InvalidDataException`, so `corrupt-input`. The
 Vega-Lite library adds
@@ -588,12 +612,14 @@ naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a 
 nesting deeper than the parser limit, a string longer than the string limit, an invalid axis or format) to
 `vega-lite-error`
 ("Vega-Lite specification error: file:line:column /pointer: ..."); and `VegaLiteRenderException` (an
-`InvalidOperationException`: a local data file that is missing, outside the folder of the specification, a link, not
+`InvalidOperationException`: a local data file that is missing, not
 valid
 UTF-8, or not valid JSON or delimited text, an undefined dataset name, a data limit, or a chart that cannot be laid
 out) to
 `budget-exceeded` when it
-reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ..."). The limits of the specification
+reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ..."), except that a denial of the
+file-access policy (`IsFileAccessDenial`, checked first) is `file-access-denied` ("Vega-Lite data file denied: ...").
+The limits of the specification
 parser are deliberately `vega-lite-error`, as the nesting limit of the SCAD parser is a `scad-error`: only the limits
 applied while the chart is laid out or drawn (data rows, data files, data bytes, ticks, scene items, painted pixels, and
 so on) are

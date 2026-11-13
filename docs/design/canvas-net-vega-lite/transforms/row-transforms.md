@@ -269,7 +269,7 @@ entry),
 expression
 string, or the `filter` value for a predicate), a failing regular expression (the expression string), and a lookup
 source
-that the sandbox or the file layer refuses
+that the file-access policy or the file layer refuses
 (the `from.data` node, with the loader's message). A canceled token is an `OperationCanceledException`, never wrapped,
 and
 the warnings of a canceled call are not delivered. Recoverable findings are warnings: `vl-expr-runtime` and

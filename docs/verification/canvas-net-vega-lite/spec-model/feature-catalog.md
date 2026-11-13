@@ -1,8 +1,9 @@
 ### FeatureCatalog Unit Verification Design
 
 This document describes the unit-level verification strategy for the `FeatureCatalog` unit in the
-`DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `FeatureCatalog` class (`Visit` and
-`IsSchemeBearingUrl`), the `FeatureReport` record, and the `FeatureReportKind` enumeration. The catalog walks a parsed
+`DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the internal static `FeatureCatalog` class (`Visit`,
+`IsRemoteDataUrl`, and `LocalPathOfFileUri`), the `FeatureReport` record, and the `FeatureReportKind` enumeration. The
+catalog walks a parsed
 specification tree and reports every recognized construct that this release does not draw, each with a stable
 lower-case `vl-*` identifier, a message, the JSON pointer, and the one-based line and column of the construct, plus the
 warnings about the schema version and empty data.
@@ -156,17 +157,22 @@ The definition of a channel that an overlay draws is still visited (a custom sha
 ##### Data
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl`,
-`FeatureCatalogTests.FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls`,
+`FeatureCatalogTests.FeatureCatalog_IsRemoteDataUrl_ClassifiesUrls`,
+`FeatureCatalogTests.FeatureCatalog_LocalPathOfFileUri_ReturnsThePathOfAUriWithoutHost`,
 `FeatureCatalogTests.FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing`,
 `FeatureCatalogTests.FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers`
 
-Asserts that remote data (every scheme-bearing form) reports `vl-data-remote-url` at the data object, never as a
-warning, and that a relative local path reports nothing; that, as a theory, `http`, upper-case `HTTPS`, `file`
-(`file:///`, `file:/`, and `FILE://`), `data`, `javascript`, and `ftp` URLs, a drive letter path (`C:\`, `C:name`, and
-`d:/`), a protocol-relative path, a Unix absolute path (`/etc/hosts`), a backslash-rooted path, a UNC path, and a URL
-with leading blanks are scheme-bearing on every host operating system, while `a.csv`, `data/a.csv`, `../a.csv`, `a
-b.csv`, the empty string, and `1:2.csv` are not; that relative local urls, the csv, tsv, dsv, and json format types
+Asserts that remote data (a scheme other than a local `file:` URI, a `file:` URI with a host, and a network path)
+reports `vl-data-remote-url` at the data object, never as a warning, and that a local path (relative, absolute, a drive
+path, or a `file:` URI without a host) reports nothing; that, as a theory, `http`, upper-case `HTTPS`, `data`,
+`javascript`, and `ftp` URLs, a `file:` URI with a host (`FILE://host/...` and `file://localhost/...`), a
+protocol-relative path, a UNC path, and a URL with leading blanks are remote on every host operating system, while
+`file:///` and `file:/` URIs, a drive letter path (`C:\`, `C:name`, and `d:/`), a Unix absolute path (`/etc/hosts`,
+`/`, also with leading blanks), a backslash-rooted path, `a.csv`, `data/a.csv`, `../a.csv`, `a b.csv`, the empty
+string, and `1:2.csv` are local; that the local path of a `file:` URI without a host is its percent-decoded path (also
+with leading blanks), while a URI with a host, a relative path, and a plain path have none; that local urls, the csv,
+tsv, dsv, and json format types
 (with a delimiter, a `property` path, and `parse` maps of `date`, `number`, `boolean`, and `string`, `"auto"`, and
 `null`), a named dataset, and a sequence are supported and report nothing, so that strict mode accepts them; that a
 custom date format of a parse map (`date:'...'`, `utc:'...'`) is supported (the data stage applies it), so the catalog

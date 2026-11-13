@@ -20,7 +20,11 @@ recording resolver).
 #### Data Model
 
 **FlattenRequest** (record): the required `Output` (positional) and the `init` properties `Scale` (1; 0.001 to 8192),
-`Strict` (off), `NoClobber` (off), and `MaxOutputBytes` (`DefaultMaxOutputBytes`, 64 MiB).
+`Strict` (off), `FileAccess` (the `FileAccessPolicy` of the links of the drawing and the files they read in turn,
+passed to `SvgImages` as `SourceOptions.FileAccess`; `FileAccessPolicy.AllowAll` by default, like `canvasnet render`;
+`null` refused with `ArgumentNullException`), `NoClobber` (off), and `MaxOutputBytes` (`DefaultMaxOutputBytes`, 64
+MiB). A link the policy denies is not flattened: it is the warning `image-access-denied`, and with `Strict` the error
+`file-access-denied`.
 
 **FlattenedImage** (record): `Href` (as the SVG library reads it), `Format` (the format name of the linked file, `svg`
 for a nested drawing), `Width` and `Height` of the PNG picture, `Elements` (the `image` elements that use the link), and
@@ -102,11 +106,13 @@ by the query and the fragment escaped for the attribute.
 
 #### Error Handling
 
-`ViewerException` with `usage-error`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, `size-limit`,
+`ViewerException` with `usage-error`, `unsupported-format`, `corrupt-input`, `unsupported-feature`, `file-access-denied`,
+`size-limit`,
 `same-input-output`, `output-exists`, `output-write-failed`, and the codes of render for a linked file that is found but
 broken (`SvgImages.Map`, naming both files). `ArgumentNullException` and `ArgumentOutOfRangeException` for the defects of
-the caller. A link that cannot be drawn is a note of the resolver (`svg-image-unresolved`, `svg-image-too-large`, the
-fragment notes), an error only with `Strict`. Nothing is written on any failure; the staged file is deleted.
+the caller. A link that cannot be drawn is a note of the resolver (`svg-image-unresolved`, `image-access-denied`,
+`svg-image-too-large`, the fragment notes), an error only with `Strict` (`file-access-denied` for a denied link). Nothing
+is written on any failure; the staged file is deleted.
 
 #### Dependencies
 

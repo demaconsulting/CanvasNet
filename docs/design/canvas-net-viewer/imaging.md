@@ -54,7 +54,8 @@ on these defaults. Pages are numbered from 1 throughout this subsystem (the form
 
 ### Interfaces
 
-**SourceLoader.Detect(path)**, **SourceLoader.Probe(path)**, **SourceLoader.Load(path, options)**,
+**SourceLoader.Detect(path)**, **SourceLoader.Probe(path)** (and **Probe(path, fileAccess)**, which reads the data a
+chart is measured with under a file-access policy), **SourceLoader.Load(path, options)**,
 **SourceLoader.Load(info, options)**, and **SourceLoader.OpenPages(info, options)** (provided to the operation units and
 to library users): recognize a file, read its header facts (for a document including every page, for a model its
 modules, functions,
@@ -124,14 +125,17 @@ drawn from a named viewpoint (`iso`, `front`, `back`, `left`, `right`, `top`, or
 the Render3D library: the eye on the side the name says, Z up; with no view chosen the library decides: `iso` for a 3D
 model, `top` for a model that is entirely 2D, or the view the model sets with its viewport variables) at 800 by 800
 pixels unless a size is given, with the variables and limits the options set; the files its `include` and `use`
-directives name are read from the folder of the model and below it only. A chart is laid out by the library at its
+directives name are looked up relative to the file that names them and read under `SourceOptions.FileAccess` (every
+regular local file by default; a denied file is `file-access-denied`). A chart is laid out by the library at its
 natural size, which the probe reports, and is drawn at the target size with UTC dates and only the bundled fonts over
-its own background (white by default); nothing is read from the network. A diagram is laid out by the library at its
+its own background (white by default); its data files are read under the same policy, and nothing is read from the
+network. A diagram is laid out by the library at its
 natural size, which the probe reports without loading the pictures of its nodes (a load at that size charges and
 reports the size it drew), and is drawn at that size times the
 scale exactly where Mermaid places it, or fitted into the box of the size options, with only the bundled fonts over
 white (or the background given), in the theme the options or the fragment of the input choose; the pictures of its nodes
-are read through the same sandboxed resolver as those of an SVG file. A write is: resolve the format, check the target,
+are read through the same resolver and file-access policy as those of an SVG file. A write is: resolve the format, check
+the target,
 flatten transparency for JPEG, and encode into a temporary file in the target directory (staging); moving it over the
 target (publishing, `ImageWriter.PublishAll`) is a separate step, so a command that writes several outputs touches no
 target until every one was encoded and then publishes them all or nothing (an existing target is renamed to a backup

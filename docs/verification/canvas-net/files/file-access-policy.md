@@ -10,8 +10,8 @@ The policies are asked directly (`Check`, and the internal `PreCheck` and `Requi
 assembly's `InternalsVisibleTo` grant) with `FileAccessRequest`s that the test builds over real temporary folders,
 because roots and anchors are compared in their real location: the real path in a request is the real location of a
 folder (from the `RealPath` unit, a documented dependency) joined with the file name. A link that exists only in the
-request (a real path that differs from the written one) needs no link on disk; the one scenario that needs a real link
-above the anchor uses a directory link or, on Windows, a junction. No mocking is needed.
+request (a real path that differs from the written one) needs no link on disk; the scenarios that need a real link
+above the anchor use a directory link or, on Windows, a junction. No mocking is needed.
 
 Unit tests reside in `FileAccessPolicyTests.cs` in the `Files` folder of the `DemaConsulting.CanvasNet.Tests`
 project.
@@ -64,6 +64,19 @@ real path below the anchor is denied with a reason naming a symbolic link or jun
 is itself a link is trusted; a path written with short (8.3) names is allowed when its long spelling matches. That the
 base directory a resolver passes is the trusted chain origin, never a referring document's folder, is verified with
 the resolver (`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
+
+##### CanvasNet-Files-FileAccessPolicy-AnchoredAt: A Nested Request Is Judged From the Outer Origin
+
+**Tests**: `FileAccessPolicy_AnchoredAt_NoSymlinks_JudgesFromTheOuterOrigin`,
+`FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance`
+
+These tests verify the internal `AnchoredAt` that a resolver uses to give a source the policy of its chain
+(`CanvasNet-ImageSources-FolderImageResolver-PolicyPropagation`). With `outer/lib` a directory link (a junction on
+Windows, so the test never skips), a nested request whose base directory is `outer/lib` is allowed by plain
+`NoSymlinks` and denied, with a reason naming a symbolic link or junction, once the policy is anchored at `outer`; the
+anchored policy keeps the name `no-symlinks` and needs a real path. Anchoring `AllowAll`, or a policy that is already
+anchored, returns the same instance (the outermost origin wins); the pre-check of an anchored `roots` policy is that of
+the inner one; a null origin is rejected.
 
 ##### CanvasNet-Files-FileAccessPolicy-Combine: Composition
 

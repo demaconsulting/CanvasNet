@@ -30,7 +30,9 @@ references every format package.
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Mocking**: None; the stub sources are real implementations of `IImageSource` that record every request
 - **Files**: per-test temporary folders, deleted by the test; the GIF and JPEG 2000 fixtures of the core test project
-- **Capabilities**: one scenario creates a real symbolic link and skips itself where the host cannot
+- **Capabilities**: the file-symbolic-link scenarios skip where a file link cannot be created (Windows without the
+  privilege); the directory-link scenarios use a junction on Windows and never skip; the drive-path scenario asserts the
+  outcome of each operating system
 
 ### Acceptance Criteria
 
@@ -41,7 +43,9 @@ designs passes without error or unexpected exception.
 ### Test Scenarios
 
 The subsystem's test scenarios are those named in the unit verification designs: the validation of claims and the
-precedence rule, the request and the sizing rule, confinement, file URIs, dispatch, schemes, nested scopes, limits,
+precedence rule, the request and the sizing rule, the file-access policy (the default that follows every local link,
+the explicit roots and no-symlinks policies, and the policy a request carries to its source), file URIs, dispatch,
+schemes, nested scopes, limits,
 cancellation, notes and failures, no caching, direct rendering, and the raster formats. No subsystem-level test exists
 beyond
 the units' own coverage.

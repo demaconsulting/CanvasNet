@@ -50,7 +50,8 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 `SpecTree.Expressions` (the compiled expressions and `SpecExpressions.StaticReferences`) and `ParameterGraph.Sort`;
 `ExpressionReferenceFolder.Fold(SpecTree, ExpressionEvaluator)`, which returns a `FoldResult`;
 `SpecMetadata.Read(SpecTree)`; `FeatureCatalog.Visit(SpecTree)` and
-`FeatureCatalog.IsSchemeBearingUrl(string)`; `ConfigResolver.Resolve(SpecTree, string?)`,
+`FeatureCatalog.IsRemoteDataUrl(string)` and `FeatureCatalog.LocalPathOfFileUri(string)`;
+`ConfigResolver.Resolve(SpecTree, string?)`,
 `ConfigResolver.Resolve(SpecNode?, string?)`, and `ConfigResolver.Defaults`, which return a `ResolvedConfig`; and
 `SpecNormalizer.Layers(SpecTree, VegaLiteLimits?, ResolvedConfig?)` (a `LayerTree`), `SpecNormalizer.Expand(SpecTree, ResolvedConfig,
 VegaLiteLimits?)` (an `ExpandedLayers`), and `SpecNormalizer.TryOrientation`.

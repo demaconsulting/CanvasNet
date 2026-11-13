@@ -241,13 +241,12 @@ red diagram that embeds the model fixture, the chart fixture, and a green PNG be
 diagnostics, and three `embed` operations (`href` and `format`: `scad`, `vega-lite`, `png`) in document order; the chart
 placement is white, the picture is green, and the rest of the diagram is red.
 
-**RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest**,
+**RenderCommand_Run_SvgEmbeddingOutsideFolder_IsDrawnUnderTheDefaultPolicy**,
 **RenderCommand_Run_SvgEmbeddingMissingFile_WritesWarningLineToStandardError**,
 **RenderCommand_Run_SvgEmbeddingStrictUnresolved_FailsWithUnsupportedFeature**, and
-**RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError**: a valid picture above the folder of
-the SVG named with `../` is not drawn and is one `svg-image-unresolved` warning (source `svg`, severity `warning`) in
-the
-JSON result with exit code 0 and nothing on standard error; without `--json` the warning is one
+**RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError**: under the default file-access
+policy a valid picture above the folder of the SVG named with `../` is drawn (green in the output), with exit code 0, no
+diagnostic in the JSON result, and nothing on standard error; without `--json` a missing file is one
 `Warning: svg-image-unresolved: image 'missing.png' was not drawn` line on standard error; with `--strict` an `https`
 reference is exit code 1 with `unsupported-feature` and no file; an embedded model that uses `offset` gives the
 `scad-module-offset` note with the message starting `part.scad:`, and `unsupported-feature` and no file with `--strict`.

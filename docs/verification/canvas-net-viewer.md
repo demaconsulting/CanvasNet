@@ -25,7 +25,7 @@ project.
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline
 - **Dependencies**: No external services, databases, or network access required
 - **Files**: per-test temporary folders created and deleted by the test; the pictures, models, charts, and PDF are
-  generated in memory by `ViewerFixtures`
+  generated in memory by `ViewerFixtures`; the source-tree guard reads the text of `src/DemaConsulting.CanvasNet.Viewer`
 - **Isolation**: each test builds its own folder and its own resolver; no shared state between tests
 
 ## External Interface Simulation
@@ -146,6 +146,28 @@ to the drawing of CanvasNet than the original drawn without a resolver.
 Probes a text file and a missing file, and asserts that each failure is a `ViewerException` (an
 `InvalidOperationException`) with the documented code (`unsupported-format`, `input-not-found`) and a message.
 
+### Integration: The File-Access Policy Reaches Every Kind Of Reference
+
+**Test**: `CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind`
+
+Writes a picture, a CSV file, and a model library in the parent of the folder of the documents, and in that folder an
+SVG file and a Mermaid diagram that show the picture, a chart whose image mark shows it, a chart whose data is the CSV
+file, and a model that includes the library. Asserts that under the default policy every picture is drawn and listed
+as embedded with no unresolved or access-denied warning, and the chart and the model render; and that under
+`UnderRoots(site)` every picture is an `image-access-denied` warning with nothing embedded, while the chart and the
+model fail with an `ImageSourceException` whose chain of inner exceptions holds a `FileReferenceException` of kind
+`AccessDenied`.
+
+### Integration: Every Options Object Of The Viewer Carries The File-Access Policy
+
+**Test**: `CanvasNetViewer_SourceTree_EveryOpenOptionsCarriesTheFileAccess`
+
+A source-tree guard: scans `src/DemaConsulting.CanvasNet.Viewer` (comment lines ignored) for every creation of
+`ScadOpenOptions`, `VegaLiteOpenOptions`, `FolderImageResolverOptions`, and `SourceOptions` and fails when one does not
+set `FileAccess` (on its line or in its multi-line initializer), apart from two listed creations that only check
+options or measure without reading a file, so that a new code path cannot fall back to the allow-all default silently.
+It reads source text only.
+
 ### Integration: User Guide Examples Compile
 
 **Test**: `CanvasNetViewer_UserGuideExamples_Compile`
@@ -173,7 +195,8 @@ guide test can fail and does not pass on an empty check.
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond those explicitly asserted.
-An unexpected exception, a wrong source drawing a file, a missing or extra extension, a cached frame, or a wrong return
-value constitutes a failure. Every requirement in `docs/reqstream/canvas-net-viewer.yaml` and
+An unexpected exception, a wrong source drawing a file, a missing or extra extension, a cached frame, a reference that
+the file-access policy denies that is read, an allowed reference that is not read, or a wrong return value constitutes
+a failure. Every requirement in `docs/reqstream/canvas-net-viewer.yaml` and
 `docs/reqstream/canvas-net-viewer/platform-requirements.yaml` links to at least one passing test listed above or in
 the unit verification design.
