@@ -328,9 +328,17 @@ public sealed record SourceInfo(
     ///     read. So every operation that is given these facts and a policy (<see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/>,
     ///     <see cref="SourceLoader.OpenPages"/>, <see cref="ImageRenderer"/>, <see cref="ImageInspector"/>,
     ///     <see cref="ImageComparer"/>, <see cref="MontageBuilder"/>, <see cref="SvgFlattener"/>) refuses with
-    ///     <c>usage-error</c> unless its policy is this very instance: probe with the policy you will render with.
+    ///     <c>usage-error</c> unless its policy is this very instance: probe with the policy you will render with. Only a
+    ///     probe records it, so a caller cannot replace the policy the probe actually read under.
     /// </remarks>
-    public FileAccessPolicy FileAccess { get; init; } = FileAccessPolicy.AllowAll;
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        internal init => _fileAccess = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>The backing field of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
 
     /// <summary>
     ///     Gets the input as the user wrote it: the <see cref="Path"/>, and <c>#</c> and the fragment when the input had one.

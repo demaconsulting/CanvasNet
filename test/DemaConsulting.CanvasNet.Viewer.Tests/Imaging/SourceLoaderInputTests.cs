@@ -246,4 +246,21 @@ public class SourceLoaderInputTests
         Assert.False(memoryStream.CanWrite);
         Assert.True(memoryStream.CanSeek);
     }
+
+    /// <summary>
+    ///     Test that the facts of a probe refuse a null file-access policy, so malformed facts fail at once rather than
+    ///     with a null reference when an operation checks the probe policy.
+    /// </summary>
+    [Fact]
+    public void SourceInfo_FileAccess_Null_ThrowsArgumentNullException()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "a.png");
+        FixtureFactory.WriteDeclaredPng(path, 4, 4);
+        var info = SourceLoader.Probe(path);
+
+        // Act / Assert
+        Assert.Throws<ArgumentNullException>(() => info with { FileAccess = null! });
+    }
 }
