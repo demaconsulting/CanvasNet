@@ -1,3 +1,5 @@
+using Microsoft.Win32.SafeHandles;
+
 namespace DemaConsulting.CanvasNet.Files;
 
 /// <summary>
@@ -36,25 +38,27 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         <b>Thread safety.</b> An instance is <b>not</b> thread-safe: it keeps unsynchronized per-instance caches and
 ///         invokes the resolver callback on the calling thread. Use one instance per operation, or serialize access.
 ///         <see cref="SandboxOptions"/> and the returned <see cref="SandboxedFile"/> values are immutable and may be
-///         shared freely. The sandbox does not defend against another process that changes the directory tree between
-///         the link check and the open.
+///         shared freely. The link walk runs before the open, and the open handle is verified before a single byte is
+///         read: it must be a regular file whose real path (asked of the operating system for the handle, not the name)
+///         is the canonical root followed by the path below the root. A link that another process swaps into the tree
+///         between the walk and the open is therefore refused as well, and where the platform cannot tell the real path
+///         of an open file the file is refused (<see cref="SandboxFailureKind.LinkCheckFailed"/>, fail closed).
 ///     </para>
 ///     <para>
 ///         <b>Rules.</b> An empty path, a control character, a colon and a leading slash are refused, a <c>..</c> that
 ///         would leave the root is refused, and every component below the root, including the file itself, must not be a
 ///         symbolic link or junction, whatever its target (the root and everything above it are trusted because the
 ///         caller chose them). A caller who wants to use linked content adds the real directory as a search path. A
-///         directory where a file is expected, an open that fails, and a callback that throws are
+///         directory where a file is expected, anything else that is not a regular file (a device, a named pipe), an
+///         open that fails, and a callback that throws are
 ///         <see cref="SandboxFailureKind.CannotRead"/>, never "not found": only a file that does not exist yields
-///         <see langword="null"/>. Files are opened read-only with shared access, so concurrent readers, writers and
-///         rename or delete operations by other processes do not block the read.
+///         <see langword="null"/>. Files are opened read-only with shared access (and without blocking on Linux and
+///         macOS), so concurrent readers, writers and rename or delete operations by other processes do not block the
+///         read, and a named pipe cannot hang it.
 ///     </para>
 /// </remarks>
 public sealed partial class SandboxedFileResolver
 {
-    /// <summary>The number of bytes read from a stream per call.</summary>
-    private const int ReadChunkSize = 8192;
-
     /// <summary>The effective options.</summary>
     private readonly SandboxOptions _options;
 
@@ -64,8 +68,11 @@ public sealed partial class SandboxedFileResolver
     /// <summary>The cancellation token polled between files and chunks.</summary>
     private readonly CancellationToken _cancellation;
 
-    /// <summary>The opener of a file-system candidate: a seam so tests can raise an open failure.</summary>
-    private readonly Func<string, Stream> _openFile;
+    /// <summary>The opener of a file-system candidate as a stream: a test seam; <see langword="null"/> uses the verified handle path.</summary>
+    private readonly Func<string, Stream>? _openFile;
+
+    /// <summary>The test seams around the verified open, or <see langword="null"/>.</summary>
+    private readonly FileOpenHooks? _hooks;
 
     /// <summary>The resolved files by root and candidate key; <see langword="null"/> remembers a candidate that does not exist.</summary>
     private readonly Dictionary<string, SandboxedFile?> _files;
@@ -108,12 +115,35 @@ public sealed partial class SandboxedFileResolver
     /// <param name="options">The options.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="isLink">The probe that tells whether a full path is a symbolic link or junction; <see langword="null"/> asks the file system.</param>
-    /// <param name="openFile">The opener of a file-system candidate for reading; <see langword="null"/> opens it read-only with shared access.</param>
+    /// <param name="openFile">
+    ///     The opener of a file-system candidate for reading; <see langword="null"/> opens it read-only with shared
+    ///     access and verifies the open handle. An injected opener returns a stream, which has no handle to verify, so
+    ///     the post-open verification is skipped for it.
+    /// </param>
     internal SandboxedFileResolver(
         SandboxOptions options,
         CancellationToken cancellationToken,
         Func<string, bool>? isLink,
         Func<string, Stream>? openFile)
+        : this(options, cancellationToken, isLink, openFile, null)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a resolver with test seams, including the seams around the verified open, so the post-open
+    ///     verification can be proven without timing.
+    /// </summary>
+    /// <param name="options">The options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <param name="isLink">The link probe, or <see langword="null"/>.</param>
+    /// <param name="openFile">The stream opener, or <see langword="null"/> for the verified handle path.</param>
+    /// <param name="hooks">The seams around the verified open, or <see langword="null"/>.</param>
+    internal SandboxedFileResolver(
+        SandboxOptions options,
+        CancellationToken cancellationToken,
+        Func<string, bool>? isLink,
+        Func<string, Stream>? openFile,
+        FileOpenHooks? hooks)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.SearchPaths);
@@ -125,7 +155,8 @@ public sealed partial class SandboxedFileResolver
         _searchPaths = options.SearchPaths.ToArray();
         _cancellation = cancellationToken;
         _isLink = isLink ?? DefaultIsLink;
-        _openFile = openFile ?? DefaultOpenFile;
+        _openFile = openFile;
+        _hooks = hooks;
         KeyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
         _files = new Dictionary<string, SandboxedFile?>(KeyComparer);
         _contents = new Dictionary<string, Content?>(KeyComparer);
@@ -292,11 +323,92 @@ public sealed partial class SandboxedFileResolver
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key);
         }
 
+        // An injected stream opener (a test seam) has no handle to verify; the default path opens a handle and
+        // verifies it before reading, which closes the race between the link walk and the open
+        return _openFile is null ? ReadVerified(candidate) : ReadFromStream(candidate, _openFile);
+    }
+
+    /// <summary>
+    ///     Opens a candidate, verifies the open handle and reads it: the handle must be a regular file whose real path
+    ///     is the candidate's path below the canonical root, so a link swapped in after the link walk is refused.
+    /// </summary>
+    /// <param name="candidate">The candidate; its link walk has passed.</param>
+    /// <returns>What was read, or <see langword="null"/> when the candidate does not exist.</returns>
+    /// <exception cref="SandboxException">
+    ///     Thrown with <see cref="SandboxFailureKind.CannotRead"/> when the open or the read fails or the file is not a
+    ///     regular file, <see cref="SandboxFailureKind.LinkCheckFailed"/> when the real path cannot be determined, and
+    ///     <see cref="SandboxFailureKind.ThroughLink"/> when the real path shows a link below the root.
+    /// </exception>
+    private Content? ReadVerified(Candidate candidate)
+    {
+        // The open attempt decides, and only the open: "not found" from the open means the candidate is missing
+        _hooks?.BeforeOpen?.Invoke(candidate.Key);
+        SafeFileHandle handle;
+        try
+        {
+            handle = _hooks?.Open?.Invoke(candidate.Key) ?? RealPath.OpenForRead(candidate.Key);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // The file is missing (or vanished since the walk): the next candidate is tried
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            // Any other failure to open the file (sharing, access, path too long, device) is a located read failure
+            throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
+        }
+
+        using (handle)
+        {
+            // The facts come from the handle, never from the name, so a change of the tree after the walk cannot slip in
+            _hooks?.AfterOpen?.Invoke(candidate.Key);
+            var facts = RealPath.Inspect(handle);
+            var realPath = _hooks?.RealPathOf is { } realPathOf ? realPathOf(handle) : facts.FinalPath;
+            if (facts.IsRegularFile == false)
+            {
+                throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key);
+            }
+
+            // The link rule needs the real path; when the platform cannot tell it, the file is refused (fail closed)
+            if (realPath is null)
+            {
+                throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key);
+            }
+
+            // Anchored at the root, the no-symlinks rule is exactly the walk's rule: the real path must be the canonical
+            // root followed by the path below the root
+            var relative = Path.GetRelativePath(candidate.Root, candidate.Key).Replace('\\', '/');
+            var decision = FileAccessPolicy.NoSymlinks.Check(new FileAccessRequest
+            {
+                Reference = relative,
+                BaseDirectory = candidate.Root,
+                RequestedPath = candidate.Key,
+                RealPath = realPath,
+            });
+            if (!decision.IsAllowed)
+            {
+                throw new SandboxException(SandboxFailureKind.ThroughLink, candidate.Key, relative);
+            }
+
+            return ReadFromStream(candidate, _ => new FileStream(handle, FileAccess.Read, bufferSize: 1));
+        }
+    }
+
+    /// <summary>
+    ///     Reads a candidate from a stream that an opener supplies.
+    /// </summary>
+    /// <param name="candidate">The candidate.</param>
+    /// <param name="open">The opener; "not found" from it means the candidate is missing.</param>
+    /// <returns>What was read, or <see langword="null"/> when the candidate does not exist.</returns>
+    /// <exception cref="SandboxException">Thrown with <see cref="SandboxFailureKind.CannotRead"/> when the open or the read fails.</exception>
+    private Content? ReadFromStream(Candidate candidate, Func<string, Stream> open)
+    {
         // The open attempt decides, and only the open: "not found" from the open means the candidate is missing
         Stream file;
         try
         {
-            file = _openFile(candidate.Key);
+            file = open(candidate.Key);
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
@@ -323,15 +435,6 @@ public sealed partial class SandboxedFileResolver
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
         }
     }
-
-    /// <summary>
-    ///     The default opener: read-only access that tolerates concurrent readers, writers and rename or delete
-    ///     operations by other processes, so a file that is being written elsewhere does not turn into a sharing violation.
-    /// </summary>
-    /// <param name="path">The full path of the file.</param>
-    /// <returns>The open stream.</returns>
-    private static FileStream DefaultOpenFile(string path) =>
-        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, ReadChunkSize);
 
     /// <summary>
     ///     Reads the bytes of a candidate from the resolver callback.
@@ -370,37 +473,10 @@ public sealed partial class SandboxedFileResolver
     }
 
     /// <summary>
-    ///     Reads a whole stream as bytes under the size limit, stopping once the limit is certainly exceeded.
+    ///     Reads a whole stream as bytes under the size limit (see <see cref="FileReferenceResolver.ReadBounded"/>).
     /// </summary>
-    /// <remarks>
-    ///     A size the stream reports is checked first, and the running length is checked after every chunk, so a stream
-    ///     that never ends stops one chunk past the limit. Failures of the stream itself are not caught here: the caller
-    ///     decides what a failing source means.
-    /// </remarks>
     /// <param name="stream">The stream; it is left open.</param>
     /// <returns>The bytes, or <see langword="null"/> when the stream is longer than the size limit.</returns>
-    private byte[]? ReadBounded(Stream stream)
-    {
-        var max = _options.MaxFileBytes;
-        if (stream.CanSeek && stream.Length > max)
-        {
-            return null;
-        }
-
-        using var bytes = new MemoryStream();
-        var buffer = new byte[ReadChunkSize];
-        int count;
-        while ((count = stream.Read(buffer, 0, buffer.Length)) > 0)
-        {
-            if (bytes.Length + count > max)
-            {
-                return null;
-            }
-
-            bytes.Write(buffer, 0, count);
-            _cancellation.ThrowIfCancellationRequested();
-        }
-
-        return bytes.ToArray();
-    }
+    private byte[]? ReadBounded(Stream stream) =>
+        FileReferenceResolver.ReadBounded(stream, _options.MaxFileBytes, _cancellation);
 }
