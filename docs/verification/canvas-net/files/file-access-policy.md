@@ -42,15 +42,19 @@ Any request is allowed; the name is `any` (also as `ToString`); no real path and
 **Tests**: `FileAccessPolicy_UnderRoots_RealPathInsideOrEqualToARoot_IsAllowed`,
 `FileAccessPolicy_UnderRoots_SiblingWithSharedPrefix_IsDenied`,
 `FileAccessPolicy_UnderRoots_RealPathOutsideEveryRoot_IsDeniedWithReasonAndHint`,
+`FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing`,
 `FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck`,
 `FileAccessPolicy_UnderRoots_InvalidRoots_Throw`,
 `FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied`
 
 A file inside the second of two roots and the root itself are allowed; a sibling folder that shares the root's name as
 a prefix is denied before and after the open; a written path inside whose real path is outside is denied with the
-documented reason and a hint; a written path outside is denied by the pre-check, a written path inside passes it, and
+documented reason and a hint; a root created only after the policy passes the pre-check but is denied after the open
+with the "did not exist when the policy was created" reason and a hint, because its real location is captured only at
+creation; a written path outside is denied by the pre-check, a written path inside passes it, and
 an outside written path whose real path is inside is still denied; a null list, a null, empty, white-space or invalid
-root, and no root at all are rejected; an upper-case spelling is allowed on Windows and macOS and denied on Linux.
+root, and no root at all are rejected, and on Windows a `\\?\GLOBALROOT\` or `\\.\` root is rejected while an
+extended-length drive root is accepted; an upper-case spelling is allowed on Windows and macOS and denied on Linux.
 
 ##### CanvasNet-Files-FileAccessPolicy-NoSymlinks: No Links Below the Anchor
 
@@ -68,7 +72,8 @@ the resolver (`CanvasNet-Files-FileReferenceResolver-ChainOrigin`).
 ##### CanvasNet-Files-FileAccessPolicy-AnchoredAt: A Nested Request Is Judged From the Outer Origin
 
 **Tests**: `FileAccessPolicy_AnchoredAt_NoSymlinks_JudgesFromTheOuterOrigin`,
-`FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance`
+`FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance`,
+`FileAccessPolicy_AnchoredAt_AnchorsOf_NamesTheAnchorOfTheOuterOrigin`
 
 These tests verify the internal `AnchoredAt` that a resolver uses to give a source the policy of its chain
 (`CanvasNet-ImageSources-FolderImageResolver-PolicyPropagation`). With `outer/lib` a directory link (a junction on
@@ -76,7 +81,9 @@ Windows, so the test never skips), a nested request whose base directory is `out
 `NoSymlinks` and denied, with a reason naming a symbolic link or junction, once the policy is anchored at `outer`; the
 anchored policy keeps the name `no-symlinks` and needs a real path. Anchoring `AllowAll`, or a policy that is already
 anchored, returns the same instance (the outermost origin wins); the pre-check of an anchored `roots` policy is that of
-the inner one; a null origin is rejected.
+the inner one; a null origin is rejected. An anchored `roots+no-symlinks` policy names, for a nested request whose base
+directory is a folder below `outer`, the anchor of `outer` as the only folder to capture before the open, where plain
+`NoSymlinks` names the nested folder, so the nested resolver captures exactly what the anchored check compares against.
 
 ##### CanvasNet-Files-FileAccessPolicy-Combine: Composition
 

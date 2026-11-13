@@ -50,7 +50,8 @@ written.
 
 **MontageBuilder_Build_FileAccess_AppliesToEveryCell**: with a picture and a model in the cells folder whose include
 lies in the parent folder, a request with `FileAccess = UnderRoots(cells)` fails the sheet with `file-access-denied`
-and writes nothing, and the default policy builds both cells.
+and writes nothing when the inputs are probed with that policy, inputs probed under the default policy are refused
+with `usage-error`, and the default policy builds both cells.
 
 **MontageBuilder_Execute_NullRequestMember_ThrowsArgumentNullException** and
 **MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException**: a request without the output, the sheet options,

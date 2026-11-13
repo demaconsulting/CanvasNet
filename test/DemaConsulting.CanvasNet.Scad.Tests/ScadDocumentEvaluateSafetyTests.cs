@@ -211,6 +211,33 @@ public class ScadDocumentEvaluateSafetyTests
     }
 
     /// <summary>
+    ///     Validates that a denial raised inside an include outside the base directory is located relative to the base
+    ///     directory (<c>../shared/lib.scad</c>), so neither its location nor its message names a host directory.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Evaluate_DenialInIncludeOutsideTheBase_IsLocatedRelativeToTheBase()
+    {
+        // Arrange: project/main.scad includes ../shared/lib.scad (allowed), which includes ../private/secret.scad (denied)
+        using var directory = new ScadTempDirectory();
+        directory.Write("shared/lib.scad", "include <../private/secret.scad>\n");
+        directory.Write("private/secret.scad", "echo(\"leaked\");\n");
+        var main = directory.Write("project/main.scad", "include <../shared/lib.scad>\n");
+        var options = new ScadOpenOptions
+        {
+            FileAccess = FileAccessPolicy.UnderRoots(directory.Combine("project"), directory.Combine("shared")),
+        };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(
+            () => ScadDocument.Open(main, options).Evaluate(cancellationToken: TestContext.Current.CancellationToken));
+
+        // Assert
+        Assert.Equal("../shared/lib.scad", ex.Location.File);
+        Assert.Contains("Include file '../private/secret.scad' was denied by the file-access policy 'roots'", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that, under the default policy, an include that leaves the project folder or names an absolute
     ///     path is read, like OpenSCAD reads it.
     /// </summary>

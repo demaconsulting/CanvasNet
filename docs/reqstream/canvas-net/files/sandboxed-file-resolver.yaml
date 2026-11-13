@@ -56,14 +56,20 @@ sections:
                   The SandboxedFileResolver class shall reject, with a SandboxException of the matching
                   kind and before any file-system access or callback request, an empty or white-space path,
                   an absolute or rooted path, a drive or UNC path, a path containing a colon, and a path
-                  containing a control character (including NUL, DEL and the C1 range), and shall reject a
-                  null path with ArgumentNullException.
+                  containing a control character (including NUL, DEL and the C1 range), and, on Windows, a path with a
+                  reserved device name in any component or below a root in a device namespace other than an ordinary
+                  extended-length drive or volume root (both as CannotRead), and shall reject a null path with
+                  ArgumentNullException.
                 justification: |
                   A path may come from an untrusted source; these forms are the usual ways to name something
-                  outside the intended directories, and the caller must be told which rule was broken.
+                  outside the intended directories or a device, and the caller must be told which rule was broken.
+                  Only a drive or volume root is known to map no device names.
                 tests:
                   - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
                   - SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException
+                  - "windows@SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess"
+                  - "windows@SandboxedFileResolver_Resolve_DeviceNamespaceRoot_IsRefusedBeforeAnyAccess"
+                  - "windows@SandboxedFileResolver_Resolve_OrdinaryExtendedLengthRoot_ReadsTheFile"
 
               - id: CanvasNet-Files-SandboxedFileResolver-Confinement
                 title: >-
@@ -120,22 +126,28 @@ sections:
                 title: >-
                   In file-system mode the SandboxedFileResolver class shall verify the opened file before reading
                   it: the file shall be refused as a link when the real path of the open file is not the real
-                  location of its root followed by the path below the root (so a link swapped into the tree after
-                  the link check is refused), as a link-check failure when that real path or the real location of the
+                  location of its root, captured before the link check and the open, followed by the path below the
+                  root (so a link swapped into the tree after the link check, or a root renamed and replaced by a
+                  link, is refused), as a link-check failure when that real path or the real location of the
                   root cannot be determined (a root the process may search but not read has a real location), and as
                   a read failure when the open file is not a regular file, which shall not block the open.
                 justification: |
                   The link check runs on names before the open; another process could swap a component for a link
-                  in between. Verifying the open file closes that window and keeps devices and named pipes out.
+                  in between. Verifying the open file against a root location fixed before the open closes that
+                  window and keeps devices and named pipes out.
                 tests:
                   - "windows@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
                   - "ubuntu@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
                   - "macos@SandboxedFileResolver_Resolve_LinkSwappedInAfterTheWalk_IsRejectedAsThroughLink"
+                  - "windows@SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink"
+                  - "ubuntu@SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink"
+                  - "macos@SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink"
+                  - "ubuntu@SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink"
+                  - "macos@SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink"
                   - SandboxedFileResolver_Resolve_RealPathOutsideTheRoot_IsRejectedAsThroughLink
                   - SandboxedFileResolver_Resolve_RealPathUnavailable_FailsClosedAsLinkCheckFailed
                   - SandboxedFileResolver_Resolve_UnknownFileType_FailsClosedAsCannotRead
-                  - "ubuntu@SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed"
-                  - "macos@SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed"
+                  - SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed
                   - "ubuntu@SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile"
                   - "macos@SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile"
                   - "windows@SandboxedFileResolver_Resolve_NonRegularFile_IsCannotRead"

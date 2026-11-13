@@ -39,17 +39,26 @@ sections:
                   and under every policy, an empty or white-space reference, a reference with a control character
                   (including NUL, DEL and the C1 range), a device path, a network path (UNC or a leading double
                   slash), a reference with a colon other than the drive of an absolute Windows path, and, on Windows,
-                  a reference whose full path the system maps to a device (a legacy device name such as NUL in a
-                  component), each with a FileReferenceException of the matching kind, and shall reject a null
-                  reference with ArgumentNullException.
+                  a reference whose full path is in a device namespace (\\.\, \\?\, \\??\) or has a reserved device
+                  name in any component (CON, PRN, AUX, NUL, COM0-COM9, LPT0-LPT9, the superscript-digit forms, CONIN$
+                  and CONOUT$, in any letter case and with an extension, trailing spaces or dots, or a stream suffix),
+                  unless it stays under an ordinary extended-length configured directory with the same root (a drive,
+                  \\?\X:\, or a volume GUID, \\?\Volume{GUID}\; any other root such as \\?\GLOBALROOT\ gets no
+                  exemption), each with a FileReferenceException of the matching kind, and shall reject a
+                  null reference with ArgumentNullException.
                 justification: |
                   These forms are never a safe local file: network paths can leak credentials, device paths and
                   alternate data streams reach things that are not files, and control characters hide the real text.
+                  Only a drive or volume root is known to map no device names.
                 tests:
                   - FileReferenceResolver_Resolve_HostilePathText_IsRejectedWithoutAnyAccess
                   - FileReferenceResolver_Resolve_NullPath_ThrowsArgumentNullException
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened"
                   - "windows@FileReferenceResolver_Resolve_LegacyDeviceNameWithExtendedLengthBaseDirectory_IsInvalidPathAndNoDeviceIsOpened"
+                  - "windows@FileReferenceResolver_Resolve_DeviceNamespaceBaseDirectory_IsInvalidPathAndNothingIsOpened"
+                  - "windows@FileReferenceResolver_Resolve_VolumeGuidBaseDirectory_ReadsTheFile"
+                  - RealPath_IsWindowsDeviceName_RecognizesEveryReservedSpelling
+                  - RealPath_IsOrdinaryExtendedPath_AcceptsOnlyDriveAndVolumeRoots
 
               - id: CanvasNet-Files-FileReferenceResolver-MissingFiles
                 title: >-
@@ -102,23 +111,26 @@ sections:
 
               - id: CanvasNet-Files-FileReferenceResolver-TopLevelFile
                 title: >-
-                  The FileReferenceResolver class shall read the top-level file of an operation, which the caller
-                  chose, without asking the file-access policy, while still refusing a path that is never allowed,
-                  a file that is not a regular file, and a file over the size limit, counting it against the file
-                  limit, and judging the references resolved relative to it by the policy as usual; a later
-                  reference to the same file shall be judged by the policy like any other.
+                  The FileReferenceResolver class shall open the top-level file of an operation, which the caller
+                  named, as given: the path-text refusals (network, device, and alternate-data-stream paths), the
+                  pre-check, the network-target check and the file-access policy apply to referenced files only. It
+                  shall still refuse a path that is not a valid path, a file that is not a regular file, and a file
+                  over the size limit, count it against the file limit, and judge the references resolved relative to
+                  it as usual; a later reference to the same file shall be judged like any other reference.
                 justification: |
-                  The policy protects against what a document references, not against the file the user asked to
-                  render; the limits still bound the work.
+                  The policy and the refusals protect against what a document references - a document must not make
+                  the host reach a device or an attacker's share - not against the file the user asked to render, which
+                  the operator chose on purpose; the limits still bound the work.
                 tests:
                   - FileReferenceResolver_ResolveTopLevel_DenyingPolicy_ReadsTheFileAndChecksItsReferences
                   - FileReferenceResolver_ResolveTopLevel_Directory_IsNotARegularFile
                   - FileReferenceResolver_ResolveTopLevel_TakesAFileSlot
+                  - "windows@FileReferenceResolver_ResolveTopLevel_PathRefusedAsAReference_IsOpenedAsGiven"
 
               - id: CanvasNet-Files-FileReferenceResolver-NetworkTarget
                 title: >-
                   On Windows the FileReferenceResolver class shall refuse with NetworkPath, under every policy and
-                  without reading it, an opened file whose real path is a network location while the path as written
+                  without reading it, a referenced file whose real path is a network location while the path as written
                   is not (a link to a share), and shall read files whose path as written is itself on a mapped network
                   drive or share.
                 justification: |
@@ -143,15 +155,22 @@ sections:
               - id: CanvasNet-Files-FileReferenceResolver-RaceFree
                 title: >-
                   The FileReferenceResolver class shall take the real path it gives the policy from the open file,
-                  not from its name, and shall read the bytes from that same open file, so that a file moved or a
-                  link added or removed after the open neither changes the decision nor what is read.
+                  not from its name, shall read the bytes from that same open file, and shall capture the real
+                  location of every trusted folder a built-in policy compares against before the open, so that a
+                  file moved, a link added or removed, or a trusted folder renamed and replaced by a link around the
+                  open neither changes the decision nor what is read.
                 justification: |
                   Another process that can change the directory tree must not be able to redirect a read after the
-                  decision; deciding on the open file closes that window.
+                  decision; deciding on the open file against folder locations fixed before the open closes that
+                  window.
                 tests:
                   - FileReferenceResolver_Resolve_FileMovedAndFolderSwappedForOutsideLinkAfterOpen_IsAllowedWithOriginalBytes
                   - FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderUnderRoots
                   - FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderNoSymlinks
+                  - "windows@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - "ubuntu@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - "macos@FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied"
+                  - FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks
                   - FileReferenceResolver_Resolve_InjectedOutsideRealPath_IsAccessDenied
                   - FileReferenceResolver_Resolve_InjectedRealPath_IsTheOneInTheRequestAndTheResult
 
@@ -254,16 +273,20 @@ sections:
 
               - id: CanvasNet-Files-FileReferenceResolver-Failures
                 title: >-
-                  The FileReferenceException class shall carry the failure kind, the reference as written, the rule
-                  or policy reason, the policy name and hint, the path that was opened and its real path, and the
-                  underlying cause, and its message shall name the reference and the policy but never a host
-                  directory nor a policy reason; the FileReferenceResolver class shall report a configured directory
-                  that is not a valid path as InvalidBaseDirectory and reject invalid options at construction.
+                  The FileReferenceException class shall carry the failure kind, the reference as written (control
+                  characters replaced, also when constructed directly), the rule or policy reason, the policy name and
+                  hint, the path that was opened and its real path, and the underlying cause, and its message shall
+                  echo the reference as written and name the policy but never add the resolved path, the real path, a
+                  configured directory, nor a policy reason; the FileReferenceResolver class shall report a configured
+                  directory that is not a valid path as InvalidBaseDirectory and reject invalid options at construction.
                 justification: |
                   Callers map a failure to their own diagnostic without parsing text and must be able to show the
-                  message to an untrusted author; invalid configuration should fail immediately.
+                  message to an untrusted author, which reveals nothing the author did not write; invalid
+                  configuration should fail immediately.
                 tests:
                   - FileReferenceException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
                   - FileReferenceException_Constructor_NullReference_ThrowsArgumentNullException
+                  - FileReferenceException_Constructor_ControlCharacters_AreReplacedInReferenceAndMessage
+                  - FileReferenceResolver_Resolve_AbsoluteReferenceDenied_MessageEchoesItButNotTheRealPathOrBase
                   - FileReferenceResolver_Resolve_InvalidBaseDirectory_IsInvalidBaseDirectory
                   - FileReferenceResolver_Constructor_InvalidArguments_Throw

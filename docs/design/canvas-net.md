@@ -839,8 +839,9 @@ is used.
 - **Top-level file exempt**: the file a caller names itself (`FolderImageResolver.Render(path)`,
   `CanvasNetViewer.Render(path)`, `SourceLoader.Probe` and `Load`) is never judged by the policy; only the
   files it references are.
-- **Network always refused**: network paths (UNC, `//host`, `file://host`), device paths, alternate data
-  streams, control characters, non-regular files, and network URLs are refused under every policy.
+- **Network always refused**: for the files a document references, network paths (UNC, `//host`, `file://host`),
+  device paths, alternate data streams, control characters, non-regular files, and network URLs are refused under
+  every policy; the top-level file the caller names is opened as given (see the previous point).
 - **Limits independent of policy**: every resource limit (file size, file count, depth, cycles, image
   count, pixel budget, include and data limits) applies whatever the policy.
 - **Host paths in diagnostics**: `ImageSourceDiagnostic.Detail` and the `FileReferenceException`

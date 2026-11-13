@@ -80,14 +80,19 @@ sections:
           also while it probes the file during the load; the SourceLoader class shall offer Probe overloads that
           take a policy for a path and for an input and apply it to the files a probe reads besides the named file
           (the data files of a chart, the includes of a model), the overloads without a policy using the allow-all
-          policy; and it shall never judge the file the caller named.
+          policy; the facts a probe returns shall carry the policy it was probed with (SourceInfo.FileAccess), and
+          every operation given facts and a policy (load, open pages, render, inspect, compare, montage, flatten)
+          shall refuse with usage-error, before reading anything, a policy that is not the one the facts were probed
+          with; and it shall never judge the file the caller named.
         justification: |
-          A probe that reads further files must not be a way around the policy of the host, and the caller chose
+          A probe that reads further files must not be a way around the policy of the host, and a stricter policy
+          given to an operation cannot undo a read its probe already made under another one; the caller chose
           the named file itself.
         tests:
           - FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull
           - SourceLoader_Load_IncludeOutsideTheRoots_ThrowsFileAccessDenied
           - SourceLoader_Load_VegaLiteDataOutsideTheRoots_ThrowsFileAccessDenied
+          - SourceLoader_VegaLiteDataOutsideTheRoots_IsNeverOpenedUnderThePolicy
           - CanvasNetViewer_SystemIntegration_FileAccess_DefaultFollowsAndPolicyConfinesEveryReferenceKind
 
       - id: CanvasNetViewer-Imaging-SourceLoader-FileAccessDenied

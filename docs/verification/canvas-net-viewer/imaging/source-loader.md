@@ -264,6 +264,14 @@ one line with the library's `VegaLiteRenderException` as the cause, for `Probe(p
 data, is judged by the policy too; under the default policy the same chart is probed and loaded in strict mode with no
 diagnostic.
 
+**SourceLoader_VegaLiteDataOutsideTheRoots_IsNeverOpenedUnderThePolicy**: through the public APIs, the same chart
+under `UnderRoots(charts)` is denied (`file-access-denied`) by `Probe(path, policy)`, by a load with the policy and by
+`CanvasNetViewer.Render` with the policy, each with a `FileReferenceException` of kind `AccessDenied` and no real path
+in its chain (a real path is set only once a file is open); on Windows the data file is held open without sharing
+meanwhile, so any open attempt would fail differently. Facts probed under the default policy and loaded with the
+restrictive one are refused with `usage-error`; the facts carry the policy they were probed with (`AllowAll` for
+`Probe(path)`, the given instance for `Probe(path, policy)`).
+
 **SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded**: real failures of the library for a file-backed chart opened
 from its path, with a row limit of 1, a byte limit of 3, and no data folder at all (a chart parsed from a string), are
 mapped by `MapVegaLiteRender`: the row and byte limits are `budget-exceeded` that name the limit (`MaxDataRows` and

@@ -160,7 +160,7 @@ public sealed record FlattenResult(
 ///         characters (a file that declares another encoding is accepted only when it is plain ASCII).
 ///     </para>
 ///     <para>
-///         The input is probed by the caller (<see cref="SourceLoader.Probe(string)"/>). The operation reads files, writes
+///         The input is probed by the caller (<see cref="SourceLoader.Probe(string)"/>). Probe with the file-access policy the operation uses (<see cref="SourceLoader.Probe(string, DemaConsulting.CanvasNet.Files.FileAccessPolicy)"/>); facts probed under another policy are refused with <c>usage-error</c>, because the probe may already have read referenced files. The operation reads files, writes
 ///         at most one file (staged next to the output and moved into place when complete), holds no state, and is safe to
 ///         call from several threads for different outputs.
 ///     </para>
@@ -257,6 +257,8 @@ public static partial class SvgFlattener
                 "Give an .svg file; draw other files with 'canvasnet render'.");
         }
 
+        // The drawing must have been probed under the policy its links are read with
+        SourceLoader.RequireProbePolicy(info, request.FileAccess);
         ImageWriter.CheckTarget(request.Output, info.Path, request.NoClobber);
 
         // Read the drawing, draw it once to learn which links are shown and draw each picture to replace, and apply the

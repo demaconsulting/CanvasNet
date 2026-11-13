@@ -84,8 +84,9 @@ are reported as `svg-image-unresolved` and stay links; with strict a missing fil
 **SvgFlattener_Execute_LinkOutsideTheRoots_IsNotFlattened**,
 **SvgFlattener_Execute_LinkInTheParentFolder_IsFlattenedByDefault**, and
 **FlattenMontageAndSourceOptions_FileAccess_DefaultToAllowAllAndRejectNull**: with
-`FlattenRequest.FileAccess = UnderRoots(sub)` a link to `../flow.mmd` is the one `image-access-denied` warning naming
-the link and nothing is flattened, while under the default policy the same link is flattened (in strict mode); and
+`FlattenRequest.FileAccess = UnderRoots(sub)` (and the drawing probed with that policy) a link to `../flow.mmd` is the
+one `image-access-denied` warning naming the link and nothing is flattened, the drawing probed under the default
+policy is refused with `usage-error`, while under the default policy the same link is flattened (in strict mode); and
 `FlattenRequest`, `MontageRequest`, and `SourceOptions` carry `AllowAll` by default and refuse `null`.
 
 **SvgFlattener_Execute_OutputOverLimit_ThrowsSizeLimitAndWritesNothing** and

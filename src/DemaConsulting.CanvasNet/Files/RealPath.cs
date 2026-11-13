@@ -87,6 +87,103 @@ internal static partial class RealPath
     }
 
     /// <summary>
+    ///     Determines whether any component of a path is a name Windows reserves for a device, so that opening the path
+    ///     could reach the device instead of a file.
+    /// </summary>
+    /// <remarks>
+    ///     A pure text check, so it gives the same answer on every platform; the resolvers apply it on Windows only. The
+    ///     root of the path is not a component.
+    /// </remarks>
+    /// <param name="path">The path, with forward or backward slashes.</param>
+    /// <returns><see langword="true"/> when a component is a reserved device name.</returns>
+    internal static bool HasWindowsDeviceName(string path)
+    {
+        var root = Path.IsPathRooted(path) ? Path.GetPathRoot(path) ?? string.Empty : string.Empty;
+        return path[root.Length..]
+            .Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)
+            .Any(IsWindowsDeviceName);
+    }
+
+    /// <summary>
+    ///     Determines whether one path component is a name Windows reserves for a device: <c>CON</c>, <c>PRN</c>,
+    ///     <c>AUX</c>, <c>NUL</c>, <c>COM0</c>-<c>COM9</c>, <c>LPT0</c>-<c>LPT9</c>, <c>COM</c> or <c>LPT</c> with a
+    ///     superscript 1, 2 or 3, <c>CONIN$</c> and <c>CONOUT$</c>, in any letter case. Windows ignores what follows the
+    ///     name, so an extension (<c>NUL.txt</c>), trailing spaces or dots (<c>NUL .</c>) and a stream suffix
+    ///     (<c>NUL:</c>) still name the device.
+    /// </summary>
+    /// <param name="component">The path component.</param>
+    /// <returns><see langword="true"/> when it is a reserved device name.</returns>
+    internal static bool IsWindowsDeviceName(string component)
+    {
+        // The name is what precedes a stream suffix and an extension, without trailing spaces
+        var name = component;
+        var colon = name.IndexOf(':', StringComparison.Ordinal);
+        name = colon >= 0 ? name[..colon] : name;
+        var dot = name.IndexOf('.', StringComparison.Ordinal);
+        name = (dot >= 0 ? name[..dot] : name).TrimEnd(' ');
+        return name.Length switch
+        {
+            3 => name.Equals("CON", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("NUL", StringComparison.OrdinalIgnoreCase),
+            4 => (name.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+                    || name.StartsWith("LPT", StringComparison.OrdinalIgnoreCase))
+                && (char.IsAsciiDigit(name[3]) || name[3] is '\u00B9' or '\u00B2' or '\u00B3'),
+            _ => name.Equals("CONIN$", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("CONOUT$", StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    /// <summary>
+    ///     Determines whether a full path is in a Windows device namespace: the Win32 device namespace (<c>\\.\</c>), an
+    ///     extended-length path (<c>\\?\</c>), or the NT object namespace (<c>\??\</c>), with either slash.
+    /// </summary>
+    /// <remarks>A pure text check; the resolvers apply it on Windows only.</remarks>
+    /// <param name="path">The full path.</param>
+    /// <returns><see langword="true"/> when it is.</returns>
+    internal static bool IsWindowsDeviceNamespace(string path) =>
+        path.Length >= 4
+        && path[0] is '\\' or '/'
+        && path[1] is '\\' or '/' or '?'
+        && path[2] is '.' or '?'
+        && path[3] is '\\' or '/';
+
+    /// <summary>
+    ///     Determines whether a full path is an ordinary extended-length path: <c>\\?\</c> followed by a drive
+    ///     (<c>\\?\C:\docs</c>) or a volume GUID (<c>\\?\Volume{GUID}\docs</c>). These name a file on a local volume with
+    ///     no device names mapped; every other extended-length or device-namespace root (<c>\\?\GLOBALROOT\</c>,
+    ///     <c>\\?\UNC\</c>, <c>\\?\pipe\</c>, <c>\\.\</c>, <c>\??\</c>) is not ordinary.
+    /// </summary>
+    /// <remarks>A pure text check, the one rule both resolvers use to exempt an extended-length directory.</remarks>
+    /// <param name="path">The full path.</param>
+    /// <returns><see langword="true"/> when it is an ordinary extended-length path.</returns>
+    internal static bool IsOrdinaryExtendedPath(string path)
+    {
+        if (!path.StartsWith(@"\\?\", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        // A drive: \\?\X: alone or followed by a backslash
+        var rest = path.AsSpan(4);
+        if (rest.Length >= 2 && char.IsAsciiLetter(rest[0]) && rest[1] == ':')
+        {
+            return rest.Length == 2 || rest[2] == '\\';
+        }
+
+        // A volume: \\?\Volume{GUID} alone or followed by a backslash
+        const string VolumePrefix = "Volume{";
+        const int GuidLength = 36;
+        var close = VolumePrefix.Length + GuidLength;
+        return rest.StartsWith(VolumePrefix, StringComparison.OrdinalIgnoreCase)
+            && rest.Length > close
+            && rest[close] == '}'
+            && Guid.TryParseExact(rest.Slice(VolumePrefix.Length, GuidLength), "D", out _)
+            && (rest.Length == close + 1 || rest[close + 1] == '\\');
+    }
+
+    /// <summary>
     ///     Gets the deepest folder that two full paths share, comparing whole components.
     /// </summary>
     /// <param name="first">A full path.</param>

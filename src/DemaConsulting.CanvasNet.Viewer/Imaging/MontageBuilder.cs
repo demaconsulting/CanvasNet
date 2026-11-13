@@ -151,7 +151,7 @@ public sealed record MontageResult(SheetLayout Layout, WriteResult Written, IRea
 ///         when it is complete, and it may not be the same file as any input.
 ///     </para>
 ///     <para>
-///         The inputs are probed by the caller (<see cref="SourceLoader.Probe(string)"/>, or <see cref="SourceLoader.Probe(InputReference)"/> for an input with a fragment). The operation does file I/O, holds no
+///         The inputs are probed by the caller (<see cref="SourceLoader.Probe(string)"/>, or <see cref="SourceLoader.Probe(InputReference)"/> for an input with a fragment). Probe with the file-access policy the operation uses (<see cref="SourceLoader.Probe(string, DemaConsulting.CanvasNet.Files.FileAccessPolicy)"/>); facts probed under another policy are refused with <c>usage-error</c>, because the probe may already have read referenced files. The operation does file I/O, holds no
 ///         state, and is safe to call from several threads for different outputs.
 ///     </para>
 /// </remarks>

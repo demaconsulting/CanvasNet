@@ -132,7 +132,10 @@ a cancellation or an argument error is a `SandboxException`.
   named pipe) is `CannotRead`; a handle whose real path cannot be determined is `LinkCheckFailed` (fail closed); and
   the link match of the `NoSymlinks` policy (`FileAccessPolicy.MatchesWithoutLinks`), anchored at the candidate's root,
   must accept the real path - that is, the real path must be the real location of the root followed by the path below
-  the root. When the real location of the root cannot be determined the file is `LinkCheckFailed` (fail closed; a root
+  the root. The real location of the root (and the long spelling of the candidate's path) is captured once per root,
+  before the walk and the open (`RootLocation`), and is never resolved by name after the open, so a root renamed and
+  replaced by a link in between is refused as `ThroughLink`. When the real location of the root could not be
+  determined the file is `LinkCheckFailed` (fail closed; a root
   the process may search but not read has a real location); when the real path differs the file is
   `ThroughLink` with the root-relative path **of the file** as the detail (the handle cannot tell which component is
   the link). This repeats the walk's rule on the file that is actually read, so a component swapped for a link after
@@ -179,7 +182,9 @@ its bytes are in `Content`, or `null` was returned because no candidate exists, 
 was read through a link. A call never changes the files it reads.
 
 **Residual risk.** The link check by name and the open are two steps, but the open handle is verified before any byte
-is read, so a component swapped for a link in between is refused rather than read. Hard links are not recognized: a
+is read, so a component swapped for a link in between is refused rather than read; the root's real location used by
+that verification is captured before the walk, so replacing the root itself is refused too. Hard links are not
+recognized: a
 hard link is the file itself and has no marker that a name or a handle can show; a caller who cannot trust a directory
 must not use it as a root. The verification needs the real path of the open file, which Windows, Linux (with `/proc`
 mounted) and macOS provide; elsewhere every file is refused with `LinkCheckFailed`. Strict refusal of links was chosen

@@ -189,8 +189,9 @@ sections:
           - id: CanvasNet-Files-AlwaysRefused
             title: >-
               The Files subsystem shall refuse, under every policy and before any access, a referenced path that
-              is empty, contains a control character, names a network location or a device (also a Windows
-              legacy device name such as NUL), or carries an alternate data stream, shall refuse on Windows a
+              is empty, contains a control character, names a network location or a device (also, on Windows, a
+              reserved device name such as NUL, CON, COM1 or NUL.txt in any component), or carries an alternate data
+              stream, shall refuse on Windows a
               referenced file whose path as written is local but whose opened file lies on a network share,
               shall refuse a referenced file that is not a regular file without blocking on a named pipe, and
               shall refuse a file when a restrictive policy needs its real path and the platform cannot tell it.
@@ -215,7 +216,8 @@ sections:
               The Files subsystem shall report every refusal and read failure of a referenced file as an
               exception that carries a failure kind, the reference as written, and - for a policy denial - the
               policy name, its reason and hint, the path that was opened and its real path, while its message
-              names the reference and the policy but never a host directory.
+              echoes the reference as written and names the policy but never adds the resolved or real path, a
+              configured directory, or the policy's reason.
             justification: |
               Callers turn a refusal into their own diagnostic with their own wording and location without
               parsing text, and must be able to show the message to the untrusted author of a document safely.

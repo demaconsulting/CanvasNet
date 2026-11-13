@@ -30,15 +30,20 @@ sections:
                   the path as written and the real path lie inside one of the given folders (the folder itself
                   included, a sibling that merely shares a name prefix excluded, compared under the platform's case
                   rule and in each folder's written and real spelling), that refuses a path as written outside every
-                  folder before the file is opened, that explains a denial with a reason and a hint, and that rejects
-                  a missing, empty or invalid folder when it is created.
+                  folder before the file is opened, that compares the real path only with each folder's real location
+                  captured when the policy is created (a folder that does not exist then allows no file), that explains
+                  a denial with a reason and a hint, and that rejects a missing, empty or invalid folder, and on Windows
+                  a folder in a device namespace other than an ordinary extended-length drive or volume path, when it is
+                  created.
                 justification: |
                   A build server or service confines documents to chosen folders; a link that stays inside is fine,
-                  one that leads out is not, and a path outside the folders is never even opened.
+                  one that leads out is not, and a path outside the folders is never even opened. Looking a folder up
+                  again later would let a folder renamed and replaced by a link widen the policy.
                 tests:
                   - FileAccessPolicy_UnderRoots_RealPathInsideOrEqualToARoot_IsAllowed
                   - FileAccessPolicy_UnderRoots_SiblingWithSharedPrefix_IsDenied
                   - FileAccessPolicy_UnderRoots_RealPathOutsideEveryRoot_IsDeniedWithReasonAndHint
+                  - FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing
                   - FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck
                   - FileAccessPolicy_UnderRoots_InvalidRoots_Throw
                   - FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied
@@ -64,13 +69,15 @@ sections:
                   The FileAccessPolicy class shall let a consumer that hands a policy to a nested source pin the
                   base directory of every request of that source to the folder the outer chain of references started
                   from, returning the same instance for a policy that does not depend on the base directory or that
-                  is already pinned.
+                  is already pinned, and naming to the resolver of the nested source the folders of the outer origin
+                  to capture before its open.
                 justification: |
                   A nested source starts its own chain from the folder of the embedded file, which an untrusted
                   document can swap for a link; judging from the outer origin keeps the trust where the host put it.
                 tests:
                   - FileAccessPolicy_AnchoredAt_NoSymlinks_JudgesFromTheOuterOrigin
                   - FileAccessPolicy_AnchoredAt_AllowAllAndAnchored_ReturnTheSameInstance
+                  - FileAccessPolicy_AnchoredAt_AnchorsOf_NamesTheAnchorOfTheOuterOrigin
 
               - id: CanvasNet-Files-FileAccessPolicy-Combine
                 title: >-

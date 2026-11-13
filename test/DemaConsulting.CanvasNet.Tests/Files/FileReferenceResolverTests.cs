@@ -1035,21 +1035,30 @@ public class FileReferenceResolverTests
     }
 
     /// <summary>
-    ///     Validates on Windows that a reference the system maps to a device (a legacy device name such as <c>NUL</c> in
-    ///     a component) is refused as an invalid path before anything is opened, and that a name the system version does
-    ///     not map stays an ordinary (missing) file; no device is ever opened.
+    ///     Validates on Windows that a reference with a reserved device name in any component (in any letter case, with
+    ///     an extension, trailing spaces or dots, the superscript-digit forms, and the console names) is refused as an
+    ///     invalid path before anything is opened, whether or not this Windows version rewrites the path to a device.
     /// </summary>
     /// <param name="reference">The reference.</param>
     [Theory]
     [InlineData("x/NUL")]
     [InlineData("NUL")]
     [InlineData("x/NUL ")]
+    [InlineData("x/nul.txt")]
+    [InlineData("x/Nul .txt")]
+    [InlineData("x/AUX.tar.gz")]
+    [InlineData("x/PRN.")]
     [InlineData("x/CON")]
     [InlineData("x/COM1")]
-    [InlineData("x/LPT1")]
+    [InlineData("x/lpt9")]
+    [InlineData("x/COM\u00B9")]
+    [InlineData("x/LPT\u00B3.txt")]
+    [InlineData("x/CONIN$")]
+    [InlineData("x/conout$")]
+    [InlineData("NUL/a.txt")]
     public void FileReferenceResolver_Resolve_LegacyDeviceName_IsInvalidPathAndNoDeviceIsOpened(string reference)
     {
-        // Arrange: whether this Windows version maps the name to a device decides the expected outcome
+        // Arrange
         if (!OperatingSystem.IsWindows())
         {
             Assert.Skip(FileTestSupport.WindowsOnly);
@@ -1058,29 +1067,14 @@ public class FileReferenceResolverTests
         using var directory = new SandboxTempDirectory();
         var opened = new List<string>();
         var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Path }, Recording(opened));
-        var mapsToDevice = Path.GetFullPath(reference, directory.Path).StartsWith(@"\\.\", StringComparison.Ordinal);
 
         // Act
-        FileReference? found = null;
-        var outcome = Record.Exception(() => found = resolver.Resolve(reference));
-        var nul = Assert.Throws<FileReferenceException>(() => resolver.Resolve("x/NUL"));
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve(reference));
 
-        // Assert: a mapped name is refused before the open; an unmapped one is an ordinary missing file
-        if (mapsToDevice)
-        {
-            var ex = Assert.IsType<FileReferenceException>(outcome);
-            Assert.Equal(FileReferenceFailureKind.InvalidPath, ex.Kind);
-            Assert.Equal("the path names a device", ex.Reason);
-            Assert.Empty(opened);
-        }
-        else
-        {
-            Assert.Null(outcome);
-            Assert.Null(found);
-        }
-
-        Assert.Equal(FileReferenceFailureKind.InvalidPath, nul.Kind);
-        Assert.DoesNotContain(opened, path => path.StartsWith(@"\\.\", StringComparison.Ordinal));
+        // Assert: refused before the open, so no path at all reached the opener
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, ex.Kind);
+        Assert.Equal("the path names a device", ex.Reason);
+        Assert.Empty(opened);
     }
 
     /// <summary>
@@ -1109,14 +1103,112 @@ public class FileReferenceResolverTests
         // Act
         var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve(reference));
         var inside = resolver.Resolve("a.txt");
+        var reservedUnderExtended = Record.Exception(() => resolver.Resolve("NUL.txt"));
 
-        // Assert: the device is refused before the open; the extended-length base directory keeps working
+        // Assert: the device is refused before the open; the extended-length base directory keeps working, and a
+        // reserved name under it is an ordinary (here missing) file, because \\?\ paths map no device names
         Assert.Equal(FileReferenceFailureKind.InvalidPath, ex.Kind);
         Assert.Equal("the path names a device", ex.Reason);
         Assert.NotNull(inside);
         Assert.Equal("a"u8.ToArray(), inside.Content.ToArray());
-        var only = Assert.Single(opened);
-        Assert.StartsWith(@"\\?\", only, StringComparison.Ordinal);
+        Assert.Null(reservedUnderExtended);
+        Assert.Equal(2, opened.Count);
+        Assert.All(opened, path => Assert.StartsWith(@"\\?\", path, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a base directory in a device namespace other than an ordinary extended-length drive
+    ///     or volume root (<c>\\?\GLOBALROOT\</c>, <c>\\?\UNC\</c>, <c>\\?\pipe\</c>, <c>\\.\</c>) gives no exemption: a
+    ///     relative reference under it is refused as a device path before anything is opened.
+    /// </summary>
+    /// <param name="baseDirectory">The base directory.</param>
+    [Theory]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs")]
+    [InlineData(@"\\?\UNC\server\share\docs")]
+    [InlineData(@"\\?\pipe\docs")]
+    [InlineData(@"\\.\C:\docs")]
+    public void FileReferenceResolver_Resolve_DeviceNamespaceBaseDirectory_IsInvalidPathAndNothingIsOpened(string baseDirectory)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        var opened = new List<string>();
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = baseDirectory }, Recording(opened));
+
+        // Act
+        var plain = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+        var climbing = Assert.Throws<FileReferenceException>(() => resolver.Resolve("../../HarddiskVolume2/a.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, plain.Kind);
+        Assert.Equal("the path names a device", plain.Reason);
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, climbing.Kind);
+        Assert.Empty(opened);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a base directory given as an ordinary extended-length volume path
+    ///     (<c>\\?\Volume{GUID}\...</c>) keeps working: a file under it is read. Skips when the volume GUID path of the
+    ///     temporary folder's drive cannot be determined.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_VolumeGuidBaseDirectory_ReadsTheFile()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("a.txt", "a");
+        var full = Path.GetFullPath(directory.Path);
+        var volume = FileTestSupport.TryGetVolumeGuidPath(full);
+        if (volume is null)
+        {
+            Assert.Skip("The volume GUID path of the temporary folder's drive cannot be determined.");
+        }
+
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = volume + full[Path.GetPathRoot(full)!.Length..] });
+
+        // Act
+        var file = resolver.Resolve("a.txt");
+
+        // Assert
+        Assert.Equal("a", Text(file));
+    }
+
+    /// <summary>
+    ///     Validates that the message of a denied absolute reference echoes the reference exactly as written, which the
+    ///     author supplied, but never adds the real path of the opened file or the base directory; those stay in the
+    ///     properties for trusted callers.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_AbsoluteReferenceDenied_MessageEchoesItButNotTheRealPathOrBase()
+    {
+        // Arrange: the file is reached by an absolute reference, and its real path is reported somewhere else entirely
+        using var directory = new SandboxTempDirectory();
+        var file = directory.Write("files/a.txt", "a");
+        var baseDirectory = Path.GetFullPath(directory.Combine("base-folder"));
+        Directory.CreateDirectory(baseDirectory);
+        var reference = Path.GetFullPath(file).Replace('\\', '/');
+        var real = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "real-secret-location", "x.txt"));
+        var resolver = Create(
+            new FileReferenceOptions { BaseDirectory = baseDirectory, FileAccess = FileAccessPolicy.UnderRoots(directory.Path) },
+            new FileOpenHooks { RealPathOf = _ => real });
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve(reference));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Contains(reference, ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("real-secret-location", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(baseDirectory, ex.Message, StringComparison.Ordinal);
+        Assert.Equal(real, ex.RealPath);
     }
 
     /// <summary>
@@ -1135,7 +1227,7 @@ public class FileReferenceResolverTests
 
         // Assert
         Assert.Equal(FileReferenceFailureKind.InvalidBaseDirectory, baseError.Kind);
-        Assert.Equal("bad\0dir", baseError.Reference);
+        Assert.Equal("bad?dir", baseError.Reference);
         Assert.Equal(FileReferenceFailureKind.InvalidBaseDirectory, searchError.Kind);
     }
 
@@ -1204,6 +1296,38 @@ public class FileReferenceResolverTests
 
         // Assert
         Assert.Equal(FileReferenceFailureKind.NotARegularFile, error.Kind);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that the top-level file the caller names is opened as given even in a spelling that a
+    ///     reference may not use (an extended-length <c>\\?\</c> path), while the same spelling written as a reference is
+    ///     refused as a device path before anything is opened: the refusals that keep a document from reaching devices
+    ///     and the network apply to referenced files only.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_ResolveTopLevel_PathRefusedAsAReference_IsOpenedAsGiven()
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        var extended = @"\\?\" + Path.GetFullPath(directory.Write("a.txt", "a"));
+        var opened = new List<string>();
+        var resolver = Create(new FileReferenceOptions { BaseDirectory = directory.Path }, Recording(opened));
+
+        // Act
+        var reference = Assert.Throws<FileReferenceException>(() => resolver.Resolve(extended));
+        var openedByReference = opened.Count;
+        var topLevel = resolver.ResolveTopLevel(extended);
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.InvalidPath, reference.Kind);
+        Assert.Equal(0, openedByReference);
+        Assert.Equal("a", Text(topLevel));
+        Assert.Equal([extended], opened);
     }
 
     /// <summary>

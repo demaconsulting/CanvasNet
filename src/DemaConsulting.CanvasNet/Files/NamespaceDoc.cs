@@ -20,10 +20,11 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         in or out by another process cannot change what is read after the decision. The built-in policies are
 ///         <see cref="FileAccessPolicy.AllowAll"/> (the default), <see cref="FileAccessPolicy.UnderRoots(string[])"/>,
 ///         <see cref="FileAccessPolicy.NoSymlinks"/>, <see cref="FileAccessPolicy.Combine"/> and
-///         <see cref="FileAccessPolicy.FromDelegate"/>. Network and device paths (on Windows also legacy device names
-///         such as <c>NUL</c>), alternate data streams, control characters, files that are not regular files and, on
-///         Windows, a link from a local path to a network share are refused under every policy, and every size and
-///         count limit stays.
+///         <see cref="FileAccessPolicy.FromDelegate"/>. For a referenced file, network and device paths (on Windows also
+///         reserved device names such as <c>NUL</c>), alternate data streams, control characters, files that are not
+///         regular files and, on Windows, a link from a local path to a network share are refused under every policy,
+///         and every size and count limit stays; the top-level file a caller names is opened as given (only the limits
+///         and the regular-file check apply to it).
 ///     </para>
 ///     <para>
 ///         <see cref="FileReferenceResolver"/> is what <see cref="DemaConsulting.CanvasNet.ImageSources"/> uses for the

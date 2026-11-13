@@ -475,7 +475,8 @@ denies the dot-dot reference with `AccessDenied` naming the `roots` policy.
 Exercises the references that no policy can allow: under `AllowAll`, `NoSymlinks`, and a `UnderRoots` policy that
 includes the referenced folders, a UNC path is `NetworkPath`, a `\\?\` device path and an alternate data stream are
 `InvalidPath`, a directory is `NotARegularFile`, on Linux and macOS `/dev/null` is `NotARegularFile`, and on Windows
-`folder/NUL` (a legacy device name) is `InvalidPath`; no refusal message contains the temporary directory.
+the reserved device names `folder/NUL`, `folder/con.txt` and `folder/COM1` are `InvalidPath`; a refused path text never
+reaches the opener (recorded through the `BeforeOpen` seam), and no refusal message contains the temporary directory.
 
 ### Integration: Combined and Delegate Policies Decide Nested References
 

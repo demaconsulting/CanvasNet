@@ -1118,6 +1118,11 @@ words:
   - IFREG
   - libc
   - mkfifo
+  - mountvol
+  - GLOBALROOT
+  - Harddisk
+  - CONIN
+  - CONOUT
   - nlink
   - NOCTTY
   - NONBLOCK

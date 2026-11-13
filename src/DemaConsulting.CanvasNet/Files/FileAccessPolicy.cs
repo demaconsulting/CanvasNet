@@ -22,10 +22,12 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         part to allow the file, and <see cref="FromDelegate"/> wraps a function.
 ///     </para>
 ///     <para>
-///         <b>Always refused.</b> Whatever the policy, the resolver refuses network paths (UNC and <c>//host</c>),
-///         device paths (on Windows also a legacy device name such as <c>NUL</c>), alternate data streams, control
-///         characters, anything that is not a regular file and, on Windows, a link from a local path to a network
-///         share, and keeps every size and count limit. A restrictive policy (any policy other than
+///         <b>Always refused.</b> Whatever the policy, the resolver refuses a referenced file given as a network path
+///         (UNC and <c>//host</c>), a device path (on Windows also a reserved device name such as <c>NUL</c>), an
+///         alternate data stream or a path with control characters, anything that is not a regular file and, on Windows,
+///         a link from a local path to a network share, and keeps every size and count limit. These refusals keep a
+///         document from reaching devices and the network; the top-level file the caller names is opened as given. A
+///         restrictive policy (any policy other than
 ///         <see cref="AllowAll"/>) is never consulted without a real path: where the platform cannot tell the real path
 ///         of an open file, the file is refused with <see cref="FileReferenceFailureKind.RealPathUnavailable"/> (fail
 ///         closed).
@@ -62,7 +64,11 @@ public abstract partial class FileAccessPolicy
     ///     from, never a referring document's folder); it and every folder above it are trusted (the host chose them).
     ///     Below it, the real path of the opened file must equal the path as written, so a link anywhere below that
     ///     folder - a directory or the file itself - is denied, whatever its target. A hard link cannot be told apart
-    ///     from the file itself and is not denied.
+    ///     from the file itself and is not denied. When <see cref="FileReferenceResolver"/> asks, the real location of
+    ///     the starting folder is the one it captured before opening the file (once per resolver), never resolved by
+    ///     name after the open, so a starting folder renamed and replaced by a link in between is denied. Compose it
+    ///     with <see cref="Combine"/>: inside a policy made with <see cref="FromDelegate"/> the resolver does not know
+    ///     to capture that folder, and the policy then denies (fail closed).
     /// </remarks>
     public static FileAccessPolicy NoSymlinks { get; } = new NoSymlinksPolicy();
 
@@ -87,7 +93,11 @@ public abstract partial class FileAccessPolicy
     ///     link is fine. A file reached through a link is allowed when the link stays inside a root. The path as written
     ///     is checked before the file is opened, so a file outside every root is never opened (no existence oracle and
     ///     no device outside the roots is touched); the real path is checked after the open. Relative roots are made
-    ///     full against the current directory now; the real location of each root is determined on first use.
+    ///     full against the current directory now, and the real location of each root is captured <b>now</b>, when the
+    ///     policy is created, and never looked up again: the real path of a file is compared only with that captured
+    ///     location, so a root renamed and replaced by a link later cannot widen the policy. Create the roots before the
+    ///     policy: a root that does not exist yet (or whose real location cannot be determined) allows no file, even
+    ///     once it exists (fail closed).
     /// </remarks>
     /// <param name="roots">The folders; at least one, none null, empty or invalid.</param>
     /// <returns>The policy.</returns>
@@ -198,6 +208,16 @@ public abstract partial class FileAccessPolicy
         ArgumentNullException.ThrowIfNull(origin);
         return RequiresRealPath ? new AnchoredPolicy(this, origin) : this;
     }
+
+    /// <summary>
+    ///     Names the trusted folders whose real location the policy compares against after the open, so the resolver can
+    ///     capture them <b>before</b> the open (<see cref="FileAccessRequest.Snapshot"/>) and the policy never resolves a
+    ///     folder by name after it.
+    /// </summary>
+    /// <param name="requestedPath">The full path as written.</param>
+    /// <param name="baseDirectory">The trusted directory the lookup chain started from.</param>
+    /// <returns>The folders, as written; none by default.</returns>
+    internal virtual IEnumerable<string> AnchorsOf(string requestedPath, string baseDirectory) => [];
 
     /// <summary>
     ///     Returns the name of the policy.

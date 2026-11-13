@@ -2211,7 +2211,9 @@ callback paths and case-insensitive for full paths on Windows and macOS).
 **Security note.** The sandbox protects against path-based escapes and against a link swapped into the tree after
 its check: before a single byte is read, the **open file** is verified - its real path, asked of the operating
 system for the open handle (not the name), must be the root's real location followed by the path below the root,
-otherwise the file is `ThroughLink`; where the system cannot tell the real path of an open file, the file is
+otherwise the file is `ThroughLink`; the root's real location is captured before the file is looked up, so a root
+renamed and replaced by a link meanwhile is refused too. Where the system cannot tell the real path of an open file,
+the file is
 refused (`LinkCheckFailed`), also when the real location of the root cannot be determined (a root you may search
 but not read has one). Devices and named pipes below a root are `CannotRead`, and opening a named pipe never
 blocks. A hard link to a file outside the directories is still read like any other file (a hard link is the file
@@ -2362,20 +2364,30 @@ decided by the **file-access policy** in `FileAccess`:
 The policy is asked **after the file was opened and before a byte is read**, about the real path of the open file
 (`FileAccessRequest.RealPath`), and the bytes are read from that same open file. A link that another process swaps in
 or out after a check therefore cannot change what is read. `UnderRoots` also refuses a path written outside its
-folders before the file is opened. `NoSymlinks` trusts the deepest folder shared by the written path and the base
+folders before the file is opened. `UnderRoots` captures the real location of each folder **when you create the
+policy** and never looks it up again, so create the folders first: a folder that does not exist then allows no file,
+even once it exists. Likewise the folder `NoSymlinks` starts from is captured before the file is opened, so a trusted
+folder that is renamed and replaced by a link while a file is being read cannot widen what is read. `NoSymlinks`
+trusts the deepest folder shared by the written path and the base
 directory or search path the chain of references started from - never a referring document's folder - and everything
-above it (so a linked home or temporary folder is fine), and refuses any link below it. A hard link is the file itself
+above it (so a linked home or temporary folder is fine), and refuses any link below it. Use it through `Combine`, not
+inside a `FromDelegate` function, where it cannot know its starting folder in advance and denies. A hard link is the
+file itself
 and is not detected. On Windows and macOS paths are compared without regard to letter case: on a case-sensitive volume
 or directory of those systems, a sibling folder whose name differs from a root only in letter case counts as inside
 it, so do not configure roots next to such folders.
 
-Under **every** policy the resolver refuses a network path (`\\server\share`, `//host`) as `NetworkPath`, a device path
-(`\\?\`, `\\.\`), a Windows legacy device name (such as `NUL` in a component), or an alternate data stream (any colon
-other than a Windows drive) as `InvalidPath`, a control
+Under **every** policy the resolver refuses a referenced network path (`\\server\share`, `//host`) as `NetworkPath`, a
+device path
+(`\\?\`, `\\.\`), on Windows a reserved device name in any component (`CON`, `PRN`, `AUX`, `NUL`, `COM0`-`COM9`,
+`LPT0`-`LPT9` and their superscript-digit forms, `CONIN$`, `CONOUT$`, in any letter case and also with an extension
+such as `NUL.txt`, trailing spaces or dots), or an alternate data stream (any colon other than a Windows drive) as
+`InvalidPath`, a control
 character, and anything that is not a regular file (a directory, a device such as `/dev/zero`, a named pipe, which never
 blocks the open) as `NotARegularFile`, and it keeps `MaxFileBytes` and `MaxFiles`. A policy other than `AllowAll` needs
 the real path of the open file: Windows, Linux (with `/proc` mounted), and macOS provide it; elsewhere such a policy
-refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file.
+refuses every file with `RealPathUnavailable`. A policy that throws or returns no decision denies the file. These
+refusals are about the files a document references; the top-level file you name yourself is opened as given.
 
 On Windows, a path written as a local path whose opened file lies on a network share (a symbolic link to a UNC
 target) is refused under every policy as `NetworkPath`; files you place on a mapped network drive or share yourself
@@ -2386,9 +2398,11 @@ symbolic links in folders documents are read from, disable it (`L2R:0`). Junctio
 a symbolic link needs a privilege or Developer Mode.
 
 A denial is a `FileReferenceException` with `Kind == AccessDenied`, the policy's `PolicyName`, `Reason` and `Hint`, and
-the `RequestedPath` and `RealPath`. **The message names the reference and the policy but never a host directory or the
-reason** (which may name host paths), so it is safe to show to the author of the document; show the other properties
-only to trusted users. With a `FileResolver` callback, the file system and the policy are not used at all: the callback
+the `RequestedPath` and `RealPath`. **The message echoes the reference as written and names the policy; it never adds
+the resolved or real path, a configured directory, or the policy's reason** (which may name host paths), so it reveals
+nothing the author of the document did not write and is safe to show to that author (an absolute reference appears as
+written). Show the other properties only to trusted users. With a `FileResolver` callback, the file system and the
+policy are not used at all: the callback
 is the policy. An instance is not thread-safe (one per operation); options and policies are immutable and may be shared.
 
 ```csharp
@@ -2787,8 +2801,9 @@ What changed:
    paths are still remote: reported, never fetched.
 5. **A dangling link is "not found".** It is an OpenSCAD include warning `scad-include-not-found`, a Vega-Lite "was not
    found" error, or an image `svg-image-unresolved`, no longer a link refusal.
-6. **Still refused under every policy:** UNC, network and device paths, alternate data streams, control characters,
-   anything that is not a regular file (new), and `http(s)` and other network schemes.
+6. **Still refused under every policy, for referenced files:** UNC, network and device paths, alternate data streams,
+   control characters, anything that is not a regular file (new), and `http(s)` and other network schemes. The file you
+   name yourself is opened as given.
 7. **Every resource limit is unchanged:** `MaxDepth` 4, cycle detection (now by real path, so a cycle through a link is
    caught), `MaxImages` 64 and the load counts, `MaxDecodedPixels` and the painted-pixel budgets, `MaxFileBytes`
    16 MiB, `MaxDataBytes` and `MaxDataFiles`, `MaxIncludeDepth` and `MaxIncludedFiles`, and the Mermaid `MaxImages`.

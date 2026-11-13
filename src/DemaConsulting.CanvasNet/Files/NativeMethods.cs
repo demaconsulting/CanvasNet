@@ -436,18 +436,23 @@ internal static class NativeMethods
     }
 
     /// <summary>
-    ///     Removes the <c>\\?\</c> prefix of a final path, mapping <c>\\?\UNC\server\share</c> to <c>\\server\share</c>.
+    ///     Removes the <c>\\?\</c> prefix of a final path, mapping <c>\\?\UNC\server\share</c> to <c>\\server\share</c>
+    ///     and <c>\\?\C:\x</c> to <c>C:\x</c>. Any other spelling (a volume GUID or a device-namespace root, which the
+    ///     flags asked for should never yield) is no usable path, so it is reported as unknown (fail closed).
     /// </summary>
     /// <param name="path">The path as Windows reported it.</param>
-    /// <returns>The path in its usual spelling.</returns>
-    private static string StripExtendedPrefix(string path)
+    /// <returns>The path in its usual spelling, or <see langword="null"/>.</returns>
+    private static string? StripExtendedPrefix(string path)
     {
         if (path.StartsWith(WindowsExtendedUncPrefix, StringComparison.OrdinalIgnoreCase))
         {
             return @"\\" + path[WindowsExtendedUncPrefix.Length..];
         }
 
-        return path.StartsWith(WindowsExtendedPrefix, StringComparison.Ordinal) ? path[WindowsExtendedPrefix.Length..] : path;
+        var stripped = path.StartsWith(WindowsExtendedPrefix, StringComparison.Ordinal) ? path[WindowsExtendedPrefix.Length..] : path;
+        return stripped.Length >= 3 && char.IsAsciiLetter(stripped[0]) && stripped[1] == ':' && stripped[2] == '\\'
+            ? stripped
+            : null;
     }
 
     /// <summary>The Windows <c>GetFinalPathNameByHandleW</c> function.</summary>

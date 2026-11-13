@@ -40,8 +40,14 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 public static partial class SourceLoader
 {
     /// <summary>
-    ///     Reads the facts about a file without rendering it.
+    ///     Reads the facts about a file without rendering it, under <see cref="FileAccessPolicy.AllowAll"/>.
     /// </summary>
+    /// <remarks>
+    ///     A probe may read the files a source references (the data files a chart is measured with), and the facts carry
+    ///     the policy it read them under (<see cref="SourceInfo.FileAccess"/>). An operation given these facts refuses a
+    ///     different policy, so probe with the same policy you will render with: use
+    ///     <see cref="Probe(string, FileAccessPolicy)"/> for any policy other than <see cref="FileAccessPolicy.AllowAll"/>.
+    /// </remarks>
     /// <param name="path">The path of the file.</param>
     /// <returns>The facts; for a document they include every page.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is <see langword="null"/>.</exception>
@@ -59,7 +65,10 @@ public static partial class SourceLoader
     ///     measured with) under a file-access policy.
     /// </summary>
     /// <param name="path">The path of the file. The file itself is the caller's choice and is not judged by the policy.</param>
-    /// <param name="fileAccess">The policy that decides which referenced files may be read.</param>
+    /// <param name="fileAccess">
+    ///     The policy that decides which referenced files may be read; the facts carry it
+    ///     (<see cref="SourceInfo.FileAccess"/>), and every operation given them must use this same instance.
+    /// </param>
     /// <returns>The facts; for a document they include every page.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ViewerException">
@@ -81,7 +90,8 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="input">The input, from <see cref="InputReference.Parse(string)"/>.</param>
     /// <returns>
-    ///     The facts about the file, as <see cref="Probe(string)"/> gives them, with <see cref="SourceInfo.Selection"/> set
+    ///     The facts about the file, as <see cref="Probe(string)"/> gives them (under <see cref="FileAccessPolicy.AllowAll"/>;
+    ///     use <see cref="Probe(InputReference, FileAccessPolicy)"/> for another policy), with <see cref="SourceInfo.Selection"/> set
     ///     when the input has a fragment; every operation of this namespace that is given the facts applies the selection to
     ///     the options it loads the source with.
     /// </returns>
@@ -142,7 +152,7 @@ public static partial class SourceLoader
     internal static SourceInfo ProbeInput(SourceInput input, SourceKind kind, FileAccessPolicy fileAccess)
     {
         var bytes = Read(input.Name, null, () => input.Length);
-        return kind switch
+        var info = kind switch
         {
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
                 => ProbeRaster(input, kind, bytes),
@@ -155,6 +165,25 @@ public static partial class SourceLoader
             SourceKind.Mermaid => ProbeMermaid(input, bytes),
             _ => throw UnhandledKind(kind)
         };
+        return info with { FileAccess = fileAccess };
+    }
+
+    /// <summary>
+    ///     Refuses an operation whose file-access policy is not the one the source was probed with: the probe may already
+    ///     have read referenced files under its policy, which a different policy of the operation cannot undo.
+    /// </summary>
+    /// <param name="info">The facts about the source.</param>
+    /// <param name="fileAccess">The policy of the operation.</param>
+    /// <exception cref="ViewerException">Thrown with code <c>usage-error</c> when the policies are not the same instance.</exception>
+    internal static void RequireProbePolicy(SourceInfo info, FileAccessPolicy fileAccess)
+    {
+        if (!ReferenceEquals(info.FileAccess, fileAccess))
+        {
+            throw new ViewerException(
+                ErrorCodes.UsageError,
+                $"'{info.Path}' was probed under the file-access policy '{info.FileAccess.Name}' but the operation uses '{fileAccess.Name}'.",
+                "Probe the source with the policy the operation uses: SourceLoader.Probe(path, policy).");
+        }
     }
 
     /// <summary>
@@ -256,11 +285,11 @@ public static partial class SourceLoader
         switch (kind)
         {
             case SourceKind.Pdf:
-                return KeepOpen(Read(input.Name, SourceKind.Pdf, () => OpenPdf(input)), (d, bytes) => DescribePdf(input.Name, d, bytes), input);
+                return KeepOpen(Read(input.Name, SourceKind.Pdf, () => OpenPdf(input)), (d, bytes) => DescribePdf(input.Name, d, bytes) with { FileAccess = fileAccess }, input);
             case SourceKind.Pptx:
-                return KeepOpen(Read(input.Name, SourceKind.Pptx, () => OpenPptx(input)), (d, bytes) => DescribePptx(input.Name, d, bytes), input);
+                return KeepOpen(Read(input.Name, SourceKind.Pptx, () => OpenPptx(input)), (d, bytes) => DescribePptx(input.Name, d, bytes) with { FileAccess = fileAccess }, input);
             case SourceKind.Vsdx:
-                return KeepOpen(Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input)), (d, bytes) => DescribeVsdx(input.Name, d, bytes), input);
+                return KeepOpen(Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input)), (d, bytes) => DescribeVsdx(input.Name, d, bytes) with { FileAccess = fileAccess }, input);
             default:
                 return new OpenedSource(ProbeInput(input, kind, fileAccess), null);
         }
@@ -301,8 +330,10 @@ public static partial class SourceLoader
     /// <exception cref="ViewerException">See <see cref="OpenPages(SourceInfo, SourceOptions)"/>.</exception>
     internal static PageSource OpenInputPages(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context, OpenedSource? opened = null)
     {
-        // The options are checked before the source is opened, so a mistake costs no I/O
+        // The options are checked before the source is opened, so a mistake costs no I/O; the policy must be the one the
+        // source was probed with, so no referenced file is ever read under another policy than the operation's
         ValidateOptions(options);
+        RequireProbePolicy(info, options.FileAccess);
         return info.Format switch
         {
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
