@@ -53,11 +53,17 @@ sections:
               - CanvasNet-ImageSources-FolderImageResolver-FileUri
               - CanvasNet-ImageSources-FolderImageResolver-UriReference
             tests:
-              - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
+              - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
+              - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
+              - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
               - FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot
-              - FolderImageResolver_Resolve_SymbolicLink_IsUnresolvedWarning
+              - FolderImageResolver_Resolve_SymbolicLink_NoSymlinks_IsAccessDeniedWarning
+              - FolderImageResolver_Resolve_DirectoryLink_NoSymlinks_IsAccessDeniedWarning
+              - FolderImageResolver_Resolve_SymbolicLink_Default_FollowsTheLink
+              - FolderImageResolver_Resolve_SymbolicLink_UnderRoots_LinkLeavingTheRootsIsDenied
               - FolderImageResolver_Resolve_RelativeLinkWithQueryOrFragment_NamesTheFile
-              - FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved
+              - FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_UnderRoots_IsStillNotDrawn
+              - FolderImageResolver_Resolve_ParentReferenceWithQueryOrFragment_Default_NamesTheFile
 
           - id: CanvasNet-ImageSources-Dispatch
             title: >-

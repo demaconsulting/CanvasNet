@@ -11,12 +11,15 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 /// <remarks>
 ///     <para>
 ///         <b>Where a link may point.</b> A link without a URI scheme is a path relative to the folder the resolver was
-///         created with (relative to the folder of the file that contains the link, for a link inside an embedded file).
-///         It is resolved through a <see cref="SandboxedFileResolver"/>: an absolute path, a drive or UNC path, a path
-///         that leaves the folder (<c>..</c>, also percent-encoded), a path through a symbolic link or junction, a
-///         control character, an alternate data stream and a file larger than 16 MiB are all refused, and a refused link
-///         is a warning with nothing drawn, never a read. A <c>file:</c> URI is accepted only when it names a file inside
-///         the folder. The link is read as a URI reference (RFC 3986): <b>a query (<c>?…</c>) is not part of the file
+///         created with (relative to the folder of the file that contains the link, for a link inside an embedded file);
+///         the folder is the base of relative links, not a boundary. It is resolved through a
+///         <see cref="FileReferenceResolver"/>, and the file-access policy (<see cref="FolderImageResolverOptions.FileAccess"/>)
+///         decides which files may be read: by default every regular local file, like Pandoc, so <c>..</c> (also
+///         percent-encoded), an absolute or drive path, a local <c>file:</c> URI and a symbolic link are followed. A
+///         network path (UNC, <c>//host</c>, <c>file://host</c>), a device path, a control character, an alternate data
+///         stream, anything that is not a regular file and a file larger than 16 MiB are refused under every policy, and
+///         a refused link is a warning (<see cref="UnresolvedCode"/>, or <see cref="AccessDeniedCode"/> for a denial of
+///         the policy) with nothing drawn, never a read. The link is read as a URI reference (RFC 3986): <b>a query (<c>?…</c>) is not part of the file
 ///         name</b> and is ignored for a file link (so <c>image.png?cache=1</c> names <c>image.png</c>), and <b>a
 ///         fragment (<c>#…</c>) is not part of it either, but is parsed</b> (<see cref="ImageFragment"/>) and given to
 ///         the source in <see cref="ImageSourceRequest.Fragment"/>, which is how <c>report.pdf#page=3</c> chooses a page;
@@ -89,6 +92,15 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     public const string UnresolvedCode = "svg-image-unresolved";
 
     /// <summary>
+    ///     The code of the warning <see cref="Diagnostics"/> holds for a link that was not drawn because the file-access
+    ///     policy (<see cref="FolderImageResolverOptions.FileAccess"/>) denied the file, or could not be applied because
+    ///     the real path of the file cannot be determined. Nothing is read or drawn and the render carries on; the
+    ///     message names the policy, its reason and a hint, and <see cref="ImageSourceDiagnostic.Detail"/> holds the
+    ///     paths (<c>reference=…; requested=…; real=…; policy=…</c>), which may reveal host directories.
+    /// </summary>
+    public const string AccessDeniedCode = "image-access-denied";
+
+    /// <summary>
     ///     The code of the warning <see cref="Diagnostics"/> holds for a link that was not drawn because the picture does
     ///     not fit in the pixel budget (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>): nothing was
     ///     allocated for it and nothing is drawn, and the render carries on.
@@ -137,10 +149,10 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     private readonly string? _rootDirectory;
 
     /// <summary>
-    ///     The sandbox that finds files in the folder; created at first use (see <see cref="GetSandbox(bool)"/>), and
-    ///     never created when there is no folder.
+    ///     The engine that finds and reads the files of the render; created at first use (see <see cref="GetFiles(bool)"/>),
+    ///     and never created when there is no folder.
     /// </summary>
-    private SandboxedFileResolver? _sandbox;
+    private FileReferenceResolver? _files;
 
     /// <summary>
     ///     Whether the picture of the latest source call was at its own pixel size (<see cref="ImageSourceResult.IsNaturalSize"/>);
@@ -193,7 +205,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     ///     Initializes a new instance of the <see cref="FolderImageResolver"/> class.
     /// </summary>
     /// <param name="rootFolder">
-    ///     The folder the links are confined to, normally the folder of the document that is being rendered. May be
+    ///     The folder relative links are resolved against, normally the folder of the document that is being rendered
+    ///     (the base, not a boundary: which files may be read is <see cref="FolderImageResolverOptions.FileAccess"/>). May be
     ///     relative (it is made absolute). It may be <see langword="null"/>: then no file can be loaded (every link
     ///     without a scheme is unresolved) and only sources that claim a scheme are used.
     /// </param>
@@ -230,31 +243,32 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     }
 
     /// <summary>
-    ///     Gets the sandbox, creating it on first use, or <see langword="null"/> when the resolver has no folder.
+    ///     Gets the file engine, creating it on first use, or <see langword="null"/> when the resolver has no folder.
     /// </summary>
     /// <param name="topLevelFile">
     ///     <see langword="true"/> for the read of the top-level file of a render by path, which takes a file slot of the
-    ///     sandbox without counting as an embedded image.
+    ///     engine without counting as an embedded image.
     /// </param>
-    /// <returns>The sandbox, or <see langword="null"/> when there is no folder.</returns>
+    /// <returns>The engine, or <see langword="null"/> when there is no folder.</returns>
     /// <remarks>
-    ///     The sandbox may read as many distinct files as the resolver may load images
+    ///     The engine may read as many distinct files as the resolver may load images
     ///     (<see cref="FolderImageResolverOptions.MaxImages"/>), plus one for the top-level file when the render is by
     ///     path (<see cref="Render(string, int?, int?)"/>; a render of a stream reads no top-level file). The limit is
-    ///     fixed when the sandbox is created, so a render by path must be the first thing a resolver does; that is how a
+    ///     fixed when the engine is created, so a render by path must be the first thing a resolver does; that is how a
     ///     resolver is meant to be used (one resolver, one render).
     /// </remarks>
-    private SandboxedFileResolver? GetSandbox(bool topLevelFile = false)
+    private FileReferenceResolver? GetFiles(bool topLevelFile = false)
     {
         if (_rootDirectory is null)
         {
             return null;
         }
 
-        return _sandbox ??= new SandboxedFileResolver(
-            new SandboxOptions
+        return _files ??= new FileReferenceResolver(
+            new FileReferenceOptions
             {
                 BaseDirectory = _rootDirectory,
+                FileAccess = _options.FileAccess,
                 MaxFiles = (int)Math.Min((long)_options.MaxImages + (topLevelFile ? 1 : 0), int.MaxValue)
             },
             _options.CancellationToken);
@@ -333,12 +347,12 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     }
 
     /// <summary>
-    ///     Draws a file of the folder directly, as the top-level picture, and fails loudly when it cannot.
+    ///     Draws a file directly, as the top-level picture, and fails loudly when it cannot.
     /// </summary>
     /// <param name="path">
-    ///     The path of the file relative to the folder of the resolver, resolved by the same sandbox as a link (so an
-    ///     absolute path, a path that leaves the folder, and a link are refused). A <c>file:</c> URI or percent-encoding is
-    ///     not interpreted.
+    ///     The path of the file, relative to the folder of the resolver or absolute. The caller chose it, so the
+    ///     file-access policy does not judge it (it may lie anywhere and may be reached through a link); the links inside
+    ///     it are judged, from its own folder. A <c>file:</c> URI or percent-encoding is not interpreted.
     /// </param>
     /// <param name="pixelWidth">The requested width, or <see langword="null"/> for the natural width.</param>
     /// <param name="pixelHeight">The requested height, or <see langword="null"/> for the natural height.</param>
@@ -351,7 +365,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the resolver was created without a folder.</exception>
     /// <exception cref="NotSupportedException">Thrown when no source claims the extension; the message lists the extensions.</exception>
-    /// <exception cref="SandboxException">Thrown when the sandbox refuses the path.</exception>
+    /// <exception cref="FileReferenceException">Thrown when the path is not a valid path, is not a regular file, is too large or cannot be read.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     /// <exception cref="ImageSourceException">Thrown when the source fails to draw the file.</exception>
     /// <exception cref="ImageSourceBudgetException">Thrown when the picture does not fit in <see cref="FolderImageResolverOptions.MaxDecodedPixels"/>.</exception>
@@ -362,13 +376,14 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     }
 
     /// <summary>
-    ///     Draws a file of the folder directly, as the top-level picture, with caller-defined options for the source, and
-    ///     fails loudly when it cannot.
+    ///     Draws a file directly, as the top-level picture, with caller-defined options for the source, and fails loudly
+    ///     when it cannot.
     /// </summary>
     /// <param name="path">
-    ///     The path of the file relative to the folder of the resolver, resolved by the same sandbox as a link. It is a
-    ///     plain path: a <c>file:</c> URI, percent-encoding, a query and a fragment are not interpreted (the page to draw
-    ///     is chosen with <paramref name="options"/>, not with a fragment).
+    ///     The path of the file, relative to the folder of the resolver or absolute; it is not judged by the file-access
+    ///     policy (see <see cref="Render(string, int?, int?)"/>). It is a plain path: a <c>file:</c> URI, percent-encoding,
+    ///     a query and a fragment are not interpreted (the page to draw is chosen with <paramref name="options"/>, not
+    ///     with a fragment).
     /// </param>
     /// <param name="pixelWidth">The requested width, or <see langword="null"/> for the natural width.</param>
     /// <param name="pixelHeight">The requested height, or <see langword="null"/> for the natural height.</param>
@@ -380,7 +395,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the resolver was created without a folder.</exception>
     /// <exception cref="NotSupportedException">Thrown when no source claims the extension; the message lists the extensions.</exception>
-    /// <exception cref="SandboxException">Thrown when the sandbox refuses the path.</exception>
+    /// <exception cref="FileReferenceException">Thrown when the path is not a valid path, is not a regular file, is too large or cannot be read.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     /// <exception cref="ImageSourceException">Thrown when the source fails to draw the file.</exception>
     /// <exception cref="ImageSourceRefusedException">Thrown, as the source threw it, when the source declines the picture (for example a page that does not exist).</exception>
@@ -396,11 +411,12 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
 
         _options.CancellationToken.ThrowIfCancellationRequested();
 
-        // The extension is checked first so a file nobody can draw is never read
+        // The extension is checked first so a file nobody can draw is never read. The file itself is the caller's
+        // choice, so the policy does not judge it (it may lie anywhere); the links inside it are judged
         var source = _sources.FindByExtension(path) ?? throw NoSource(path);
-        var sandbox = GetSandbox(topLevelFile: true)!;
-        var file = sandbox.Resolve(path)
-                   ?? throw new FileNotFoundException($"The file '{path}' was not found in the folder.", path);
+        var files = GetFiles(topLevelFile: true)!;
+        var file = files.ResolveTopLevel(path)
+                   ?? throw new FileNotFoundException($"The file '{path}' was not found.", path);
         if (!ReferenceEquals(_sources.FindByExtension(file.Key), source))
         {
             throw NoSource(path);
@@ -417,10 +433,11 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
-            Resolver = new Scope(this, file, [file.Key], 0, name, []),
+            Resolver = new Scope(this, file, [Identity(file)], 0, name, []),
             Options = options,
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
-            CancellationToken = _options.CancellationToken
+            CancellationToken = _options.CancellationToken,
+            FileAccess = _options.FileAccess.AnchoredAt(file.Origin!)
         };
         return RenderDirect(source, request);
     }
@@ -490,7 +507,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             Resolver = new Scope(this, null, [], 0, fileName, []),
             Options = options,
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
-            CancellationToken = _options.CancellationToken
+            CancellationToken = _options.CancellationToken,
+            FileAccess = _rootDirectory is null ? _options.FileAccess : _options.FileAccess.AnchoredAt(_rootDirectory)
         };
         return RenderDirect(source, request);
     }
@@ -596,7 +614,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             Budget = _budget,
             Resolver = new Scope(this, null, [.. scope.Chain, key], scope.Depth + 1, href, [.. scope.Origin, href]),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
-            CancellationToken = _options.CancellationToken
+            CancellationToken = _options.CancellationToken,
+            FileAccess = _options.FileAccess
         };
         return Draw(scope, source, request);
     }
@@ -611,14 +630,14 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     /// <returns>The picture, or <see langword="null"/> when the link was not drawn.</returns>
     private Surface? ResolveFile(Scope scope, string href, int pixelWidth, int pixelHeight)
     {
-        var sandbox = GetSandbox();
-        if (sandbox is null)
+        var files = GetFiles();
+        if (files is null)
         {
             return Unresolved(scope, href, "the resolver has no folder, so no file can be loaded");
         }
 
-        // Turn the link into a path the sandbox accepts, and pick the source by the extension before touching any file
-        var (path, relativeToCurrent, reason) = ToRelativePath(href);
+        // Turn the link into a path, and pick the source by the extension before touching any file
+        var (path, reason) = ToReferencePath(href);
         if (path is null)
         {
             return Unresolved(scope, href, reason ?? "the reference cannot be resolved");
@@ -637,23 +656,28 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             return Refuse(scope, href, FragmentInvalidCode, fragment.Problem);
         }
 
-        // The depth and count limits need no file, so they are applied before the sandbox opens (reads) it: an image
-        // that is over a limit is never read. Only the cycle check needs the resolved key and has to wait
+        // The depth and count limits need no file, so they are applied before the engine opens (reads) it: an image
+        // that is over a limit is never read. Only the cycle check needs the resolved file and has to wait
         reason = CheckDepthAndCount(scope);
         if (reason is not null)
         {
             return Unresolved(scope, href, reason);
         }
 
-        // The sandbox does every safety check; a refusal is a reason, never a read
-        SandboxedFile? file;
+        // The engine does every safety check and asks the policy; a refusal is a note, never a read. The link is
+        // always resolved relative to the file that contains it, so an absolute link keeps the origin of its chain
+        FileReference? file;
         try
         {
-            file = sandbox.Resolve(path, relativeToCurrent ? scope.Current : null);
+            file = files.Resolve(path, scope.Current);
         }
-        catch (SandboxException ex)
+        catch (FileReferenceException ex) when (ex.Kind is FileReferenceFailureKind.AccessDenied or FileReferenceFailureKind.RealPathUnavailable)
         {
-            return Unresolved(scope, href, DescribeSandboxFailure(ex));
+            return Denied(scope, href, ex);
+        }
+        catch (FileReferenceException ex)
+        {
+            return Unresolved(scope, href, DescribeFailure(ex));
         }
 
         if (file is null)
@@ -661,7 +685,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             return Unresolved(scope, href, "the file was not found");
         }
 
-        // The name of the file the sandbox found must lead to the same source as the text of the link
+        // The name of the file the engine found must lead to the same source as the text of the link
         if (!ReferenceEquals(_sources.FindByExtension(file.Key), source))
         {
             return Unresolved(scope, href, DescribeUnknownFormat());
@@ -673,7 +697,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         }
 
         // The image is counted only now, when every check has passed
-        reason = CheckCycle(scope, file.Key);
+        var identity = Identity(file);
+        reason = CheckCycle(scope, identity);
         if (reason is not null)
         {
             return Unresolved(scope, href, reason);
@@ -691,7 +716,8 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
-            Resolver = new Scope(this, file, [.. scope.Chain, file.Key], scope.Depth + 1, name, [.. scope.Origin, name]),
+            Resolver = new Scope(this, file, [.. scope.Chain, identity], scope.Depth + 1, name, [.. scope.Origin, name]),
+            FileAccess = _options.FileAccess.AnchoredAt(file.Origin!),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -724,17 +750,25 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     ///     once the file is resolved.
     /// </summary>
     /// <param name="scope">The scope that contains the link.</param>
-    /// <param name="key">The identity of the image: the full path of the file, or the scheme-claimed link.</param>
+    /// <param name="key">The identity of the image: the real path of the file (its full path when the real path is unknown), or the scheme-claimed link.</param>
     /// <returns>The reason the image must not be loaded, or <see langword="null"/> when it may be.</returns>
     /// <remarks>
     ///     A file that embeds itself stops at once, and one file embedding another that embeds it stops at the second
-    ///     occurrence.
+    ///     occurrence. The real path makes a file reached again through a link or another spelling the same file.
     /// </remarks>
     private string? CheckCycle(Scope scope, string key)
     {
-        var comparer = GetSandbox()?.KeyComparer ?? StringComparer.Ordinal;
+        var comparer = GetFiles()?.KeyComparer ?? StringComparer.Ordinal;
         return scope.Chain.Contains(key, comparer) ? "the file embeds itself (a cycle)" : null;
     }
+
+    /// <summary>
+    ///     Gets the identity of a file for the cycle check: its real path, or its full path as written when the real
+    ///     path is unknown.
+    /// </summary>
+    /// <param name="file">The file.</param>
+    /// <returns>The identity.</returns>
+    private static string Identity(FileReference file) => file.RealPath ?? file.Key;
 
     /// <summary>
     ///     Clamps the placement size of a link and checks that a picture of that size fits in the pixel budget.
@@ -937,6 +971,36 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     }
 
     /// <summary>
+    ///     Reports a link the file-access policy denied, or could not apply.
+    /// </summary>
+    /// <param name="scope">The scope that contains the link; its origin goes on the note.</param>
+    /// <param name="href">The link as written.</param>
+    /// <param name="ex">The denial.</param>
+    /// <returns>Always <see langword="null"/>: nothing is drawn.</returns>
+    /// <remarks>
+    ///     The message names the link as written, the policy, its reason and its hint (the built-in reasons name no
+    ///     host directory); the host paths go only to <see cref="ImageSourceDiagnostic.Detail"/>.
+    /// </remarks>
+    private Surface? Denied(Scope scope, string href, FileReferenceException ex)
+    {
+        var reason = ex.Kind == FileReferenceFailureKind.RealPathUnavailable
+            ? "the real path of the file cannot be determined on this system, so the policy cannot be applied"
+            : ex.Reason ?? "the file is not allowed";
+        var hint = ex.Kind == FileReferenceFailureKind.RealPathUnavailable
+            ? "use a policy that does not need the real path of a file, such as the default"
+            : ex.Hint;
+        var message = $"image '{href}' was not drawn: access denied by the file-access policy '{ex.PolicyName}': {reason}"
+            + (hint is null ? string.Empty : $". Hint: {hint}");
+        _diagnostics.Add(
+            new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Warning, AccessDeniedCode, message)
+            {
+                Origin = scope.Origin,
+                Detail = $"reference={href}; requested={ex.RequestedPath}; real={ex.RealPath}; policy={ex.PolicyName}"
+            });
+        return null;
+    }
+
+    /// <summary>
     ///     Reports a link that a source or the resolver declined to draw because of the link itself.
     /// </summary>
     /// <param name="scope">The scope that contains the link; its origin goes on the note.</param>
@@ -1031,24 +1095,25 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
     }
 
     /// <summary>
-    ///     Gets the path of a file relative to the folder, with forward slashes.
+    ///     Gets the path of a file relative to the folder, with forward slashes: <c>../x/a.png</c> for a file outside
+    ///     the folder, or its full path on another drive.
     /// </summary>
     /// <param name="file">The file.</param>
     /// <returns>The relative path.</returns>
-    private string RelativeName(SandboxedFile file)
+    private string RelativeName(FileReference file)
     {
         return Path.GetRelativePath(_rootDirectory!, file.Key).Replace('\\', '/');
     }
 
     /// <summary>
-    ///     Reads a stream into memory, up to the largest file the sandbox would read.
+    ///     Reads a stream into memory, up to the largest file a link may name.
     /// </summary>
     /// <param name="stream">The stream.</param>
     /// <returns>The bytes.</returns>
     /// <exception cref="InvalidDataException">Thrown when the stream is longer than the limit.</exception>
     private static byte[] ReadBounded(Stream stream)
     {
-        const long limit = SandboxOptions.DefaultMaxFileBytes;
+        const long limit = FileReferenceOptions.DefaultMaxFileBytes;
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         int read;
@@ -1090,7 +1155,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         /// <param name="depth">How many levels of embedded files are above links of this scope.</param>
         /// <param name="name">The name of the embedding file or link, for failures; <see langword="null"/> at the top level.</param>
         /// <param name="origin">The names of the files that embed links of this scope, outermost first; empty at the top level.</param>
-        public Scope(FolderImageResolver owner, SandboxedFile? current, IReadOnlyList<string> chain, int depth, string? name, IReadOnlyList<string> origin)
+        public Scope(FolderImageResolver owner, FileReference? current, IReadOnlyList<string> chain, int depth, string? name, IReadOnlyList<string> origin)
         {
             _owner = owner;
             Current = current;
@@ -1103,7 +1168,7 @@ public sealed partial class FolderImageResolver : IImageNaturalSizeResolver
         /// <summary>
         ///     Gets the file whose folder relative links resolve against, or <see langword="null"/> for the root folder.
         /// </summary>
-        public SandboxedFile? Current { get; }
+        public FileReference? Current { get; }
 
         /// <summary>
         ///     Gets the identities of the files from the top level down to this one, for the cycle check.

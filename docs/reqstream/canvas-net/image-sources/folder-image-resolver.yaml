@@ -27,8 +27,13 @@ sections:
                   A link comes from an untrusted document; no spelling of a path may read a file outside the folder.
                 tests:
                   - FolderImageResolver_Resolve_RelativeFile_PassesCompleteRequestToSource
-                  - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
-                  - FolderImageResolver_Resolve_SymbolicLink_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
+                  - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
+                  - FolderImageResolver_Resolve_SymbolicLink_NoSymlinks_IsAccessDeniedWarning
+                  - FolderImageResolver_Resolve_DirectoryLink_NoSymlinks_IsAccessDeniedWarning
+                  - FolderImageResolver_Resolve_SymbolicLink_Default_FollowsTheLink
+                  - FolderImageResolver_Resolve_SymbolicLink_UnderRoots_LinkLeavingTheRootsIsDenied
                   - FolderImageResolver_Resolve_MissingAndUnknownFiles_AreWarnings
 
               - id: CanvasNet-ImageSources-FolderImageResolver-FileUri
@@ -64,9 +69,10 @@ sections:
                   - FolderImageResolver_Resolve_EncodedHash_IsLiteralCharacterOfTheFileName
                   - FolderImageResolver_Resolve_EncodedQuestionMark_IsLiteralCharacterNotAQuery
                   - FolderImageResolver_Resolve_FileUriWithQueryAndFragment_NamesTheFile
-                  - FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_IsStillUnresolved
+                  - FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_UnderRoots_IsStillDenied
                   - FolderImageResolver_Resolve_OnlyQueryOrFragment_IsUnresolved
-                  - FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved
+                  - FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_UnderRoots_IsStillNotDrawn
+                  - FolderImageResolver_Resolve_ParentReferenceWithQueryOrFragment_Default_NamesTheFile
                   - FolderImageResolver_Resolve_SchemeLinkWithQueryAndFragment_IsPassedAsIs
                   - FolderImageResolver_Resolve_UnclaimedSchemeWithQuery_IsUnresolved
                   - FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile
@@ -317,7 +323,9 @@ sections:
                   drawn.
                 tests:
                   - FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded
-                  - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
+                  - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
                   - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
 
               - id: CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin

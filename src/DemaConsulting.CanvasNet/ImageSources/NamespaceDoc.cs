@@ -8,8 +8,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 /// <remarks>
 ///     <para>
 ///         <see cref="IImageResolver"/> is the one-method contract a document renderer calls to turn a link into a
-///         <see cref="Canvas.Surface"/>. <see cref="FolderImageResolver"/> is the ready-made implementation: it confines
-///         the link to a folder (through <see cref="Files.SandboxedFileResolver"/>), enforces depth, cycle and count
+///         <see cref="Canvas.Surface"/>. <see cref="FolderImageResolver"/> is the ready-made implementation: it resolves
+///         the link relative to a folder (through <see cref="Files.FileReferenceResolver"/>, under a
+///         <see cref="Files.FileAccessPolicy"/> that allows every regular local file by default), enforces depth, cycle and count
 ///         limits, and hands the file to the <see cref="IImageSource"/> that claims its file name extension (or the link
 ///         itself to the one that claims its URI scheme).
 ///     </para>

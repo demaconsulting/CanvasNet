@@ -1,4 +1,5 @@
 // cspell:ignore href hrefs fsecret
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.Tests.ImageSources;
@@ -6,7 +7,8 @@ namespace DemaConsulting.CanvasNet.Tests.ImageSources;
 /// <summary>
 ///     Unit tests for how <see cref="FolderImageResolver"/> reads a link as a URI reference: a query and a fragment are
 ///     cut off before percent-decoding, an encoded <c>#</c> or <c>?</c> stays a character of the file name, a link of a
-///     claimed scheme is not interpreted, and the folder sandbox still refuses everything it refused before.
+///     claimed scheme is not interpreted, and a policy that confines links still refuses everything the former folder
+///     sandbox refused.
 /// </summary>
 public class FolderImageResolverHrefTests
 {
@@ -149,28 +151,29 @@ public class FolderImageResolverHrefTests
     }
 
     /// <summary>
-    ///     Test that a <c>file:</c> URI outside the folder is refused whatever query or fragment follows it.
+    ///     Test that, under a policy confined to the folder, a <c>file:</c> URI outside the folder is denied whatever query
+    ///     or fragment follows it.
     /// </summary>
     [Fact]
-    public void FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_IsStillUnresolved()
+    public void FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_UnderRoots_IsStillDenied()
     {
         // Arrange
         using var folder = new ImageTestFolder();
         folder.WriteText("outside.stub", "x");
-        Directory.CreateDirectory(folder.Combine("site"));
+        var site = Directory.CreateDirectory(folder.Combine("site")).FullName;
         var outside = new Uri(folder.Combine("outside.stub")).AbsoluteUri;
         var stub = new StubImageSource("stub", [Ext]);
-        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+        var resolver = new FolderImageResolver(site, [stub], new FolderImageResolverOptions { FileAccess = FileAccessPolicy.UnderRoots(site) });
 
         // Act
         var plain = resolver.Resolve(outside + "?v=1#x", 10, 10);
-        var traversal = resolver.Resolve(new Uri(folder.Combine("site")).AbsoluteUri + "/../outside.stub?v=1", 10, 10);
+        var traversal = resolver.Resolve(new Uri(site).AbsoluteUri + "/../outside.stub?v=1", 10, 10);
 
         // Assert
         Assert.Null(plain);
         Assert.Null(traversal);
         Assert.Empty(stub.Requests);
-        Assert.Equal(2, resolver.Diagnostics.Count(d => d.Code == FolderImageResolver.UnresolvedCode));
+        Assert.Equal(2, resolver.Diagnostics.Count(d => d.Code == FolderImageResolver.AccessDeniedCode));
     }
 
     /// <summary>
@@ -203,8 +206,9 @@ public class FolderImageResolverHrefTests
     }
 
     /// <summary>
-    ///     Test that stripping the query and fragment opens no way out of the folder: an escaping path stays refused
-    ///     with any suffix, a suffix cannot hide a segment, and the source is never called.
+    ///     Test that, under a policy confined to the folder, stripping the query and fragment opens no way out of it: an
+    ///     escaping path stays refused with any suffix (denied by the policy, or unresolved where the text itself is
+    ///     never allowed), a suffix cannot hide a segment, and the source is never called.
     /// </summary>
     /// <param name="href">The link.</param>
     [Theory]
@@ -226,14 +230,14 @@ public class FolderImageResolverHrefTests
     [InlineData("a.stub::$DATA#x")]
     [InlineData("../secret.stub%3Fa.stub")]
     [InlineData("..%2f%23.stub")]
-    public void FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved(string href)
+    public void FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_UnderRoots_IsStillNotDrawn(string href)
     {
         // Arrange: a valid file one folder above the folder of the resolver, and files below it
         using var folder = new ImageTestFolder();
-        Directory.CreateDirectory(folder.Combine("site", "sub"));
+        var site = Directory.CreateDirectory(folder.Combine("site", "sub")).Parent!.FullName;
         folder.WriteText("secret.stub", "secret");
         var stub = new StubImageSource("stub", [Ext]);
-        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+        var resolver = new FolderImageResolver(site, [stub], new FolderImageResolverOptions { FileAccess = FileAccessPolicy.UnderRoots(site) });
 
         // Act
         var surface = resolver.Resolve(href, 10, 10);
@@ -242,8 +246,37 @@ public class FolderImageResolverHrefTests
         Assert.Null(surface);
         Assert.Empty(stub.Requests);
         var note = Assert.Single(resolver.Diagnostics);
-        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        Assert.Contains(note.Code, new[] { FolderImageResolver.UnresolvedCode, FolderImageResolver.AccessDeniedCode });
+        Assert.Equal(ImageDiagnosticSeverity.Warning, note.Severity);
         Assert.Contains($"'{href}'", note.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Test that, under the default policy, a link to the parent folder with a query or a fragment names the file
+    ///     before them and is drawn.
+    /// </summary>
+    /// <param name="href">The link.</param>
+    [Theory]
+    [InlineData("../secret.stub?x=1")]
+    [InlineData("../secret.stub#frag")]
+    [InlineData("..%2fsecret.stub?x")]
+    [InlineData("%2e%2e%2fsecret.stub?x#y")]
+    public void FolderImageResolver_Resolve_ParentReferenceWithQueryOrFragment_Default_NamesTheFile(string href)
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        Directory.CreateDirectory(folder.Combine("site"));
+        folder.WriteText("secret.stub", "secret");
+        var stub = new StubImageSource("stub", [Ext]);
+        var resolver = new FolderImageResolver(folder.Combine("site"), [stub]);
+
+        // Act
+        using var surface = resolver.Resolve(href, 10, 10);
+
+        // Assert: the only notes are about fragment parameters the stub does not declare
+        Assert.NotNull(surface);
+        Assert.All(resolver.Diagnostics, d => Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, d.Code));
+        Assert.Equal("../secret.stub", Assert.Single(stub.Requests).FileName);
     }
 
     /// <summary>

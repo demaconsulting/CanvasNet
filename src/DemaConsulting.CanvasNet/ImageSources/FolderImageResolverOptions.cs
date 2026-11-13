@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.ImageSources;
 
@@ -12,6 +13,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 /// </remarks>
 public sealed record FolderImageResolverOptions
 {
+    /// <summary>The value of <see cref="FileAccess"/>.</summary>
+    private readonly FileAccessPolicy _fileAccess = FileAccessPolicy.AllowAll;
+
     /// <summary>
     ///     Gets the deepest nesting of files embedding files that is followed: a file that is already this many levels
     ///     deep cannot embed another one (the link is reported as unresolved). The default is 4. Must not be negative.
@@ -24,7 +28,8 @@ public sealed record FolderImageResolverOptions
     /// </summary>
     /// <remarks>
     ///     A nested document has budgets of its own in the library that draws it, so without this limit a tree of
-    ///     documents could multiply the work. It is also the limit of distinct files the sandbox reads for the resolver.
+    ///     documents could multiply the work. It is also the limit of distinct files the resolver reads (plus one for
+    ///     the top-level file of a render by path).
     /// </remarks>
     public int MaxImages { get; init; } = 64;
 
@@ -64,4 +69,26 @@ public sealed record FolderImageResolverOptions
     ///     The default is <see cref="CancellationToken.None"/>.
     /// </summary>
     public CancellationToken CancellationToken { get; init; }
+
+    /// <summary>
+    ///     Gets the policy that decides which files a link may read. The default is <see cref="FileAccessPolicy.AllowAll"/>:
+    ///     like Pandoc, a link may name any regular local file, including one reached through <c>..</c>, an absolute
+    ///     path, a local <c>file:</c> URI or a symbolic link. Must not be null.
+    /// </summary>
+    /// <remarks>
+    ///     The policy judges every file a link names (the top-level file of
+    ///     <see cref="FolderImageResolver.Render(string, int?, int?)"/> is not judged: the caller chose it), and it is
+    ///     passed to every source in <see cref="ImageSourceRequest.FileAccess"/>, so the files a linked model or chart
+    ///     reads itself are judged by it as well. A denied link is a warning with the code
+    ///     <see cref="FolderImageResolver.AccessDeniedCode"/> and nothing is drawn. To confine links to the folder and
+    ///     refuse links through symbolic links, as the folder sandbox of earlier versions did, use
+    ///     <c>FileAccessPolicy.Combine(FileAccessPolicy.UnderRoots(folder), FileAccessPolicy.NoSymlinks)</c>. Network
+    ///     paths (UNC and <c>file://host</c>) are refused under every policy, and every limit applies whatever the policy.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when the value is null.</exception>
+    public FileAccessPolicy FileAccess
+    {
+        get => _fileAccess;
+        init => _fileAccess = value ?? throw new ArgumentNullException(nameof(FileAccess));
+    }
 }

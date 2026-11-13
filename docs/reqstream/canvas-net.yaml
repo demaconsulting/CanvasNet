@@ -1390,7 +1390,9 @@ sections:
           - CanvasNet-ImageSources-Reporting
           - CanvasNet-ImageSources-Fragments
         tests:
-          - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
+          - FolderImageResolver_Resolve_NeverAllowedReference_IsUnresolvedWarning
+          - FolderImageResolver_Resolve_EscapingReference_UnderRoots_IsAccessDeniedWarning
+          - FolderImageResolver_Resolve_EscapingReference_Default_IsDrawn
           - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
           - FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException
 

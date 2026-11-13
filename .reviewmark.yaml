@@ -1017,6 +1017,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverFragmentTests.cs"  # unit tests (fragment)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverNaturalSizeTests.cs"  # unit tests (kind)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverFileAccessTests.cs"  # unit tests (policy)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageFragmentPrefixTests.cs"  # unit tests (prefixes)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/PngHeaderFixtures.cs"  # test support (header-only PNG)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
