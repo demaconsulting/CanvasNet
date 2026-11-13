@@ -27,7 +27,7 @@ so the folder of a document is the base of its relative references, not a bounda
 race-free behavior for one release, and is used by no part of the library any longer.
 
 Whatever the model or policy, the subsystem refuses network paths (UNC and `//host`), device paths (on Windows also a
-reference the system maps to a device, such as a legacy device name like `NUL` in a component), alternate data
+path with a reserved device name such as `NUL`, `CON`, `COM1` or `NUL.txt` in any component), alternate data
 streams, control characters, and anything that is not a regular file (a directory, a device, a named pipe, opened
 without blocking on Linux and macOS), and it keeps every resource limit: the byte limit of one file
 (`MaxFileBytes`, 16 MiB by default) and an optional limit on the number of distinct files one resolver opens

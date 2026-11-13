@@ -53,25 +53,88 @@ public class FileReferenceResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates that a root renamed and replaced by a link to an outside folder after the pre-check and before the
+    ///     open is denied under each restrictive policy: the real location of the trusted folder was captured before
+    ///     (when the roots policy was created, and before the open for the no-symlinks policy) and is never resolved by
+    ///     name again, so the outside file the open reached does not match it.
+    /// </summary>
+    /// <param name="noSymlinks">Whether to use the no-symlinks policy (otherwise the roots policy).</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FileReferenceResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsAccessDenied(bool noSymlinks)
+    {
+        // Arrange: the root exists when the policy and the resolver are created; just before the open it is renamed
+        // away and an outside folder takes its name through a link
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        directory.Write("outside/a.txt", "outside");
+        var root = Path.GetFullPath(directory.Combine("root"));
+        var policy = noSymlinks ? FileAccessPolicy.NoSymlinks : FileAccessPolicy.UnderRoots(root);
+        var hooks = new FileOpenHooks
+        {
+            BeforeOpen = _ =>
+            {
+                Directory.Move(root, directory.Combine("root-old"));
+                FileTestSupport.CreateDirectoryLinkOrSkip(root, directory.Combine("outside"));
+            },
+        };
+        var resolver = new FileReferenceResolver(new FileReferenceOptions { BaseDirectory = root, FileAccess = policy }, Ct, hooks);
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+
+        // Assert: the open reached the outside file, and the check refused it
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Equal(noSymlinks ? "no-symlinks" : "roots", ex.PolicyName);
+        Assert.True(RealPath.PathsEqual(Path.Join(FileTestSupport.Canonical(directory.Combine("outside")), "a.txt"), ex.RealPath!));
+    }
+
+    /// <summary>
+    ///     Validates that the no-symlinks policy fails closed when the real location of the folder a reference starts
+    ///     from could not be captured before the open.
+    /// </summary>
+    [Fact]
+    public void FileReferenceResolver_Resolve_AnchorLocationNotCaptured_IsAccessDeniedUnderNoSymlinks()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var resolver = new FileReferenceResolver(
+            new FileReferenceOptions { BaseDirectory = directory.Combine("root"), FileAccess = FileAccessPolicy.NoSymlinks },
+            Ct,
+            new FileOpenHooks { DirectoryLocationOf = _ => null });
+
+        // Act
+        var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Equal("the real path of the folder the reference starts from cannot be determined", ex.Reason);
+    }
+
+    /// <summary>
     ///     Validates under the roots policy that when a link to an outside folder is replaced by a real inside folder
     ///     after the open, the file is still denied: the handle refers to the outside file.
     /// </summary>
     [Fact]
     public void FileReferenceResolver_Resolve_OutsideLinkReplacedByInsideFolderAfterOpen_IsAccessDeniedUnderUnderRoots()
     {
-        // Arrange
+        // Arrange: the tree exists before the policy is created, so the policy captures the root's real location
         using var directory = new SandboxTempDirectory();
         var root = directory.Combine("root");
+        var hooks = SwapLinkForBenignFolder(directory);
         var resolver = new FileReferenceResolver(
             new FileReferenceOptions { BaseDirectory = root, FileAccess = FileAccessPolicy.UnderRoots(root) },
             Ct,
-            SwapLinkForBenignFolder(directory));
+            hooks);
 
         // Act
         var ex = Assert.Throws<FileReferenceException>(() => resolver.Resolve("sub/a.txt"));
 
         // Assert: denied on the real path of the handle, which is the outside file
         Assert.Equal(FileReferenceFailureKind.AccessDenied, ex.Kind);
+        Assert.Equal("its real path is outside the allowed roots", ex.Reason);
         Assert.True(RealPath.PathsEqual(Path.Join(FileTestSupport.Canonical(directory.Combine("outside")), "a.txt"), ex.RealPath!));
         Assert.Equal("benign", File.ReadAllText(directory.Combine("root/sub/a.txt")));
     }

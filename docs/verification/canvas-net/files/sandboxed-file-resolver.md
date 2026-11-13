@@ -98,13 +98,21 @@ alone makes
 ##### CanvasNet-Files-SandboxedFileResolver-PathText: Hostile Path Text Is Refused Before Any Access
 
 **Tests**: `SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess`,
-`SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException`
+`SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException`,
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess` (Windows),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_DeviceNamespaceRoot_IsRefusedBeforeAnyAccess` (Windows),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_OrdinaryExtendedLengthRoot_ReadsTheFile` (Windows)
 
 Asserts, as a theory over an empty path, white space, a Unix absolute path, a rooted backslash path, UNC paths in both slash
 styles, a drive path, a drive-relative path, a colon inside a name, NUL, a line feed, DEL, and two C1 control characters,
 that each is refused with the matching kind, a reason in `Detail`, a path with no control character left in it, and a
 message that says the path is not allowed, and that the callback received no request. A null path is an
-`ArgumentNullException`.
+`ArgumentNullException`. On Windows a theory over reserved device names in a component (`x/NUL`, `x/con.txt`, `x/COM1`,
+`x/LPT¹`, `NUL/a.txt`, `x/CONOUT$`) asserts `CannotRead` and, through the `BeforeOpen` seam, that nothing was opened.
+A root in another device namespace (`\\?\GLOBALROOT\Device\HarddiskVolume1\docs`, `\\?\pipe\docs`, `\\.\C:\docs`)
+refuses a relative path as `CannotRead` with no link probe and no open; a root spelled as an ordinary extended-length
+path, on the drive (`\\?\C:\...`) or the volume GUID from `mountvol`, still reads its file, and `NUL.txt` under it is
+an ordinary (missing) file.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Confinement: Candidates Stay Inside Their Root
 
@@ -172,22 +180,29 @@ next scenario).
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RealPathUnavailable_FailsClosedAsLinkCheckFailed`,
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_NonRegularFile_IsCannotRead` (Windows, Linux, macOS),
 `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_UnknownFileType_FailsClosedAsCannotRead`,
-`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed`
-(Linux, macOS), `SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux,
-macOS)
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink`
+(Windows, Linux, macOS),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink` (Linux,
+macOS),
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed`,
+`SandboxedFileResolverRaceTests.SandboxedFileResolver_Resolve_ExecuteOnlyRoot_ReadsTheFile` (Linux, macOS)
 
 The post-open verification is proven through the `FileOpenHooks` seams of the internal constructor, with no timing:
 inside `BeforeOpen` (after the link walk passed, before any handle exists, so Windows allows the rename) the folder of
 the file is renamed and replaced by a junction or symbolic link to an outside folder that holds unreadable bytes, and
-the resolve is `ThroughLink` naming the file below the root, with no host directory in the message. An outside real
+the resolve is `ThroughLink` naming the file below the root, with no host directory in the message. The same swap of
+the root itself (the root rename-and-replace race) is `ThroughLink` too, because the root's real location was captured
+before the walk and is not resolved by name again. An outside real
 path injected through `RealPathOf` is `ThroughLink`; no real path is `LinkCheckFailed` (fail closed). A handle that is
 not a regular file is `CannotRead`: a named pipe created with `mkfifo` on Linux and macOS (which also proves the open
 does not block), and on Windows the null device handed in through the `Open` seam. A handle whose type the platform
 cannot tell (reported through the `IsRegularFileOf` seam) is `CannotRead` as well (fail closed). On Linux and macOS,
-the root renamed away inside `AfterOpen` (allowed there while the file is open) leaves the root without a real location,
-which is `LinkCheckFailed`, not `ThroughLink`; Windows does not allow renaming the folder of an open file, so the
-scenario does not exist there. A root made execute-only (mode 0100) still serves its file, because its real location
-needs no read permission; the test restores the mode afterwards and skips when permissions are not enforced (root).
+the root renamed away inside `AfterOpen` (allowed there while the file is open) is `ThroughLink`: the real path of the
+handle is no longer below the captured root location; Windows does not allow renaming the folder of an open file, so
+the scenario does not exist there. A root whose real location could not be captured (the `DirectoryLocationOf` seam
+reports none) is `LinkCheckFailed`, not `ThroughLink`. A root made execute-only (mode 0100) still serves its file,
+because its real location needs no read permission; the test restores the mode afterwards and skips when permissions
+are not enforced (root).
 
 ##### CanvasNet-Files-SandboxedFileResolver-ResolverCallback: Callback Mode
 

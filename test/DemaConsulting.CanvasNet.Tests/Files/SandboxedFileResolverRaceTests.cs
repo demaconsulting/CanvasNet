@@ -115,6 +115,117 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
+    ///     Validates on Windows that a path with a reserved device name in any component is refused before the link
+    ///     walk and the open, so no device is touched.
+    /// </summary>
+    /// <param name="path">The path.</param>
+    [Theory]
+    [InlineData("x/NUL")]
+    [InlineData("x/con.txt")]
+    [InlineData("x/COM1")]
+    [InlineData("x/LPT\u00B9")]
+    [InlineData("NUL/a.txt")]
+    [InlineData("x/CONOUT$")]
+    public void SandboxedFileResolver_Resolve_ReservedDeviceName_IsRefusedBeforeAnyAccess(string path)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root"));
+        var opened = new List<string>();
+        var resolver = Create(directory.Combine("root"), new FileOpenHooks { BeforeOpen = opened.Add });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve(path));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+        Assert.Empty(opened);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a root in a device namespace other than an ordinary extended-length drive or volume
+    ///     root gives no exemption: a relative path under it is refused before the link walk and the open.
+    /// </summary>
+    /// <param name="root">The root.</param>
+    [Theory]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs")]
+    [InlineData(@"\\?\pipe\docs")]
+    [InlineData(@"\\.\C:\docs")]
+    public void SandboxedFileResolver_Resolve_DeviceNamespaceRoot_IsRefusedBeforeAnyAccess(string root)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        var opened = new List<string>();
+        var probed = new List<string>();
+        var resolver = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = root },
+            Ct,
+            path =>
+            {
+                probed.Add(path);
+                return false;
+            },
+            null,
+            new FileOpenHooks { BeforeOpen = opened.Add });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+        Assert.Empty(probed);
+        Assert.Empty(opened);
+    }
+
+    /// <summary>
+    ///     Validates on Windows that a root given as an ordinary extended-length path, on a drive (<c>\\?\C:\...</c>) or
+    ///     a volume GUID (<c>\\?\Volume{GUID}\...</c>), keeps working: a file under it is read, and a reserved device
+    ///     name under it is an ordinary (here missing) file. The volume case skips when the volume GUID path of the
+    ///     temporary folder's drive cannot be determined.
+    /// </summary>
+    /// <param name="useVolume">Whether to spell the root with the volume GUID (otherwise with the drive).</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SandboxedFileResolver_Resolve_OrdinaryExtendedLengthRoot_ReadsTheFile(bool useVolume)
+    {
+        // Arrange
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip(FileTestSupport.WindowsOnly);
+        }
+
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var full = Path.GetFullPath(directory.Combine("root"));
+        var volume = useVolume ? FileTestSupport.TryGetVolumeGuidPath(full) : @"\\?\" + Path.GetPathRoot(full);
+        if (volume is null)
+        {
+            Assert.Skip("The volume GUID path of the temporary folder's drive cannot be determined.");
+        }
+
+        var resolver = Create(volume + full[Path.GetPathRoot(full)!.Length..], new FileOpenHooks());
+
+        // Act
+        var file = resolver.Resolve("a.txt");
+        var reserved = resolver.Resolve("NUL.txt");
+
+        // Assert
+        Assert.NotNull(file);
+        Assert.Equal("inside", Encoding.UTF8.GetString(file.Content.Span));
+        Assert.Null(reserved);
+    }
+
+    /// <summary>
     ///     Validates on Linux and macOS that a root the process may search but not read (execute-only) still serves its
     ///     files: the real location of the root needs no read permission. Skips when permissions are not enforced.
     /// </summary>
@@ -153,12 +264,43 @@ public class SandboxedFileResolverRaceTests
     }
 
     /// <summary>
-    ///     Validates on Linux and macOS that the file is refused as a failed check (fail closed), not as a link, when the
-    ///     real location of its root cannot be determined: the root is renamed away while the file is open. Windows does
-    ///     not allow renaming the folder of an open file.
+    ///     Validates that a root renamed and replaced by a link to an outside folder after the link walk and before the
+    ///     open is refused as a link: the real location of the root was captured before the walk and is never resolved
+    ///     by name again, so the outside file the open reached does not match it, and nothing is read from it.
     /// </summary>
     [Fact]
-    public void SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed()
+    public void SandboxedFileResolver_Resolve_RootReplacedByOutsideLinkBeforeTheOpen_IsRejectedAsThroughLink()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        directory.Write("outside/a.txt", Unreadable);
+        var root = Path.GetFullPath(directory.Combine("root"));
+        var hooks = new FileOpenHooks
+        {
+            BeforeOpen = _ =>
+            {
+                Directory.Move(root, directory.Combine("root-old"));
+                FileTestSupport.CreateDirectoryLinkOrSkip(root, directory.Combine("outside"));
+            },
+        };
+        var resolver = Create(root, hooks);
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("a.txt", ex.Detail);
+    }
+
+    /// <summary>
+    ///     Validates on Linux and macOS that the file is refused as a link when its root is renamed away while the file
+    ///     is open: the real path of the handle no longer lies below the real location captured before the open.
+    ///     Windows does not allow renaming the folder of an open file.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RootRenamedAfterTheOpen_IsRejectedAsThroughLink()
     {
         // Arrange
         if (OperatingSystem.IsWindows())
@@ -171,6 +313,26 @@ public class SandboxedFileResolverRaceTests
         var resolver = Create(
             directory.Combine("root"),
             new FileOpenHooks { AfterOpen = _ => Directory.Move(directory.Combine("root"), directory.Combine("moved")) });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the file is refused as a failed check (fail closed), not as a link, when the real location of
+    ///     its root could not be captured before the open.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RootRealLocationUnavailable_FailsClosedAsLinkCheckFailed()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "inside");
+        var resolver = Create(directory.Combine("root"), new FileOpenHooks { DirectoryLocationOf = _ => null });
 
         // Act
         var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));

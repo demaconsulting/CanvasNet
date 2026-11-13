@@ -50,4 +50,24 @@ public sealed record FileAccessRequest
     ///     links, junctions, mapped and substituted drives, and short (8.3) names resolved.
     /// </summary>
     public required string RealPath { get; init; }
+
+    /// <summary>
+    ///     Gets the facts about the trusted folders and the written path that the resolver captured <b>before</b> the
+    ///     open, or <see langword="null"/> when the request was built by other code (a direct call of
+    ///     <see cref="FileAccessPolicy.Check"/>). A built-in policy uses only these facts after the open, never resolving
+    ///     a folder by name again, so a folder renamed and replaced by a link after the capture cannot change its answer.
+    /// </summary>
+    internal PreOpenSnapshot? Snapshot { get; init; }
 }
+
+/// <summary>
+///     The facts a resolver captures before it opens a file, for the check after the open.
+/// </summary>
+/// <param name="LongRequestedPath">
+///     The requested path with short (8.3) names expanded (Windows), or the requested path itself.
+/// </param>
+/// <param name="AnchorLocations">
+///     The real location of each trusted folder a policy asked for (<see cref="FileAccessPolicy.AnchorsOf"/>), keyed
+///     by the folder as written; <see langword="null"/> where it could not be determined.
+/// </param>
+internal sealed record PreOpenSnapshot(string LongRequestedPath, IReadOnlyDictionary<string, string?> AnchorLocations);

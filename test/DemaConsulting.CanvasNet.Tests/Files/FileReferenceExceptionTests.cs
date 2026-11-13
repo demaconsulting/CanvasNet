@@ -60,6 +60,22 @@ public class FileReferenceExceptionTests
     }
 
     /// <summary>
+    ///     Validates that a reference with control characters, passed straight to the public constructor, is stored and
+    ///     shown with each control character replaced by <c>?</c>.
+    /// </summary>
+    [Fact]
+    public void FileReferenceException_Constructor_ControlCharacters_AreReplacedInReferenceAndMessage()
+    {
+        // Act
+        var ex = new FileReferenceException(FileReferenceFailureKind.CannotRead, "a\0b\n");
+
+        // Assert
+        Assert.Equal("a?b?", ex.Reference);
+        Assert.Contains("'a?b?'", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(ex.Message, char.IsControl);
+    }
+
+    /// <summary>
     ///     Gets every failure kind.
     /// </summary>
     /// <returns>The kinds.</returns>

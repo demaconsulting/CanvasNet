@@ -75,8 +75,9 @@ before the open: the file is `ThroughLink`. The scenario runs on Windows, Linux,
 **Test**: `Files_AlwaysRefused_NetworkDeviceAndNonRegularReferences_AreRefusedUnderAllowAll`
 
 A UNC path and a `//host` path are `NetworkPath`, a `\\.\` device path and an alternate data stream are `InvalidPath`,
-a directory is `NotARegularFile`, and on Linux and macOS `/dev/zero` is `NotARegularFile`. On Windows, `folder/NUL` (a
-legacy device name) is `InvalidPath`, and a real local file whose real path is reported (through the `RealPathOf` seam)
+a directory is `NotARegularFile`, and on Linux and macOS `/dev/zero` is `NotARegularFile`. On Windows, the reserved
+device names `folder/NUL`, `folder/con.txt`, `folder/COM1` and `NUL/a.txt` are `InvalidPath` with nothing opened
+(recorded through the `BeforeOpen` seam), and a real local file whose real path is reported (through the `RealPathOf` seam)
 as a network share is `NetworkPath` under the default policy.
 
 #### The Reference Resolver Uses Only Its Callback

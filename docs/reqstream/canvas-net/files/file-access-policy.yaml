@@ -30,15 +30,20 @@ sections:
                   the path as written and the real path lie inside one of the given folders (the folder itself
                   included, a sibling that merely shares a name prefix excluded, compared under the platform's case
                   rule and in each folder's written and real spelling), that refuses a path as written outside every
-                  folder before the file is opened, that explains a denial with a reason and a hint, and that rejects
-                  a missing, empty or invalid folder when it is created.
+                  folder before the file is opened, that compares the real path only with each folder's real location
+                  captured when the policy is created (a folder that does not exist then allows no file), that explains
+                  a denial with a reason and a hint, and that rejects a missing, empty or invalid folder, and on Windows
+                  a folder in a device namespace other than an ordinary extended-length drive or volume path, when it is
+                  created.
                 justification: |
                   A build server or service confines documents to chosen folders; a link that stays inside is fine,
-                  one that leads out is not, and a path outside the folders is never even opened.
+                  one that leads out is not, and a path outside the folders is never even opened. Looking a folder up
+                  again later would let a folder renamed and replaced by a link widen the policy.
                 tests:
                   - FileAccessPolicy_UnderRoots_RealPathInsideOrEqualToARoot_IsAllowed
                   - FileAccessPolicy_UnderRoots_SiblingWithSharedPrefix_IsDenied
                   - FileAccessPolicy_UnderRoots_RealPathOutsideEveryRoot_IsDeniedWithReasonAndHint
+                  - FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing
                   - FileAccessPolicy_UnderRoots_WrittenPathOutsideEveryRoot_IsDeniedByThePreCheck
                   - FileAccessPolicy_UnderRoots_InvalidRoots_Throw
                   - FileAccessPolicy_UnderRoots_PlatformCaseRule_IsApplied

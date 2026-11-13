@@ -79,6 +79,12 @@ public sealed partial class FileReferenceResolver
     private readonly HashSet<string> _counted;
 
     /// <summary>
+    ///     The real location of each trusted folder a policy compares against, captured the first time it is needed and
+    ///     before any file below it is opened; <see langword="null"/> where it could not be determined.
+    /// </summary>
+    private readonly Dictionary<string, string?> _folderLocations = new(RealPath.PathComparer);
+
+    /// <summary>
     ///     Initializes a resolver for one operation.
     /// </summary>
     /// <param name="options">Where files may be found, which may be read, and how large and how many. Must not be null.</param>
@@ -370,7 +376,7 @@ public sealed partial class FileReferenceResolver
                 }
                 else if (_policy.RequiresRealPath)
                 {
-                    CheckPolicy(candidate, shown, relativeTo, cachedFile.RealPath!);
+                    CheckPolicy(candidate, shown, relativeTo, cachedFile.RealPath!, CaptureBeforeOpen(candidate));
                 }
             }
 
@@ -422,7 +428,7 @@ public sealed partial class FileReferenceResolver
             };
         }
 
-        CheckPolicy(candidate, shown, relativeTo, file.RealPath);
+        CheckPolicy(candidate, shown, relativeTo, file.RealPath, CaptureBeforeOpen(candidate));
     }
 
     /// <summary>
@@ -436,6 +442,9 @@ public sealed partial class FileReferenceResolver
     /// <exception cref="FileReferenceException">Thrown when the policy denies the file (not remembered: it is asked again next time).</exception>
     private Outcome? OpenCheckAndRead(Candidate candidate, string shown, FileReference? relativeTo, bool exempt)
     {
+        // The trusted folders the policy compares against are captured before the open; after the open nothing is
+        // resolved by name, so a folder renamed and replaced by a link in between cannot change the decision
+        var snapshot = CaptureBeforeOpen(candidate);
         var key = candidate.Key;
         _hooks?.BeforeOpen?.Invoke(key);
         SafeFileHandle handle;
@@ -497,12 +506,43 @@ public sealed partial class FileReferenceResolver
                     return Outcome.Failed(FileReferenceFailureKind.RealPathUnavailable, null, null);
                 }
 
-                CheckPolicy(candidate, shown, relativeTo, realPath);
+                CheckPolicy(candidate, shown, relativeTo, realPath, snapshot);
             }
 
             var outcome = Read(handle, candidate, realPath);
             return exempt && outcome.File is not null ? outcome with { Exempt = true } : outcome;
         }
+    }
+
+    /// <summary>
+    ///     Captures, before a file is opened, what a restrictive policy compares the opened file against: the real
+    ///     location of each trusted folder it names (captured once per resolver, on first use) and the long spelling of
+    ///     the written path.
+    /// </summary>
+    /// <param name="candidate">The candidate about to be opened.</param>
+    /// <returns>The snapshot, or <see langword="null"/> for a policy that needs no real path.</returns>
+    private PreOpenSnapshot? CaptureBeforeOpen(Candidate candidate)
+    {
+        if (!_policy.RequiresRealPath)
+        {
+            return null;
+        }
+
+        var anchors = new Dictionary<string, string?>(RealPath.PathComparer);
+        foreach (var anchor in _policy.AnchorsOf(candidate.Key, candidate.Origin))
+        {
+            if (!_folderLocations.TryGetValue(anchor, out var location))
+            {
+                location = _hooks?.DirectoryLocationOf is { } locationOf
+                    ? locationOf(anchor)
+                    : RealPath.TryGetCanonicalDirectory(anchor);
+                _folderLocations[anchor] = location;
+            }
+
+            anchors[anchor] = location;
+        }
+
+        return new PreOpenSnapshot(FileAccessPolicy.LongSpelling(candidate.Key), anchors);
     }
 
     /// <summary>
@@ -541,8 +581,9 @@ public sealed partial class FileReferenceResolver
     /// <param name="shown">The reference as shown in messages.</param>
     /// <param name="relativeTo">The referring file, or <see langword="null"/>.</param>
     /// <param name="realPath">The real path of the opened file.</param>
+    /// <param name="snapshot">What was captured before the open, or <see langword="null"/>.</param>
     /// <exception cref="FileReferenceException">Thrown when the policy denies the file, fails, or answers nothing.</exception>
-    private void CheckPolicy(Candidate candidate, string shown, FileReference? relativeTo, string realPath)
+    private void CheckPolicy(Candidate candidate, string shown, FileReference? relativeTo, string realPath, PreOpenSnapshot? snapshot)
     {
         var request = new FileAccessRequest
         {
@@ -551,6 +592,7 @@ public sealed partial class FileReferenceResolver
             BaseDirectory = candidate.Origin,
             RequestedPath = candidate.Key,
             RealPath = realPath,
+            Snapshot = snapshot,
         };
 
         // A policy is host code that may fail; a failure, or no answer, is a denial (fail closed). Only a cancellation

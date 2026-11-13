@@ -182,13 +182,24 @@ public partial class FilesTests
         }
         else
         {
-            // A legacy device name, and a local path whose opened file lies on a network share (a link to a UNC target)
+            // A reserved device name (refused before anything is opened), and a local path whose opened file lies on a
+            // network share (a link to a UNC target)
             directory.Write("a.txt", "a");
+            var opened = new List<string>();
+            var recording = new FileReferenceResolver(
+                new FileReferenceOptions { BaseDirectory = directory.Path },
+                Ct,
+                new FileOpenHooks { BeforeOpen = opened.Add });
             var linkedToShare = new FileReferenceResolver(
                 new FileReferenceOptions { BaseDirectory = directory.Path },
                 Ct,
                 new FileOpenHooks { RealPathOf = _ => @"\\server\share\a.txt" });
-            Assert.Equal(FileReferenceFailureKind.InvalidPath, Assert.Throws<FileReferenceException>(() => resolver.Resolve("folder/NUL")).Kind);
+            foreach (var deviceName in new[] { "folder/NUL", "folder/con.txt", "folder/COM1", "NUL/a.txt" })
+            {
+                Assert.Equal(FileReferenceFailureKind.InvalidPath, Assert.Throws<FileReferenceException>(() => recording.Resolve(deviceName)).Kind);
+            }
+
+            Assert.Empty(opened);
             Assert.Equal(FileReferenceFailureKind.NetworkPath, Assert.Throws<FileReferenceException>(() => linkedToShare.Resolve("a.txt")).Kind);
         }
     }

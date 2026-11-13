@@ -91,6 +91,31 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
+    ///     Validates that a root that did not exist when the policy was created allows nothing, even once it exists: its
+    ///     real location was not captured, and the policy never resolves it by name later (fail closed).
+    /// </summary>
+    [Fact]
+    public void FileAccessPolicy_UnderRoots_RootCreatedAfterThePolicy_AllowsNothing()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        var root = Path.GetFullPath(directory.Combine("later"));
+        var policy = FileAccessPolicy.UnderRoots(root);
+        Directory.CreateDirectory(root);
+        var file = Path.Combine(root, "a.txt");
+
+        // Act
+        var early = policy.PreCheck(file);
+        var decision = policy.Check(Request(root, file, Path.Join(FileTestSupport.Canonical(root), "a.txt")));
+
+        // Assert: the written path is inside, so the pre-check lets the open go ahead; the check after it denies
+        Assert.Null(early);
+        Assert.False(decision.IsAllowed);
+        Assert.Equal("the allowed root it is in did not exist when the policy was created, so it allows nothing", decision.Reason);
+        Assert.NotNull(decision.Hint);
+    }
+
+    /// <summary>
     ///     Validates that a file written inside a root whose real path lies outside every root is denied with a reason
     ///     and a hint.
     /// </summary>
@@ -139,7 +164,8 @@ public class FileAccessPolicyTests
     }
 
     /// <summary>
-    ///     Validates that the roots policy rejects missing, empty and invalid roots when it is created.
+    ///     Validates that the roots policy rejects missing, empty and invalid roots when it is created, and on Windows a
+    ///     root in a device namespace other than an ordinary extended-length drive path.
     /// </summary>
     [Fact]
     public void FileAccessPolicy_UnderRoots_InvalidRoots_Throw()
@@ -152,6 +178,12 @@ public class FileAccessPolicyTests
         Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots(string.Empty));
         Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots("   "));
         Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots("bad\0root"));
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots(@"\\?\GLOBALROOT\Device\HarddiskVolume1\docs"));
+            Assert.Throws<ArgumentException>(() => FileAccessPolicy.UnderRoots(@"\\.\C:\docs"));
+            Assert.Equal("roots", FileAccessPolicy.UnderRoots(@"\\?\" + Path.GetTempPath()).Name);
+        }
     }
 
     /// <summary>

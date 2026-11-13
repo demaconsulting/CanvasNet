@@ -92,7 +92,8 @@ sections:
               - id: CanvasNet-Files-RealPath-NetworkLocation
                 title: >-
                   On Windows the RealPath unit shall classify a full path as a network location when it is a UNC path
-                  or lies on a mapped network drive, and a device path or a local drive as not.
+                  (also \\?\UNC\) or lies on a mapped network drive (also as an extended-length drive path), and any
+                  other device path or a local drive as not.
                 justification: |
                   The reference resolver refuses a local path whose opened file lies on a share, which needs both the
                   written and the real path classified the same way.
