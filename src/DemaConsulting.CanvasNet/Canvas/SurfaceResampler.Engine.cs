@@ -269,7 +269,7 @@ internal static partial class SurfaceResampler
 
             if (!(sum > 1e-9))
             {
-                // Degenerate (no overlap or cancelling lobes): fall back to the nearest source pixel
+                // Degenerate (no overlap or canceling lobes): fall back to the nearest source pixel
                 w.Clear();
                 var nearest = (int)Math.Clamp((long)Math.Floor(c), 0, last) - first;
                 w[Math.Clamp(nearest, 0, count - 1)] = 1.0;

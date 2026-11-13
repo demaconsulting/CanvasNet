@@ -50,7 +50,7 @@ SCAD (OpenSCAD), Vega-Lite, and Mermaid paths of the bundled libraries.
 
 ## Test Environment
 
-System tests run on .NET 8.0, .NET 9.0, and .NET 10.0 on Windows, Linux, and macOS in CI; all scenarios are
+System tests run on .NET 10.0 and .NET 11.0 on Windows, Linux, and macOS in CI; all scenarios are
 expected to produce identical results everywhere. Out-of-process tests need the tool assembly and its
 libraries in the test output directory, which the test project's project references provide. Temporary files
 are created in the system temporary directory and removed by each test. Tests that redirect the console

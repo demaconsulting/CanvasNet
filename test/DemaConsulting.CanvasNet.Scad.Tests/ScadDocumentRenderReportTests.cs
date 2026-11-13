@@ -330,7 +330,7 @@ public class ScadDocumentRenderReportTests
     }
 
     /// <summary>
-    ///     Validates that cancelling a long render stops it promptly with <see cref="OperationCanceledException"/>.
+    ///     Validates that canceling a long render stops it promptly with <see cref="OperationCanceledException"/>.
     /// </summary>
     [Fact]
     public async Task ScadDocumentRenderReport_CanceledDuringRendering_StopsTheRender()

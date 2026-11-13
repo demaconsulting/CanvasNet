@@ -70,7 +70,7 @@ public class SceneRendererCsgTests
         };
 
     /// <summary>
-    ///     Builds the cube (edge 10, centred) minus a sphere (radius 3) centred on the top face.
+    ///     Builds the cube (edge 10, centered) minus a sphere (radius 3) centered on the top face.
     /// </summary>
     /// <param name="operation">The operation applied to the two operands.</param>
     /// <returns>The scene.</returns>
@@ -120,7 +120,7 @@ public class SceneRendererCsgTests
         // Act
         using var surface = Render(scene, camera, 140, 140, Flat());
 
-        // Assert: the cavity centre is the cut surface, the ring around it is the cube's top face, the margin is background
+        // Assert: the cavity center is the cut surface, the ring around it is the cube's top face, the margin is background
         Assert.Equal(Red, surface[70, 70]);
         Assert.Equal(Blue, surface[110, 70]);
         Assert.Equal(White, surface[2, 2]);

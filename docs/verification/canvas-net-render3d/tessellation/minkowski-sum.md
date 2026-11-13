@@ -6,7 +6,7 @@ This document describes the unit-level verification strategy for the `MinkowskiS
 
 #### Verification Approach
 
-The unit is verified with analytic sums, with a catalogue of non-convex operands that must be rejected, with
+The unit is verified with analytic sums, with a catalog of non-convex operands that must be rejected, with
 the documented tolerance boundary, and with argument, determinism and cancellation checks.
 
 **Analytic oracles.** A box plus a box is the box of the summed edge lengths (volume 60, extents checked). A
@@ -69,7 +69,7 @@ Asserts the analytic sums and the acceptance of rotated, mirrored and hull-outpu
 `MinkowskiSumTests.MinkowskiSum_ConvexSum_ToleranceBoundary_RejectsDentsAboveTauAndAcceptsRoundingNoise`,
 `MinkowskiSumTests.MinkowskiSum_ConvexSum_NonFiniteMeasurements_AreRejected`
 
-Asserts the rejection catalogue, the defect messages and the tolerance boundary described above, and that
+Asserts the rejection catalog, the defect messages and the tolerance boundary described above, and that
 non-convex operands (an L-prism, a dented cube, a ring) and a convex cube scaled by 1e103, whose volume and area
 overflow to infinity or NaN, are rejected with a "too large to measure" `NotSupportedException` by the sum (on either
 side) and by the pre-verification, while operands at 1e90 are still verified.

@@ -39,7 +39,7 @@ assertions, closed-mesh and outward-orientation assertions) are in `Render3DTest
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
-  (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
+  (`net8.0`, `net9.0`, `net10.0`, `net11.0`) and on the Windows, Linux, and macOS CI runners
 - **Dependencies**: No external services, databases, fixture files, or network access required
 - **Isolation**: Each test method constructs its own scene, camera, and options; no shared state
   between tests. Rendering tests are small (at most a few hundred pixels per side), and any test

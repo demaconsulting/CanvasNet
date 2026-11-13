@@ -169,7 +169,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(0, 255, 255, 255), surface[50, 50], 0);
     }
 
-    /// <summary>Proves an explicit /DeviceRGB color space is honoured when it matches the data.</summary>
+    /// <summary>Proves an explicit /DeviceRGB color space is honored when it matches the data.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_ExplicitDeviceRgb_HonorsColorSpace()
     {
@@ -178,7 +178,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(10, 20, 30, 255), surface[50, 50], 0);
     }
 
-    /// <summary>Proves an explicit /DeviceCMYK color space is honoured for four-channel data.</summary>
+    /// <summary>Proves an explicit /DeviceCMYK color space is honored for four-channel data.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_ExplicitDeviceCmyk_HonorsColorSpace()
     {
@@ -285,7 +285,7 @@ public class PdfDocumentJpxTests
         AssertNear(new Rgba32(200, 50, 10, 255), surface[75, 50], 16);
     }
 
-    /// <summary>Proves a JPX /SMask honours its own /Decode inversion.</summary>
+    /// <summary>Proves a JPX /SMask honors its own /Decode inversion.</summary>
     [Fact]
     public void PdfDocument_Images_Jpx_JpxSMaskWithDecode_InvertsMask()
     {
@@ -445,7 +445,7 @@ public class PdfDocumentJpxTests
         Assert.Throws<InvalidDataException>(() => Render(image, mask));
     }
 
-    /// <summary>Proves a raw soft-mask image honours its own /Decode inversion.</summary>
+    /// <summary>Proves a raw soft-mask image honors its own /Decode inversion.</summary>
     [Fact]
     public void PdfDocument_Images_SMaskRawWithDecode_InvertsMask()
     {
@@ -572,7 +572,7 @@ public class PdfDocumentJpxTests
         Assert.Equal(128, surface[50, 50].A);
     }
 
-    /// <summary>Proves a 4-bit /SMask honours /Decode and row padding.</summary>
+    /// <summary>Proves a 4-bit /SMask honors /Decode and row padding.</summary>
     [Fact]
     public void PdfDocument_Images_SMaskFourBitWithDecode_InvertsMask()
     {

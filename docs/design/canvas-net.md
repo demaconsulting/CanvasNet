@@ -517,7 +517,7 @@ types; all of these are BCL APIs available on
 every target framework, with no additional runtime NuGet package required). The `Geometry`
 subsystem introduces zero new runtime NuGet dependencies: it is implemented entirely against
 `System.Numerics.Vector2` and `System.Numerics.Matrix3x2`, which are in-box BCL types available
-natively on every target framework this library supports (net8.0, net9.0, net10.0) — no custom
+natively on every target framework this library supports (net8.0, net9.0, net10.0, net11.0) — no custom
 point/vector wrapper types were introduced; this includes `CornerRoundEffect`, which is
 implemented entirely in terms of `Geometry.Path`/`PathBuilder`. The `Drawing` subsystem likewise introduces zero new
 runtime NuGet dependencies: `PathFiller`, `FillRule`, `EdgeFlattener`, `ScanlineRasterizer`, `PathStroker`, `LineCap`,
@@ -799,14 +799,15 @@ segregation; they are described under _Design Constraints_ (_File Access Threat 
 
 ### Platform Support
 
-The library targets the following frameworks, enabling compatibility across modern, currently
-supported .NET runtimes:
+The library targets the following frameworks, enabling compatibility across modern
+.NET runtimes:
 
-| Target Framework | Runtime / Environment |
-| ---------------- | --------------------- |
-| `net8.0`         | .NET 8 LTS            |
-| `net9.0`         | .NET 9                |
-| `net10.0`        | .NET 10               |
+| Target Framework | Runtime / Environment                                   |
+| ---------------- | ------------------------------------------------------- |
+| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0`        | .NET 10 LTS                                             |
+| `net11.0`        | .NET 11                                                 |
 
 The library is supported on the following operating systems:
 

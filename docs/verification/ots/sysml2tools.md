@@ -21,9 +21,10 @@ Second, `lint.ps1` runs `dotnet sysml2tools lint 'docs/sysml2/**/*.sysml'` again
 CanvasNet model and fails the build on any syntax or reference error. The build-docs
 job runs `dotnet sysml2tools render` to produce one SVG file per declared view under
 `docs/design/generated/`. FileAssert then directly asserts that each declared view's SVG file
-exists and is well-formed XML with an `<svg>` root element (`SysML2Tools_SoftwareStructureViewSvg`,
-`SysML2Tools_CanvasNetViewSvg`), before Pandoc compiles `docs/design/*.md`, which embed
-those SVG files by filename. A CI build failure at any of these steps is evidence that SysML2Tools
+exists, is well-formed XML with an `<svg>` root element, and draws at least one text element, because a view that
+resolves to nothing still writes an empty `<svg>` root (one `SysML2Tools_{ViewName}Svg` test per declared view, such
+as `SysML2Tools_SoftwareStructureViewSvg` and `SysML2Tools_CanvasNetViewSvg`), before Pandoc compiles
+`docs/design/*.md`, which embed those SVG files by filename. A CI build failure at any of these steps is evidence that SysML2Tools
 did not produce the required model validation or diagrams against the real model.
 
 ### Test Scenarios
@@ -54,7 +55,7 @@ model, then FileAssert checks the resulting file at
 `docs/design/generated/SoftwareStructureView.svg`.
 
 **Expected**: Exactly one file exists at that path, and it is well-formed XML with a root element
-named `svg`.
+named `svg` that contains at least one `text` element.
 
 **Requirement coverage**: `CanvasNet-OTS-SysML2Tools-Render`.
 
@@ -65,7 +66,7 @@ model, then FileAssert checks the resulting file at
 `docs/design/generated/CanvasNetView.svg`.
 
 **Expected**: Exactly one file exists at that path, and it is well-formed XML with a root element
-named `svg`.
+named `svg` that contains at least one `text` element.
 
 **Requirement coverage**: `CanvasNet-OTS-SysML2Tools-Render`.
 

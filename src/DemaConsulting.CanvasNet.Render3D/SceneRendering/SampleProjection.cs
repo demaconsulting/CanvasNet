@@ -12,14 +12,14 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     </para>
 ///     <para>
 ///         <b>Guard band:</b> geometry projecting more than <see cref="GuardBandSamples"/> (2^20)
-///         samples from the screen centre is clipped to that limit before conversion to 24.8 fixed
+///         samples from the screen center is clipped to that limit before conversion to 24.8 fixed
 ///         point. Fixed-point magnitudes are then below about 2^29, so edge-function products
 ///         (below about 2^59) always fit in a signed 64-bit integer.
 ///     </para>
 /// </remarks>
 internal readonly struct SampleProjection
 {
-    /// <summary>The guard-band half extent in samples (2^20), measured from the screen centre.</summary>
+    /// <summary>The guard-band half extent in samples (2^20), measured from the screen center.</summary>
     public const double GuardBandSamples = 1048576.0;
 
     /// <summary>

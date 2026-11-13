@@ -86,7 +86,7 @@ sections:
                   when there are none), treating a lone surrogate as the replacement character, and
                   shall reject a null font or text with ArgumentNullException.
                 justification: |
-                  A caller that reports unsupported characters needs the same judgement that the
+                  A caller that reports unsupported characters needs the same judgment that the
                   renderers apply when they draw, as a stable, ordered list.
                 tests:
                   - GlyphFallback_FindMissing_ReportsOnlyUncoveredCharactersDistinctAndAscending

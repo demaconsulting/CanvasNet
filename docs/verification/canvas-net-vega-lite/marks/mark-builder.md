@@ -514,7 +514,7 @@ symlog y scale
 **Tests**: `MarkBuilderChannelTests.MarkBuilder_Build_BinnedColorGivesEachMarkTheColorOfItsBin`,
 `MarkBuilderChannelTests.MarkBuilder_Build_BinnedSizeUsesTheStartOfTheBin`,
 `MarkBuilderChannelTests.MarkBuilder_Build_HistogramBarsTakeTheColorOfTheirBin`,
-`MarkBuilderChannelTests.MarkBuilder_Build_BinnedColorMarksAreChargedAndCancellable`
+`MarkBuilderChannelTests.MarkBuilder_Build_BinnedColorMarksAreChargedAndCancelable`
 
 Assert, for the readings 3, 12, 27, 41, 58, 66, 83, and 97 with the bins 0 to 100 by 20 and five colors, that the
 circles take the color of their bin (the first two the first color, 41 and 58 the third, the last two the fifth) as a

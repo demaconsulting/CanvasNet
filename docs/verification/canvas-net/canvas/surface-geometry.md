@@ -20,7 +20,7 @@ pixels. The skew estimation is checked on generated pictures of ruled lines at k
 not with the rotation code under test, by the `ImageFixtures.SketchPhoto` helper of the test project), with a bright
 and dark ground, on a large picture that is analyzed on a reduced plane, and on blank and noise pictures that must not
 give a confident answer; the tie-break is checked directly on its internal helper, and the thresholds and the sign of
-`SkewEstimate` on constructed values and on a picture that is levelled with its own correction. The unit needs no files
+`SkewEstimate` on constructed values and on a picture that is leveled with its own correction. The unit needs no files
 and no mocking.
 
 #### Test Environment
@@ -122,7 +122,7 @@ mark of 101 (9 levels below) has none and is not estimated.
 
 **Tests**: `Surface_EstimateSkew_BlankImage_IsNotEstimated`, `Surface_EstimateSkew_RandomNoise_HasLowConfidence`,
 `SkewEstimate_IsCorrectableAndCorrectionDegrees_FollowThresholdsAndSign`,
-`SkewEstimate_CorrectionDegrees_RotatedSurface_IsLevelled`
+`SkewEstimate_CorrectionDegrees_RotatedSurface_IsLeveled`
 
 Uniform paper, paper with 30 dark pixels (fewer than the 100 needed), and a transparent surface give 0 degrees,
 confidence 0, and not estimated. Noise of 400 by 300, 800 by 800, 1000 by 250, and 300 by 900 pixels is estimated but

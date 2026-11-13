@@ -387,7 +387,7 @@ flowchart LR
 
 ### Platform Support
 
-The package targets `net8.0`, `net9.0`, and `net10.0` and runs on Windows, Linux, and macOS, like the core
+The package targets `net8.0`, `net9.0`, `net10.0`, and `net11.0` and runs on Windows, Linux, and macOS, like the core
 `CanvasNet` system it depends on. It contains no platform-specific code and uses no native library; the platform
 requirements are proven by running the representative pixel test on every platform and framework.
 

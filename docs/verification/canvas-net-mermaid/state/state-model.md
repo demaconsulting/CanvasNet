@@ -1,3 +1,5 @@
+<!-- cspell:ignoreRegExp /`[^`\n]*`/g -->
+
 ### StateModel Unit Verification Design
 
 This document describes the unit-level verification strategy for the `StateModel` unit in the

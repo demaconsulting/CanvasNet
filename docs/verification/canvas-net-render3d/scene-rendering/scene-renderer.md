@@ -328,7 +328,7 @@ scenario A8). Asserts that:
   report nothing, union-only scenes are unaffected, and a mirrored inverted mesh is still reported
   only as inverted;
 - validation runs before rendering work (a strict report wins over a tiny fragment budget), observes
-  cancellation (cancelling from the handler stops the render with `OperationCanceledException`), and
+  cancellation (canceling from the handler stops the render with `OperationCanceledException`), and
   the entry points reject null arguments.
 
 ##### CanvasNetRender3D-SceneRendering-SceneRenderer-MirroredCsg: Mirrored CSG Operands Behave Like Their Baked Equivalents

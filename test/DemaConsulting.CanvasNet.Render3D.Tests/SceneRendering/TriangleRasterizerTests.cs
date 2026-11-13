@@ -13,7 +13,7 @@ public class TriangleRasterizerTests
     private static readonly double TanHalfFov = Math.Tan(22.5 * Math.PI / 360.0);
 
     /// <summary>
-    ///     Creates an orthographic projection mapping view X to sample X one-to-one around the centre of a
+    ///     Creates an orthographic projection mapping view X to sample X one-to-one around the center of a
     ///     64x64 sample grid (<c>sx = 32 + x</c>, <c>sy = 32 - y</c>).
     /// </summary>
     /// <returns>The projection.</returns>
@@ -47,7 +47,7 @@ public class TriangleRasterizerTests
 
     /// <summary>
     ///     Validates that a right triangle with its legs on the sample grid lines covers exactly the
-    ///     analytic number of sample centres: n(n-1)/2 (the hypotenuse is not owned).
+    ///     analytic number of sample centers: n(n-1)/2 (the hypotenuse is not owned).
     /// </summary>
     [Fact]
     public void TriangleRasterizer_Rasterize_AxisAlignedRightTriangle_CoversAnalyticSampleCount()
@@ -59,7 +59,7 @@ public class TriangleRasterizerTests
         // Act
         TriangleRasterizer.Rasterize(in triangle, new TileRect(0, 0, 16, 16), ref visitor);
 
-        // Assert: centres with i + j <= 14 are inside; i + j == 15 lies on the (unowned) hypotenuse
+        // Assert: centers with i + j <= 14 are inside; i + j == 15 lies on the (unowned) hypotenuse
         Assert.Equal(16 * 15 / 2, visitor.Total);
         Assert.Equal(1, visitor.Counts[0]);
         Assert.Equal(0, visitor.Counts[(15 * 16) + 15]);
@@ -90,13 +90,13 @@ public class TriangleRasterizerTests
     }
 
     /// <summary>
-    ///     Validates that two triangles sharing a diagonal that passes exactly through sample centres
+    ///     Validates that two triangles sharing a diagonal that passes exactly through sample centers
     ///     cover every sample exactly once.
     /// </summary>
     [Fact]
     public void TriangleRasterizer_Rasterize_SharedEdgeOnSampleCenters_CoveredExactlyOnce()
     {
-        // Arrange: an 8x8 quad whose corners are sample centres, split along the A-C diagonal
+        // Arrange: an 8x8 quad whose corners are sample centers, split along the A-C diagonal
         var t1 = Render3DTestHelpers.MakeScreenTriangle((0.5, 0.5), (8.5, 0.5), (8.5, 8.5));
         var t2 = Render3DTestHelpers.MakeScreenTriangle((0.5, 0.5), (8.5, 8.5), (0.5, 8.5));
         var visitor = new CountingVisitor(12, 12);
@@ -124,12 +124,12 @@ public class TriangleRasterizerTests
     public void TriangleRasterizer_Rasterize_TriangleFanAroundVertex_CoversEachSampleOnce()
     {
         // Arrange: an octagon around (20.3, 20.7) as an eight-triangle fan with fixed-point-exact vertices
-        var centre = (X: 20.3, Y: 20.7);
+        var center = (X: 20.3, Y: 20.7);
         var ring = new (double X, double Y)[8];
         for (var i = 0; i < 8; i++)
         {
             var angle = i * Math.PI / 4.0;
-            ring[i] = (Math.Round(256.0 * (centre.X + (12.0 * Math.Cos(angle)))) / 256.0, Math.Round(256.0 * (centre.Y + (12.0 * Math.Sin(angle)))) / 256.0);
+            ring[i] = (Math.Round(256.0 * (center.X + (12.0 * Math.Cos(angle)))) / 256.0, Math.Round(256.0 * (center.Y + (12.0 * Math.Sin(angle)))) / 256.0);
         }
 
         var visitor = new CountingVisitor(40, 40);
@@ -137,11 +137,11 @@ public class TriangleRasterizerTests
         // Act
         for (var i = 0; i < 8; i++)
         {
-            var triangle = Render3DTestHelpers.MakeScreenTriangle(centre, ring[i], ring[(i + 1) % 8]);
+            var triangle = Render3DTestHelpers.MakeScreenTriangle(center, ring[i], ring[(i + 1) % 8]);
             TriangleRasterizer.Rasterize(in triangle, new TileRect(0, 0, 40, 40), ref visitor);
         }
 
-        // Assert: no sample is hit twice, and the total equals the number of centres inside the convex octagon
+        // Assert: no sample is hit twice, and the total equals the number of centers inside the convex octagon
         Assert.All(visitor.Counts, count => Assert.InRange(count, 0, 1));
         var expected = 0;
         for (var y = 0; y < 40; y++)
@@ -476,7 +476,7 @@ public class TriangleRasterizerTests
             TriangleRasterizer.Rasterize(in triangle, new TileRect(0, 0, size, size), ref visitor);
         }
 
-        // Assert: depth = 10 / (1 + 0.2 rx + 0.1 ry) with rx, ry the view-ray slopes at each sample centre
+        // Assert: depth = 10 / (1 + 0.2 rx + 0.1 ry) with rx, ry the view-ray slopes at each sample center
         Assert.Equal(size * size, visitor.Total);
         for (var y = 0; y < size; y++)
         {
@@ -546,23 +546,23 @@ public class TriangleRasterizerTests
     }
 
     /// <summary>
-    ///     Validates the sample projection of the view centre and an off-centre point.
+    ///     Validates the sample projection of the view center and an off-center point.
     /// </summary>
     [Fact]
-    public void SampleProjection_ToSample_CentreAndOffCentre_MatchAnalytic()
+    public void SampleProjection_ToSample_CenterAndOffCenter_MatchAnalytic()
     {
         // Arrange
         var perspective = Perspective(100);
         var ortho = UnitOrthographic();
 
         // Act
-        var centre = perspective.ToSample(new ClipVertex(0, 0, -7));
+        var center = perspective.ToSample(new ClipVertex(0, 0, -7));
         var offset = perspective.ToSample(new ClipVertex(7 * TanHalfFov, 7 * TanHalfFov, -7));
         var orthoPoint = ortho.ToSample(new ClipVertex(5, 3, -99));
 
-        // Assert: the view-centre maps to the grid centre; x = depth * tan(fov/2) maps to the right edge, y up maps to the top edge
-        Assert.Equal(50.0, centre.X, 1e-9);
-        Assert.Equal(50.0, centre.Y, 1e-9);
+        // Assert: the view-center maps to the grid center; x = depth * tan(fov/2) maps to the right edge, y up maps to the top edge
+        Assert.Equal(50.0, center.X, 1e-9);
+        Assert.Equal(50.0, center.Y, 1e-9);
         Assert.Equal(100.0, offset.X, 1e-9);
         Assert.Equal(0.0, offset.Y, 1e-9);
         Assert.Equal(37.0, orthoPoint.X, 1e-9);

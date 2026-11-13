@@ -354,7 +354,7 @@ the file (see _ScadLanguage_, `scad-language.md`). Error construction goes throu
 - `Describe(token)` — the quoted lexeme (`'x'`), a string value in double quotes (`"x"`), or for a
   directive `'include <path>'` / `'use <path>'`.
 
-Message catalogue (the location is the offending token unless stated otherwise):
+Message catalog (the location is the offending token unless stated otherwise):
 
 <!-- markdownlint-disable MD013 -->
 
@@ -480,7 +480,7 @@ module and function calls, and must apply the same approach for its own recursio
 deterministic nominal depth counter, evaluated inline on the caller's thread guarded by
 `EnsureSufficientExecutionStack`, with a **bounded** (semaphore-gated) restart on a dedicated thread with an
 explicitly sized stack derived from a measured worst case at the nominal limit only when that guard trips
-(or use an explicit stack instead of recursion), with exceptions marshalled back through
+(or use an explicit stack instead of recursion), with exceptions marshaled back through
 `ExceptionDispatchInfo`. A recursion limit whose _outcome_ depends on the caller's stack (the guard being the
 only mechanism, with no sized fallback), or that spawns an unbounded number of large-stack threads, is not
 acceptable, because the result would then depend on the platform and the caller's thread.

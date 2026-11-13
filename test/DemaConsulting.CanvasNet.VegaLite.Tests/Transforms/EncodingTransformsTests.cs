@@ -412,7 +412,7 @@ public class EncodingTransformsTests
     ///     Validates that the bins of a non-position channel poll the cancellation token and charge the evaluation budget like the bins of a position channel.
     /// </summary>
     [Fact]
-    public void EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable()
+    public void EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancelable()
     {
         // Arrange
         const string Source = "{\"data\":{\"sequence\":{\"start\":0,\"stop\":5000,\"as\":\"id\"}},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"id\",\"type\":\"quantitative\"},\"color\":{\"field\":\"id\",\"type\":\"quantitative\",\"bin\":true}}}";

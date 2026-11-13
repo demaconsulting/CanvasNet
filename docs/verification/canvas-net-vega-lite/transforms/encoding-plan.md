@@ -284,7 +284,7 @@ categories, ordered by where the bin starts (the values 0, 10, and so on to 100 
 `EncodingPlanTests.EncodingPlan_Create_DiscreteBinReadsTheRangeText`,
 `EncodingTransformsTests.EncodingTransforms_Apply_BinsAColorChannelAndSharesTheBinWithX`,
 `EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields`,
-`EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable`
+`EncodingTransformsTests.EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancelable`
 
 Asserts, as a theory over the channels, that a binned `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, and
 `shape` get the field `bin_maxbins_6_v`, a `strokeDash` `bin_maxbins_4_v`, an `angle` `bin_maxbins_10_v`, that an explicit

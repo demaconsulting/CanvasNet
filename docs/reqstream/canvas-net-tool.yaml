@@ -476,7 +476,7 @@ sections:
           shall leave the image unchanged, report `applied: false` with a reason, and complete successfully.
         tags: [system]
         justification: |
-          A tilted photograph of ruled or drawn lines is levelled without the user measuring an angle, and the
+          A tilted photograph of ruled or drawn lines is leveled without the user measuring an angle, and the
           reported angle and confidence let an agent decide whether to trust the result.
         children:
           - CanvasNetViewer-Imaging-Geometry

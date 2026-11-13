@@ -63,7 +63,7 @@ public class MarkBuilderPolarTextTests
     [Fact]
     public void MarkBuilder_Build_PieLabelsSitAtTheMiddleOfTheirSlice()
     {
-        // Act: the centre is (100, 100) and the radius 60; the anchor is (100 + 60 sin(theta), 100 - 60 cos(theta))
+        // Act: the center is (100, 100) and the radius 60; the anchor is (100 + 60 sin(theta), 100 - 60 cos(theta))
         var labels = PieLabels();
 
         // Assert: a at PI/4 (upper right), b at 3 PI/4 (lower right), c at 3 PI/2 (left)

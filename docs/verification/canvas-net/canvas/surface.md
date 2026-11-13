@@ -462,9 +462,9 @@ pixel with the global average; and rotation uses column norms. No timing is asse
 
 ##### CanvasNet-Canvas-Surface-BilinearSampling: Bilinear Sampler Behaves as Documented
 
-**Tests**: `SampleBilinear_CentreAndMidpoint_InterpolatesAndClampsEdges`
+**Tests**: `SampleBilinear_CenterAndMidpoint_InterpolatesAndClampsEdges`
 
-The bilinear sampler returns pixel centres exactly, blends midpoints, and clamps at the edges.
+The bilinear sampler returns pixel centers exactly, blends midpoints, and clamps at the edges.
 
 ##### CanvasNet-Canvas-Surface-Resize: Resize Filters Behave as Documented
 

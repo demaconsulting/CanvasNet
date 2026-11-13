@@ -192,7 +192,7 @@ documented in `Fixtures/README.md` beside them.
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
-  (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
+  (`net8.0`, `net9.0`, `net10.0`, `net11.0`) and on the Windows, Linux, and macOS CI runners
 - **Dependencies**: No external services, databases, or network access required. The twenty-seven fixture files in
   `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/` (`bar-inline.vl.json`, `point-inline.vl.json`,
   `rule-tick-inline.vl.json`, `titles-config.vl.json`, `unsupported.vl.json`, the data-file chart `data-files.vl.json`
@@ -2413,7 +2413,7 @@ the resolver for both of its pictures. The charts are drawn in the user guide by
 **Tests**: all system scenarios above, run by `dotnet test` on each target framework and operating system.
 
 Asserts, by running the full system test class on the Windows, Linux, and macOS CI runners and on `net8.0`,
-`net9.0`, and `net10.0`, that the rendered pixels, the reported identifiers, and the exception contract do not
+`net9.0`, `net10.0`, and `net11.0`, that the rendered pixels, the reported identifiers, and the exception contract do not
 depend on the platform. The platform requirements in `docs/reqstream/canvas-net-vega-lite/platform-requirements.yaml`
 link to one representative test from the list above per platform and runtime.
 

@@ -1,6 +1,6 @@
 ---
 title: CanvasNet Review Report
-subtitle: File Review Report for CanvasNet
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
 description: File Review Report for CanvasNet
 lang: en-US

@@ -107,7 +107,7 @@ sections:
                 justification: |
                   The renderer reports constructive-solid-geometry operands that are not closed,
                   outward-oriented solids, and a single closed/open flag cannot tell the user
-                  which modelling error to fix; an inverted mesh is closed but has the wrong
+                  which modeling error to fix; an inverted mesh is closed but has the wrong
                   winding, and a whole-mesh volume sign would hide an inverted shell behind a
                   larger valid one.
                 tests:

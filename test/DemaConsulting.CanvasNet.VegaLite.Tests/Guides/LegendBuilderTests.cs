@@ -399,7 +399,7 @@ public class LegendBuilderTests
         var short160 = Labels(ChartTestHelpers.Legend(json, height: 160));
         var long300 = Labels(ChartTestHelpers.Legend(json, height: 300));
 
-        // Assert: a length of 160 asks for two ticks, which gives fewer than three values: the ends of the domain, 0.2 and 5.41, labelled 0 and 5 at the bottom and the top of the bar
+        // Assert: a length of 160 asks for two ticks, which gives fewer than three values: the ends of the domain, 0.2 and 5.41, labeled 0 and 5 at the bottom and the top of the bar
         Assert.Equal(["0", "5"], short160.Select(l => l.Text));
         Assert.Equal([160.0, 0.0], short160.Select(l => l.Y));
 
@@ -778,7 +778,7 @@ public class LegendBuilderTests
     ///     a located error that names the limit, and a canceled token stops the build.
     /// </summary>
     [Fact]
-    public void LegendBuilder_Gradient_LogTicksAreLimitedAndCancellable()
+    public void LegendBuilder_Gradient_LogTicksAreLimitedAndCancelable()
     {
         // Arrange
         var json = Spec("\"color\": { " + Quantitative + ", \"scale\": { \"type\": \"log\" } }", rows: RowsDecades);

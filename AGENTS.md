@@ -3,9 +3,12 @@
 - **project-name**: `CanvasNet`
 - **organization**: `DEMA Consulting`
 - **project-tagline**: `Canvas rendering library for .NET`
-- **description**: CanvasNet is a .NET library providing a canvas-based drawing and rendering API.
+- **description**: CanvasNet is a family of .NET libraries and a command-line tool built around a span-based 32-bit
+  RGBA canvas: image codecs (PNG, JPEG, JPEG 2000, TIFF, BMP, GIF), TrueType text, and vector drawing in the core,
+  with packages that render SVG, PDF, PowerPoint (with charts), Visio, OpenSCAD 3D models, Vega-Lite charts, and
+  Mermaid diagrams onto it, a viewer that loads any of them, and the `canvasnet` tool that drives them all.
 - **languages**: `C#`
-- **technologies**: `.NET`
+- **technologies**: `.NET` (libraries: net8.0, net9.0, net10.0, net11.0; tool: net10.0, net11.0), System.Numerics.Tensors
 
 # Project Structure
 
@@ -23,9 +26,22 @@
 │   ├── user_guide/
 │   └── verification/
 ├── src/
-│   └── DemaConsulting.CanvasNet/
-└── test/
-    └── DemaConsulting.CanvasNet.Tests/
+│   ├── DemaConsulting.CanvasNet/
+│   ├── DemaConsulting.CanvasNet.Charts/
+│   ├── DemaConsulting.CanvasNet.Mermaid/
+│   ├── DemaConsulting.CanvasNet.Pdf/
+│   ├── DemaConsulting.CanvasNet.Pptx/
+│   ├── DemaConsulting.CanvasNet.Render3D/
+│   ├── DemaConsulting.CanvasNet.Scad/
+│   ├── DemaConsulting.CanvasNet.Svg/
+│   ├── DemaConsulting.CanvasNet.Tool/
+│   ├── DemaConsulting.CanvasNet.VegaLite/
+│   ├── DemaConsulting.CanvasNet.Viewer/
+│   └── DemaConsulting.CanvasNet.Vsdx/
+├── test/
+│   └── DemaConsulting.CanvasNet.{Name}.Tests/ (one per source project; the core is DemaConsulting.CanvasNet.Tests)
+└── tools/
+    └── DemaConsulting.CanvasNet.VegaLite.Benchmarks/
 ```
 
 # Language and Spelling (ALL Agents)
@@ -55,7 +71,7 @@ yet cover something.
 - **`.config/dotnet-tools.json`** - Local tool manifest for Continuous Compliance tools
 - **`.editorconfig`** - Code formatting rules
 - **`.clang-format`** - C/C++ formatting (if applicable)
-- **`.cspell.yaml`** - Spell-check configuration and technical term dictionary
+- **`.textlint.yaml`** - Spell-check configuration and technical term dictionary (TextLint)
 - **`.markdownlint-cli2.yaml`** - Markdown formatting rules
 - **`.yamllint.yaml`** - YAML formatting configuration
 - **`.reviewmark.yaml`** - File review definitions and tracking
@@ -82,6 +98,7 @@ from `.github/standards/`. Use this matrix to determine which to load:
 - **Review configuration**: `software-items.md`, `reviewmark-usage.md`
 - **Software structure**: `sysml2-modeling.md`
 - **Any documentation**: `technical-documentation.md`
+- **Diagrams in documentation**: `diagram-documentation.md` (and the `canvasnet` skill for tooling)
 
 Load only the standards relevant to your specific task scope.
 
@@ -134,7 +151,7 @@ responsibility - invoke the lint-fix agent once before submitting a pull request
 
 ## CI Quality Tools
 
-CI runs `lint.ps1` which checks: markdownlint-cli2, cspell, yamllint, dotnet format,
+CI runs `lint.ps1` which checks: markdownlint-cli2, textlint, yamllint, dotnet format,
 reqstream, versionmark, reviewmark, and sysml2tools.
 
 # Scoped Validation (ALL Agents Must Follow)
@@ -208,7 +225,7 @@ These files contain carefully designed configuration with documented intent
 in header comments. Agents MUST NOT modify them unless the task explicitly
 requires it and the modification preserves the documented design intent:
 
-- `.reviewmark.yaml`, `.cspell.yaml`, `.editorconfig`
+- `.reviewmark.yaml`, `.textlint.yaml`, `.editorconfig`
 - `.markdownlint-cli2.yaml`, `.yamllint.yaml`
 - `requirements.yaml`, `fix.ps1`, `lint.ps1`
 

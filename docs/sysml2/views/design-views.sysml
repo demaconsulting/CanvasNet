@@ -2,237 +2,258 @@
 // Reopens the CanvasNet package so each 'expose' statement can reference
 // its target part def directly. Per SysML2Tools syntax, 'expose' is only valid
 // inside a named 'view' usage (not a 'view def' definition), and it - not
-// 'render' - is what scopes the rendered diagram content.
+// 'render' - is what scopes the rendered diagram content. Every view is typed by a
+// standard view definition (sysml2tools 0.3.0-beta.3+): an untyped view has its notation
+// inferred from its name, so a name ending in 'SequenceView' or 'StateView' (such as
+// 'MermaidSequenceView' and 'MermaidStateView') was drawn as a behavior diagram and rendered
+// empty for a structural part def.
 package CanvasNet {
-    view SoftwareStructureView {
-        expose CanvasNet;
+    private import StandardViewDefinitions::*;
+
+    // Several systems, so a general view draws each system with its members. Documentation and the
+    // artifact-location comments are filtered out so the overview stays readable.
+    view SoftwareStructureView : GeneralView {
+        expose CanvasNetSystem::**;
+        expose CanvasNetSvgSystem::**;
+        expose CanvasNetPdfSystem::**;
+        expose CanvasNetPptxSystem::**;
+        expose CanvasNetChartsSystem::**;
+        expose CanvasNetVsdxSystem::**;
+        expose CanvasNetRender3DSystem::**;
+        expose CanvasNetScadSystem::**;
+        expose CanvasNetVegaLiteSystem::**;
+        expose CanvasNetViewerSystem::**;
+        expose CanvasNetMermaidSystem::**;
+        expose CanvasNetToolSystem::**;
+        filter not @SysML::Documentation;
+        filter not @SysML::Comment;
     }
 
-    view CanvasNetView {
-        expose CanvasNetSystem;
+    view CanvasNetView : InterconnectionView {
+        expose CanvasNetSystem::**;
     }
 
-    view CanvasNetSvgView {
-        expose CanvasNetSvgSystem;
+    view CanvasNetSvgView : InterconnectionView {
+        expose CanvasNetSvgSystem::**;
     }
 
-    view CanvasNetPdfView {
-        expose CanvasNetPdfSystem;
+    view CanvasNetPdfView : InterconnectionView {
+        expose CanvasNetPdfSystem::**;
     }
 
-    view CanvasNetPptxView {
-        expose CanvasNetPptxSystem;
+    view CanvasNetPptxView : InterconnectionView {
+        expose CanvasNetPptxSystem::**;
     }
 
-    view CanvasNetChartsView {
-        expose CanvasNetChartsSystem;
+    view CanvasNetChartsView : InterconnectionView {
+        expose CanvasNetChartsSystem::**;
     }
 
-    view CanvasNetVsdxView {
-        expose CanvasNetVsdxSystem;
+    view CanvasNetVsdxView : InterconnectionView {
+        expose CanvasNetVsdxSystem::**;
     }
 
-    view CanvasNetRender3DView {
-        expose CanvasNetRender3DSystem;
+    view CanvasNetRender3DView : InterconnectionView {
+        expose CanvasNetRender3DSystem::**;
     }
 
-    view SceneModelView {
-        expose SceneModel;
+    view SceneModelView : InterconnectionView {
+        expose SceneModel::**;
     }
 
-    view TessellationView {
-        expose Tessellation;
+    view TessellationView : InterconnectionView {
+        expose Tessellation::**;
     }
 
-    view SceneRenderingView {
-        expose SceneRendering;
+    view SceneRenderingView : InterconnectionView {
+        expose SceneRendering::**;
     }
 
-    view CanvasNetScadView {
-        expose CanvasNetScadSystem;
+    view CanvasNetScadView : InterconnectionView {
+        expose CanvasNetScadSystem::**;
     }
 
-    view CanvasNetVegaLiteView {
-        expose CanvasNetVegaLiteSystem;
+    view CanvasNetVegaLiteView : InterconnectionView {
+        expose CanvasNetVegaLiteSystem::**;
     }
 
-    view CanvasNetViewerView {
-        expose CanvasNetViewerSystem;
+    view CanvasNetViewerView : InterconnectionView {
+        expose CanvasNetViewerSystem::**;
     }
 
-    view VegaLiteSpecModelView {
-        expose VegaLiteSpecModel;
+    view VegaLiteSpecModelView : InterconnectionView {
+        expose VegaLiteSpecModel::**;
     }
 
-    view VegaLiteDataView {
-        expose VegaLiteData;
+    view VegaLiteDataView : InterconnectionView {
+        expose VegaLiteData::**;
     }
 
-    view VegaLiteExpressionsView {
-        expose VegaLiteExpressions;
+    view VegaLiteExpressionsView : InterconnectionView {
+        expose VegaLiteExpressions::**;
     }
 
-    view VegaLiteTransformsView {
-        expose VegaLiteTransforms;
+    view VegaLiteTransformsView : InterconnectionView {
+        expose VegaLiteTransforms::**;
     }
 
-    view VegaLiteScalesView {
-        expose VegaLiteScales;
+    view VegaLiteScalesView : InterconnectionView {
+        expose VegaLiteScales::**;
     }
 
-    view VegaLiteGuidesView {
-        expose VegaLiteGuides;
+    view VegaLiteGuidesView : InterconnectionView {
+        expose VegaLiteGuides::**;
     }
 
-    view VegaLiteLayoutView {
-        expose VegaLiteLayout;
+    view VegaLiteLayoutView : InterconnectionView {
+        expose VegaLiteLayout::**;
     }
 
-    view VegaLiteMarksView {
-        expose VegaLiteMarks;
+    view VegaLiteMarksView : InterconnectionView {
+        expose VegaLiteMarks::**;
     }
 
-    view VegaLiteScenegraphView {
-        expose VegaLiteScenegraph;
+    view VegaLiteScenegraphView : InterconnectionView {
+        expose VegaLiteScenegraph::**;
     }
 
-    view CanvasNetMermaidView {
-        expose CanvasNetMermaidSystem;
+    view CanvasNetMermaidView : InterconnectionView {
+        expose CanvasNetMermaidSystem::**;
     }
 
-    view MermaidSyntaxView {
-        expose MermaidSyntax;
+    view MermaidSyntaxView : InterconnectionView {
+        expose MermaidSyntax::**;
     }
 
-    view MermaidConfigurationView {
-        expose MermaidConfiguration;
+    view MermaidConfigurationView : InterconnectionView {
+        expose MermaidConfiguration::**;
     }
 
-    view MermaidGraphlibView {
-        expose MermaidGraphlib;
+    view MermaidGraphlibView : InterconnectionView {
+        expose MermaidGraphlib::**;
     }
 
-    view MermaidDagreView {
-        expose MermaidDagre;
+    view MermaidDagreView : InterconnectionView {
+        expose MermaidDagre::**;
     }
 
-    view MermaidRenderingView {
-        expose MermaidRendering;
+    view MermaidRenderingView : InterconnectionView {
+        expose MermaidRendering::**;
     }
 
-    view MermaidScenegraphView {
-        expose MermaidScenegraph;
+    view MermaidScenegraphView : InterconnectionView {
+        expose MermaidScenegraph::**;
     }
 
-    view MermaidFlowchartView {
-        expose MermaidFlowchart;
+    view MermaidFlowchartView : InterconnectionView {
+        expose MermaidFlowchart::**;
     }
 
-    view MermaidSequenceView {
-        expose MermaidSequence;
+    view MermaidSequenceView : InterconnectionView {
+        expose MermaidSequence::**;
     }
 
-    view MermaidClassView {
-        expose MermaidClass;
+    view MermaidClassView : InterconnectionView {
+        expose MermaidClass::**;
     }
 
-    view MermaidStateView {
-        expose MermaidState;
+    view MermaidStateView : InterconnectionView {
+        expose MermaidState::**;
     }
 
-    view MermaidErView {
-        expose MermaidEr;
+    view MermaidErView : InterconnectionView {
+        expose MermaidEr::**;
     }
 
-    view MermaidPieView {
-        expose MermaidPie;
+    view MermaidPieView : InterconnectionView {
+        expose MermaidPie::**;
     }
 
-    view MermaidGanttView {
-        expose MermaidGantt;
+    view MermaidGanttView : InterconnectionView {
+        expose MermaidGantt::**;
     }
 
-    view MermaidMindmapView {
-        expose MermaidMindmap;
+    view MermaidMindmapView : InterconnectionView {
+        expose MermaidMindmap::**;
     }
 
-    view MermaidCoseView {
-        expose MermaidCose;
+    view MermaidCoseView : InterconnectionView {
+        expose MermaidCose::**;
     }
 
-    view MermaidPacketView {
-        expose MermaidPacket;
+    view MermaidPacketView : InterconnectionView {
+        expose MermaidPacket::**;
     }
 
-    view MermaidGitGraphView {
-        expose MermaidGitGraph;
+    view MermaidGitGraphView : InterconnectionView {
+        expose MermaidGitGraph::**;
     }
 
-    view CanvasNetToolView {
-        expose CanvasNetToolSystem;
+    view CanvasNetToolView : InterconnectionView {
+        expose CanvasNetToolSystem::**;
     }
 
-    view CommandsView {
-        expose Commands;
+    view CommandsView : InterconnectionView {
+        expose Commands::**;
     }
 
-    view ImagingView {
-        expose Imaging;
+    view ImagingView : InterconnectionView {
+        expose Imaging::**;
     }
 
-    view ScadLanguageView {
-        expose ScadLanguage;
+    view ScadLanguageView : InterconnectionView {
+        expose ScadLanguage::**;
     }
 
-    view ScadEvaluationView {
-        expose ScadEvaluation;
+    view ScadEvaluationView : InterconnectionView {
+        expose ScadEvaluation::**;
     }
 
-    view ScadGeometryView {
-        expose ScadGeometry;
+    view ScadGeometryView : InterconnectionView {
+        expose ScadGeometry::**;
     }
 
-    view ChartModelView {
-        expose ChartModel;
+    view ChartModelView : InterconnectionView {
+        expose ChartModel::**;
     }
 
-    view OpenXmlChartView {
-        expose OpenXmlChart;
+    view OpenXmlChartView : InterconnectionView {
+        expose OpenXmlChart::**;
     }
 
-    view CanvasView {
-        expose Canvas;
+    view CanvasView : InterconnectionView {
+        expose Canvas::**;
     }
 
-    view CodecsView {
-        expose Codecs;
+    view CodecsView : InterconnectionView {
+        expose Codecs::**;
     }
 
-    view GeometryView {
-        expose Geometry;
+    view GeometryView : InterconnectionView {
+        expose Geometry::**;
     }
 
-    view DrawingView {
-        expose Drawing;
+    view DrawingView : InterconnectionView {
+        expose Drawing::**;
     }
 
-    view FontsView {
-        expose Fonts;
+    view FontsView : InterconnectionView {
+        expose Fonts::**;
     }
 
-    view RenderingView {
-        expose Rendering;
+    view RenderingView : InterconnectionView {
+        expose Rendering::**;
     }
 
-    view FilesView {
-        expose Files;
+    view FilesView : InterconnectionView {
+        expose Files::**;
     }
 
-    view ImageSourcesView {
-        expose ImageSources;
+    view ImageSourcesView : InterconnectionView {
+        expose ImageSources::**;
     }
 
-    view PackagingView {
-        expose Packaging;
+    view PackagingView : InterconnectionView {
+        expose Packaging::**;
     }
 }

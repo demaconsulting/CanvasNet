@@ -39,6 +39,12 @@ specification and is rendered, in strict mode, by a test.*
 *Six of the ten Mermaid diagram types CanvasNet draws (sequence, class, state, gantt, mindmap, and git graph), each
 from the examples of the user guide, rendered in strict mode with ports of Mermaid's own layouts.*
 
+CanvasNet is a family of packages: a core canvas with image codecs, drawing, and fonts, a package for each format it
+reads, a Viewer that opens any of them, and the `canvasnet` tool that bundles them all. The diagram shows which
+package builds on which.
+
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet core with its canvas, codecs, drawing, fonts, and file access](https://raw.githubusercontent.com/demaconsulting/CanvasNet/main/docs/images/architecture.png)
+
 ## Composition
 
 Any format CanvasNet reads can be a picture inside another. An SVG `<image href>` names any such file, a Mermaid node
@@ -131,7 +137,7 @@ are embedded PNG pictures, so a browser, WeasyPrint, or any other PDF pipeline s
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
-- 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
+- 🔄 **Multi-Target** - The libraries support .NET 8, 9, 10, and 11; the `canvasnet` tool runs on .NET 10 and 11
 - 📦 **NuGet Ready** - Easy integration via NuGet package
 
 ## Installation

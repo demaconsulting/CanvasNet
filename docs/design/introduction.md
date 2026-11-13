@@ -451,6 +451,15 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
+The package architecture diagram below complements the structure view: where the view shows every system, subsystem,
+and unit of the model, the diagram shows only the NuGet packages, which package references which, and how
+applications and the `canvasnet` tool reach them.
+
+![CanvasNet package architecture: applications use the Viewer and the canvasnet tool uses it too; the Viewer opens
+the seven format packages (PDF, SVG, PowerPoint, Visio, OpenSCAD, Vega-Lite, and Mermaid); PowerPoint also uses the
+SVG and Charts packages and OpenSCAD uses the Render3D package; every package builds on the DemaConsulting.CanvasNet
+core with its canvas, codecs, drawing, fonts, and file access](architecture.svg)
+
 CanvasNet is organized into eight subsystems under the system level: the `Canvas` subsystem
 (the `Surface` unit with its `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`, `SurfaceComparison`, and
 `SurfaceAnalysis` parts, and the `Rgba32` and `CssColor` units,
@@ -1109,7 +1118,7 @@ and `OpenXmlChart` occupies the `OpenXml/` sub-folder, whose name equals its sub
 
 ```text
 src/DemaConsulting.CanvasNet.Charts/
-├── DemaConsulting.CanvasNet.Charts.csproj — Package definition (net8.0/net9.0/net10.0)
+├── DemaConsulting.CanvasNet.Charts.csproj — Package definition (net8.0/net9.0/net10.0/net11.0)
 ├── Chart.cs                       — ChartModel: immutable, validated chart description
 ├── ChartSeries.cs                 — ChartModel: immutable named series of numeric values
 ├── ChartAxis.cs                   — ChartModel: immutable category/value axis description
@@ -1144,7 +1153,7 @@ nested sub-folder of its own (see _CanvasNetRender3D System Design_, `canvas-net
 
 ```text
 src/DemaConsulting.CanvasNet.Render3D/
-├── DemaConsulting.CanvasNet.Render3D.csproj — Package definition (net8.0/net9.0/net10.0)
+├── DemaConsulting.CanvasNet.Render3D.csproj — Package definition (net8.0/net9.0/net10.0/net11.0)
 ├── SceneModel/                    — SceneModel subsystem
 │   ├── NamespaceDoc.cs            — Namespace-level XML documentation
 │   ├── Vector2D.cs                — DoublePrecisionMath: 2D double-precision vector
@@ -1224,7 +1233,7 @@ nested sub-folder of its own (see _CanvasNetScad System Design_, `canvas-net-sca
 
 ```text
 src/DemaConsulting.CanvasNet.Scad/
-├── DemaConsulting.CanvasNet.Scad.csproj — Package definition (net8.0/net9.0/net10.0; packable)
+├── DemaConsulting.CanvasNet.Scad.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable)
 ├── NamespaceDoc.cs                — Namespace-level XML documentation (incl. clean-room statement)
 ├── ScadDocument.cs                — ScadDocument: Parse/Open entry points and file-scope facts
 ├── ScadDocument.Evaluate.cs       — ScadDocument: Evaluate (headless evaluation, handler delivery)
@@ -1356,7 +1365,7 @@ Design_, `canvas-net-vega-lite.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.VegaLite/
-├── DemaConsulting.CanvasNet.VegaLite.csproj — Package definition (net8.0/net9.0/net10.0; packable)
+├── DemaConsulting.CanvasNet.VegaLite.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable)
 ├── NamespaceDoc.cs                — VegaLiteDocument: namespace-level XML documentation
 ├── VegaLiteDocument.cs            — VegaLiteDocument: Parse/Open entry points and descriptive properties
 ├── VegaLiteDocument.Render.cs     — VegaLiteDocument: Measure, Render, and the pipeline
@@ -1569,7 +1578,7 @@ belong to the unit named before the dash (see _CanvasNetMermaid System Design_, 
 
 ```text
 src/DemaConsulting.CanvasNet.Mermaid/
-├── DemaConsulting.CanvasNet.Mermaid.csproj — Package definition (net8.0/net9.0/net10.0; packable; ships third-party/)
+├── DemaConsulting.CanvasNet.Mermaid.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable; ships third-party/)
 ├── NamespaceDoc.cs                — MermaidDocument: namespace-level XML documentation
 ├── MermaidDocument.cs             — MermaidDocument: Parse/Open entry points and the metadata properties
 ├── MermaidDocument.Render.cs      — MermaidDocument: Measure, Render, natural size, and report delivery
@@ -1671,7 +1680,7 @@ _CanvasNetViewer System Design_, `canvas-net-viewer.md`):
 
 ```text
 src/DemaConsulting.CanvasNet.Viewer/
-├── DemaConsulting.CanvasNet.Viewer.csproj — Package definition (net8.0/net9.0/net10.0; packable)
+├── DemaConsulting.CanvasNet.Viewer.csproj — Package definition (net8.0/net9.0/net10.0/net11.0; packable)
 ├── NamespaceDoc.cs                — CanvasNetViewer: namespace-level XML documentation
 ├── CanvasNetViewer.cs             — CanvasNetViewer: the built-in sources, CreateImageResolver, and Render
 ├── ViewerRenderOptions.cs         — CanvasNetViewer: the render options (size, folder, strictness, extra sources, token)
@@ -1720,7 +1729,7 @@ The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` pro
 
 ```text
 src/DemaConsulting.CanvasNet.Tool/
-├── DemaConsulting.CanvasNet.Tool.csproj — Tool package definition (net8.0/net9.0/net10.0; packable as a dotnet tool)
+├── DemaConsulting.CanvasNet.Tool.csproj — Tool package definition (net10.0/net11.0; packable as a dotnet tool)
 ├── Program.cs                     — Program: entry point, dispatch, and the error policy
 ├── ToolException.cs               — Program: ToolException (a ViewerException with the command and result fields)
 ├── Context.cs                     — Context: global options, command capture, and output channels

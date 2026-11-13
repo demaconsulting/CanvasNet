@@ -111,7 +111,7 @@ sections:
                   of directories with ArgumentNullException.
                 justification: |
                   A scan of a large tree can take a noticeable time, so a caller that is itself
-                  cancellable must be able to stop it; an absent directory list is a caller
+                  cancelable must be able to stop it; an absent directory list is a caller
                   defect, reported as such rather than treated as an empty scan.
                 tests:
                   - FontDirectoryScanner_Scan_CanceledTokenAndNullDirectories_Throw

@@ -105,7 +105,7 @@ sections:
                   - EncodingPlan_Create_DiscreteBinReadsTheRangeText
                   - EncodingTransforms_Apply_BinsAColorChannelAndSharesTheBinWithX
                   - EncodingTransforms_Apply_NonPositionBinsUseTheirDefaultMaxBinsAndTheRangeTextOfDiscreteFields
-                  - EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable
+                  - EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancelable
               - id: CanvasNetVegaLite-Transforms-EncodingPlan-StackRules
                 title: >-
                   The EncodingPlan unit shall, when the Vega-Lite rules make the measure channel of an encoding
@@ -176,7 +176,7 @@ sections:
                   - EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget
                   - EncodingTransforms_Apply_StackNextToRawRowsCountsTheRows
                   - EncodingTransforms_Apply_BoundsTheBinsAndChargesTheRows
-                  - EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancellable
+                  - EncodingTransforms_Apply_NonPositionBinsAreChargedAndCancelable
 
               - id: CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
                 title: >-

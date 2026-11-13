@@ -97,7 +97,7 @@ The system exposes the following public API:
 | `PrimitiveTessellator.*` | Inbound/Outbound | Dimensions / `Mesh` or `PolygonRegion` return | Positive finite dimensions, at least three segments, valid face indices and path indices |
 | `PolygonRegion` constructor | Inbound | Contours of `Vector2D` points | Finite points; at least three distinct vertices and a normal, non-zero area per contour; no self-intersecting or touching contours (`ArgumentException`) |
 | `Extruder.Linear` / `Extruder.Rotate` | Inbound/Outbound | `PolygonRegion`, numeric parameters / `Mesh` return | Positive finite height, at least one slice, scale zero in both axes (single-contour region only) or positive in both, angle in (0, 360], profile not crossing the axis or touching it at an isolated vertex |
-| `ConvexHull.Hull3D` / `ConvexHull.Hull2D` | Inbound/Outbound | Point sequence, `CancellationToken` / `Mesh` or polygon return | Non-null, finite points; `Hull3D` needs a point set with volume (`ArgumentException` otherwise); exact, order-independent, cancellable |
+| `ConvexHull.Hull3D` / `ConvexHull.Hull2D` | Inbound/Outbound | Point sequence, `CancellationToken` / `Mesh` or polygon return | Non-null, finite points; `Hull3D` needs a point set with volume (`ArgumentException` otherwise); exact, order-independent, cancelable |
 | `MinkowskiSum.ConvexSum` | Inbound/Outbound | Two `Mesh` operands, `CancellationToken` / `Mesh` return | Non-null operands with triangles and volume; vertex-count product at most `MaxPairwiseSums` (`ArgumentException`); closed convex solids only (`NotSupportedException` otherwise) |
 | `Camera` properties | Inbound | `Vector3D`, `double`, enumeration | Each value validated at initialization; cross-property rules at render time |
 | `SceneRenderOptions` properties | Inbound | Colors, lights, numeric options | Each value validated at initialization; instance therefore always valid |
@@ -253,13 +253,14 @@ ratio from the output size), and then follows the path above.
 ### Platform Support
 
 The library targets the following frameworks, identical to the `CanvasNet` system it depends on,
-enabling compatibility across modern, currently supported .NET runtimes:
+enabling compatibility across modern .NET runtimes:
 
-| Target Framework | Runtime / Environment |
-| ---------------- | --------------------- |
-| `net8.0`         | .NET 8 LTS            |
-| `net9.0`         | .NET 9                |
-| `net10.0`        | .NET 10               |
+| Target Framework | Runtime / Environment                                   |
+| ---------------- | ------------------------------------------------------- |
+| `net8.0`         | .NET 8 LTS (end of support; kept for library consumers) |
+| `net9.0`         | .NET 9 STS (end of support; kept for library consumers) |
+| `net10.0`        | .NET 10 LTS                                             |
+| `net11.0`        | .NET 11                                                 |
 
 The library is supported on the following operating systems:
 

@@ -17,7 +17,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     </para>
 ///     <para>
 ///         <b>Rasterization.</b> Coverage uses only 64-bit integer edge functions: sample
-///         <c>(i, j)</c> has its centre at <c>(256 i + 128, 256 j + 128)</c>; a sample is covered when
+///         <c>(i, j)</c> has its center at <c>(256 i + 128, 256 j + 128)</c>; a sample is covered when
 ///         all three edge functions are positive, or zero on an edge that is a top or left edge
 ///         (with the normalized orientation an edge <c>(dx, dy)</c> owns its boundary samples iff
 ///         <c>dy &lt; 0</c> or <c>dy == 0 &amp;&amp; dx &gt; 0</c>). A neighboring triangle sees the shared edge
@@ -34,7 +34,7 @@ internal static class TriangleRasterizer
     /// <summary>Fixed-point units per sample (24.8 format).</summary>
     private const int FixedOne = 256;
 
-    /// <summary>Fixed-point offset of a sample centre within its cell (half a sample).</summary>
+    /// <summary>Fixed-point offset of a sample center within its cell (half a sample).</summary>
     private const int FixedHalf = 128;
 
     /// <summary>Fractional bits of the fixed-point format.</summary>
@@ -123,7 +123,7 @@ internal static class TriangleRasterizer
         long x2 = triangle.X2;
         long y2 = triangle.Y2;
 
-        // Sample range whose centres can lie inside the bounding box, clipped to the tile
+        // Sample range whose centers can lie inside the bounding box, clipped to the tile
         var bounds = GetSampleBounds(in triangle);
         var xStart = (int)Math.Max(tile.X0, bounds.XStart);
         var xEnd = (int)Math.Min(tile.X1 - 1, bounds.XEnd);
@@ -145,7 +145,7 @@ internal static class TriangleRasterizer
         var stepY1 = (x2 - x1) * FixedOne;
         var stepY2 = (x0 - x2) * FixedOne;
 
-        // Edge values at the first sample centre; later samples add constant steps (no re-evaluation)
+        // Edge values at the first sample center; later samples add constant steps (no re-evaluation)
         var px = (xStart * (long)FixedOne) + FixedHalf;
         var py = (yStart * (long)FixedOne) + FixedHalf;
         var rowE0 = ((x1 - x0) * (py - y0)) - ((y1 - y0) * (px - x0)) + bias0;
@@ -187,7 +187,7 @@ internal static class TriangleRasterizer
     }
 
     /// <summary>
-    ///     Computes the inclusive range of sample indices whose centres lie inside the triangle's
+    ///     Computes the inclusive range of sample indices whose centers lie inside the triangle's
     ///     fixed-point bounding box (empty when <c>End &lt; Start</c>).
     /// </summary>
     /// <remarks>Shared by the rasterizer and the tile binner so both agree exactly on which samples a triangle can touch.</remarks>
@@ -200,7 +200,7 @@ internal static class TriangleRasterizer
         var minY = Math.Min(triangle.Y0, Math.Min(triangle.Y1, triangle.Y2));
         var maxY = Math.Max(triangle.Y0, Math.Max(triangle.Y1, triangle.Y2));
 
-        // Sample i has its centre at 256 i + 128
+        // Sample i has its center at 256 i + 128
         return (
             CeilDiv(minX - FixedHalf, FixedOne),
             FloorDiv(maxX - FixedHalf, FixedOne),

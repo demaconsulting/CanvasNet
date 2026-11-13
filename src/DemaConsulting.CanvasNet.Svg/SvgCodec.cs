@@ -332,7 +332,7 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     payload (each rejected by the matching sibling raster codec's own <c>Load</c>, already
 ///     enforcing <see cref="Surface.MaxDimension"/> internally), is likewise tolerant: the whole
 ///     <c>image</c> element is skipped (rendered as if absent) rather than the exception
-///     propagating past it - see <c>SvgCodec.Image.cs</c>'s remarks for the full catalogue of
+///     propagating past it - see <c>SvgCodec.Image.cs</c>'s remarks for the full catalog of
 ///     tolerant <c>image</c>-specific no-op conditions, including its own href-scope security
 ///     decisions.
 ///     </para>

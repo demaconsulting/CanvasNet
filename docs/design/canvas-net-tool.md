@@ -245,7 +245,8 @@ remove.
 
 ## Design Constraints
 
-- Platform: multi-targets `net8.0`, `net9.0`, and `net10.0` on Windows, Linux, and macOS; the platform
+- Platform: multi-targets `net10.0` and `net11.0` (with `RollForward` set to `LatestMajor`, so a newer runtime
+  also runs it; the end-of-support .NET 8 and 9 runtimes are not supported) on Windows, Linux, and macOS; the platform
   requirements are proven by the self-validation results that the installed tool writes in each job of the
   integration-test matrix. The same job also smoke-tests the installed tool (`formats --json`, an SVG `render`, a
   `crop`, and the `info` and `render` of a small Vega-Lite chart) so that the bundled libraries are proven to

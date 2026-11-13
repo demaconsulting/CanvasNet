@@ -183,7 +183,7 @@ public class SceneRendererTests
         // Act
         using var surface = SceneRenderer.Render(scene, TopDown, 64, 64, Render3DTestHelpers.FlatOptions(), TestContext.Current.CancellationToken);
 
-        // Assert: corners are background, the centre is the surface color
+        // Assert: corners are background, the center is the surface color
         Assert.Equal(White, surface[0, 0]);
         Assert.Equal(White, surface[63, 63]);
         Assert.Equal(White, surface[0, 63]);
@@ -191,12 +191,12 @@ public class SceneRendererTests
     }
 
     /// <summary>
-    ///     Validates the exact dyadic coverage of an axis-aligned cube: 32 x 32 pixels, honouring the top-left rule.
+    ///     Validates the exact dyadic coverage of an axis-aligned cube: 32 x 32 pixels, honoring the top-left rule.
     /// </summary>
     [Fact]
     public void SceneRenderer_Render_OrthoCubeOnDyadicGrid_CoversExactly32By32Pixels()
     {
-        // Arrange: pixel i has its centre at x = 0.25 i - 7.875; the box edges lie exactly on sample centres
+        // Arrange: pixel i has its center at x = 0.25 i - 7.875; the box edges lie exactly on sample centers
         var box = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-3.875, -3.875, -1), new Vector3D(8, 8, 2));
 
         // Act
@@ -395,7 +395,7 @@ public class SceneRendererTests
     }
 
     /// <summary>
-    ///     Validates that cancelling while a large render is running stops it with OperationCanceledException.
+    ///     Validates that canceling while a large render is running stops it with OperationCanceledException.
     /// </summary>
     [Fact]
     public async Task SceneRenderer_Render_CancelledDuringRender_ThrowsOperationCanceledException()
@@ -451,12 +451,12 @@ public class SceneRendererTests
     }
 
     /// <summary>
-    ///     Validates that a cube mirrored through its own centre plane renders identically to the original.
+    ///     Validates that a cube mirrored through its own center plane renders identically to the original.
     /// </summary>
     [Fact]
     public void SceneRenderer_Render_MirroredSymmetricCube_IdenticalToOriginal()
     {
-        // Arrange: a cube centred on the origin is symmetric under an X mirror; without the winding flip every face would be a back face
+        // Arrange: a cube centered on the origin is symmetric under an X mirror; without the winding flip every face would be a back face
         var cube = Render3DTestHelpers.CreateBoxMesh(new Vector3D(-1, -1, -1), new Vector3D(2, 2, 2));
         var original = SceneOf(cube);
         var mirrored = new Scene(new MeshNode(cube) { Transform = Matrix4x4D.CreateMirror(Vector3D.UnitX) });
@@ -544,7 +544,7 @@ public class SceneRendererTests
     }
 
     /// <summary>
-    ///     Validates that a negative scale inside a group still produces front-facing (not back-face coloured) surfaces.
+    ///     Validates that a negative scale inside a group still produces front-facing (not back-face colored) surfaces.
     /// </summary>
     [Fact]
     public void SceneRenderer_Render_NegativeScaleInGroup_FacesAreFrontFacing()
@@ -705,7 +705,7 @@ public class SceneRendererTests
         // Act
         using var surface = SceneRenderer.RenderFitted(scene, 120, 120, new SceneRenderOptions { Supersampling = 1 }, TestContext.Current.CancellationToken);
 
-        // Assert: the silhouette does not touch the border and is roughly centred (perspective makes the near corners larger, so allow a few pixels)
+        // Assert: the silhouette does not touch the border and is roughly centered (perspective makes the near corners larger, so allow a few pixels)
         var bounds = Render3DTestHelpers.BoundsOfNon(surface, White);
         Assert.True(bounds.MinX > 0 && bounds.MinY > 0 && bounds.MaxX < 119 && bounds.MaxY < 119);
         Assert.InRange(((bounds.MinX + bounds.MaxX) / 2.0) - 59.5, -8.0, 8.0);

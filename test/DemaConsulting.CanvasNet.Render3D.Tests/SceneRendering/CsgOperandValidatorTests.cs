@@ -587,7 +587,7 @@ public class CsgOperandValidatorTests
     }
 
     /// <summary>
-    ///     Validates that validation observes cancellation: cancelling from the handler stops the render.
+    ///     Validates that validation observes cancellation: canceling from the handler stops the render.
     /// </summary>
     [Fact]
     public void CsgOperandValidator_Validate_CancelledFromHandler_ThrowsOperationCanceled()

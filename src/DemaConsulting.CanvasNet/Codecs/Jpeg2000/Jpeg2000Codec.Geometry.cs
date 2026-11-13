@@ -46,7 +46,7 @@ public static partial class Jpeg2000Codec
         /// <summary>Gets or sets the Lblock length-indicator state.</summary>
         public int Lblock { get; set; } = 3;
 
-        /// <summary>Gets or sets the total number of coding passes signalled so far.</summary>
+        /// <summary>Gets or sets the total number of coding passes signaled so far.</summary>
         public int TotalPasses { get; set; }
 
         /// <summary>Gets or sets the accumulated coded bytes of all segments.</summary>

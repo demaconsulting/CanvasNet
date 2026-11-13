@@ -75,7 +75,7 @@ clears the failure; and that a font file removed after the scan gives the bundle
 bundled Mono of the same name: the found family is spent) with the failure naming the file, and
 that a later family of the same list is still tried.
 
-##### CanvasNet-Fonts-FontResolver-AdditionalDirectoryScan: Bounded, Tolerant, Cancellable
+##### CanvasNet-Fonts-FontResolver-AdditionalDirectoryScan: Bounded, Tolerant, Cancelable
 
 **Tests**: `FontResolver_Resolve_AdditionalDirectories_AreScannedWithTheLimitsAndSkipUnusableInput`,
 `FontResolver_Resolve_CanceledToken_StopsTheScanOnlyWhenThereIsOneToDo`

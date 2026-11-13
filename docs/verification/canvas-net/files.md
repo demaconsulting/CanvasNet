@@ -29,7 +29,7 @@ used by any consumer; its scenarios stay until it is removed.
 
 - **Framework**: xUnit v3 running under the .NET SDK
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline on Windows, Linux, and macOS (Arm64), each
-  with .NET 8, 9, and 10
+  with .NET 8, 9, 10, and 11
 - **Mocking**: None; the internal seams (the open hooks, the link probe, the stream opener) are real implementations
   supplied by the tests
 - **Files**: per-test temporary directories, deleted by the test; no checked-in file is read except by the source-tree

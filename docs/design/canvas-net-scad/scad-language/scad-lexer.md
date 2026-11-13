@@ -130,7 +130,7 @@ order.
 
 The lexer is fail-fast: the first lexical error throws a `ScadSyntaxException` whose message is
 `{file}:{line}:{column}: {description}` (the prefix is shortened when the file name is null). No
-recovery is attempted. The complete message catalogue follows; `c` stands for the offending character.
+recovery is attempted. The complete message catalog follows; `c` stands for the offending character.
 
 <!-- markdownlint-disable MD013 -->
 

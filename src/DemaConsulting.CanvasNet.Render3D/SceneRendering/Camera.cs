@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
 ///     <para>
 ///         <b>Conventions.</b> World space is right-handed with +Z up. View space is right-handed
 ///         with the camera looking down -Z, +X to the right and +Y up. Screen pixels have x to the
-///         right, y downward and pixel centres at +0.5.
+///         right, y downward and pixel centers at +0.5.
 ///     </para>
 ///     <para>
 ///         <b>Orbit convention</b> (used by <see cref="FitToBounds"/>): azimuth 0 and elevation 0
@@ -186,16 +186,16 @@ public sealed class Camera
     }
 
     /// <summary>
-    ///     Creates a camera orbiting the centre of <paramref name="bounds"/> that frames the
+    ///     Creates a camera orbiting the center of <paramref name="bounds"/> that frames the
     ///     whole box tightly (plus a margin) for an output of the given aspect ratio.
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         The box is inflated about its centre by <c>1 + marginFraction</c>; the eye distance
+    ///         The box is inflated about its center by <c>1 + marginFraction</c>; the eye distance
     ///         (perspective) or orthographic height is then chosen so that the most demanding of the
     ///         eight inflated corners just touches the frame edge, using the final view basis, so
     ///         the framing is exact rather than bounding-sphere conservative. Empty or zero-size
-    ///         bounds fall back to a unit cube around the bounds centre (the origin when empty).
+    ///         bounds fall back to a unit cube around the bounds center (the origin when empty).
     ///         For perspective views the eye is additionally kept outside the inflated box.
     ///     </para>
     ///     <para>
@@ -210,7 +210,7 @@ public sealed class Camera
     /// <param name="projection">The projection to use.</param>
     /// <param name="fieldOfViewDegrees">The vertical field of view (perspective) in degrees, in (0, 180).</param>
     /// <param name="marginFraction">The fractional margin added around the bounds; finite and not negative (0.05 = 5 %).</param>
-    /// <returns>The framing camera; its <see cref="Target"/> is the bounds centre.</returns>
+    /// <returns>The framing camera; its <see cref="Target"/> is the bounds center.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when an angle is not finite, the aspect ratio is not positive, the field of view is outside (0, 180), the margin is negative or <paramref name="projection"/> is not a defined <see cref="CameraProjection"/> value.</exception>
     public static Camera FitToBounds(
         BoundingBox3D bounds,
@@ -223,14 +223,14 @@ public sealed class Camera
     {
         ValidateFitArguments(azimuthDegrees, elevationDegrees, aspectRatio, projection, fieldOfViewDegrees, marginFraction);
 
-        // Resolve a usable centre and half extents, falling back to a unit cube for empty or degenerate bounds
-        var centre = bounds.IsEmpty ? Vector3D.Zero : bounds.Center;
+        // Resolve a usable center and half extents, falling back to a unit cube for empty or degenerate bounds
+        var center = bounds.IsEmpty ? Vector3D.Zero : bounds.Center;
         var half = bounds.IsEmpty || bounds.Diagonal <= 0.0 || !double.IsFinite(bounds.Diagonal)
             ? new Vector3D(0.5, 0.5, 0.5)
             : bounds.Size * 0.5;
         half *= 1.0 + marginFraction;
 
-        // Orbit direction (centre -> eye) and the resulting view basis
+        // Orbit direction (center -> eye) and the resulting view basis
         var az = azimuthDegrees * Math.PI / 180.0;
         var el = elevationDegrees * Math.PI / 180.0;
         var eyeDirection = new Vector3D(Math.Sin(az) * Math.Cos(el), -Math.Cos(az) * Math.Cos(el), Math.Sin(el)).Normalize();
@@ -267,8 +267,8 @@ public sealed class Camera
             distance = Math.Max(distance, maxZ + (0.1 * radius));
             return new Camera
             {
-                Eye = centre + (eyeDirection * distance),
-                Target = centre,
+                Eye = center + (eyeDirection * distance),
+                Target = center,
                 Up = Vector3D.UnitZ,
                 Projection = CameraProjection.Perspective,
                 FieldOfViewDegrees = fieldOfViewDegrees,
@@ -278,8 +278,8 @@ public sealed class Camera
         // Orthographic: the visible height must cover the tallest corner and the widest corner (width = height * aspect)
         return new Camera
         {
-            Eye = centre + (eyeDirection * (2.0 * radius)),
-            Target = centre,
+            Eye = center + (eyeDirection * (2.0 * radius)),
+            Target = center,
             Up = Vector3D.UnitZ,
             Projection = CameraProjection.Orthographic,
             FieldOfViewDegrees = fieldOfViewDegrees,

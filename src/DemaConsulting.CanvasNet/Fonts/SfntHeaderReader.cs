@@ -34,7 +34,7 @@ internal readonly record struct SfntFaceInfo(
 ///     <c>CFF </c>), a non-zero <c>head.unitsPerEm</c>, a valid <c>head.indexToLocFormat</c> for
 ///     glyf-flavored faces, and a <c>maxp</c> version consistent with the outline flavor. The
 ///     glyph data itself is not validated, so a face whose headers are well
-///     formed but whose outline data is corrupt is catalogued here and only fails when it is
+///     formed but whose outline data is corrupt is cataloged here and only fails when it is
 ///     actually loaded.
 ///     </para>
 ///     <para>

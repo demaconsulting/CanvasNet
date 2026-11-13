@@ -93,7 +93,7 @@ framework.
   `linear_extrude` of a difference of an `H` of size 10 and a square and asserts no warning and no unsupported
   feature, one boolean node of two closed extrusions, and for the first the exact Y extent 0 to 10 of the glyph
   and the Z extent 0 to 2 of the extrusion. That a mapped glyph with only degenerate outlines is reported as an invalid
-  outline rather than dropped, and that font discovery is bounded and cancellable, is verified at the unit tier
+  outline rather than dropped, and that font discovery is bounded and cancelable, is verified at the unit tier
   (see _ScadTextGeometry Unit Verification Design_).
 - **Reporting Never Skips Silently** (requirement `CanvasNetScad-ScadGeometry-Reporting`):
   `ScadGeometryTests.ScadGeometry_Build_InvalidAndUnsupportedConstructs_AreReportedAtTheirLocations` — builds a

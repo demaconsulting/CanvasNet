@@ -1,6 +1,6 @@
 ---
 title: CanvasNet Requirements
-subtitle: Requirements Specification for CanvasNet
+subtitle: Canvas rendering library for .NET
 author: DEMA Consulting
 description: Requirements Specification for CanvasNet
 lang: en-US
