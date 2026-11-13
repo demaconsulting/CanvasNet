@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         A link that cannot be resolved (missing, denied by the file-access policy, over a limit) is <b>not</b> an exception; it is
+///         A link that cannot be resolved (missing, outside the folder, over a limit) is <b>not</b> an exception; it is
 ///         a warning and nothing is drawn. This exception is for a file that exists and is allowed but cannot be drawn.
 ///         The original failure is the <see cref="Exception.InnerException"/> with its type intact, so a caller can map
 ///         it (for example to an error code) and keep <see cref="Href"/> and <see cref="Embedder"/> to say which files
